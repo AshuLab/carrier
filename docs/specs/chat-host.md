@@ -140,6 +140,7 @@ type ChatEvent =
   | { kind: 'option'; id: string; value: string }
   | { kind: 'turn_start' }                                   // a turn the provider opened itself (a background subagent ended); the host's own, never stored
   | { kind: 'turn_end'; outcome: 'ok' | 'interrupted' | 'error'; model?: string; usage?: ChatUsage }
+  | { kind: 'compact'; trigger?: 'manual' | 'auto'; before?: number; after?: number; ms?: number; error?: string }  // the provider summarized the conversation to free context (the person's `/compact` or its own auto-compact): the context in tokens before and after; `error` instead when it failed and the context is as it was
   | { kind: 'error'; text: string }
   | { kind: 'notice'; text: string; lostNativeId?: string };  // said by the host, never by an adapter: a plain line, not a failure
 

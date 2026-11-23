@@ -96,6 +96,13 @@ public struct ChatEvent: Codable, Equatable {
     public var resetsAt: Int?
     /// When that limit resets, in the provider's own words, when it gives only those.
     public var resetText: String?
+    /// A `compact` event, the provider summarizing the conversation to free context: `manual` (the person's `/compact`) or `auto`, nil when the provider does not say.
+    public var trigger: String?
+    /// The context, in tokens, before and after that summary; nil when the provider does not say. `ms` is how long it took.
+    public var before: Double?
+    public var after: Double?
+    /// Set on a `compact` that failed, and only then: why. The context is as it was.
+    public var error: String?
 
     /// The agents of a switch, as `chat.json` names them.
     public struct Switched: Codable, Equatable {
@@ -118,7 +125,8 @@ public struct ChatEvent: Codable, Equatable {
         status: String? = nil, approvalId: String? = nil, choices: [ChatChoice]? = nil, choiceId: String? = nil, outcome: String? = nil,
         model: String? = nil, usage: [String: Double]? = nil, step: String? = nil, detail: String? = nil, action: String? = nil, when: String? = nil, questions: [ChatQuestion]? = nil,
         answers: [String: String]? = nil, parentCallId: String? = nil, taskId: String? = nil, state: String? = nil, agentType: String? = nil,
-        lastTool: String? = nil, tools: Int? = nil, tokens: Int? = nil, ms: Int? = nil, background: Bool? = nil, switched: Switched? = nil, reason: String? = nil, resetsAt: Int? = nil, resetText: String? = nil
+        lastTool: String? = nil, tools: Int? = nil, tokens: Int? = nil, ms: Int? = nil, background: Bool? = nil, switched: Switched? = nil, reason: String? = nil, resetsAt: Int? = nil, resetText: String? = nil,
+        trigger: String? = nil, before: Double? = nil, after: Double? = nil, error: String? = nil
     ) {
         self.id = id
         self.at = at
@@ -154,6 +162,10 @@ public struct ChatEvent: Codable, Equatable {
         self.reason = reason
         self.resetsAt = resetsAt
         self.resetText = resetText
+        self.trigger = trigger
+        self.before = before
+        self.after = after
+        self.error = error
     }
 }
 
@@ -302,11 +314,13 @@ public enum FeedRow: Equatable, Identifiable {
     /// A `/clear` that went through: the agent starts again from an empty context. `freed` is the context the turn before it ended with, nil when
     /// no turn said it. It stands where the empty turn's line would be.
     case cleared(id: String, freed: Double?)
+    /// The provider summarized the conversation to free context, on the person's `/compact` or by itself: a cut like the clear's, where the agent goes on from the summary.
+    case compacted(id: String, Compaction)
 
     public var id: String {
         switch self {
         case .user(let id, _), .agent(let id, _, _), .turnEnd(let id, _), .tools(let id, _), .approval(let id, _), .decided(let id, _, _),
-            .line(let id, _), .switched(let id, _), .error(let id, _), .stopped(let id), .cleared(let id, _): id
+            .line(let id, _), .switched(let id, _), .error(let id, _), .stopped(let id), .cleared(let id, _), .compacted(let id, _): id
         }
     }
 }
@@ -325,6 +339,53 @@ public func clearedDetail(agent: String) -> String {
 public func clearedFreedText(_ freed: Double?) -> String? {
     guard let freed, freed > 0 else { return nil }
     return "\(TurnSummary.tokens(freed)) tokens freed"
+}
+
+/// What a `compact` event says: when it ran, the context it left and what it cost; `error` is set when it failed and nothing else is.
+public struct Compaction: Equatable {
+    public let auto: Bool
+    public let before: Double?
+    public let after: Double?
+    public let ms: Int?
+    public let error: String?
+
+    public init(auto: Bool = false, before: Double? = nil, after: Double? = nil, ms: Int? = nil, error: String? = nil) {
+        self.auto = auto
+        self.before = before
+        self.after = after
+        self.ms = ms
+        self.error = error
+    }
+
+    init(_ event: ChatEvent) {
+        self.init(auto: event.trigger == "auto", before: event.before, after: event.after, ms: event.ms, error: event.error)
+    }
+
+    /// The capsule's title.
+    public var title: String { error == nil ? "Context compacted" : "Compaction failed" }
+
+    /// `142.3k → 18.4k tokens` from the sizes the provider gave (`18.4k tokens left` when it gave only what is left), with `auto` before when the agent did it by itself; nil when there is nothing to say.
+    public var sizes: String? {
+        guard error == nil else { return nil }
+        var parts: [String] = auto ? ["auto"] : []
+        if let before, let after, before > 0 { parts.append("\(TurnSummary.tokens(before)) \u{2192} \(TurnSummary.tokens(after)) tokens") }
+        else if let after, after > 0 { parts.append("\(TurnSummary.tokens(after)) tokens left") }
+        return parts.isEmpty ? nil : parts.joined(separator: " \u{00B7} ")
+    }
+
+    /// `−87%`: how much of the context the summary freed; nil unless both sizes are known and it did free some.
+    public var saved: String? {
+        guard error == nil, let before, let after, before > 0, after < before else { return nil }
+        return "\u{2212}\(Int(((before - after) / before * 100).rounded()))%"
+    }
+
+    /// Under the capsule: what happened to the agent's view of the conversation. A failure says the context is as it was and why.
+    public func detail(agent: String) -> String {
+        if let error { return "The context is unchanged. \(error)" }
+        let took = ms.map { " Took \(formatDuration($0))." } ?? ""
+        if auto { return "The context filled up, so \(agent) summarized the earlier conversation and went on. The messages above stay here to read.\(took)" }
+        return "\(agent) summarized the earlier conversation to free space. The messages above stay here to read; from now on it works from the summary.\(took)"
+    }
 }
 
 /// Whether a message of the person is the `/clear` command: the whole text, with no argument.
@@ -502,6 +563,8 @@ public func chatFeed(_ events: [ChatEvent], streaming: String = "", pending: Set
             if event.outcome != "error", event.outcome != "interrupted", case .user(_, let said)? = rows.last, isClearCommand(said) {
                 rows.append(.cleared(id: id, freed: lastContext))
                 lastContext = nil
+            } else if case .compacted? = rows.last {
+                // a `/compact` the agent answered with nothing more: the cut is what the turn said, and its own line of statistics would only be empty
             } else if let summary = TurnSummary(event, turnStart: turnStart) {
                 rows.append(.turnEnd(id: id, summary))
                 lastContext = summary.contextTokens ?? lastContext
@@ -511,6 +574,11 @@ public func chatFeed(_ events: [ChatEvent], streaming: String = "", pending: Set
         case "error":
             release()
             rows.append(.error(id: id, text: event.text ?? "Something went wrong"))
+        case "compact":
+            release()
+            rows.append(.compacted(id: id, Compaction(event)))
+            // what it left is the context now (a failed one changed nothing)
+            if event.error == nil { lastContext = event.after }
         case "notice":
             // said by the host (a resume that began a new conversation): a plain line, never the banner of a failed turn; a change of agent is its own row
             release()
@@ -621,9 +689,15 @@ public struct ContextUse: Equatable {
 
 /// The context of the last turn that told it (a turn that was cut short, or a host that does not say it, leaves the one before).
 public func contextUse(_ rows: [FeedRow]) -> ContextUse? {
-    for row in rows.reversed() {
+    for (index, row) in rows.enumerated().reversed() {
         // a `/clear` emptied it: what the turns before it read is not the context any more
         if case .cleared = row { return nil }
+        // a summary left what it says (the window is the model's, as the turns before it told it); a failed one left it as it was
+        if case .compacted(_, let cut) = row, cut.error == nil {
+            guard let left = cut.after else { return nil }
+            let window = rows[..<index].reversed().lazy.compactMap { row -> Double? in if case .turnEnd(_, let summary) = row { summary.contextWindow } else { nil } }.first
+            return ContextUse(tokens: left, window: window)
+        }
         if case .turnEnd(_, let summary) = row, let tokens = summary.contextTokens { return ContextUse(tokens: tokens, window: summary.contextWindow) }
     }
     return nil

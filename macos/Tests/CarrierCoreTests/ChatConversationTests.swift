@@ -25,6 +25,7 @@ private func texts(_ rows: [FeedRow]) -> [String] {
         case .error(_, let text): "error: \(text)"
         case .stopped: "stopped"
         case .cleared(_, let freed): "cleared: \(clearedFreedText(freed) ?? "")"
+        case .compacted(_, let cut): "compacted: \([cut.title, cut.sizes, cut.saved].compactMap { $0 }.joined(separator: " | "))"
         }
     }
 }
@@ -1323,6 +1324,48 @@ private func turnEnd(_ id: Int, _ usage: [String: Double]?, outcome: String = "o
     #expect(texts(chatFeed([person(1, "/clear"), turnEnd(2, nil, outcome: "interrupted")])).contains { $0.hasPrefix("cleared") } == false)
     #expect(clearedFreedText(nil) == nil && clearedFreedText(0) == nil)
     #expect(clearedDetail(agent: "Lu").hasPrefix("The messages above stay here to read, but Lu no longer sees them"))
+}
+
+// MARK: /compact
+
+private func compact(_ id: Int, trigger: String? = "manual", before: Double? = nil, after: Double? = nil, ms: Int? = nil, error: String? = nil) -> ChatEvent {
+    ChatEvent(id: id, at: id * 1000, kind: "compact", ms: ms, trigger: trigger, before: before, after: after, error: error)
+}
+
+@Test func aCompactIsACutThatSaysTheSizesBeforeAndAfterInPlaceOfTheEmptyTurnLine() {
+    let events = [
+        person(1, "hi"), say(2), turnEnd(3, ["context_tokens": 142_300, "context_window": 200_000]),
+        person(4, "/compact"), compact(5, before: 142_300, after: 18_400, ms: 14_000), turnEnd(6, ["input_tokens": 0, "output_tokens": 0]),
+        person(7, "and now?"),
+    ]
+    #expect(texts(chatFeed(events)) == ["user: hi", "agent: m2", "end: sonnet 5.5 · 2s · 142.3k context", "user: /compact", "compacted: Context compacted | 142.3k → 18.4k tokens | −87%", "user: and now?"])
+}
+
+@Test func anAutoCompactInTheMiddleOfATurnCutsWithoutTheCommandAndTheTurnKeepsItsOwnLine() {
+    let events = [person(1, "go"), say(2), compact(3, trigger: "auto", before: 181_000, after: 22_000), say(4), turnEnd(5, ["context_tokens": 25_000])]
+    #expect(texts(chatFeed(events)) == ["user: go", "agent: m2", "compacted: Context compacted | auto · 181.0k → 22.0k tokens | −88%", "agent: m4", "end: sonnet 5.5 · 4s · 25.0k context"])
+}
+
+@Test func whatACompactDoesNotSayIsLeftOutAndAFailureSaysWhyAndChangesNothing() {
+    #expect(Compaction(auto: false).sizes == nil && Compaction(auto: false).saved == nil)
+    #expect(Compaction(auto: true).sizes == "auto")
+    #expect(Compaction(after: 18_400).sizes == "18.4k tokens left" && Compaction(before: 142_300).sizes == nil)
+    // nothing was freed: no percentage
+    #expect(Compaction(before: 10_000, after: 10_000).saved == nil)
+    let failed = Compaction(error: "Not enough room")
+    #expect(failed.title == "Compaction failed" && failed.sizes == nil && failed.detail(agent: "Lu") == "The context is unchanged. Not enough room")
+    #expect(Compaction(ms: 14_000).detail(agent: "Lu").hasSuffix("Took \(formatDuration(14_000))."))
+    #expect(Compaction(auto: true).detail(agent: "Lu").hasPrefix("The context filled up, so Lu summarized"))
+}
+
+@Test func theContextAfterACompactIsWhatItLeftInTheWindowOfTheTurnsBeforeAndAFailedOneChangesNothing() {
+    let before = [person(1, "hi"), turnEnd(2, ["context_tokens": 142_300, "context_window": 200_000]), person(3, "/compact")]
+    #expect(contextUse(chatFeed(before + [compact(4, before: 142_300, after: 18_400), turnEnd(5, nil)])) == ContextUse(tokens: 18_400, window: 200_000))
+    #expect(contextUse(chatFeed(before + [compact(4, error: "no room"), turnEnd(5, nil)]))?.tokens == 142_300)
+    // a summary that did not say what it left leaves nothing known, as a clear does
+    #expect(contextUse(chatFeed(before + [compact(4), turnEnd(5, nil)])) == nil)
+    // a later turn tells the context again
+    #expect(contextUse(chatFeed(before + [compact(4, after: 18_400), turnEnd(5, nil), person(6, "go"), turnEnd(7, ["context_tokens": 20_000])]))?.tokens == 20_000)
 }
 
 @Test func theContextInUseIsTheLastTurnThatToldItWithTheWindowItCameWith() {

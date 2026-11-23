@@ -410,7 +410,10 @@ struct FeedRowView: View, Equatable {
         case .switched(_, let switched):
             AgentSwitchDivider(switched: switched)
         case .cleared(_, let freed):
-            ClearedDivider(freed: freed, agent: ProviderIdentityStore.shared.shortName(of: agent))
+            ContextCutDivider(glyph: .brush, title: "Context cleared", notes: [clearedFreedText(freed)].compactMap { $0 }, detail: clearedDetail(agent: ProviderIdentityStore.shared.shortName(of: agent)))
+        case .compacted(_, let cut):
+            ContextCutDivider(glyph: cut.error == nil ? .arrowsMinimize : .warning, title: cut.title, notes: [cut.sizes, cut.saved].compactMap { $0 },
+                              detail: cut.detail(agent: ProviderIdentityStore.shared.shortName(of: agent)), failed: cut.error != nil)
         case .error(_, let text):
             BannerView(banner: failedTurnBanner(agent: ProviderIdentityStore.shared.shortName(of: agent), error: text), agent: agent, copyDetails: true, retry: offersWayOut ? actions.retry : nil)
         case .stopped:

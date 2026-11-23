@@ -79,6 +79,7 @@ private let agents = PanelSnapshot.Agents(
         .init(executionId: "exec-ship-13", repo: "acme/web", issue: 13, stage: .ship, round: nil, harness: "claude", model: "claude-sonnet-5-5",
               startedAt: 7_000, last: .init(kind: "say", text: "Writing the migration", at: 99_500)),
     ])
+    #expect(s.epics.map(\.resumeAt) == [nil, nil, nil, nil, nil, nil, nil, nil, nil, 90_000_000, nil])
     #expect(s.epics.map(\.needsHumanKind) == [nil, nil, "review_limit", "agent_needs_human", "retries_exhausted", "timeout", "auth", "workspace", "pr_invalid", "usage_limit", "engine_error"])
     #expect(s.epics[2].finishedAt == 60_000)
 }

@@ -31,6 +31,8 @@ import { AuthError, GitHubRejected, GitHubUnavailable, hasLabel, isNotFound, lab
 import { reserve } from './reserve.ts';
 import { startRetention, type SessionDirs } from './retention.ts';
 import { failureStreak, isOfAttempt } from './retry.ts';
+import type { QuotaReader } from './quota.ts';
+import { resumeAtOf } from './resume-at.ts';
 
 export type EngineSettings = {
   pollIntervalMs: number;
@@ -38,6 +40,10 @@ export type EngineSettings = {
   maxExecutionHours: number | 'unlimited';
   /** Minutes a process may write nothing before it is killed and retried; absent: no watchdog. */
   idleMinutes?: number;
+  /** With it on, an epic that stops in `usage_limit` keeps the time its window comes back as `resumeAt`. */
+  autoResume: boolean;
+  /** A window that comes back later than this many hours from the stop is not scheduled. */
+  autoResumeMaxHours: number;
   /** Technical failures retried per stage after the first attempt. */
   maxExecutionRetries: number;
   /** Reviews of the final PR before the epic goes to a person; fix turns do not count. */
@@ -56,6 +62,8 @@ export type EngineOptions = {
   settings: () => EngineSettings;
   runner: AgentRunner;
   workspaces: Workspaces;
+  /** Where the quota of an account is read, to know when an exhausted window comes back. */
+  quota: QuotaReader;
   /** The engine's places: execution results go under `<state>/results/`, their output under `<logs>/executions/`. */
   places: Pick<EnginePlaces, 'state' | 'logs'>;
   /** Where the CLIs keep sessions, for the 30-day cleanup; the CLIs' own folders by default. */
@@ -97,7 +105,7 @@ const executionStatus: Record<AgentExit, (typeof executionStates)[number]> = {
   session_unavailable: 'failed',
 };
 
-export function createEngine({ db, github, clock, repos, settings, runner, workspaces, places, sessionDirs, profileDeclared }: EngineOptions) {
+export function createEngine({ db, github, clock, repos, settings, runner, workspaces, quota, places, sessionDirs, profileDeclared }: EngineOptions) {
   let error: GitHubUnavailable | AuthError | null = null;
   let nextPollAt: number | null = null;
   let paused = false; // intake only: nothing new is reserved, what is running goes on
@@ -159,7 +167,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
   const restart = (queuedAt: number) => ({
     status: 'queued' as const, queuedAt, startedAt: null, config: null, labelPending: false, stage: null, stageStartedAt: null, workspace: null,
     lastActivityAt: null, lastError: null, round: null, prNumber: null, prHeadSha: null, pr: null, reviewedSha: null, verification: null, observationsPassAt: null,
-    needsHumanReason: null, needsHumanKind: null, finishedAt: null, authorOption: null, reviewerOption: null, recoveries: 0, resumeStage: null, roundLimit: null,
+    needsHumanReason: null, needsHumanKind: null, finishedAt: null, authorOption: null, reviewerOption: null, recoveries: 0, resumeStage: null, roundLimit: null, resumeAt: null,
   });
   // The rounds an epic may have: what a resume granted it, else the live setting (a changed `maxReviews` applies at the epic's next review).
   const roundCap = (epic: Epic) => epic.roundLimit ?? settings().maxReviews;
@@ -167,7 +175,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
   // worktree and the rest of where it stood; `resumeStage` tells `begin` where to start.
   const requeueKeeping = (queuedAt: number) => ({
     status: 'queued' as const, queuedAt, startedAt: null, config: null, labelPending: false, stage: null, stageStartedAt: null,
-    lastActivityAt: null, lastError: null, needsHumanReason: null, needsHumanKind: null, finishedAt: null, authorOption: null, reviewerOption: null, recoveries: 0,
+    lastActivityAt: null, lastError: null, needsHumanReason: null, needsHumanKind: null, finishedAt: null, authorOption: null, reviewerOption: null, recoveries: 0, resumeAt: null,
   });
 
   // Mirrors the epic's status on its issue: its labels, none of the other owned ones, and no `ready` while running.
@@ -391,15 +399,49 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     return { relaunched: true };
   }
 
+  // When the windows the epic ran out of come back, by the probe of each option's account asked now: the option of this execution and the ones that
+  // ran out earlier in this attempt. An option that is a local server, or whose probe does not answer, says nothing.
+  async function windowComesBack(epic: Epic, execution: Execution) {
+    const earlier = db.select().from(executions).where(and(eq(executions.epicId, epic.id), eq(executions.failureKind, 'usage_limit'))).all().filter((run) => isOfAttempt(run, epic));
+    const runs = new Map([execution, ...earlier].map((run) => [`${run.option}\n${run.model}`, run]));
+    const ranOut = await Promise.all([...runs.values()].map(async (run) => {
+      if (run.provider !== null || !(run.harness === 'claude' || run.harness === 'codex' || run.harness === 'agy')) return undefined;
+      const command = run.option ? epic.config?.providers?.[run.option]?.command : undefined;
+      try {
+        return { model: run.model, snapshot: await quota({ provider: run.harness, ...(run.configDir && { configDir: run.configDir }), ...(command && { command }) }) };
+      } catch (e) {
+        log.error('the quota check failed', e, { epicId: epic.id });
+        return undefined;
+      }
+    }));
+    return resumeAtOf(ranOut.filter((r) => r !== undefined));
+  }
+
   // A stage ended on its usage limit: another option of the failover list, or the epic stops for a person. The reason says how to go on
   // (the panel cuts long lines, so the way out comes before the agent's own detail, which carries the reset time).
+  // With `autoResume` on it also says when the window comes back, and the epic keeps that time as `resumeAt` when it is within `autoResumeMaxHours`.
   async function onUsageLimit(epicId: number, execution: Execution) {
     const moved = await failOver(epicId, execution.stage, execution);
     if (moved.relaunched || !stillRunning(epicId)) return;
+    const { autoResume, autoResumeMaxHours } = settings(); // read once: a reload applies to the next stop
+    const back = autoResume ? await windowComesBack(fresh(epicId), execution) : undefined;
+    if (!stillRunning(epicId)) return; // the probe took time: the epic may have ended or been parked meanwhile
     const { repo, issue } = fresh(epicId);
     const role = execution.stage === 'review' ? 'reviewer' : 'author';
     const detail = execution.failureDetail ? ` · ${execution.failureDetail}` : '';
-    toNeedsHuman(db, epicId, 'usage_limit', `the ${execution.stage} execution ran out of usage on option ${execution.option ?? execution.harness} · carrier restart ${repo}#${issue} --${role} <option>${detail}${moved.why}`);
+    const scheduled = back !== undefined && back - clock.now() <= autoResumeMaxHours * 3_600_000;
+    const when = back === undefined ? '' : new Date(back).toISOString();
+    const wake = !autoResume ? ''
+      : back === undefined ? ' · it will not resume by itself: the provider did not say when the window comes back'
+      : scheduled ? ` · resumes by itself at ${when}`
+      : ` · the window comes back at ${when}, more than ${autoResumeMaxHours} h away: it will not resume by itself`;
+    db.transaction((tx) => {
+      toNeedsHuman(tx, epicId, 'usage_limit', `the ${execution.stage} execution ran out of usage on option ${execution.option ?? execution.harness} · carrier restart ${repo}#${issue} --${role} <option>${wake}${detail}${moved.why}`);
+      if (scheduled) {
+        tx.update(epics).set({ resumeAt: back }).where(eq(epics.id, epicId)).run();
+        tx.insert(epicEvents).values({ epicId, at: clock.now(), type: 'auto_resume_scheduled', data: { resumeAt: back } }).run();
+      }
+    });
     await freeSlot();
   }
 
@@ -756,7 +798,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
   // The epic ended outside Carrier: its status and event are written, its runs stopped. `labelPending` is false when the issue cannot be written to.
   async function finish(epic: Epic, end: { status: 'merged' | 'cancelled'; reason: string }, labelPending = true) {
     const ended = db.update(epics)
-      .set({ status: end.status, ...(end.status === 'cancelled' && { cancelReason: end.reason }), finishedAt: clock.now(), labelPending })
+      .set({ status: end.status, ...(end.status === 'cancelled' && { cancelReason: end.reason }), finishedAt: clock.now(), labelPending, resumeAt: null })
       .where(and(eq(epics.id, epic.id), inArray(epics.status, ['running', 'needs_human', 'ready_for_test']))) // parked while GitHub was asked: `repo_removed` stays
       .returning()
       .get();
@@ -890,7 +932,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     const restored: number[] = [];
     for (const epic of db.select().from(epics).where(and(inArray(epics.status, ['queued', 'running', 'needs_human']), notInArray(epics.repo, configured))).all()) {
       const reason = 'the repo is no longer in the configuration';
-      db.update(epics).set({ status: 'repo_removed', removedFrom: epic.status, removedReason: reason }).where(eq(epics.id, epic.id)).run();
+      db.update(epics).set({ status: 'repo_removed', removedFrom: epic.status, removedReason: reason, resumeAt: null }).where(eq(epics.id, epic.id)).run();
       db.insert(epicEvents).values({ epicId: epic.id, at: now, type: 'repo_removed', data: { from: epic.status, reason } }).run();
       epochs.set(epic.id, epochOf(epic.id) + 1);
       const runs = db.select().from(executions).where(and(eq(executions.epicId, epic.id), eq(executions.status, 'running'))).all().flatMap(({ executionId }) => active.get(executionId) ?? []);

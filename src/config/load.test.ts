@@ -116,6 +116,16 @@ describe('invalid config', () => {
     expect(limits.required ?? []).not.toContain('idleMinutes');
   });
 
+  test('autoResume is off and autoResumeMaxHours is 12 by default, and both are checked', () => {
+    expect(defaults.limits).toMatchObject({ autoResume: false, autoResumeMaxHours: 12 });
+    expect(load({ limits: { autoResume: true, autoResumeMaxHours: 0.5 } }).ok).toBe(true);
+    expect(errorsOf({ limits: { autoResume: 'yes' } }).map((e) => e.path)).toEqual(['limits.autoResume']);
+    for (const value of [0, -1, '12']) expect(errorsOf({ limits: { autoResumeMaxHours: value } }).map((e) => e.path)).toEqual(['limits.autoResumeMaxHours']);
+    const limits = userConfigJsonSchema().properties!.limits!;
+    expect(limits.required ?? []).not.toContain('autoResume');
+    expect(limits.required ?? []).not.toContain('autoResumeMaxHours');
+  });
+
   test('unknown profile references', () => {
     const errors = errorsOf({
       orchestratorProfile: 'ghost',

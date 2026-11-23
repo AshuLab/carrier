@@ -19,6 +19,9 @@ import { installFileLogging } from '../../logging/logger.ts';
 import { realClock, type Clock } from '../../orchestration/clock.ts';
 import { createEngine } from '../../orchestration/engine.ts';
 import { AuthError, type GitHub } from '../../orchestration/github.ts';
+import type { QuotaReader } from '../../orchestration/quota.ts';
+import { createQuotas } from '../../usage/quotas.ts';
+import { realUsagePorts } from '../../usage/real.ts';
 import { ReloadRefused } from '../../orchestration/reload-refused.ts';
 import { sessionDirsFrom, type SessionDirs } from '../../orchestration/retention.ts';
 import { renderDashboard } from '../dashboard/dashboard.ts';
@@ -48,6 +51,8 @@ export interface CarrierDeps {
   makeGitHub: (options: GhGitHubOptions) => GitHub;
   makeWorkspaces: (options: GitWorkspacesOptions) => Workspaces;
   makeRunner: (options: HostRunnerOptions) => AgentRunner;
+  /** Reads the quota of an account from its provider now, for the wake-up of an epic stopped on its quota. */
+  makeQuota: () => QuotaReader;
   mint: NonNullable<CredentialsOptions['mint']>;
   botId?: CredentialsOptions['botId'];
   sessionDirs: SessionDirs;
@@ -73,6 +78,10 @@ const realDeps = (): CarrierDeps => ({
   makeGitHub: (options) => new GhGitHub(options),
   makeWorkspaces: (options) => new GitWorkspaces(options),
   makeRunner: (options) => new HostAgentRunner(options),
+  makeQuota: () => {
+    const quotas = createQuotas(realUsagePorts);
+    return (target) => quotas(target, { refresh: true });
+  },
   mint: (profile, repo) => profileToken(profile)(repo),
   sessionDirs: sessionDirsFrom(),
   listRepos: listAvailableRepos,
@@ -122,6 +131,7 @@ export async function startCarrier(started: Config, folder: string, loadConfig: 
     github,
     // async: a profile or repo that is gone throws inside authorProfile, and the caller must get a rejection, not a synchronous throw
     workspaces: deps.makeWorkspaces({ places, token: async (repo) => deps.mint(authorProfile(repo), repo) }),
+    quota: deps.makeQuota(),
     runner: deps.makeRunner({ credentials: profileCredentials({ profiles: () => config.profiles, mint: deps.mint, botId: deps.botId }) }),
     repos: () => repos,
     profileDeclared: (name) => Object.hasOwn(config.profiles, name),
@@ -132,6 +142,8 @@ export async function startCarrier(started: Config, folder: string, loadConfig: 
       maxExecutionRetries: config.limits.maxExecutionRetries,
       maxExecutionHours: config.limits.maxExecutionHours,
       idleMinutes: config.limits.idleMinutes,
+      autoResume: config.limits.autoResume,
+      autoResumeMaxHours: config.limits.autoResumeMaxHours,
       labels: config.labels,
     }),
     places,

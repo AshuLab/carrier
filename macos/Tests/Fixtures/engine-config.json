@@ -15,7 +15,9 @@
       "maxReviews": 5,
       "maxExecutionRetries": 3,
       "maxExecutionHours": 4,
-      "githubCallTimeoutSeconds": 30
+      "githubCallTimeoutSeconds": 30,
+      "autoResume": false,
+      "autoResumeMaxHours": 12
     }
   },
   "cases": [

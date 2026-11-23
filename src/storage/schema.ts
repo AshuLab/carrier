@@ -52,6 +52,8 @@ export const epics = sqliteTable(
     resumeStage: text({ enum: ['review', 'fix'] }),
     // The cap of review rounds a resume granted this epic; null: the live `maxReviews`. A restart from ship clears it with the rounds.
     roundLimit: integer(),
+    // ms since epoch: when the provider says the window an epic stopped on (`usage_limit`) comes back, with `limits.autoResume` on; cleared by any change of status. Null: no wake-up.
+    resumeAt: integer(),
   },
   (table) => [uniqueIndex('epics_repo_issue').on(table.repo, table.issue)],
 );

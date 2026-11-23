@@ -1,4 +1,6 @@
+import type { QuotaSnapshot, QuotaTarget } from '../usage/types.ts';
 import type { Clock } from './clock.ts';
+import type { QuotaReader } from './quota.ts';
 import { AuthError, GitHubRejected, GitHubUnavailable, defaultLabels, hasLabel, type EpicSlice, type PullRequestBlock, type PullRequestState, type ReviewThread, type GitHub, type LabelStyle, type RateLimit, type Slices } from './github.ts';
 
 export class FakeGitHub implements GitHub {
@@ -164,4 +166,19 @@ export class FakeClock implements Clock {
     }
     this.time = target;
   }
+}
+
+/** The quota port: answers the snapshot set for an account (its `configDir`, else its provider); an account not set up is unavailable. */
+export class FakeQuota {
+  snapshots: Record<string, QuotaSnapshot> = {};
+  /** Makes every read throw. */
+  failing = false;
+  /** Every target a read reached the port with. */
+  asked: QuotaTarget[] = [];
+
+  read: QuotaReader = async (target) => {
+    this.asked.push(target);
+    if (this.failing) throw new Error('the probe blew up');
+    return this.snapshots[target.configDir ?? target.provider] ?? { provider: target.provider, status: 'unavailable', checkedAt: 0, windows: [] };
+  };
 }

@@ -46,6 +46,15 @@ test('an epic shows its own cap of rounds: the granted roundLimit, else the live
   expect(snapshot().epics.map((e) => [e.issue, e.maxReviews])).toEqual([[1, 10], [2, 5]]);
 });
 
+test('an epic stopped with a resumeAt carries it, and one with none has no such field', () => {
+  add(1, 'needs_human', { needsHumanKind: 'usage_limit', resumeAt: 190_000 });
+  add(2, 'needs_human', { needsHumanKind: 'usage_limit' });
+  const [waiting, plain] = snapshot().epics;
+  expect(waiting).toMatchObject({ issue: 1, resumeAt: 190_000 });
+  expect(plain).not.toHaveProperty('resumeAt');
+  expect(renderPanel(snapshot()).join('\n')).toContain('resumes: in 1m 30s');
+});
+
 test('an epic carries its stage, round, links, activity, error and the blockers of the last review that asked for changes', () => {
   const epic = add(12, 'running', {
     stage: 'fix', round: 2, prNumber: 50, startedAt: 1_000, stageStartedAt: 40_000, lastActivityAt: 90_000, lastError: 'the agent process ended with an error',

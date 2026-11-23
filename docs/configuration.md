@@ -94,6 +94,7 @@ The accounts the roles name (`claude` and `codex` here) are declared in `provide
 | `agents.leadReviewer` | no | none | Optional technical lead role `{ profile, provider, model, persona? }` (configuration setup; reserved for upcoming lead reviewer gating in the Carrier flow). |
 | `agents.<role>.effort` | no | none | How hard the model thinks: one of `low`, `medium`, `high`, `xhigh` or `max`, in the global role and in a repo's override of it. Passed as `--effort` to Claude and Antigravity and as `-c model_reasoning_effort=<level>` to Codex, in every run and resume. Without it nothing is passed and the CLI uses its own. Anything else is refused naming the key. |
 | `agents.<role>.persona` | no | none | `{ name?, prompt? }`: who the agent of that role is. `name` is one line of at most 40 characters; `prompt` is text of at most 4000 characters, given to the agent as you wrote it. See [Personas](#personas). |
+| `skills` | no | Solve's: `ship`, `code-review` with `code-post`, `code-resolve` | The skill each stage runs: `{ ship, review: { review, publish }, fix }`, also in a repo and in a role. See [Skills](#skills). |
 | `failover` | no | none | `{ triggers?, roles? }`: for each role, a list of steps it moves through when its credits run out or service fails. See [Failover](#failover). |
 | `pollIntervalMinutes` | no | `5` | How often it looks for ready epics. |
 | `labels` | no | the `solve:epic…` names below | The label of each role, the same in every repo: `{ epic, ready, running, readyForTest, needsHuman }`, each optional. A name is one line without commas, at most 50 characters, and no two roles, stages or kinds of stop may share one (GitHub ignores case, so `Solve:Epic` is `solve:epic`): a config that repeats one is refused naming the second. See [Labels](#labels). |
@@ -301,6 +302,36 @@ A role, author or reviewer, can have a persona: a name and a prompt that say who
 ```
 
 A repo's `agents.<role>.persona` replaces the global persona of that role whole, not field by field. When `carrier init` edits a config, an empty answer keeps a persona field and `-` clears it. The name is trimmed and cannot contain a line break; the prompt is trimmed and cannot be empty.
+
+## Skills
+
+The prompt of each stage invokes a skill by name, and `skills` says which.
+By default they are Solve's: `ship` for the ship stage, `code-review` (and `code-post`, which publishes its report) for the review stage, and `code-resolve` for the fix stage.
+
+```json
+{
+  "skills": {
+    "ship": "ship",
+    "review": { "review": "code-review", "publish": "code-post" },
+    "fix": "code-resolve"
+  },
+  "repos": [{ "name": "owner/repo", "skills": { "review": { "review": "my-review", "publish": null } } }],
+  "agents": { "reviewer": { "profile": "reviewer-bot", "provider": "claude", "model": "<model>", "skills": { "review": { "review": "my-review" } } } }
+}
+```
+
+A skill is only a name: a letter or digit first, then letters, digits, `_`, `.`, `:` or `-`, at most 64 characters (`ship` and `solve:ship` are fine).
+Anything else (empty, blanks, a leading `/` or `$`, a path, a line break, a semicolon, a non-ASCII letter) is refused when the config loads, naming it.
+Every block is strict, so an unknown key is refused naming it.
+`publish` is a name, or `null` for a review skill that publishes by itself; left out, it is inherited.
+
+The order is the role's own `skills`, then the repo's, then the global, then Solve's, merged by key and one level inside `review`.
+A role names only the stages it runs: the author `ship` and `fix`, the reviewer `review`; another key is refused naming it.
+The `lead` stage and the skills of extra reviewers are not accepted yet.
+
+The resolved skills are saved with an epic's configuration when it starts, so a reload changes nothing for a running epic, and an epic restarted from ship takes the skills of that moment.
+An epic saved before this version has none saved and reads Solve's.
+Carrier remembers which skills you named at any level (a global one that is Solve's own name counts as not named) and which are Solve's defaults.
 
 ## Profiles
 

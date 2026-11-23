@@ -496,3 +496,68 @@ describe('chat', () => {
     expect(load({})).toMatchObject({ ok: true });
   });
 });
+
+describe('skills', () => {
+  const skills = (value: unknown) => ({ skills: value });
+  const solve = { ship: 'ship', review: { review: 'code-review', publish: 'code-post' }, fix: 'code-resolve' };
+
+  test('the defaults are Solve\'s and reach the JSON schema as optional', () => {
+    expect(load({})).toMatchObject({ ok: true, config: { skills: solve } });
+    expect(defaults.skills).toEqual(solve);
+    const schema = userConfigJsonSchema();
+    expect(schema.required).not.toContain('skills');
+    expect(schema.properties?.skills?.required ?? []).toEqual([]);
+  });
+
+  test('the global block takes some keys and keeps the default of the rest, `publish` a name or null', () => {
+    expect(load(skills({ ship: 'solve:ship', review: { publish: null } }))).toMatchObject({
+      ok: true,
+      config: { skills: { ship: 'solve:ship', review: { review: 'code-review', publish: null }, fix: 'code-resolve' } },
+    });
+  });
+
+  test('a repo takes skills, and omitted keys stay out of it to be inherited', () => {
+    const repos = [{ name: 'AshuLab/carrier', skills: { review: { review: 'my-review', publish: null } } }];
+    expect(load({ repos })).toMatchObject({ ok: true, config: { repos } });
+  });
+
+  test.each([
+    ['', 'the empty string'], ['   ', 'blanks'], ['/ship', 'a leading /'], ['$ship', 'a leading $'], ['a/b', 'a path'], ['../ship', 'a relative path'],
+    ['ship\nfix', 'a newline'], ['ship;ls', 'a semicolon'], ['shíp', 'a non-ASCII letter'], ['a'.repeat(65), '65 characters'], [42, 'a number'],
+  ])('a skill name with %j (%s) is refused naming the key, at every level', (name, _why) => {
+    for (const user of [
+      skills({ ship: name }),
+      skills({ review: { review: name } }),
+      skills({ review: { publish: name } }),
+      skills({ fix: name }),
+      { repos: [{ name: 'AshuLab/carrier', skills: { fix: name } }] },
+      { agents: { ...valid.agents, author: { ...valid.agents.author, skills: { ship: name } } } },
+      { agents: { ...valid.agents, reviewer: { ...valid.agents.reviewer, skills: { review: { review: name } } } } },
+    ]) {
+      const errors = errorsOf(user);
+      expect(errors).toHaveLength(1);
+      expect(errors[0]!.path).toMatch(/skills\./);
+    }
+  });
+
+  test.each([['ship'], ['solve:ship'], ['a'.repeat(64)], ['my_skill.v2-x']])('a skill name %s is taken', (name) => {
+    expect(load(skills({ ship: name }))).toMatchObject({ ok: true, config: { skills: { ship: name } } });
+  });
+
+  test('an unknown key is refused naming it, in the block, in review, in a repo and in a role', () => {
+    const author = valid.agents.author;
+    expect(errorsOf(skills({ lead: 'x' }))[0]).toMatchObject({ path: 'skills', message: expect.stringContaining('"lead"') });
+    expect(errorsOf(skills({ review: { extra: 'x' } }))[0]).toMatchObject({ path: 'skills.review', message: expect.stringContaining('"extra"') });
+    expect(errorsOf({ repos: [{ name: 'AshuLab/carrier', skills: { lead: 'x' } }] })[0]).toMatchObject({ path: 'repos.0.skills', message: expect.stringContaining('"lead"') });
+    expect(errorsOf({ agents: { ...valid.agents, author: { ...author, skills: { lead: 'x' } } } })[0]).toMatchObject({ path: 'agents.author.skills' });
+  });
+
+  test('a role takes the skills of its stages in the global roles and in a repo, and one it does not run is refused naming the key', () => {
+    const [author, reviewer] = [valid.agents.author, valid.agents.reviewer];
+    expect(load({ agents: { author: { ...author, skills: { ship: 'ship', fix: 'fix' } }, reviewer: { ...reviewer, skills: { review: { review: 'review' } } } } })).toMatchObject({ ok: true });
+    expect(load({ repos: [{ name: 'AshuLab/carrier', agents: { author: { skills: { fix: 'fix' } }, reviewer: { skills: { review: { publish: null } } } } }] })).toMatchObject({ ok: true });
+    expect(errorsOf({ agents: { author: { ...author, skills: { review: { review: 'r' } } }, reviewer } })[0]).toMatchObject({ path: 'agents.author.skills', message: expect.stringContaining('"review"') });
+    expect(errorsOf({ agents: { author, reviewer: { ...reviewer, skills: { ship: 's' } } } })[0]).toMatchObject({ path: 'agents.reviewer.skills', message: expect.stringContaining('"ship"') });
+    expect(errorsOf({ repos: [{ name: 'AshuLab/carrier', agents: { reviewer: { skills: { fix: 'f' } } } }] })[0]).toMatchObject({ path: 'repos.0.agents.reviewer.skills', message: expect.stringContaining('"fix"') });
+  });
+});

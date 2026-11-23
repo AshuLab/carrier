@@ -193,6 +193,11 @@ public enum SessionRemovalKind: Sendable {
     public var canRegenerateTitle: Bool { titlesRegenerable.withLock { $0 } }
     @ObservationIgnored public var confirmSessionRemoval: @MainActor (SessionRemovalKind, [String]) async -> Bool = { _, _ in true }
     @ObservationIgnored public var didRemoveSession: @MainActor (String) -> Void = { _ in }
+    /// Only after a delete the host accepted: `didRemoveSession` also runs on archive, and an archived session can be restored.
+    @ObservationIgnored public var didDeleteSession: @MainActor (String) -> Void = { _ in }
+
+    /// What the app calls at start: a deleted session takes with it what `memory` kept for it.
+    public func forgetDeletedSessions(in memory: OptionsMemory) { didDeleteSession = { memory.forget($0) } }
 
     public init(
         host: ChatHost, preferences: AppPreferences = AppPreferences(),
@@ -296,6 +301,7 @@ public enum SessionRemovalKind: Sendable {
             return failed
         }
         await didRemoveSession(id)
+        await didDeleteSession(id)
         return nil
     }
 

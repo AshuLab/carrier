@@ -1,6 +1,10 @@
 import { execFileSync } from 'node:child_process';
 import { describe, expect, test } from 'vitest';
-import { labelStyles, ownedLabels, readyLabel, runningLabel } from '../orchestration/github.ts';
+import { defaultLabels, labelStyles } from '../orchestration/github.ts';
+
+const { ready: readyLabel, running: runningLabel } = defaultLabels;
+const ownedLabels = [defaultLabels.running, defaultLabels.readyForTest, defaultLabels.needsHuman];
+const styleOf = (label: string) => (label === defaultLabels.running ? labelStyles.running : label === defaultLabels.readyForTest ? labelStyles.readyForTest : labelStyles.needsHuman);
 import { GhGitHub } from './github.ts';
 
 // Runs against a real repo through Forge, so it only runs when all three are set explicitly:
@@ -24,24 +28,24 @@ describe.skipIf(!enabled)('GhGitHub against a real repo', () => {
         const existing = await github.listLabels(repo!);
         for (const label of [readyLabel, ...ownedLabels]) {
           if (existing.includes(label)) continue;
-          await github.createLabel(repo!, label, label === readyLabel ? { color: '0e8a16', description: 'Epic ready to run' } : labelStyles[label as keyof typeof labelStyles]);
+          await github.createLabel(repo!, label, label === readyLabel ? { color: '0e8a16', description: 'Epic ready to run' } : styleOf(label));
           created.push(label);
         }
         const labels = await github.listLabels(repo!);
         for (const label of [readyLabel, ...ownedLabels]) expect(labels).toContain(label);
         // Creating one that exists is a no-op.
-        await github.createLabel(repo!, runningLabel, labelStyles[runningLabel]);
+        await github.createLabel(repo!, runningLabel, labelStyles.running);
 
         const title = '[carrier spike] adapter test - safe to close';
         issue = (JSON.parse(forge(['api', '-X', 'POST', `repos/${repo}/issues`, '-f', `title=${title}`, '-f', 'body=Throwaway issue from the Carrier adapter integration test.'])) as { number: number }).number;
         await github.setLabels(repo!, issue, { add: [readyLabel], remove: [] });
         expect(await github.getIssue(repo!, issue)).toEqual({ state: 'open', labels: [readyLabel] });
-        expect(await github.listReadyEpics(repo!)).toContainEqual({ issue, title, labels: [readyLabel] });
+        expect(await github.listReadyEpics(repo!, readyLabel)).toContainEqual({ issue, title, labels: [readyLabel] });
 
         await github.setLabels(repo!, issue, { add: [runningLabel], remove: [readyLabel] });
         await github.setLabels(repo!, issue, { add: [runningLabel], remove: [readyLabel] });
         expect(await github.getIssue(repo!, issue)).toEqual({ state: 'open', labels: [runningLabel] });
-        expect((await github.listReadyEpics(repo!)).map((epic) => epic.issue)).not.toContain(issue);
+        expect((await github.listReadyEpics(repo!, readyLabel)).map((epic) => epic.issue)).not.toContain(issue);
 
         expect(await github.getPullRequest(repo!, 999_999)).toBeNull();
         expect(await github.findPullRequest(repo!, issue)).toBeNull();

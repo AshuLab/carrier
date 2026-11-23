@@ -150,12 +150,15 @@ public struct OptionsMemory: Sendable {
     /// What was typed in the session's box and not sent, so leaving the session (or the app) does not lose it.
     public var loadDraft: @Sendable (String) -> String
     public var saveDraft: @Sendable (String, String) -> Void
+    /// Drops everything kept for a session that was deleted (not archived: an archived one can come back with its options).
+    public var forget: @Sendable (String) -> Void
 
     public init(
         load: @escaping @Sendable (String) -> [ChatOption], save: @escaping @Sendable (String, [ChatOption]) -> Void,
         loadCommands: @escaping @Sendable (String) -> [ChatCommand] = { _ in [] }, saveCommands: @escaping @Sendable (String, [ChatCommand]) -> Void = { _, _ in },
         loadAgent: @escaping @Sendable (String) -> String = { _ in "" }, saveAgent: @escaping @Sendable (String, String) -> Void = { _, _ in },
-        loadDraft: @escaping @Sendable (String) -> String = { _ in "" }, saveDraft: @escaping @Sendable (String, String) -> Void = { _, _ in }
+        loadDraft: @escaping @Sendable (String) -> String = { _ in "" }, saveDraft: @escaping @Sendable (String, String) -> Void = { _, _ in },
+        forget: @escaping @Sendable (String) -> Void = { _ in }
     ) {
         self.load = load
         self.save = save
@@ -165,21 +168,40 @@ public struct OptionsMemory: Sendable {
         self.saveAgent = saveAgent
         self.loadDraft = loadDraft
         self.saveDraft = saveDraft
+        self.forget = forget
     }
 
     /// Remembers nothing: for the tests.
     public static let none = OptionsMemory(load: { _ in [] }, save: { _, _ in })
 
-    /// The app's own: user defaults, one entry per session. The drafts are kept in memory only: they change at every key, and a write to the
-    /// defaults tells every observer of them (the terminals' appearance among them) at every key.
-    public static let userDefaults = OptionsMemory(
-        load: { id in UserDefaults.standard.data(forKey: "chat.options.\(id)").flatMap { try? JSONDecoder().decode([ChatOption].self, from: $0) } ?? [] },
-        save: { id, options in UserDefaults.standard.set(try? JSONEncoder().encode(options), forKey: "chat.options.\(id)") },
-        loadCommands: { id in UserDefaults.standard.data(forKey: "chat.commands.\(id)").flatMap { try? JSONDecoder().decode([ChatCommand].self, from: $0) } ?? [] },
-        saveCommands: { id, commands in UserDefaults.standard.set(try? JSONEncoder().encode(commands), forKey: "chat.commands.\(id)") },
-        loadAgent: { id in UserDefaults.standard.string(forKey: "chat.agent.\(id)") ?? "" },
-        saveAgent: { id, agent in UserDefaults.standard.set(agent, forKey: "chat.agent.\(id)") },
-        loadDraft: { id in drafts.get(id) },
-        saveDraft: { id, text in drafts.set(id, text) }
-    )
+    /// The app's own: user defaults, one entry per session and kind (`SessionKey`). The drafts are kept in memory only: they change at every key,
+    /// and a write to the defaults tells every observer of them (the terminals' appearance among them) at every key.
+    public static let userDefaults = stored(in: .standard)
+
+    public static func stored(in defaults: UserDefaults) -> OptionsMemory {
+        func list<T: Decodable>(_ kind: SessionKey, _ id: String, as: T.Type) -> [T] {
+            defaults.data(forKey: kind.key(id)).flatMap { try? JSONDecoder().decode([T].self, from: $0) } ?? []
+        }
+        return OptionsMemory(
+            load: { list(.options, $0, as: ChatOption.self) },
+            save: { id, options in defaults.set(try? JSONEncoder().encode(options), forKey: SessionKey.options.key(id)) },
+            loadCommands: { list(.commands, $0, as: ChatCommand.self) },
+            saveCommands: { id, commands in defaults.set(try? JSONEncoder().encode(commands), forKey: SessionKey.commands.key(id)) },
+            loadAgent: { defaults.string(forKey: SessionKey.agent.key($0)) ?? "" },
+            saveAgent: { id, agent in defaults.set(agent, forKey: SessionKey.agent.key(id)) },
+            loadDraft: { id in drafts.get(id) },
+            saveDraft: { id, text in drafts.set(id, text) },
+            forget: { id in
+                for kind in SessionKey.allCases { defaults.removeObject(forKey: kind.key(id)) }
+                drafts.set(id, "")
+            }
+        )
+    }
+}
+
+/// What the app keeps in the user defaults for each session: a new kind goes here, and `forget` removes it with the session.
+public enum SessionKey: String, CaseIterable, Sendable {
+    case options, commands, agent
+
+    public func key(_ sessionId: String) -> String { "chat.\(rawValue).\(sessionId)" }
 }

@@ -1,5 +1,7 @@
 import { LogLevel } from '@ashulab/universal-logger';
 import { z } from 'zod';
+import { labelRoles, stageNames } from '../orchestration/github.ts';
+import { needsHumanKinds } from '../storage/schema.ts';
 import { accounts } from './providers.ts';
 
 /** `owner/name`, each part a plain folder name: the managed clone lives in `repos/<owner>/<name>`. */
@@ -60,9 +62,24 @@ const failoverSchema = z.strictObject(
   { error: (issue) => (issue.code === 'unrecognized_keys' && issue.keys.some((key) => key === 'enabled' || key === 'default') ? `failover.enabled and failover.default are gone: ${newFailoverShape}` : undefined) },
 );
 
+/** A label name: one line without commas (a comma splits the GitHub query), at most 50 characters. */
+const labelName = z.string().trim().min(1).max(50).regex(/^[^,\p{Cc}]+$/u, 'must be one line without commas or control characters');
+
 export const configSchema = z
   .strictObject({
     pollIntervalMinutes: z.number().positive(),
+    /** The labels by role. `epic` and `ready` are written by Solve and people, `running`, `readyForTest` and `needsHuman` by Carrier. Each one differs from the others. */
+    labels: z.strictObject({
+      epic: labelName,
+      ready: labelName,
+      running: labelName,
+      readyForTest: labelName,
+      needsHuman: labelName,
+      /** A label per stage while an epic runs, written by Carrier; a stage left out has none. */
+      stages: z.partialRecord(z.enum(stageNames), labelName).optional(),
+      /** A label per kind of stop while an epic waits for a person, written by Carrier; a kind left out has none. */
+      reasons: z.partialRecord(z.enum(needsHumanKinds), labelName).optional(),
+    }),
     finishedWindowDays: z.int().min(1).max(30),
     logLevel: z.enum(LogLevel),
     repos: z
@@ -89,6 +106,18 @@ export const configSchema = z
     }, { error: (issue) => (issue.code === 'unrecognized_keys' && issue.keys.includes('optionChoiceSeconds') ? 'limits.optionChoiceSeconds is gone: an epic starts at once on its roles and waits for no choice. Remove it' : undefined) }),
   })
   .superRefine((config, ctx) => {
+    // GitHub compares labels without case: two roles on one label would make an epic's status unreadable.
+    const named: [(string | number)[], string][] = [
+      ...labelRoles.map((role) => [['labels', role], config.labels[role]] as [(string | number)[], string]),
+      ...Object.entries(config.labels.stages ?? {}).map(([stage, name]) => [['labels', 'stages', stage], name] as [(string | number)[], string]),
+      ...Object.entries(config.labels.reasons ?? {}).map(([kind, name]) => [['labels', 'reasons', kind], name] as [(string | number)[], string]),
+    ];
+    const taken = new Map<string, string>();
+    for (const [path, name] of named) {
+      const first = taken.get(name.toLowerCase());
+      if (first === undefined) taken.set(name.toLowerCase(), path.join('.'));
+      else ctx.addIssue({ code: 'custom', path, message: `is the same label as ${first}: each role needs its own` });
+    }
     const refs: [(string | number)[], string][] = [
       ...(config.orchestratorProfile === undefined ? [] : ([[['orchestratorProfile'], config.orchestratorProfile]] as [(string | number)[], string][])),
       [['agents', 'author', 'profile'], config.agents.author.profile],

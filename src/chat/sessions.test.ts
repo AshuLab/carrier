@@ -1921,6 +1921,66 @@ test('the folder is kept when the worktree HEAD is detached or on another branch
   expect([detached, moved, home].map((w) => existsSync(w.path))).toEqual([true, true, false]);
 });
 
+test('the folder is kept when the worktree holds a submodule, shown by its git dir or a gitlink with a repository in it, as its commits live in the worktree\'s own git dir', async () => {
+  const s = worktreeSetup();
+  const modules = await s.inWorktree('modules');
+  const gitlink = await s.inWorktree('gitlink');
+  const bare = await s.inWorktree('bare'); // a gitlink whose folder holds no repository: a submodule never initialised here
+  const plain = await s.inWorktree('plain');
+  for (const w of [modules, gitlink, bare, plain]) prMerged(s, w.id);
+  mkdirSync(join(`${modules.path}.private`, 'modules', 'sub'), { recursive: true });
+  s.git.repos.get(gitlink.path)!.index = ['H 160000 1111111111111111111111111111111111111111 0\tsub'];
+  s.git.repos.get(bare.path)!.index = ['H 160000 1111111111111111111111111111111111111111 0\tsub'];
+  mkdirSync(join(gitlink.path, 'sub'), { recursive: true });
+  writeFileSync(join(gitlink.path, 'sub', '.git'), 'gitdir: elsewhere\n');
+  mkdirSync(join(bare.path, 'sub'), { recursive: true });
+  await s.sessions.applyClock(cleanup({ afterPrMerged: true, afterInactiveDays: 'never' }));
+  expect([modules, gitlink, bare, plain].map((w) => existsSync(w.path))).toEqual([true, true, false, false]);
+});
+
+test('a resume that comes in while the cleanup removes the folder waits for it and brings the folder back', async () => {
+  const s = worktreeSetup();
+  const one = await s.inWorktree('one');
+  prMerged(s, one.id);
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => (release = resolve));
+  let reached!: () => void;
+  const arrived = new Promise<void>((resolve) => (reached = resolve));
+  const run = s.git.run.bind(s.git);
+  s.git.run = async (folder, args, options) => {
+    if (args[0] === 'worktree' && args[1] === 'remove') (reached(), await held);
+    return run(folder, args, options);
+  };
+  const pass = s.sessions.applyClock(cleanup({ afterPrMerged: true, afterInactiveDays: 'never' }));
+  await arrived;
+  const resuming = s.sessions.resume({ sessionId: one.id });
+  await new Promise((resolve) => setTimeout(resolve, 20)); // it is waiting on the removal and has not opened anything
+  expect(s.claude.opened).toHaveLength(1);
+  release();
+  await pass;
+  await resuming;
+  expect(existsSync(one.path)).toBe(true);
+  expect(s.git.calls.at(-1)?.args).toEqual(['worktree', 'add', one.path, one.branch]);
+});
+
+test('a folder with no .git, what a stopped removal left, is taken by the cleanup and brought back as a cleaned one with its actions on a resume', async () => {
+  const s = worktreeSetup();
+  const left = await s.inWorktree('left');
+  const resumed = await s.inWorktree('resumed');
+  for (const w of [left, resumed]) {
+    prMerged(s, w.id);
+    rmSync(join(w.path, '.git'));
+    writeFileSync(join(w.path, 'stale.txt'), 's');
+  }
+  s.git.repos.get(left.path)!.status = undefined;
+  await s.sessions.resume({ sessionId: resumed.id });
+  expect(existsSync(join(resumed.path, 'stale.txt'))).toBe(false);
+  expect(existsSync(join(resumed.path, '.git'))).toBe(true);
+  expect(s.git.calls.at(-1)?.args).toEqual(['worktree', 'add', resumed.path, resumed.branch]);
+  await s.sessions.applyClock(cleanup({ afterPrMerged: true, afterInactiveDays: 'never' }));
+  expect(existsSync(left.path)).toBe(false);
+});
+
 test('a session restored from the archive while git reads its worktree keeps the folder', async () => {
   const s = worktreeSetup();
   const one = await s.inWorktree('one');
@@ -4494,6 +4554,17 @@ test('two restores one after another each begin with a marker of their own, and 
   await s.sessions.resume({ sessionId: one.id });
   expect(actionStepsOf(s, one.id)).toEqual(['worktree:running', 'worktree:done', 'action:Install:running', 'action:Install:done', 'worktree:running', 'worktree:done', 'action:Install:running', 'action:Install:done']);
   expect(s.shell.calls).toHaveLength(1);
+});
+
+test('a folder a stopped removal left with no .git comes back as a cleaned one: its marker and its actions run, and what was left is gone', async () => {
+  const { s, one } = await cleaned([{ name: 'Env', command: 'cp "$CARRIER_PROJECT/.env" .' }]);
+  mkdirSync(one.path, { recursive: true });
+  writeFileSync(join(one.path, 'stale.txt'), 's');
+  await s.sessions.resume({ sessionId: one.id });
+  expect(existsSync(join(one.path, 'stale.txt'))).toBe(false);
+  expect(existsSync(join(one.path, '.git'))).toBe(true);
+  expect(actionStepsOf(s, one.id)).toEqual(['worktree:running', 'worktree:done', 'action:Env:running', 'action:Env:done']);
+  expect(s.shell.calls.map((call) => call.command)).toEqual(['cp "$CARRIER_PROJECT/.env" .']);
 });
 
 test('a restore that ends with its marker and no action reads as finished, so the next open of the folder runs nothing', async () => {

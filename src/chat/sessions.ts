@@ -34,7 +34,7 @@ import { createProject, projectFolder, type createProjects } from './projects.ts
 import type { PullRequests } from './pull-requests.ts';
 import { createSessionData } from './session-data.ts';
 import { githubWorkOf } from './shell-effects.ts';
-import { clearWorktree, createWorktree, deleteWorktree, folderBytes, headAway, listWorktrees, previewMain, previewWorktree, removeWorktree, restoreWorktree } from './worktree.ts';
+import { clearWorktree, createWorktree, deleteWorktree, folderBytes, headAway, hiddenWork, isWorktreeFolder, listWorktrees, previewMain, previewWorktree, removeWorktree, restoreWorktree } from './worktree.ts';
 import { worktreesDir } from './names.ts';
 import { checkout, FETCH_FRESH_MS, fetchFolder, inspectFolder } from './workspace.ts';
 
@@ -245,7 +245,7 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
   const restore = async (found: typeof sessions.$inferSelect): Promise<void> => {
     const running = restoring.get(found.id);
     if (running !== undefined) return running.done;
-    const there = existsSync(found.worktreePath!);
+    const there = isWorktreeFolder(found.worktreePath!); // a folder with no `.git` is what a stopped removal left, and comes back as a cleaned one
     const unfinished = there ? unfinishedRestore(found.id) : undefined;
     if (there && unfinished === undefined) return restoreWorktree(git, worktreeOf(found)); // checks the record only
     if (deleting.has(found.id)) throw new ChatRefused('This session is being deleted');
@@ -296,10 +296,13 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
       };
       if (dueNow(found) === false) continue;
       const clear = async () => {
-        const [{ dirty }, away] = await Promise.all([previewWorktree(git, worktreeOf(found), [found.worktreeBranch!]), headAway(git, worktreeOf(found))]);
-        if (dirty > 0 || away) {
-          log.info(away ? 'kept a worktree whose HEAD is not on its branch' : 'kept a worktree with uncommitted work', { sessionId: found.id, dirty });
-          return;
+        if (isWorktreeFolder(found.worktreePath!)) {
+          const [{ dirty }, away] = await Promise.all([previewWorktree(git, worktreeOf(found), [found.worktreeBranch!]), headAway(git, worktreeOf(found))]);
+          const hidden = dirty > 0 || away ? null : await hiddenWork(git, worktreeOf(found));
+          if (dirty > 0 || away || hidden !== null) {
+            log.info(away ? 'kept a worktree whose HEAD is not on its branch' : dirty > 0 ? 'kept a worktree with uncommitted work' : `kept a worktree that holds ${hidden}`, { sessionId: found.id, dirty });
+            return;
+          }
         }
         const row = db.select().from(sessions).where(eq(sessions.id, found.id)).get();
         if (closed || row === undefined || switching.has(found.id) || deleting.has(found.id) || restoring.has(found.id) || dueNow(row) === false) return; // the host stopped or the session was taken up while git read it
@@ -327,7 +330,7 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
     const entries: Entry[] = [];
     // one worktree after another: each reads two git processes, and this is one project's page opening
     for (const { path, branch } of linked) {
-      if (existsSync(path) === false || real(path).startsWith(root) === false) continue;
+      if (isWorktreeFolder(path) === false || real(path).startsWith(root) === false) continue;
       const found = bySession.get(real(path));
       const family = found === undefined ? undefined : familyClock(found);
       // a detached HEAD has no branch to hold commits, so only its files count
@@ -350,6 +353,8 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
     const clear = async () => {
       // taken up while git read it
       if (found !== undefined && (familyClock(found).live || switching.has(found.id) || deleting.has(found.id) || restoring.has(found.id))) throw new ChatRefused('Its session is open');
+      const hidden = isWorktreeFolder(worktree.path) ? await hiddenWork(git, made) : null;
+      if (hidden !== null) throw new ChatRefused(`It holds ${hidden}, so it was kept`);
       await clearWorktree(git, made);
       log.info('removed the folder of a worktree by request, its branch is kept', { branch: worktree.branch });
     };

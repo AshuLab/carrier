@@ -431,6 +431,110 @@ describe.skipIf(!enabled)('deleting a session in a worktree, with the real git',
     expect(git(aside.path, 'rev-parse', 'other').trim()).toBe(onOther);
   });
 
+  /** A host over the real git with a clock of its own, and sessions parked (closed and archived) in worktrees of `base`; `pass` is the clock's cleanup 14 days later, with the default settings. */
+  const parkedHost = (base: string) => {
+    mkdirSync(home, { recursive: true });
+    const clock = new FakeClock();
+    const s = createSessions({ db: openChatDatabase(join(home, 'chat.db')), agents: [{ name: 'claude', account: 'claude' }], clock, runners: { claude: new FakeChatRunner() }, env: {}, git: realGit, projects: fakeProjects(realGit), binaryFound: () => true, ages: () => ({ archiveAfterDays: 15, deleteAfterDays: 30 }), onLiveChange: () => {} });
+    const parked = async (name: string) => {
+      const { session } = await s.open({ agent: 'claude', folder: base, worktree: { from: 'main', name } });
+      await s.close({ sessionId: session.id });
+      await s.archive({ sessionId: session.id, archived: true });
+      return { id: session.id, ...(session.workspace as { path: string; branch: string }) };
+    };
+    const pass = async () => {
+      const settings = loadChatConfig({});
+      if (settings.ok === false) throw new Error('the defaults load');
+      clock.time += 14 * 24 * 60 * 60_000;
+      await s.applyClock(settings.settings);
+    };
+    return { s, parked, pass };
+  };
+  const commitIn = (path: string, file: string, text: string) => {
+    writeFileSync(join(path, file), text);
+    git(path, 'add', '.');
+    git(path, 'commit', '-q', '-m', `edit ${file}`);
+    return git(path, 'rev-parse', 'HEAD').trim();
+  };
+
+  test('the clock pass keeps a worktree whose submodule holds a commit no branch has, though its status is clean', async () => {
+    const base = repoAt('clock-sub');
+    const source = repoAt('sub-source');
+    const { parked, pass } = parkedHost(base);
+    const subbed = await parked('subbed');
+    const plain = await parked('plain'); // control
+    git(subbed.path, '-c', 'protocol.file.allow=always', 'submodule', 'add', '-q', source, 'sub');
+    git(subbed.path, 'commit', '-q', '-m', 'add the submodule');
+    const inside = commitIn(join(subbed.path, 'sub'), 'inside.txt', 'x\n'); // in the submodule's git dir, which lives in the worktree's own
+    git(subbed.path, 'add', 'sub');
+    git(subbed.path, 'commit', '-q', '-m', 'move the pointer');
+    expect(git(subbed.path, 'status', '--porcelain')).toBe('');
+    await pass();
+    expect([subbed, plain].map((w) => existsSync(w.path))).toEqual([true, false]);
+    expect(git(join(subbed.path, 'sub'), 'rev-parse', 'HEAD').trim()).toBe(inside);
+  });
+
+  test('the clock pass keeps a worktree with changes git is told not to see, and one whose git config hides untracked files', async () => {
+    const base = repoAt('clock-shadow');
+    const { parked, pass } = parkedHost(base);
+    const assumed = await parked('assumed');
+    const skipped = await parked('skipped');
+    const hidden = await parked('hidden');
+    const settled = await parked('settled'); // control
+    for (const [w, flag] of [[assumed, '--assume-unchanged'], [skipped, '--skip-worktree']] as const) {
+      git(w.path, 'update-index', flag, 'a.txt');
+      writeFileSync(join(w.path, 'a.txt'), 'only here\n');
+      expect(git(w.path, 'status', '--porcelain')).toBe('');
+    }
+    git(hidden.path, 'config', 'status.showUntrackedFiles', 'no');
+    writeFileSync(join(hidden.path, 'notes.md'), 'only here\n');
+    expect(git(hidden.path, 'status', '--porcelain')).toBe('');
+    await pass();
+    expect([assumed, skipped, hidden, settled].map((w) => existsSync(w.path))).toEqual([true, true, true, false]);
+    expect(readFileSync(join(assumed.path, 'a.txt'), 'utf8')).toBe('only here\n');
+  });
+
+  test('the clock pass keeps a worktree with a commit made on a detached HEAD and then switched back to its branch, and not one whose commits were only amended or rebased', async () => {
+    const base = repoAt('clock-dangling');
+    const { parked, pass } = parkedHost(base);
+    const dangling = await parked('dangling');
+    git(dangling.path, 'switch', '-q', '--detach');
+    const lost = commitIn(dangling.path, 'only-here.txt', 'x\n');
+    git(dangling.path, 'switch', '-q', dangling.branch);
+    expect(git(dangling.path, 'status', '--porcelain')).toBe('');
+    const rewritten = await parked('rewritten'); // a commit amended and one rebased away: their old versions are in the reflog and held by no branch
+    commitIn(rewritten.path, 'one.txt', '1\n');
+    git(rewritten.path, 'commit', '-q', '--amend', '-m', 'amended');
+    commitIn(rewritten.path, 'two.txt', '2\n');
+    commitIn(base, 'moved.txt', 'm\n');
+    git(rewritten.path, 'rebase', '-q', 'main');
+    const pushed = await parked('pushed'); // a detached commit that a branch holds is safe
+    git(pushed.path, 'switch', '-q', '--detach');
+    commitIn(pushed.path, 'kept.txt', 'x\n');
+    git(pushed.path, 'branch', 'saved');
+    git(pushed.path, 'switch', '-q', pushed.branch);
+    await pass();
+    expect([dangling, rewritten, pushed].map((w) => existsSync(w.path))).toEqual([true, false, false]);
+    expect(git(dangling.path, 'cat-file', '-t', lost).trim()).toBe('commit');
+  });
+
+  test('a folder a stopped removal left without its .git is not a worktree: the clock pass takes it, and resuming brings a real one back', async () => {
+    const base = repoAt('clock-half');
+    const { s, parked, pass } = parkedHost(base);
+    const cleaning = await parked('cleaning');
+    const opening = await parked('opening');
+    for (const w of [cleaning, opening]) rmSync(join(w.path, '.git')); // `git worktree remove` deletes it first; the registration and the other files stay
+    expect(git(base, 'worktree', 'list').trim().split('\n')).toHaveLength(3);
+    await s.resume({ sessionId: opening.id });
+    expect(statSync(join(opening.path, '.git')).isFile()).toBe(true);
+    expect(git(opening.path, 'branch', '--show-current').trim()).toBe(opening.branch);
+    await pass(); // `opening` is live now
+    expect(existsSync(cleaning.path)).toBe(false);
+    expect(git(base, 'worktree', 'list').trim().split('\n')).toHaveLength(2);
+    await s.resume({ sessionId: cleaning.id });
+    expect(statSync(join(cleaning.path, '.git')).isFile()).toBe(true);
+  });
+
   test('with the base folder removed first the files left in the worktree folder are counted, and the folder is removed directly', async () => {
     const { s, id, base, path } = await session('no-base');
     rmSync(base, { recursive: true, force: true });
@@ -572,6 +676,22 @@ describe.skipIf(!enabled)('the worktrees of a project, with the real git', () =>
     // what is not blocked goes by hand, merged or not
     await s.removeProjectWorktree({ folder: base, path: made['fine']!.path });
     expect(existsSync(made['fine']!.path)).toBe(false);
+  });
+
+  test('removing by hand is refused for a worktree with a file git is told not to show, and for a commit only its reflog holds, and nothing is touched', async () => {
+    const { s, base, made } = await projectWith(['assumed', 'dangling']);
+    const assumed = made['assumed']!;
+    git(assumed.path, 'update-index', '--assume-unchanged', 'a.txt');
+    writeFileSync(join(assumed.path, 'a.txt'), 'only here\n');
+    const dangling = made['dangling']!;
+    git(dangling.path, 'switch', '-q', '--detach');
+    writeFileSync(join(dangling.path, 'x.txt'), 'x\n');
+    git(dangling.path, 'add', '.');
+    git(dangling.path, 'commit', '-q', '-m', 'detached');
+    git(dangling.path, 'switch', '-q', dangling.branch);
+    await expect(s.removeProjectWorktree({ folder: base, path: assumed.path })).rejects.toThrow('It holds a file with changes git was told not to show, so it was kept');
+    await expect(s.removeProjectWorktree({ folder: base, path: dangling.path })).rejects.toThrow('It holds a commit no branch holds, so it was kept');
+    expect([assumed, dangling].map((w) => existsSync(w.path))).toEqual([true, true]);
   });
 
   test('a worktree with no session can be removed by hand, and is never in the clean-up', async () => {

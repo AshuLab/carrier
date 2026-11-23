@@ -1019,6 +1019,21 @@ test('an error about the whole engine while settling stops the poll with its mes
   expect(rows(engine.db).map((e) => e.status)).toEqual(['running', 'running']);
 });
 
+test('a configuration that cannot be read stops the poll with a message that names it, parks no epic, and the next check is armed', async () => {
+  const { engine } = await startWithResultsPending();
+  const unreadable = new Error('could not read the configuration: config.yaml is unreadable');
+  watched = { [Symbol.iterator]: () => { throw unreadable; }, map: () => { throw unreadable; } } as unknown as EffectiveRepoConfig[];
+  const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+  try {
+    await engine.pollNow();
+    expect(logged.mock.calls.flat().join(' ')).toContain('could not read the configuration');
+  } finally {
+    logged.mockRestore();
+  }
+  expect(rows(engine.db).map((e) => e.status)).toEqual(['running', 'running']);
+  expect(engine.nextPollAt).toBe(clock.now() + settings.pollIntervalMs);
+});
+
 // Failover: three options, the author on `claude` and the reviewer on `codex`; `spare` is the one only the list can name.
 type Steps = { provider: string; model?: string; effort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max' }[];
 const failoverRepos = (roles?: { author?: Steps; reviewer?: Steps }): EffectiveRepoConfig[] =>

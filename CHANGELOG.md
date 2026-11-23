@@ -34,6 +34,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- A dictation of the History is a row with one quiet line of data under its text (outcome, destination, words and length) in place of five chips, and its detail has no box and no longer repeats the text, the destination or the length.
+- In Statistics, the Overview's cards sit with no container behind them, and the Records are four cards in a row (two by two when narrow) in place of a list of rows.
 - On the Keep awake page, the "Keep awake" button of the Now row is a switch, like the other on/off settings, and the On, Off or Paused chip is gone: the switch and the sentence already say it.
 - The filters with a few fixed values (the speech models, the dictation history and the visibility of the repositories) are segmented choices, and the chips that remain (the tags of the projects) take the same look: the person's accent, a fine edge.
 - The segmented choices of Settings and Usage mark the chosen one with the person's accent, in pieces of the same width that slide from one choice to the next.

@@ -66,7 +66,7 @@ Technical failures (the agent process ends badly, missing or invalid JSON, trans
 
 If the final PR is merged while there is active work, its executions are stopped, sessions and history are kept and no new turns are launched. If the epic's issue or its final PR is closed without merge, the epic is cancelled: its agents are stopped, what was done is kept and the reason is shown in the terminal. Neither merges nor closures of slices done by `ship` trigger these rules. The PR state check is technical coordination, not code evaluation.
 
-An authentication error reported by Forge for a profile stops the epics that use it, with the reason in the terminal; the others continue. If the orchestrator's profile fails, its GitHub operations are suspended. The profile is never switched automatically.
+An authentication signal of a profile (an agent that says it is not logged in, or no token for the profile) is a technical failure of that execution, retried like any other; a second signal of the same profile, in the retry or in another epic, stops the epics that use it, with the message of the error as the reason in the terminal, and the others continue ([ADR 0050](../adr/0050-one-authentication-signal-is-a-technical-failure-of-its-epic-and-a-profile-stops-when-it-repeats.md)). An execution of the profile that ends with no signal forgets the first one. If the orchestrator's profile fails, its GitHub operations are suspended. The profile is never switched automatically.
 
 ### Agents on the host
 
@@ -115,7 +115,7 @@ An informational panel drawn with ANSI sequences without dependencies, in the sa
 15. A missing, incomplete or invalid JSON result does not advance the stage and is treated as a technical failure; importing the same result twice does not duplicate the transition.
 16. An execution that exceeds the time limit (or none with `unlimited`) is stopped, keeps its session and workspace and leaves the epic in `needs-human`, without retry.
 17. If the final PR is merged with active work the epic is stopped without launching new turns, and if the issue or that PR is closed without merge the epic is cancelled with the reason in the terminal; merges and closures of slices have no effect.
-18. A Forge authentication error stops only the epics of the affected profile; if it is the orchestrator's, its GitHub operations are suspended, and the profile is not switched.
+18. A second authentication signal of a profile stops only the epics of the affected profile (the first one is retried); if it is the orchestrator's, its GitHub operations are suspended, and the profile is not switched.
 19. With `Ctrl+C` the active executions and their processes are stopped without waiting and sessions, workspaces and uncommitted work are kept.
 20. On restart, interrupted stages are reconciled with GitHub and the existing processes and are resumed with the session, or with a rebuilt context if it cannot be recovered, without duplicating agents or actions; epics in `needs-human` are not reactivated unless `solve:epic:ready` is back on the issue.
 21. If I remove a repo from the configuration, on restart its pending epics are stopped with the reason and are recovered when it is configured again, except those that required intervention.

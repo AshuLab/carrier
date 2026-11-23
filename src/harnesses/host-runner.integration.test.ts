@@ -226,7 +226,7 @@ describe('host runner with a fake claude binary', () => {
   });
 
   test('a login error shaped like the real one is auth_failed', async () => {
-    expect((await runner.run(taskIn('auth', { model: 'auth' })).done).exit).toBe('auth_failed');
+    expect(await runner.run(taskIn('auth', { model: 'auth' })).done).toMatchObject({ exit: 'auth_failed', failure: { kind: 'auth', detail: 'Not logged in · Please run /login' } });
   });
 
   const childPid = (task: AgentTask) => Number(readFileSync(join(task.workspace, 'child.pid'), 'utf8'));
@@ -389,7 +389,7 @@ describe('host runner with a fake codex binary', () => {
   });
 
   test('a login error shaped like the real one is auth_failed, a 401 retry that recovers is not', async () => {
-    expect((await runner.run(codexTask('codex-auth', { model: 'auth' })).done).exit).toBe('auth_failed');
+    expect(await runner.run(codexTask('codex-auth', { model: 'auth' })).done).toMatchObject({ exit: 'auth_failed', failure: { kind: 'auth', detail: expect.stringContaining('401 Unauthorized') } });
     expect((await runner.run(codexTask('codex-retry', { model: 'retry' })).done).exit).toBe('ok');
   });
 

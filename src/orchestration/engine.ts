@@ -642,11 +642,16 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
         active.delete(executionId);
         output.flush();
         (exit === 'ok' ? log.info : log.warn)('execution ended', { ...context, exit });
+        // ADR 0050: an execution of the profile that ends with no authentication signal clears the memory of a first one (a run we stopped says nothing).
+        if (exit !== 'auth_failed' && exit !== 'stopped') authSignals.delete(task.profile);
+        // The first signal of a profile is a technical failure like any other; the second stops the profile. A profile a reload removed is neither.
+        const firstSignal = exit === 'auth_failed' && profileDeclared(task.profile) && !authSignals.has(task.profile);
+        if (firstSignal) authSignals.add(task.profile);
         const triggers = failoverTriggersOf(epic.config?.failover, stage === 'review' ? 'reviewer' : 'author');
         const isFailoverFailure = exit === 'failed' && processFailure?.kind !== undefined && matchesFailoverTrigger(triggers, processFailure.kind, processFailure.detail);
         const outOfCredits = exit === 'failed' && processFailure?.kind === 'usage_limit';
         // Like a timeout, failover leaves no error on the execution: it is not a retryable failure and ends the streak.
-        const failure = (outOfCredits || isFailoverFailure) ? undefined : { failed: `the agent process ended with an error (${processFailure?.kind ?? 'unknown'}${processFailure?.detail ? `: ${processFailure.detail}` : ''})`, auth_failed: `authentication error for profile ${task.profile}`, session_unavailable: sessionLost }[exit as 'failed'];
+        const failure = (outOfCredits || isFailoverFailure) ? undefined : { failed: `the agent process ended with an error (${processFailure?.kind ?? 'unknown'}${processFailure?.detail ? `: ${processFailure.detail}` : ''})`, auth_failed: authError(task.profile, processFailure?.detail), session_unavailable: sessionLost }[exit as 'failed'];
         // The ends with their own handling carry no failure from the runner: their kind follows from the exit.
         const endFailure: Partial<Record<AgentExit, Pick<AgentFailure, 'kind' | 'detail'>>> = {
           failed: { kind: 'unknown', detail: '' },
@@ -664,14 +669,14 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
           // Retrying the same option only burns the retries.
           await onUsageLimit(epic.id, db.select().from(executions).where(eq(executions.executionId, executionId)).get()!);
         }
-        else if (exit === 'failed' || exit === 'session_unavailable') {
+        else if (exit === 'failed' || exit === 'session_unavailable' || firstSignal) {
           // The wait is a due time saved with the epic, never a sleep: `retry` starts it once due, from its timer or from the poll after a restart.
           const wait = retryWait(failureStreak(db, fresh(epic.id)));
           db.update(epics).set({ retryAt: wait > 0 ? clock.now() + wait : null }).where(eq(epics.id, epic.id)).run();
           await retry(epic.id);
         }
         else if (exit === 'auth_failed') {
-          if (profileDeclared(task.profile)) await stopProfile(task.profile);
+          if (profileDeclared(task.profile)) await stopProfile(task.profile, processFailure?.detail);
           else {
             // A reload removed the profile: every run that names it fails the same way and says nothing about the others, so only this epic
             // stops, naming it. The runs already going keep the token they started with.
@@ -688,13 +693,18 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     );
   }
 
-  // Forge rejected a profile: the running epics that use it stop for a person, with their runs; the others go on.
-  // The profile is never swapped for another one.
-  async function stopProfile(profile: string) {
+  // The profiles that sent one authentication signal and have had no execution end without one since. Not saved: a restart forgets it and costs one more signal.
+  const authSignals = new Set<string>();
+  const authError = (profile: string, detail?: string) => `authentication error for profile ${profile}${detail ? `: ${failureDetail(detail)}` : ''}`;
+
+  // The profile's authentication signal repeated: the running epics that use it stop for a person, with their runs, and the others go on.
+  // `detail` is the message of the error, redacted like any other reason. The profile is never swapped for another one.
+  async function stopProfile(profile: string, detail?: string) {
+    authSignals.delete(profile); // the person's fix is a new start: the next signal is a first one again
     for (const epic of db.select().from(epics).where(eq(epics.status, 'running')).orderBy(asc(epics.id)).all()) {
       const { author, reviewer } = epic.config!.agents;
       if (author.profile !== profile && reviewer.profile !== profile) continue;
-      toNeedsHuman(db, epic.id, 'auth', `authentication error for profile ${profile}`);
+      toNeedsHuman(db, epic.id, 'auth', authError(profile, detail));
       const running = db.select().from(executions).where(and(eq(executions.epicId, epic.id), eq(executions.status, 'running'))).all();
       await Promise.all(running.map(({ executionId }) => active.get(executionId)?.stop()));
     }

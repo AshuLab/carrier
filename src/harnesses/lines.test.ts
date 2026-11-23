@@ -63,7 +63,7 @@ test('a line goes through the events and the signal of an adapter with one JSON.
   for (const [name, [adapter, line]] of Object.entries(lines)) {
     parse.mockClear();
     adapter.parseEvents?.(line, createEventState());
-    adapter.parseLine(line);
+    adapter.parseLine(line, 'stdout');
     expect(parse.mock.calls.length, name).toBe(1);
   }
   parse.mockRestore();
@@ -71,7 +71,7 @@ test('a line goes through the events and the signal of an adapter with one JSON.
   const text = 'Error: thread/resume failed: no rollout found for thread id 01a1';
   expect(() => parseJsonLine(text)).toThrow(SyntaxError);
   expect(() => parseJsonLine(text)).toThrow(SyntaxError); // the same line again: the same error, not a value
-  expect(codexAdapter.parseLine(text)).toEqual({ sessionUnavailable: true });
+  expect(codexAdapter.parseLine(text, 'stderr')).toEqual({ sessionUnavailable: true });
 });
 
 test('both readers of a line share its parse and then it is forgotten, so reading it again parses again', () => {

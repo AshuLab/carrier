@@ -160,6 +160,12 @@ The session and its branch stay, and the next message brings a fresh folder back
 ## While it runs
 
 - **GitHub is down or rate limiting.** Carrier keeps the queue, shows the error and tries again at the next interval or after the wait GitHub indicates. It does not spend agent retries. The log and the `REPOS GITHUB REFUSED` line say which kind it was and the detail, like `GitHub unavailable (rate_limited: HTTP 403)`: `rate_limited`, `server_error`, `timeout` or `network`.
+- **An epic ends as cancelled with `the epic issue no longer exists`.** GitHub answered 404 or 410 for the epic's issue while its repo answered normally, so the issue was deleted or transferred.
+  Carrier cancels that epic, writes nothing to the issue, and the other epics of the repo go on.
+  Nothing to do, unless the issue should exist: then recreate it and label it `ready`, which is a new epic.
+- **A repo shows as refused with `GitHub answered HTTP 404: Not Found`.** GitHub also answers 404 for a repo the token lost access to, so a 404 of the repo itself is never taken for a deleted issue.
+  No epic of that repo is cancelled, the epics of the other repos are not touched, and Carrier tries the repo again at every check.
+  Fix the name in `repos`, or give the orchestrator's identity access to the repo again (`carrier doctor` names the repo).
 - **An epic is not picked up.** It needs the `ready` label (`solve:epic:ready` by default), the issue open, and a free slot (`maxConcurrentEpics`). Epics go FIFO across all repos. Check that the panel does not say `PAUSED` (`p` pauses and resumes taking epics), and press `r` to check GitHub now instead of waiting for the interval.
 - **A repo was removed from the config.** When Carrier reloads (the app after a save, or `carrier reload`) or starts, its pending epics are parked as `repo_removed` with that reason, its active agent runs are stopped, and the epics are recovered where they were if you add the repo back (unless they were in `needs-human`).
 - **Ctrl+C, `q` or `carrier stop`.** (In `carrier watch`, `q` and Ctrl+C only leave: Carrier keeps running.) Stops the agents and keeps everything; the next start reconciles with GitHub and resumes. Known limit: without a container, stopping does not guarantee an agent's child processes die (Codex leaves its command process even on SIGTERM, Claude on SIGKILL; Antigravity cleans up on SIGTERM). If you see leftover `codex`, `claude` or `agy` processes, `pgrep -fl 'codex|claude|agy'` and kill them.

@@ -15,7 +15,18 @@ export class GitHubUnavailable extends Error {
 }
 
 /** GitHub answered a call that it cannot serve (not found, no access, invalid): about that repo or object, not about GitHub being down or the profile. */
-export class GitHubRejected extends Error {}
+export class GitHubRejected extends Error {
+  /** The HTTP status GitHub answered, when the call went through HTTP. */
+  readonly status?: number;
+
+  constructor(message: string, status?: number) {
+    super(message);
+    this.status = status;
+  }
+}
+
+/** GitHub says the object is not there: 404, or 410 for one that was deleted. Of a repo, a 404 is also what a token that lost access gets, so it is not enough to say the object is gone. */
+export const isNotFound = (e: unknown): e is GitHubRejected => e instanceof GitHubRejected && (e.status === 404 || e.status === 410);
 
 /** Forge reported an authentication error for the profile the port acts as (the orchestrator's). Thrown by any GitHub call. */
 export class AuthError extends Error {

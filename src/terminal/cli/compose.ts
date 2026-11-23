@@ -182,6 +182,7 @@ export async function startCarrier(started: Config, folder: string, loadConfig: 
     fileDiff: (repo: string, issue: number, section: string, path: string) => fileDiff(db, places.repos, repo, issue, section, path, cards),
     availableRepos: (page: number) => deps.listRepos(page, timeoutMs()),
     resumeEpic: (repo: string, issue: number, chosen: { author?: string; reviewer?: string }) => engine.resumeEpic(repo, issue, chosen),
+    recoverEpic: (repo: string, issue: number) => engine.recoverEpic(repo, issue),
     reload: () =>
       engine.reload(() => {
         try {

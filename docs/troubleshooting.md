@@ -92,6 +92,9 @@ Each recovery is an event of the epic, `recovered`, with its stage and its numbe
 After three recoveries in a row the next check stops the epic in `engine_error`: the count starts again when an execution of the epic ends or its stage changes, so an epic that makes progress never reaches it.
 Resume it from there like any stopped epic.
 
+To not wait for the next check, run `carrier recover <owner/name>#<issue>`: it asks the engine to continue that one epic now, with the same guards, and refuses with its reason when the epic is not running or an agent of it is alive.
+The event it leaves is also `recovered`, with `by: command` instead of a number.
+
 ## An epic ends in `solve:epic:needs-human`
 
 The reason is in the panel and the logs. Carrier stops the epic and leaves everything as it was (sessions, worktrees, uncommitted work); the others keep going. Common reasons:

@@ -12,6 +12,7 @@ Reference for the `carrier` command. The quick tour is in the [README](../README
 | `carrier reload` | Make the running Carrier read `engine.json` and `providers.json` again, with no restart. |
 | `carrier status` / `watch` | Show what the running Carrier is doing. |
 | `carrier restart` | Resume an epic that stopped in `needs-human`. |
+| `carrier recover` | Continue a running epic whose agent is not alive, from where it really is. |
 | `carrier chat` / `chat-host` | Talk to an agent in a session. |
 | `carrier usage` | Live quotas of your accounts and what was used. |
 
@@ -69,6 +70,15 @@ The panel is a dependency-free ANSI dashboard: uptime, repos watched and the nex
 `carrier restart <owner/name>#<issue> [--author <option>] [--reviewer <option>]` resumes an epic in needs-human from the terminal (the `resumeEpic` request of the socket), on the agent option of each role you choose. In a terminal and without flags it asks for each role, with the current option preselected and the role that failed marked; without a terminal it keeps the current options. The same option continues the agent's session with `--resume`; another one starts a new session in the epic's worktree and pull request, rebuilt from SQLite and GitHub like a lost session. It prints one line and exits 0; a refusal prints the engine's reason and exits 1 (so does no Carrier running), a malformed argument or another protocol exits 2.
 
 ## Chat host
+
+## Recover a running epic
+
+`carrier recover <owner/name>#<issue>` asks the running Carrier to continue one epic that is `running` but has no agent alive (the `recoverEpic` request of the socket).
+The engine does what it does at start for that epic: it reads the epic's last execution and GitHub, and goes on from there, through the same code as the check's recovery.
+It sets no status, stage or round, and it answers once the epic was continued.
+It refuses, with the reason printed, when Carrier does not know the epic, when the epic is not `running` (one in `needs-human` is resumed with `carrier restart`), and when an execution of it is alive, or a launch or a retry of it is in flight, so two agents never act on one workspace.
+Each use is an event of the epic, `recovered`, that says a command asked for it.
+It exits 0 on success and 1 on a refusal, with no Carrier running, or when the running Carrier is too old to list `recoverEpic` (restart it); a malformed argument or another protocol exits 2.
 
 `carrier chat --workspace <folder> [--agent <name>]` opens a conversation (it prints the answer as it streams; `/options` and `/option <id> <value>` show and change the agent's options; `/agent <name>` switches the session to another agent from `chat.json` when it is idle, keeping the transcript and folder, so the next line goes to that agent, and prints the host's words when it refuses, as it does for a working session or the agent it already has; against a host older than this command it says the host has to be restarted; `/quit` leaves and the session stays open (the chat asks after it every 20 seconds while it is at the prompt, and the host closes an idle session that nobody names for ten minutes)), `carrier chat --list [--archived]`, `--archive`, `--unarchive` and `--delete <id>` (deleting leaves nothing of the session; a working one is refused) talk to the chat host, a process of its own that keeps everything in `<folder>/chat/` (the Carrier folder, `~/.carrier` or `CARRIER_HOME`), and starts it detached when none answers. It needs no engine config: with nothing but the Carrier folder it starts, its optional settings are in `<folder>/chat.json` ([configuration](configuration.md#chat-configuration)), and it reads the accounts its agents name from `<folder>/providers.json`, the file the engine reads too. It ends by itself a minute after the last client leaves, or at once with `carrier chat --stop`. The engine and the host run side by side and neither's stop touches the other. `carrier chat-host` runs it in the foreground. See [ADR 0013](adr/0013-the-chat-host-is-its-own-process-with-an-adapter-per-provider.md) and [the spec](specs/chat-host.md).
 

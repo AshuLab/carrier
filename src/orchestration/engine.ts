@@ -24,6 +24,7 @@ import { epics, type needsHumanKinds } from '../storage/schema.ts';
 import type { Clock } from './clock.ts';
 import { latestBlockers, latestObservations } from './blockers.ts';
 import { changesSlices } from './changes-slices.ts';
+import { RecoverRefused } from './recover-refused.ts';
 import { ResumeRefused } from './resume-refused.ts';
 import { endOf } from './final-pr.ts';
 import { AuthError, GitHubRejected, GitHubUnavailable, hasLabel, isNotFound, labelStyles, type GitHub, type LabelStyle, type Labels, type PullRequestState, type Slices } from './github.ts';
@@ -916,12 +917,15 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
   // The poll's recovery (ADR 0046): a running epic with a stage and nothing alive or scheduled for it is continued from its real state, with the guards of a
   // launch (stage work in flight, a launch, a retry, a reload's restore, the epoch). The count is saved with the epic: after three in a row it stops in `engine_error`.
   const maxRecoveries = 3;
+  // Epics a command is recovering: the poll's recovery leaves them alone, and a second command is refused.
+  const asked = new Set<number>();
+  const busy = (id: number) => (handling.get(id) ?? 0) > 0 || launching.has(id) || retrying.has(id) || restoring.has(id) || asked.has(id);
   async function recoverStuck() {
     if (stopping || suspended) return;
     const stuck = db.select().from(epics).where(and(eq(epics.status, 'running'), isNotNull(epics.stage))).orderBy(asc(epics.id)).all();
     const epochsRead = stuck.map(({ id }) => epochOf(id));
     for (const [i, { id, repo }] of stuck.entries()) {
-      if (epochOf(id) !== epochsRead[i] || !stillRunning(id) || (handling.get(id) ?? 0) > 0 || launching.has(id) || retrying.has(id) || restoring.has(id)) continue;
+      if (epochOf(id) !== epochsRead[i] || !stillRunning(id) || busy(id)) continue;
       const { recoveries, stage } = fresh(id);
       if (recoveries >= maxRecoveries) {
         await stopEpic(id, new Error(`the poll recovered this epic ${maxRecoveries} times in a row and it is still stuck at ${stage}`));
@@ -1319,6 +1323,33 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
         }
         await new Promise<void>((resolve) => clock.after(resumeTickMs, async () => resolve()));
       }
+    },
+    /**
+     * Continues one running epic whose agent is not alive, from its real state, through the code of the poll's recovery (ADR 0044); resolves once it was continued.
+     * Rejects with RecoverRefused when it is unknown, not running, has an execution alive or in flight, or the engine cannot act now.
+     */
+    async recoverEpic(repo: string, issue: number) {
+      if (stopping || suspended) throw new RecoverRefused('engine unavailable');
+      const epic = db.select().from(epics).where(and(eq(epics.repo, repo), eq(epics.issue, issue))).get();
+      if (!epic) throw new RecoverRefused('unknown epic');
+      if (epic.status !== 'running') throw new RecoverRefused('not running');
+      if (epic.stage === null) throw new RecoverRefused('not started'); // the poll's launch has not claimed it yet
+      if (busy(epic.id) || db.select().from(executions).where(and(eq(executions.epicId, epic.id), eq(executions.status, 'running'))).get()) throw new RecoverRefused('agent alive');
+      asked.add(epic.id);
+      try {
+        if (!(await forRepo(repo, () => recoverEpic(epic.id)))) throw new RecoverRefused('github unavailable');
+      } catch (e) {
+        if (e instanceof RecoverRefused) throw e;
+        if (e instanceof AuthError || e instanceof GitHubUnavailable) throw new RecoverRefused('github unavailable');
+        if (isDatabaseError(e) === false) {
+          log.error('recovering an epic failed', e, { repo, epicId: epic.id });
+          await stopEpic(epic.id, e);
+        }
+        throw e;
+      } finally {
+        asked.delete(epic.id);
+      }
+      db.insert(epicEvents).values({ epicId: epic.id, at: clock.now(), type: 'recovered', data: { stage: epic.stage, by: 'command' } }).run();
     },
     /** Stops (or resumes) taking epics from the queue; running epics are not touched. Resuming fills the free slots at once. */
     setPaused(value: boolean) {

@@ -4155,6 +4155,116 @@ test('an unexpected error in a recovery stops that epic in engine_error and the 
   expect(runner.tasks.map((t) => t.epic)).toEqual([2]);
 });
 
+// --- recoverEpic: the same recovery, asked for one epic (ADR 0044) ---
+
+test('recoverEpic continues a running epic that lost its agent from its real state, leaves a recovered event that says a command asked, and answers once it was continued', async () => {
+  const config = failoverRepos({ author: [{ provider: 'spare' }] });
+  const engine = await start(1, config);
+  seedEpic(engine.db, 1, { config: config[0] });
+  seedExecution(engine.db, 'e0', 1, { status: 'failed', option: 'claude', failureKind: 'usage_limit', failureDetail: 'resets 12:40pm' });
+  pull(50);
+  runner.behavior = () => ({ exit: 'hang' });
+
+  await engine.recoverEpic('AshuLab/a', 1);
+  expect(runner.tasks.map((t) => [t.stage, t.option])).toEqual([['ship', 'spare']]); // already started when it answers
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', authorOption: 'spare', recoveries: 0 }); // the poll's budget is not spent by a person
+  expect(recovered(engine.db).map((e) => e.data)).toEqual([{ stage: 'ship', by: 'command' }]);
+  await clock.advance(5 * MIN); // the poll finds an agent alive: no second one
+  expect(runner.tasks).toHaveLength(1);
+});
+
+test('recoverEpic refuses an epic the engine does not know, and one that is not running, and touches nothing', async () => {
+  const engine = await start(1);
+  seedEpic(engine.db, 1, { status: 'needs_human', needsHumanKind: 'agent_needs_human', needsHumanReason: 'x' });
+  seedExecution(engine.db, 'e0', 1, { status: 'interrupted' });
+  expect(await refusal(engine.recoverEpic('AshuLab/a', 9))).toBe('unknown epic');
+  expect(await refusal(engine.recoverEpic('AshuLab/other', 1))).toBe('unknown epic');
+  expect(await refusal(engine.recoverEpic('AshuLab/a', 1))).toBe('not running');
+  expect(runner.tasks).toEqual([]);
+  expect(recovered(engine.db)).toEqual([]);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human' });
+});
+
+test('recoverEpic refuses an epic whose execution is alive, and starts no second agent', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  runner.behavior = () => ({ exit: 'hang' });
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  expect(runner.tasks).toHaveLength(1);
+  expect(await refusal(engine.recoverEpic('AshuLab/a', 1))).toBe('agent alive');
+  expect(runner.tasks).toHaveLength(1);
+  expect(recovered(engine.db)).toEqual([]);
+});
+
+test('recoverEpic refuses an epic whose launch is in flight, and starts no second agent', async () => {
+  github.ready = { 'AshuLab/a': ready(1, 2) };
+  let ends!: () => void;
+  let opens!: () => void;
+  const gate = new Promise<void>((resolve) => (opens = resolve));
+  runner.behavior = (task) => (task.epic === 1 ? { write: result(task, { outcome: 'needs_human', reason: 'x' }), when: new Promise<void>((resolve) => (ends = resolve)) } : { exit: 'hang' });
+  workspaces.prepareAuthor = async (repo, epic) => (epic === 2 ? (await gate, `/work/${repo}/${epic}/author`) : `/work/${repo}/${epic}/author`);
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  ends(); // epic 1 stops, and the slot it frees starts epic 2, which waits for its workspace with its stage claimed
+  await vi.waitFor(() => expect(rows(engine.db)[1]).toMatchObject({ status: 'running', stage: 'ship' }));
+
+  expect(await refusal(engine.recoverEpic('AshuLab/a', 2))).toBe('agent alive');
+  opens();
+  await settle();
+  expect(runner.tasks.filter((t) => t.epic === 2)).toHaveLength(1);
+  expect(recovered(engine.db)).toEqual([]);
+});
+
+test('recoverEpic refuses an epic whose retry is in flight, and starts no second agent', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  let opens!: () => void;
+  const gate = new Promise<void>((resolve) => (opens = resolve));
+  runner.behavior = () => (runner.tasks.length === 1 ? { exit: 'failed' } : { exit: 'hang' });
+  const find = github.findPullRequest.bind(github);
+  github.findPullRequest = async (...args) => (await gate, find(...args)); // the retry reads GitHub before it launches
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(executionsOf(engine.db).map((e) => e.status)).toEqual(['failed']));
+
+  expect(await refusal(engine.recoverEpic('AshuLab/a', 1))).toBe('agent alive');
+  opens();
+  await settle();
+  expect(runner.tasks).toHaveLength(2);
+  expect(recovered(engine.db)).toEqual([]);
+});
+
+test('recoverEpic refuses an epic that has no stage yet, and a second one while the first is in flight', async () => {
+  const engine = await start(1);
+  seedEpic(engine.db, 1, { stage: null });
+  expect(await refusal(engine.recoverEpic('AshuLab/a', 1))).toBe('not started');
+
+  seedEpic(engine.db, 2);
+  seedExecution(engine.db, 'e0', 2, { status: 'interrupted' });
+  let opens!: () => void;
+  const gate = new Promise<void>((resolve) => (opens = resolve));
+  const find = github.findPullRequest.bind(github);
+  github.findPullRequest = async (...args) => (await gate, find(...args));
+  runner.behavior = () => ({ exit: 'hang' });
+  const first = engine.recoverEpic('AshuLab/a', 2);
+  await flush();
+  expect(await refusal(engine.recoverEpic('AshuLab/a', 2))).toBe('agent alive');
+  opens();
+  await first;
+  expect(runner.tasks).toHaveLength(1);
+});
+
+test('an unexpected error while recovering one epic stops it in engine_error, as the poll does, and the request fails', async () => {
+  const config = failoverRepos({ author: [{ provider: 'spare' }] });
+  const engine = await start(1, config);
+  seedEpic(engine.db, 1, { config: config[0] });
+  seedExecution(engine.db, 'e0', 1, { status: 'failed', option: 'claude', failureKind: 'usage_limit', failureDetail: 'resets' });
+  github.findPullRequest = async () => {
+    throw new TypeError('boom');
+  };
+  await expect(engine.recoverEpic('AshuLab/a', 1)).rejects.toThrow('boom');
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'engine_error', needsHumanReason: 'boom' });
+});
+
 // --- An issue that is gone, and a repo that does not answer ---
 
 const goneReason = 'the epic issue no longer exists';

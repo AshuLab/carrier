@@ -1,5 +1,5 @@
 import type { Clock } from './clock.ts';
-import { AuthError, GitHubUnavailable, type EpicSlice, type PullRequestBlock, type PullRequestState, type ReviewThread, type GitHub, type LabelStyle, type RateLimit, type Slices } from './github.ts';
+import { AuthError, GitHubUnavailable, defaultLabels, type EpicSlice, type PullRequestBlock, type PullRequestState, type ReviewThread, type GitHub, type LabelStyle, type RateLimit, type Slices } from './github.ts';
 
 export class FakeGitHub implements GitHub {
   /** What rateLimit answers. */
@@ -50,17 +50,17 @@ export class FakeGitHub implements GitHub {
 
   /** An issue not set up by the test is open and ready. */
   issue(repo: string, issue: number) {
-    return (this.issues[`${repo}#${issue}`] ??= { state: 'open', labels: ['solve:epic:ready'] });
+    return (this.issues[`${repo}#${issue}`] ??= { state: 'open', labels: [defaultLabels.ready] });
   }
 
-  async listReadyEpics(repo: string) {
+  async listReadyEpics(repo: string, label: string) {
     this.guard();
     this.calls++;
     if (this.unavailable) throw this.unavailable;
-    return (this.ready[repo] ?? []).filter((e) => this.issue(repo, e.issue).labels.includes('solve:epic:ready')).map((e) => ({ ...e, labels: [...this.issue(repo, e.issue).labels] })); // like GitHub: the label decides
+    return (this.ready[repo] ?? []).filter((e) => this.issue(repo, e.issue).labels.includes(label)).map((e) => ({ ...e, labels: [...this.issue(repo, e.issue).labels] })); // like GitHub: the label decides
   }
 
-  async listOpenEpics(repo: string) {
+  async listOpenEpics(repo: string, _label: string) {
     this.guard();
     const failure = this.unavailable ?? this.openEpicsUnavailable;
     if (failure) throw failure;

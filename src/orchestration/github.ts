@@ -1,3 +1,5 @@
+import type { needsHumanKinds } from '../storage/schema.ts';
+
 export type UnavailableKind = 'rate_limited' | 'server_error' | 'timeout' | 'network';
 
 export class GitHubUnavailable extends Error {
@@ -25,10 +27,27 @@ export class AuthError extends Error {
   }
 }
 
-// Labels Carrier owns (it creates them) and the one Solve owns (it never does).
-export const ownedLabels = ['solve:epic:running', 'solve:epic:ready-for-test', 'solve:epic:needs-human'] as const;
-export const readyLabel = 'solve:epic:ready';
-export const epicLabel = 'solve:epic';
+/** The stages an epic runs in; a label can name each one while the epic is `running`. */
+export const stageNames = ['ship', 'review', 'fix'] as const;
+export type StageName = (typeof stageNames)[number];
+
+/**
+ * The labels by role. `epic` marks an epic and `ready` queues it (Solve and people write both); `running`, `readyForTest` and `needsHuman`
+ * mirror its status and are Carrier's: it creates them and nothing else writes them. The config can name each; these are the defaults.
+ * `stages` and `reasons` are optional and off by default: a label per stage while the epic runs, and one per kind of stop while it waits for a person.
+ */
+export const labelRoles = ['epic', 'ready', 'running', 'readyForTest', 'needsHuman'] as const;
+export type Labels = Record<(typeof labelRoles)[number], string> & {
+  stages?: Partial<Record<StageName, string>>;
+  reasons?: Partial<Record<(typeof needsHumanKinds)[number], string>>;
+};
+export const defaultLabels: Labels = {
+  epic: 'solve:epic',
+  ready: 'solve:epic:ready',
+  running: 'solve:epic:running',
+  readyForTest: 'solve:epic:ready-for-test',
+  needsHuman: 'solve:epic:needs-human',
+};
 
 /** Slices closed out of the total, as GitHub reports them. */
 export type Slices = { done: number; total: number };
@@ -84,13 +103,12 @@ export type ReviewThread = {
 export type LabelStyle = { color: string; description: string };
 /** How Carrier creates its labels (GitHub limits a description to 100 characters). `needs-human` is the loud one: it is the state that most needs to be seen. */
 export const labelStyles = {
-  'solve:epic:running': { color: '0969da', description: 'An orchestrator is building this epic' },
-  'solve:epic:ready-for-test': { color: '8957e5', description: 'Reviewed on the current head; a person tests and merges' },
-  'solve:epic:needs-human': { color: 'd93f0b', description: 'Stopped: a person has to step in (reason in the issue or PR)' },
-} as const satisfies Record<(typeof ownedLabels)[number], LabelStyle>;
-export const runningLabel = ownedLabels[0];
-export const readyForTestLabel = ownedLabels[1];
-export const needsHumanLabel = ownedLabels[2];
+  running: { color: '0969da', description: 'An orchestrator is building this epic' },
+  readyForTest: { color: '8957e5', description: 'Reviewed on the current head; a person tests and merges' },
+  needsHuman: { color: 'd93f0b', description: 'Stopped: a person has to step in (reason in the issue or PR)' },
+  stage: { color: 'c5def5', description: 'Carrier: the stage this epic is in' },
+  reason: { color: 'fbca04', description: 'Carrier: why this epic stopped' },
+} as const satisfies Record<'running' | 'readyForTest' | 'needsHuman' | 'stage' | 'reason', LabelStyle>;
 
 /** The REST limit of the orchestrator's credential at its latest answer; `resetAt` is ms since epoch. */
 export type RateLimit = { remaining: number; limit: number; resetAt: number };
@@ -98,10 +116,10 @@ export type RateLimit = { remaining: number; limit: number; resetAt: number };
 export interface GitHub {
   /** From the headers of the latest call, no request of its own; null before any call carried them. */
   rateLimit(): RateLimit | null;
-  /** All ready epics of the repo, every page, with their title and labels. Throws GitHubUnavailable when GitHub is down or rate limiting. */
-  listReadyEpics(repo: string): Promise<{ issue: number; title: string; labels: string[] }[]>;
-  /** The open `solve:epic` issues of the repo, every page, each with its title, labels and the slice progress GitHub reports (`null` when it sends none). Throws GitHubUnavailable like the call above. */
-  listOpenEpics(repo: string): Promise<{ issue: number; title: string; labels: string[]; slices: Slices | null }[]>;
+  /** All open issues of the repo that carry `label` (the ready label), every page, with their title and labels. Throws GitHubUnavailable when GitHub is down or rate limiting. */
+  listReadyEpics(repo: string, label: string): Promise<{ issue: number; title: string; labels: string[] }[]>;
+  /** The open issues of the repo that carry `label` (the epic marker), every page, each with its title, labels and the slice progress GitHub reports (`null` when it sends none). Throws GitHubUnavailable like the call above. */
+  listOpenEpics(repo: string, label: string): Promise<{ issue: number; title: string; labels: string[]; slices: Slices | null }[]>;
   /** The first hundred slices of an epic in one query; `truncated` when it has more. Throws GitHubUnavailable like the call above. */
   readSlices(repo: string, issue: number): Promise<{ slices: EpicSlice[]; truncated: boolean }>;
   /** One query: the pull request's merge state, review decision and checks, and its first hundred review threads (`truncated` when it has more); null when it does not exist. Throws GitHubUnavailable like the call above. */

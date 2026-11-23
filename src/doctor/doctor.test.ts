@@ -8,6 +8,7 @@ import { loadWithProviders } from '../config/testing.ts';
 import type { Config } from '../config/schema.ts';
 import { doctorCommand } from '../terminal/cli/commands/doctor.ts';
 import { cliLoggedIn, runDoctor, type Check, type DoctorDeps } from './doctor.ts';
+import { defaultLabels } from '../orchestration/github.ts';
 
 const folder = '/tmp/carrier-doctor';
 const doctor = (cfg: Config, ...rest: Parameters<typeof runDoctor> extends [unknown, unknown, ...infer Rest] ? Rest : never) => runDoctor(cfg, folder, ...rest);
@@ -222,6 +223,14 @@ test.each([
   expect(solve).toMatchObject({ status, repo: 'AshuLab/carrier', profiles: ['a'] });
   expect(solve?.detail).toBe(detail);
   expect(solve?.fix).toBe(status === 'ok' ? undefined : 'run solve:setup in the repo, it creates them');
+});
+
+test('the Solve check looks for the configured ready label, and its remedy says the person creates it', async () => {
+  const present = (await doctor(config({ labels: { ...defaultLabels, ready: 'carrier:go' } }), deps({ listLabels: async () => ['solve:epic', 'carrier:go'] }))).find((c) => c.name === 'AshuLab/carrier has the Solve labels');
+  expect(present).toMatchObject({ status: 'ok' });
+  const missing = (await doctor(config({ labels: { ...defaultLabels, ready: 'carrier:go' } }), deps({ listLabels: async () => ['solve:epic', 'solve:epic:ready'] }))).find((c) => c.name === 'AshuLab/carrier has the Solve labels');
+  expect(missing).toMatchObject({ status: 'fail', detail: 'missing carrier:go' });
+  expect(missing?.fix).toContain('create "carrier:go"');
 });
 
 test('listLabels is called once per repo', async () => {

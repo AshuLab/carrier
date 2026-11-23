@@ -1,5 +1,6 @@
 import { formatDuration } from '../../format/duration.ts';
 import { printable } from './printable.ts';
+import { defaultLabels } from '../../orchestration/github.ts';
 import type { PanelEpic, PanelSnapshot } from '../../status/types.ts';
 import { finishedSections, itemsOf, maxListed, type UiState } from './ui-state.ts';
 import { detailOf, historyLine, type DetailProvider } from './history.ts';
@@ -189,7 +190,7 @@ export function renderDashboard(s: PanelSnapshot, { columns = 80, color = true, 
 
   if (s.epics.length === 0 && s.queue.length === 0 && s.done.length === 0) {
     add();
-    add(s.repos === 0 ? `   ${paint('Idle.', 'bold')} No repos are watched yet: add one to the config's ${paint('repos', 'cyan')}.` : `   ${paint('Idle.', 'bold')} Mark an epic ${paint('solve:epic:ready', 'cyan')} in a watched repo to start one.`);
+    add(s.repos === 0 ? `   ${paint('Idle.', 'bold')} No repos are watched yet: add one to the config's ${paint('repos', 'cyan')}.` : `   ${paint('Idle.', 'bold')} Mark an epic ${paint((s.labels ?? defaultLabels).ready, 'cyan')} in a watched repo to start one.`);
   }
 
   for (const { name, rows, more } of finishedSections(s)) {

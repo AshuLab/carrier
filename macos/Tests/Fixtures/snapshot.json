@@ -5,6 +5,13 @@
   "nextCheckAt": 160000,
   "problem": "GitHub is not answering",
   "paused": true,
+  "labels": {
+    "epic": "solve:epic",
+    "ready": "solve:epic:ready",
+    "running": "solve:epic:running",
+    "readyForTest": "solve:epic:ready-for-test",
+    "needsHuman": "solve:epic:needs-human"
+  },
   "done": [
     {
       "repo": "acme/web",

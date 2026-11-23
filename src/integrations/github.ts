@@ -3,7 +3,7 @@ import { promisify } from 'node:util';
 import { z } from 'zod';
 import { epicSlicesQuery, epicSlicesResponse, pullRequestOf, pullRequestQuery, pullRequestResponse, sliceOf, threadsOf } from './github-graphql.ts';
 import { redact } from '../logging/redact.ts';
-import { AuthError, GitHubRejected, GitHubUnavailable, epicLabel, readyLabel, type GitHub, type LabelStyle, type PullRequestState, type RateLimit, type Slices } from '../orchestration/github.ts';
+import { AuthError, GitHubRejected, GitHubUnavailable, type GitHub, type LabelStyle, type PullRequestState, type RateLimit, type Slices } from '../orchestration/github.ts';
 
 const execFileAsync = promisify(execFile);
 
@@ -158,17 +158,17 @@ export class GhGitHub implements GitHub {
     }
   }
 
-  async listReadyEpics(repo: string) {
+  async listReadyEpics(repo: string, label: string) {
     const epics: { issue: number; title: string; labels: string[] }[] = [];
-    for await (const rows of this.pages(repo, 'issues', { labels: readyLabel, state: 'open' }, issueRow)) {
+    for await (const rows of this.pages(repo, 'issues', { labels: label, state: 'open' }, issueRow)) {
       for (const row of rows) if (row.pull_request === undefined) epics.push({ issue: row.number, title: row.title, labels: row.labels.map((label) => label.name) });
     }
     return epics;
   }
 
-  async listOpenEpics(repo: string) {
+  async listOpenEpics(repo: string, label: string) {
     const epics: { issue: number; title: string; labels: string[]; slices: Slices | null }[] = [];
-    for await (const rows of this.pages(repo, 'issues', { labels: epicLabel, state: 'open' }, epicRow)) {
+    for await (const rows of this.pages(repo, 'issues', { labels: label, state: 'open' }, epicRow)) {
       for (const row of rows) {
         if (row.pull_request === undefined) epics.push({ issue: row.number, title: row.title, labels: row.labels.map((label) => label.name), slices: row.sub_issues_summary ? { done: row.sub_issues_summary.completed, total: row.sub_issues_summary.total } : null });
       }

@@ -25,6 +25,7 @@ import { AuthError, GitHubRejected, GitHubUnavailable, type EpicSlice, type Pull
 import { epicReviewThreads } from '../storage/epic-review-threads.ts';
 import { epicSlices } from '../storage/epic-slices.ts';
 import { enginePlacesOf } from '../config/places.ts';
+import { defaultLabels } from './github.ts';
 
 const MIN = 60_000;
 const agents = {
@@ -64,7 +65,7 @@ function open() {
 }
 async function start(maxConcurrentEpics = 0, config = repos, maxExecutionHours: number | 'unlimited' = 4, maxExecutionRetries = 3, maxReviews = 5) {
   const db = open();
-  settings = { pollIntervalMs: 5 * MIN, maxConcurrentEpics, maxExecutionHours, maxExecutionRetries, maxReviews };
+  settings = { pollIntervalMs: 5 * MIN, labels: defaultLabels, maxConcurrentEpics, maxExecutionHours, maxExecutionRetries, maxReviews };
   watched = config;
   const engine = createEngine({ db, github, clock, repos: () => watched, settings: () => settings, profileDeclared: (name) => declaredProfile(name), runner, workspaces, places: enginePlacesOf(dir) });
   await engine.start();
@@ -204,7 +205,7 @@ test('GitHubUnavailable keeps queue and state, exposes the error and backs off t
 test('a failure in one repo registers nothing from the other repos in that poll', async () => {
   github.ready = { 'AshuLab/a': [{ issue: 1, title: '' }] };
   const fail = new GitHubUnavailable('network', 'down');
-  github.listReadyEpics = async (repo) => {
+  github.listReadyEpics = async (repo, label) => {
     if (repo === 'AshuLab/b') throw fail;
     return [{ issue: 1, title: '', labels: [] }];
   };
@@ -223,7 +224,7 @@ test('each repo keeps its last check: when, whether it worked and why not, from 
   expect(engine.lastCheck('AshuLab/b')).toEqual({ at: 5 * MIN, ok: true, error: null });
 
   // b fails: a was read in that cycle, b was not.
-  github.listReadyEpics = async (repo) => {
+  github.listReadyEpics = async (repo, label) => {
     if (repo === 'AshuLab/b') throw new GitHubUnavailable('server_error', 'HTTP 502');
     return [];
   };
@@ -304,6 +305,44 @@ test('reserving flips ready to running on the issue', async () => {
   expect(rows(engine.db)[0]).toMatchObject({ status: 'running', labelPending: false });
 });
 
+test('with another ready label only the issues that carry it are queued, and the default one queues nothing', async () => {
+  github.ready = { 'AshuLab/a': ready(1, 2) };
+  github.issue('AshuLab/a', 1).labels = ['carrier:go', 'bug'];
+  github.issue('AshuLab/a', 2).labels = ['solve:epic:ready'];
+  const engine = await start();
+  settings.labels = { ...defaultLabels, ready: 'carrier:go' };
+  await clock.advance(5 * MIN);
+  expect(ids(engine)).toEqual(['AshuLab/a#1']);
+});
+
+test('with another ready label, reserving takes that label off and puts running on, and a lost one cancels the epic', async () => {
+  github.ready = { 'AshuLab/a': ready(4, 5) };
+  github.issue('AshuLab/a', 4).labels = ['carrier:go', 'bug'];
+  github.issue('AshuLab/a', 5).labels = ['carrier:go'];
+  const list = github.listReadyEpics.bind(github);
+  github.listReadyEpics = async (repo, label) => {
+    const listed = await list(repo, label);
+    github.issue('AshuLab/a', 5).labels = ['solve:epic:ready']; // the custom label goes after the listing, before the slot is reserved
+    return listed;
+  };
+  const engine = await start(2);
+  settings.labels = { ...defaultLabels, ready: 'carrier:go' };
+  await clock.advance(5 * MIN);
+  expect(labelsOf(4)).toEqual(['bug', 'solve:epic:running']);
+  expect(rows(engine.db).map((e) => [e.issue, e.status, e.cancelReason])).toEqual([[4, 'running', null], [5, 'cancelled', 'ready label removed']]);
+});
+
+test('with the status labels renamed, the repo gets the new names and the epic shows the running one', async () => {
+  github.ready = { 'AshuLab/a': ready(4, 5) };
+  github.issue('AshuLab/a', 4).labels = ['carrier:go'];
+  github.issue('AshuLab/a', 5).labels = ['carrier:go'];
+  await start(1);
+  settings.labels = { ...defaultLabels, ready: 'carrier:go', running: 'carrier:busy', readyForTest: 'carrier:test', needsHuman: 'carrier:stuck' };
+  await clock.advance(5 * MIN);
+  expect(labelsOf(4)).toEqual(['carrier:busy']);
+  expect(github.repoLabels['AshuLab/a']).toEqual(['carrier:busy', 'carrier:test', 'carrier:stuck']);
+});
+
 test('GitHubUnavailable on the label change keeps the epic reserved and the next cycle reconciles it once', async () => {
   github.ready = { 'AshuLab/a': ready(4) };
   github.setLabelsUnavailable = new GitHubUnavailable('network', 'down');
@@ -325,8 +364,8 @@ test('a closed issue is cancelled, a lost ready too, and the slot goes to the ne
   github.ready = { 'AshuLab/a': ready(1, 2, 3) };
   github.issue('AshuLab/a', 1).state = 'closed';
   const list = github.listReadyEpics.bind(github);
-  github.listReadyEpics = async (repo) => {
-    const listed = await list(repo);
+  github.listReadyEpics = async (repo, label) => {
+    const listed = await list(repo, label);
     github.issue('AshuLab/a', 2).labels = []; // the label goes after the listing, before the slot is reserved
     return listed;
   };
@@ -503,7 +542,7 @@ test('the snapshot gives a running session its newest event as soon as the chunk
   await clock.advance(5 * MIN);
   const snapshot = buildSnapshot(engine.db, {
     now: clock.now(), maxConcurrentEpics: 1, maxReviews: 5, finishedWindowDays: 15, startedAt: 0, repos: 1, nextCheckAt: null, problem: null, paused: false,
-    slices: engine.slices, version: '0', pollIntervalMs: 1, lastEvent: (id) => lastEventOf(engine.db, id),
+    slices: engine.slices, version: '0', pollIntervalMs: 1, labels: defaultLabels, lastEvent: (id) => lastEventOf(engine.db, id),
   });
   expect(snapshot.sessions).toMatchObject([{ executionId: runner.tasks[0]!.executionId, last: { kind: 'tool_start', text: 'Bash ls', at: 43 } }]);
 });
@@ -518,6 +557,30 @@ test('a valid completed result moves the epic to review round 1 and records the 
   expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'review', round: 1, prNumber: 50, prHeadSha: SHA, finishedAt: null });
   expect(executionsOf(engine.db)[0]).toMatchObject({ status: 'finished', sessionId: 's' });
   expect(labelsOf(1)).toEqual(['solve:epic:running']);
+});
+
+test('with stage labels named, the issue shows the stage the epic is in and the next one replaces it', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50);
+  runner.behavior = (task) => (task.stage === 'ship' ? { sessionId: 's', write: completed(task) } : { exit: 'stopped' });
+  const engine = await start(1);
+  settings.labels = { ...defaultLabels, stages: { ship: 'carrier:building', review: 'carrier:reviewing', fix: 'carrier:fixing' } };
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'review', labelPending: false });
+  expect([...labelsOf(1)].sort()).toEqual(['carrier:reviewing', 'solve:epic:running']);
+  expect(github.repoLabels['AshuLab/a']).toEqual(['solve:epic:running', 'solve:epic:ready-for-test', 'solve:epic:needs-human', 'carrier:building', 'carrier:reviewing', 'carrier:fixing']);
+});
+
+test('with a label named for a kind of stop, the issue shows it beside needs-human, and only that kind', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  runner.behavior = (task) => ({ write: result(task, { outcome: 'needs_human', reason: 'a credential is missing' }) });
+  const engine = await start(1);
+  settings.labels = { ...defaultLabels, reasons: { agent_needs_human: 'carrier:asked', timeout: 'carrier:slow' } };
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'agent_needs_human' });
+  expect([...labelsOf(1)].sort()).toEqual(['carrier:asked', 'solve:epic:needs-human']);
 });
 
 test.each([
@@ -1945,7 +2008,7 @@ async function startWhileRecovering() {
   const gate = new Promise<void>((resolve) => (open1 = resolve));
   workspaces.prepareAuthor = async (repo, epic) => (await gate, `/work/${repo}/${epic}/author`);
   runner.behavior = () => ({ exit: 'hang' });
-  settings = { pollIntervalMs: 5 * MIN, maxConcurrentEpics: 1, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews: 5 };
+  settings = { pollIntervalMs: 5 * MIN, labels: defaultLabels, maxConcurrentEpics: 1, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews: 5 };
   watched = repos;
   const engine = createEngine({ db, github, clock, repos: () => watched, settings: () => settings, profileDeclared: () => true, runner, workspaces, places: enginePlacesOf(dir) });
   const started = engine.start();
@@ -2341,7 +2404,7 @@ test('purges expired logs and sessions when the engine starts and every 24 hours
   db.insert(executions).values({ executionId: 'x-old', epicId: old.id, stage: 'ship', sessionId: 's-old', resultPath: 'r', startedAt: 0 }).run();
   const logs = join(dir, 'engine', 'logs', 'executions', 'x-old');
   mkdirSync(logs, { recursive: true });
-  const engine = createEngine({ db, github, clock, profileDeclared: () => true, repos: () => repos, settings: () => ({ pollIntervalMs: 5 * MIN, maxConcurrentEpics: 0, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews: 5 }), runner, workspaces, places: enginePlacesOf(dir) });
+  const engine = createEngine({ db, github, clock, profileDeclared: () => true, repos: () => repos, settings: () => ({ pollIntervalMs: 5 * MIN, labels: defaultLabels, maxConcurrentEpics: 0, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews: 5 }), runner, workspaces, places: enginePlacesOf(dir) });
   await engine.start();
   expect(existsSync(logs)).toBe(false);
   mkdirSync(logs, { recursive: true });
@@ -2843,7 +2906,7 @@ test('a resume asked while the start recovers waits for it up to thirty seconds,
   workspaces.prepareAuthor = async (repo, epic) => (await gate, `/work/${repo}/${epic}/author`);
   runner.behavior = () => ({ exit: 'hang' });
   github.ready = { 'AshuLab/a': ready(2) };
-  settings = { pollIntervalMs: 5 * MIN, maxConcurrentEpics: 2, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews: 5 };
+  settings = { pollIntervalMs: 5 * MIN, labels: defaultLabels, maxConcurrentEpics: 2, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews: 5 };
   watched = repos;
   const engine = createEngine({ db, github, clock, repos: () => watched, settings: () => settings, profileDeclared: () => true, runner, workspaces, places: enginePlacesOf(dir) });
   const setLabels = vi.spyOn(github, 'setLabels');
@@ -2893,9 +2956,9 @@ test('resumeEpic asks for one more check when the check that was running had lis
   const gate = new Promise<void>((resolve) => (release = resolve));
   const listing = github.listReadyEpics.bind(github);
   let stale = true; // only the first poll reads before the label and answers after it
-  github.listReadyEpics = async (repo) => {
-    if (!stale) return listing(repo);
-    const before = await listing(repo);
+  github.listReadyEpics = async (repo, label) => {
+    if (!stale) return listing(repo, label);
+    const before = await listing(repo, label);
     await gate;
     return before;
   };
@@ -2921,10 +2984,10 @@ test('resumeEpic while a check is already running does not start a second one an
   const gate = new Promise<void>((resolve) => (release = resolve));
   const listing = github.listReadyEpics.bind(github);
   let listed = 0;
-  github.listReadyEpics = async (repo) => {
+  github.listReadyEpics = async (repo, label) => {
     listed++;
     await gate;
-    return listing(repo);
+    return listing(repo, label);
   };
   void engine.pollNow(); // the timer's poll, held on its first read
   await flush();
@@ -3105,7 +3168,7 @@ test('a reload asked while a poll runs does not double it: one more poll follows
   const gate = new Promise<void>((resolve) => (open = resolve));
   const listed = github.listReadyEpics.bind(github);
   let lists = 0;
-  github.listReadyEpics = async (repo) => (lists++, await gate, listed(repo));
+  github.listReadyEpics = async (repo, label) => (lists++, await gate, listed(repo, label));
   const engine = await start();
   void clock.advance(5 * MIN); // the poll starts and waits on its first list
   await vi.waitFor(() => expect(lists).toBe(1));
@@ -3124,7 +3187,7 @@ test('a repo a reload adds while a poll runs is read by the poll that follows it
   const gate = new Promise<void>((resolve) => (open = resolve));
   const listed = github.listReadyEpics.bind(github);
   let lists = 0;
-  github.listReadyEpics = async (repo) => (lists++, await gate, listed(repo));
+  github.listReadyEpics = async (repo, label) => (lists++, await gate, listed(repo, label));
   const engine = await start(0, [repos[0]!]);
   void clock.advance(5 * MIN);
   await vi.waitFor(() => expect(lists).toBe(1)); // the poll lists the old repos
@@ -3316,9 +3379,9 @@ test('a restart checks the account names against the accounts of the reload, not
 test('a repo a reload adds that GitHub answers 404 for fails its own check; the other is still read and the polling goes on', async () => {
   github.ready = { 'AshuLab/a': ready(1) };
   const listed = github.listReadyEpics.bind(github);
-  github.listReadyEpics = async (repo) => {
+  github.listReadyEpics = async (repo, label) => {
     if (repo === 'AshuLab/b') throw new GitHubRejected('GitHub answered HTTP 404: Not Found');
-    return listed(repo);
+    return listed(repo, label);
   };
   const engine = await start(0, [repos[0]!]);
   reload(engine, { repos });
@@ -3467,9 +3530,9 @@ test('a repo GitHub refuses in the middle of the cycle fails its own check; the 
 test('what is not GitHub refusing a repo still surfaces from the listing, and the next poll is armed all the same', async () => {
   github.ready = { 'AshuLab/a': ready(1) };
   const listed = github.listReadyEpics.bind(github);
-  github.listReadyEpics = async (repo) => {
+  github.listReadyEpics = async (repo, label) => {
     if (repo === 'AshuLab/b') throw new Error('database is locked');
-    return listed(repo);
+    return listed(repo, label);
   };
   const engine = await start(0);
   await clock.advance(5 * MIN);
@@ -3670,7 +3733,7 @@ test('an epic a reload restores while another launch of its first stage is prepa
   let release!: () => void;
   const listed = new Promise<void>((resolve) => (release = resolve));
   const list = github.listReadyEpics.bind(github);
-  github.listReadyEpics = async (repo) => (await listed, list(repo));
+  github.listReadyEpics = async (repo, label) => (await listed, list(repo, label));
   let openWorkspace!: () => void;
   const workspaceGate = new Promise<void>((resolve) => (openWorkspace = resolve));
   let prepared = 0;
@@ -3694,8 +3757,8 @@ test('a poll that listed a repo before a reload removed it queues nothing for it
   let release!: () => void;
   const listed = new Promise<void>((resolve) => (release = resolve));
   const list = github.listReadyEpics.bind(github);
-  github.listReadyEpics = async (repo) => {
-    const epics = await list(repo);
+  github.listReadyEpics = async (repo, label) => {
+    const epics = await list(repo, label);
     if (repo === 'AshuLab/b') await listed; // the list is read, the answer is not back yet
     return epics;
   };

@@ -1,6 +1,7 @@
 import { and, asc, count, desc, eq, gte, inArray, sql } from 'drizzle-orm';
 import type { EffectiveRepoConfig } from '../config/resolve.ts';
 import { latestBlockers } from '../orchestration/blockers.ts';
+import type { Labels } from '../orchestration/github.ts';
 import type { Db } from '../storage/db.ts';
 import { executions } from '../storage/executions.ts';
 import { epics } from '../storage/schema.ts';
@@ -34,12 +35,13 @@ export function buildSnapshot(
   db: Db,
   {
     now, maxConcurrentEpics, maxReviews, finishedWindowDays, startedAt, repos, nextCheckAt, problem, paused, slices,
-    version, pollIntervalMs, rateLimit = null, watched = [], lastEvent = () => null,
+    version, pollIntervalMs, labels, rateLimit = null, watched = [], lastEvent = () => null,
   }: {
     now: number; maxConcurrentEpics: number; maxReviews: number; finishedWindowDays: number; startedAt: number; repos: number; nextCheckAt: number | null; problem: string | null; paused: boolean;
     slices: (repo: string, issue: number) => PanelEpic['slices'];
     version: string;
     pollIntervalMs: number;
+    labels: Labels;
     rateLimit?: ControlSnapshot['engine']['rateLimit'];
     watched?: ControlSnapshot['watched'];
     /** The newest event of an execution. */
@@ -72,6 +74,7 @@ export function buildSnapshot(
     nextCheckAt,
     problem,
     paused,
+    labels,
     done,
     slots: { busy, total: maxConcurrentEpics },
     queue,

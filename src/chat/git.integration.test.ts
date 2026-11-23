@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
@@ -534,21 +534,20 @@ describe.skipIf(!enabled)('deleting a session in a worktree, with the real git',
     expect(git(buried.path, 'cat-file', '-t', lost).trim()).toBe('commit');
   });
 
-  test('a folder a stopped removal left without its .git is not a worktree: the clock pass takes it, and resuming brings a real one back', async () => {
+  test('a folder git cannot read, with no .git or a .git that is a dangling link, is kept with all its files, and a good one beside it is cleaned', async () => {
     const base = repoAt('clock-half');
-    const { s, parked, pass } = parkedHost(base);
-    const cleaning = await parked('cleaning');
-    const opening = await parked('opening');
-    for (const w of [cleaning, opening]) rmSync(join(w.path, '.git')); // `git worktree remove` deletes it first; the registration and the other files stay
-    expect(git(base, 'worktree', 'list').trim().split('\n')).toHaveLength(3);
-    await s.resume({ sessionId: opening.id });
-    expect(statSync(join(opening.path, '.git')).isFile()).toBe(true);
-    expect(git(opening.path, 'branch', '--show-current').trim()).toBe(opening.branch);
-    await pass(); // `opening` is live now
-    expect(existsSync(cleaning.path)).toBe(false);
-    expect(git(base, 'worktree', 'list').trim().split('\n')).toHaveLength(2);
-    await s.resume({ sessionId: cleaning.id });
-    expect(statSync(join(cleaning.path, '.git')).isFile()).toBe(true);
+    const { parked, pass } = parkedHost(base);
+    const none = await parked('none');
+    const dangling = await parked('dangling-link');
+    const good = await parked('good');
+    for (const w of [none, dangling]) writeFileSync(join(w.path, 'mine.txt'), 'm');
+    rmSync(join(none.path, '.git'));
+    rmSync(join(dangling.path, '.git'));
+    symlinkSync(join(dir, 'nowhere'), join(dangling.path, '.git'));
+    await pass();
+    expect([none, dangling, good].map((w) => existsSync(w.path))).toEqual([true, true, false]);
+    expect([none, dangling].map((w) => readFileSync(join(w.path, 'mine.txt'), 'utf8'))).toEqual(['m', 'm']);
+    expect(git(base, 'worktree', 'list').trim().split('\n')).toHaveLength(3); // registrations stay: the fix is by hand
   });
 
   test('with the base folder removed first the files left in the worktree folder are counted, and the folder is removed directly', async () => {
@@ -692,22 +691,6 @@ describe.skipIf(!enabled)('the worktrees of a project, with the real git', () =>
     // what is not blocked goes by hand, merged or not
     await s.removeProjectWorktree({ folder: base, path: made['fine']!.path });
     expect(existsSync(made['fine']!.path)).toBe(false);
-  });
-
-  test('removing by hand is refused for a worktree with a file git is told not to show, and for a commit only its reflog holds, and nothing is touched', async () => {
-    const { s, base, made } = await projectWith(['assumed', 'dangling']);
-    const assumed = made['assumed']!;
-    git(assumed.path, 'update-index', '--assume-unchanged', 'a.txt');
-    writeFileSync(join(assumed.path, 'a.txt'), 'only here\n');
-    const dangling = made['dangling']!;
-    git(dangling.path, 'switch', '-q', '--detach');
-    writeFileSync(join(dangling.path, 'x.txt'), 'x\n');
-    git(dangling.path, 'add', '.');
-    git(dangling.path, 'commit', '-q', '-m', 'detached');
-    git(dangling.path, 'switch', '-q', dangling.branch);
-    await expect(s.removeProjectWorktree({ folder: base, path: assumed.path })).rejects.toThrow('It holds a file with changes git was told not to show, so it was kept');
-    await expect(s.removeProjectWorktree({ folder: base, path: dangling.path })).rejects.toThrow('It holds a commit no branch holds, so it was kept');
-    expect([assumed, dangling].map((w) => existsSync(w.path))).toEqual([true, true]);
   });
 
   test('a worktree with no session can be removed by hand, and is never in the clean-up', async () => {

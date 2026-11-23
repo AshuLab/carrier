@@ -1,11 +1,11 @@
-import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { FakeGit } from './fake.ts';
 import { ChatRefused } from './runner.ts';
 import { countPorcelain } from './workspace.ts';
-import { clearWorktree, createWorktree, deleteWorktree, parseCount, parseWorktreeList, restoreWorktree } from './worktree.ts';
+import { clearWorktree, createWorktree, deleteWorktree, parseCount, parseWorktreeList, REMOVE_TIMEOUT_MS, restoreWorktree } from './worktree.ts';
 
 test('parseCount reads the number rev-list --count printed, and 0 for anything else', () => {
   expect(parseCount('3\n')).toBe(3);
@@ -115,32 +115,20 @@ test('a worktree is found under a Carrier folder that is a symlink whichever way
   }
 });
 
-test('removing a worktree folder is given more time than git\'s default, so a big one is not stopped halfway', async () => {
+test('clearing a worktree folder takes the time it is given, git\'s default when none, and deleting one gets the long limit, so a big folder is not stopped halfway', async () => {
   const { folder, git } = startRepo();
   try {
     const made = await createWorktree(git, folder, { from: 'main', name: 'my-fix' });
-    await clearWorktree(git, made);
-    expect(git.calls.find((call) => call.args[0] === 'worktree' && call.args[1] === 'remove')?.timeoutMs).toBeGreaterThanOrEqual(120_000);
-  } finally {
-    rmSync(folder, { recursive: true, force: true });
-  }
-});
-
-test('a folder with no .git is what a stopped removal left: clear drops it without asking git to remove it, and restore drops it before it adds the worktree again', async () => {
-  const { folder, git } = startRepo();
-  try {
-    const made = await createWorktree(git, folder, { from: 'main', name: 'my-fix' });
-    rmSync(join(made.path, '.git'));
-    await clearWorktree(git, made);
-    expect(existsSync(made.path)).toBe(false);
-    expect(git.calls.some((call) => call.args[1] === 'remove')).toBe(false);
-    expect(git.calls.at(-1)?.args).toEqual(['worktree', 'prune']);
-
-    mkdirSync(join(made.path, 'dist'), { recursive: true }); // left over again
+    const removeCall = () => git.calls.findLast((call) => call.args[0] === 'worktree' && call.args[1] === 'remove');
+    await clearWorktree(git, made, REMOVE_TIMEOUT_MS);
+    expect(removeCall()?.timeoutMs).toBe(REMOVE_TIMEOUT_MS);
+    expect(REMOVE_TIMEOUT_MS).toBeGreaterThanOrEqual(120_000);
     await restoreWorktree(git, made);
-    expect(existsSync(join(made.path, '.git'))).toBe(true);
-    expect(existsSync(join(made.path, 'dist'))).toBe(false);
-    expect(git.calls.at(-1)?.args).toEqual(['worktree', 'add', made.path, made.branch]);
+    await clearWorktree(git, made);
+    expect(removeCall()?.timeoutMs).toBeUndefined();
+    await restoreWorktree(git, made);
+    await deleteWorktree(git, made);
+    expect(removeCall()?.timeoutMs).toBe(REMOVE_TIMEOUT_MS);
   } finally {
     rmSync(folder, { recursive: true, force: true });
   }

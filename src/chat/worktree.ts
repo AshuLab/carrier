@@ -16,8 +16,8 @@ export type MadeWorktree = { path: string; branch: string; from: string; base: s
 /** What a checkout of a big repository may take before the host gives up on it. */
 const ADD_TIMEOUT_MS = 60_000;
 
-/** What removing a big worktree folder may take: git is not stopped halfway, which leaves a folder with no `.git`. */
-const REMOVE_TIMEOUT_MS = 180_000;
+/** What the cleanup lets git take to remove a big worktree folder: git stopped halfway leaves a folder with no `.git`. */
+export const REMOVE_TIMEOUT_MS = 180_000;
 
 /**
  * `startFrom` says which copy of the branch `from` the worktree is cut from: `remote` is `origin/<from>` when the repository lists it (else the local branch,
@@ -152,7 +152,7 @@ function recorded({ path, branch }: MadeWorktree): string {
 /** What deleting a worktree would discard: the lines `git status --porcelain` prints in it and the commits of its branch that no other branch of `batch` (the branches of the sessions deleted together, this one included) or remote branch contains. With the base folder gone git reads nothing and the commits went with it, so only the files left in the worktree folder count. A branch that is already gone has no commits to lose. */
 export async function previewWorktree(git: Git, made: MadeWorktree, batch: string[]): Promise<{ dirty: number; unpushed: number }> {
   if (existsSync(made.base) === false) return { dirty: filesLeft(made.path), unpushed: 0 };
-  const where = isWorktreeFolder(made.path) ? made.path : made.base; // a folder with no `.git` is what a stopped removal left: git reads nothing there
+  const where = existsSync(made.path) ? made.path : made.base;
   const hasBranch = await branchExists(git, made.base, made.branch);
   const [status, ahead] = await Promise.all([
     where === made.path ? git.run(where, ['--no-optional-locks', 'status', '--porcelain', '--untracked-files=normal']) : Promise.resolve<GitResult>({ ok: true, out: '' }),
@@ -192,21 +192,8 @@ export async function headDetached(git: Git, made: MadeWorktree): Promise<boolea
   throw new ChatRefused('Git could not read the worktree of a session');
 }
 
-/**
- * Whether a folder is a worktree git can work in. Git makes `.git` first and `worktree remove` deletes it first, so a folder without one is what a removal left when it was stopped,
- * not a worktree: its registration is still in the base folder and the files git had not yet reached are still in it.
- */
+/** Whether a folder has the `.git` link git works through. One without it is not a worktree git can read, whatever it holds: a removal that was killed halfway can leave one. */
 export const isWorktreeFolder = (path: string) => existsSync(join(path, '.git'));
-
-/** Takes away what a stopped removal left of a recorded worktree: its registration and its files. Whether there was any. Nothing else is touched, and the path is one Carrier made (`recorded`). */
-async function dropLeftover(git: Git, made: MadeWorktree): Promise<boolean> {
-  const path = recorded(made);
-  if (existsSync(path) === false || isWorktreeFolder(path)) return false;
-  log.info('removing what a stopped removal left of a worktree folder', { branch: made.branch });
-  if (removeFolder(path) === false) throw new ChatRefused('The leftovers of a worktree folder could not be removed');
-  if (existsSync(made.base)) await git.run(made.base, ['worktree', 'prune']);
-  return true;
-}
 
 const readText = (file: string) => {
   try {
@@ -217,11 +204,12 @@ const readText = (file: string) => {
 };
 
 /**
- * What a worktree holds that `status` does not show, in words, or null: commits that only this folder keeps and that the other checks (`dirty`, `unpushed`, `headAway`) cannot see.
+ * What a worktree holds that `status` does not show, in words, or null: commits that only this folder keeps and that the other checks (`dirty`, `unpushed`, `headDetached`) cannot see.
  * A submodule (or a repository inside) keeps its commits in the worktree's own git dir, which goes with the folder; a file marked `--assume-unchanged` or `--skip-worktree` is
  * edited with no mark in `status`; and a commit made on a detached HEAD, then left by switching back to the branch, is held by nothing but the worktree's own reflog
  * (a commit of the branch's own reflog, amended or rebased, is not: its new version is the branch's). ponytail: a marked file that is there counts even if it is unchanged, and a
  * commit made detached and then cherry-picked to the branch with the same words still keeps the folder; the reflog is only read for `commit`, `cherry-pick` and `revert`.
+ * The last one is a guard, not a guarantee: with `core.logAllRefUpdates=false` the HEAD reflog is empty and sees nothing, and reflogs expire (90 and 30 days by default).
  */
 export async function hiddenWork(git: Git, made: MadeWorktree): Promise<string | null> {
   const path = recorded(made);
@@ -255,27 +243,25 @@ export async function hiddenWork(git: Git, made: MadeWorktree): Promise<string |
 
 /**
  * The cleanup's half of a delete: removes only the folder of a session's recorded worktree and keeps its branch, so `restoreWorktree`
- * can bring it back. The caller has checked it holds no uncommitted work and that its HEAD is on its branch; every file git ignores (builds, dependencies, a local `.env`) goes with it.
- * What a stopped removal left (a folder with no `.git`) is taken away without asking git to remove it again, as git refuses that.
+ * can bring it back. The caller has checked it holds no uncommitted work and that its HEAD is not detached; every file git ignores (builds, dependencies, a local `.env`) goes with it.
+ * `timeoutMs` replaces git's default limit: a removal stopped halfway is not finished by Carrier, see ADR 0042.
  */
-export async function clearWorktree(git: Git, made: MadeWorktree): Promise<void> {
+export async function clearWorktree(git: Git, made: MadeWorktree, timeoutMs?: number): Promise<void> {
   const path = recorded(made);
   if (existsSync(path) === false || existsSync(made.base) === false) return;
-  if (await dropLeftover(git, made)) return;
-  const removed = await git.run(made.base, ['worktree', 'remove', '--force', path], { timeoutMs: REMOVE_TIMEOUT_MS });
+  const removed = await git.run(made.base, ['worktree', 'remove', '--force', path], { timeoutMs });
   if (removed.ok === false) {
     log.error('git could not remove the folder of a cleaned-up worktree', { code: removed.code, timedOut: removed.timedOut === true });
     throw new ChatRefused('Git could not remove the worktree folder');
   }
 }
 
-/** Brings back the folder of a recorded worktree the cleanup removed, on its kept branch; refuses with a reason in words when it cannot. What a stopped removal left of it is taken away first. */
+/** Brings back the folder of a recorded worktree the cleanup removed, on its kept branch; refuses with a reason in words when it cannot. */
 export async function restoreWorktree(git: Git, made: MadeWorktree): Promise<void> {
   const path = recorded(made);
-  if (isWorktreeFolder(path)) return;
+  if (existsSync(path)) return;
   if (existsSync(made.base) === false) throw new ChatRefused('This session\'s worktree was cleaned up and the folder it was made from is gone, so it cannot be opened again');
   if ((await branchExists(git, made.base, made.branch)) === false) throw new ChatRefused(`This session's worktree was cleaned up and its branch ${made.branch} is gone, so it cannot be opened again`);
-  await dropLeftover(git, made);
   await git.run(made.base, ['worktree', 'prune']);
   // recorded() checked the branch is `carrier/<a valid name>`, so it cannot read as an option
   const added = await git.run(made.base, ['worktree', 'add', path, made.branch], { timeoutMs: ADD_TIMEOUT_MS });
@@ -299,8 +285,7 @@ export async function deleteWorktree(git: Git, made: MadeWorktree): Promise<void
     log.error(`git ${what} failed while deleting a worktree`, { code: result.code, timedOut: result.timedOut === true });
     return new ChatRefused(`Git could not ${what === 'branch' ? 'delete the branch of' : 'remove'} the worktree, so the session was kept`);
   };
-  // a folder that is already gone, or that a stopped removal left with no `.git`, only leaves its entry for git to forget
-  if (existsSync(path) && isWorktreeFolder(path) === false && removeFolder(path) === false) throw new ChatRefused('Its folder could not be removed, so the session was kept');
+  // a folder that is already gone only leaves its entry for git to forget
   const removed = await git.run(made.base, existsSync(path) ? ['worktree', 'remove', '--force', path] : ['worktree', 'prune'], { timeoutMs: REMOVE_TIMEOUT_MS });
   if (removed.ok === false) throw cannot('worktree', removed);
   const found = await git.run(made.base, ['rev-parse', '--verify', '--quiet', `refs/heads/${made.branch}`]);

@@ -125,6 +125,14 @@ In the macOS app the Archive page says "Kept because its worktree has unsaved wo
 
 To get rid of it, open the Archive page, hover the row and press Delete: the app first lists what would be lost ("3 uncommitted files and 2 commits that exist nowhere else will be removed with its worktree"), and nothing is deleted until you confirm. To keep the work, press Resume and commit and push it from the session's worktree; once nothing in it is unsaved, the session is archived and deleted by the clock again in time. Without the app, `carrier chat --delete <id>` deletes it at once with no question (`carrier chat --list --archived` shows the ids).
 
+## A session's worktree folder is gone
+
+The chat host removes the folder of a session's worktree once its pull request is merged, or once the session is archived and untouched for 14 days (`worktreeCleanup` in `chat.json`).
+The branch and the session stay, and resuming the session brings the folder back without its dependencies.
+The whole folder is removed, including every file git ignores: build output and dependencies, but also a local `.env` or config kept inside the worktree, which is not in the branch and does not come back.
+Copy such a file out of the worktree, or turn the cleanup off with `"afterPrMerged": false` and `"afterInactiveDays": "never"` (see [The session clock](configuration.md#the-session-clock)).
+A folder with uncommitted or untracked files, or whose HEAD is detached or on another branch, is kept; `<folder>/chat/logs/chat-host.log` says which and why.
+
 ## Start-up errors
 
 - **`Invalid config <file>:` + fields.** Fix each listed field. `carrier schema` shows what is allowed.
@@ -153,5 +161,5 @@ To get rid of it, open the Archive page, hover the row and press Delete: the app
 
 Logs and sessions of a merged or cancelled epic are deleted 30 days after the merge or the close.
 An epic still waiting in ready-for-test keeps them.
-SQLite (`<folder>/engine/state/carrier.db`) is never deleted by Carrier, nor the engine's worktrees of an epic that is not over.
+SQLite (`<folder>/engine/state/carrier.db`) is never deleted by Carrier.
 Each agent run's `stdout.log` and `stderr.log` hold at most 50 MB: past that the file becomes `stdout.log.1` and a new one starts, so the older output of a very long run is the part that is dropped.

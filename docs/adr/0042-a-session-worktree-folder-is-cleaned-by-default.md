@@ -16,6 +16,9 @@ Twenty-one other sessions with a worktree had no folder left on that machine, so
 
 `worktreeCleanup` is on by default: `afterPrMerged: true` and `afterInactiveDays: 14`.
 The rules, the checks and what goes are those of 0035: only the folder, never a session that is working, waiting or open, never a worktree with uncommitted changes.
+The check is `git status --porcelain`, which does not list ignored files, so the whole folder goes with every file git ignores: build output and dependencies, and also a local `.env` or config kept inside the worktree.
+Untracked files that are not ignored count as uncommitted work and keep the folder.
+The folder is kept too when its HEAD is detached (also mid-rebase) or on another branch than the session's, because a commit made there is held by no branch the cleanup keeps.
 The session, its recorded path, its branch (with any commit not pushed) and its pull request stay, and the next message brings the folder back on its branch.
 14 days count from the last activity, like `archiveAfterDays`, and need the session archived.
 A session the clock archives after 15 days is therefore cleaned in the pass that archives it.
@@ -40,4 +43,7 @@ It leaves the case measured above, a session with an open pull request that nobo
 
 The disk of a parked or merged session is freed within one hourly pass of the chat host, once it is archived.
 A cleaned session opens again after a `git worktree add` and without its dependencies or builds, so the first build or install pays again.
+A gitignored file that exists only in that folder (a local `.env`, a config) is lost with it and does not come back; the project's actions can recreate one, but Carrier does not copy ignored files itself.
+No allowlist of files to spare was built: it would need each repository to say which ignored files matter, which belongs to how projects are set up.
+The person who keeps such files in a worktree turns the cleanup off.
 A session archived by hand and untouched for 14 days loses its folder though its pull request is open; its branch and commits stay in the clone.

@@ -128,7 +128,7 @@ A board or an automation keyed on an old name changes it, or you set the old nam
 Two more groups are off until you name them, so a Carrier that does not name them writes nothing more than the five above:
 
 - `labels.stages`: `{ ship, review, fix }`, each optional. While an epic runs, the issue carries the label of its stage beside `running`, and the next stage replaces it.
-- `labels.reasons`: one optional label per kind of stop, `review_limit`, `agent_needs_human`, `retries_exhausted`, `timeout`, `auth`, `workspace`, `pr_invalid`, `usage_limit` and `engine_error`.
+- `labels.reasons`: one optional label per kind of stop, `review_limit`, `agent_needs_human`, `retries_exhausted`, `timeout`, `auth`, `workspace`, `pr_invalid`, `usage_limit`, `engine_error` and `skill_missing`.
   While an epic waits for a person, the issue carries the label of its kind beside `needsHuman`.
 
 The names below are proposals you may copy into `labels`; none is on until you name it:
@@ -345,6 +345,12 @@ The `lead` stage and the skills of extra reviewers are not accepted yet.
 The resolved skills are saved with an epic's configuration when it starts, so a reload changes nothing for a running epic, and an epic restarted from ship takes the skills of that moment.
 An epic saved before this version has none saved and reads Solve's.
 Carrier remembers which skills you named at any level (a global one that is Solve's own name counts as not named) and which are Solve's defaults.
+
+Before an epic starts, resumes or changes the option of a role (a failover, or `carrier restart --author` or `--reviewer`), Carrier asks whether the harness and account of that role find each skill the role invokes.
+Only a skill you named stops an epic, and only when the answer is that it is absent: the epic stops in needs-human with the kind `skill_missing`, naming the skill, the role and where it looked, before any agent run is spent.
+A skill that is Solve's default never stops an epic, and neither does an answer of "cannot tell" (a place Carrier cannot read might hold the skill), so a role that runs today keeps running.
+Only Claude Code is read so far; Codex and Antigravity always answer "cannot tell".
+See [troubleshooting](troubleshooting.md) for what to do when it stops.
 
 ## Profiles
 

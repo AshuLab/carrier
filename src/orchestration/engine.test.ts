@@ -45,6 +45,7 @@ let clock: FakeClock;
 let runner: FakeAgentRunner;
 let fakeQuota: FakeQuota;
 let workspaces: FakeWorkspaces;
+let skills: FakeSkills;
 let settings: EngineSettings; // what the engine reads: a test changes it the way a reload does
 let watched: EffectiveRepoConfig[]; // the repos the engine reads, changed the same way
 let declaredProfile: (name: string) => boolean; // whether the configuration declares a profile, changed the same way
@@ -52,6 +53,7 @@ beforeEach(() => {
   runner = new FakeAgentRunner();
   fakeQuota = new FakeQuota();
   workspaces = new FakeWorkspaces();
+  skills = new FakeSkills();
   dir = mkdtempSync(join(tmpdir(), 'carrier-'));
   dbs = [];
   github = new FakeGitHub();
@@ -75,7 +77,7 @@ async function start(maxConcurrentEpics = 0, config = repos, maxExecutionHours: 
   const db = open();
   settings = { pollIntervalMs: 5 * MIN, labels: defaultLabels, maxConcurrentEpics, maxExecutionHours, maxExecutionRetries, maxReviews, autoResume: false, autoResumeMaxHours: 12 };
   watched = config;
-  const engine = createEngine({ db, github, clock, repos: () => watched, settings: () => settings, profileDeclared: (name) => declaredProfile(name), runner, workspaces, quota: fakeQuota.read, places: enginePlacesOf(dir), skills: new FakeSkills() });
+  const engine = createEngine({ db, github, clock, repos: () => watched, settings: () => settings, profileDeclared: (name) => declaredProfile(name), runner, workspaces, quota: fakeQuota.read, places: enginePlacesOf(dir), skills });
   await engine.start();
   return Object.assign(engine, { db });
 }
@@ -2289,6 +2291,166 @@ test('the task of an epic saved without skills reads Solve\'s defaults', async (
   await engine.idle();
   expect(rows(engine.db)[0]!.config!.skills).toBeUndefined();
   expect(runner.tasks[0]!.skills).toEqual(defaultSkills);
+});
+
+// --- skill_missing: a skill the person named that the role's harness does not find ---
+
+const namedShip = resolveSkills(solveSkills, { ship: 'my-ship' });
+const namedFix = resolveSkills(solveSkills, { fix: 'my-fix' });
+const namedReview = resolveSkills(solveSkills, { review: { review: 'my-review', publish: 'my-post' } });
+const skillStop = (engine: Awaited<ReturnType<typeof start>>) => rows(engine.db)[0]!;
+// A resume that stops again at once: the command sees no restart.
+const resumeStopping = async (engine: Awaited<ReturnType<typeof start>>, options: Parameters<typeof engine.resumeEpic>[2]) => {
+  const resumed = refusal(engine.resumeEpic('AshuLab/a', 1, options));
+  await flush();
+  await clock.advance(60_000);
+  expect(await resumed).toBe('did not restart');
+};
+// The requeue freezes the repo's configuration again, so the skills must be in the one the engine runs with.
+const watching = (skillsOf: ReturnType<typeof resolveSkills>) => { watched = watched.map((repo) => ({ ...repo, skills: skillsOf })); };
+
+test('an epic whose named ship skill is absent stops with skill_missing before any execution, naming the skill, the role and where it looked', async () => {
+  skills.answers['my-ship'] = 'absent';
+  github.ready = { 'AshuLab/a': ready(1) };
+  const engine = await start(1, [{ ...repos[0]!, skills: namedShip }, repos[1]!]);
+  await clock.advance(5 * MIN);
+  await engine.idle();
+
+  expect(runner.tasks).toEqual([]);
+  expect(executionsOf(engine.db)).toEqual([]);
+  expect(retriesOf(engine.db)).toEqual([]);
+  expect(skillStop(engine)).toMatchObject({ status: 'needs_human', needsHumanKind: 'skill_missing' });
+  expect(skillStop(engine).needsHumanReason).toMatch(/^the skill my-ship \(skills\.ship\) is not installed for the author: claude looked where it finds skills, in the account folder .*the repo \(/);
+  expect(skills.asked[0]).toMatchObject({ harness: 'claude', name: 'my-ship' });
+  expect(labelsOf(1)).toEqual(['carrier:status:needs-human']);
+});
+
+test('the skill_missing stop has its own reason label when the person names one', async () => {
+  skills.answers['my-ship'] = 'absent';
+  github.ready = { 'AshuLab/a': ready(1) };
+  const engine = await start(1, [{ ...repos[0]!, skills: namedShip }, repos[1]!]);
+  settings = { ...settings, labels: { ...defaultLabels, reasons: { skill_missing: 'carrier:reason:skill-missing' } } };
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(labelsOf(1)).toEqual(['carrier:status:needs-human', 'carrier:reason:skill-missing']);
+});
+
+test('the check covers every skill the role invokes: a named fix skill stops the epic before ship, and the reviewer checks review and publish', async () => {
+  skills.answers['my-fix'] = 'absent';
+  github.ready = { 'AshuLab/a': ready(1) };
+  const engine = await start(1, [{ ...repos[0]!, skills: namedFix }, repos[1]!]);
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(runner.tasks).toEqual([]);
+  expect(skillStop(engine)).toMatchObject({ needsHumanKind: 'skill_missing' });
+  expect(skillStop(engine).needsHumanReason).toContain('my-fix (skills.fix)');
+
+});
+
+test('the reviewer is asked on its own harness for the skills of review and publish, and an absent named publish skill stops the resume', async () => {
+  const engine = await start(1);
+  stoppedAt(engine.db, 'review');
+  watching(namedReview);
+  skills.answers['my-post'] = 'absent';
+  await resumeStopping(engine, { from: 'review' });
+
+  expect(skills.asked.map((a) => [a.harness, a.name])).toEqual([['codex', 'my-review'], ['codex', 'my-post']]);
+  expect(runner.tasks).toEqual([]);
+  expect(skillStop(engine)).toMatchObject({ status: 'needs_human', needsHumanKind: 'skill_missing' });
+  expect(skillStop(engine).needsHumanReason).toContain('my-post (skills.review.publish) is not installed for the reviewer');
+});
+
+test('a resume from a stage stops with skill_missing when the named skill is absent, and goes on once the person installed it', async () => {
+  const engine = await start(1);
+  stoppedAt(engine.db, 'fix');
+  watching(namedFix);
+  skills.answers['my-fix'] = 'absent';
+  await resumeStopping(engine, { from: 'fix' });
+  expect(runner.tasks).toEqual([]);
+  expect(executionsOf(engine.db).filter((e) => e.stage === 'fix')).toEqual([]);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'skill_missing' });
+
+  skills.answers = {}; // installed
+  await resumeFrom(engine, 'fix');
+  expect(runner.tasks.map((t) => t.stage)).toEqual(['fix']);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'fix', needsHumanKind: null });
+});
+
+test('after the person installs the skill, resuming a first launch goes on', async () => {
+  skills.answers['my-ship'] = 'absent';
+  github.ready = { 'AshuLab/a': ready(1) };
+  const engine = await start(1, [{ ...repos[0]!, skills: namedShip }, repos[1]!]);
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(skillStop(engine)).toMatchObject({ needsHumanKind: 'skill_missing' });
+
+  skills.answers = {};
+  runner.behavior = () => ({ exit: 'hang' });
+  await resumeFrom(engine);
+  expect(runner.tasks.map((t) => t.stage)).toEqual(['ship']);
+  expect(skillStop(engine)).toMatchObject({ status: 'running', stage: 'ship' });
+});
+
+test('a failover onto an option whose harness lacks a named skill stops the epic with skill_missing, spending no run on it', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  runner.behavior = (task) => outOf('claude')(task, { exit: 'hang' });
+  skills.has = async (harness) => (harness === 'agy' ? 'absent' : 'present');
+  const engine = await startWith(failoverRepos({ author: [{ provider: 'spare' }] }).map((repo) => ({ ...repo, skills: namedShip })));
+  await engine.idle();
+
+  expect(runner.tasks.map((t) => t.option)).toEqual(['claude']);
+  expect(skillStop(engine)).toMatchObject({ status: 'needs_human', needsHumanKind: 'skill_missing' });
+  expect(skillStop(engine).needsHumanReason).toContain('agy looked where it finds skills');
+  expect(executionsOf(engine.db)).toHaveLength(1);
+});
+
+test('restarting on another option checks the skills for that option\'s harness', async () => {
+  const engine = await stoppedOnCodex();
+  watching(namedShip);
+  skills.has = async (harness) => (harness === 'claude' ? 'absent' : 'present');
+  await resumeStopping(engine, { author: 'claude' });
+
+  expect(runner.tasks).toHaveLength(1); // only the first run, before the stop
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'skill_missing' });
+
+  skills.has = async () => 'present';
+  await restartWith(engine, { author: 'claude' });
+  expect(runner.tasks.map((t) => t.option)).toEqual(['codex', 'claude']);
+});
+
+test('a wake-up stops with skill_missing when the named skill is absent, and starts no run', async () => {
+  const engine = await stoppedForQuota();
+  reload(engine, { repos: quotaRepos().map((repo) => ({ ...repo, skills: namedShip })) });
+  skills.answers['my-ship'] = 'absent';
+  fakeQuota.snapshots['/cfg/claude'] = back();
+  await clock.advance(WAKE - clock.now() + 5 * MIN);
+
+  expect(shipTasks()).toBe(1);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'skill_missing', autoResumes: 1 });
+});
+
+test.each([
+  ['a named skill the check cannot tell', namedShip, 'cannot-tell'],
+  ['a named skill that is present', namedShip, 'present'],
+  ['Solve\'s default ship skill that is absent', resolveSkills(solveSkills), 'absent'],
+  ['Solve\'s default ship skill the check cannot tell', resolveSkills(solveSkills), 'cannot-tell'],
+] as const)('%s never stops the epic', async (_, config, answer) => {
+  skills.has = async () => answer;
+  github.ready = { 'AshuLab/a': ready(1) };
+  runner.behavior = () => ({ exit: 'hang' });
+  const engine = await start(1, [{ ...repos[0]!, skills: config }, repos[1]!]);
+  await clock.advance(5 * MIN);
+  expect(runner.tasks.map((t) => t.stage)).toEqual(['ship']);
+  expect(skillStop(engine)).toMatchObject({ status: 'running', needsHumanKind: null });
+});
+
+test('only the skills the person named are asked about: a default is never looked for', async () => {
+  skills.answers['code-resolve'] = 'absent';
+  github.ready = { 'AshuLab/a': ready(1) };
+  runner.behavior = () => ({ exit: 'hang' });
+  await start(1, [{ ...repos[0]!, skills: namedShip }, repos[1]!]);
+  await clock.advance(5 * MIN);
+  expect(skills.asked.map((a) => a.name)).toEqual(['my-ship']);
 });
 
 test('an epic resumed after the config changed keeps the sharedIdentity it started with', async () => {

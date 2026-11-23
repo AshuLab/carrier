@@ -110,7 +110,7 @@ const executionStatus: Record<AgentExit, (typeof executionStates)[number]> = {
   session_unavailable: 'failed',
 };
 
-export function createEngine({ db, github, clock, repos, settings, runner, workspaces, quota, places, sessionDirs, profileDeclared }: EngineOptions) {
+export function createEngine({ db, github, clock, repos, settings, runner, workspaces, quota, places, sessionDirs, profileDeclared, skills }: EngineOptions) {
   let error: GitHubUnavailable | AuthError | null = null;
   let nextPollAt: number | null = null;
   let paused = false; // intake only: nothing new is reserved, what is running goes on
@@ -565,6 +565,20 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     }
   }
 
+  // The reason to stop for the first skill the person named and the role's harness does not find, none when every one is found, default or cannot be told.
+  async function missingSkill(epic: Epic, role: 'author' | 'reviewer', folder: string): Promise<string | undefined> {
+    const { ship, review, fix } = savedSkills(epic.config);
+    const agent = epic.config!.agents[role];
+    const invoked = role === 'author' ? [['ship', ship], ['fix', fix]] as const : [['review.review', review.review], ['review.publish', review.publish]] as const;
+    for (const [key, skill] of invoked) {
+      if (skill === null || !skill.named) continue;
+      if ((await skills.has(agent.harness, agent.configDir, folder, skill.name)) !== 'absent') continue;
+      const account = agent.configDir ?? `the default folder of ${agent.harness}`;
+      return `the skill ${skill.name} (skills.${key}) is not installed for the ${role}: ${agent.harness} looked where it finds skills, in the account folder (${account}), the repo (${folder}) and the plugins it lists · install it, or name another in skills.${key}, then resume the epic`;
+    }
+    return undefined;
+  }
+
   // Starts an execution of the stage; `retryOf` is the failed or interrupted one it replaces: same session, verify
   // the real state first. `rebuild` (the session is gone) starts a new session instead, with the PR as GitHub has it now.
   async function execute(epic: Epic, stage: AgentTask['stage'], retryOf?: Execution, rebuild?: { pr: { number: number; headSha: string } | null }) {
@@ -596,6 +610,14 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       log.error('could not prepare the workspace', e, { repo: epic.repo, epic: epic.issue, stage });
       if (!unchanged(epic.id, epoch)) return; // parked while the workspace was prepared: it keeps where it was
       toNeedsHuman(db, epic.id, 'workspace', `could not prepare the workspace: ${e instanceof Error ? e.message : String(e)}`);
+      return applyLabels(fresh(epic.id));
+    }
+    // A skill the person named that the role's harness does not find stops the epic here, before an execution exists or a run is spent. Every launch, resume,
+    // wake-up, failover and `restart --author|--reviewer` comes through here; Solve's defaults and an answer that cannot tell never stop it.
+    const missing = await missingSkill(epic, reviewing ? 'reviewer' : 'author', workspace);
+    if (missing) {
+      if (!unchanged(epic.id, epoch)) return;
+      toNeedsHuman(db, epic.id, 'skill_missing', missing);
       return applyLabels(fresh(epic.id));
     }
     const executionId = randomUUID();

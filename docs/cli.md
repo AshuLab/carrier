@@ -12,6 +12,7 @@ Reference for the `carrier` command. The quick tour is in the [README](../README
 | `carrier reload` | Make the running Carrier read `engine.json` and `providers.json` again, with no restart. |
 | `carrier status` / `watch` | Show what the running Carrier is doing. |
 | `carrier restart` | Resume an epic that stopped in `needs-human`. |
+| `carrier recover` | Continue a running epic whose agent is not alive, from where it really is. |
 | `carrier chat` / `chat-host` | Talk to an agent in a session. |
 | `carrier usage` | Live quotas of your accounts and what was used. |
 
@@ -66,7 +67,28 @@ The panel is a dependency-free ANSI dashboard: uptime, repos watched and the nex
 
 ## Restart a stopped epic
 
-`carrier restart <owner/name>#<issue> [--author <option>] [--reviewer <option>]` resumes an epic in needs-human from the terminal (the `resumeEpic` request of the socket), on the agent option of each role you choose. In a terminal and without flags it asks for each role, with the current option preselected and the role that failed marked; without a terminal it keeps the current options. The same option continues the agent's session with `--resume`; another one starts a new session in the epic's worktree and pull request, rebuilt from SQLite and GitHub like a lost session. It prints one line and exits 0; a refusal prints the engine's reason and exits 1 (so does no Carrier running), a malformed argument or another protocol exits 2.
+`carrier restart <owner/name>#<issue> [--author <option>] [--reviewer <option>] [--from <ship|review|fix>] [--extra-rounds <K>]` resumes an epic in needs-human from the terminal (the `resumeEpic` request of the socket), on the agent option of each role you choose.
+In a terminal and without flags it asks for each role, with the current option preselected and the role that failed marked; without a terminal it keeps the current options.
+The same option continues the agent's session with `--resume`; another one starts a new session in the epic's worktree and pull request, rebuilt from SQLite and GitHub like a lost session.
+With `--from review` or `--from fix` the epic keeps its round, pull request, worktree and blockers and starts at that stage instead of ship; it still goes through the queue and takes a slot.
+Carrier refuses it, with the reason printed, when the epic has no pull request, when the pull request is not open, or when its head is not the one Carrier saved: restart it from ship then.
+An epic that stopped on the review limit and is resumed at `review` or `fix` gets more review rounds counted from the round it is at: `limits.maxReviews` of them by default, or `--extra-rounds K` (a positive whole number) of them.
+`--extra-rounds` needs `--from review` or `--from fix`, and an epic that stopped on the review limit: it is refused otherwise, with the reason printed.
+The epic stops again with `review_limit` when it has used them, and the panel shows its own cap in the round.
+`--from ship`, or no `--from`, starts from ship with the review rounds reset, as before.
+A Carrier that does not list `resumeFromStage` in its hello is not asked for `--from` or `--extra-rounds`, and the command says it is too old (restart it).
+Every restart is an event of the epic, `resumed`, that says a command asked for it and from which stage (`ship` when none is named).
+It prints one line and exits 0; a refusal prints the engine's reason and exits 1 (so does no Carrier running), a malformed argument or another protocol exits 2.
+
+## Recover a running epic
+
+`carrier recover <owner/name>#<issue>` asks the running Carrier to continue one epic that is `running` but has no agent alive (the `recoverEpic` request of the socket).
+The engine does what it does at start for that epic: it reads the epic's last execution and GitHub, and goes on from there, through the same code as the check's recovery.
+It sets no status, stage or round, and it answers once the epic was continued.
+It refuses, with the reason printed, when Carrier does not know the epic, when the epic is not `running` (one in `needs-human` is resumed with `carrier restart`), and when an execution of it is alive, or a launch or a retry of it is in flight, so two agents never act on one workspace.
+It also refuses while Carrier is still recovering its epics at start (that recovery launches them itself), and when the epic is in a state a recovery does not move, such as a retry that owns it or a stage it has left: nothing is changed and no event is left.
+Each use that continued the epic is an event of the epic, `recovered`, that says a command asked for it.
+It exits 0 on success and 1 on a refusal, with no Carrier running, or when the running Carrier is too old to list `recoverEpic` (restart it); a malformed argument or another protocol exits 2.
 
 ## Chat host
 

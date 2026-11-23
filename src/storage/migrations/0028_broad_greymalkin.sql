@@ -1,0 +1,1 @@
+ALTER TABLE `epics` ADD `autoResumes` integer DEFAULT 0 NOT NULL;

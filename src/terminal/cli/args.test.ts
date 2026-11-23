@@ -74,6 +74,27 @@ test('restart without its argument or with a second one is a usage error, and th
   expect(parseCli(['status', 'A/a#1'])).toEqual({ ok: false, message: 'Unknown command: status A/a#1' });
 });
 
+test('restart takes --from ship, review or fix and refuses any other', () => {
+  for (const from of ['ship', 'review', 'fix']) expect(parseCli(['restart', 'A/a#1', '--from', from])).toMatchObject({ ok: true, flags: { from } });
+  expect(parseCli(['restart', 'A/a#1'])).toMatchObject({ ok: true });
+  for (const from of ['merged', '', 'Review']) expect(parseCli(['restart', 'A/a#1', '--from', from])).toEqual({ ok: false, message: '--from takes ship, review, fix' });
+  expect(usage()).toContain('--from <ship|review|fix>');
+});
+
+test('restart takes --extra-rounds as a positive whole number and refuses zero, a negative, a fraction and text, naming the flag', () => {
+  expect(parseCli(['restart', 'A/a#1', '--from', 'review', '--extra-rounds', '3'])).toMatchObject({ ok: true, flags: { 'extra-rounds': '3' } });
+  for (const rounds of ['0', '-1', '1.5', 'two', '', '007']) expect(parseCli(['restart', 'A/a#1', `--extra-rounds=${rounds}`])).toEqual({ ok: false, message: '--extra-rounds takes a positive whole number' });
+  expect(parseCli(['restart', 'A/a#1', '--extra-rounds', '-1'])).toMatchObject({ ok: false, message: expect.stringContaining('--extra-rounds') });
+  expect(usage()).toContain('--extra-rounds <K>');
+});
+
+test('recover takes one owner/name#N and nothing else', () => {
+  expect(parseCli(['recover', 'AshuLab/carrier#12'])).toMatchObject({ ok: true, command: 'recover', target: { repo: 'AshuLab/carrier', issue: 12 } });
+  expect(parseCli(['recover'])).toMatchObject({ ok: false, message: expect.stringContaining('recover takes one epic as owner/name#N') });
+  expect(parseCli(['recover', 'AshuLab/carrier'])).toMatchObject({ ok: false });
+  expect(usage()).toContain('carrier recover <owner/name>#<issue>');
+});
+
 test('the usage names restart and its flags', () => {
   expect(usage()).toContain('carrier restart <owner/name>#<issue>');
   expect(usage()).toContain('--author <option>');

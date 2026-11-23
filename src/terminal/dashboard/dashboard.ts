@@ -161,6 +161,7 @@ export function renderDashboard(s: PanelSnapshot, { columns = 80, color = true, 
     for (const e of needsYou) {
       add(`${lead(e.repo, e.issue, '   ')}${paint(`${e.repo} #${e.issue}`, 'bold')}${titled(e.title)}`);
       if (e.needsHumanReason) add(`   ${printable(e.needsHumanReason)}`);
+      if (e.resumeAt !== undefined) add(`   ${e.resumeAt > s.now ? `resumes by itself in ${formatDuration(e.resumeAt - s.now)}` : 'resumes by itself at the next check'}`);
       const history = detail && detailOf(detail, e);
       if (history && history.length > 0) add(`   ${historyLine(history, s.now, paint, width - 3)}`);
       add(`   ${paint(e.prUrl ?? e.issueUrl, 'dim')}`);

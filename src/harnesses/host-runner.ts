@@ -11,6 +11,7 @@ import { createEventState, type AgentEvent } from '../execution/events.ts';
 import { claudeAdapter } from './claude.ts';
 import { agyAdapter } from './agy.ts';
 import { codexAdapter } from './codex.ts';
+import { isIdle } from './idle.ts';
 import { resolveBinary, splitLines, type AgentCommand, type HarnessAdapter, type LineSignal } from './common.ts';
 
 const exec = promisify(execFile);
@@ -40,10 +41,12 @@ async function listMarked(): Promise<Map<string, number>> {
 }
 
 // The agent leads its own process group (detached), so the signal reaches the whole group.
-function signal(pid: number, sig: NodeJS.Signals) {
+// `groupOnly` is for a leader that may be gone: its pid could belong to another process by now.
+function signal(pid: number, sig: NodeJS.Signals, groupOnly = false) {
   try {
     process.kill(-pid, sig);
   } catch {
+    if (groupOnly) return;
     try {
       process.kill(pid, sig);
     } catch {
@@ -51,6 +54,9 @@ function signal(pid: number, sig: NodeJS.Signals) {
     }
   }
 }
+
+/** Time the pipes get to drain after the leader exited and its group was killed, before they are cut. */
+const drainMs = 1000;
 
 const spawnError = (message: string): AgentDone => ({
   exit: 'failed',
@@ -75,12 +81,13 @@ const alive = (pid: number) => {
   }
 };
 
-// SIGTERM first (Claude cleans its children up on it), SIGKILL if it has not exited after the grace period.
+// SIGTERM first (Claude cleans its children up on it), then SIGKILL to the whole group after the grace period,
+// also when the leader is already gone and a child of its group is not.
 async function terminate(pid: number, graceMs: number) {
   signal(pid, 'SIGTERM');
   const deadline = Date.now() + graceMs;
   while (alive(pid) && Date.now() < deadline) await new Promise((r) => setTimeout(r, 50));
-  if (alive(pid)) signal(pid, 'SIGKILL');
+  signal(pid, 'SIGKILL', true);
 }
 
 export class HostAgentRunner implements AgentRunner {
@@ -98,6 +105,8 @@ export class HostAgentRunner implements AgentRunner {
     let sessionId: string | undefined;
     let reason: 'stopped' | 'timed_out' | undefined;
     let pid: number | undefined;
+    let lastOutputAt = Date.now();
+    let idle = false;
     const emit = (stream: 'stdout' | 'stderr', chunk: string) => outputs.forEach((cb) => cb(stream, chunk));
     const graceMs = this.options.graceMs ?? 5000;
 
@@ -158,6 +167,7 @@ export class HostAgentRunner implements AgentRunner {
         const splitter = splitLines();
         return {
           push: (chunk: string) => {
+            lastOutputAt = Date.now();
             emit(stream, chunk);
             const lines = splitter.push(chunk);
             batch = [];
@@ -182,6 +192,12 @@ export class HostAgentRunner implements AgentRunner {
             reason ??= 'timed_out';
             void kill();
           }, task.timeoutMs);
+      lastOutputAt = Date.now();
+      const watchdog = task.idleMs === undefined ? undefined : setInterval(() => {
+        if (idle || !isIdle(Date.now(), lastOutputAt, task.idleMs)) return;
+        idle = true;
+        void kill();
+      }, Math.min(task.idleMs, 1000));
       let startError: string | undefined;
       const [code, killedBy] = await new Promise<[number | null, NodeJS.Signals | null]>((resolve) => {
         child.on('error', (e) => {
@@ -189,14 +205,29 @@ export class HostAgentRunner implements AgentRunner {
           startError = e.message;
           resolve([null, null]);
         });
-        child.on('close', (c, sig) => resolve([c, sig]));
+        // The leader's exit ends the run: a child holding the pipes open must not keep it waiting for 'close'.
+        child.on('exit', (c, sig) => {
+          signal(child.pid!, 'SIGKILL', true);
+          const drain = setTimeout(() => {
+            child.stdout.destroy();
+            child.stderr.destroy();
+            resolve([c, sig]);
+          }, drainMs);
+          child.on('close', () => {
+            clearTimeout(drain);
+            resolve([c, sig]);
+          });
+        });
       });
       finished = true;
       clearTimeout(timer);
+      clearInterval(watchdog);
       out.flush();
       err.flush();
 
       if (reason) return { exit: reason, sessionId, usage };
+      // Killed by the watchdog: a technical failure like any other, so it is retried with its session.
+      if (idle) return { exit: 'failed', sessionId, usage, failure: { ...processFailure(code, killedBy, undefined), detail: `no output for ${task.idleMs! / 1000} seconds` } };
       if (authFailed) return { exit: 'auth_failed', sessionId, usage };
       if (sessionLost) return { exit: 'session_unavailable', sessionId, usage };
       if (startError !== undefined) return { ...spawnError(`cannot start ${command.bin}: ${startError}`), sessionId };

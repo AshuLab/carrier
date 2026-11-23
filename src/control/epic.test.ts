@@ -9,7 +9,7 @@ import type { EffectiveRepoConfig } from '../config/resolve.ts';
 import type { AgentTask } from '../execution/agent-runner.ts';
 import { FakeAgentRunner, FakeWorkspaces, type Behavior } from '../execution/fake.ts';
 import { createEngine } from '../orchestration/engine.ts';
-import { FakeClock, FakeGitHub } from '../orchestration/fake.ts';
+import { FakeClock, FakeGitHub, FakeQuota } from '../orchestration/fake.ts';
 import { callerResults } from '../storage/caller-results.ts';
 import { openDatabase, type Db } from '../storage/db.ts';
 import { executionEvents } from '../storage/events.ts';
@@ -70,7 +70,7 @@ async function drive(script: (string[] | 'approved')[], { maxReviews = 5, flaky 
   };
   const engine = createEngine({
     profileDeclared: () => true,
-    db, github, clock, repos: () => repos, settings: () => ({ pollIntervalMs: 5 * MIN, labels: defaultLabels, maxConcurrentEpics: 1, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews }), runner, workspaces: new FakeWorkspaces(), places: enginePlacesOf(dir),
+    db, github, clock, repos: () => repos, settings: () => ({ pollIntervalMs: 5 * MIN, labels: defaultLabels, maxConcurrentEpics: 1, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews, autoResume: false, autoResumeMaxHours: 12 }), runner, workspaces: new FakeWorkspaces(), quota: new FakeQuota().read, places: enginePlacesOf(dir),
   });
   await engine.start();
   await clock.advance(5 * MIN);

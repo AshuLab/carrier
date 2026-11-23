@@ -84,6 +84,29 @@ The app replaces them only when doing so loses nothing:
 
 Each release's zip is signed with the update key. If its private half is lost, the next release cannot be signed with the key the installed apps trust, so Sparkle refuses it as improperly signed; the apps keep working but stop updating, and the key cannot be rotated with an ad hoc signature ([releasing, the update key](releasing.md#4-the-update-key)). The owner makes a new pair, puts its public half in `macos/update-key.pub`, sets the repository secret `SPARKLE_PRIVATE_KEY` and cuts a release. People who already have Carrier then run `brew reinstall --cask carrier`, which brings a zip with the new public key; only those who run it are updated again, and their Carrier folder is left alone.
 
+## A running epic does not move
+
+A running epic whose agent is gone and that nothing is scheduled to move (its last execution ended and the engine lost the follow-up, or its stage was claimed and never launched) does not need a person.
+At every check the engine continues it from where it was, with the same guards as a launch: it never starts a second agent while one is alive, a launch is in flight, a retry is in flight or a reload has parked the epic.
+Each recovery is an event of the epic, `recovered`, with its stage and its number.
+After three recoveries in a row the next check stops the epic in `engine_error`: the count starts again when an execution of the epic ends or its stage changes, so an epic that makes progress never reaches it.
+Resume it from there like any stopped epic.
+
+To not wait for the next check, run `carrier recover <owner/name>#<issue>`: it asks the engine to continue that one epic now, with the same guards, and refuses with its reason when the epic is not running, an agent of it is alive, Carrier is still recovering its epics at start, or the epic is in a state a recovery does not move.
+The event it leaves is also `recovered`, with `by: command` instead of a number.
+
+## An epic stopped on its quota wakes up
+
+An epic that ran out of usage with no failover option left stops in needs-human with the kind `usage_limit`, and stays there until you resume it.
+With `limits.autoResume` set to `true` (it is off by default, because resuming spends credits with nobody watching) the engine reads, from the quota check `carrier usage` uses, when the exhausted window comes back, keeps it as `resumeAt` and says so in the reason, the panel and `carrier status`; each schedule is an event of the epic, `auto_resume_scheduled`.
+At the first check after that time the engine reads the quota again, without its cache, and resumes the epic only when the window is below 100%: from the stage where it stopped, with its round, pull request, worktree and session, on the option that came back, through the queue and taking a slot like any epic.
+If the window is still full, or the check fails or is rate limited, the epic waits for the next check and nothing is guessed; each wake-up is an event, `auto_resumed`.
+It does not resume when the wait is longer than `limits.autoResumeMaxHours` (12 by default, so a 5-hour window is covered and a weekly one is not), when the check gives no time, with the engine paused or with `limits.autoResume` turned off; the reason says why, and you resume it yourself.
+An epic resumes by itself at most three times in a row, and the stop after the third stays in needs-human: the count starts again when one of its executions ends with anything but a usage limit.
+Resuming it yourself before the time clears `resumeAt`, and the wake-up does not run a second time.
+A stage wake-up (review or fix) whose pull request is not open any more, or whose head is not the one Carrier saved, does not go on: the epic stops waiting, the reason says why it will not resume by itself, and you resume it yourself.
+Turn it on in the `limits` of the configuration ([configuration](configuration.md)).
+
 ## An epic ends in `solve:epic:needs-human`
 
 The reason is in the panel and the logs. Carrier stops the epic and leaves everything as it was (sessions, worktrees, uncommitted work); the others keep going. Common reasons:
@@ -93,7 +116,8 @@ The reason is in the panel and the logs. Carrier stops the epic and leaves every
 | `inconclusive review: ...` or any reason written by an agent | The agent decided it needs a person. | Read the reason, decide, finish the work on the PR yourself. |
 | `ran out of ship retries (N attempts): ...` | The agent process failed technically N times. | Look at the execution logs. Usually auth, network or CLI trouble. |
 | `... the agent process ended with an error (killed: SIGKILL)` | `killed`: a signal from outside Carrier ended the agent's process (Carrier's own stops and timeouts are not this); the detail is the signal. Often the system killing it for memory (`Exit code 137` in the agent's own commands). | Look at the host memory and load the execution row records (`hostFreeMemMb`, `hostLoad`; on macOS free memory understates what is available), and at what else ran at that time. |
-| `the ship execution ran out of usage on option NAME: ...` | `usage_limit`: the agent ended on its usage limit (Claude's API status 429, or Codex's or Antigravity's own message); the detail is what the agent printed, with the time it resets. The epic stops in needs-human at once (kind `usage_limit`), naming the option that ran out, and no retry is spent. | Wait for the reset time in the reason, then Resume the epic, or `carrier restart` it on another option. |
+| `the ship execution ran out of usage on option NAME: ...` | `usage_limit`: the agent ended on its usage limit (Claude's API status 429, or Codex's or Antigravity's own message); the detail is what the agent printed, with the time it resets. The epic stops in needs-human at once (kind `usage_limit`), naming the option that ran out, and no retry is spent. | Wait for the reset time in the reason, then Resume the epic, or `carrier restart` it on another option. With `limits.autoResume` on, the reason also says when the exhausted window comes back (read from the quota check of the account that ran out, the earliest over the options tried when the epic had failover) and the panel and `carrier status` show when it resumes; the epic then resumes by itself (see [An epic stopped on its quota wakes up](#an-epic-stopped-on-its-quota-wakes-up)), and with no time from the check the reason says so. |
+| One redacted line with the error of the engine, for example `Cannot read properties of undefined` | `engine_error`: an unexpected error of the engine itself hit this epic while it settled a result, retried or failed over, or the poll recovered it three times in a row and it was still stuck. Only this epic stops, and the others keep going; the log of the engine has the stack, and an execution that was running ends failed. | Resume the epic. If it stops the same way again, the line and the engine's log are what to report. |
 | `... (api_error: HTTP N: ...)` | `api_error`: Claude ended on an API error with status N (not the 401 that is an authentication error, not the usage limit); the detail is the status and the message the agent printed. | Read the message; a 5xx is usually Anthropic's side, so Resume the epic later. |
 | `... (crashed: exit code N)` | `crashed`: the agent's process exited with a nonzero code and no signal. | Read the end of the execution's `stdout.log` for what it printed before exiting. |
 | `... (spawn_error: ...)` | `spawn_error`: the agent's binary could not start, or its command could not be built. | Check that the harness binary (`claude`, `codex` or `agy`) is installed and on the `PATH` of the machine that runs Carrier; `carrier doctor` checks the setup. |
@@ -107,7 +131,14 @@ The reason is in the panel and the logs. Carrier stops the epic and leaves every
 | `could not prepare the workspace: ...` | Clone, checkout or worktree failed. | Check disk, git credentials and `<folder>/engine/repos` and the epic's worktree (by default under `<folder>/engine/worktrees`). |
 | `authentication error for profile X` | `auth`: Forge could not authenticate that profile (the detail is `profile X`), or no GitHub token could be minted for it. Only epics using it stop. | `agent-forge token --agent <name>` from a clone of the repo; fix the App, key or installation. |
 
-**To continue an epic that is in `needs-human`:** fix what the reason says (outside Carrier), then use **Resume** on the epic in the macOS app, or `carrier restart <owner/name>#<issue>` in a terminal (add `--author <option>` or `--reviewer <option>` to run a role on another agent option: the same option continues its session, another one starts a new session in the same worktree and pull request). Underneath, Carrier does what you can do by hand: it puts the `ready` label (`solve:epic:ready` by default) back on the issue and checks at once (`r` in the panel does the check), so the epic is queued again and starts from `ship`, which reuses the epic's worktree and its PR; the review rounds start over. Without the app or the command, put the label back yourself and wait for the next check. Without that label the epic stays stopped, even across restarts. Nothing checks that the cause is fixed: if it is not, the epic stops again with the new reason. If the app says the epic did not restart, the label is on and the next check takes it.
+**To continue an epic that is in `needs-human`:** fix what the reason says (outside Carrier), then use **Resume** on the epic in the macOS app, or `carrier restart <owner/name>#<issue>` in a terminal (add `--author <option>` or `--reviewer <option>` to run a role on another agent option: the same option continues its session, another one starts a new session in the same worktree and pull request).
+Underneath, Carrier does what you can do by hand: it puts the `ready` label (`solve:epic:ready` by default) back on the issue and checks at once (`r` in the panel does the check), so the epic is queued again and starts from `ship`, which reuses the epic's worktree and its PR; the review rounds start over.
+To keep the round instead, `carrier restart <owner/name>#<issue> --from review` (or `--from fix`) starts at that stage with the round, pull request, worktree and blockers the epic had; Carrier refuses it when the pull request is not open or its head is not the one it saved, and then `--from ship` is the way.
+An epic that stopped on `review_limit` gets more rounds that way, counted from the round it is at: `limits.maxReviews` of them, or `--extra-rounds K` of them (it stops again with `review_limit` when they are used).
+Without the app or the command, put the label back yourself and wait for the next check.
+Without that label the epic stays stopped, even across restarts.
+Nothing checks that the cause is fixed: if it is not, the epic stops again with the new reason.
+If the app says the epic did not restart, the label is on and the next check takes it.
 
 ## A new session does not start
 
@@ -159,6 +190,12 @@ The session and its branch stay, and the next message brings a fresh folder back
 ## While it runs
 
 - **GitHub is down or rate limiting.** Carrier keeps the queue, shows the error and tries again at the next interval or after the wait GitHub indicates. It does not spend agent retries. The log and the `REPOS GITHUB REFUSED` line say which kind it was and the detail, like `GitHub unavailable (rate_limited: HTTP 403)`: `rate_limited`, `server_error`, `timeout` or `network`.
+- **An epic ends as cancelled with `the epic issue no longer exists`.** GitHub answered 404 or 410 for the epic's issue while its repo answered normally, so the issue was deleted or transferred.
+  Carrier cancels that epic, writes nothing to the issue, and the other epics of the repo go on.
+  Nothing to do, unless the issue should exist: then recreate it and label it `ready`, which is a new epic.
+- **A repo shows as refused with `GitHub answered HTTP 404: Not Found`.** GitHub also answers 404 for a repo the token lost access to, so a 404 of the repo itself is never taken for a deleted issue.
+  No epic of that repo is cancelled, the epics of the other repos are not touched, and Carrier tries the repo again at every check.
+  Fix the name in `repos`, or give the orchestrator's identity access to the repo again (`carrier doctor` names the repo).
 - **An epic is not picked up.** It needs the `ready` label (`solve:epic:ready` by default), the issue open, and a free slot (`maxConcurrentEpics`). Epics go FIFO across all repos. Check that the panel does not say `PAUSED` (`p` pauses and resumes taking epics), and press `r` to check GitHub now instead of waiting for the interval.
 - **A repo was removed from the config.** When Carrier reloads (the app after a save, or `carrier reload`) or starts, its pending epics are parked as `repo_removed` with that reason, its active agent runs are stopped, and the epics are recovered where they were if you add the repo back (unless they were in `needs-human`).
 - **Ctrl+C, `q` or `carrier stop`.** (In `carrier watch`, `q` and Ctrl+C only leave: Carrier keeps running.) Stops the agents and keeps everything; the next start reconciles with GitHub and resumes. Known limit: without a container, stopping does not guarantee an agent's child processes die (Codex leaves its command process even on SIGTERM, Claude on SIGKILL; Antigravity cleans up on SIGTERM). If you see leftover `codex`, `claude` or `agy` processes, `pgrep -fl 'codex|claude|agy'` and kill them.

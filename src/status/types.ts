@@ -32,6 +32,8 @@ export type PanelEpic = {
   executionId: string | null;
   /** Absent from an epic reserved before options existed. */
   options?: EpicOptions;
+  /** ms since epoch: when an epic stopped on its quota resumes by itself; absent when it does not. */
+  resumeAt?: number;
 };
 
 export type PanelSnapshot = {

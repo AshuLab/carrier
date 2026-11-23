@@ -2,6 +2,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, test } from 'vitest';
 import { engineConfigPathOf } from './places.ts';
+import { userConfigJsonSchema } from './json-schema.ts';
 import { defaults, loadConfig } from './load.ts';
 import { resolveRepoConfig } from './resolve.ts';
 import { loadProviders } from './providers.ts';
@@ -103,6 +104,28 @@ describe('invalid config', () => {
     expect(errorsOf({ limits: { maxExecutionHours: value } }).map((e) => e.path)).toEqual(['limits.maxExecutionHours']);
   });
 
+  test.each([0, -1, 1.5, 'forever'])('idleMinutes %j', (value) => {
+    expect(errorsOf({ limits: { idleMinutes: value } }).map((e) => e.path)).toEqual(['limits.idleMinutes']);
+  });
+
+  test('idleMinutes has no default and a positive whole number is accepted', () => {
+    expect(defaults.limits).not.toHaveProperty('idleMinutes');
+    expect(load({ limits: { idleMinutes: 45 } }).ok).toBe(true);
+    const limits = userConfigJsonSchema().properties!.limits!;
+    expect(limits.properties).toHaveProperty('idleMinutes');
+    expect(limits.required ?? []).not.toContain('idleMinutes');
+  });
+
+  test('autoResume is off and autoResumeMaxHours is 12 by default, and both are checked', () => {
+    expect(defaults.limits).toMatchObject({ autoResume: false, autoResumeMaxHours: 12 });
+    expect(load({ limits: { autoResume: true, autoResumeMaxHours: 0.5 } }).ok).toBe(true);
+    expect(errorsOf({ limits: { autoResume: 'yes' } }).map((e) => e.path)).toEqual(['limits.autoResume']);
+    for (const value of [0, -1, '12']) expect(errorsOf({ limits: { autoResumeMaxHours: value } }).map((e) => e.path)).toEqual(['limits.autoResumeMaxHours']);
+    const limits = userConfigJsonSchema().properties!.limits!;
+    expect(limits.required ?? []).not.toContain('autoResume');
+    expect(limits.required ?? []).not.toContain('autoResumeMaxHours');
+  });
+
   test('unknown profile references', () => {
     const errors = errorsOf({
       orchestratorProfile: 'ghost',
@@ -152,9 +175,9 @@ describe('labels', () => {
     const { labels } = (load({}) as { config: { labels: object } }).config;
     expect(labels).not.toHaveProperty('stages');
     expect(labels).not.toHaveProperty('reasons');
-    expect(load({ labels: { stages: { review: 'c:reviewing' }, reasons: { review_limit: 'c:rounds', timeout: 'c:slow' } } })).toMatchObject({
+    expect(load({ labels: { stages: { review: 'c:reviewing' }, reasons: { review_limit: 'c:rounds', timeout: 'c:slow', engine_error: 'c:engine' } } })).toMatchObject({
       ok: true,
-      config: { labels: { stages: { review: 'c:reviewing' }, reasons: { review_limit: 'c:rounds', timeout: 'c:slow' } } },
+      config: { labels: { stages: { review: 'c:reviewing' }, reasons: { review_limit: 'c:rounds', timeout: 'c:slow', engine_error: 'c:engine' } } },
     });
   });
 

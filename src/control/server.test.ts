@@ -5,9 +5,10 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { acquireLock } from '../storage/lock.ts';
 import type { EpicReply, EventsReply, FileDiffReply, FilesReply } from './replies.ts';
+import { RecoverRefused } from '../orchestration/recover-refused.ts';
 import { ReloadRefused } from '../orchestration/reload-refused.ts';
 import { ResumeRefused } from '../orchestration/resume-refused.ts';
-import { socketPathFits, startControlServer } from './server.ts';
+import { request, socketPathFits, startControlServer } from './server.ts';
 
 let dir: string;
 let sockets: Socket[];
@@ -31,7 +32,7 @@ const executionId = '3f2b8c1e-5a4d-4e8b-9c1a-0d2e4f6a8b1c';
 function fakeControls() {
   const state = { paused: false, polls: 0, repoPages: [] as number[] };
   const logs = vi.fn((id: string, count: number) => (id === executionId ? ['one', 'two', 'three'].slice(-count) : []));
-  return { state, logs, controls: { poll: () => void state.polls++, setPaused: (paused: boolean) => void (state.paused = paused), logs, sessions: () => ({ sessions: [] }), events: (_id: string, _after: number, _limit: number): EventsReply | null => ({ events: [], next: 0, running: false, structured: true }), epic: (): EpicReply | null | Promise<EpicReply | null> => ({ stages: [], rounds: [], slices: [], slicesTruncated: false, threads: [], threadsTruncated: false, worktrees: [], branch: null, pr: null }), files: (): FilesReply | null | Promise<FilesReply | null> => ({ sections: [], total: null, truncated: false }), fileDiff: (_repo: string, _issue: number, _section: string, _path: string): FileDiffReply | null | Promise<FileDiffReply | null> => ({ rows: [{ sign: '@', text: '@@ -1 +1 @@' }], truncated: false, note: null }), availableRepos: (page: number) => (state.repoPages.push(page), Promise.resolve({ repos: [{ name: 'AshuLab/carrier', private: true, pushedAt: '2026-10-20T10:00:00Z' }], hasMore: page < 3 })), resumeEpic: () => Promise.resolve(), reload: () => {} } };
+  return { state, logs, controls: { poll: () => void state.polls++, setPaused: (paused: boolean) => void (state.paused = paused), logs, sessions: () => ({ sessions: [] }), events: (_id: string, _after: number, _limit: number): EventsReply | null => ({ events: [], next: 0, running: false, structured: true }), epic: (): EpicReply | null | Promise<EpicReply | null> => ({ stages: [], rounds: [], slices: [], slicesTruncated: false, threads: [], threadsTruncated: false, worktrees: [], branch: null, pr: null }), files: (): FilesReply | null | Promise<FilesReply | null> => ({ sections: [], total: null, truncated: false }), fileDiff: (_repo: string, _issue: number, _section: string, _path: string): FileDiffReply | null | Promise<FileDiffReply | null> => ({ rows: [{ sign: '@', text: '@@ -1 +1 @@' }], truncated: false, note: null }), availableRepos: (page: number) => (state.repoPages.push(page), Promise.resolve({ repos: [{ name: 'AshuLab/carrier', private: true, pushedAt: '2026-10-20T10:00:00Z' }], hasMore: page < 3 })), resumeEpic: () => Promise.resolve(), recoverEpic: () => Promise.resolve(), reload: () => {} } };
 }
 
 const stop = async () => {};
@@ -76,7 +77,7 @@ async function client() {
 test('a client gets a hello, and the snapshot as JSON when it asks', async () => {
   await open();
   const c = await client();
-  expect(c.hello).toEqual({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, version: JSON.parse(readFileSync('package.json', 'utf8')).version, capabilities: ['sessions', 'events', 'epic', 'files', 'fileDiff', 'availableRepos', 'availableReposPaged', 'resumeEpic', 'reload'] });
+  expect(c.hello).toEqual({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, version: JSON.parse(readFileSync('package.json', 'utf8')).version, capabilities: ['sessions', 'events', 'epic', 'files', 'fileDiff', 'availableRepos', 'availableReposPaged', 'resumeEpic', 'resumeFromStage', 'recoverEpic', 'reload'] });
   expect(await c.ask('{"id":1,"cmd":"snapshot"}')).toEqual({ id: 1, ok: true, data: snapshotData });
   expect(await c.ask('{"id":7,"cmd":"snapshot"}')).toMatchObject({ id: 7, ok: true });
 });
@@ -303,7 +304,32 @@ test('resumeEpic passes the options named for each role, a role left out as unde
   expect(resumeEpic).toHaveBeenLastCalledWith('AshuLab/carrier', 5, { author: undefined, reviewer: 'claude' });
 });
 
-test.each(['unknown epic', 'not stopped', 'github unavailable', 'did not restart', 'unknown option'] as const)('resumeEpic refused as "%s" is that reason in the reply', async (reason) => {
+test('resumeEpic passes the stage named in from, and refuses any other', async () => {
+  const resumeEpic = vi.fn(() => Promise.resolve());
+  await open(undefined, { ...fakeControls().controls, resumeEpic });
+  const c = await client();
+  for (const from of ['ship', 'review', 'fix']) {
+    expect(await c.ask(`{"id":4,"cmd":"resumeEpic","repo":"AshuLab/carrier","issue":5,"from":"${from}"}`)).toEqual({ id: 4, ok: true });
+    expect(resumeEpic).toHaveBeenLastCalledWith('AshuLab/carrier', 5, { author: undefined, reviewer: undefined, from });
+  }
+  resumeEpic.mockClear();
+  for (const from of ['"merged"', '""', '"Review"', '1', 'null']) expect(await c.ask(`{"id":4,"cmd":"resumeEpic","repo":"AshuLab/carrier","issue":5,"from":${from}}`)).toMatchObject({ ok: false });
+  expect(resumeEpic).not.toHaveBeenCalled();
+});
+
+test('resumeEpic passes extraRounds, a positive whole number, and refuses zero, a negative, a fraction and anything else', async () => {
+  const resumeEpic = vi.fn(() => Promise.resolve());
+  await open(undefined, { ...fakeControls().controls, resumeEpic });
+  const c = await client();
+  expect(await c.ask('{"id":4,"cmd":"resumeEpic","repo":"AshuLab/carrier","issue":5,"from":"review","extraRounds":3}')).toEqual({ id: 4, ok: true });
+  expect(resumeEpic).toHaveBeenLastCalledWith('AshuLab/carrier', 5, { author: undefined, reviewer: undefined, from: 'review', extraRounds: 3 });
+  resumeEpic.mockClear();
+  for (const extraRounds of ['0', '-1', '1.5', '"3"', 'null', '1e400']) expect(await c.ask(`{"id":4,"cmd":"resumeEpic","repo":"AshuLab/carrier","issue":5,"from":"review","extraRounds":${extraRounds}}`)).toEqual({ id: 4, ok: false, error: 'invalid request: extraRounds takes a positive whole number' });
+  expect(await c.ask('{"id":4,"cmd":"resumeEpic","repo":"AshuLab/carrier","issue":5,"from":"merged"}')).toEqual({ id: 4, ok: false, error: 'invalid request' });
+  expect(resumeEpic).not.toHaveBeenCalled();
+});
+
+test.each(['unknown epic', 'not stopped', 'github unavailable', 'did not restart', 'unknown option', 'no pull request', 'pull request not open', 'pull request head changed', 'extra rounds need a stage', 'extra rounds need a review limit'] as const)('resumeEpic refused as "%s" is that reason in the reply', async (reason) => {
   await open(undefined, { ...fakeControls().controls, resumeEpic: () => Promise.reject(new ResumeRefused(reason)) });
   expect(await (await client()).ask('{"id":4,"cmd":"resumeEpic","repo":"AshuLab/carrier","issue":5}')).toEqual({ id: 4, ok: false, error: reason });
 });
@@ -313,6 +339,29 @@ test('resumeEpic that fails for any other reason is an "internal error" without 
   await open(undefined, { ...fakeControls().controls, resumeEpic: () => Promise.reject(new Error('gh: token ghp_secret')) });
   const c = await client();
   const reply = await c.ask('{"id":2,"cmd":"resumeEpic","repo":"AshuLab/carrier","issue":5}');
+  expect(reply).toEqual({ id: 2, ok: false, error: 'internal error' });
+  expect(JSON.stringify(reply)).not.toContain('ghp_secret');
+  expect(await c.ask('{"id":3,"cmd":"snapshot"}')).toMatchObject({ id: 3, ok: true });
+});
+
+test('recoverEpic answers ok once the engine says the epic was continued, and asks it for that repo and issue alone', async () => {
+  const recoverEpic = vi.fn(() => Promise.resolve());
+  await open(undefined, { ...fakeControls().controls, recoverEpic });
+  expect(await (await client()).ask('{"id":4,"cmd":"recoverEpic","repo":"AshuLab/carrier","issue":5}')).toEqual({ id: 4, ok: true });
+  expect(recoverEpic.mock.calls).toEqual([['AshuLab/carrier', 5]]);
+});
+
+// the refusal table: each reason the engine gives reaches the client as it is
+test.each(['unknown epic', 'not running', 'agent alive', 'not started', 'nothing to recover', 'engine unavailable', 'github unavailable'] as const)('recoverEpic refused as "%s" is that reason in the reply', async (reason) => {
+  await open(undefined, { ...fakeControls().controls, recoverEpic: () => Promise.reject(new RecoverRefused(reason)) });
+  expect(await (await client()).ask('{"id":4,"cmd":"recoverEpic","repo":"AshuLab/carrier","issue":5}')).toEqual({ id: 4, ok: false, error: reason });
+});
+
+test('recoverEpic that fails for any other reason is an "internal error" without the reason, and the server goes on', async () => {
+  vi.spyOn(console, 'error').mockImplementation(() => {});
+  await open(undefined, { ...fakeControls().controls, recoverEpic: () => Promise.reject(new Error('gh: token ghp_secret')) });
+  const c = await client();
+  const reply = await c.ask('{"id":2,"cmd":"recoverEpic","repo":"AshuLab/carrier","issue":5}');
   expect(reply).toEqual({ id: 2, ok: false, error: 'internal error' });
   expect(JSON.stringify(reply)).not.toContain('ghp_secret');
   expect(await c.ask('{"id":3,"cmd":"snapshot"}')).toMatchObject({ id: 3, ok: true });
@@ -361,13 +410,14 @@ const validFields = {
   epic: { repo: 'AshuLab/carrier', issue: 5 },
   files: { repo: 'AshuLab/carrier', issue: 5 },
   fileDiff: { repo: 'AshuLab/carrier', issue: 5, section: 'slice-12', path: 'src/a.ts' },
-  resumeEpic: { repo: 'AshuLab/carrier', issue: 5, author: 'codex', reviewer: 'claude-ashu' },
+  resumeEpic: { repo: 'AshuLab/carrier', issue: 5, author: 'codex', reviewer: 'claude-ashu', from: 'review', extraRounds: 3 },
+  recoverEpic: { repo: 'AshuLab/carrier', issue: 5 },
 } as const;
 const badRepos = ['', 'carrier', 'a/b/c', '../b', 'a/..', './b', 'a/.', '/b', 'a/', 'a b/c', 'a/b?x', `${'a'.repeat(200)}/b`, 7, null];
 const invalid = (cmd: keyof typeof validFields, change: Record<string, unknown>) => ({ id: 3, cmd, ...validFields[cmd], ...change });
 
 const invalidRequests: (readonly [string, Record<string, unknown>])[] = [
-  ...(['sessions', 'epic', 'files', 'fileDiff', 'resumeEpic'] as const).flatMap((cmd) => [
+  ...(['sessions', 'epic', 'files', 'fileDiff', 'resumeEpic', 'recoverEpic'] as const).flatMap((cmd) => [
     ...badRepos.map((repo) => [`${cmd} with repo ${JSON.stringify(repo)}`, invalid(cmd, { repo })] as const),
     [`${cmd} with issue 0`, invalid(cmd, { issue: 0 })] as const,
     [`${cmd} with a string issue`, invalid(cmd, { issue: '5' })] as const,
@@ -388,6 +438,7 @@ const invalidRequests: (readonly [string, Record<string, unknown>])[] = [
       ['', 'Codex', 'a b', '1abc', '-a', 'a'.repeat(41), '../x', 7, null].map((option) => [`${cmd} with ${role} ${JSON.stringify(option)}`, invalid(cmd, { [role]: option })] as const),
     ),
   ),
+  ...['', 'merged', 'Review', 'ship ', 7, null].map((from) => [`resumeEpic with from ${JSON.stringify(from)}`, invalid('resumeEpic', { from })] as const),
   ['events with no execution id', invalid('events', { executionId: undefined })],
   ['events with no limit', invalid('events', { limit: undefined })],
   ['events with limit 0', invalid('events', { limit: 0 })],
@@ -396,11 +447,38 @@ const invalidRequests: (readonly [string, Record<string, unknown>])[] = [
   ['events with a negative cursor', invalid('events', { after: -1 })],
   ['events with a fractional cursor', invalid('events', { after: 0.5 })],
   ['events with a string cursor', invalid('events', { after: '1' })],
-  ...(['sessions', 'events', 'epic', 'files', 'fileDiff', 'resumeEpic'] as const).flatMap((cmd) => [
+  ...(['sessions', 'events', 'epic', 'files', 'fileDiff', 'resumeEpic', 'recoverEpic'] as const).flatMap((cmd) => [
     [`${cmd} with an extra field`, invalid(cmd, { extra: 1 })] as const,
     [`${cmd} with no fields`, { id: 3, cmd }] as const,
   ]),
 ];
+// ADR 0044: the caller never picks an epic's status, stage or round. The fields every request accepts, listed, so a new one is a decision of this test.
+// `resumeEpic`'s `from` is the one place a caller names a stage, and only to resume at `review` or `fix` what the epic already has: its round and the rest are the epic's own.
+test('no request takes a status, a stage or a round, and each accepts exactly these fields', () => {
+  const accepted = Object.fromEntries(request.options.map((option) => [String((option.shape.cmd as any).options?.join('|') ?? (option.shape.cmd as any).value), Object.keys(option.shape).filter((field) => field !== 'cmd' && field !== 'id').sort()]));
+  expect(accepted).toEqual({
+    'snapshot|pause|resume|checkNow|stop': [],
+    tail: ['executionId', 'lines'],
+    sessions: ['issue', 'repo'],
+    events: ['after', 'executionId', 'limit'],
+    epic: ['issue', 'repo'],
+    files: ['executionId', 'issue', 'repo'],
+    fileDiff: ['issue', 'path', 'repo', 'section'],
+    availableRepos: ['page'],
+    reload: [],
+    resumeEpic: ['author', 'extraRounds', 'from', 'issue', 'repo', 'reviewer'],
+    recoverEpic: ['issue', 'repo'],
+  });
+  expect(Object.values(accepted).flat().filter((field) => ['status', 'stage', 'round', 'rounds'].includes(field))).toEqual([]);
+});
+
+// a refused extraRounds names its field
+test.each([0, -1, 1.5, '3', null])('resumeEpic with extraRounds %j is refused naming extraRounds', async (extraRounds) => {
+  await open();
+  const c = await client();
+  expect(await c.ask(JSON.stringify(invalid('resumeEpic', { extraRounds })))).toEqual({ id: 3, ok: false, error: 'invalid request: extraRounds takes a positive whole number' });
+});
+
 test.each(invalidRequests)('%s is a validation error', async (_name, request) => {
   await open();
   const c = await client();

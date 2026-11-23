@@ -1,5 +1,7 @@
+import type { QuotaSnapshot, QuotaTarget } from '../usage/types.ts';
 import type { Clock } from './clock.ts';
-import { AuthError, GitHubUnavailable, defaultLabels, hasLabel, type EpicSlice, type PullRequestBlock, type PullRequestState, type ReviewThread, type GitHub, type LabelStyle, type RateLimit, type Slices } from './github.ts';
+import type { QuotaReader } from './quota.ts';
+import { AuthError, GitHubRejected, GitHubUnavailable, defaultLabels, hasLabel, type EpicSlice, type PullRequestBlock, type PullRequestState, type ReviewThread, type GitHub, type LabelStyle, type RateLimit, type Slices } from './github.ts';
 
 export class FakeGitHub implements GitHub {
   /** What rateLimit answers. */
@@ -45,9 +47,14 @@ export class FakeGitHub implements GitHub {
   /** Every call that reached the port, failed or not. */
   attempts = 0;
 
-  private guard() {
+  /** Issues (`repo#issue`) and repos GitHub answers 404 for, on every call that names them; like GitHub, a missing repo answers 404 for its issues too. */
+  missingIssues = new Set<string>();
+  missingRepos = new Set<string>();
+
+  private guard(repo?: string, issue?: number) {
     this.attempts++;
     if (this.authError) throw this.authError;
+    if (repo !== undefined && (this.missingRepos.has(repo) || (issue !== undefined && this.missingIssues.has(`${repo}#${issue}`)))) throw new GitHubRejected('GitHub answered HTTP 404: Not Found', 404);
   }
 
   /** An issue not set up by the test is open and ready. */
@@ -56,14 +63,14 @@ export class FakeGitHub implements GitHub {
   }
 
   async listReadyEpics(repo: string, label: string) {
-    this.guard();
+    this.guard(repo);
     this.calls++;
     if (this.unavailable) throw this.unavailable;
     return (this.ready[repo] ?? []).filter((e) => hasLabel(this.issue(repo, e.issue).labels, label)).map((e) => ({ ...e, labels: [...this.issue(repo, e.issue).labels] })); // like GitHub: the label decides
   }
 
   async listOpenEpics(repo: string, label: string) {
-    this.guard();
+    this.guard(repo);
     const failure = this.unavailable ?? this.openEpicsUnavailable;
     if (failure) throw failure;
     this.openEpicsAsked.push(label);
@@ -71,7 +78,7 @@ export class FakeGitHub implements GitHub {
   }
 
   async readSlices(repo: string, issue: number) {
-    this.guard();
+    this.guard(repo, issue);
     this.sliceReads.push(`${repo}#${issue}`);
     if (this.slicesUnavailable) throw this.slicesUnavailable;
     const found = this.slices[`${repo}#${issue}`];
@@ -80,7 +87,7 @@ export class FakeGitHub implements GitHub {
   }
 
   async readPullRequest(repo: string, number: number) {
-    this.guard();
+    this.guard(repo);
     this.pullRequestReads.push(`${repo}#${number}`);
     if (this.pullRequestUnavailable) throw this.pullRequestUnavailable;
     const found = this.pullRequestBlocks[`${repo}#${number}`];
@@ -90,20 +97,20 @@ export class FakeGitHub implements GitHub {
   }
 
   async getIssue(repo: string, issue: number) {
-    this.guard();
+    this.guard(repo, issue);
     const { state, labels } = this.issue(repo, issue);
     return { state, labels: [...labels] };
   }
 
   async getPullRequest(repo: string, number: number) {
-    this.guard();
+    this.guard(repo);
     if (this.unavailable) throw this.unavailable;
     const pull = this.pulls[`${repo}#${number}`];
     return pull ? { ...pull, headRef: pull.headRef ?? 'feat/epic/epic' } : null;
   }
 
   async findPullRequest(repo: string, issue: number) {
-    this.guard();
+    this.guard(repo);
     if (this.unavailable) throw this.unavailable;
     for (const [key, { state, body, headSha }] of Object.entries(this.pulls)) {
       if (key.startsWith(`${repo}#`) && new RegExp(`\\bcloses #${issue}(?!\\d)`, 'i').test(body)) return { number: Number(key.split('#')[1]), state, headSha };
@@ -112,19 +119,19 @@ export class FakeGitHub implements GitHub {
   }
 
   async setLabels(repo: string, issue: number, { add, remove }: { add: string[]; remove: string[] }) {
-    this.guard();
+    this.guard(repo, issue);
     if (this.setLabelsUnavailable) throw this.setLabelsUnavailable;
     const found = this.issue(repo, issue);
     found.labels = [...new Set([...found.labels.filter((l) => !hasLabel(remove, l)), ...add])];
   }
 
   async listLabels(repo: string) {
-    this.guard();
+    this.guard(repo);
     return [...(this.repoLabels[repo] ?? [])];
   }
 
   async createLabel(repo: string, name: string, style: LabelStyle) {
-    this.guard();
+    this.guard(repo);
     this.styles[name] = style;
     (this.repoLabels[repo] ??= []).push(name);
     this.created.push(`${repo}:${name}`);
@@ -159,4 +166,19 @@ export class FakeClock implements Clock {
     }
     this.time = target;
   }
+}
+
+/** The quota port: answers the snapshot set for an account (its `configDir`, else its provider); an account not set up is unavailable. */
+export class FakeQuota {
+  snapshots: Record<string, QuotaSnapshot> = {};
+  /** Makes every read throw. */
+  failing = false;
+  /** Every target a read reached the port with. */
+  asked: QuotaTarget[] = [];
+
+  read: QuotaReader = async (target) => {
+    this.asked.push(target);
+    if (this.failing) throw new Error('the probe blew up');
+    return this.snapshots[target.configDir ?? target.provider] ?? { provider: target.provider, status: 'unavailable', checkedAt: 0, windows: [] };
+  };
 }

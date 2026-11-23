@@ -1,0 +1,1 @@
+ALTER TABLE `epics` ADD `recoveries` integer DEFAULT 0 NOT NULL;

@@ -40,6 +40,21 @@ test('slots count the running epics, the queue lists the queued ones oldest firs
   expect(s.epics.map((e) => e.issue)).toEqual([6]);
 });
 
+test('an epic shows its own cap of rounds: the granted roundLimit, else the live maxReviews', () => {
+  add(1, 'running', { round: 5, roundLimit: 10 });
+  add(2, 'running', { round: 2 });
+  expect(snapshot().epics.map((e) => [e.issue, e.maxReviews])).toEqual([[1, 10], [2, 5]]);
+});
+
+test('an epic stopped with a resumeAt carries it, and one with none has no such field', () => {
+  add(1, 'needs_human', { needsHumanKind: 'usage_limit', resumeAt: 190_000 });
+  add(2, 'needs_human', { needsHumanKind: 'usage_limit' });
+  const [waiting, plain] = snapshot().epics;
+  expect(waiting).toMatchObject({ issue: 1, resumeAt: 190_000 });
+  expect(plain).not.toHaveProperty('resumeAt');
+  expect(renderPanel(snapshot()).join('\n')).toContain('resumes: in 1m 30s');
+});
+
 test('an epic carries its stage, round, links, activity, error and the blockers of the last review that asked for changes', () => {
   const epic = add(12, 'running', {
     stage: 'fix', round: 2, prNumber: 50, startedAt: 1_000, stageStartedAt: 40_000, lastActivityAt: 90_000, lastError: 'the agent process ended with an error',
@@ -60,6 +75,11 @@ test('an epic carries its stage, round, links, activity, error and the blockers 
       title: null, labels: [], queuedAt: 0, startedAt: 1_000, finishedAt: null, branch: null, workspace: null, needsHumanKind: null, blockerTitles: ['a', 'b'], agents: null,
     },
   ]);
+});
+
+test('an epic stopped by an engine error carries the kind and the reason', () => {
+  add(7, 'needs_human', { needsHumanKind: 'engine_error', needsHumanReason: 'boom' });
+  expect(snapshot().epics[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'engine_error', needsHumanReason: 'boom' });
 });
 
 test('what the engine does not keep yet is empty: no title, labels, branch, kind, watched repositories, sessions or rate limit', () => {

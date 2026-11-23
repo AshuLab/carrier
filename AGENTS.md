@@ -34,7 +34,7 @@ Each folder has one job (the folder tree is in [CONTRIBUTING.md](CONTRIBUTING.md
 - `terminal`: the command line, the terminal prompts, `carrier init` and the panel ([detail](src/terminal/AGENTS.md)).
 - `status`: what the panel shows (`types.ts`) and how it is read from SQLite (`snapshot.ts`), for any front-end.
 - `control`: the engine's control socket, for the macOS app and the CLI ([detail](src/control/AGENTS.md), with the checklist for a new request).
-- `config`: the engine's `engine.json`, the accounts' `providers.json` and every path of the Carrier folder (`places.ts`) ([detail](src/config/AGENTS.md), with the checklist for a new field).
+- `config`: the engine's `engine.json`, the accounts' `providers.json`, the projects' `projects.json` and every path of the Carrier folder (`places.ts`) ([detail](src/config/AGENTS.md), with the checklist for a new field).
 - `chat`: the chat host, its own process with its own socket and database ([detail](src/chat/AGENTS.md)).
 - `usage`: the quotas and the history of what was used, inside the chat host ([detail](src/usage/AGENTS.md)).
 - `doctor`: the checks, their remedies and the one detector of harnesses and accounts ([detail](src/doctor/AGENTS.md)).

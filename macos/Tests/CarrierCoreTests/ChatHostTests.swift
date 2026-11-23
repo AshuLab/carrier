@@ -93,7 +93,7 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"", protocol vers
     let server = try FixtureServer(fixtures: fixtures)
     defer { server.stop() }
     let client = try #require(ControlClient.connect(path: server.chatSocketPath))
-    #expect(try client.hello().capabilities == [.agents, .list, .open, .resume, .send, .events, .answer, .setOption, .archive, .delete, .deletePreview, .workspace, .fetch, .suggestName, .checkName, .cloneRepo, .createProject, .githubRepos, .repoBranches, .providers, .plan, .usage, .usageOverride, .accountIdentity, .accountPalette, .switchAgent, .interrupt, .stopTask, .worktreeStart, .fetchIfStale])
+    #expect(try client.hello().capabilities == [.agents, .list, .open, .resume, .send, .events, .answer, .setOption, .archive, .delete, .deletePreview, .workspace, .fetch, .suggestName, .checkName, .cloneRepo, .createProject, .githubRepos, .repoBranches, .providers, .plan, .usage, .usageOverride, .accountIdentity, .accountPalette, .switchAgent, .interrupt, .stopTask, .worktreeStart, .fetchIfStale, .projects, .textGenerators, .regenerateTitle, .regenerateTitles])
 }
 
 @Test func theFixtureHostAnswersAnythingElseWithAnError() throws {
@@ -195,6 +195,8 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"", protocol vers
     let first = try await host.githubRepos(page: 1)
     #expect(first.login == "vemec" && first.hasMore && first.repos.count == 6)
     #expect(first.repos[0] == AvailableRepo(name: "AshuLab/carrier", isPrivate: true, pushedAt: "2026-10-28T15:40:00Z"))
+    // the host's listing carries the description, which the sheet shows; a repository with none has nil
+    #expect(first.repos[1].about == "The marketing site and the docs" && first.repos[3].about == nil)
     #expect(first.repos[5] == AvailableRepo(name: "vemec/dotfiles", isPrivate: false, pushedAt: nil))
     let second = try await host.githubRepos(page: 2)
     #expect(second.login == nil && second.hasMore == false && second.repos.map(\.name) == ["optyra/docs", "vemec/old-experiments"])
@@ -340,6 +342,28 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"", protocol vers
     defer { server.stop() }
     let plan = try await SocketChatHost(socketPath: { server.path }).cancelPreparation("5d1f7c3a-0b6e-4a52-9a1d-3c7e8b2f4a01")
     #expect(plan == SessionPlan(agent: "claude", workspace: .repo("a/b"), worktree: WorktreeRequest(from: "feat/x"), text: "hi"))
+}
+
+@Test func aCancelThatAnswersANullPlanIsASessionThatStaysNotAnError() async throws {
+    let server = TestServer { connection in
+        connection.send(hello("\"plan\""))
+        guard let line = connection.readLine(), let id = (try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any])?["id"] as? Int else { return }
+        connection.send("{\"id\":\(id),\"ok\":true,\"data\":{\"plan\":null}}\n")
+    }
+    defer { server.stop() }
+    let plan = try await SocketChatHost(socketPath: { server.path }).cancelPreparation("5d1f7c3a-0b6e-4a52-9a1d-3c7e8b2f4a01")
+    #expect(plan == nil)
+}
+
+@Test func aCancelledPlanForANewProjectIsReadBackFromTheKindThatStayedProject() async throws {
+    let server = TestServer { connection in
+        connection.send(hello("\"plan\""))
+        guard let line = connection.readLine(), let id = (try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any])?["id"] as? Int else { return }
+        connection.send("{\"id\":\(id),\"ok\":true,\"data\":{\"plan\":{\"workspace\":{\"kind\":\"project\",\"name\":\"my-app\"},\"agent\":\"claude\",\"text\":\"hi\"}}}\n")
+    }
+    defer { server.stop() }
+    let plan = try await SocketChatHost(socketPath: { server.path }).cancelPreparation("5d1f7c3a-0b6e-4a52-9a1d-3c7e8b2f4a01")
+    #expect(plan == SessionPlan(agent: "claude", workspace: .newProject("my-app"), text: "hi"))
 }
 
 @Test func aCancelledPlanWithAWorkspaceThisAppDoesNotKnowIsNotRead() async throws {
@@ -508,4 +532,253 @@ private func eventsReply(_ id: Int, rev: String, lists: String) -> String {
 
     for _ in 0..<2 { _ = try await host.events("0509fe2a-2637-4bdd-840c-5727696d6a3e", after: 0, limit: 50) }
     #expect(asked.all.allSatisfy { $0.contains("\"lists\"") == false && $0.contains("\"cmd\":\"stop\"") == false })
+}
+
+// MARK: the projects capability (docs/specs/projects.md, "What the host answers")
+
+@Test func theFixtureHostListsItsClonesAndStartsSharesAndDismissesThem() async throws {
+    let server = try FixtureServer(fixtures: fixtures)
+    defer { server.stop() }
+    let host = SocketChatHost(socketPath: { server.chatSocketPath })
+    #expect(try await host.capabilities().contains(.projects))
+    // the golden reply: one clone running with git's progress line, one failed with its reason
+    let listed = try await host.projectClones()
+    #expect(listed == [
+        ProjectClone(repo: "acme/docs", folder: "/tmp/carrier-projects/acme/docs", state: .cloning, progress: "Receiving objects: 62%"),
+        ProjectClone(repo: "acme/private-tools", folder: "/tmp/carrier-projects/acme/private-tools", state: .failed, error: "acme/private-tools was not found, or your GitHub login cannot see it"),
+    ])
+    // a repository the person's listing has starts cloning in the projects folder, or in the parent chosen for it
+    let started = try await host.cloneProject("vemec/encaja", into: nil)
+    #expect(started.state == .cloning && started.folder.hasSuffix("/chat/projects/vemec/encaja"))
+    // asking again, even for another folder, is the clone that runs
+    #expect(try await host.cloneProject("Vemec/Encaja", into: "/tmp/elsewhere") == started)
+    #expect(try await host.projectClones().count == 3)
+    await #expect(throws: ControlError.remote("AshuLab/nope was not found, or your GitHub login cannot see it")) { _ = try await host.cloneProject("AshuLab/nope", into: nil) }
+    // a failed clone goes when it is dismissed, a running one stays
+    #expect(try await host.dismissClone("acme/private-tools").map(\.repo) == ["acme/docs", "vemec/encaja"])
+    #expect(try await host.dismissClone("acme/docs").count == 2)
+}
+
+@Test func theProjectsRequestsGoOnTheWireWithStringsEscapedAndOnlyForAHostThatListsThem() async throws {
+    var wire: [String] = []
+    let reply = #"{"repo":"acme/app","folder":"/w/acme/app","state":"cloning"}"#
+    let server = TestServer { connection in
+        connection.send(hello("\"projects\""))
+        for _ in 0..<2 {
+            guard let line = connection.readLine(), let id = (try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any])?["id"] as? Int else { return }
+            wire.append(line)
+            connection.send("{\"id\":\(id),\"ok\":true,\"data\":\(wire.count == 1 ? reply : #"{"clones":[]}"#)}\n")
+        }
+    }
+    defer { server.stop() }
+    let host = SocketChatHost(socketPath: { server.path })
+    _ = try await host.cloneProject("acme/app", into: "/w \"x\"")
+    _ = try await host.dismissClone("acme/app")
+    let sent = try #require(try JSONSerialization.jsonObject(with: Data(wire[0].utf8)) as? [String: Any])
+    #expect(sent["cmd"] as? String == "cloneProject" && sent["repo"] as? String == "acme/app" && sent["parent"] as? String == "/w \"x\"" && sent.keys.sorted() == ["cmd", "id", "parent", "repo"])
+    let dismissed = try #require(try JSONSerialization.jsonObject(with: Data(wire[1].utf8)) as? [String: Any])
+    #expect(dismissed["cmd"] as? String == "dismissClone" && dismissed.keys.sorted() == ["cmd", "id", "repo"])
+
+    // the host's own limits are checked before anything is sent
+    await #expect(throws: ControlError.remote("\"../x\" is not a repository; write it as owner/name")) { _ = try await host.cloneProject("../x", into: nil) }
+    await #expect(throws: ControlError.remote("That folder cannot be used")) { _ = try await host.cloneProject("acme/app", into: "") }
+
+    // a host without the capability is told it is older, and is sent nothing
+    var asked = false
+    let older = TestServer { connection in
+        connection.send(hello("\"plan\""))
+        asked = connection.readRequestId() != nil
+    }
+    defer { older.stop() }
+    let old = SocketChatHost(socketPath: { older.path })
+    await #expect(throws: ControlError.remote(projectsNeedNewerHost)) { _ = try await old.cloneProject("acme/app", into: nil) }
+    await #expect(throws: ControlError.remote(projectsNeedNewerHost)) { _ = try await old.projectClones() }
+    #expect(asked == false)
+    #expect(projectsNeedNewerHost.contains("older") && projectsNeedNewerHost.contains("Restart"))
+}
+
+@Test func theFixtureHostMakesANewProjectRegistersItWithOriginCreatedAndRefusesWhatTheHostRefuses() async throws {
+    let server = try FixtureServer(fixtures: fixtures)
+    defer { server.stop() }
+    let host = SocketChatHost(socketPath: { server.chatSocketPath })
+    let made = try await host.newProject("my-app", into: nil)
+    #expect(made == server.home + "/chat/projects/local/my-app")
+    var isFolder: ObjCBool = false
+    #expect(FileManager.default.fileExists(atPath: made, isDirectory: &isFolder) && isFolder.boolValue)
+    let entry = try ProjectsFile(folder: server.home).read().first { $0.path == made }
+    #expect(entry?.origin == "created")
+    // a name whose folder is there is refused with the reason and nothing is written
+    let before = try ProjectsFile(folder: server.home).read().count
+    await #expect(throws: ControlError.remote("my-app is already a project; choose another name")) { _ = try await host.newProject("my-app", into: nil) }
+    #expect(try ProjectsFile(folder: server.home).read().count == before)
+    // the parent chosen for this one project
+    let parent = server.home + "/elsewhere"
+    #expect(try await host.newProject("other", into: parent) == parent + "/local/other")
+    // what the host would refuse never goes out
+    await #expect(throws: ControlError.remote("Use only letters, digits, _, . and -")) { _ = try await host.newProject("a b", into: nil) }
+    await #expect(throws: ControlError.remote("That folder cannot be used")) { _ = try await host.newProject("x", into: "") }
+}
+
+@Test func theNewProjectRequestGoesOnTheWireAndTheGoldenReplyDecodes() async throws {
+    let wire = Asked()
+    let golden = try String(contentsOfFile: fixtures + "/chat-new-project.json", encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines)
+    let server = TestServer { connection in
+        connection.send(hello("\"projects\""))
+        guard let line = connection.readLine(), let id = (try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any])?["id"] as? Int else { return }
+        wire.add(line)
+        connection.send("{\"id\":\(id),\"ok\":true,\"data\":\(golden)}\n")
+    }
+    defer { server.stop() }
+    let host = SocketChatHost(socketPath: { server.path })
+    let folder = try await host.newProject("my-app", into: "/w \"x\"")
+    #expect(folder == "/Users/dev/.carrier/chat/projects/local/my-app")
+    let sent = try #require(try JSONSerialization.jsonObject(with: Data(wire.all[0].utf8)) as? [String: Any])
+    #expect(sent["cmd"] as? String == "newProject" && sent["name"] as? String == "my-app" && sent["parent"] as? String == "/w \"x\"" && sent.keys.sorted() == ["cmd", "id", "name", "parent"])
+
+    // a host without the capability is told it is older, and is sent nothing
+    var asked = false
+    let older = TestServer { connection in
+        connection.send(hello("\"plan\""))
+        asked = connection.readRequestId() != nil
+    }
+    defer { older.stop() }
+    await #expect(throws: ControlError.remote(projectsNeedNewerHost)) { _ = try await SocketChatHost(socketPath: { older.path }).newProject("my-app", into: nil) }
+    #expect(asked == false)
+}
+
+@Test func theProjectDiskRequestGoesOnTheWireWithTheHostsLimitsAndItsReplyDecodes() async throws {
+    let wire = Asked()
+    let server = TestServer { connection in
+        connection.send(hello("\"projects\""))
+        while let line = connection.readLine(), let id = (try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any])?["id"] as? Int {
+            wire.add(line)
+            connection.send("{\"id\":\(id),\"ok\":true,\"data\":{\"projects\":[{\"folder\":\"/w \\\"x\\\"\",\"bytes\":6420000000,\"measuredAt\":1792000000000,\"parts\":{\"/w \\\"x\\\"\":6420000000}},{\"folder\":\"/new\",\"bytes\":null,\"measuredAt\":null,\"parts\":{}}],\"measuring\":[\"/new\"]}}\n")
+        }
+    }
+    defer { server.stop() }
+    let host = SocketChatHost(socketPath: { server.path })
+    let reply = try await host.projectDisk(["/w \"x\"", "/new"], refresh: .stale)
+    #expect(reply.projects == [.init(folder: "/w \"x\"", bytes: 6_420_000_000, measuredAt: 1_792_000_000_000, parts: ["/w \"x\"": 6_420_000_000]), .init(folder: "/new", bytes: nil)])
+    #expect(reply.measuring == ["/new"])
+    // a read sends no refresh; what the host would refuse (an empty folder, one over 4096 characters) never goes out, and with nothing left nothing is asked
+    _ = try await host.projectDisk(["/a", "", String(repeating: "a", count: 4097)], refresh: .read)
+    let none = try await host.projectDisk(["", String(repeating: "a", count: 4097)], refresh: .now)
+    #expect(none == ProjectDiskReply(projects: []))
+    let sent = try wire.all.map { try #require(try JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any]) }
+    #expect(sent.count == 2)
+    #expect(sent[0]["cmd"] as? String == "projectDisk" && sent[0]["folders"] as? [String] == ["/w \"x\"", "/new"] && sent[0]["refresh"] as? String == "stale" && sent[0].keys.sorted() == ["cmd", "folders", "id", "refresh"])
+    #expect(sent[1]["folders"] as? [String] == ["/a"] && sent[1].keys.sorted() == ["cmd", "folders", "id"])
+
+    // a host without the capability is told it is older, and is sent nothing
+    var asked = false
+    let older = TestServer { connection in
+        connection.send(hello("\"plan\""))
+        asked = connection.readRequestId() != nil
+    }
+    defer { older.stop() }
+    await #expect(throws: ControlError.remote(projectsNeedNewerHost)) { _ = try await SocketChatHost(socketPath: { older.path }).projectDisk(["/w"], refresh: .now) }
+    #expect(asked == false)
+}
+
+@Test func theProjectWorktreesRequestGoesOnTheWireAndTheGoldenReplyDecodes() async throws {
+    let wire = Asked()
+    let golden = try String(contentsOfFile: fixtures + "/chat-project-worktrees.json", encoding: .utf8)
+    let carrier = try #require(try JSONSerialization.jsonObject(with: Data(golden.utf8)) as? [String: Any])["carrier"] as Any
+    let reply = String(decoding: try JSONSerialization.data(withJSONObject: carrier), as: UTF8.self)
+    let server = TestServer { connection in
+        connection.send(hello("\"projects\""))
+        guard let line = connection.readLine(), let id = (try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any])?["id"] as? Int else { return }
+        wire.add(line)
+        connection.send("{\"id\":\(id),\"ok\":true,\"data\":\(reply)}\n")
+    }
+    defer { server.stop() }
+    let host = SocketChatHost(socketPath: { server.path })
+    let listed = try await host.projectWorktrees("/w \"x\"")
+    #expect(listed.main == .init(path: "/Users/dev/projects/carrier", branch: "main", state: .notPushed))
+    #expect(listed.worktrees.map(\.state) == [.sessionOpen, .merged, .uncommitted, .notPushed, .clean])
+    #expect(listed.worktrees[3].session == .init(id: "s-ahead") && listed.worktrees[4].session == nil)
+    let sent = try #require(try JSONSerialization.jsonObject(with: Data(wire.all[0].utf8)) as? [String: Any])
+    #expect(sent["cmd"] as? String == "projectWorktrees" && sent["folder"] as? String == "/w \"x\"" && sent.keys.sorted() == ["cmd", "folder", "id"])
+    // what the host would refuse never goes out
+    await #expect(throws: ControlError.remote("That folder cannot be used")) { _ = try await host.projectWorktrees("") }
+
+    // a host without the capability is told it is older, and is sent nothing
+    var asked = false
+    let older = TestServer { connection in
+        connection.send(hello("\"plan\""))
+        asked = connection.readRequestId() != nil
+    }
+    defer { older.stop() }
+    await #expect(throws: ControlError.remote(projectsNeedNewerHost)) { _ = try await SocketChatHost(socketPath: { older.path }).projectWorktrees("/w") }
+    #expect(asked == false)
+}
+
+@Test func theRemoveAndCleanUpRequestsGoOnTheWireAndTheGoldenReplyDecodes() async throws {
+    let wire = Asked()
+    let golden = try String(contentsOfFile: fixtures + "/chat-project-cleanup.json", encoding: .utf8)
+    let carrier = try #require(try JSONSerialization.jsonObject(with: Data(golden.utf8)) as? [String: Any])["carrier"] as Any
+    let reply = String(decoding: try JSONSerialization.data(withJSONObject: carrier), as: UTF8.self)
+    let server = TestServer { connection in
+        connection.send(hello("\"projects\""))
+        guard let line = connection.readLine(), let id = (try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any])?["id"] as? Int else { return }
+        wire.add(line)
+        let cmd = (try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any])?["cmd"] as? String
+        connection.send(cmd == "removeProjectWorktree" ? "{\"id\":\(id),\"ok\":false,\"error\":\"It has uncommitted changes\"}\n" : "{\"id\":\(id),\"ok\":true,\"data\":\(reply)}\n")
+    }
+    defer { server.stop() }
+    let host = SocketChatHost(socketPath: { server.path })
+    let preview = try await host.cleanProjectWorktrees("/p/app", run: false)
+    #expect(cleanUpWords(preview) == "1 worktree, \(ByteCountFormatter.string(fromByteCount: 1_288_490_189, countStyle: .file))" && preview.skipped.map(\.reason) == ["It has uncommitted changes"])
+    _ = try await host.cleanProjectWorktrees("/p/app", run: true)
+    await #expect(throws: ControlError.remote("It has uncommitted changes")) { try await host.removeProjectWorktree("/p/app", path: "/w/a \"x\"") }
+    // what the host would refuse never goes out
+    await #expect(throws: ControlError.remote("That folder cannot be used")) { try await host.removeProjectWorktree("/p/app", path: "") }
+    await #expect(throws: ControlError.remote("That folder cannot be used")) { _ = try await host.cleanProjectWorktrees("", run: true) }
+
+    let sent = try wire.all.map { try #require(try JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any]) }
+    #expect(sent.count == 3)
+    #expect(sent[0].keys.sorted() == ["cmd", "folder", "id"] && sent[0]["cmd"] as? String == "cleanProjectWorktrees")
+    #expect(sent[1].keys.sorted() == ["cmd", "folder", "id", "run"] && sent[1]["run"] as? Bool == true)
+    #expect(sent[2].keys.sorted() == ["cmd", "folder", "id", "path"] && sent[2]["path"] as? String == "/w/a \"x\"" && sent[2]["cmd"] as? String == "removeProjectWorktree")
+
+    // a host without the capability is told it is older, and is sent nothing
+    var asked = false
+    let older = TestServer { connection in
+        connection.send(hello("\"plan\""))
+        asked = connection.readRequestId() != nil
+    }
+    defer { older.stop() }
+    let oldHost = SocketChatHost(socketPath: { older.path })
+    await #expect(throws: ControlError.remote(projectsNeedNewerHost)) { try await oldHost.removeProjectWorktree("/p/app", path: "/w") }
+    await #expect(throws: ControlError.remote(projectsNeedNewerHost)) { _ = try await oldHost.cleanProjectWorktrees("/p/app", run: false) }
+    #expect(asked == false)
+}
+
+@Test func regenerateTitlesSendsOnlyWhileTheHelloListsItAndDecodesStartedOrRefusal() async throws {
+    let asked = Asked()
+    let server = TestServer { connection in
+        connection.send(hello(#""regenerateTitles""#))
+        guard let line = connection.readLine(), let json = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any], let id = json["id"] as? Int else { return }
+        asked.add(line)
+        if asked.all.count == 1 {
+            connection.send("{\"id\":\(id),\"ok\":true,\"data\":{\"started\":4}}\n")
+        } else {
+            connection.send("{\"id\":\(id),\"ok\":false,\"error\":\"Could not write titles: no text generator is chosen; choose one in Providers\"}\n")
+        }
+    }
+    defer { server.stop() }
+    let host = SocketChatHost(socketPath: { server.path })
+    #expect(try await host.regenerateTitles() == 4)
+    await #expect(throws: ControlError.remote("Could not write titles: no text generator is chosen; choose one in Providers")) { _ = try await host.regenerateTitles() }
+    let sent = try #require(try JSONSerialization.jsonObject(with: Data(asked.all[0].utf8)) as? [String: Any])
+    #expect(sent["cmd"] as? String == "regenerateTitles" && sent.keys.sorted() == ["cmd", "id"])
+
+    var askedOlder = false
+    let older = TestServer { connection in
+        connection.send(hello(#""textGenerators","regenerateTitle""#))
+        askedOlder = connection.readRequestId() != nil
+    }
+    defer { older.stop() }
+    await #expect(throws: ControlError.remote("the chat host does not support regenerateTitles")) { _ = try await SocketChatHost(socketPath: { older.path }).regenerateTitles() }
+    #expect(askedOlder == false)
 }

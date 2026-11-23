@@ -6,13 +6,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- A chat session's worktree folder is removed once its pull request is merged, or once the session is archived and untouched for 14 days.
+  The whole folder goes, including every file git ignores: build output and dependencies, but also a local `.env` or config kept inside the worktree, which does not come back.
+  Its branch stays, and the folder comes back when you resume the session, without its dependencies until something installs them.
+  A folder is kept when it has uncommitted or untracked files, files git is told not to show, an initialised submodule, a detached HEAD, or a commit that only the worktree's own reflog holds.
+  A project's `newWorktree` actions run again each time the folder comes back, so one that copies a file from the project (`cp "$CARRIER_PROJECT/.env" .`) puts it in again.
+  Set `worktreeCleanup` in `chat.json` to change it, or `"afterPrMerged": false` and `"afterInactiveDays": "never"` to keep every folder.
+- An agent run's raw output log is capped at 50 MB per stream; the newest part is kept, in `stdout.log` and the `.1` file beside it.
+- The app download is smaller: the release binary ships without its debug symbols, which are kept as a dSYM on each GitHub Release.
+  On one measured build the binary is 29 MB smaller on disk (68.3 MB to 39.1 MB) and the zip 4 MB smaller (26.2 MB to 22.0 MB, 16 %).
+
+## [0.18.0] - 2026-11-22
+
+A Projects page, session titles written by a local model, settings for the chat's text and the dictation widget, and a chat that asks much less of the Mac in long conversations.
+
 ### Added
 
 - `labels` in `engine.json` names the five labels Carrier reads and writes on an epic (`epic`, `ready`, `running`, `readyForTest`, `needsHuman`), the same in every repo and by default the `solve:epic…` ones. `labels.stages` (ship, review, fix) and `labels.reasons` (one per kind of stop) can add a label for the stage an epic runs in and for why it stopped; both are off until named. No two roles, stages or kinds of stop may share a label. A reload applies them to the next check; `carrier doctor` checks the repos have the ones Carrier reads, and the snapshot carries them for the panel and the app. Settings does not edit them yet.
+- Sessions get titles written by a local text generator after their first reply instead of keeping the first line of the first message. Choose an LM Studio or Ollama model in Settings > Providers > Text generators (`textGenerators` and `textGenerator` in `providers.json`), run "Titles of earlier sessions" there to title active and archived sessions that still have a first-line title, or use Regenerate title in a session's menu; renamed titles are kept.
 - Settings > Chat > Conversation has Message text size (11 to 20 pt), Line spacing (Tight, Normal, Loose) and Message spacing (Compact, Comfortable, Spacious), for the text of the messages and the room between them, apart from the app's Text size and Density.
 - The dictation widget has a theme, chosen in Settings > Dictation > Widget: Default (the app's accent as glass, as it was), Black, Dark glass, Clear glass (the system's glass with no tint) and Theme glow (the colours of the dictation line's glow as a gradient from one side to the other, over glass). The preview under the rows shows the one chosen.
 - Settings > Dictation > Widget > Live text turns the words off: the widget keeps its box, with the time and the keys, and shows no words; an error or a copied text still show theirs.
 - The dictation widget can be dragged anywhere on the screen, and it opens there the next time. The Position row reads Custom while it holds a dragged place, and choosing Top or Bottom there puts it back.
+- Settings > Workspace has a Projects page: every project in one list, with a search, tag chips, grouping and order, and a page for each one with its name, icon (a colour and mark, or an image), tags, the defaults of its new sessions (agent, work in, base branch), whether it shows when starting a session, its worktrees and what they take on disk, and a switch for Carrier to watch it. Projects are added one folder at a time with Add project, by a pasted GitHub address, a search or a path; the clones you already have are not imported.
+- A project can have actions that run when a new worktree or a clone is prepared and when a cleaned worktree comes back, a worktree can be removed and the merged ones cleaned up from the project's page (only the folder goes, the branch and the session stay), and a project can be removed from Carrier, with Also delete from disk (to the Trash) for the ones Carrier cloned or created.
+- New Session chooses where to work with the same sheet as Add project, and a project made by a new session's first message is added to the list by itself.
 
 ### Fixed
 
@@ -22,6 +42,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- Long conversations use far less CPU while the agent writes: the chat's rows are no longer drawn again at each update, only the ones that changed.
+  With a conversation of 2,100 events and the agent writing, the app went from 66 % of a core to 20 % (one measured run against the fixture host), and 5,000 events from 98 % to 27 %.
+- The sidebar's title bar shows only the logo's mark, centred, and no longer the name beside it: it reads less crowded.
 - The menu and the window share one read of the engine's state: with the window open the engine now builds and sends one snapshot at each pace and not two (80 snapshots in 10 s became 42 in a run of two readers at a quarter-second pace against the fixture engine, measured; about 0.9 ms of the engine's time each, for 60 epics, so the change is small in time and larger in how many connections and decodes the app makes). The window opens on a read of the moment and not on the last one of the menu.
 - When a session's turn ends, its row reads again only what the turn can have changed. A turn that only talked reads nothing. One that ran commands reads the lines it changed, and asks GitHub only after a `git push`, a new branch, `gh pr create` or `gh pr merge`, and only for what they move: the pull request of the branch, or the state of the one the session has. Before, every turn end asked GitHub, even after a plain answer.
 - A child that an agent starts with `delegate_start` runs at its parent's permission level when its own agent sets no permission, and not at the one that asks before almost every command: under a parent in `auto` the child no longer stops for an approval to read. An agent configured with a permission keeps it as the most its child gets.

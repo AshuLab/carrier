@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createScopedLogger } from '@ashulab/universal-logger';
@@ -113,5 +113,52 @@ test('an execution output redacts a token split across two chunks and keeps the 
   expect(readFileSync(out, 'utf8')).toBe('before [redacted] after\n');
   output.flush();
   expect(readFileSync(out, 'utf8')).toBe('before [redacted] after\nnext [redacted]');
+  rmSync(root, { recursive: true, force: true });
+});
+
+test('an execution output past maxBytes moves the stream to .1 and starts again; the next rotation replaces .1', () => {
+  const root = mkdtempSync(join(tmpdir(), 'carrier-out-'));
+  const output = executionOutput(join(root, 'logs'), 'e1', 40);
+  const dir = join(root, 'logs', 'executions', 'e1');
+  const out = join(dir, 'stdout.log');
+  const line = (n: number) => `line ${n} 12345678\n`; // 16 bytes
+  output.write('stdout', line(1) + line(2));
+  expect(statSync(out).size).toBe(32);
+  expect(existsSync(`${out}.1`)).toBe(false);
+  output.write('stdout', line(3)); // 48 > 40: the block so far moves aside, whole lines
+  expect(readFileSync(`${out}.1`, 'utf8')).toBe(line(1) + line(2));
+  expect(readFileSync(out, 'utf8')).toBe(line(3));
+  output.write('stdout', line(4)); // 32 <= 40: the new file is counted from zero, no rotation
+  expect(readFileSync(out, 'utf8')).toBe(line(3) + line(4));
+  expect(readFileSync(`${out}.1`, 'utf8')).toBe(line(1) + line(2));
+  output.write('stdout', line(5)); // rotates again and the one before goes
+  expect(readFileSync(`${out}.1`, 'utf8')).toBe(line(3) + line(4));
+  expect(readFileSync(out, 'utf8')).toBe(line(5));
+  expect(existsSync(`${out}.2`)).toBe(false);
+  output.write('stderr', 'err\n');
+  expect(existsSync(join(dir, 'stderr.log.1'))).toBe(false); // each stream counts its own size
+  rmSync(root, { recursive: true, force: true });
+});
+
+test('a chunk bigger than maxBytes into an empty stream is written whole and rotates nothing', () => {
+  const root = mkdtempSync(join(tmpdir(), 'carrier-out-'));
+  const dir = join(root, 'logs', 'executions', 'e1');
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'stdout.log.1'), 'kept\n');
+  executionOutput(join(root, 'logs'), 'e1', 10).write('stdout', 'a line much longer than ten bytes\n');
+  expect(readFileSync(join(dir, 'stdout.log.1'), 'utf8')).toBe('kept\n');
+  expect(readFileSync(join(dir, 'stdout.log'), 'utf8')).toBe('a line much longer than ten bytes\n');
+  rmSync(root, { recursive: true, force: true });
+});
+
+test('an execution output that reopens a run counts what the file already holds', () => {
+  const root = mkdtempSync(join(tmpdir(), 'carrier-out-'));
+  const first = executionOutput(join(root, 'logs'), 'e1', 20);
+  first.write('stdout', 'aaaaaaaaaaaaaaa\n'); // 16 bytes
+  const again = executionOutput(join(root, 'logs'), 'e1', 20);
+  again.write('stdout', 'bbbbbbbbbbbbbbb\n');
+  const out = join(root, 'logs', 'executions', 'e1', 'stdout.log');
+  expect(readFileSync(`${out}.1`, 'utf8')).toBe('aaaaaaaaaaaaaaa\n');
+  expect(readFileSync(out, 'utf8')).toBe('bbbbbbbbbbbbbbb\n');
   rmSync(root, { recursive: true, force: true });
 });

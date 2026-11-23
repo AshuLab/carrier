@@ -360,6 +360,14 @@ describe('providers', () => {
     expect(loaded).toMatchObject({ ok: true, config: { providers: { claude: { harness: 'claude' }, codex: { harness: 'codex' }, agy: { harness: 'agy' } }, agents: { author: { provider: 'claude' } } } });
   });
 
+  test('the engine accepts the text generators of providers.json and ignores them, and a wrong declaration is refused naming the key', () => {
+    const { providers: _, ...file } = valid;
+    const accounts = loadProviders({ textGenerators: { local: { kind: 'ollama', model: 'qwen3:8b' } }, textGenerator: 'local' });
+    if (!accounts.ok) throw new Error('expected a valid file');
+    expect(loadConfig(defaults, file, accounts.providers)).toMatchObject({ ok: true, config: { providers: accounts.providers } });
+    expect(loadProviders({ textGenerators: { local: { kind: 'ollama', model: 'm' } }, textGenerator: 'ghost' })).toMatchObject({ ok: false, errors: [{ path: 'textGenerator' }] });
+  });
+
   test('a engine.json that still has `providers` is refused with a message that names providers.json', () => {
     expect(loadConfig(defaults, valid)).toEqual({ ok: false, errors: [{ path: 'providers', message: expect.stringContaining('providers.json') }] });
   });

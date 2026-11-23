@@ -39,3 +39,15 @@ test('the tail is the last meaningful lines, read from the end of the file', () 
   write('big', `${'x'.repeat(2000)}\n${j({ type: 'result', result: 'last' })}\n`);
   expect(tailExecution(root, 'big', 5, 100)).toEqual(['result: last']); // a window smaller than the file cuts the first line, not the last
 });
+
+test('right after a rotation the tail goes on into stdout.log.1 for what the small new file lacks', () => {
+  const line = (n: number) => j({ type: 'result', result: `r${n}` });
+  write('rotated', `${line(3)}\n`);
+  writeFileSync(join(root, 'executions', 'rotated', 'stdout.log.1'), `${line(0)}\n${line(1)}\n${line(2)}\n`);
+  expect(tailExecution(root, 'rotated', 3)).toEqual(['result: r1', 'result: r2', 'result: r3']);
+  // a window that ends inside a line of .1 drops that partial line
+  expect(tailExecution(root, 'rotated', 9, line(3).length + 1 + 10)).toEqual(['result: r3']);
+  write('empty', '');
+  writeFileSync(join(root, 'executions', 'empty', 'stdout.log.1'), `${line(7)}\n`);
+  expect(tailExecution(root, 'empty', 3)).toEqual(['result: r7']);
+});

@@ -19,6 +19,8 @@ struct SettingsTabRow<Control: View>: View {
     /// What is wrong with the value, in words: it takes the place of the detail, in orange and with a warning mark, the title keeps its colour, and
     /// every `settingsField` and `NumberField` inside the row draws itself as invalid (`\.settingsInvalid`). One argument; nothing else to pass.
     var problem: String?
+    /// The detail wraps over as many lines as it needs, for a report whose every line the person has to read (Projects' Last clean up), where it is otherwise cut at two.
+    var wrapsDetail = false
     /// A tile at the row's left, before the title (an account's avatar); the text keeps its place after it.
     var leading: AnyView?
     @ViewBuilder var control: Control
@@ -31,7 +33,7 @@ struct SettingsTabRow<Control: View>: View {
                 Group {
                     if let problem { Label(problem, icon: .warningFilled, size: 11).foregroundStyle(.orange) } else { Text(detail).foregroundStyle(.secondary) }
                 }
-                .font(mono ? .scaled(11.5, design: .monospaced) : .scaled(11)).lineLimit(2).truncationMode(.middle)
+                .font(mono ? .scaled(11.5, design: .monospaced) : .scaled(11)).lineLimit(wrapsDetail ? nil : 2).truncationMode(.middle)
             }
             if let note {
                 // cut in the middle to one line: the whole of it (a long PATH) is in the tooltip, and it can be selected to copy
@@ -81,6 +83,37 @@ extension EnvironmentValues {
     @Entry var settingsReset: SettingsReset?
     /// Where a screen that edits something puts its Save for the toolbar (`SettingsSave`).
     @Entry var settingsSave: SettingsSave?
+    /// Where a screen puts a toggle or action button in the toolbar (`SettingsHeaderAction`), such as Pin on a project's page.
+    @Entry var settingsHeaderAction: SettingsHeaderAction?
+}
+
+/// A toggle or action pill a screen puts in the Settings window's toolbar (Pin on a project's page): set while the screen is open, cleared when it goes.
+@MainActor @Observable final class SettingsHeaderAction {
+    private(set) var title: String?
+    private(set) var icon = AppIcon.pin
+    private(set) var active = false
+    private(set) var help = ""
+    private(set) var run: (() -> Void)?
+    @ObservationIgnored private var owner: UUID?
+
+    func set(_ owner: UUID, title: String, icon: AppIcon, active: Bool, help: String = "", run: @escaping () -> Void) {
+        self.owner = owner
+        self.title = title
+        self.icon = icon
+        self.active = active
+        self.help = help
+        self.run = run
+    }
+
+    /// Only the screen that set it clears it: the next screen may have set its own before this one has gone.
+    func clear(_ owner: UUID) {
+        guard self.owner == owner else { return }
+        self.owner = nil
+        title = nil
+        active = false
+        help = ""
+        run = nil
+    }
 }
 
 /// The save of the screen that is open (an account's editor): set by the screen while it has something to save, read by the toolbar's button.
@@ -1142,7 +1175,7 @@ struct ChatTabView: View {
                 ForEach(sampleConversation()) { row in
                     FeedRowView(
                         row: row, time: nil, summary: nil, pinned: false, flipped: $flipped, agent: "claude", commands: [], offersWayOut: false,
-                        work: WorkState(live: false, waiting: false, since: nil), continueTurn: {}, retry: {}, answer: { _, _ in }
+                        work: WorkState(live: false, waiting: false, since: nil)
                     )
                 }
             }
@@ -1347,20 +1380,24 @@ struct NavigationRow<Trailing: View>: View {
     let title: String
     let detail: String
     let leading: AnyView?
+    /// The first row of a card has no line above it (a page that is not a form).
+    var first = false
     let action: () -> Void
     @ViewBuilder let trailing: Trailing
 
-    init<Leading: View>(title: String, detail: String, leading: Leading, action: @escaping () -> Void, @ViewBuilder trailing: () -> Trailing) {
+    init<Leading: View>(title: String, detail: String, leading: Leading, first: Bool = false, action: @escaping () -> Void, @ViewBuilder trailing: () -> Trailing) {
         self.title = title
         self.detail = detail
+        self.first = first
         self.leading = AnyView(leading)
         self.action = action
         self.trailing = trailing()
     }
 
-    init(title: String, detail: String, action: @escaping () -> Void, @ViewBuilder trailing: () -> Trailing) {
+    init(title: String, detail: String, first: Bool = false, action: @escaping () -> Void, @ViewBuilder trailing: () -> Trailing) {
         self.title = title
         self.detail = detail
+        self.first = first
         self.leading = nil
         self.action = action
         self.trailing = trailing()
@@ -1368,7 +1405,7 @@ struct NavigationRow<Trailing: View>: View {
 
     var body: some View {
         Button(action: action) {
-            SettingsTabRow(title: title, detail: detail, leading: leading) {
+            SettingsTabRow(title: title, detail: detail, first: first, leading: leading) {
                 HStack(spacing: 10) {
                     trailing
                     Glyph(.chevronRight, size: 13, bold: true).foregroundStyle(.tertiary).accessibilityHidden(true)

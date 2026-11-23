@@ -31,12 +31,12 @@ const chatConfigSchema = z.strictObject({
   archiveAfterDays: days.default(15),
   /** An archived session left alone this long is deleted by the same pass, unless its worktree holds unsaved work; it must be greater than `archiveAfterDays` when both are numbers. */
   deleteAfterDays: days.default(30),
-  /** When the clock's pass removes a session's worktree folder, keeping its branch; both off by default. */
   /** Which copy of a branch a new worktree is cut from when the plan does not say (ADR 0037). */
   worktreeStart: z.enum(['remote', 'local']).default('remote'),
   /** Minutes an idle session that no request names stays open before its agent is closed; it wakes with the next message. */
   idleCloseMinutes: z.union([z.literal(10), z.literal(30), z.literal(60)], { error: 'must be 10, 30 or 60 (minutes)' }).default(10),
-  worktreeCleanup: z.strictObject({ afterPrMerged: z.boolean().default(false), afterInactiveDays: days.default('never') }).default({ afterPrMerged: false, afterInactiveDays: 'never' }),
+  /** When the clock's pass removes a session's worktree folder, keeping its branch (ADR 0035, 0042): once its PR is merged, and once the session is archived and untouched for `afterInactiveDays` (14 by default); `"never"` and false turn each off. */
+  worktreeCleanup: z.strictObject({ afterPrMerged: z.boolean().default(true), afterInactiveDays: days.default(14) }).default({ afterPrMerged: true, afterInactiveDays: 14 }),
 }).refine((c) => typeof c.archiveAfterDays !== 'number' || typeof c.deleteAfterDays !== 'number' || c.deleteAfterDays > c.archiveAfterDays, {
   path: ['deleteAfterDays'],
   when: (payload) => payload.issues.length === 0, // a value already refused is not also reported against the other

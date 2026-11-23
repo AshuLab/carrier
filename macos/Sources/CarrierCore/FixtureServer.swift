@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 
 public enum FixtureError: Error, Equatable {
@@ -12,11 +13,11 @@ public enum FixtureError: Error, Equatable {
 /// asked and not answered as pending, `answer`, which records the answer as an event, `archive` and `delete` on the listed sessions
 /// (kept in memory, refused for a working or waiting one as the host does), `deletePreview`, which says what `chat-delete-preview.json`
 /// holds for the sessions it names and `worktree: null` for the other listed ones, and the worktree requests from `chat-workspace.json`
-/// (`workspace`, by folder; one not listed is a plain folder), `chat-fetch.json` (`fetch`, by folder; `ifStale` is accepted and the answer is the same: a window that has passed; a git folder not listed there is refused as a remote that cannot be reached), `chat-github-repos.json` (`githubRepos`, by page, the login on page 1 only; a page not listed is refused), `chat-branches.json` (`repoBranches`, by `owner/repo`; one not listed is refused like a repository the login cannot see), `chat-providers.json` (`providers`), `chat-usage.json` (`usage`, the same sample for any filter; `usageOverride` is accepted and changes nothing), `chat-names.json` (`suggestName`,
+/// (`workspace`, by folder; one not listed is a plain folder), `chat-fetch.json` (`fetch`, by folder; `ifStale` is accepted and the answer is the same: a window that has passed; a git folder not listed there is refused as a remote that cannot be reached), `chat-github-repos.json` (`githubRepos`, by page, the login on page 1 only; a page not listed is refused), `chat-branches.json` (`repoBranches`, by `owner/repo`; one not listed is refused like a repository the login cannot see, and `cloneProject` refuses it the same way while one it or `chat-github-repos.json` lists starts cloning and stays at git's progress line), `chat-project-worktrees.json` (`projectWorktrees`, by the folder's name; a project not listed has its main clone and no worktrees; `removeProjectWorktree` refuses one whose state is `sessionOpen` or `uncommitted` as the host does and otherwise drops it from that list, and `cleanProjectWorktrees` answers `chat-project-cleanup.json`'s removed and skipped by the same name, `run` dropping the removed ones), `chat-project-disk.json` (`projectDisk`, by the folder's name, its `main` part standing for the folder itself; a project not listed has never been measured and nothing is ever measuring), `chat-project-clones.json` (`projectClones`: the clones running or failed at the start, which `cloneProject` and `dismissClone` change in memory; the file is optional), `newProject` (makes `<parent or the projects folder>/local/<name>` and registers it in the home's `projects.json` with origin `created`, refusing a name the host would refuse and a folder that is already there; no git runs), `chat-providers.json` (`providers`), `chat-usage.json` (`usage`, the same sample for any filter; `usageOverride` is accepted and changes nothing), `chat-names.json` (`suggestName`,
 /// which cycles through its suggestions, and `checkName`, free unless the file says otherwise); `open` makes a session in memory (in a
 /// worktree when asked, refused as the host does for a folder that is not a git repository, a branch it did not list and a bad name)
 /// and `send` adds the message to its events; `switchAgent` gives an idle session another listed agent and a notice that says so; anything else is an error.
-/// It owns a temporary home (`home`) holding an `engine.json` (`fixtureConfig`: the watched repos, profiles and roles, which also give the Providers page accounts in use), a `chat.json` with two chat agents and a `providers.json` with the golden reply's accounts (`providers` follows it: Antigravity stays "found, not added" until an Add writes it), and the engine's socket in `engine/state/`, so pointing `CARRIER_HOME` at it
+/// It owns a temporary home (`home`) holding an `engine.json` (`fixtureConfig`: the watched repos, profiles and roles, which also give the Providers page accounts in use), a `chat.json` with two chat agents, a `projects.json` with four projects (`writeProjects`) and a `providers.json` with the golden reply's accounts (`providers` follows it: Antigravity stays "found, not added" until an Add writes it), and the engine's socket in `engine/state/`, so pointing `CARRIER_HOME` at it
 /// makes `controlSocketPath()` find the socket. `stop()` removes the home and everything in it.
 /// The `engine.json` of the fixture home: the repos of the fixture snapshot, the profiles and the three global roles, and one repo that
 /// overrides the reviewer's model, so the Repos page shows an inherited role and a mixed one.
@@ -72,6 +73,16 @@ public final class FixtureServer {
     private let chatFetches: [String: [String: Any]]
     private let chatGithubRepos: [String: [String: Any]]
     private let chatBranches: [String: [String: Any]]
+    /// `chat-project-worktrees.json`: the `projectWorktrees` reply by the project folder's name; any other project has its main clone and no worktrees.
+    private let chatProjectWorktrees: [String: [String: Any]]
+    /// `chat-project-disk.json`: the `projectDisk` figure by the project folder's name.
+    private let chatProjectDisk: [String: [String: Any]]
+    /// `chat-project-cleanup.json`: what `cleanProjectWorktrees` removes and skips, by the project folder's name; any other project has nothing to clean up.
+    private let chatProjectCleanup: [String: [String: Any]]
+    /// The worktrees `removeProjectWorktree` and Clean up took, which `projectWorktrees` no longer lists (read with `lock`).
+    private var removedWorktrees: Set<String> = []
+    /// The clones from Settings the host runs or has failed: `chat-project-clones.json` at the start, then what `cloneProject` and `dismissClone` change (read with `lock`).
+    private var chatClones: [[String: Any]]
     private let chatProviders: [String: Any]
     private let chatNames: [String: Any]
     /// The golden `usage` reply, for any filter.
@@ -94,7 +105,9 @@ public final class FixtureServer {
     private var engineConnected = 0
     /// Under `longTranscript`, every listed session answers this instead.
     private var longChat: [[String: Any]]?
-    let chatHello = Data("{\"event\":\"hello\",\"protocol\":1,\"pid\":0,\"startedAt\":0,\"version\":\"fixture\",\"capabilities\":[\"agents\",\"list\",\"open\",\"resume\",\"send\",\"events\",\"answer\",\"setOption\",\"archive\",\"delete\",\"deletePreview\",\"workspace\",\"fetch\",\"suggestName\",\"checkName\",\"cloneRepo\",\"createProject\",\"githubRepos\",\"repoBranches\",\"providers\",\"plan\",\"usage\",\"usageOverride\",\"accountIdentity\",\"accountPalette\",\"switchAgent\",\"interrupt\",\"stopTask\",\"worktreeStart\",\"fetchIfStale\"]}\n".utf8)
+    /// Sessions already titled by `regenerateTitle` or `regenerateTitles`, so a second bulk ask sees 0 left.
+    private var regeneratedSessionIds: Set<String> = []
+    let chatHello = Data("{\"event\":\"hello\",\"protocol\":1,\"pid\":0,\"startedAt\":0,\"version\":\"fixture\",\"capabilities\":[\"agents\",\"list\",\"open\",\"resume\",\"send\",\"events\",\"answer\",\"setOption\",\"archive\",\"delete\",\"deletePreview\",\"workspace\",\"fetch\",\"suggestName\",\"checkName\",\"cloneRepo\",\"createProject\",\"githubRepos\",\"repoBranches\",\"providers\",\"plan\",\"usage\",\"usageOverride\",\"accountIdentity\",\"accountPalette\",\"switchAgent\",\"interrupt\",\"stopTask\",\"worktreeStart\",\"fetchIfStale\",\"projects\",\"textGenerators\",\"regenerateTitle\",\"regenerateTitles\"]}\n".utf8)
     private let data: [String: Data]
     let hello: Data
     private var stopped = false
@@ -159,6 +172,10 @@ public final class FixtureServer {
         chatFetches = try golden("chat-fetch.json", as: [String: [String: Any]].self)
         chatGithubRepos = try golden("chat-github-repos.json", as: [String: [String: Any]].self)
         chatBranches = try golden("chat-branches.json", as: [String: [String: Any]].self)
+        chatProjectWorktrees = try golden("chat-project-worktrees.json", as: [String: [String: Any]].self)
+        chatProjectDisk = try golden("chat-project-disk.json", as: [String: [String: Any]].self)
+        chatProjectCleanup = try golden("chat-project-cleanup.json", as: [String: [String: Any]].self)
+        chatClones = (try? golden("chat-project-clones.json", as: [String: Any].self))?["clones"] as? [[String: Any]] ?? []
         chatProviders = try golden("chat-providers.json", as: [String: Any].self)
         chatNames = try golden("chat-names.json", as: [String: Any].self)
         chatUsage = try golden("chat-usage.json", as: [String: Any].self)
@@ -204,6 +221,7 @@ public final class FixtureServer {
             // the accounts of the golden reply, without Antigravity: it is found and has no account, so the page shows its Add row
             let accounts = #"{"providers":{"claude":{"harness":"claude"},"claude-work":{"harness":"claude","displayName":"Work","configDir":"/Users/demo/.claude-work"},"codex":{"harness":"codex","command":"/opt/homebrew/bin/codex"}}}"#
             try ProvidersFile(folder: home).write(Data(accounts.utf8))
+            try Self.writeProjects(home: home)
             listener = try Self.listen(path: places.controlSocket)
             do { chatListener = try Self.listen(path: places.chatSocket) } catch {
                 Darwin.close(listener)
@@ -215,6 +233,66 @@ public final class FixtureServer {
         }
         Thread.detachNewThread { [self] in accept(listener, chat: false) }
         Thread.detachNewThread { [self] in accept(chatListener, chat: true) }
+    }
+
+    /// The Projects page's list: a project with a GitHub origin (`acme/web`, the fixture's epic repository, which gives that epic's rows the project's image), one whose name and remote are very long, a folder that is not a repository, one
+    /// that is not there (with a missing image copy that falls back to colour and mark), and one with a copied icon image; then the folders of the fixture's sessions, one with a name, colour and mark, one with the image and one with nothing set.
+    private static func writeProjects(home: String) throws {
+        let long = "a-project-with-a-name-so-long-that-the-row-has-to-cut-it-before-it-reaches-the-chevron"
+        var entries: [[String: Any]] = []
+        for (folder, remote) in [
+            ("carrier", "git@github.com:AshuLab/carrier.git"),
+            (long, "https://github.com/some-organisation-with-a-long-name/" + long + ".git"),
+            ("notes", ""),
+            ("studio", "git@github.com:acme/web.git"),
+        ] {
+            let path = home + "/projects/" + folder
+            try FileManager.default.createDirectory(atPath: path + "/.git", withIntermediateDirectories: true)
+            if remote.isEmpty == false {
+                try Data("[core]\n\tbare = false\n[remote \"origin\"]\n\turl = \(remote)\n\tfetch = +refs/heads/*:refs/remotes/origin/*\n".utf8).write(to: URL(fileURLWithPath: path + "/.git/config"))
+            } else {
+                try FileManager.default.removeItem(atPath: path + "/.git")
+            }
+            entries.append(["path": path, "origin": "added"] as [String: Any])
+        }
+        entries[0]["pinned"] = true
+        entries[0]["tags"] = ["swift", "macos"]
+        entries[0]["icon"] = ["color": "teal", "mark": "bolt"]
+        entries[0]["actions"] = [
+            ["name": "Install", "command": "pnpm install", "when": "newWorktree"],
+            ["name": "Bootstrap", "command": "pnpm bootstrap", "when": "afterClone", "on": false, "onFail": "stop"],
+        ]
+        entries[1]["name"] = "A project with a name so long that the row has to cut it before it reaches the chevron"
+        entries[1]["tags"] = ["api", "automation", "backend", "cli", "docker", "graphql", "postgres", "typescript"]
+        entries[2]["icon"] = ["color": "orange"]
+        entries[2]["tags"] = ["design", "docs", "planning", "research"]
+        if let iconImage = Self.fixtureProjectIconImage(), let saved = try? ProjectIconStore(folder: home).save(cgImage: iconImage) {
+            entries[3]["icon"] = ["image": saved]
+        }
+        let studio = entries.remove(at: 3)
+        entries.append(["path": "/Users/demo/gone", "name": "Moved away", "origin": "cloned", "icon": ["color": "purple", "mark": "star", "image": "missing.png"]])
+        entries.append(studio)
+        // the folders of the fixture's sessions: one with a name, a colour and a mark, one with an image and one with nothing set
+        entries.append(["path": "/Users/dev/carrier", "name": "Carrier app", "origin": "added", "icon": ["color": "red", "mark": "star"]])
+        entries.append(["path": "/Users/dev/agent-forge", "origin": "added"])
+        if let image = studio["icon"] { entries[entries.count - 1]["icon"] = image }
+        entries.append(["path": "/Users/dev/web", "origin": "added"])
+        let file = try JSONSerialization.data(withJSONObject: ["projects": entries], options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
+        try file.write(to: URL(fileURLWithPath: CarrierPlaces(folder: home).projects))
+    }
+
+    private static func fixtureProjectIconImage() -> CGImage? {
+        let size = 128
+        let space = CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB()
+        guard let context = CGContext(
+            data: nil, width: size, height: size, bitsPerComponent: 8, bytesPerRow: 0,
+            space: space, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return nil }
+        context.setFillColor(red: 0.16, green: 0.44, blue: 0.68, alpha: 1)
+        context.fill(CGRect(x: 0, y: 0, width: size, height: size))
+        context.setFillColor(red: 0.96, green: 0.72, blue: 0.24, alpha: 1)
+        context.fillEllipse(in: CGRect(x: 28, y: 28, width: 72, height: 72))
+        return context.makeImage()
     }
 
     public func stop() {
@@ -300,6 +378,40 @@ public final class FixtureServer {
     /// How many connections the chat socket has accepted so far.
     var chatConnections: Int { locked { chatConnected } }
 
+    /// `cloneProject`: a repository the golden branches or the listing know starts cloning and stays at git's progress line, as a long clone would; one it does not know is refused
+    /// like a repository the login cannot see; one already cloning is shared; one that is a project of the fixture home is refused as the host does.
+    private func cloneProject(_ id: Int, _ repo: String, parent: String?) -> Data {
+        let key = repo.lowercased()
+        let folder = (parent ?? currentProjectsFolderOfFixture) + "/" + repo
+        if let running = locked({ chatClones.first { ($0["repo"] as? String)?.lowercased() == key && $0["state"] as? String == "cloning" } }) { return Self.answer(id, running) }
+        let listed = chatGithubRepos.values.flatMap { ($0["repos"] as? [[String: Any]] ?? []).compactMap { $0["name"] as? String } }
+        guard (Array(chatBranches.keys) + listed).contains(where: { $0.lowercased() == key }) else { return Self.refused(id, "\(repo) was not found, or your GitHub login cannot see it") }
+        let clone: [String: Any] = ["repo": repo, "folder": folder, "state": "cloning", "progress": "Receiving objects: 45%"]
+        locked {
+            chatClones.removeAll { ($0["repo"] as? String)?.lowercased() == key }
+            chatClones.append(clone)
+        }
+        return Self.answer(id, clone)
+    }
+
+    /// `newProject`: the folder and the entry, as the host makes them, without git; refused as the host refuses.
+    private func newProject(_ id: Int, _ name: String, parent: String?) -> Data {
+        if let refusal = projectNameProblem(name) { return Self.refused(id, refusal) }
+        let folder = (parent ?? currentProjectsFolderOfFixture) + "/local/" + name
+        guard FileManager.default.fileExists(atPath: folder) == false else { return Self.refused(id, "\(name) is already a project; choose another name") }
+        do {
+            try FileManager.default.createDirectory(atPath: folder, withIntermediateDirectories: true)
+            let file = ProjectsFile(folder: home)
+            try file.add(folder: folder)
+            try file.update(path: folder, key: "origin", value: "created")
+        } catch {
+            return Self.refused(id, "git could not start the project \(name)")
+        }
+        return Self.answer(id, ["folder": folder])
+    }
+
+    private var currentProjectsFolderOfFixture: String { CarrierPlaces(folder: home).chatProjects }
+
     private func chatReply(to line: Data) -> Data {
         let request = (try? JSONSerialization.jsonObject(with: line)) as? [String: Any]
         if let cmd = request?["cmd"] as? String { locked { chatAsked[cmd, default: 0] += 1 } }
@@ -350,6 +462,57 @@ public final class FixtureServer {
         case "repoBranches":
             guard let repo = request?["repo"] as? String else { break }
             return chatBranches[repo].map { Self.answer(id, $0) } ?? Self.refused(id, "\(repo) was not found, or your GitHub login cannot see it")
+        case "cloneProject":
+            guard let repo = request?["repo"] as? String else { break }
+            return cloneProject(id, repo, parent: request?["parent"] as? String)
+        case "newProject":
+            guard let name = request?["name"] as? String else { break }
+            return newProject(id, name, parent: request?["parent"] as? String)
+        case "projectClones":
+            return Self.answer(id, ["clones": locked { chatClones }])
+        case "projectWorktrees":
+            guard let folder = request?["folder"] as? String else { break }
+            var reply = chatProjectWorktrees[(folder as NSString).lastPathComponent] ?? ["main": ["branch": "main"], "worktrees": [Any]()]
+            let main = reply["main"] as? [String: Any]
+            reply["main"] = ["path": folder, "branch": main?["branch"] ?? NSNull(), "state": main?["state"] ?? "clean"]
+            let gone = locked { removedWorktrees }
+            reply["worktrees"] = (reply["worktrees"] as? [[String: Any]])?.filter { gone.contains($0["path"] as? String ?? "") == false }
+            return Self.answer(id, reply)
+        case "projectDisk":
+            guard let folders = request?["folders"] as? [String] else { break }
+            return Self.answer(id, ["projects": folders.map { folder in
+                guard var figure = chatProjectDisk[(folder as NSString).lastPathComponent] else {
+                    return ["folder": folder, "bytes": NSNull(), "measuredAt": NSNull(), "parts": [String: Any]()] as [String: Any]
+                }
+                // the golden file names the project's own folder "main", as the host's answer names it by its real path
+                figure["parts"] = (figure["parts"] as? [String: Any] ?? [:]).reduce(into: [String: Any]()) { $0[$1.key == "main" ? folder : $1.key] = $1.value }
+                figure["folder"] = folder
+                return figure
+            }, "measuring": [String]()])
+        case "removeProjectWorktree":
+            guard let folder = request?["folder"] as? String, let path = request?["path"] as? String else { break }
+            let listed = chatProjectWorktrees[(folder as NSString).lastPathComponent]?["worktrees"] as? [[String: Any]] ?? []
+            guard let found = listed.first(where: { $0["path"] as? String == path }), locked({ removedWorktrees.contains(path) }) == false else { return Self.refused(id, "That is not a worktree of this project") }
+            switch found["state"] as? String {
+            case "sessionOpen": return Self.refused(id, "Its session is open")
+            case "uncommitted": return Self.refused(id, "It has uncommitted changes")
+            default:
+                locked { _ = removedWorktrees.insert(path) }
+                return Self.answer(id, [String: Any]())
+            }
+        case "cleanProjectWorktrees":
+            guard let folder = request?["folder"] as? String else { break }
+            let planned = chatProjectCleanup[(folder as NSString).lastPathComponent] ?? ["removed": [Any](), "skipped": [Any]()]
+            let gone = locked { removedWorktrees }
+            let removed = (planned["removed"] as? [[String: Any]] ?? []).filter { gone.contains($0["path"] as? String ?? "") == false }
+            if request?["run"] as? Bool == true { locked { removedWorktrees.formUnion(removed.compactMap { $0["path"] as? String }) } }
+            return Self.answer(id, ["removed": removed, "skipped": planned["skipped"] ?? [Any]()])
+        case "dismissClone":
+            guard let repo = request?["repo"] as? String else { break }
+            return Self.answer(id, ["clones": locked {
+                chatClones.removeAll { ($0["repo"] as? String)?.lowercased() == repo.lowercased() && $0["state"] as? String == "failed" }
+                return chatClones
+            }])
         case "providers":
             return Self.answer(id, providersReply())
         case "usage":
@@ -440,6 +603,38 @@ public final class FixtureServer {
             // with no turn running it stops what the session waits for in the background
             locked { if let at = chatSessions.firstIndex(where: { $0["id"] as? String == session }) { chatSessions[at]["background"] = [] as [[String: Any]] } }
             return Self.line("{\"id\":\(id),\"ok\":true,\"data\":{}}")
+        case "regenerateTitle":
+            guard let session = request?["sessionId"] as? String else { break }
+            // a session whose list entry says `fixtureRefuseTitle` refuses with those words (no text generator chosen); any other gets a made-up title
+            return locked {
+                guard let at = chatSessions.firstIndex(where: { $0["id"] as? String == session }) else { return Self.refused(id, "There is no such session") }
+                if let refusal = chatSessions[at]["fixtureRefuseTitle"] as? String { return Self.refused(id, refusal) }
+                regeneratedSessionIds.insert(session)
+                chatSessions[at]["title"] = "Regenerated title"
+                return Self.answer(id, ["title": "Regenerated title"])
+            }
+        case "regenerateTitles":
+            let whole = (try? ProvidersFile(folder: home).read()).flatMap { $0 }
+                .flatMap { (try? JSONSerialization.jsonObject(with: $0)) as? [String: Any] }
+            let chosen = whole?["textGenerator"] as? String
+            let declared = (whole?["textGenerators"] as? [String: Any])?[chosen ?? ""] != nil
+            guard chosen != nil, declared else {
+                return Self.refused(id, "Could not write titles: no text generator is chosen; choose one in Providers")
+            }
+            return locked {
+                var started = 0
+                for index in chatSessions.indices {
+                    guard chatSessions[index]["parentSessionId"] as? String == nil,
+                        chatSessions[index]["fixtureRefuseTitle"] == nil,
+                        let sessionId = chatSessions[index]["id"] as? String,
+                        regeneratedSessionIds.contains(sessionId) == false
+                    else { continue }
+                    regeneratedSessionIds.insert(sessionId)
+                    chatSessions[index]["title"] = "Regenerated title"
+                    started += 1
+                }
+                return Self.answer(id, ["started": started])
+            }
         case "archive", "delete":
             let verb = request?["cmd"] as? String ?? ""
             guard let session = request?["sessionId"] as? String, let archived = verb == "delete" ? false : request?["archived"] as? Bool else { break }
@@ -555,8 +750,13 @@ public final class FixtureServer {
     /// harness) with the file's display name, binary, folder; a harness the file gives no account is "found, not added".
     private func providersReply() -> [String: Any] {
         var reply = chatProviders
-        let file = (try? ProvidersFile(folder: home).read()).flatMap { $0 }
-            .flatMap { (try? JSONSerialization.jsonObject(with: $0)) as? [String: Any] }?["providers"] as? [String: [String: Any]] ?? [:]
+        let whole = (try? ProvidersFile(folder: home).read()).flatMap { $0 }
+            .flatMap { (try? JSONSerialization.jsonObject(with: $0)) as? [String: Any] }
+        let file = whole?["providers"] as? [String: [String: Any]] ?? [:]
+        // the generator in use, as the host reads it: the entry `textGenerator` names
+        reply["textGenerator"] = (whole?["textGenerator"] as? String).flatMap { name in
+            (whole?["textGenerators"] as? [String: [String: Any]])?[name].map { ["name": name].merging($0) { $1 } }
+        }
         let golden = reply["accounts"] as? [[String: Any]] ?? []
         let unadded = reply["unadded"] as? [[String: Any]] ?? []
         // what this Mac has of each harness

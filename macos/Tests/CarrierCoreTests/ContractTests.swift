@@ -13,18 +13,12 @@ private func golden(_ name: String) throws -> [String: Any] {
     try #require(JSONSerialization.jsonObject(with: Data(contentsOf: fixtures.appendingPathComponent(name))) as? [String: Any])
 }
 
-/// Cases the app knows that no host announces, each on purpose.
-private let unannounced: [ControlClient.Capability: String] = [
-    .regenerateTitle: "the app's own request for a title again; no host announces it yet (docs/specs/sessions-in-the-app.md)",
-]
-
 @Test func everyCapabilityAHostAnnouncesIsACaseTheAppKnows() throws {
     let file = try golden("capabilities.json")
     let announced = (file["engine"] as? [String] ?? []) + (file["chat"] as? [String] ?? [])
     #expect(announced.isEmpty == false)
     #expect(announced.filter { ControlClient.Capability(rawValue: $0) == nil } == [])
-    let silent = ControlClient.Capability.allCases.filter { announced.contains($0.rawValue) == false }
-    #expect(Set(silent) == Set(unannounced.keys))
+    #expect(ControlClient.Capability.allCases.filter { announced.contains($0.rawValue) == false } == [])
 }
 
 @Test func theFixtureServerAnnouncesOnlyNamesTheAppKnows() throws {
@@ -51,5 +45,33 @@ private let unannounced: [ControlClient.Capability: String] = [
         let file: [String: Any] = path.count == 1 ? [path[0]: item["value"]!] : [path[0]: [path[1]: item["value"]!]]
         let config = EngineConfig(json: try JSONSerialization.data(withJSONObject: file))
         #expect((config.problems[path.last!] == nil) == valid, "\(field) = \(item["value"]!)")
+    }
+}
+
+// projects.json: src/config/projects.test.ts writes the files and what the engine side reads from each (entries) or refuses in each (the fields).
+@Test func theAppReadsTheEntriesTheHostReadsFromEveryValidProjectsFile() throws {
+    let cases = try #require(try golden("projects.json")["valid"] as? [[String: Any]])
+    #expect(cases.isEmpty == false)
+    for item in cases {
+        let name = try #require(item["name"] as? String)
+        let entries = try #require(item["entries"] as? [[String: Any]])
+        let read = try readProjects(JSONSerialization.data(withJSONObject: try #require(item["file"])))
+        #expect(read == entries.map(ProjectEntry.init(json:)), "\(name)")
+    }
+}
+
+@Test func theAppRefusesEveryProjectsFileTheHostRefusesNamingTheSameFields() throws {
+    let cases = try #require(try golden("projects.json")["invalid"] as? [[String: Any]])
+    #expect(cases.isEmpty == false)
+    for item in cases {
+        let name = try #require(item["name"] as? String), fields = try #require(item["fields"] as? [String])
+        let data = try JSONSerialization.data(withJSONObject: try #require(item["file"]))
+        do {
+            _ = try readProjects(data)
+            Issue.record("\(name) was accepted")
+        } catch let error as ProjectsFileError {
+            guard case .invalid(let found) = error else { Issue.record("\(name): \(error)"); continue }
+            #expect(found.map(\.path) == fields, "\(name)")
+        }
     }
 }

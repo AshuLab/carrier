@@ -34,6 +34,7 @@ The top of the folder holds only the files you edit; each process has its own fo
   engine.json      the engine's config, this page
   chat.json        the chat's settings (see Chat configuration), optional
   providers.json   the accounts both read (see AI providers)
+  projects.json    the projects you work on, read and written by the app and the chat host (see Projects)
   engine/          the engine's own folder
   chat/            the chat host's own folder: state/, logs/, worktrees/, projects/, pending/, sessions/
   app/             the macOS app's own folder: state/, logs/, cache/
@@ -143,7 +144,7 @@ The accounts live in `providers.json` in the Carrier folder (`~/.carrier`, or `C
 }
 ```
 
-The file has one key, `providers`, and no other.
+The file has three keys, `providers` and the two of [Text generators](#text-generators), and no other.
 
 | Field of a provider | Required | Meaning |
 |----------------------|----------|---------|
@@ -169,6 +170,51 @@ A flag in `launchArgs` is judged by its name, so `--model=x` and `--model x` are
 The file holds no secret; a log names an account and a flag, never the value of an argument.
 
 Without `providers.json` there is one account per harness, named after it: `claude`, `codex` and `agy`, each with this Mac's own login (no `configDir`). A role may name them. A file that has a `providers` key replaces them: only the accounts it lists exist.
+
+### Text generators
+
+A text generator is a model that turns text into text with no tools: a local server, LM Studio or Ollama, and one of its models.
+It is declared in `providers.json` next to the accounts, and one of them is named as the one in use:
+
+```json
+{
+  "textGenerators": {
+    "local": { "kind": "ollama", "model": "qwen3:8b" },
+    "studio": { "kind": "lmstudio", "model": "google/gemma-4-12b" }
+  },
+  "textGenerator": "local"
+}
+```
+
+| Key | Required | Meaning |
+|-----|----------|---------|
+| `textGenerators` | no | The generators by name, each `{ "kind", "model" }`. The name follows the same rule as an account's. Without it, `{}`. |
+| `textGenerators.<name>.kind` | yes | The server: `lmstudio` or `ollama`, the local ones on this Mac. |
+| `textGenerators.<name>.model` | yes | The model the server runs: one trimmed, non-empty string. |
+| `textGenerator` | no | The name of the generator in use. It must be a key of `textGenerators`, so a name with none declared, or `""`, is refused. Without it there is no generator. |
+
+An unknown key inside a generator is refused.
+The engine reads these keys with the same schema as the chat host and ignores them; the chat host reports the one in use in its `providers` reply.
+A file that does not match stops the engine's start, is refused by `carrier reload` and is answered by the host as a problem, each naming the key.
+
+The strict schema is why the host's hello lists `textGenerators`: a `carrier` that does not list it refuses a file with these keys, so the Mac app writes them only while it is there.
+
+The chat host calls the generator in use to write session titles, in three cases:
+
+- Automatically, in the background, when the first turn of a session ends well: the title comes from the first message and the first reply, and the person never waits for it.
+  A session started by a delegation (a child) keeps its own title.
+  An automatic title only replaces a first-line title, so a title the person set with Rename is never replaced and a generated title is not rewritten by the next turn.
+  When the call fails, the title stays as it was, the cause goes to the log without any notice in the session, and the session tries again at the end of its next turn while its title is still the first line.
+- When the person asks for one session (Regenerate title in a session's menu, the `regenerateTitle` request): the new title replaces whatever the title is, a renamed one included, and the request answers it.
+- For the earlier sessions (the `regenerateTitles` request, "Titles of earlier sessions" in Providers): in the background and one session at a time, for every session of the list and of the archive whose title is still the first line, children left out.
+  It answers at once how many sessions it will do; the titles show in the lists as they land.
+
+Each call sends the server a fixed system message and the session's first message and first reply, each cut to 2,000 characters, with no tools, to `/v1/chat/completions` on the server's default port (LM Studio 1234, Ollama 11434).
+It reads `providers.json` at each use, so a change needs no restart, and it makes one call at a time, each with a limit of 30 seconds.
+A call can fail: the server is not running, the model is missing, there is no answer in 30 seconds, or the answer is empty.
+Then the title stays as it was and the cause is in `<folder>/chat/logs/chat-host.log`.
+`regenerateTitle` is refused, with words that say to choose a generator in Providers or what failed.
+`regenerateTitles` is refused only when no generator is chosen (or `providers.json` is invalid); once it has started, a session whose call fails is skipped, logged, and the rest go on.
 
 `carrier init` does not ask which providers to use: it looks for the agent CLIs on the Mac (their real binary, never a wrapper under `~/.paradev` or `~/.superset`), shows where each is with its version and whether it is signed in, and writes one account per CLI it found, named after it. It says how many accounts it added, and then asks only for extra accounts (another login of the same CLI, or one on a local server), with Enter meaning no. The accounts go to `providers.json` in the Carrier folder, even when `--out` puts the config elsewhere, and the recap says so. The flags that declare an account (`--author-provider` and the like) add it to the file, and `--yes` writes it without asking. When it edits an existing setup it starts from the accounts already in that file instead. When assigning roles, each role points at a declared account (a `provider` in the file) and specifies its model.
 
@@ -292,7 +338,7 @@ The chat host and `carrier chat` start from the Carrier folder alone (`~/.carrie
   "deleteAfterDays": 30,
   "worktreeStart": "remote",
   "idleCloseMinutes": 10,
-  "worktreeCleanup": { "afterPrMerged": false, "afterInactiveDays": "never" }
+  "worktreeCleanup": { "afterPrMerged": true, "afterInactiveDays": 14 }
 }
 ```
 
@@ -306,7 +352,7 @@ The chat host and `carrier chat` start from the Carrier folder alone (`~/.carrie
 | `deleteAfterDays` | `30` | Days of no activity after which an archived session is deleted, with its worktree and branch: a positive whole number, or `"never"`. It must be greater than `archiveAfterDays` when both are numbers (the error is reported on `deleteAfterDays`); with `"never"` on either side there is no such rule. Same checks as `archiveAfterDays`. See [The session clock](#the-session-clock). |
 | `worktreeStart` | `remote` | Where a new session's worktree is cut from when its plan does not say: `remote` is `origin/<branch>` as of the last fetch, `local` is the local branch. Any other value or type stops the host naming the key. A branch that exists only locally is cut from the local branch either way, and a branch that already carries `origin/` is cut from that ref. A plan's own `worktree.startFrom` wins over it. Read at each plan, so a change applies to the next session with no restart, and a file that is wrong keeps the last value that was good. See [ADR 0037](adr/0037-a-new-worktree-is-cut-from-the-remote-branch-by-default-and-choosing-a-project-fetches-it.md). |
 | `idleCloseMinutes` | `10` | Minutes after which the host closes the agent of an idle session that no request names (reading its events, sending to it and changing its options name it; listing the sessions does not): `10`, `30` or `60`. The session stays in the list as asleep and wakes where it left off with the next message; one that works, waits for an approval or waits for a task it started is never closed for being idle. Any other value or type stops the host naming the key. The host takes a change of the file with no restart, at the next listing of the sessions (the app lists them every few seconds) or hourly clock pass, and uses it from the next time a session is named; a session already waiting keeps the time it was armed with until then. |
-| `worktreeCleanup` | both off | When the clock removes the folder of a session's worktree and keeps its branch: `afterPrMerged` (`true` or `false`) once the session's pull request is merged, `afterInactiveDays` (a positive whole number or `"never"`, same checks as `archiveAfterDays`) once the session is archived and has had no activity for that many days (the clock of `archiveAfterDays` and `deleteAfterDays`: it counts from the last activity, not from the archiving). See [The session clock](#the-session-clock). |
+| `worktreeCleanup` | `afterPrMerged: true`, `afterInactiveDays: 14` | When the clock removes the folder of a session's worktree and keeps its branch. The whole folder goes, including every file git ignores (build output and dependencies, but also a local `.env` or config you kept inside the worktree); a folder with uncommitted or untracked files, or whose HEAD is detached, is kept. The rules: `afterPrMerged` (`true` or `false`) once the session's pull request is merged, `afterInactiveDays` (a positive whole number or `"never"`, same checks as `archiveAfterDays`) once the session is archived and has had no activity for that many days (the clock of `archiveAfterDays` and `deleteAfterDays`: it counts from the last activity, not from the archiving). To turn it all off, set `"afterPrMerged": false` and `"afterInactiveDays": "never"`. See [ADR 0042](adr/0042-a-session-worktree-folder-is-cleaned-by-default.md) and [The session clock](#the-session-clock). |
 
 A session never works inside `<folder>/engine/`, nor through a symlink into it. The engine's config has no `chat` section: it rejects one like any unknown key.
 
@@ -318,7 +364,7 @@ The chat host applies the two ages in one pass when it starts and again every ho
 - **`"never"`.** `archiveAfterDays: "never"` archives nothing, and with it nothing is deleted by the clock, whatever `deleteAfterDays` says. `deleteAfterDays: "never"` archives but never deletes.
 - **What the clock skips.** A session that is working, waiting for an approval or open in the host is left alone and looked at again on the next pass.
 - **What an automatic delete spares.** An archived session whose worktree has uncommitted changes or commits that exist nowhere else is not deleted: it stays archived and the Archive page shows it as kept, until a later pass finds the worktree clean (and deletes it) or you restore or delete it yourself. A worktree that git cannot read is left alone, the failure is logged and the next pass tries again. A session in your own folder has no worktree and is deleted without that check. Archiving loses nothing and has no such check.
-- **Cleaning up a worktree's folder.** With `worktreeCleanup` on, the same pass removes only the folder of a session's worktree (and with it what git ignores, such as builds and dependencies), keeping the session and its branch. It never does it for a session that is working, waiting or open, nor for a worktree with uncommitted changes, which is skipped and looked at again on the next pass. The next message to that session brings the folder back on its branch first; if the branch is gone, the host refuses in words.
+- **Cleaning up a worktree's folder.** With `worktreeCleanup` on, which is the default (a merged pull request, or archived and untouched for 14 days), the same pass removes only the folder of a session's worktree, keeping the session, its branch and its commits, pushed or not. The whole folder goes, including every file git ignores: build output and dependencies, but also a local `.env` or config you kept inside the worktree, which is not in the branch and does not come back. Copy such a file out first, turn the cleanup off, or bring it back with a `newWorktree` action of the project (they run again each time the folder comes back, so `cp "$CARRIER_PROJECT/.env" .` works; an action with no `onFail` only warns when it fails, and `"onFail": "stop"` refuses the open and goes on from that action the next time). It counts from the last activity as the two ages do, so a session archived by hand is cleaned once it has been untouched for 14 days, whatever its pull request says, and one the clock archives (after 15) is cleaned in the same pass. To keep every folder, set `"afterPrMerged": false` and `"afterInactiveDays": "never"`. It never does it for a session that is working, waiting or open, nor for a worktree with uncommitted or untracked (not ignored) files, nor one whose HEAD is detached or mid-rebase (a commit made there is held by no branch; a HEAD on another branch is cleaned, as that branch stays in the clone), nor one with an initialised submodule (it keeps its folder, edited or not), files marked `--assume-unchanged` or `--skip-worktree`, or a commit made detached and then left behind by switching back (only the worktree's own reflog holds it), which are skipped and looked at again on the next pass. The removal can take up to three minutes, and a session resumed meanwhile waits for it. A folder git cannot read (a removal killed halfway can leave one) is kept and logged on every pass: [Troubleshooting](troubleshooting.md#a-sessions-worktree-folder-is-gone) has the manual fix. The next message to that session brings the folder back on its branch first, without its dependencies until something installs them; if the branch is gone, the host refuses in words.
 - **What is never deleted.** The clones in the [projects folder](#projects-folder) and anything else in it.
 - **Changing it.** Edit the two keys here, or in the macOS app under Settings, Sessions: each age is a number of days or Never, and it is saved as you change it, and the page says in dates when a session left alone from today is archived and deleted. The host reads the file at each pass, so no restart is needed; if the file is wrong at that moment the pass is skipped and the log says why. The Archive page shows when each archived session will go ("Deletes in N days", "Deletes soon" once due) or "Kept because its worktree has unsaved work". If a session is kept, see [Troubleshooting](troubleshooting.md#an-archived-session-is-kept-and-not-deleted).
 
@@ -339,9 +385,58 @@ A chat applies every key of its account that starts the CLI: `configDir` and `co
 | `model` | no | The model the provider starts with. Not empty. |
 | `options` | no | Default options of the provider, by the provider's own option id. An option the provider does not list is refused when the session opens. |
 
+## Projects
+
+The projects you work on live in `projects.json` in the Carrier folder (`~/.carrier`, or `CARRIER_HOME`), next to `engine.json`, `chat.json` and `providers.json`: [ADR 0041](adr/0041-a-project-is-an-entry-of-projects-json-identified-by-its-folder.md).
+The app and the chat host both read and write it, each reading the file again just before it writes, so you can edit it by hand while Carrier runs.
+It is optional: without it there are no projects.
+A file that does not match is reported with the field named and neither the app nor the host writes over it.
+The host reads it as no projects until you fix it.
+
+```json
+{
+  "projects": [
+    { "path": "/Users/ana/notes", "origin": "added" },
+    {
+      "path": "~/work/carrier",
+      "name": "Carrier",
+      "origin": "cloned",
+      "pinned": true,
+      "hidden": false,
+      "tags": ["work", "swift"],
+      "icon": { "color": "teal", "mark": "bolt" },
+      "defaults": { "agent": "claude", "workIn": "worktree", "baseBranch": "main" },
+      "actions": [{ "name": "Install", "command": "pnpm install", "when": "newWorktree", "on": true, "onFail": "warn" }]
+    }
+  ]
+}
+```
+
+| Field | Required | Meaning |
+|---|---|---|
+| `path` | yes | The project's folder, absolute or starting with `~/`. It is the project's identity: two projects cannot share it. |
+| `name` | no | What the project is called; the folder's name when absent. Not blank. |
+| `origin` | yes | How it came to be: `cloned`, `created` or `added`. |
+| `pinned`, `hidden` | no | Booleans. |
+| `tags` | no | A list of words, each trimmed, in lower case and listed once. |
+| `icon` | no | `color`, `mark` and `image` (a file name in the app's project-icons folder), each a non-empty string. |
+| `defaults` | no | What a new session starts with: `agent`, `workIn` (`baseFolder` or `worktree`) and `baseBranch`. Absent means the same as everywhere. |
+| `actions` | no | Commands the project runs: `name` and `command` (not blank), `when` (`newWorktree` or `afterClone`), `on` (a boolean) and `onFail` (`warn` or `stop`). |
+
+The file is strict: an unknown key, a field of the wrong type, a repeated path, an empty path, a blank name or command and a tag that is not trimmed and in lower case are each refused, naming the field (`projects.1.name`).
+What can be worked out is never stored: the remote, the branch, the worktrees and their size.
+
 ## Projects folder
 
-The chat host clones a GitHub repository for a session when the first message is sent (the `clone` step of a plan, or the older `cloneRepo` request). It goes to `<projects folder>/<owner>/<repo>`; one already there (a `.git` whose `origin` is that repository) is fetched instead, and anything else at that path stops the request and is left untouched. The clone and the fetch use the token of your active `gh` login, handed to git in its environment, so `gh` must be installed and signed in. Each git command has ten minutes. A new project (the `project` step of a plan the host prepares when the first message is sent, or the older `createProject` request) is a folder at `<projects folder>/local/<name>` with `git init -b main`; the name is a plain folder name (letters, digits, `_`, `.` and `-`, at most a hundred, not starting with a dot or a dash), one that is taken is refused and nothing is changed. Its branches are listed, without the repository being on your Mac, for the draft's worktree choice (the `repoBranches` request, with the same `gh` login). The same host lists your repositories for the app's "My GitHub repositories" step (the `githubRepos` request, thirty a page, with the same `gh` login): every repository that login can read, as owner, collaborator or organisation member, archived and disabled ones left out; it needs no config. Carrier never deletes anything in the folder, except the half-made clone or project of a request that failed or was cancelled.
+The chat host clones a GitHub repository for a session when the first message is sent (the `clone` step of a plan, or the older `cloneRepo` request).
+It goes to `<projects folder>/<owner>/<repo>`; one already there (a `.git` whose `origin` is that repository) is fetched instead, and anything else at that path stops the request and is left untouched.
+The clone and the fetch use the token of your active `gh` login, handed to git in its environment, so `gh` must be installed and signed in.
+Each git command has ten minutes.
+A new project (the `project` step of a plan the host prepares when the first message is sent, the older `createProject` request, or `newProject` from Settings, which also registers it in `projects.json` with origin `created` and may go under another folder for that one project) is a folder at `<projects folder>/local/<name>` with `git init -b main`; the name is a plain folder name (letters, digits, `_`, `.` and `-`, at most a hundred, not starting with a dot or a dash), one that is taken is refused and nothing is changed.
+Its branches are listed, without the repository being on your Mac, for the draft's worktree choice (the `repoBranches` request, with the same `gh` login).
+The same host lists your repositories for the app's "My GitHub repositories" step (the `githubRepos` request, thirty a page, with the same `gh` login): every repository that login can read, as owner, collaborator or organisation member, archived and disabled ones left out; it needs no config.
+The Projects page of the app clones into the same folder (or into a parent chosen for that one clone), in the background, and registers the folder in `projects.json` when it ends; it never adds the repository to `engine.json`'s `repos`.
+Carrier never deletes anything in the folder, except the half-made clone or project of a request that failed or was cancelled.
 
 ## Things that are checked
 

@@ -30,6 +30,13 @@ public struct HostProviders: Decodable, Equatable {
         public let models: [String]
     }
 
+    /// The text generator in use, as the host reads it from `providers.json`.
+    public struct TextGenerator: Decodable, Equatable {
+        public let name: String
+        public let kind: String
+        public let model: String
+    }
+
     /// `providers.json` does not match: why, with no accounts.
     public struct Problem: Decodable, Equatable {
         public let path: String
@@ -42,6 +49,8 @@ public struct HostProviders: Decodable, Equatable {
     public let accounts: [Account]
     public let unadded: [Unadded]
     public let servers: [Server]
+    /// Absent when the file names none, and from a host that does not list `textGenerators`.
+    public let textGenerator: TextGenerator?
     public let problem: Problem?
 }
 
@@ -169,13 +178,30 @@ public struct ProviderServer: Equatable, Identifiable {
     public let title: String
     public let running: Bool
     public let models: [String]
+    /// The model of the text generator in use, when it is on this server.
+    public let generatorModel: String?
 
     public var status: String { running ? "Running · " + (models.count == 1 ? "1 model" : "\(models.count) models") : "Not running" }
+
+    /// Why this server cannot be chosen as a text generator, in the words of its row; nil when it lists models.
+    public var generatorNote: String? { running == false ? "Not running" : (models.isEmpty ? "No model loaded" : nil) }
+
+    /// What the server offers as a text generator: its models, and the one in use when the server no longer lists it, so the row still shows it.
+    public var generatorModels: [String] {
+        guard running else { return [] }
+        return models + (generatorModel.map { models.contains($0) ? [] : [$0] } ?? [])
+    }
 }
 
 public struct ProvidersPage: Equatable {
     public let tools: [ProviderTool]
     public let servers: [ProviderServer]
+    public let textGenerator: HostProviders.TextGenerator?
+
+    /// The generator in use in words, "qwen3:8b on Ollama"; nil when none is chosen.
+    public var generatorInUse: String? {
+        textGenerator.map { generator in "\(generator.model) on \(localServers.first { $0.id == generator.kind }?.title ?? generator.kind)" }
+    }
 }
 
 private let harnesses: [(id: String, title: String, icon: String)] = [("claude", "Claude Code", "claude"), ("codex", "Codex", "codex"), ("agy", "Antigravity", "antigravity")]
@@ -210,9 +236,9 @@ public func providersPage(_ reply: HostProviders, config: Data?, chat: Data?) ->
     }
     let servers = localServers.map { local -> ProviderServer in
         let seen = reply.servers.first { $0.kind == local.id }
-        return ProviderServer(id: local.id, title: local.title, running: seen?.running ?? false, models: seen?.models ?? [])
+        return ProviderServer(id: local.id, title: local.title, running: seen?.running ?? false, models: seen?.models ?? [], generatorModel: reply.textGenerator.flatMap { $0.kind == local.id ? $0.model : nil })
     }
-    return ProvidersPage(tools: tools, servers: servers)
+    return ProvidersPage(tools: tools, servers: servers, textGenerator: reply.textGenerator)
 }
 
 /// What the app got when it asked the host: the reply, or why there is none.
@@ -238,6 +264,20 @@ public enum ProvidersOutcome: Equatable {
     }
 }
 
+/// What the host answered when asked to title earlier sessions (`regenerateTitles`).
+public enum RetitleOutcome: Equatable {
+    case started(Int)
+    case refused(String)
+
+    public var words: String {
+        switch self {
+        case .started(0): "Nothing to title: every session already has a title"
+        case .started(let n): "Started \(n) \(n == 1 ? "session" : "sessions") in the background"
+        case .refused(let reason): reason
+        }
+    }
+}
+
 /// The last answer of `providers`; asked when the page opens and again on request, and only of a host that lists it.
 @MainActor @Observable public final class ProvidersStore {
     public private(set) var outcome = ProvidersOutcome.unasked
@@ -254,6 +294,14 @@ public enum ProvidersOutcome: Equatable {
     public private(set) var identityEditable = false
     /// Whether the host also knows the later icons and colors (`accountPalette`); an `accountIdentity` host refuses a file with one.
     public private(set) var paletteEditable = false
+    /// Whether the host knows `textGenerators` (its hello lists it). An older `carrier` refuses a `providers.json` with the keys, so none is written until it does.
+    public private(set) var generatorEditable = false
+    /// Whether the host can title earlier sessions in the background (`regenerateTitles` in its hello).
+    public private(set) var canRegenerateTitles = false
+    /// True while `regenerateTitles` is waiting for the host's answer.
+    public private(set) var retitling = false
+    /// What the last `regenerateTitles` answered, or nil before it ran or after leaving or changing the generator.
+    public private(set) var retitleOutcome: RetitleOutcome?
 
     @ObservationIgnored private let host: ChatHost
     @ObservationIgnored private let file: () -> ProvidersFile
@@ -330,6 +378,7 @@ public enum ProvidersOutcome: Equatable {
     public func dismissProblem() {
         editProblem = nil
         editNote = nil
+        retitleOutcome = nil
     }
 
     /// What the engine answered to a write: a problem is `editProblem`, a plain fact `editNote`.
@@ -360,9 +409,33 @@ public enum ProvidersOutcome: Equatable {
         await change("remove \(name)") { try applyingRemoval(name: name, uses: try self.uses()[name] ?? [], to: $0) }
     }
 
+    /// Choose the text generator (a model of a local server), or clear the choice with nil; written only while the host lists `textGenerators`.
+    @discardableResult public func chooseTextGenerator(_ choice: (server: String, model: String)?) async -> Bool {
+        guard generatorEditable else {
+            editProblem = "The chat host does not know text generators yet. Update carrier (brew upgrade carrier) and restart the chat host."
+            return false
+        }
+        retitleOutcome = nil
+        // the host reads the file at each use, so the page can show the choice before the engine's reload answers (up to 6 seconds)
+        return await change("choose a text generator", showAtOnce: true) { try applyingTextGenerator(choice, to: $0) }
+    }
+
+    /// Asks the host to title earlier sessions whose title is still their first line, in the background. Only sent while the host lists `regenerateTitles`.
+    public func regenerateTitles() async {
+        guard canRegenerateTitles else { return }
+        retitling = true
+        retitleOutcome = nil
+        defer { retitling = false }
+        do {
+            retitleOutcome = .started(try await host.regenerateTitles())
+        } catch {
+            retitleOutcome = .refused(ConversationModel.words(error))
+        }
+    }
+
     /// Reads the file and writes what `make` returns; a refusal writes nothing. It gives back as soon as the file is written, so the editor closes
     /// at once: the engine is asked, and the host looked at again, in the background, and a `problem` it answers is what the page shows (`settled`).
-    private func change(_ what: String, _ make: (Data?) throws -> Data) async -> Bool {
+    private func change(_ what: String, showAtOnce: Bool = false, _ make: (Data?) throws -> Data) async -> Bool {
         dismissProblem()
         do {
             let file = file()
@@ -393,6 +466,7 @@ public enum ProvidersOutcome: Equatable {
         // the older answer is still asked for (the engine reads the file anyway), but its look at the host would land after the newer one's
         follow?.cancel()
         follow = Task {
+            if showAtOnce { await load() }
             let outcome = await status.answer(reload)
             if mine == changes {
                 engineSaid(outcome)
@@ -413,11 +487,17 @@ public enum ProvidersOutcome: Equatable {
         do { capabilities = try await host.capabilities() } catch {
             identityEditable = false
             paletteEditable = false
+            generatorEditable = false
+            canRegenerateTitles = false
+            retitleOutcome = nil
             outcome = .noHost
             return
         }
         identityEditable = capabilities.contains(.accountIdentity)
         paletteEditable = capabilities.contains(.accountPalette)
+        generatorEditable = capabilities.contains(.textGenerators)
+        canRegenerateTitles = capabilities.contains(.regenerateTitles)
+        if canRegenerateTitles == false { retitleOutcome = nil }
         guard capabilities.contains(.providers) else {
             outcome = .tooOld
             return

@@ -42,6 +42,12 @@ grep -q "Copyright (c) 2017 Ryan Caloras" "$GHOSTTY_DIR/shell-integration/bash/L
 grep -q "Copyright (c) 2024 Mitchell Hashimoto, Ghostty contributors" "$L/THIRD-PARTY-NOTICES.md" || fail "Ghostty copyright notice missing from $L/THIRD-PARTY-NOTICES.md"
 grep -q "OUT OF OR IN CONNECTION WITH THE SOFTWARE" "$L/THIRD-PARTY-NOTICES.md" || fail "Ghostty MIT text missing from $L/THIRD-PARTY-NOTICES.md"
 codesign --verify --deep --strict Carrier.app || fail "codesign --verify --deep --strict failed"
+# a release ships without its debug map (STABs, type "-" in nm -a) and keeps the symbols in Carrier.dSYM, which must be the one of the signed binary (crash reports are symbolicated with it)
+BIN=Carrier.app/Contents/MacOS/Carrier
+# (the linker's own OPT marker, `radr://5614542`, survives `strip -S`: it is no debug map)
+expect "STABs left in the release binary (not stripped)" "$(nm -a "$BIN" | awk '$2 == "-" && $5 != "OPT"' | wc -l | tr -d ' ')" 0
+[ -d Carrier.dSYM ] || fail "the release build left no Carrier.dSYM"
+expect "dSYM UUID" "$(xcrun dwarfdump --uuid Carrier.dSYM | awk '{print $2}')" "$(xcrun dwarfdump --uuid "$BIN" | awk '{print $2}')"
 
 ./build-app.sh 0.1.4 >/dev/null
 expect "CFBundleVersion for 0.1.4" "$(plist CFBundleVersion)" 104
@@ -54,6 +60,7 @@ expect "channel of a dev build" "$(plist CarrierChannel)" dev
 expect "icon of a dev build" "$(plist CFBundleIconName)" AppIconDev
 [ -f Carrier.app/Contents/Resources/Assets.car ] && [ -f Carrier.app/Contents/Resources/AppIconDev.icns ] || fail "a dev build lacks its compiled icon"
 plist SUFeedURL >/dev/null 2>&1 && fail "a dev build has SUFeedURL, so its updater would start"
+[ ! -d Carrier.dSYM ] || fail "a dev build left a Carrier.dSYM"
 
 for v in 1.100.0 1.0.100; do
   if OUT="$(./build-app.sh "$v" 2>&1)"; then fail "build-app.sh accepted $v"; fi

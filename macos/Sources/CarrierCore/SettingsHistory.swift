@@ -8,6 +8,9 @@ public struct SettingsPlace: Equatable, Sendable {
         self.page = page
         self.path = path
     }
+
+    /// The screen is a centered column: every page that is one, and a project's own screen, which the full-width list of Projects opens.
+    public var isColumn: Bool { page.isColumn || (page == .projects && path.isEmpty == false) }
 }
 
 /// The places Settings has been at, so ‹ and › go back and forward as a browser's do: visiting a place from the middle drops what was ahead.

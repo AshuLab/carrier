@@ -21,9 +21,9 @@ struct ConversationView: View {
     @AppStorage(AppPreferences.chatMessageSpacingKey) private var messageSpacing = AppPreferences.defaultChatMessageSpacing
     @AppStorage(AppPreferences.showsReasoningKey) private var showsReasoning = AppPreferences.defaultShowsReasoning
     @AppStorage(AppPreferences.followsOutputKey) private var followsOutput = AppPreferences.defaultFollowsOutput
-    @State private var position = ScrollPosition()
-    /// The rows on screen, which tell the timeline which turns they are in.
-    @State private var visibleRows: Set<String> = []
+    /// Where the feed is scrolled to and which rows are on screen: in an object of their own, so the feed is not drawn again at each scroll
+    /// (it would be at each poll, which scrolls to the end). Only the timeline reads which rows are on screen.
+    @State private var scroll = ScrollState()
     /// One tick per turn for the timeline at the edge; see `onChange` of the feed's row count.
     @State private var markers: [TurnMarker] = []
     /// The feed's column; medium is the one of the mockups (chat-ui-conv2.html).
@@ -78,6 +78,7 @@ struct ConversationView: View {
                 }
             }
             .environment(\.openSubagent) { subagents.append($0) }
+            .environment(\.feedActions, FeedActions(model: model))
             .onChange(of: subagents, initial: true) { before, stack in
                 model.show(subagent: stack.last)
                 if stack.isEmpty == false {
@@ -127,10 +128,9 @@ struct ConversationView: View {
                     ForEach(feed) { row in
                         FeedRowView(
                             row: row, time: model.times[row.id], summary: closing[row.id], pinned: row.id == pinnedAnswer, flipped: $flipped, agent: model.agent, commands: model.shownCommands, offersWayOut: row.id == open && model.refusedText == nil,
-                            work: WorkState(live: row.id == working, waiting: waiting, since: began),
-                            continueTurn: { Task { await model.continueTurn() } }, retry: { Task { await model.retry() } },
-                            answer: { approval, choice in Task { await model.answer(approval, choice: choice) } }
+                            work: WorkState(live: row.id == working, waiting: waiting, since: began)
                         )
+                        .equatable()
                         .transition(Self.transition(of: row))
                     }
                     // between Enter and the first thing the agent does: the card of its work already, so the first step takes its place unseen
@@ -155,14 +155,14 @@ struct ConversationView: View {
         // the end of the conversation is what shows; it stays in view as it grows only when Follow new output is on (the model says when to scroll)
         .defaultScrollAnchor(followsOutput ? .bottom : nil)
         .defaultScrollAnchor(.top, for: .alignment)
-        .scrollPosition($position)
+        .modifier(ScrollsWith(scroll: scroll))
         .onScrollGeometryChange(for: Bool.self) { $0.visibleRect.maxY >= $0.contentSize.height - 24 } action: { _, atEnd in model.atEnd = atEnd }
-        .onScrollTargetVisibilityChange(idType: String.self, threshold: 0.5) { ids in visibleRows = Set(ids) }
+        .onScrollTargetVisibilityChange(idType: String.self, threshold: 0.5) { ids in
+            if scroll.visible != Set(ids) { scroll.visible = Set(ids) }
+        }
         .overlay(alignment: .leading) {
             if markers.count >= timelineMinimumTurns {
-                ConversationTimeline(markers: markers, current: turns(showing: visibleRows, in: markers)) { id in
-                    withAnimation(.smooth(duration: 0.3)) { position.scrollTo(id: id, anchor: .top) }
-                }
+                TimelineOverlay(markers: markers, scroll: scroll)
                 // the toolbar takes the top and the box the bottom: the middle of the window's body, not of the scroll view's frame
                 .padding(.top, 160)
                 .transition(.opacity)
@@ -174,7 +174,7 @@ struct ConversationView: View {
         // eased like the rows that come in, so the two do not move against each other
         .onChange(of: model.scrolls) {
             // the first load is not eased: it is the end already, seen from the first moment (see `loaded` below)
-            if positioned { withAnimation(.smooth(duration: 0.25)) { position.scrollTo(edge: .bottom) } } else { position.scrollTo(edge: .bottom) }
+            if positioned { withAnimation(.smooth(duration: 0.25)) { scroll.position.scrollTo(edge: .bottom) } } else { scroll.position.scrollTo(edge: .bottom) }
         }
         .onChange(of: request) { if let request { perform(request.action) } }
         .onChange(of: model.loaded) { _, loaded in
@@ -184,7 +184,7 @@ struct ConversationView: View {
                 // it is gone to again, out of sight, until they have settled, and the feed fades in there
                 for delay in [0, 90, 220] {
                     try? await Task.sleep(for: .milliseconds(delay))
-                    withTransaction(Transaction(animation: nil)) { position.scrollTo(edge: .bottom) }
+                    withTransaction(Transaction(animation: nil)) { scroll.position.scrollTo(edge: .bottom) }
                 }
                 try? await Task.sleep(for: .milliseconds(60))
                 withAnimation(.easeOut(duration: 0.18)) { positioned = true }
@@ -218,7 +218,7 @@ struct ConversationView: View {
         case .dictate: dictations += 1
         case .stopAgent: if model.busy { Task { await model.stop() } }
         case .stopSubagent: Task { await model.stopOpenSubagent() }
-        case .jumpToLatest: position.scrollTo(edge: .bottom)
+        case .jumpToLatest: scroll.position.scrollTo(edge: .bottom)
         case .toggleToolFolds:
             flipped = togglingToolGroups(in: visibleFeed(model.rows, mode: toolOutput, showsReasoning: showsReasoning), flipped: flipped)
         case .copyLastAnswer:
@@ -269,7 +269,8 @@ private struct ConversationBox: View {
             if model.background.isEmpty == false {
                 BackgroundWorkCard(tasks: model.background, stop: { Task { await model.stop() } }, stopTask: model.canStopTask ? { id in Task { await model.stopTask(id) } } : nil).transition(.move(edge: .bottom).combined(with: .opacity))
             }
-            if model.asleep { ClosedSessionNotice(chosen: model.wakeOptions.isEmpty == false).transition(.opacity) }
+            if model.folderGone { FolderGoneNotice().transition(.opacity) }
+            else if model.asleep { ClosedSessionNotice(chosen: model.wakeOptions.isEmpty == false).transition(.opacity) }
             if let queued = model.queued {
                 QueuedMessageCard(
                     text: queued, interrupts: whileWorking == .interrupt,
@@ -318,7 +319,9 @@ private struct ConversationBox: View {
     }
 }
 
-struct FeedRowView: View {
+/// A row of the feed. It is `Equatable`, used with `.equatable()`: SwiftUI leaves a row that is `==` to the one it has alone, and that is nearly
+/// every row at each poll while the agent writes. A new input of the row has to be added to `==` below, or a change of it is not drawn.
+struct FeedRowView: View, Equatable {
     let row: FeedRow
     /// When the message was written, in ms; nil for a row that is not a stored message.
     let time: Int?
@@ -326,7 +329,9 @@ struct FeedRowView: View {
     let summary: TurnSummary?
     /// Whether the footer stays in view without the pointer: the last answer of the conversation.
     let pinned: Bool
+    /// What the person flipped, to write: the row is drawn from `flippedHere` (its own keys), which is what is compared.
     @Binding var flipped: Set<String>
+    let flippedHere: Set<String>
     let agent: String
     /// What the session lists, to show the commands a message names as pills.
     let commands: [ChatCommand]
@@ -334,13 +339,23 @@ struct FeedRowView: View {
     let offersWayOut: Bool
     /// What a run of the agent's work needs to know to draw itself: whether it is the one working now.
     let work: WorkState
-    let continueTurn: () -> Void
-    let retry: () -> Void
-    let answer: (String, String) -> Void
+    @Environment(\.feedActions) private var actions
     @AppStorage(AppPreferences.messageTimesKey) private var messageTimes = AppPreferences.defaultMessageTimes
     @State private var hovering = false
     @State private var copied = false
     @State private var overCopy = false
+
+    init(row: FeedRow, time: Int?, summary: TurnSummary?, pinned: Bool, flipped: Binding<Set<String>>, agent: String, commands: [ChatCommand], offersWayOut: Bool, work: WorkState) {
+        (self.row, self.time, self.summary, self.pinned, self.agent, self.commands, self.offersWayOut, self.work) = (row, time, summary, pinned, agent, commands, offersWayOut, work)
+        _flipped = flipped
+        flippedHere = flippedKeys(of: row.id, in: flipped.wrappedValue)
+    }
+
+    // everything the body draws from; `actions`, `messageTimes` and the other states and defaults of the row invalidate it by themselves
+    static func == (a: Self, b: Self) -> Bool {
+        a.row == b.row && a.time == b.time && a.summary == b.summary && a.pinned == b.pinned && a.flippedHere == b.flippedHere && a.agent == b.agent
+            && a.commands == b.commands && a.offersWayOut == b.offersWayOut && a.work == b.work
+    }
 
     var body: some View {
         switch row {
@@ -390,11 +405,11 @@ struct FeedRowView: View {
         case .line(_, let text):
             Text(text).codeFont(12).foregroundStyle(.secondary).lineLimit(2).textSelection(.enabled)
         case .error(_, let text):
-            BannerView(banner: failedTurnBanner(agent: ProviderIdentityStore.shared.shortName(of: agent), error: text), agent: agent, copyDetails: true, retry: offersWayOut ? retry : nil)
+            BannerView(banner: failedTurnBanner(agent: ProviderIdentityStore.shared.shortName(of: agent), error: text), agent: agent, copyDetails: true, retry: offersWayOut ? actions.retry : nil)
         case .stopped:
             HStack(spacing: 6) {
                 Text("\u{25A0} You stopped this turn").foregroundStyle(.secondary)
-                if offersWayOut { Button("Continue", action: continueTurn).buttonStyle(.link) }
+                if offersWayOut { Button("Continue", action: actions.continueTurn).buttonStyle(.link) }
             }
             .font(.scaled(12))
         }
@@ -556,7 +571,7 @@ struct BannerView: View {
 }
 
 /// What a run of the agent's work draws itself from: whether it is the one working now, whether an approval holds it, when the turn began.
-struct WorkState {
+struct WorkState: Equatable {
     let live: Bool
     let waiting: Bool
     let since: Int?
@@ -626,6 +641,13 @@ struct ArchivedSessionNotice: View {
     }
 }
 
+/// An idle session whose folder was deleted with its project: it stays as history and cannot go on.
+struct FolderGoneNotice: View {
+    var body: some View {
+        NoticeCard(symbol: .trash, tint: .gray, title: folderGoneNotice.title, detail: folderGoneNotice.detail) {}
+    }
+}
+
 /// A session whose agent is not running: what it means and what a message does, above the box, in the colour of night.
 struct ClosedSessionNotice: View {
     /// Whether the person already chose something that will apply when the session wakes.
@@ -633,5 +655,56 @@ struct ClosedSessionNotice: View {
 
     var body: some View {
         NoticeCard(symbol: .sleep, tint: .indigo, title: closedSessionNotice.title, detail: chosen ? closedSessionNotice.chosen : closedSessionNotice.detail) {}
+    }
+}
+
+/// What a row asks of the conversation (Continue, Try again), handed down the environment. It is the same value at every pass: it holds the
+/// model and two are equal when they hold the same one, where a closure made at each pass would differ every time and invalidate every row that
+/// reads it. Where a row is only shown (the Settings preview) there is no model and the actions do nothing.
+struct FeedActions: Equatable {
+    let model: ConversationModel?
+
+    func continueTurn() { if let model { Task { await model.continueTurn() } } }
+    func retry() { if let model { Task { await model.retry() } } }
+
+    static func == (a: Self, b: Self) -> Bool { a.model === b.model }
+}
+
+private struct FeedActionsKey: EnvironmentKey { static let defaultValue = FeedActions(model: nil) }
+
+extension EnvironmentValues {
+    var feedActions: FeedActions {
+        get { self[FeedActionsKey.self] }
+        set { self[FeedActionsKey.self] = newValue }
+    }
+}
+
+/// Where the conversation's scroll view is and which feed rows it shows, kept out of the view's own state: the view is drawn again for what
+/// it reads, and a scroll or a position set to follow the feed is no reason to lay the whole feed out again.
+@MainActor @Observable final class ScrollState {
+    var position = ScrollPosition()
+    var visible: Set<String> = []
+}
+
+/// `scrollPosition` reads the position as it is applied, so applied in the view's own body it would draw the whole feed at each change; here
+/// the read is this modifier's.
+private struct ScrollsWith: ViewModifier {
+    let scroll: ScrollState
+
+    func body(content: Content) -> some View {
+        @Bindable var scroll = scroll
+        content.scrollPosition($scroll.position)
+    }
+}
+
+/// The timeline at the edge. It reads the rows on screen here, so a scroll draws it and not the conversation.
+private struct TimelineOverlay: View {
+    let markers: [TurnMarker]
+    let scroll: ScrollState
+
+    var body: some View {
+        ConversationTimeline(markers: markers, current: turns(showing: scroll.visible, in: markers)) { id in
+            withAnimation(.smooth(duration: 0.3)) { scroll.position.scrollTo(id: id, anchor: .top) }
+        }
     }
 }

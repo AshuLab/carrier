@@ -56,7 +56,15 @@ import SwiftUI
     /// A new list from the host, on the main thread.
     func adopt(_ rows: [SessionRow]) {
         hostRows = rows
+        Task { await actions.learnHost() }
         refreshUnread()
+    }
+
+    /// The groups are titled with the projects' names, so a change of the projects sets the rows again. Called once the app is up.
+    @MainActor func followProjects() {
+        withObservationTracking { _ = ProjectsModel.shared.rows } onChange: { [weak self] in
+            DispatchQueue.main.async { self?.refreshUnread(); MainActor.assumeIsolated { self?.followProjects() } }
+        }
     }
 
     /// Prunes persisted/live session terminals only after two consecutive healthy chat-host polls omit them.
@@ -70,7 +78,7 @@ import SwiftUI
     func refreshUnread() {
         // before the host answered a list there is nothing to compare with: what was seen is neither pruned nor stored
         guard let listed = hostRows else { return }
-        var rows = listed
+        var rows = MainActor.assumeIsolated { retitled(listed, projects: ProjectsModel.shared.rows) }
         var viewing: String?
         if case .session(let id) = shell.selection { viewing = id }
         if seen.apply(to: &rows, viewing: viewing) { seen.store() }
@@ -90,9 +98,9 @@ import SwiftUI
     /// The draft of a new session; it starts the chat host when it is not running (#503) before it opens the session.
     // built on the main thread, where the app creates its window
     let newSession = MainActor.assumeIsolated {
-        NewSessionModel(host: SocketChatHost(), health: AppHealth.store, offers: .shared) {
+        NewSessionModel(host: SocketChatHost(), health: AppHealth.store, offers: .shared, ensureHost: {
             await withCheckedContinuation { continuation in ChatHostStarter.shared.ensureRunning { continuation.resume(returning: $0) } }
-        }
+        }, projects: .shared)
     }
 }
 
@@ -380,32 +388,22 @@ final class WindowController: NSObject, NSWindowDelegate {
                 await draft.useWorktree(false)
             }
         }
-        // the workspace popover: what it lists, and the GitHub URL step against the host (a repository it lists, then one it does not)
+        // the sheet New session opens: what it lists (the projects that are not hidden, folders used lately, the person's repositories) and what choosing fills
         draft.openPicker()
-        lines.append("new session picker: recent \(draft.recent.map(\.name)), projects \(draft.projects.map(\.name)), sources \(draft.sources.map(\.rawValue)), footer \(draft.projectsPath)")
-        draft.show(.url)
+        var github = ProjectSheetGithub(defaultParent: draft.projectsPath)
+        github.watched = draft.watched
+        let known = ProjectsModel.shared.rows
+        func sheet(_ query: String) -> ProjectSheetState { projectSheetState(mode: .newSession, query: query, recent: draft.recent, projects: known, github: github) }
+        lines.append("new session sheet: \(sheet("").sections.map { "\($0.title ?? "result") \($0.items.count)" }), projects \(known.filter { $0.hidden == false }.map(\.name)), folder \(draft.projectsPath)")
+        // a repository (one the host lists, then one it does not) only fills the plan; nothing is cloned and the repository is watched unless the person said no
         for text in ["https://github.com/AshuLab/web", "AshuLab/api", "AshuLab/nope"] {
-            draft.urlText = text
-            let worked = await draft.useRepo()
-            lines.append("new session repo \(text): \(draft.repoButton), \(worked ? "used" : "refused"), \"\(draft.sentence)\", branches \(draft.picker(query: "")?.local.map(\.name) ?? []), problem \(draft.workspaceProblem ?? "none"), worktree \(draft.offersWorktree ? "offered" : "not offered"), \(draft.sendSteps.count) send steps")
+            guard let result = sheet(text).firstResult else { continue }
+            await draft.choose(result)
+            lines.append("new session repo \(text): \(result.destination?.line ?? "none"), \"\(draft.sentence)\", branches \(draft.picker(query: "")?.local.map(\.name) ?? []), problem \(draft.workspaceProblem ?? "none"), worktree \(draft.offersWorktree ? "offered" : "not offered"), \(draft.sendSteps.count) send steps, watching \(draft.watching)")
         }
-        // My GitHub repositories against the host: page 1 with the login, Load more, and a repository chosen from the list
-        await draft.showRepos()
-        lines.append("new session repos: login \(draft.login ?? "none"), \(draft.repoRows().count) loaded, more \(draft.repoList.hasMore), watched \(draft.repoRows().filter(\.watched).map(\.name))")
-        await draft.loadRepos()
-        lines.append("new session repos page 2: \(draft.repoRows().count) loaded, more \(draft.repoList.hasMore), reason \(draft.reposReason ?? "none")")
-        draft.watch = false  // a smoke pass never writes the config
-        if let first = draft.repoRows().first {
-            await draft.choose(repo: first.name)
-            lines.append("new session repo \(first.name): \"\(draft.sentence)\", problem \(draft.workspaceProblem ?? "none")")
-        }
-        // New project: only the plan is filled (the draft then offers no worktree), and a name that is taken is refused beforehand
-        draft.show(.project)
-        for name in ["my-idea", "web"] {
-            draft.projectName = name
-            let worked = draft.useProject()
-            lines.append("new session project \(name): \(worked ? "used" : "refused: \(draft.projectNameWarning ?? "no reason")"), \"\(draft.sentence)\", worktree \(draft.offersWorktree ? "offered" : "not offered")")
-        }
+        // New project: only the plan is filled (the draft then offers no worktree)
+        draft.choose(newProject: "my-idea")
+        lines.append("new session project my-idea: \"\(draft.sentence)\", worktree \(draft.offersWorktree ? "offered" : "not offered")")
         return lines.joined(separator: "\n")
     }
 
@@ -529,6 +527,8 @@ final class WindowController: NSObject, NSWindowDelegate {
         let least = sender.frameRect(forContentRect: NSRect(origin: .zero, size: Self.minContent)).size
         return NSSize(width: max(frameSize.width, least.width), height: max(frameSize.height, least.height))
     }
+
+    @MainActor func followProjects() { model.followProjects() }
 
     /// Tells `Viewing` whether anyone is looking: the app is active and the window is on screen, or one of them, or the Mac sleeps. Then the host and
     /// the engine are asked often or not, and the Usage page's minute timer runs (it pauses while nobody looks and asks again when someone does).

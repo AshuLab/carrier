@@ -125,6 +125,23 @@ In the macOS app the Archive page says "Kept because its worktree has unsaved wo
 
 To get rid of it, open the Archive page, hover the row and press Delete: the app first lists what would be lost ("3 uncommitted files and 2 commits that exist nowhere else will be removed with its worktree"), and nothing is deleted until you confirm. To keep the work, press Resume and commit and push it from the session's worktree; once nothing in it is unsaved, the session is archived and deleted by the clock again in time. Without the app, `carrier chat --delete <id>` deletes it at once with no question (`carrier chat --list --archived` shows the ids).
 
+## A session's worktree folder is gone
+
+The chat host removes the folder of a session's worktree once its pull request is merged, or once the session is archived and untouched for 14 days (`worktreeCleanup` in `chat.json`).
+The branch and the session stay, and resuming the session brings the folder back without its dependencies.
+The whole folder is removed, including every file git ignores: build output and dependencies, but also a local `.env` or config kept inside the worktree, which is not in the branch and does not come back.
+Copy such a file out of the worktree, or turn the cleanup off with `"afterPrMerged": false` and `"afterInactiveDays": "never"` (see [The session clock](configuration.md#the-session-clock)).
+To get one back on its own, give the project a `newWorktree` action: those run again every time the folder comes back, so an action like `cp "$CARRIER_PROJECT/.env" .` puts the file in again.
+An action with no `onFail` only warns when it fails and the session goes on without the file; with `"onFail": "stop"` the open is refused, the folder stays, and the next open goes on from the action that failed.
+A folder is kept when it has uncommitted or untracked files, files git is told not to show (`--assume-unchanged`, `--skip-worktree`), an initialised submodule (even with no edits), a detached HEAD, or a commit that only the worktree's own reflog holds; `<folder>/chat/logs/chat-host.log` says which and why.
+A HEAD on another branch does not keep it: that branch lives in the clone and stays.
+Removing a big folder can take up to three minutes, during which resuming that session waits and stopping the host can wait too.
+
+A removal killed halfway (power loss, `SIGKILL`) can leave a half-removed folder, with no `.git` or with a `.git` that points nowhere.
+Carrier does not delete such a folder by itself, as it cannot tell leftovers from work: the log says `kept a worktree folder git cannot read` on every pass.
+To clear it, check nothing in it matters, then run `git -C <the project's clone> worktree prune` and remove the folder (`rm -rf <folder>/chat/worktrees/<owner>/<repo>/<name>`).
+The session and its branch stay, and the next message brings a fresh folder back.
+
 ## Start-up errors
 
 - **`Invalid config <file>:` + fields.** Fix each listed field. `carrier schema` shows what is allowed.
@@ -153,4 +170,6 @@ To get rid of it, open the Archive page, hover the row and press Delete: the app
 
 Logs and sessions of a merged or cancelled epic are deleted 30 days after the merge or the close.
 An epic still waiting in ready-for-test keeps them.
-SQLite (`<folder>/engine/state/carrier.db`) and worktrees are never deleted by Carrier.
+SQLite (`<folder>/engine/state/carrier.db`) is never deleted by Carrier.
+A chat session's worktree folder is removed by the cleanup above, and an epic's worktrees when the epic is merged or cancelled ([ADR 0035](adr/0035-a-worktree-folder-goes-when-its-work-is-done-and-its-branch-stays.md)).
+Each agent run's `stdout.log` and `stderr.log` hold at most 50 MB: past that the file becomes `stdout.log.1` and a new one starts, so the older output of a very long run is the part that is dropped.

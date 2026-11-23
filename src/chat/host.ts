@@ -9,7 +9,9 @@ import { sweepPending } from './attachments.ts';
 import { claudeChatRunner } from './claude.ts';
 import { codexChatRunner } from './codex.ts';
 import { chatConfigProblem, readChatConfig, type ChatSettings } from './config.ts';
+import { createDisk, measureWithDu, type Measure } from './disk.ts';
 import { realGit, type Git } from './git.ts';
+import { realShell, type Shell } from './shell.ts';
 import { createProjects, ghBranches, ghLogin, ghRepos, ghToken, type GithubRepos } from './projects.ts';
 import { ghPullRequests, type PullRequests } from './pull-requests.ts';
 import { openChatDatabase } from './db.ts';
@@ -20,6 +22,7 @@ import { delegateStart, delegateWait } from './mcp/delegate.ts';
 import { history } from './mcp/history.ts';
 import { McpSessionRegistry, startMcpServer, type McpServer } from './mcp.ts';
 import { startChatServer } from './server.ts';
+import { realTextGenerator, type TextGenerator } from './text-generator.ts';
 import { realMachine, type Machine } from '../doctor/detect.ts';
 import { realProbes, type HealthProbes } from './health.ts';
 import { binaryFound, createSessions, IDLE_CLOSE_MS, type ChatSessionsDeps, type LiveSettings } from './sessions.ts';
@@ -48,6 +51,10 @@ export interface ChatHostDeps {
   runners: ChatSessionsDeps['runners'];
   env: NodeJS.ProcessEnv;
   git: Git;
+  /** What runs a project's actions. */
+  shell: Shell;
+  /** How many bytes a folder takes, for the projects' sizes. */
+  measure: Measure;
   /** The token of the person's `gh` login, for the clones. */
   token: () => Promise<string>;
   /** The person's GitHub repositories and login, for the list. */
@@ -61,6 +68,8 @@ export interface ChatHostDeps {
   processes: Processes;
   /** Starts the chat MCP's loopback server. */
   startMcp: typeof startMcpServer;
+  /** What writes a session's title: the generator `providers.json` names, unless a test replaces it. */
+  textGenerator: TextGenerator;
   /** What the `usage` request touches on the machine; the real ports unless a test replaces them (the clock is the host's). */
   usage: Pick<UsageDeps, 'ports' | 'history'>;
 }
@@ -71,7 +80,7 @@ const realGithub = ({ githubCallTimeoutSeconds }: ChatSettings): GithubRepos => 
   branches: (repo) => ghBranches(repo, githubCallTimeoutSeconds * 1000),
 });
 
-const realDeps = (settings: ChatSettings): ChatHostDeps => ({ installLogging: installFileLogging, clock: realClock, exit: process.exit, signals: true, runners: { claude: claudeChatRunner(), codex: codexChatRunner() }, env: process.env, git: realGit, token: ghToken, github: realGithub(settings), pulls: ghPullRequests(settings.githubCallTimeoutSeconds * 1000), binaryFound, probes: realProbes, machine: realMachine, processes: realProcesses, startMcp: startMcpServer, usage: { ports: realUsagePorts, history: realHistoryPorts } });
+const realDeps = (settings: ChatSettings): ChatHostDeps => ({ installLogging: installFileLogging, clock: realClock, exit: process.exit, signals: true, runners: { claude: claudeChatRunner(), codex: codexChatRunner() }, env: process.env, git: realGit, shell: realShell, measure: measureWithDu, token: ghToken, github: realGithub(settings), pulls: ghPullRequests(settings.githubCallTimeoutSeconds * 1000), binaryFound, probes: realProbes, machine: realMachine, processes: realProcesses, startMcp: startMcpServer, usage: { ports: realUsagePorts, history: realHistoryPorts }, textGenerator: realTextGenerator() });
 
 /**
  * Runs the chat host from the Carrier folder alone (`CARRIER_HOME`, else `~/.carrier`): its own lock, database and socket under
@@ -106,10 +115,11 @@ export async function startChatHost(overrides: Partial<ChatHostDeps> = {}) {
     return ages;
   };
   const usage = createUsage({ ports: { ...deps.usage.ports, clock: deps.clock }, history: deps.usage.history, db, folder: carrierHome(), agents: () => chatAgentsOf(settings.agents), env: deps.env });
-  const projects = createProjects({ git: deps.git, token: deps.token, github: deps.github, clock: deps.clock });
+  const disk = createDisk({ db, clock: deps.clock, git: deps.git, measure: deps.measure });
+  const projects = createProjects({ git: deps.git, token: deps.token, github: deps.github, clock: deps.clock, onCloneChange: () => idle?.recheck() });
   // the last value read, not the file: a conversation names its session several times a second (`list` and the clock pass read the file)
   const idleCloseMs = () => (ages.idleCloseMinutes === undefined ? IDLE_CLOSE_MS : ages.idleCloseMinutes * 60_000);
-  const sessions = createSessions({ db, agents: () => chatAgentsOf(settings.agents), idleCloseMs, clock: deps.clock, runners: deps.runners, env: deps.env, git: deps.git, projects, binaryFound: deps.binaryFound, probes: deps.probes, machine: deps.machine, ages: currentAges, pulls: deps.pulls, onLiveChange: () => idle?.recheck(), mcp: { registry: mcpRegistry, url: () => mcpServer?.url, tools: mcpTools.map((tool) => tool.name) } });
+  const sessions = createSessions({ db, agents: () => chatAgentsOf(settings.agents), idleCloseMs, clock: deps.clock, runners: deps.runners, env: deps.env, git: deps.git, shell: deps.shell, projects, binaryFound: deps.binaryFound, probes: deps.probes, machine: deps.machine, ages: currentAges, pulls: deps.pulls, textGenerator: deps.textGenerator, onLiveChange: () => idle?.recheck(), mcp: { registry: mcpRegistry, url: () => mcpServer?.url, tools: mcpTools.map((tool) => tool.name) } });
   // The clock's pass, at start and every hour while the host runs; the ages are read from chat.json each time, and a wrong file skips the pass.
   let cancelPass = () => {};
   let stopped = false;
@@ -147,12 +157,14 @@ export async function startChatHost(overrides: Partial<ChatHostDeps> = {}) {
     (stopping ??= (async () => {
       stopped = true;
       await sessions.closeAll(); // also tells the pass in flight to leave the next session alone
+      await projects.stop();
+      disk.stop();
       await passInFlight; // so the database is not closed under a worktree that is half removed
       close();
       log.info('chat host stopped');
       deps.exit(code);
     })());
-  idle = idleExit({ clock: deps.clock, afterMs: deps.idleMs, live: sessions.liveCount, exit: stop });
+  idle = idleExit({ clock: deps.clock, afterMs: deps.idleMs, live: () => sessions.liveCount() + projects.cloningCount(), exit: stop });
   // The MCP is up before the socket answers; one that cannot bind leaves the host without it, and each session says so.
   try {
     mcpServer = await deps.startMcp({ registry: mcpRegistry, sessions: sessions.mcpView, tools: mcpTools });
@@ -164,7 +176,7 @@ export async function startChatHost(overrides: Partial<ChatHostDeps> = {}) {
       joined: () => void idle?.joined(),
       left: () => void idle?.left(),
     };
-    closeServer = (await startChatServer({ stateDir, startedAt: deps.clock.now(), controls: { ...sessions, ...usage, cloneRepo: projects.cloneRepo, createProject: projects.createProject, githubRepos: projects.githubRepos, repoBranches: projects.repoBranches }, stop, clients })).close;
+    closeServer = (await startChatServer({ stateDir, startedAt: deps.clock.now(), controls: { ...sessions, ...usage, projectDisk: disk.projectDisk, cloneRepo: projects.cloneRepo, cloneProject: projects.cloneProject, projectClones: projects.projectClones, dismissClone: projects.dismissClone, newProject: projects.newProject, createProject: projects.createProject, githubRepos: projects.githubRepos, repoBranches: projects.repoBranches }, stop, clients })).close;
   } catch (error) {
     close();
     throw error;

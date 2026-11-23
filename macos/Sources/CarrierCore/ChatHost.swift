@@ -190,6 +190,39 @@ public struct GithubReposPage: Decodable, Equatable {
     }
 }
 
+/// A clone the person started from Settings, as the host lists it: running with git's latest progress line, or failed with its reason until it is dismissed.
+/// One that finished is a project in `projects.json` and is no longer listed.
+public struct ProjectClone: Decodable, Equatable, Identifiable, Sendable {
+    public enum State: String, Decodable, Sendable { case cloning, failed }
+
+    /// `owner/name`.
+    public let repo: String
+    /// Where it is being made.
+    public let folder: String
+    public let state: State
+    /// Git's latest progress line ("Receiving objects: 45%"), once it has said one.
+    public let progress: String?
+    /// Why a failed clone failed, in the host's words.
+    public let error: String?
+
+    public var id: String { repo.lowercased() }
+
+    public init(repo: String, folder: String, state: State, progress: String? = nil, error: String? = nil) {
+        self.repo = repo
+        self.folder = folder
+        self.state = state
+        self.progress = progress
+        self.error = error
+    }
+}
+
+struct ProjectClonesReply: Decodable { let clones: [ProjectClone] }
+struct NewProjectReply: Decodable { let folder: String }
+
+/// What a person is told when the chat host that is running is older than the app and has no projects requests: the app replaces an older host when
+/// no session is working, so the way out is to finish the work and restart the host.
+public let projectsNeedNewerHost = "The chat host that is running is older than this app and cannot manage projects. Restart the chat host (when no session is working) to use it."
+
 /// The reply of `repoBranches`: the default branch of a repository that need not be on disk and its branches (the first hundred, as GitHub lists
 /// them), and whether there are more.
 public struct RepoBranches: Decodable, Equatable {
@@ -221,8 +254,9 @@ public protocol ChatHost {
     /// a failed preparation. Only for a host whose hello lists `plan`.
     func retryPreparation(_ id: String) async throws
     /// Stops the running step and deletes the session with its worktree; answers the plan it was opened with, for the draft to take back.
-    /// Refused in words for a session that is not being prepared. Only for a host whose hello lists `plan`.
-    func cancelPreparation(_ id: String) async throws -> SessionPlan
+    /// Refused in words for a session that is not being prepared. Nil when the session stays (a worktree coming back: only its running action stops).
+    /// Only for a host whose hello lists `plan`.
+    func cancelPreparation(_ id: String) async throws -> SessionPlan?
     /// What an agent offers (its options with the values it would start with, and the commands to invoke) before a session exists; the host
     /// starts the agent to know, and keeps the answer.
     func agentOptions(_ agent: String) async throws -> AgentOffer
@@ -244,6 +278,31 @@ public protocol ChatHost {
     /// The default branch and the branches of `owner/repo`, read from GitHub with the person's `gh` login: the repository need not be on this
     /// Mac. Refused in words (`gh` missing or signed out, no network, not found or not visible, too slow). Only for a host whose hello lists `repoBranches`.
     func repoBranches(_ repo: String) async throws -> RepoBranches
+    /// Starts cloning `repo` (`owner/name`) into `parent/<owner>/<name>`, or into the projects folder when `parent` is nil, and answers at once with the clone
+    /// (`cloning`): the host registers the folder as a project, with origin `cloned`, when git ends, and never makes Carrier watch it. One running for the same
+    /// repository is shared, not started twice. Refused in words for a folder that is already a project or a parent inside Carrier's own folders. Only for a host
+    /// whose hello lists `projects`; an older one is told to restart.
+    func cloneProject(_ repo: String, into parent: String?) async throws -> ProjectClone
+    /// The clones started from Settings that are running or failed. Only for a host whose hello lists `projects`.
+    func projectClones() async throws -> [ProjectClone]
+    /// The worktrees of the project at `folder`: its main clone and each worktree git lists for it under Carrier's worktrees folder that is still on disk, with
+    /// branch, session, age and state. Refused in words for a folder that is gone or not a repository. Only for a host whose hello lists `projects`.
+    func projectWorktrees(_ folder: String) async throws -> ProjectWorktrees
+    /// What each project folder takes on disk as the host last measured it (nil bytes: never), and which of them it has queued or is measuring; `refresh` says what it
+    /// measures meanwhile. A folder that is gone or not allowed is left out of the answer. Only for a host whose hello lists `projects`.
+    func projectDisk(_ folders: [String], refresh: ProjectDiskRefresh) async throws -> ProjectDiskReply
+    /// Removes only the folder of one worktree of the project at `folder`, keeping its branch and its session; refused in words while its session is open or it has
+    /// uncommitted changes. Only for a host whose hello lists `projects`.
+    func removeProjectWorktree(_ folder: String, path: String) async throws
+    /// What Clean up would remove from the project at `folder` (its merged worktrees nothing blocks, with the bytes each folder holds) and skip (with the reason);
+    /// with `run` it removes them and answers what it removed and skipped. Only for a host whose hello lists `projects`.
+    func cleanProjectWorktrees(_ folder: String, run: Bool) async throws -> ProjectCleanup
+    /// Forgets a failed clone (one that is running stays) and answers the clones that are left. Only for a host whose hello lists `projects`.
+    func dismissClone(_ repo: String) async throws -> [ProjectClone]
+    /// Makes `<parent>/local/<name>` (the projects folder when `parent` is nil) with `git init` and registers it in `projects.json` with origin `created`; answers its
+    /// folder. Refused in words for a name that is not a plain folder name, a folder that is already there or a parent inside Carrier's own folders, and nothing is
+    /// written then. Only for a host whose hello lists `projects`; an older one is told to restart.
+    func newProject(_ name: String, into parent: String?) async throws -> String
     /// The state of `git`, `gh` and each chat agent on the host's machine; `refresh` skips the answer the host kept for thirty seconds.
     /// Only for a host whose hello lists `health`.
     func health(refresh: Bool) async throws -> HostHealth
@@ -290,6 +349,8 @@ public protocol ChatHost {
     func rename(_ id: String, _ title: String) async throws
     /// Asks the host to write the session's title again from what was said in it and answers the new one. Only for a host whose hello lists `regenerateTitle`.
     func regenerateTitle(_ id: String) async throws -> String
+    /// Starts writing titles in the background for earlier sessions whose title is still their first line and answers how many it started. Only for a host whose hello lists `regenerateTitles`.
+    func regenerateTitles() async throws -> Int
     /// What deleting these sessions would discard, one entry per id in the order asked; the host refuses the whole request when an id is unknown.
     func deletePreview(_ ids: [String]) async throws -> [SessionDeletePreview]
 }
@@ -324,13 +385,23 @@ extension ChatHost {
     public func retryPreparation(_ id: String) async throws { throw ControlError.remote("the chat host does not support retryPreparation") }
 
     /// A host that cannot prepare a session from a plan has nothing to cancel.
-    public func cancelPreparation(_ id: String) async throws -> SessionPlan { throw ControlError.remote("the chat host does not support cancelPreparation") }
+    public func cancelPreparation(_ id: String) async throws -> SessionPlan? { throw ControlError.remote("the chat host does not support cancelPreparation") }
 
     /// A host that cannot list an agent's options before a session says it lists none.
     public func agentOptions(_ agent: String) async throws -> AgentOffer { AgentOffer() }
 
     /// A host that cannot list the branches of a repository refuses; the app only asks one that lists `repoBranches`.
     public func repoBranches(_ repo: String) async throws -> RepoBranches { throw ControlError.remote("the chat host does not support repoBranches") }
+
+    /// A host that has no projects requests says it is older and to restart it.
+    public func cloneProject(_ repo: String, into parent: String?) async throws -> ProjectClone { throw ControlError.remote(projectsNeedNewerHost) }
+    public func projectClones() async throws -> [ProjectClone] { throw ControlError.remote(projectsNeedNewerHost) }
+    public func projectWorktrees(_ folder: String) async throws -> ProjectWorktrees { throw ControlError.remote(projectsNeedNewerHost) }
+    public func projectDisk(_ folders: [String], refresh: ProjectDiskRefresh) async throws -> ProjectDiskReply { throw ControlError.remote(projectsNeedNewerHost) }
+    public func removeProjectWorktree(_ folder: String, path: String) async throws { throw ControlError.remote(projectsNeedNewerHost) }
+    public func cleanProjectWorktrees(_ folder: String, run: Bool) async throws -> ProjectCleanup { throw ControlError.remote(projectsNeedNewerHost) }
+    public func dismissClone(_ repo: String) async throws -> [ProjectClone] { throw ControlError.remote(projectsNeedNewerHost) }
+    public func newProject(_ name: String, into parent: String?) async throws -> String { throw ControlError.remote(projectsNeedNewerHost) }
 
     /// A host that cannot say how the machine is refuses; the app only asks one that lists `health`.
     public func health(refresh: Bool) async throws -> HostHealth { throw ControlError.remote("the chat host does not support health") }
@@ -352,6 +423,9 @@ extension ChatHost {
 
     /// A host that cannot write titles refuses; the app only asks one that lists `regenerateTitle`.
     public func regenerateTitle(_ id: String) async throws -> String { throw ControlError.remote("the chat host does not support regenerateTitle") }
+
+    /// A host that cannot write earlier titles refuses; the app only asks one that lists `regenerateTitles`.
+    public func regenerateTitles() async throws -> Int { throw ControlError.remote("the chat host does not support regenerateTitles") }
 
     /// A host that knows no commands sends the text as it is.
     public func send(_ id: String, _ text: String, command: String?) async throws { try await send(id, text) }
@@ -397,11 +471,11 @@ public struct SocketChatHost: ChatHost {
     }
 
     /// Deleting a worktree takes git a while, so the wait for the reply is longer than the 5 seconds of the other requests.
-    public func cancelPreparation(_ id: String) async throws -> SessionPlan {
+    public func cancelPreparation(_ id: String) async throws -> SessionPlan? {
         let fields = ",\"sessionId\":\"\(try wireId(id))\""
         let path = socketPath()
         let reply: CancelledReply = try await Task.detached { try chatRequest(path, "cancelPreparation", requires: .plan, fields: fields, timeout: 30) }.value
-        return try reply.plan.plan
+        return try reply.plan?.plan
     }
 
     public func agentOptions(_ agent: String) async throws -> AgentOffer {
@@ -454,6 +528,69 @@ public struct SocketChatHost: ChatHost {
         let fields = ",\"repo\":\(jsonString(repo))"
         let path = socketPath()
         return try await Task.detached { try chatRequest(path, "repoBranches", requires: .repoBranches, fields: fields, timeout: 40) }.value
+    }
+
+    public func cloneProject(_ repo: String, into parent: String?) async throws -> ProjectClone {
+        // the host's own limits (src/chat/server.ts): a repository as owner/name, and a parent that is not empty or over 4096 characters
+        guard isRepoName(repo) else { throw ControlError.remote("\"\(repo)\" is not a repository; write it as owner/name") }
+        if let parent, parent.isEmpty || parent.count > 4096 { throw ControlError.remote("That folder cannot be used") }
+        let fields = ",\"repo\":\(jsonString(repo))" + (parent.map { ",\"parent\":\(jsonString($0))" } ?? "")
+        let path = socketPath()
+        return try await Task.detached { try projectsRequest(path, "cloneProject", fields: fields) }.value
+    }
+
+    public func projectClones() async throws -> [ProjectClone] {
+        let path = socketPath()
+        return try await Task.detached { (try projectsRequest(path, "projectClones") as ProjectClonesReply).clones }.value
+    }
+
+    public func projectWorktrees(_ folder: String) async throws -> ProjectWorktrees {
+        // the host's own limit (src/chat/server.ts): a folder that is not empty or over 4096 characters
+        if folder.isEmpty || folder.count > 4096 { throw ControlError.remote("That folder cannot be used") }
+        let fields = ",\"folder\":\(jsonString(folder))"
+        let path = socketPath()
+        return try await Task.detached { try projectsRequest(path, "projectWorktrees", fields: fields) }.value
+    }
+
+    public func projectDisk(_ folders: [String], refresh: ProjectDiskRefresh) async throws -> ProjectDiskReply {
+        // the host's own limits (src/chat/server.ts): 1 to 500 folders, none empty or over 4096 characters; what it would refuse never goes out
+        let asked = folders.filter { $0.isEmpty == false && $0.count <= 4096 }.prefix(500)
+        if asked.isEmpty { return ProjectDiskReply(projects: []) }
+        let fields = ",\"folders\":[" + asked.map(jsonString).joined(separator: ",") + "]" + (refresh == .read ? "" : ",\"refresh\":\"\(refresh.rawValue)\"")
+        let path = socketPath()
+        return try await Task.detached { try projectsRequest(path, "projectDisk", fields: fields) }.value
+    }
+
+    public func removeProjectWorktree(_ folder: String, path worktree: String) async throws {
+        // the host's own limits (src/chat/server.ts): neither empty nor over 4096 characters
+        if folder.isEmpty || folder.count > 4096 || worktree.isEmpty || worktree.count > 4096 { throw ControlError.remote("That folder cannot be used") }
+        let fields = ",\"folder\":\(jsonString(folder)),\"path\":\(jsonString(worktree))"
+        let path = socketPath()
+        // git removes the folder with what it ignores (dependencies, builds), which can take a while
+        let _: AnyReply = try await Task.detached { try projectsRequest(path, "removeProjectWorktree", fields: fields, timeout: 120) }.value
+    }
+
+    public func cleanProjectWorktrees(_ folder: String, run: Bool) async throws -> ProjectCleanup {
+        if folder.isEmpty || folder.count > 4096 { throw ControlError.remote("That folder cannot be used") }
+        let fields = ",\"folder\":\(jsonString(folder))" + (run ? ",\"run\":true" : "")
+        let path = socketPath()
+        // the host measures each folder before it answers, and removing them one by one takes as long as each takes
+        return try await Task.detached { try projectsRequest(path, "cleanProjectWorktrees", fields: fields, timeout: run ? 600 : 120) }.value
+    }
+
+    public func dismissClone(_ repo: String) async throws -> [ProjectClone] {
+        let fields = ",\"repo\":\(jsonString(repo))"
+        let path = socketPath()
+        return try await Task.detached { (try projectsRequest(path, "dismissClone", fields: fields) as ProjectClonesReply).clones }.value
+    }
+
+    public func newProject(_ name: String, into parent: String?) async throws -> String {
+        // the host's own limits (src/chat/server.ts): a plain folder name, and a parent that is not empty or over 4096 characters
+        if let refusal = projectNameProblem(name) { throw ControlError.remote(refusal) }
+        if let parent, parent.isEmpty || parent.count > 4096 { throw ControlError.remote("That folder cannot be used") }
+        let fields = ",\"name\":\(jsonString(name))" + (parent.map { ",\"parent\":\(jsonString($0))" } ?? "")
+        let path = socketPath()
+        return try await Task.detached { (try projectsRequest(path, "newProject", fields: fields) as NewProjectReply).folder }.value
     }
 
     /// The probes of a request run in parallel with five seconds each, so the wait is longer than the 5 seconds of the other requests.
@@ -563,12 +700,20 @@ public struct SocketChatHost: ChatHost {
     }
 
     private struct TitleReply: Decodable { let title: String }
+    private struct TitlesReply: Decodable { let started: Int }
 
+    /// The host's one generator call has 30 seconds and the call waits behind the one in progress, so the wait for the reply is longer than the 5 seconds of the other requests.
     public func regenerateTitle(_ id: String) async throws -> String {
         let fields = ",\"sessionId\":\"\(try wireId(id))\""
         let path = socketPath()
-        let reply: TitleReply = try await Task.detached { try chatRequest(path, "regenerateTitle", requires: .regenerateTitle, fields: fields) }.value
+        let reply: TitleReply = try await Task.detached { try chatRequest(path, "regenerateTitle", requires: .regenerateTitle, fields: fields, timeout: 70) }.value
         return reply.title
+    }
+
+    public func regenerateTitles() async throws -> Int {
+        let path = socketPath()
+        let reply: TitlesReply = try await Task.detached { try chatRequest(path, "regenerateTitles", requires: .regenerateTitles) }.value
+        return reply.started
     }
 
     /// The host takes 1 to 500 ids a request, so a longer list goes in several; a commit shared by two worktrees counts for both only when they are asked together.
@@ -596,11 +741,12 @@ func jsonString(_ text: String) -> String { String(decoding: (try? JSONEncoder()
 
 /// The reply of `open`: only the new session's id is read.
 /// Where a plan works: a folder that exists, a repository `owner/name` (the host clones it into its projects folder when the message is sent, or
-/// fetches it when it is there already), or a new project of this name (the host makes `<projects folder>/local/<name>` when the message is sent).
+/// fetches it when it is there already), or a new project of this name (the host makes `<projects folder>/local/<name>` when the message is sent). A new
+/// project keeps `project` as its `kind` on the wire, since an older host refuses another value.
 public enum PlanWorkspace: Equatable {
     case folder(String)
     case repo(String)
-    case project(String)
+    case newProject(String)
 }
 
 /// What a new session is before it exists (docs/adr/0018): where it works, the agent and the options the person chose (an id and a value each,
@@ -638,7 +784,7 @@ public struct SessionPlan: Equatable {
         let place = switch workspace {
         case .folder(let path): "{\"kind\":\"folder\",\"folder\":\(jsonString(path))}"
         case .repo(let name): "{\"kind\":\"repo\",\"repo\":\(jsonString(name))}"
-        case .project(let name): "{\"kind\":\"project\",\"name\":\(jsonString(name))}"
+        case .newProject(let name): "{\"kind\":\"project\",\"name\":\(jsonString(name))}"
         }
         var fields = [
             "\"workspace\":\(place)", "\"agent\":\(jsonString(agent))", "\"text\":\(jsonString(text))",
@@ -698,7 +844,7 @@ private struct OpenedReply: Decodable {
     let session: Session
 }
 
-/// The reply of `cancelPreparation`: the plan as the host stored it.
+/// The reply of `cancelPreparation`: the plan as the host stored it, or null when the session stays (a restore of a worktree).
 private struct CancelledReply: Decodable {
     struct Stored: Decodable {
         struct Workspace: Decodable {
@@ -722,7 +868,7 @@ private struct CancelledReply: Decodable {
                 switch (workspace.kind, workspace.folder, workspace.repo, workspace.name) {
                 case ("folder", let folder?, _, _): place = .folder(folder)
                 case ("repo", _, let repo?, _): place = .repo(repo)
-                case ("project", _, _, let name?): place = .project(name)
+                case ("project", _, _, let name?): place = .newProject(name)
                 default: throw ControlError.badLine
                 }
                 let cut = worktree.flatMap { wanted in branch.map { WorktreeRequest(from: $0, name: wanted.name, startFrom: wanted.startFrom.flatMap(WorktreeStart.init(rawValue:))) } }
@@ -730,7 +876,7 @@ private struct CancelledReply: Decodable {
             }
         }
     }
-    let plan: Stored
+    let plan: Stored?
 }
 
 private struct SuggestedName: Decodable { let name: String }
@@ -801,6 +947,13 @@ fileprivate func chatRequest<Reply: Decodable>(
 fileprivate func usageRequest<Reply: Decodable>(_ path: String, _ command: String, requires capability: ControlClient.Capability, fields: String, timeout: TimeInterval = 5) throws -> Reply {
     do { return try chatRequest(path, command, requires: capability, fields: fields, timeout: timeout) } catch ControlError.remote(let reason) where reason == "the chat host does not support \(command)" {
         throw ControlError.remote(usageNeedsNewerHost)
+    }
+}
+
+/// `chatRequest` for the `projects` capability, but a host that does not list it is told in the words of what to do about it.
+fileprivate func projectsRequest<Reply: Decodable>(_ path: String, _ command: String, fields: String = "", timeout: TimeInterval = 5) throws -> Reply {
+    do { return try chatRequest(path, command, requires: .projects, fields: fields, timeout: timeout) } catch ControlError.remote(let reason) where reason == "the chat host does not support \(command)" {
+        throw ControlError.remote(projectsNeedNewerHost)
     }
 }
 

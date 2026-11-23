@@ -72,6 +72,9 @@ public struct ChatEvent: Codable, Equatable {
     /// A `step` event of a session's preparation: which step, and (in `status`, `running`, `done` or `failed`) how it stands; `detail` is the reason a step failed.
     public var step: String?
     public var detail: String?
+    /// An `action` step is one of a project's actions: its name, and the moment it runs at (`afterClone` or `newWorktree`). Nil for any other event.
+    public var action: String?
+    public var when: String?
     /// The call that launched the subagent this event was made in; nil for the main agent's own. The main conversation does not draw an event that has one.
     public var parentCallId: String?
     /// A `task` event, the life of a subagent joined to its launching call by `callId`: `taskId` is what stopping it takes, `state` is
@@ -108,7 +111,7 @@ public struct ChatEvent: Codable, Equatable {
     public init(
         id: Int, at: Int, kind: String, text: String? = nil, callId: String? = nil, tool: String? = nil, arg: String? = nil, output: [String]? = nil,
         status: String? = nil, approvalId: String? = nil, choices: [ChatChoice]? = nil, choiceId: String? = nil, outcome: String? = nil,
-        model: String? = nil, usage: [String: Double]? = nil, step: String? = nil, detail: String? = nil, questions: [ChatQuestion]? = nil,
+        model: String? = nil, usage: [String: Double]? = nil, step: String? = nil, detail: String? = nil, action: String? = nil, when: String? = nil, questions: [ChatQuestion]? = nil,
         answers: [String: String]? = nil, parentCallId: String? = nil, taskId: String? = nil, state: String? = nil, agentType: String? = nil,
         lastTool: String? = nil, tools: Int? = nil, tokens: Int? = nil, ms: Int? = nil, background: Bool? = nil, switched: Switched? = nil, reason: String? = nil, resetsAt: Int? = nil, resetText: String? = nil
     ) {
@@ -131,6 +134,8 @@ public struct ChatEvent: Codable, Equatable {
         self.usage = usage
         self.step = step
         self.detail = detail
+        self.action = action
+        self.when = when
         self.parentCallId = parentCallId
         self.taskId = taskId
         self.state = state
@@ -154,9 +159,11 @@ public struct SessionFacts: Equatable {
     public let archived: Bool
     public let live: Bool
     public let background: [BackgroundTask]
+    /// The folder the session works from: its worktree's base folder, else its own folder; nil from a host that does not say.
+    public let baseFolder: String?
 
-    public init(agent: String? = nil, archived: Bool = false, live: Bool, background: [BackgroundTask] = []) {
-        (self.agent, self.archived, self.live, self.background) = (agent, archived, live, background)
+    public init(agent: String? = nil, archived: Bool = false, live: Bool, background: [BackgroundTask] = [], baseFolder: String? = nil) {
+        (self.agent, self.archived, self.live, self.background, self.baseFolder) = (agent, archived, live, background, baseFolder)
     }
 }
 
@@ -217,6 +224,10 @@ public struct ChatEvents: Decodable, Equatable {
         let preparation: ChatSession.Preparation?
         /// Only a host that says whether the session runs (`live`) gives these: with an older one the model reads the lists.
         let facts: SessionFacts?
+        private struct Placed: Decodable {
+            let kind: String
+            let base: String?
+        }
 
         init(from decoder: Decoder) throws {
             let values = try decoder.container(keyedBy: CodingKeys.self)
@@ -225,14 +236,21 @@ public struct ChatEvents: Decodable, Equatable {
             if let live = try? values.decodeIfPresent(Bool.self, forKey: .live) {
                 facts = SessionFacts(
                     agent: try? values.decodeIfPresent(String.self, forKey: .agent), archived: (try? values.decodeIfPresent(Bool.self, forKey: .archived)) ?? false,
-                    live: live, background: (try? values.decodeIfPresent([BackgroundTask].self, forKey: .background)) ?? []
+                    live: live, background: (try? values.decodeIfPresent([BackgroundTask].self, forKey: .background)) ?? [],
+                    baseFolder: Self.base(values)
                 )
             } else {
                 facts = nil
             }
         }
 
-        private enum CodingKeys: String, CodingKey { case state, preparation, agent, archived, live, background }
+        /// A worktree session works from its base folder, any other from its own folder.
+        private static func base(_ values: KeyedDecodingContainer<CodingKeys>) -> String? {
+            if let placed = (try? values.decodeIfPresent(Placed.self, forKey: .workspace)) ?? nil, placed.kind == "worktree", let base = placed.base { return base }
+            return (try? values.decodeIfPresent(String.self, forKey: .folder)) ?? nil
+        }
+
+        private enum CodingKeys: String, CodingKey { case state, preparation, agent, archived, live, background, folder, workspace }
     }
     private struct Approval: Decodable { let approvalId: String }
 
@@ -327,6 +345,13 @@ public let closedSessionNotice = (
     detail: "Its agent is napping. Send a message and it wakes up right where it left off.",
     chosen: "Its agent is napping. What you chose applies as soon as a message wakes it up."
 )
+
+/// Above the box of an idle session whose folder was deleted (its project was moved to the Trash), and what a send to it is refused with.
+public let folderGoneNotice = (
+    title: "This session's folder was deleted",
+    detail: "Its project was moved to the Trash. What it did stays here to read, but it cannot go on."
+)
+public let folderGoneRefusal = "Its folder was deleted, so it cannot go on"
 
 /// The line under a refusal when the provider is not signed in, nil for any other. The adapters say "<Agent> is not logged in; run … once to log in".
 public func signInLine(refusal reason: String) -> String? {
@@ -688,12 +713,19 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
     public private(set) var asleep = false
     /// Whether a send is waking the session.
     public private(set) var waking = false
+    /// Whether the session is idle and the folder it works from is gone (its project was deleted from disk): a notice shows and a send is refused. A worktree
+    /// session is judged by its base folder, since a cleaned worktree's own folder is brought back by the next message.
+    public private(set) var folderGone = false
     /// The events the feed was built from, added up over every rebuild: a test tells a rebuild (all the events) from an append (one), as
     /// `Transcript.work` does for an epic.
     @ObservationIgnored private(set) var feedWork = 0
     @ObservationIgnored private var closedSince: Date?
+    @ObservationIgnored private let folderExists: (String) -> Bool
+    @ObservationIgnored private var baseFolder: String?
     @ObservationIgnored private var known = true
     @ObservationIgnored private var preparingSession = false
+    /// A worktree folder that comes back for a session that exists: the host reports the preparation as running while its actions run, though the session is not `preparing`.
+    @ObservationIgnored private var restoring = false
     private static let settle: TimeInterval = 1
     /// Whether the session is in the archive: its transcript is read only and the box gives way to a notice with Resume.
     public private(set) var archived = false
@@ -769,8 +801,9 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
     public init(
         host: ChatHost, sessionId: String, sleep: ((Duration) async throws -> Void)? = nil,
         log: @escaping (String) -> Void = { FileHandle.standardError.write(Data("carrier: \($0)\n".utf8)) },
-        memory: OptionsMemory = .none, viewing: Viewing? = nil
+        memory: OptionsMemory = .none, viewing: Viewing? = nil, folderExists: @escaping (String) -> Bool = projectFolderExists
     ) {
+        self.folderExists = folderExists
         self.host = host
         self.sessionId = sessionId
         self.sleep = sleep
@@ -888,15 +921,20 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
                 known = true
                 preparingSession = reply.state == .preparing
                 background = facts.archived ? [] : facts.background
+                baseFolder = facts.baseFolder
             } else {
                 try await readSessionFromLists()
             }
+            // only an idle session that is not being prepared (a plan that clones has no folder yet) can have lost its folder
+            let gone = baseFolder.map { reply.state == .idle && reply.preparation == nil && archived == false && folderExists($0) == false } ?? false
+            if folderGone != gone { folderGone = gone }
             settleAsleep(first: first)
             changed = changed || reply.streaming != streaming
             streaming = reply.streaming
             changed = changed || reply.pending != pending
             pending = reply.pending
             if preparation != reply.preparation { preparation = reply.preparation }
+            restoring = reply.preparation == .running && reply.state != .preparing
             progress = reply.progress
             loaded = true
             failure = nil
@@ -926,7 +964,7 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
             failure = message
             failures += 1
         }
-        let preparing = preparationSteps(events, preparation: preparation, progress: progress)
+        let preparing = preparationSteps(events, preparation: preparation, progress: progress, restoring: restoring)
         if preparing != steps { steps = preparing }
         if changed {
             let next = feed()
@@ -1031,11 +1069,13 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
     }
 
     /// Cancel while preparing: the host stops the running step and deletes the session, and answers the plan for the draft to take back; nil
-    /// when it refused, which is said in words and leaves the session as it was.
+    /// when it refused, which is said in words (`preparationRefusal`) and leaves the session as it was, or when the session stays (a worktree
+    /// coming back: only its running action stops, and there is no draft to refill), which says nothing.
     public func cancelPreparation() async -> SessionPlan? {
         do {
             let plan = try await host.cancelPreparation(sessionId)
             preparationRefusal = nil
+            if plan == nil { await poll() }
             return plan
         } catch {
             preparationRefusal = report(error, "cancel the preparation")
@@ -1145,6 +1185,7 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
             known = true
             preparingSession = session.state == .preparing
             background = session.background
+            baseFolder = session.workspace?.base ?? session.folder
         } else if let session = try await host.list(archived: true).first(where: { $0.id == sessionId }) {
             agent = session.agent
             live = false
@@ -1174,6 +1215,11 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
     /// Sends the text, resuming the session first when the host's list says it is not live. A refusal is shown and the text goes back
     /// to the box when it came from there or from the queue (`refill`); on success the box is emptied unless the person has typed something else.
     private func deliver(_ text: String, refill: Bool = true) async {
+        // the project's folder was deleted: nothing is asked of the host, and what was typed stays in the box
+        if folderGone {
+            refusal = folderGoneRefusal
+            return
+        }
         sends += 1
         waking = true
         asleep = false

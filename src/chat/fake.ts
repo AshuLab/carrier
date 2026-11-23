@@ -1,8 +1,10 @@
-import { mkdirSync, rmSync } from 'node:fs';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { FakeClock } from '../orchestration/fake.ts';
 import type { Git, GitResult } from './git.ts';
+import type { Shell, ShellResult } from './shell.ts';
 import { createProjects, type GithubRepos } from './projects.ts';
+import { noGeneratorChosen, TextGeneratorFailed, type TextGenerator } from './text-generator.ts';
 import { ChatRefused, type ChatCommand, type ChatConversation, type ChatEvent, type ChatOption, type ChatRunner } from './runner.ts';
 
 /**
@@ -94,6 +96,39 @@ export class FakeChatRunner implements ChatRunner {
   }
 }
 
+/**
+ * A text generator that plays what a test tells it: `answer` is what it says (a string), `fail` makes it reject with that reason,
+ * `hang` makes it never answer. The calls it got are in `calls`, and `active` is how many are in flight at once at most.
+ */
+export class FakeTextGenerator implements TextGenerator {
+  answer = 'A title';
+  fail: string | undefined;
+  hang = false;
+  calls: { system: string; text: string }[] = [];
+  running = 0;
+  /** The most calls that were in flight at the same time. */
+  mostRunning = 0;
+  /** Set to hold each answer until the test calls it; the answer then goes out. */
+  held: (() => void)[] | undefined;
+
+  chosen() {
+    if (this.fail === noGeneratorChosen) throw new TextGeneratorFailed(noGeneratorChosen);
+  }
+
+  async generate(input: { system: string; text: string }) {
+    this.calls.push(input);
+    this.mostRunning = Math.max(this.mostRunning, ++this.running);
+    try {
+      if (this.hang) await new Promise<never>(() => {});
+      if (this.held !== undefined) await new Promise<void>((release) => this.held!.push(release));
+      if (this.fail !== undefined) throw new TextGeneratorFailed(this.fail);
+      return this.answer;
+    } finally {
+      this.running--;
+    }
+  }
+}
+
 /** A repository the fake knows: what git would say about the folder it is the table entry of. */
 export type FakeRepo = {
   bare?: boolean;
@@ -110,6 +145,11 @@ export type FakeRepo = {
   originHead?: string;
   /** The lines `git status --porcelain` prints. */
   status?: string[];
+  /** The entries `git ls-files -v -s -z` prints (`H 100644 <oid> 0\t<path>`): none when absent. */
+  index?: string[];
+  /** The lines of `git reflog show --format=%H%x09%gs HEAD` and of `... --format=%H <the branch>`: none when absent. */
+  reflog?: string[];
+  branchReflog?: string[];
   /** Where git says FETCH_HEAD is, when a test wants a fetch time. */
   fetchHead?: string;
   /** The folders of the linked worktrees git made here, with their branches: `worktree add` fills it and `worktree remove` empties it. */
@@ -181,6 +221,11 @@ export class FakeGit implements Git {
     if (repo === undefined) return { ok: false, code: 128, stderr: 'fatal: not a git repository' };
     const out = (...printed: string[]) => ({ ok: true as const, out: printed.map((line) => `${line}\n`).join('') });
     const no = { ok: false as const, code: 1, stderr: '' };
+    // a worktree folder has the `.git` file git writes in it, which `worktree remove` deletes first
+    const madeFolder = (path: string) => {
+      mkdirSync(path, { recursive: true });
+      writeFileSync(join(path, '.git'), `gitdir: ${path}.private\n`);
+    };
     const [verb, ...rest] = args[0] === '--no-optional-locks' ? args.slice(1) : args;
     if (verb === 'rev-parse' && rest.includes('--verify')) return [...repo.branches.map((name) => `refs/heads/${name}`), ...(repo.remoteBranches ?? []).map((name) => `refs/remotes/origin/${name}`)].includes(rest.at(-1)!) ? out(rest.at(-1)!) : no;
     if (verb === 'worktree' && rest[0] === 'add') {
@@ -191,7 +236,7 @@ export class FakeGit implements Git {
         // worktree add <path> <branch>: an existing branch checked out again in a new folder
         const [, again, existing] = rest;
         if (repo.branches.includes(existing!) === false) return { ok: false, code: 128, stderr: 'fatal: invalid reference' };
-        mkdirSync(again!, { recursive: true });
+        madeFolder(again!);
         (repo.worktrees ??= []).push({ path: again!, branch: existing! });
         return out();
       }
@@ -199,7 +244,7 @@ export class FakeGit implements Git {
       const [branch, path, start] = rest.slice(3);
       const known = [...repo.branches.map((name) => `refs/heads/${name}`), ...(repo.remoteBranches ?? []).map((name) => `refs/remotes/origin/${name}`)];
       if (repo.branches.includes(branch!) || known.includes(start!) === false) return { ok: false, code: 128, stderr: 'fatal: invalid reference' };
-      mkdirSync(path!, { recursive: true });
+      madeFolder(path!);
       repo.branches.push(branch!);
       (repo.worktrees ??= []).push({ path: path!, branch: branch! });
       return out();
@@ -240,6 +285,8 @@ export class FakeGit implements Git {
       return out();
     }
     if (verb === 'fetch') return out();
+    if (verb === 'ls-files') return { ok: true as const, out: (repo.index ?? []).map((entry) => `${entry}\0`).join('') };
+    if (verb === 'reflog') return out(...((rest.at(-1) === 'HEAD' ? repo.reflog : repo.branchReflog) ?? []));
     if (verb === 'status') return out(...(repo.status ?? []));
     return { ok: false, code: 129, stderr: `the fake git does not know ${verb}` };
   }
@@ -248,3 +295,23 @@ export class FakeGit implements Git {
 /** What brings repositories onto the Mac, over a fake git and a fake `gh`: the token is `ghp_fake`, GitHub lists nothing and knows `main` and `feat/x` for any repository. */
 export const fakeProjects = (git: Git, clock = new FakeClock(), github: Partial<GithubRepos> = {}) =>
   createProjects({ git, clock, token: async () => 'ghp_fake', github: { repos: async () => ({ repos: [], hasMore: false }), login: async () => 'me', branches: async () => ({ default: 'main', branches: ['main', 'feat/x'], hasMore: false }), ...github } });
+
+/** A `Shell` that runs nothing: it records each command and ends as `results` says (ok by default), after playing the `lines` it has for the command as progress. */
+export class FakeShell implements Shell {
+  /** Every command run, in order, with the folder and the environment it was given. */
+  calls: { folder: string; command: string; env: NodeJS.ProcessEnv }[] = [];
+  /** How a command ends, by the command: not here, it succeeds. */
+  results = new Map<string, Extract<ShellResult, { ok: false }>>();
+  /** The lines a command writes before it ends, by the command. */
+  lines = new Map<string, string[]>();
+  /** While set, a command waits for it (or for its signal to abort) before it ends: a command that is still running. */
+  pending: Promise<void> | undefined;
+
+  async run(folder: string, command: string, { env, signal, onProgress }: Parameters<Shell['run']>[2]): Promise<ShellResult> {
+    this.calls.push({ folder, command, env });
+    for (const line of this.lines.get(command) ?? []) onProgress(line);
+    if (this.pending !== undefined) await Promise.race([this.pending, new Promise((resolve) => signal.addEventListener('abort', resolve, { once: true }))]);
+    if (signal.aborted) return { ok: false, code: null, aborted: true, output: '' };
+    return this.results.get(command) ?? { ok: true };
+  }
+}

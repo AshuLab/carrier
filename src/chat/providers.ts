@@ -10,6 +10,8 @@ export type ProvidersReply = {
   /** A harness whose CLI is found and no account has. */
   unadded: { harness: HarnessName; path: string; version?: string }[];
   servers: { kind: LocalProvider; running: boolean; models: string[] }[];
+  /** The text generator `providers.json` names, when it names one. */
+  textGenerator?: { name: string; kind: LocalProvider; model: string };
   /** `providers.json` does not match: its first bad key and why, with no accounts. */
   problem?: { path: string; message: string };
 };
@@ -83,6 +85,6 @@ export function createProviders({ clock, machine, binaryFound }: { clock: Clock;
       const server = detected.servers[kind];
       return { kind, running: server.running, models: server.running ? server.models : [] };
     });
-    return { accounts, unadded, servers };
+    return { accounts, unadded, servers, ...(read.textGenerator && { textGenerator: read.textGenerator }) };
   };
 }

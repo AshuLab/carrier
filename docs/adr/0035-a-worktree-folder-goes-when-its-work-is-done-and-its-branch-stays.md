@@ -1,6 +1,6 @@
 # 0035 - A worktree's folder goes when its work is done, and its branch stays
 
-- Status: accepted; amends [0014](0014-a-session-worktree-lives-in-carriers-home-and-dies-with-its-session.md) (a session worktree)
+- Status: accepted; amends [0014](0014-a-session-worktree-lives-in-carriers-home-and-dies-with-its-session.md) (a session worktree); amended by [0042](0042-a-session-worktree-folder-is-cleaned-by-default.md) (the defaults of `worktreeCleanup`); the per-repo setup it left for later is [0039](0039-a-projects-actions-are-kept-in-carrier-and-never-read-from-the-repository.md)
 - Date: 2026-11-18
 
 ## Context
@@ -16,7 +16,7 @@ It then deletes the epic's local branches (the epic branch and, for `<prefix>/ep
 It keeps, and logs, an author or lane worktree that holds uncommitted files or commits on no branch, since a cancelled epic's work may be there only.
 It only removes paths `git worktree list` reports for its clone, does it at the next poll (also for epics that ended earlier), records it on the epic, and retries a failure at the next poll without blocking anything.
 
-A session worktree's folder can go before the session does, by the opt-in `worktreeCleanup` of `chat.json`: `afterPrMerged`, `afterInactiveDays`, both off by default.
+A session worktree's folder can go before the session does, by the opt-in `worktreeCleanup` of `chat.json`: `afterPrMerged`, `afterInactiveDays`, both off by default (on by default since [0042](0042-a-session-worktree-folder-is-cleaned-by-default.md)).
 Only the folder goes, with what git ignores; the session, its recorded path and its branch stay, and the next message brings the folder back on that branch.
 It never touches a session that is working, waiting or open, nor a worktree with uncommitted changes.
 

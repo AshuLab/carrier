@@ -166,6 +166,29 @@ private func decodedSession(_ extra: String, state: String = "idle", live: Bool 
     #expect(rows.map(\.providers) == [["codex"], ["codex"]])
 }
 
+@Test func aGroupIsTitledWithTheProjectsNameAndTwoNamesKeepTheirParentFolder() throws {
+    let projects = projectRows(
+        try readProjects(Data(#"{"projects":[{"path":"/Users/dev/web","origin":"added","name":"Site"},{"path":"/Users/dev/api","origin":"added"}]}"#.utf8)),
+        remote: { _ in nil }
+    )
+    let rows = sessionRows([try session("a", folder: "/Users/dev/web"), try session("b", folder: "/Users/dev/api"), try session("c", folder: "/Users/dev/other")])
+    #expect(retitled(rows, projects: projects).map(\.workspace) == ["Site", "api", "other"])
+    #expect(retitled(rows, projects: []).map(\.workspace) == rows.map(\.workspace))
+
+    // one name on two folders: the parent folder is added to each, whether the name is the project's or the folder's
+    let clash = projectRows(
+        try readProjects(Data(#"{"projects":[{"path":"/Users/dev/web","origin":"added","name":"api"}]}"#.utf8)), remote: { _ in nil }
+    )
+    let apis = sessionRows([try session("a", folder: "/Users/dev/web"), try session("b", folder: "/Users/me/api")])
+    #expect(retitled(apis, projects: clash).map(\.workspace) == ["dev/api", "me/api"])
+    let twoNames = projectRows(
+        try readProjects(Data(#"{"projects":[{"path":"/Users/dev/web","origin":"added","name":"Site"},{"path":"/Users/me/web","origin":"added","name":"Site"}]}"#.utf8)),
+        remote: { _ in nil }
+    )
+    let moved = sessionRows([try session("a", folder: "/Users/dev/web"), try session("b", folder: "/Users/me/web")])
+    #expect(retitled(moved, projects: twoNames).map(\.workspace) == ["dev/Site", "me/Site"])
+}
+
 @Test func aSessionThatIsNotLiveIsIdle() throws {
     let rows = sessionRows([try session("w", state: "working", live: false), try session("a", state: "waiting_approval", live: false)])
     #expect(rows.map(\.state) == [.idle, .idle])
@@ -198,6 +221,18 @@ private func decodedSession(_ extra: String, state: String = "idle", live: Bool 
     ])
     #expect(rows.map(\.workspace) == ["web", "web"])
     #expect(sessionGroups(rows).map(\.title) == ["web"])
+}
+
+@Test func theSessionsOfARemovedProjectStayGroupedUnderItsFolderAsAPlainFolderWould() throws {
+    let rows = sessionRows([
+        try session("tree", folder: "/Users/dev/.carrier/worktrees/web/fix", base: "/Users/dev/web"), try session("plain", folder: "/Users/dev/web"),
+    ])
+    let list = Data(#"{"projects":[{"path":"/Users/dev/web","origin":"added","name":"Web"}]}"#.utf8)
+    let after = try applyingProjectRemoval(path: "/Users/dev/web", to: list)
+    #expect(try readProjects(after).isEmpty)
+    // the grouping reads the sessions' base folders, never the projects list: the same rows, the same group
+    #expect(rows.map(\.base) == ["/Users/dev/web", "/Users/dev/web"])
+    #expect(sessionGroups(rows).map(\.title) == ["web"] && sessionGroups(rows)[0].rows.count == 2)
 }
 
 @Test func twoGroupsWithTheSameNameShowTheirParentFolderAndOthersDoNot() throws {
@@ -267,7 +302,8 @@ private final class FakeHost: ChatHost, @unchecked Sendable {
     var worktrees: [String: SessionDeletePreview.Worktree] = [:]
     var previewError: Error?
     var previewed: [[String]] = []
-    func capabilities() async throws -> Set<ControlClient.Capability> { [] }
+    var listed: Set<ControlClient.Capability> = []
+    func capabilities() async throws -> Set<ControlClient.Capability> { listed }
     func githubRepos(page: Int) async throws -> GithubReposPage { throw ControlError.closed }
     func deletePreview(_ ids: [String]) async throws -> [SessionDeletePreview] {
         previewed.append(ids)
@@ -731,6 +767,17 @@ private func preview(_ id: String, _ worktree: SessionDeletePreview.Worktree?) -
     #expect(await actions.restore("a") == nil)
     #expect(await actions.delete("b") == nil)
     #expect(host.changes == ["archive a", "restore a", "delete b"] && changed == 3)
+}
+
+@MainActor @Test func theMenuOffersRegenerateTitleOnlyAfterTheHostListsIt() async {
+    let host = FakeHost()
+    let actions = SessionActions(host: host, log: { _ in })
+    #expect(actions.canRegenerateTitle == false)
+    await actions.learnHost()
+    #expect(actions.canRegenerateTitle == false)
+    host.listed = [.regenerateTitle]
+    await actions.learnHost()
+    #expect(actions.canRegenerateTitle)
 }
 
 @MainActor @Test func sessionActionsRespectTerminalRemovalConfirmationAndCleanUpOnSuccess() async {

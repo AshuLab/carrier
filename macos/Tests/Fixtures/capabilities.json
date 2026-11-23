@@ -47,6 +47,10 @@
     "stopTask",
     "worktreeStart",
     "fetchIfStale",
-    "listsRev"
+    "listsRev",
+    "projects",
+    "textGenerators",
+    "regenerateTitle",
+    "regenerateTitles"
   ]
 }

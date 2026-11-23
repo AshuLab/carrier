@@ -37,6 +37,7 @@ Specs of one area that build on each other are listed oldest first.
 - [chat-mcp-engine](chat-mcp-engine.md): the chat host serves an MCP to the agents of its sessions. Implemented (unreleased); its exclusion of a tool that sees another session is lifted in part by switch-and-delegate-between-agents, for a parent and its children's `history`.
 - [switch-and-delegate-between-agents](switch-and-delegate-between-agents.md): a session changes agent and hands work to other agents. Spec, epic #1024.
 - [delegate-from-any-mode](delegate-from-any-mode.md): a session delegates in any mode, with no approval, and a child runs at its parent's permission level. Spec, epic #1129.
+- [session-titles-from-a-text-generator](session-titles-from-a-text-generator.md): a local model writes the session titles, chosen in Providers. Spec, epic #1196.
 
 ## Usage
 
@@ -72,6 +73,7 @@ Specs of one area that build on each other are listed oldest first.
 - [settings-app-group](settings-app-group.md): Settings gets groups, with an App group and a Legacy group. Implemented (v0.1.3).
 - [providers-in-settings](providers-in-settings.md): the Providers page and `providers.json`. Implemented (v0.2.0).
 - [repos-in-settings](repos-in-settings.md): the Repos page. Implemented (v0.2.0).
+- [projects](projects.md): the Projects page, a project as an entry of `projects.json`, its worktrees and disk, its actions. Spec.
 - [agents-in-settings](agents-in-settings.md): the Agents page for the three roles. Implemented (v0.2.0).
 - [updates-in-settings](updates-in-settings.md): the Updates page and Check for Updates. Implemented (v0.3.0).
 - [behavior-in-settings](behavior-in-settings.md): the Behavior page in the Carrier group. Implemented (v0.4.0).

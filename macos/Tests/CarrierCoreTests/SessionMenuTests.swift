@@ -12,8 +12,13 @@ private func row(_ id: String, state: SessionState = .idle, archived: Bool = fal
 
 private func titles(_ sections: [[SessionMenuItem]]) -> [[String]] { sections.map { $0.map(\.title) } }
 
-@Test func anIdleSessionMenuHasPinRenameRegenerateOpenCopyAndArchive() {
-    #expect(titles(sessionMenu(row("a"))) == [["Pin"], ["Rename…", "Regenerate title"], ["Open in Terminal", "Copy"], ["Archive"]])
+@Test func anIdleSessionMenuHasPinRenameOpenCopyAndArchive() {
+    #expect(titles(sessionMenu(row("a"))) == [["Pin"], ["Rename…"], ["Open in Terminal", "Copy"], ["Archive"]])
+}
+
+@Test func regenerateTitleIsOfferedOnlyToAHostThatListsIt() {
+    #expect(titles(sessionMenu(row("a"), canRegenerateTitle: true))[1] == ["Rename…", "Regenerate title"])
+    #expect(titles(sessionMenu(row("a"), canRegenerateTitle: false)).flatMap { $0 }.contains("Regenerate title") == false)
 }
 
 @Test func aWorkingSessionCanBeStoppedAndAPinnedOneUnpinned() {
@@ -29,7 +34,7 @@ private func titles(_ sections: [[SessionMenuItem]]) -> [[String]] { sections.ma
 
 @Test func anArchivedSessionHasRestoreAndDeleteAndNoPin() {
     let menu = sessionMenu(row("a", archived: true))
-    #expect(titles(menu) == [["Rename…", "Regenerate title"], ["Open in Terminal", "Copy"], ["Restore", "Delete…"]])
+    #expect(titles(menu) == [["Rename…"], ["Open in Terminal", "Copy"], ["Restore", "Delete…"]])
     #expect(menu.last?.last?.destructive == true)
 }
 

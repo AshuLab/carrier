@@ -1,4 +1,4 @@
-# A tag vX.Y.Z publishes @ashulab/carrier at X.Y.Z, puts the app's zip on the GitHub Release and rewrites the formula and the cask in the tap.
+# A tag vX.Y.Z publishes @ashulab/carrier at X.Y.Z, puts the app's zip (and its dSYM) on the GitHub Release and rewrites the formula and the cask in the tap.
 # The versions stay in sync (one tag), but the work is split in jobs that run side by side:
 #   verify (engine checks) and pack (the tarball)  ->  formula (tried in a throwaway tap)  ->  npm
 #   verify  ->  app (check, build, sign, appcast), and app-tests (the app's unit tests, the ones a PR runs)
@@ -247,6 +247,8 @@ jobs:
         run: |
           mkdir -p out
           ditto -c -k --sequesterRsrc --keepParent macos/Carrier.app "out/Carrier-$VERSION.zip"
+          # the symbols the release binary was stripped of: crash reports are symbolicated with it
+          ditto -c -k --sequesterRsrc --keepParent macos/Carrier.dSYM "out/Carrier-$VERSION.dSYM.zip"
           (cd out && shasum -a 256 "Carrier-$VERSION.zip" > "Carrier-$VERSION.zip.sha256")
 
       - name: Check the zip
@@ -258,6 +260,14 @@ jobs:
           test "$PLIST_VERSION" = "$VERSION" || { echo "the app's plist says $PLIST_VERSION, not $VERSION" >&2; exit 1; }
           # --deep: Sparkle.framework inside the app keeps its own signature through the plain re-signing above.
           codesign --verify --deep --strict check/Carrier.app
+          # the dSYM in its zip is the one of the binary in the app's zip
+          ditto -x -k "out/Carrier-$VERSION.dSYM.zip" check
+          APP_UUID="$(xcrun dwarfdump --uuid check/Carrier.app/Contents/MacOS/Carrier | awk '{print $2}')"
+          DSYM_UUID="$(xcrun dwarfdump --uuid check/Carrier.dSYM | awk '{print $2}')"
+          test -n "$APP_UUID" && test "$APP_UUID" = "$DSYM_UUID" || { echo "the dSYM's UUID ($DSYM_UUID) is not the app binary's ($APP_UUID)" >&2; exit 1; }
+          # and the binary in the zip is the stripped one (the linker's own OPT marker is no debug map)
+          STABS="$(nm -a check/Carrier.app/Contents/MacOS/Carrier | awk '$2 == "-" && $5 != "OPT"' | wc -l | tr -d ' ')"
+          test "$STABS" = 0 || { echo "the app's binary in the zip still has its debug map ($STABS STABs): it was not stripped" >&2; exit 1; }
 
       # The key only reaches the signing tool through the environment and its standard input: never a file, an argument or the log.
       - name: Sign the zip
@@ -352,7 +362,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         # A draft is never `releases/latest`. A re-run finds the release as it was left, draft or published, and replaces its files.
-        run: .github/scripts/github-release.sh draft "$VERSION" "out/Carrier-$VERSION.zip" "out/Carrier-$VERSION.zip.sha256"
+        run: .github/scripts/github-release.sh draft "$VERSION" "out/Carrier-$VERSION.zip" "out/Carrier-$VERSION.zip.sha256" "out/Carrier-$VERSION.dSYM.zip"
 
       - name: Push the formula and the cask to the tap
         if: env.DRY_RUN != 'true'

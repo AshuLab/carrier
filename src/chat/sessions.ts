@@ -1,9 +1,11 @@
-import { accessSync, constants, existsSync, rmSync } from 'node:fs';
+import { accessSync, constants, existsSync, realpathSync, rmSync, statSync } from 'node:fs';
+import { basename, sep } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createHash, randomUUID } from 'node:crypto';
 import { and, asc, count, desc, eq, gt, inArray, isNotNull, isNull, lt, ne, sql } from 'drizzle-orm';
 import { createScopedLogger } from '@ashulab/universal-logger';
-import { carrierHome } from '../config/places.ts';
+import { carrierHome, expandHome } from '../config/places.ts';
+import { updateProjectsFile, readProjectsFile } from '../config/projects.ts';
 import { type ChatAgents, chatAccount, readAccounts } from './account.ts';
 import { claimAttachments, releaseAttachments, sessionFolder } from './attachments.ts';
 import type { ChatAgent, ChatSettings, WorktreeCleanup } from './config.ts';
@@ -18,20 +20,27 @@ import { childOptions, delegationRefusal, isScaleHarness, type Level, levelOf } 
 import type { ChildReport, McpSessionRegistry } from './mcp.ts';
 import { createProviders } from './providers.ts';
 import type { Git } from './git.ts';
-import type { Plan, Step, StepEvent } from './plan.ts';
+import { type ActionWhen, newProjectKind, type Plan, type Step, type StepEvent } from './plan.ts';
+import { realShell, type Shell } from './shell.ts';
+import { redact } from '../logging/redact.ts';
 import { ChatRefused, type BackgroundTask, type ChatChoice, type ChatCommand, type ChatConversation, type ChatEvent, type ChatOption, type ChatQuestion, type ChatRunner } from './runner.ts';
 import { clean } from '../execution/events.ts';
 import { chatEvents, chatTurns, sessions } from './schema.ts';
+import { noTextGenerator, TEXT_GENERATOR_LIMIT_MS, TextGeneratorFailed, type TextGenerator } from './text-generator.ts';
+import { titleSystemMessage, titleText } from './title-prompt.ts';
 import { boundEvent, chatCaps, previewOf, titleOf } from './transcript.ts';
-import { checkName, suggestName } from './names.ts';
+import { checkName, checkWorktreeClash, samePath, suggestName } from './names.ts';
 import { createProject, projectFolder, type createProjects } from './projects.ts';
 import type { PullRequests } from './pull-requests.ts';
 import { createSessionData } from './session-data.ts';
 import { githubWorkOf } from './shell-effects.ts';
-import { clearWorktree, createWorktree, deleteWorktree, previewWorktree, removeWorktree, restoreWorktree } from './worktree.ts';
+import { clearWorktree, createWorktree, deleteWorktree, folderBytes, headDetached, hiddenWork, isWorktreeFolder, listWorktrees, previewMain, previewWorktree, REMOVE_TIMEOUT_MS, removeWorktree, restoreWorktree } from './worktree.ts';
+import { worktreesDir } from './names.ts';
 import { checkout, FETCH_FRESH_MS, fetchFolder, inspectFolder } from './workspace.ts';
 
 const log = createScopedLogger('chat');
+
+const real = (path: string) => (existsSync(path) ? realpathSync(path) : path);
 
 const noPullRequests: PullRequests = { find: async () => null, states: async () => new Map() };
 
@@ -59,14 +68,20 @@ const idleFor = (row: { state: State; lastActiveAt: number }, live: boolean, now
 
 type Harness = (typeof sessions.$inferSelect)['harness'];
 type State = (typeof sessions.$inferSelect)['state'];
+export type TitleSource = NonNullable<(typeof sessions.$inferSelect)['titleSource']>;
 
 /** Where a session works: the folder it was opened in, or a worktree made for it from that base folder. */
 export type SessionWorkspace = { kind: 'folder' } | { kind: 'worktree'; branch: string; from: string; base: string; path: string };
 
+/** One worktree of a project's page: the session that made it (or none) and its state, see `projectWorktrees`. */
+export type ProjectWorktree = { path: string; branch: string | null; session: { id: string; title: string | null } | null; lastActiveAt: number; state: 'sessionOpen' | 'uncommitted' | 'merged' | 'notPushed' | 'clean' };
+/** What the project's own folder holds that would be lost with it: uncommitted changes, commits on its branch that no other branch or remote holds, else clean. */
+export type ProjectWorktrees = { main: { path: string; branch: string | null; state: 'uncommitted' | 'notPushed' | 'clean' }; worktrees: ProjectWorktree[] };
+
 /** A child session as its parent's summary lists it; `level` is the permission level it runs at, and `needsPerson` says that it waits for an approval or a question. */
 export type ChildSummary = { id: string; agent: string; harness: Harness; state: State; level: Level | null; needsPerson: boolean };
 
-export type SessionSummary = Omit<typeof sessions.$inferSelect, 'keptAt' | 'prRepo' | 'prNumber' | 'prUrl' | 'prState' | 'prChecks' | 'prCheckedAt' | 'options' | 'pid' | 'pgid' | 'command' | 'plan' | 'workspaceKind' | 'worktreeBranch' | 'worktreeFrom' | 'worktreeBase' | 'worktreePath' | 'delegationRequestId'> & {
+export type SessionSummary = Omit<typeof sessions.$inferSelect, 'titleSource' | 'keptAt' | 'prRepo' | 'prNumber' | 'prUrl' | 'prState' | 'prChecks' | 'prCheckedAt' | 'options' | 'pid' | 'pgid' | 'command' | 'plan' | 'workspaceKind' | 'worktreeBranch' | 'worktreeFrom' | 'worktreeBase' | 'worktreePath' | 'delegationRequestId'> & {
   workspace: SessionWorkspace;
   /** The sessions that this one started by delegating, oldest first. */
   children: ChildSummary[];
@@ -113,6 +128,8 @@ export type ChatSessionsDeps = {
   env: NodeJS.ProcessEnv;
   /** The `git` of the machine. */
   git: Git;
+  /** What runs a project's actions; the machine's own `sh` unless a test replaces it. */
+  shell?: Shell;
   /** What brings a repository onto the Mac, for a plan that clones one. */
   projects: Pick<ReturnType<typeof createProjects>, 'cloneRepo' | 'repoFolder' | 'stepOf'>;
   /** Whether an agent's binary is there. */
@@ -129,6 +146,8 @@ export type ChatSessionsDeps = {
   idleCloseMs?: () => number;
   /** Called when a session becomes or stops being live, so the host can start or cancel its own countdown. */
   onLiveChange: () => void;
+  /** What writes a session's title (ADR 0038); a host that is given none refuses the request in words. */
+  textGenerator?: TextGenerator;
   /** The chat MCP: the registry that issues each conversation's token and the URL of the endpoint, which is undefined when the host could not start it. Without this a host has no MCP and says nothing of it. */
   mcp?: { registry: McpSessionRegistry; url: () => string | undefined; /** Every tool of the chat MCP, by name, which the adapters are told when a conversation opens. */ tools: string[] };
 };
@@ -154,7 +173,7 @@ export function binaryFound(command: string): boolean {
 }
 
 /** The sessions of the chat host: what the socket's requests do, over `chat.db` and the runners. */
-export function createSessions({ db, agents, clock, runners, env, git, projects, binaryFound, probes = realProbes, machine = realMachine, ages, idleCloseMs = () => IDLE_CLOSE_MS, onLiveChange, mcp, pulls = noPullRequests }: ChatSessionsDeps) {
+export function createSessions({ db, agents, clock, runners, env, git, shell = realShell, projects, binaryFound, probes = realProbes, machine = realMachine, ages, idleCloseMs = () => IDLE_CLOSE_MS, onLiveChange, mcp, pulls = noPullRequests, textGenerator = noTextGenerator }: ChatSessionsDeps) {
   const data = createSessionData({ db, git, pulls, clock });
   const listed = () => (typeof agents === 'function' ? agents() : agents);
   const health = createHealth({ agents, clock, binaryFound, probes });
@@ -196,14 +215,72 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
   };
   const worktreeOf = (found: typeof sessions.$inferSelect) => ({ path: found.worktreePath!, branch: found.worktreeBranch!, from: found.worktreeFrom!, base: found.worktreeBase! });
 
-  /**
-   * The folder a session works in, checked; a worktree the cleanup removed comes back on its kept branch first.
-   * ponytail: two clients resuming the same cleaned session at once may both try the add; the second fails with a reason, retrying works.
-   */
+  /** The folder a session works in, checked; a worktree the cleanup removed comes back on its kept branch first, with its actions (`restore`). */
   const folderOf = async (found: typeof sessions.$inferSelect) => {
     await clearing.get(found.id)?.catch(() => undefined); // its failure is the clock's to log; what it left is looked at below
-    if (found.workspaceKind === 'worktree') await restoreWorktree(git, worktreeOf(found));
+    if (found.workspaceKind === 'worktree') await restore(found);
     return checkFolder(found.folder, carrierHome());
+  };
+  /**
+   * Where a restore that stopped began, as the id just before its first event: the steps that end the session's log, the `action` ones and the `worktree` marker a restore opens with
+   * (`bringBack`), when the last of them is not done. The original preparation ends with the agent's steps, and a restore that finished ends with a done action or marker, so a log
+   * that ends with a step running or failed is a restore to go on with. The run begins at the latest marker, so restores one after another are not taken for one.
+   */
+  const unfinishedRestore = (sessionId: string) => {
+    const steps = db.select({ id: chatEvents.id, data: chatEvents.data }).from(chatEvents).where(and(eq(chatEvents.sessionId, sessionId), eq(chatEvents.kind, 'step'))).orderBy(desc(chatEvents.id)).all();
+    const run: typeof steps = [];
+    for (const event of steps) {
+      if (event.data.step !== 'action' && event.data.step !== 'worktree') break;
+      run.push(event);
+      if (event.data.step === 'worktree' && event.data.status === 'running') break; // where the marker began
+    }
+    return run.length > 0 && run[0]!.data.status !== 'done' ? run.at(-1)!.id - 1 : undefined;
+  };
+  /**
+   * Makes the folder of a worktree session ready, once at a time: callers that come in while it runs share it, and the folder is not touched by anything else meanwhile
+   * (`restoring`: the clock's cleanup, removing a worktree, delete and archive all refuse). A folder that is there is only checked, unless the last restore stopped.
+   * ponytail: the actions of a stopped restore go on from the one that stopped (the folder stays, its finished actions are skipped as in Try again); a restore that stopped and a
+   * cleanup that took the folder after it start over, as ADR 0035 says a folder that comes back does. Edit the actions so none is left to run and the log still reads as stopped, harmlessly.
+   */
+  const restore = async (found: typeof sessions.$inferSelect): Promise<void> => {
+    const running = restoring.get(found.id);
+    if (running !== undefined) return running.done;
+    const there = existsSync(found.worktreePath!);
+    const unfinished = there ? unfinishedRestore(found.id) : undefined;
+    if (there && unfinished === undefined) return restoreWorktree(git, worktreeOf(found)); // checks the record only
+    if (deleting.has(found.id)) throw new ChatRefused('This session is being deleted');
+    const entry = { abort: new AbortController(), done: Promise.resolve() };
+    restoring.set(found.id, entry);
+    entry.done = bringBack(found, entry.abort.signal, unfinished).finally(() => {
+      restoring.delete(found.id);
+      progress.delete(found.id);
+    });
+    return entry.done;
+  };
+  /**
+   * The new-worktree actions of the project in a folder just brought back (ADR 0039), as the `action` steps of a preparation: the same progress and failure, and Cancel aborts the
+   * one that runs. When one stops the session or the person cancels, the folder stays and the open is refused; the next open goes on from the action that stopped.
+   * The folder coming back is the `worktree` step that opens a restore, so the app has a row to show before the first action; a restore that goes on from one that stopped (`unfinished`)
+   * finds its folder and keeps the marker of the first try. `after` is where this restore begins in the log, so what an earlier restore finished is not taken for this one's.
+   */
+  const bringBack = async (found: typeof sessions.$inferSelect, signal: AbortSignal, unfinished: number | undefined) => {
+    if (unfinished === undefined) {
+      stepEvent(found.id, 'worktree', 'running');
+      try {
+        await restoreWorktree(git, worktreeOf(found));
+      } catch (error) {
+        if (error instanceof ChatRefused === false) log.error('bringing back a worktree failed', error);
+        failStep(found.id, 'worktree', error instanceof ChatRefused ? error.message : 'The worktree could not be brought back');
+        throw error;
+      }
+      stepEvent(found.id, 'worktree', 'done');
+    }
+    const file = readProjectsFile();
+    if (file.ok) told.delete(found.id); // a notice that says the file is invalid is told again only once it was valid in between
+    const after = unfinished ?? db.select({ id: chatEvents.id }).from(chatEvents).where(eq(chatEvents.sessionId, found.id)).orderBy(desc(chatEvents.id)).limit(1).get()?.id ?? 0;
+    if (await runActions(found.id, file, found.worktreeBase!, 'newWorktree', found.worktreePath!, signal, after)) return;
+    const stopped = db.select().from(chatEvents).where(and(eq(chatEvents.sessionId, found.id), eq(chatEvents.kind, 'step'), gt(chatEvents.id, after))).orderBy(desc(chatEvents.id)).limit(1).get()?.data;
+    throw new ChatRefused(signal.aborted ? 'Setting up the worktree was cancelled; open the session again to go on from where it stopped' : `${stopped?.detail ?? 'An action failed'}. Open the session again to go on from that action`);
   };
 
   /** The cleanup of `chat.json`'s `worktreeCleanup`: removes the folder of an idle session's worktree whose PR is merged or that is archived and has had no activity for `afterInactiveDays`, never one with uncommitted work, and keeps its branch. */
@@ -211,18 +288,27 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     if (afterPrMerged === false && afterInactiveDays === 'never') return;
     for (const found of db.select().from(sessions).where(and(eq(sessions.workspaceKind, 'worktree'), isNull(sessions.parentSessionId))).all()) {
       if (closed) return;
-      if (switching.has(found.id) || deleting.has(found.id) || existsSync(found.worktreePath!) === false) continue;
-      const { lastActiveAt, live } = familyClock(found);
-      const due = (afterPrMerged && found.prState === 'merged') || (found.archived && idleFor({ state: found.state, lastActiveAt }, live, now, afterInactiveDays));
-      if (due === false || found.state !== 'idle' || live) continue;
+      if (switching.has(found.id) || deleting.has(found.id) || restoring.has(found.id) || existsSync(found.worktreePath!) === false) continue;
+      /** Whether the row is still due: merged, or archived and idle, and not open. Asked again after git is read, as the person may have come back meanwhile. */
+      const dueNow = (row: typeof found) => {
+        const { lastActiveAt, live } = familyClock(row);
+        return row.state === 'idle' && live === false && ((afterPrMerged && row.prState === 'merged') || (row.archived && idleFor({ state: row.state, lastActiveAt }, live, now, afterInactiveDays)));
+      };
+      if (dueNow(found) === false) continue;
       const clear = async () => {
-        const { dirty } = await previewWorktree(git, worktreeOf(found), [found.worktreeBranch!]);
-        if (dirty > 0) {
-          log.info('kept a worktree with uncommitted work', { sessionId: found.id, dirty });
+        if (isWorktreeFolder(found.worktreePath!) === false) {
+          log.warn('kept a worktree folder git cannot read (it has no .git, a removal killed halfway leaves that); Carrier does not delete it, see docs/troubleshooting.md', { sessionId: found.id });
           return;
         }
-        if (familyClock(found).live || switching.has(found.id) || deleting.has(found.id)) return; // taken up while git read it
-        await clearWorktree(git, worktreeOf(found));
+        const [{ dirty }, detached] = await Promise.all([previewWorktree(git, worktreeOf(found), [found.worktreeBranch!]), headDetached(git, worktreeOf(found))]);
+        const hidden = dirty > 0 || detached ? null : await hiddenWork(git, worktreeOf(found));
+        if (dirty > 0 || detached || hidden !== null) {
+          log.info(detached ? 'kept a worktree whose HEAD is detached' : dirty > 0 ? 'kept a worktree with uncommitted work' : `kept a worktree that holds ${hidden}`, { sessionId: found.id, dirty });
+          return;
+        }
+        const row = db.select().from(sessions).where(eq(sessions.id, found.id)).get();
+        if (closed || row === undefined || switching.has(found.id) || deleting.has(found.id) || restoring.has(found.id) || dueNow(row) === false) return; // the host stopped or the session was taken up while git read it
+        await clearWorktree(git, worktreeOf(row), REMOVE_TIMEOUT_MS);
         log.info('removed the folder of a worktree, its branch is kept', { sessionId: found.id, branch: found.worktreeBranch });
       };
       const cleared = clear();
@@ -236,6 +322,50 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       }
     }
   };
+  /** What `projectWorktrees` reads of each worktree, with what removing it needs: its session's row and whether it is open. */
+  type Entry = { worktree: ProjectWorktree; found: typeof sessions.$inferSelect | undefined; live: boolean; dirty: number };
+  const readProjectWorktrees = async (folder: string) => {
+    const base = checkFolder(folder, carrierHome());
+    const [main, ...linked] = await listWorktrees(git, base);
+    const root = real(worktreesDir()) + sep;
+    const bySession = new Map(db.select().from(sessions).where(and(eq(sessions.workspaceKind, 'worktree'), isNull(sessions.parentSessionId))).all().map((found) => [real(found.worktreePath!), found]));
+    const entries: Entry[] = [];
+    // one worktree after another: each reads two git processes, and this is one project's page opening
+    for (const { path, branch } of linked) {
+      if (existsSync(path) === false || real(path).startsWith(root) === false) continue;
+      const found = bySession.get(real(path));
+      const family = found === undefined ? undefined : familyClock(found);
+      // a detached HEAD has no branch to hold commits, so only its files count
+      const { dirty, unpushed } = await previewWorktree(git, { path, branch: branch ?? '', from: '', base }, branch === null ? [] : [branch]);
+      const state = family?.live ? 'sessionOpen' : dirty > 0 ? 'uncommitted' : found?.prState === 'merged' ? 'merged' : unpushed > 0 ? 'notPushed' : 'clean';
+      const worktree: ProjectWorktree = { path, branch, session: found === undefined ? null : { id: found.id, title: found.title }, lastActiveAt: family?.lastActiveAt ?? statSync(path).mtimeMs, state };
+      entries.push({ worktree, found, live: family?.live === true, dirty });
+    }
+    return { base, main: { path: base, branch: main?.branch ?? null }, entries };
+  };
+  /** Why a worktree cannot be removed now, or null. */
+  const blockOf = ({ live, dirty, found }: Entry) =>
+    live || (found !== undefined && (switching.has(found.id) || deleting.has(found.id) || restoring.has(found.id))) ? 'Its session is open' : dirty > 0 ? 'It has uncommitted changes' : null;
+  /** Removes the folder of one worktree, as the clock's cleanup does: its session waits for it before opening the folder, and it is checked again just before git is asked. */
+  const removeProjectEntry = async (base: string, entry: Entry) => {
+    const { worktree, found } = entry;
+    const reason = blockOf(entry);
+    if (reason !== null) throw new ChatRefused(reason);
+    const made = { path: worktree.path, branch: worktree.branch ?? '', from: '', base };
+    const clear = async () => {
+      // taken up while git read it
+      if (found !== undefined && (familyClock(found).live || switching.has(found.id) || deleting.has(found.id) || restoring.has(found.id))) throw new ChatRefused('Its session is open');
+      await clearWorktree(git, made);
+      log.info('removed the folder of a worktree by request, its branch is kept', { branch: worktree.branch });
+    };
+    const cleared = clear();
+    if (found !== undefined) clearing.set(found.id, cleared);
+    try {
+      await cleared;
+    } finally {
+      if (found !== undefined) clearing.delete(found.id);
+    }
+  };
   const childrenOf = (parentId: string): ChildSummary[] =>
     db.select().from(sessions).where(eq(sessions.parentSessionId, parentId)).orderBy(asc(sessions.createdAt)).all().map((child) => ({
       id: child.id,
@@ -245,10 +375,10 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       level: isScaleHarness(child.harness) ? (levelOf(child.harness, optionsOf(child.id, child.options)) ?? null) : null,
       needsPerson: child.state === 'waiting_approval',
     }));
-  const summary = ({ keptAt: _keptAt, prRepo: _prRepo, prNumber: _prNumber, prUrl: _prUrl, prState: _prState, prChecks: _prChecks, prCheckedAt: _prCheckedAt, options: _options, pid: _pid, pgid: _pgid, command: _command, delegationRequestId: _delegationRequestId, plan, workspaceKind, worktreeBranch, worktreeFrom, worktreeBase, worktreePath, ...rest }: typeof sessions.$inferSelect): SessionSummary => ({
+  const summary = ({ titleSource: _titleSource, keptAt: _keptAt, prRepo: _prRepo, prNumber: _prNumber, prUrl: _prUrl, prState: _prState, prChecks: _prChecks, prCheckedAt: _prCheckedAt, options: _options, pid: _pid, pgid: _pgid, command: _command, delegationRequestId: _delegationRequestId, plan, workspaceKind, worktreeBranch, worktreeFrom, worktreeBase, worktreePath, ...rest }: typeof sessions.$inferSelect): SessionSummary => ({
     ...rest,
     children: childrenOf(rest.id),
-    preparation: rest.state === 'preparing' ? 'running' : plan === null ? null : 'failed',
+    preparation: rest.state === 'preparing' || restoring.has(rest.id) ? 'running' : plan === null ? null : 'failed',
     workspace: workspaceKind === 'worktree' ? { kind: 'worktree', branch: worktreeBranch!, from: worktreeFrom!, base: worktreeBase!, path: worktreePath! } : { kind: 'folder' },
   });
 
@@ -259,6 +389,74 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     const last = db.select({ model: chatTurns.model }).from(chatTurns).where(eq(chatTurns.sessionId, sessionId)).orderBy(desc(chatTurns.id)).limit(1).get();
     const text = message?.data.text;
     return { lastMessage: typeof text === 'string' && text.trim() !== '' ? previewOf(text) : null, turns, model: last?.model ?? null };
+  };
+
+  /** The first message of a session, as stored (redacted and bounded): what its title is written from and what the legacy rule compares. */
+  const firstMessage = (sessionId: string) => {
+    const found = db.select({ id: chatEvents.id, data: chatEvents.data }).from(chatEvents).where(and(eq(chatEvents.sessionId, sessionId), eq(chatEvents.kind, 'user'))).orderBy(asc(chatEvents.id)).limit(1).get();
+    return found === undefined ? undefined : { id: found.id, text: typeof found.data.text === 'string' ? found.data.text : '' };
+  };
+  /** The first reply of the session's own agent (not a subagent's) after that message, when it has one. */
+  const firstReply = (sessionId: string, after: number) => {
+    const found = db.select({ data: chatEvents.data }).from(chatEvents).where(and(eq(chatEvents.sessionId, sessionId), eq(chatEvents.kind, 'assistant'), gt(chatEvents.id, after), sql`json_extract(${chatEvents.data}, '$.parentCallId') is null`)).orderBy(asc(chatEvents.id)).limit(1).get();
+    const text = found?.data.text;
+    return typeof text === 'string' && text.trim() !== '' ? text : undefined;
+  };
+  /** Where a row's title came from. A row from before the column has none: a title equal to the first line of its first message is a first-line one, any other was set by the person. */
+  const titleSourceOf = (found: typeof sessions.$inferSelect): TitleSource | null => {
+    if (found.titleSource !== null || found.title === null) return found.titleSource;
+    const first = firstMessage(found.id);
+    return first !== undefined && found.title === titleOf(first.text) ? 'first_line' : 'renamed';
+  };
+  // One call to the generator at a time: two sessions that ask together do not make a server load a model twice. A call that passes the limit is a failure, whatever the generator does after.
+  let generating: Promise<unknown> = Promise.resolve();
+  const generate = (input: { system: string; text: string }) => {
+    const call = () =>
+      new Promise<string>((resolve, reject) => {
+        const cancel = clock.after(TEXT_GENERATOR_LIMIT_MS, async () => reject(new TextGeneratorFailed(`the text generator did not answer within ${TEXT_GENERATOR_LIMIT_MS / 1000} seconds`)));
+        textGenerator.generate(input).then(resolve, reject).finally(cancel);
+      });
+    const run = generating.then(call, call);
+    generating = run.catch(() => {});
+    return run;
+  };
+  // Sessions whose title is being written in the background, so a second turn ending meanwhile does not ask twice.
+  const titling = new Set<string>();
+  /** Generates a cleaned title from `message` and `reply` (when there is one), logging and rethrowing on failure. */
+  const generateTitle = async (sessionId: string, message: string, reply?: string) => {
+    try {
+      const title = titleOf(await generate({ system: titleSystemMessage, text: titleText(message, reply) }));
+      if (title === '') throw new TextGeneratorFailed('the text generator answered with no text');
+      return title;
+    } catch (error) {
+      log.error('the text generator could not write a title', error, { sessionId });
+      throw error;
+    }
+  };
+  /**
+   * Titles a session in the background after a turn ends well: never a child, never over a renamed or already generated title,
+   * never when there is no reply yet, and never failing or delaying the session.
+   */
+  const autoTitle = async (sessionId: string) => {
+    if (closed || titling.has(sessionId)) return;
+    const found = db.select().from(sessions).where(eq(sessions.id, sessionId)).get();
+    if (found === undefined || found.parentSessionId !== null || titleSourceOf(found) !== 'first_line') return;
+    const first = firstMessage(sessionId);
+    if (first === undefined || first.text.trim() === '') return;
+    const reply = firstReply(sessionId, first.id);
+    if (reply === undefined) return;
+    titling.add(sessionId);
+    try {
+      const title = await generateTitle(sessionId, first.text, reply);
+      if (closed) return;
+      const current = db.select().from(sessions).where(eq(sessions.id, sessionId)).get();
+      if (current === undefined || current.parentSessionId !== null || titleSourceOf(current) !== 'first_line') return;
+      db.update(sessions).set({ title, titleSource: 'generated' }).where(eq(sessions.id, sessionId)).run();
+    } catch {
+      // already logged in generateTitle; the title stays the first line and the next turn tries again
+    } finally {
+      titling.delete(sessionId);
+    }
   };
 
   // Worktrees are made one at a time: what a request checked (a free name) is still true when git adds.
@@ -303,15 +501,19 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
   const preparing = new Map<string, { abort: AbortController; done: Promise<void> }>();
   // The latest line of git's progress for the clone of a session that is cloning: shown by `events`, never stored.
   const progress = new Map<string, string>();
-  const stepEvent = (sessionId: string, step: Step, status: StepEvent['status'], detail?: string) => store(sessionId, { kind: 'step', step, status, ...(detail !== undefined && { detail }) });
+  // Sessions whose worktree folder is coming back and whose actions run: `abort` stops the one that runs, `done` ends when the restore has unwound, which whatever touches the folder waits for or refuses over.
+  const restoring = new Map<string, { abort: AbortController; done: Promise<void> }>();
+  // Sessions told that `projects.json` did not match, so a retry, a second moment or another restore does not say it again: a preparation forgets it when it ends, a restore once the file matched.
+  const told = new Set<string>();
+  const stepEvent = (sessionId: string, step: Step, status: StepEvent['status'], detail?: string, action?: Pick<StepEvent, 'action' | 'when'>) => store(sessionId, { kind: 'step', step, status, ...(detail !== undefined && { detail }), ...action });
   /** How the last event of a step left it, undefined when the step never ran. */
   const lastStatus = (sessionId: string, step: Step) => {
     const events = db.select().from(chatEvents).where(and(eq(chatEvents.sessionId, sessionId), eq(chatEvents.kind, 'step'))).orderBy(desc(chatEvents.id)).all();
     return events.find((event) => event.data.step === step)?.data.status as StepEvent['status'] | undefined;
   };
   /** Stops a preparation at a step: the session is idle, the plan stays and the event says why. */
-  const failStep = (sessionId: string, step: Step, detail: string) => {
-    stepEvent(sessionId, step, 'failed', detail);
+  const failStep = (sessionId: string, step: Step, detail: string, action?: Pick<StepEvent, 'action' | 'when'>) => {
+    stepEvent(sessionId, step, 'failed', detail, action);
     db.update(sessions).set({ state: 'idle', lastActiveAt: clock.now() }).where(eq(sessions.id, sessionId)).run();
   };
   // A host that stopped mid-preparation left sessions whose last step is still running: it comes back failed as interrupted.
@@ -398,6 +600,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       live.turn = undefined;
       // what the turn ran says what to read again; a turn with no record of it reads everything
       void data.afterTurn(sessionId, ran === undefined ? undefined : { acted: ran.acted, github: githubWorkOf(ran.commands) });
+      if (event.outcome === 'ok') void autoTitle(sessionId);
     }
     // The SDK runs subagents in the background, so a turn can end before them: the session is idle only when the turn is over and no task runs.
     const busy = live.turn !== undefined || live.tasks.size > 0;
@@ -457,7 +660,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
    * An archive does not wait for the agent to end, which can take seconds (the person is watching the row go); a delete does, as its worktree cannot be removed under a running agent. */
   async function settle(sessionId: string, verb: 'archive' | 'delete') {
     notSwitching(sessionId);
-    if (row(sessionId).state === 'preparing') throw new ChatRefused(`This session is being prepared; wait for it to finish, then ${verb} it`);
+    if (row(sessionId).state === 'preparing' || restoring.has(sessionId)) throw new ChatRefused(`This session is being prepared; wait for it to finish, then ${verb} it`);
     const family = [sessionId, ...kidsOf(sessionId)];
     if (family.some((id) => opening.has(id))) throw new ChatRefused(`A child of this session is starting; try again in a moment, then ${verb} it`);
     for (const id of family) {
@@ -527,6 +730,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       }
     } finally {
       deleting.delete(sessionId);
+      if (exists(sessionId) === false) told.delete(sessionId);
     }
     return {};
   }
@@ -659,7 +863,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
   }
 
   /** The `project` step of a plan: makes the folder with `git init` and records it as the session's. False once the step failed and was recorded. A project already made by an earlier try is reused. */
-  async function makeProject(sessionId: string, name: string): Promise<boolean> {
+  async function makeNewProject(sessionId: string, name: string): Promise<boolean> {
     if (lastStatus(sessionId, 'project') === 'done') return true;
     stepEvent(sessionId, 'project', 'running');
     try {
@@ -692,13 +896,75 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     }
   }
 
+  /**
+   * Once a preparation that cloned or made its workspace has succeeded, the folder is a project in `projects.json` (docs/specs/projects.md, Who writes what): `created` for a
+   * new project, `cloned` when the clone step ran in this preparation (a retry counts the one an earlier try did) and `added` for a folder that was only fetched. A folder that
+   * is a project already is left as it is. A folder that cannot be written is told in a notice, since the session itself went well.
+   */
+  async function register(sessionId: string, plan: Plan, folder: string) {
+    if (plan.workspace.kind === 'folder') return; // a folder the person chose stays a plain workspace until they add it
+    const origin = plan.workspace.kind === newProjectKind ? 'created' : lastStatus(sessionId, 'clone') === 'done' ? 'cloned' : 'added';
+    try {
+      const listed = readProjectsFile();
+      if (listed.ok) await checkWorktreeClash(git, folder, listed.projects);
+      const written = updateProjectsFile((current) => (current.some((entry) => samePath(entry.path, folder)) ? current : [...current, { path: folder, origin }]));
+      if (written.ok === false) throw new ChatRefused(`projects.json ${written.errors[0]!.path} ${written.errors[0]!.message}`);
+    } catch (error) {
+      if (error instanceof ChatRefused === false) log.error('registering the project of a session failed', error, { folder });
+      store(sessionId, { kind: 'notice', text: `${basename(folder)} was not added to your projects: ${error instanceof ChatRefused ? error.message : 'projects.json could not be written'}.` });
+    }
+  }
+
+  /**
+   * The `action` steps of a preparation at one moment (ADR 0039): the project's actions that are on for `when`, in the listed order, each a step of its own run through
+   * `sh -c` in `folder` with the host's environment plus `CARRIER_PROJECT` (the project's base folder) and `CARRIER_FOLDER`. The project is the entry of `projects.json` whose
+   * path is `base`, read once for the preparation (`file`); with no action on there is no step. One that finished in an earlier try is skipped, so Try again repeats from the one that stopped.
+   * A failure that warns leaves its step done with a notice, one that stops fails the step. False once the preparation must not go on (a stop, or the person left).
+   * ponytail: two actions of one moment with the same name count as one in a retry and in the app's list; the app's page can refuse a repeated name when that bites.
+   */
+  async function runActions(sessionId: string, file: ReturnType<typeof readProjectsFile>, base: string, when: ActionWhen, folder: string, signal: AbortSignal, after = 0): Promise<boolean> {
+    if (file.ok === false) {
+      // a notice once a preparation: the file's problem, and that an action that would have run did not
+      if (told.has(sessionId) === false) store(sessionId, { kind: 'notice', text: `This project's actions did not run: projects.json ${file.errors[0]!.path} ${file.errors[0]!.message}.` });
+      told.add(sessionId);
+      return true;
+    }
+    const same = (path: string) => real(expandHome(path)) === real(base);
+    const todo = (file.projects.find((entry) => same(entry.path))?.actions ?? []).filter((action) => action.when === when && action.on !== false);
+    for (const action of todo) {
+      const label = { action: clean(action.name, chatCaps.title), when };
+      const finished = db.select().from(chatEvents).where(and(eq(chatEvents.sessionId, sessionId), eq(chatEvents.kind, 'step'))).orderBy(desc(chatEvents.id)).all().find((event) => event.id > after && event.data.step === 'action' && event.data.action === label.action && event.data.when === when);
+      if (finished?.data.status === 'done') continue;
+      stepEvent(sessionId, 'action', 'running', undefined, label);
+      const result = await shell.run(folder, action.command, { env: { ...env, CARRIER_PROJECT: base, CARRIER_FOLDER: folder }, signal, onProgress: (line) => void progress.set(sessionId, clean(line, chatCaps.preview)) });
+      progress.delete(sessionId);
+      if (result.ok) {
+        stepEvent(sessionId, 'action', 'done', undefined, label);
+        continue;
+      }
+      if (signal.aborted) return false; // the person left: the session goes with its steps
+      const end = redact(result.output).trim().slice(-chatCaps.error);
+      const why = `${label.action} failed${result.code === null ? '' : ` with exit code ${result.code}`}${end === '' ? '' : `: ${end}`}`;
+      if (action.onFail === 'stop') {
+        failStep(sessionId, 'action', why, label);
+        return false;
+      }
+      stepEvent(sessionId, 'action', 'done', undefined, label);
+      store(sessionId, { kind: 'notice', text: `${why}. The session went on without it.` });
+    }
+    return true;
+  }
+
   /** The steps of a plan, in the background: it never throws, a failure is recorded as a step that failed. */
   async function prepare(sessionId: string, launch: Launch, base: string, plan: Plan, signal: AbortSignal) {
     try {
-      if (plan.workspace.kind === 'project' && (await makeProject(sessionId, plan.workspace.name)) === false) return;
+      if (plan.workspace.kind === newProjectKind && (await makeNewProject(sessionId, plan.workspace.name)) === false) return;
       if (plan.workspace.kind === 'repo' && (await bring(sessionId, plan.workspace.repo, signal)) === false) return;
-      const folder = await arrange(sessionId, plan.workspace.kind === 'project' ? row(sessionId).folder : base, plan, signal);
+      const file = readProjectsFile(); // at each preparation, so a change is for the next one
+      if (lastStatus(sessionId, 'clone') === 'done' && (await runActions(sessionId, file, base, 'afterClone', base, signal)) === false) return;
+      const folder = await arrange(sessionId, plan.workspace.kind === newProjectKind ? row(sessionId).folder : base, plan, signal);
       if (folder === undefined || signal.aborted) return;
+      if ((plan.worktree !== undefined || plan.branch !== undefined) && (await runActions(sessionId, file, base, 'newWorktree', folder, signal)) === false) return;
       stepEvent(sessionId, 'agent', 'running');
       const { chosen } = launch;
       const options = { ...(chosen.model && { model: chosen.model }), ...chosen.options, ...plan.options };
@@ -726,6 +992,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       if (db.select({ id: chatEvents.id }).from(chatEvents).where(and(eq(chatEvents.sessionId, sessionId), eq(chatEvents.kind, 'user'))).limit(1).get() === undefined) store(sessionId, { kind: 'user', text: plan.text });
       try {
         conversation.send(plan.text);
+        await register(sessionId, plan, base);
       } catch (error) {
         log.error('the first message could not be sent to the agent', error);
         live.awaitingAnswer = false;
@@ -738,6 +1005,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       log.error('preparing a session failed', error);
     } finally {
       preparing.delete(sessionId);
+      told.delete(sessionId);
       onLiveChange();
     }
   }
@@ -746,7 +1014,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
   const targetOf = (plan: Plan) => {
     const chosen = listed().find((candidate) => candidate.name === plan.agent);
     if (chosen === undefined) throw new ChatRefused(`There is no chat agent named "${plan.agent}"`);
-    return { launch: launchOf(chosen), folder: plan.workspace.kind === 'project' ? projectFolder(plan.workspace.name) : plan.workspace.kind === 'repo' ? projects.repoFolder(plan.workspace.repo) : checkFolder(plan.workspace.folder, carrierHome()) };
+    return { launch: launchOf(chosen), folder: plan.workspace.kind === newProjectKind ? projectFolder(plan.workspace.name) : plan.workspace.kind === 'repo' ? projects.repoFolder(plan.workspace.repo) : checkFolder(plan.workspace.folder, carrierHome()) };
   };
   /** Runs the steps of a plan in the background. */
   const begin = (sessionId: string, { launch, folder }: ReturnType<typeof targetOf>, plan: Plan) => {
@@ -876,7 +1144,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     const options = { ...plan.options, ...(model !== undefined && { model }) };
     const now = clock.now();
     const childId = randomUUID();
-    db.insert(sessions).values({ id: childId, agent: chosen.name, harness: launch.harness, folder: current.folder, options, title: titleOf(task), state: 'working', createdAt: now, lastActiveAt: now, parentSessionId: parentId, delegationRequestId: requestId ?? null }).run();
+    db.insert(sessions).values({ id: childId, agent: chosen.name, harness: launch.harness, folder: current.folder, options, title: titleOf(task), titleSource: 'first_line', state: 'working', createdAt: now, lastActiveAt: now, parentSessionId: parentId, delegationRequestId: requestId ?? null }).run();
 
     const issued = issueMcp(childId, true);
     const open = (async () => {
@@ -1034,7 +1302,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
   }
 
   return {
-    liveCount: () => new Set([...lives.keys(), ...preparing.keys()]).size,
+    liveCount: () => new Set([...lives.keys(), ...preparing.keys(), ...restoring.keys()]).size,
 
     agents: listAgents,
 
@@ -1140,7 +1408,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       const plan = { ...asked, text: claimAttachments(asked.text, id) };
       const created = db
         .insert(sessions)
-        .values({ id, agent: target.launch.chosen.name, harness: target.launch.harness, folder: target.folder, plan, title: titleOf(plan.text), state: 'preparing', createdAt: now, lastActiveAt: now })
+        .values({ id, agent: target.launch.chosen.name, harness: target.launch.harness, folder: target.folder, plan, title: titleOf(plan.text), titleSource: 'first_line', state: 'preparing', createdAt: now, lastActiveAt: now })
         .returning()
         .get();
       begin(created.id, target, plan); // before the answer, so the host is never idle between the reply and the first step
@@ -1161,6 +1429,12 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
 
     /** Stops the step that is running and deletes the session as a delete does, its worktree with it; answers the plan, for the app to put back in the draft. */
     async cancelPreparation({ sessionId }: { sessionId: string }) {
+      const restoration = restoring.get(sessionId);
+      if (restoration !== undefined) {
+        restoration.abort.abort(); // a worktree coming back: the session stays, only the action that runs stops
+        await restoration.done.catch(() => undefined); // the open that asked for it answers with the refusal
+        return { plan: null };
+      }
       const { state, plan } = row(sessionId);
       if (state !== 'preparing') throw new ChatRefused('This session is not being prepared, so there is nothing to cancel');
       deleting.add(sessionId); // a retry or a resume that comes in meanwhile is refused
@@ -1249,7 +1523,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       text = claimAttachments(text, sessionId);
       const shown = invoked === undefined ? text : `/${invoked.name}${text === '' ? '' : ` ${text}`}`;
       if (shown.length > chatCaps.message) throw new ChatRefused(`That message has ${shown.length} characters; the most a message can have is ${chatCaps.message}`);
-      if (current.title === null) db.update(sessions).set({ title: titleOf(shown) }).where(eq(sessions.id, sessionId)).run();
+      if (current.title === null) db.update(sessions).set({ title: titleOf(shown), titleSource: 'first_line' }).where(eq(sessions.id, sessionId)).run();
       deliver(sessionId, live, shown, text, invoked);
       return {};
     },
@@ -1383,9 +1657,62 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       refuseChild(sessionId, 'renamed');
       const named = titleOf(title);
       if (named === '') throw new ChatRefused('A title cannot be empty');
-      db.update(sessions).set({ title: named }).where(eq(sessions.id, sessionId)).run();
+      db.update(sessions).set({ title: named, titleSource: 'renamed' }).where(eq(sessions.id, sessionId)).run();
       return {};
     },
+
+    /** Writes the session's title again from its first message and first reply with the chosen text generator, over any title (the person asked); answers it. Refused in words, with the title as it was, when the generator gives none. */
+    async regenerateTitle({ sessionId }: { sessionId: string }) {
+      refuseChild(sessionId, 'retitled');
+      const first = firstMessage(sessionId);
+      if (first === undefined || first.text.trim() === '') throw new ChatRefused('This session has no message to write a title from yet');
+      let title: string;
+      try {
+        title = await generateTitle(sessionId, first.text, firstReply(sessionId, first.id));
+      } catch (error) {
+        throw new ChatRefused(`Could not write a title: ${error instanceof TextGeneratorFailed ? error.message : 'the text generator failed'}`);
+      }
+      db.update(sessions).set({ title, titleSource: 'generated' }).where(eq(sessions.id, sessionId)).run();
+      return { title };
+    },
+
+    /** Starts writing a title with the chosen text generator for every session of the list and the archive whose title is still its first line, one at a time in the background, and answers how many it started. */
+    regenerateTitles() {
+      try {
+        textGenerator.chosen?.();
+      } catch (error) {
+        throw new ChatRefused(`Could not write titles: ${error instanceof TextGeneratorFailed ? error.message : 'no text generator is chosen; choose one in Providers'}`);
+      }
+      const candidates: { id: string; first: { id: number; text: string } }[] = [];
+      for (const found of db.select().from(sessions).where(isNull(sessions.parentSessionId)).orderBy(desc(sessions.lastActiveAt)).all()) {
+        if (deleting.has(found.id) || titleSourceOf(found) !== 'first_line') continue;
+        const first = firstMessage(found.id);
+        if (first !== undefined && first.text.trim() !== '') candidates.push({ id: found.id, first });
+      }
+      if (candidates.length > 0) {
+        void (async () => {
+          for (const { id, first } of candidates) {
+            if (closed) return;
+            const current = db.select().from(sessions).where(eq(sessions.id, id)).get();
+            if (current === undefined || deleting.has(id) || titleSourceOf(current) !== 'first_line') continue;
+            try {
+              const title = await generateTitle(id, first.text, firstReply(id, first.id));
+              if (closed) return;
+              const latest = db.select().from(sessions).where(eq(sessions.id, id)).get();
+              if (latest === undefined || deleting.has(id) || titleSourceOf(latest) !== 'first_line') continue;
+              db.update(sessions).set({ title, titleSource: 'generated' }).where(eq(sessions.id, id)).run();
+            } catch {
+              if (closed) return;
+              // already logged in generateTitle; skip and go on with the rest
+            }
+          }
+        })();
+      }
+      return { started: candidates.length };
+    },
+
+    /** Where the session's title came from, for the automatic title and the bulk one: `first_line`, `generated` or `renamed`, null when it has no title. */
+    titleSource: (sessionId: string) => titleSourceOf(row(sessionId)),
 
     /**
      * The clock's pass: archives each session left alone for `archiveAfterDays`, then deletes each archived one left alone for `deleteAfterDays`, sparing
@@ -1449,6 +1776,58 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
         });
       }
       return { sessions: previews };
+    },
+
+    /**
+     * A project's worktrees for its page: the main clone and each worktree git lists for the project's folder that lies under the worktrees folder and is still on disk,
+     * joined to the session whose worktree it is (none for an orphan). Its age is the session's last activity, or the folder's modification time with no session.
+     * The state, in this order: the session is open, it has uncommitted changes, its session's pull request is merged (so a squash merge is not "not pushed"),
+     * it has commits no other branch holds, else clean. The main clone says only whether it has uncommitted changes, commits on its branch that no remote holds, or neither,
+     * which is what the app reads before it moves a project to the Trash.
+     */
+    async projectWorktrees({ folder }: { folder: string }): Promise<ProjectWorktrees> {
+      const { main, entries } = await readProjectWorktrees(folder);
+      const unsaved = await previewMain(git, main.path, main.branch);
+      return { main: { ...main, state: unsaved.dirty > 0 ? 'uncommitted' : unsaved.unpushed > 0 ? 'notPushed' : 'clean' }, worktrees: entries.map(({ worktree }) => worktree) };
+    },
+
+    /** Removes only the folder of one worktree of a project and keeps its branch and its session, which brings the folder back on its next message; refused in words while its session is open or it has uncommitted changes. */
+    async removeProjectWorktree({ folder, path }: { folder: string; path: string }) {
+      const { base, entries } = await readProjectWorktrees(folder);
+      const entry = entries.find((candidate) => candidate.worktree.path === path);
+      if (entry === undefined) throw new ChatRefused('That is not a worktree of this project');
+      await removeProjectEntry(base, entry);
+      return {};
+    },
+
+    /**
+     * The worktrees of a project whose session's pull request is merged: the ones Clean up would remove, each with the bytes its folder holds, and the ones nothing lets it remove with the reason.
+     * With `run` it removes them (each one checked again just before) and answers what it removed and what it skipped.
+     */
+    async cleanProjectWorktrees({ folder, run }: { folder: string; run: boolean }) {
+      const { base, entries } = await readProjectWorktrees(folder);
+      const removed: { path: string; bytes: number }[] = [];
+      const skipped: { path: string; reason: string }[] = [];
+      for (const entry of entries.filter(({ found }) => found?.prState === 'merged')) {
+        const { path } = entry.worktree;
+        const reason = blockOf(entry);
+        if (reason !== null) {
+          skipped.push({ path, reason });
+          continue;
+        }
+        const bytes = await folderBytes(path);
+        if (run) {
+          try {
+            await removeProjectEntry(base, entry);
+          } catch (error) {
+            if (error instanceof ChatRefused === false) throw error;
+            skipped.push({ path, reason: error.message });
+            continue;
+          }
+        }
+        removed.push({ path, bytes });
+      }
+      return { removed, skipped };
     },
 
     /** What a folder is as a git repository, for the person to choose how to work in it. */

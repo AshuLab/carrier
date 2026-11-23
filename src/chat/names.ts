@@ -1,6 +1,6 @@
-import { lstatSync } from 'node:fs';
+import { lstatSync, realpathSync } from 'node:fs';
 import { basename, join, sep } from 'node:path';
-import { chatPlacesOf } from '../config/places.ts';
+import { chatPlacesOf, expandHome } from '../config/places.ts';
 import type { Git } from './git.ts';
 import { ChatRefused } from './runner.ts';
 import { adjectives, places, units } from './words.ts';
@@ -35,12 +35,39 @@ export function generateName(random: () => number = Math.random): string {
 /** Where every session worktree lives. */
 export const worktreesDir = () => chatPlacesOf().worktrees;
 
+/** The folder of `worktrees/` a repository's worktrees live in: `<owner>/<repo>`, or `local/<folder name>` without a GitHub origin. */
+export const worktreeDirectory = (info: WorkspaceInfo) => (info.repo === null ? join('local', basename(info.folder)) : join(info.repo.owner, info.repo.name));
+
 /** Where a worktree called `name` of this repository lives: `<CARRIER_HOME>/chat/worktrees/<owner>/<repo>/<name>`, or `local/<folder name>` without a GitHub origin. A path that would lie anywhere else is refused. */
 export function worktreePath(info: WorkspaceInfo, name: string): string {
-  const [owner, repo] = info.repo === null ? ['local', basename(info.folder)] : [info.repo.owner, info.repo.name];
-  const path = join(worktreesDir(), owner, repo, name);
+  const path = join(worktreesDir(), worktreeDirectory(info), name);
   if (path.startsWith(worktreesDir() + sep) === false) throw new ChatRefused('That worktree would not be inside Carrier\'s worktrees folder');
   return path;
+}
+
+const real = (path: string) => {
+  try {
+    return realpathSync(path);
+  } catch {
+    return path;
+  }
+};
+
+/** Whether a project's stored path (absolute or `~/`) and a folder are the same place, symlinks resolved, as `checkWorktreeClash` and `ProjectsFile.swift` take them. */
+export const samePath = (stored: string, folder: string) => real(expandHome(stored)) === real(folder);
+
+/**
+ * Refuses `folder` (already checked, a real path) as a project when its worktree directory (`worktreeDirectory`, the one `worktreePath` makes) is the one of
+ * another of `projects`, naming it (ADR 0041). Compared without regard to case, as the disk may. A project whose folder git cannot read is skipped.
+ */
+export async function checkWorktreeClash(git: Git, folder: string, projects: { path: string; name?: string }[]): Promise<void> {
+  const mine = worktreeDirectory(await inspectFolder(git, folder)).toLowerCase();
+  for (const project of projects) {
+    const path = real(expandHome(project.path));
+    if (path === folder) continue; // already a project, not a clash
+    const other = await inspectFolder(git, path).catch(() => null);
+    if (other !== null && worktreeDirectory(other).toLowerCase() === mine) throw new ChatRefused(`The worktrees of ${project.name ?? basename(path)} already use the folder ${worktreeDirectory(other)}; two projects cannot share it`);
+  }
 }
 
 /** Whether something is at `path`. Only a path that cannot exist answers false; any other error is not a free name. */

@@ -1351,7 +1351,11 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
         sessions: found.map((found) => {
           const dueAt = found.archived && archiveAfterDays !== 'never' && deleteAfterDays !== 'never' ? familyClock(found).lastActiveAt + deleteAfterDays * DAY : null;
           const kept = found.keptAt !== null && dueAt !== null && clock.now() >= dueAt; // a session the clock no longer considers (ages raised or never) is not kept
-          return { ...summary(found), live: lives.has(found.id), kept, deleteAt: kept ? null : dueAt, ...activity(found.id), ...data.view(found), background: lives.get(found.id)?.background ?? [] };
+          const { branch, ...view } = data.view(found);
+          const row = summary(found);
+          // a worktree shows the branch checked out in it now: the agent may have moved it off the one it was cut with
+          const workspace = row.workspace.kind === 'worktree' && branch !== null ? { ...row.workspace, branch } : row.workspace;
+          return { ...row, workspace, live: lives.has(found.id), kept, deleteAt: kept ? null : dueAt, ...activity(found.id), ...view, background: lives.get(found.id)?.background ?? [] };
         }),
       };
     },

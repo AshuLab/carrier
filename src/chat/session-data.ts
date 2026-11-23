@@ -56,7 +56,7 @@ const isOpen = (state: string | null) => state === 'open' || state === 'draft';
  */
 export function createSessionData({ db, git, pulls, clock }: { db: ChatDb; git: Git; pulls: PullRequests; clock: Clock }) {
   // `activeAt`: the session's `lastActiveAt` when it was read; an idle session that has not moved since has nothing new to read
-  const diffs = new Map<string, { stat: DiffStat | null; at: number; activeAt: number }>();
+  const diffs = new Map<string, { stat: DiffStat | null; branch: string | null; at: number; activeAt: number }>();
   const discoveredAt = new Map<string, { at: number; activeAt: number }>();
   let sweptAt = Number.NEGATIVE_INFINITY;
   let sweeping = false;
@@ -85,6 +85,7 @@ export function createSessionData({ db, git, pulls, clock }: { db: ChatDb; git: 
     return {
       repo: parsed === null ? null : `${parsed.owner}/${parsed.name}`,
       branch,
+      checkedOut,
       defaultBranch: head === null ? 'main' : head.replace(/^origin\//, ''),
     };
   }
@@ -110,7 +111,7 @@ export function createSessionData({ db, git, pulls, clock }: { db: ChatDb; git: 
   async function refreshDiff(found: Found, family: Family, known?: Where) {
     const where = known ?? (await whereOf(found));
     const numstat = await out(found.folder, ['diff', '--numstat', ...SAFE_DIFF, await baseOf(found, where), '--']);
-    diffs.set(found.id, { stat: numstat === null ? null : parseNumstat(numstat), at: clock.now(), activeAt: family.activeAt });
+    diffs.set(found.id, { stat: numstat === null ? null : parseNumstat(numstat), branch: where.checkedOut, at: clock.now(), activeAt: family.activeAt });
   }
 
   const link = (id: string, repo: string, info: PullRequestInfo) => {
@@ -166,9 +167,10 @@ export function createSessionData({ db, git, pulls, clock }: { db: ChatDb; git: 
   }
 
   return {
-    /** What a row says: the lines changed and the pull request, as they are known now. */
-    view: (found: Found): { diff: DiffStat | null; pr: SessionPullRequest | null } => ({
+    /** What a row says: the lines changed, the pull request and the branch checked out in its folder (null until read, and while detached), as they are known now. */
+    view: (found: Found): { diff: DiffStat | null; pr: SessionPullRequest | null; branch: string | null } => ({
       diff: diffs.get(found.id)?.stat ?? null,
+      branch: diffs.get(found.id)?.branch ?? null,
       pr: found.prNumber === null || found.prRepo === null || found.prUrl === null || found.prState === null ? null : { repo: found.prRepo, number: found.prNumber, url: found.prUrl, state: found.prState, checks: found.prChecks },
     }),
 

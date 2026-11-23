@@ -152,6 +152,7 @@ test('the pull request of a worktree is looked for on the branch checked out now
   expect(s.pulls.finds).toEqual(['AshuLab/carrier:fix/renamed']);
   expect(s.data.view(s.row()).pr).toMatchObject({ number: 1138 });
   expect(s.calls.find((call) => call.command === 'rev-parse --abbrev-ref HEAD')?.folder).toBe('/wt/fix');
+  expect(s.data.view(s.row()).branch).toBe('fix/renamed'); // what the row shows, not the branch it was cut with
 });
 
 test.each([
@@ -165,6 +166,7 @@ test.each([
   s.pulls.found['AshuLab/carrier:carrier/fix'] = pr(7);
   await s.data.afterTurn(s.id);
   expect(s.data.view(s.row()).pr).toMatchObject({ number: 7 });
+  expect(s.data.view(s.row()).branch).toBeNull(); // no branch read: the row keeps the one it was cut with
 });
 
 test('a folder on the default branch counts what is not committed, one on its own branch counts from where it left the default', async () => {

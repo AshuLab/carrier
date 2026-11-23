@@ -170,8 +170,9 @@ test('resolveBinary skips the Superset and Paradev wrappers', () => {
 test('parseClaudeLine reads session, auth and lost-session errors', () => {
   expect(parseClaudeLine('{"type":"system","subtype":"hook_started","session_id":"s1"}')).toBeUndefined();
   expect(parseClaudeLine('{"type":"system","subtype":"init","cwd":"/w","session_id":"s1"}')).toEqual({ session: 's1' });
-  expect(parseClaudeLine('{"type":"assistant","error":"authentication_failed","message":{"content":[{"type":"text","text":"Not logged in · Please run /login"}]}}')).toEqual({ authFailed: true });
-  expect(parseClaudeLine('{"type":"result","is_error":true,"api_error_status":401,"result":"Invalid API key · Fix external API key"}')).toEqual({ authFailed: true });
+  expect(parseClaudeLine('{"type":"assistant","error":"authentication_failed","message":{"content":[{"type":"text","text":"Not logged in · Please run /login"}]}}')).toEqual({ authFailed: { detail: 'Not logged in · Please run /login' } });
+  expect(parseClaudeLine('{"type":"assistant","error":"authentication_failed"}')).toEqual({ authFailed: { detail: 'authentication failed' } });
+  expect(parseClaudeLine('{"type":"result","is_error":true,"api_error_status":401,"result":"Invalid API key · Fix external API key"}')).toEqual({ authFailed: { detail: 'Invalid API key · Fix external API key' } });
   expect(parseClaudeLine('{"type":"result","subtype":"error_during_execution","is_error":true,"errors":["No conversation found with session ID: x"]}')).toEqual({ sessionUnavailable: true });
   expect(parseClaudeLine('{"type":"result","is_error":false,"api_error_status":null,"result":"OK"}')).toBeUndefined();
   expect(parseClaudeLine('not json')).toBeUndefined();
@@ -210,7 +211,8 @@ test('parseClaudeLine reads any other numeric API status as api_error, and ignor
   expect(parseClaudeLine(result('"is_error":true,"api_error_status":503'))).toEqual({ failure: { kind: 'api_error', detail: 'HTTP 503: Overloaded' } });
   expect(parseClaudeLine(result('"is_error":true,"api_error_status":429,"api_error":"rate_limit"'))).toEqual({ failure: { kind: 'api_error', detail: 'HTTP 429: Overloaded' } });
   expect(parseClaudeLine('{"type":"result","is_error":true,"api_error_status":500}')).toEqual({ failure: { kind: 'api_error', detail: 'HTTP 500' } });
-  expect(parseClaudeLine(result('"is_error":true,"api_error_status":401'))).toEqual({ authFailed: true });
+  expect(parseClaudeLine(result('"is_error":true,"api_error_status":401'))).toEqual({ authFailed: { detail: 'Overloaded' } });
+  expect(parseClaudeLine('{"type":"result","is_error":true,"api_error_status":401}')).toEqual({ authFailed: { detail: 'HTTP 401' } });
   expect(parseClaudeLine(result('"is_error":true,"api_error_status":null'))).toBeUndefined();
   expect(parseClaudeLine(result('"is_error":true'))).toBeUndefined();
   expect(parseClaudeLine(result('"is_error":true,"api_error_status":"429","api_error":"usage_limit_reached"'))).toBeUndefined();

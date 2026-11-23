@@ -12,10 +12,11 @@ export interface AgentCommand {
   env: Record<string, string>;
 }
 
-/** What one stdout line of a harness CLI tells the runner. */
+/** What one output line of a harness CLI tells the runner. */
 export interface LineSignal {
   session?: string;
-  authFailed?: true;
+  /** The text of the authentication error, as the tool printed it. */
+  authFailed?: { detail: string };
   /** An API error the agent printed as its final result. */
   failure?: { kind: 'usage_limit' | 'api_error'; detail: string };
   sessionUnavailable?: true;
@@ -26,7 +27,8 @@ export interface LineSignal {
 /** The part of the runner that is specific to one harness CLI; each harness (Claude, Codex, Antigravity) provides one. */
 export interface HarnessAdapter {
   command(task: AgentTask, ctx: CommandContext): AgentCommand;
-  parseLine(line: string): LineSignal | undefined;
+  /** `stream` is where the line came from: text on stderr and a tool's own output on stdout do not mean the same. */
+  parseLine(line: string, stream: 'stdout' | 'stderr'): LineSignal | undefined;
   /** Zero or more events for one stdout line. Never throws; a line it does not know gives []. Absent until the harness has a parser. */
   parseEvents?(line: string, state: EventState): AgentEvent[];
 }

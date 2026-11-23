@@ -47,9 +47,10 @@ const agyUsage = (raw: unknown): ExecutionUsage => {
 // Shapes observed with agy 1.4.0: the first stdout line is `init` with the conversation id, written before the model is
 // called; a missing login prints "Authentication required" on stderr and ~60 s later ends with a `result` whose error is
 // "authentication failed or timed out"; resuming an unknown id does NOT fail: it exits 0 in a new conversation and only
-// says so on stderr. Both streams go through here.
-export function parseAgyLine(line: string): LineSignal | undefined {
-  if (line.includes('Authentication required')) return { authFailed: true };
+// says so on stderr. Both streams go through here, and the plain text counts only on stderr.
+export function parseAgyLine(line: string, stream: 'stdout' | 'stderr'): LineSignal | undefined {
+  // Only agy's own stderr: on stdout the text can be what a tool printed or the model quoted.
+  if (stream === 'stderr' && line.includes('Authentication required')) return { authFailed: { detail: line.trim() } };
   if (/warning: conversation ".*" not found/.test(line)) return { sessionUnavailable: true };
   let event: Record<string, any>;
   try {
@@ -62,7 +63,7 @@ export function parseAgyLine(line: string): LineSignal | undefined {
     const used = typeof event.result?.usage === 'object' && event.result.usage !== null ? { usage: agyUsage(event.result.usage) } : undefined;
     if (event.result?.status !== 'ERROR') return used;
     const error = str(event.result.error);
-    if (error === 'authentication failed or timed out') return { authFailed: true, ...used };
+    if (error === 'authentication failed or timed out') return { authFailed: { detail: error }, ...used };
     // No reset time in the text (docs/research/agent-usage-limit-signals.md).
     const usageLimit = error !== undefined && usageLimitTexts.some((text) => error.includes(text));
     return { failure: { kind: usageLimit ? 'usage_limit' : 'api_error', detail: error ?? 'the run ended: ERROR' }, ...used };

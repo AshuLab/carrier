@@ -68,11 +68,14 @@ export function parseClaudeLine(line: string): LineSignal | undefined {
     return undefined;
   }
   if (event.type === 'system' && event.subtype === 'init' && typeof event.session_id === 'string') return { session: event.session_id };
-  if (event.type === 'assistant' && event.error === 'authentication_failed') return { authFailed: true };
+  if (event.type === 'assistant' && event.error === 'authentication_failed') {
+    const text = (event.message as { content?: { text?: unknown }[] } | undefined)?.content?.find((part) => typeof part.text === 'string')?.text;
+    return { authFailed: { detail: typeof text === 'string' ? text : 'authentication failed' } };
+  }
   if (event.type === 'result') {
     const usage = claudeUsage(event);
     const used = usage && { usage };
-    if (event.api_error_status === 401) return { authFailed: true, ...used };
+    if (event.api_error_status === 401) return { authFailed: { detail: typeof event.result === 'string' && event.result !== '' ? event.result : 'HTTP 401' }, ...used };
     if (event.is_error === true && JSON.stringify(event.errors ?? '').includes('No conversation found')) return { sessionUnavailable: true, ...used };
     if (event.is_error === true && typeof event.api_error_status === 'number') {
       const text = typeof event.result === 'string' ? event.result : '';

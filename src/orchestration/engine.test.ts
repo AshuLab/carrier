@@ -1827,7 +1827,9 @@ test.each(endKinds)('%s records its kind and a detail on the execution, with the
   runner.behavior = (task) => (task.resumeSession ? { exit: 'hang' } : { sessionId: 's', exit });
   const engine = await start(1);
   await clock.advance(5 * MIN);
-  await engine.idle();
+  // The first authentication signal is retried (and the retry hangs), so the engine does not go idle: the retry's start is what is waited for.
+  if (exit === 'auth_failed') await vi.waitFor(() => expect(runner.tasks).toHaveLength(2));
+  else await engine.idle();
   expect(executionsOf(engine.db)[0]).toMatchObject({ status, failureKind: kind, failureDetail: detail, error, ...noProcess });
 });
 
@@ -3420,7 +3422,7 @@ test('purges expired logs and sessions when the engine starts and every 24 hours
 
 // --- Forge authentication errors ---
 
-test('an auth_failed stops only the running epics of that profile and their runs; other profiles go on and nothing is relaunched', async () => {
+test('a second auth_failed stops only the running epics of that profile and their runs; other profiles go on and nothing is relaunched', async () => {
   const other = { author: { ...agents.author, profile: 'c' }, reviewer: { ...agents.reviewer, profile: 'd' } };
   const config = [{ name: 'AshuLab/a', agents }, { name: 'AshuLab/b', agents: other }];
   github.ready = { 'AshuLab/a': ready(1, 2), 'AshuLab/b': ready(3) };
@@ -3443,16 +3445,113 @@ test('an auth_failed stops only the running epics of that profile and their runs
   // The run of epic 2 was stopped, the one of epic 3 was not.
   const taskOf = (epic: number) => runner.tasks.find((t) => t.epic === epic)!;
   expect(runner.stopped).toEqual([taskOf(2).executionId]);
-  expect(executionsOf(engine.db).map((e) => [e.epicId, e.status])).toEqual([[1, 'failed'], [2, 'interrupted'], [3, 'running']]);
-  // Never retried, nor relaunched under another profile.
+  expect(executionsOf(engine.db).map((e) => [e.epicId, e.status])).toEqual([[1, 'failed'], [2, 'interrupted'], [3, 'running'], [1, 'failed']]);
+  // The first signal was retried (and failed the same way); nothing is relaunched after the stop, nor under another profile.
   await clock.advance(10 * MIN);
-  expect(runner.tasks.map((t) => [t.epic, t.profile])).toEqual([[1, 'a'], [2, 'a'], [3, 'c']]);
+  expect(runner.tasks.map((t) => [t.epic, t.profile])).toEqual([[1, 'a'], [2, 'a'], [3, 'c'], [1, 'a']]);
 });
 
-test('an auth_failed of the reviewer profile stops the epic in review', async () => {
+test('a second auth_failed of the reviewer profile stops the epic in review', async () => {
   const engine = await reviewing(() => ({ exit: 'auth_failed' }));
   expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanReason: 'authentication error for profile b' });
-  expect(runner.tasks.map((t) => t.profile)).toEqual(['a', 'b']);
+  expect(runner.tasks.map((t) => t.profile)).toEqual(['a', 'b', 'b']); // the first signal was retried
+});
+
+// ADR 0050: the first authentication signal of a profile is a technical failure that retries; the second stops the profile.
+const authFailure = (detail: string): AgentFailure => ({ kind: 'auth', detail, exitCode: null, signal: null, hostFreeMemMb: null, hostLoad: null });
+const notLoggedIn = 'Not logged in · Please run /login';
+const runsOf = (epic: number) => runner.tasks.filter((t) => t.epic === epic);
+
+test('a first authentication signal ends the execution as a technical failure retried at once with its message, and the other epics of the profile go on', async () => {
+  github.ready = { 'AshuLab/a': ready(1, 2) };
+  runner.behavior = (task) => (task.epic === 1 && runsOf(1).length === 1 ? { sessionId: 's-1', exit: 'auth_failed', failure: authFailure(notLoggedIn) } : { exit: 'hang' });
+  const engine = await start(2);
+  await clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(runsOf(1)).toHaveLength(2)); // retried with no wait
+  await vi.waitFor(() => expect(runsOf(2)).toHaveLength(1));
+  expect(runsOf(1)[1]).toMatchObject({ stage: 'ship', resumeSession: 's-1' });
+  expect(rows(engine.db)).toMatchObject([{ issue: 1, status: 'running', retryAt: null }, { issue: 2, status: 'running' }]);
+  expect(executionsOf(engine.db)[0]).toMatchObject({ status: 'failed', failureKind: 'auth', failureDetail: notLoggedIn, error: `authentication error for profile a: ${notLoggedIn}` });
+  expect(runner.stopped).toEqual([]);
+  expect(runsOf(2)).toHaveLength(1);
+});
+
+test('a second authentication signal in the retry of the same epic stops every epic of the profile with the message as the reason', async () => {
+  github.ready = { 'AshuLab/a': ready(1, 2) };
+  let release!: () => void;
+  const bothStarted = new Promise<void>((resolve) => (release = resolve));
+  runner.behavior = (task) => (task.epic === 1 ? { exit: 'auth_failed', failure: authFailure(notLoggedIn), when: bothStarted } : { exit: 'hang' });
+  const engine = await start(2);
+  await clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(runsOf(2)).toHaveLength(1));
+  release();
+  await vi.waitFor(() => expect(byStatus(engine.db, 'needs_human')).toEqual([1, 2]));
+  const reason = `authentication error for profile a: ${notLoggedIn}`;
+  expect(rows(engine.db)).toMatchObject([{ needsHumanKind: 'auth', needsHumanReason: reason }, { needsHumanKind: 'auth', needsHumanReason: reason }]);
+  expect(runsOf(1)).toHaveLength(2); // the second signal was not retried
+  expect(runner.stopped).toEqual([runsOf(2)[0]!.executionId]);
+});
+
+test('a second authentication signal of the profile in another epic stops the epic that was retrying', async () => {
+  github.ready = { 'AshuLab/a': ready(1, 2) };
+  let release!: () => void;
+  const firstRetrying = new Promise<void>((resolve) => (release = resolve));
+  runner.behavior = (task) => {
+    if (task.epic === 2) return { exit: 'auth_failed', failure: authFailure('401 again'), when: firstRetrying };
+    return runsOf(1).length === 1 ? { exit: 'auth_failed', failure: authFailure(notLoggedIn) } : { exit: 'hang' };
+  };
+  const engine = await start(2);
+  await clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(runsOf(1)).toHaveLength(2));
+  expect(byStatus(engine.db, 'running')).toEqual([1, 2]); // the first signal stopped nothing
+  release();
+  await vi.waitFor(() => expect(byStatus(engine.db, 'needs_human')).toEqual([1, 2]));
+  expect(rows(engine.db).map((e) => e.needsHumanReason)).toEqual(['authentication error for profile a: 401 again', 'authentication error for profile a: 401 again']);
+  expect(runner.stopped).toEqual([runsOf(1)[1]!.executionId]);
+  expect(runsOf(2)).toHaveLength(1);
+});
+
+test('an execution of the profile that ends with no authentication signal clears the memory, so a later single signal is a first one again', async () => {
+  github.ready = { 'AshuLab/a': ready(1, 2) };
+  let release!: () => void;
+  const epicOneSettled = new Promise<void>((resolve) => (release = resolve));
+  runner.behavior = (task) => {
+    if (task.epic === 2) return runsOf(2).length === 1 ? { exit: 'auth_failed', failure: authFailure(notLoggedIn), when: epicOneSettled } : { exit: 'hang' };
+    if (runsOf(1).length === 1) return { exit: 'auth_failed', failure: authFailure(notLoggedIn) };
+    return runsOf(1).length === 2 ? { exit: 'failed' } : { exit: 'hang' }; // the retry ends with no signal
+  };
+  const engine = await start(2);
+  await clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(runsOf(1)).toHaveLength(3));
+  release();
+  await vi.waitFor(() => expect(runsOf(2)).toHaveLength(2)); // a first signal: retried
+  expect(byStatus(engine.db, 'running')).toEqual([1, 2]);
+  expect(runner.stopped).toEqual([]);
+});
+
+test('after the profile stopped, a single signal of a person-restarted epic is a first one again', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  runner.behavior = () => ({ exit: 'auth_failed', failure: authFailure(notLoggedIn) });
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(byStatus(engine.db, 'needs_human')).toEqual([1]));
+  expect(runsOf(1)).toHaveLength(2);
+  runner.behavior = (task) => (runsOf(1).length === 3 ? { exit: 'auth_failed', failure: authFailure(notLoggedIn) } : { exit: 'hang' });
+  const resumed = engine.resumeEpic('AshuLab/a', 1);
+  await flush();
+  await clock.advance(1000);
+  await resumed;
+  await vi.waitFor(() => expect(runsOf(1)).toHaveLength(4));
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running' });
+});
+
+test('the reason an authentication stop keeps is redacted like the other reasons', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  runner.behavior = () => ({ exit: 'auth_failed', failure: authFailure('rejected token ghp_abcDEF123456 for the account') });
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(byStatus(engine.db, 'needs_human')).toEqual([1]));
+  expect(rows(engine.db)[0]?.needsHumanReason).toBe('authentication error for profile a: rejected token [redacted] for the account');
 });
 
 test('an AuthError of the orchestrator profile suspends every GitHub operation, keeps queue and state, and the next cycle that works resumes them', async () => {

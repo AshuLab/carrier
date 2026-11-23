@@ -61,7 +61,7 @@ export function parseCodexLine(line: string): LineSignal | undefined {
   }
   if (event.type === 'turn.failed') {
     const message = str(event.error?.message) ?? 'the turn failed';
-    if (message.includes('401 Unauthorized')) return { authFailed: true };
+    if (message.includes('401 Unauthorized')) return { authFailed: { detail: message } };
     // Text only (docs/research/agent-usage-limit-signals.md); the reset time stays in the detail, nothing computes on it.
     return { failure: { kind: usageLimitStarts.some((start) => message.startsWith(start)) ? 'usage_limit' : 'api_error', detail: message } };
   }

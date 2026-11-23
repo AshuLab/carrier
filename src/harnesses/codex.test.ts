@@ -56,7 +56,7 @@ test('the GitHub token goes only in the child env, replacing an inherited one', 
 // Lines as codex 0.153.4 printed them (trimmed).
 test('parseCodexLine reads session, login and lost-session errors', () => {
   expect(parseCodexLine('{"type":"thread.started","thread_id":"01a1425b-2b06-7de1-854b-334d33fbb363"}')).toEqual({ session: '01a1425b-2b06-7de1-854b-334d33fbb363' });
-  expect(parseCodexLine('{"type":"turn.failed","error":{"message":"unexpected status 401 Unauthorized: Missing bearer or basic authentication in header, url: https://api.openai.com/v1/responses"}}')).toEqual({ authFailed: true });
+  expect(parseCodexLine('{"type":"turn.failed","error":{"message":"unexpected status 401 Unauthorized: Missing bearer or basic authentication in header, url: https://api.openai.com/v1/responses"}}')).toEqual({ authFailed: { detail: 'unexpected status 401 Unauthorized: Missing bearer or basic authentication in header, url: https://api.openai.com/v1/responses' } });
   expect(parseCodexLine('Error: thread/resume: thread/resume failed: no rollout found for thread id 01a1 (code -32600)')).toEqual({ sessionUnavailable: true });
   // retries before the turn ends are not the end of the run
   expect(parseCodexLine('{"type":"error","message":"Reconnecting... 2/5 (unexpected status 401 Unauthorized: Missing bearer)"}')).toBeUndefined();

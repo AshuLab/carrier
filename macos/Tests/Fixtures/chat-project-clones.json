@@ -1,0 +1,6 @@
+{
+  "clones": [
+    { "repo": "acme/docs", "folder": "/tmp/carrier-projects/acme/docs", "state": "cloning", "progress": "Receiving objects: 62%" },
+    { "repo": "acme/private-tools", "folder": "/tmp/carrier-projects/acme/private-tools", "state": "failed", "error": "acme/private-tools was not found, or your GitHub login cannot see it" }
+  ]
+}

@@ -1,4 +1,4 @@
-# 0039 - A session's worktree folder is cleaned by default
+# 0042 - A session's worktree folder is cleaned by default
 
 - Status: accepted; amends [0035](0035-a-worktree-folder-goes-when-its-work-is-done-and-its-branch-stays.md) (the defaults of `worktreeCleanup`)
 - Date: 2026-11-22

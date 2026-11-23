@@ -1,8 +1,8 @@
 import { expect, test } from 'vitest';
-import { chatConfigPathOf, chatPlacesOf, engineConfigPathOf, enginePlacesOf, providersPathOf } from './places.ts';
+import { chatConfigPathOf, chatPlacesOf, engineConfigPathOf, enginePlacesOf, projectsPathOf, providersPathOf } from './places.ts';
 
 test('the top of the folder holds only the files a person edits', () => {
-  expect([engineConfigPathOf('/h'), chatConfigPathOf('/h'), providersPathOf('/h')]).toEqual(['/h/engine.json', '/h/chat.json', '/h/providers.json']);
+  expect([engineConfigPathOf('/h'), chatConfigPathOf('/h'), providersPathOf('/h'), projectsPathOf('/h')]).toEqual(['/h/engine.json', '/h/chat.json', '/h/providers.json', '/h/projects.json']);
 });
 
 test('every place of the engine is under <folder>/engine/, the socket and the database in its state folder', () => {

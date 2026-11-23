@@ -10,7 +10,7 @@ struct EpicCardView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top, spacing: 10) {
-                ProjectIcon(name: card.name, colorKey: projectColorKey(card.name))
+                ProjectIcon(repo: card.repo, name: card.name, colorKey: projectColorKey(card.name))
                 VStack(alignment: .leading, spacing: 2) {
                     Text(card.title).font(.scaled(14, weight: .semibold)).fixedSize(horizontal: false, vertical: true)
                     Text(card.subtitle).font(SidebarMetrics.detail).foregroundStyle(.secondary)

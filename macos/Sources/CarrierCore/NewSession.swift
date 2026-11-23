@@ -7,7 +7,7 @@ import Observation
 // is in WorktreeChoice.swift; the model asks the host what the folder is and drives the worktree's name and branch.
 
 /// A folder the workspace picker offers: its last component and its full path.
-public struct RecentFolder: Equatable {
+public struct RecentFolder: Equatable, Sendable {
     public let name: String
     public let path: String
 }
@@ -50,19 +50,6 @@ public func agentChoices(_ agents: [ChatAgent], health: HostHealth? = nil) -> [A
         let state = health?.agents.first { $0.name == agent.name }?.state ?? (agent.found ? .ready : .missing)
         return AgentChoice(name: agent.name, harness: agent.harness, state: state)
     }
-}
-
-/// A way into the workspace popover besides the folders it lists. One that is not built, or that the host cannot do, is not in `sources`.
-public enum WorkspaceSource: String {
-    case localFolder = "Open local folder…"
-    case githubURL = "From a GitHub URL…"
-    case githubRepos = "My GitHub repositories…"
-    case newProject = "New project…"
-}
-
-/// The step of the workspace popover that is showing.
-public enum WorkspaceStep: Equatable {
-    case menu, url, repos, project
 }
 
 /// What the draft says about Carrier's list once a session's message step is done and the repository it was to watch was added (or could not be).
@@ -131,17 +118,8 @@ public struct WatchNote: Equatable {
     public private(set) var hostOlder = false
     /// What the draft says then, and why nothing is sent.
     public static let olderHostNotice = "The chat host is older than this app, so it cannot start a session. Restart it to use the installed Carrier."
-    /// Whether the host can prepare a plan for a repository (its hello lists `repoBranches`, which comes with it); an older one is not offered From a GitHub URL…
-    public private(set) var hostPlansRepos = false
-    /// Whether the host can list the person's GitHub repositories (its hello lists `githubRepos`).
-    public private(set) var hostLists = false
-    /// Whether the host can make a new project (its hello lists `createProject`).
+    /// Whether the host can make a new project (its hello lists `createProject`): the sheet offers New project… only then.
     public private(set) var hostCreates = false
-    /// The `<owner>/<repo>` folders of the projects folder, read from disk each time the popover opens.
-    public private(set) var projects: [ProjectFolder] = []
-    public private(set) var step = WorkspaceStep.menu
-    /// What the URL step was given.
-    public var urlText = ""
     /// The repository `owner/name` the plan is for, nil when it is for a folder or a new project. Nothing is cloned and nothing is written
     /// when it is chosen: the host clones it (or fetches it when it is in the projects folder) when the message is sent.
     public private(set) var repo: String?
@@ -150,32 +128,25 @@ public struct WatchNote: Equatable {
     /// Whether GitHub's branches are being read, and whether there are more than the ones listed.
     public private(set) var loadingBranches = false
     public private(set) var branchesPartial = false
-    /// The pages of the person's repositories loaded so far (My GitHub repositories), the login they were read with (page 1 only),
-    /// and why the latest read failed, in the host's words; the list keeps what was loaded when a later page fails.
-    public private(set) var repoList = AvailableReposList()
-    public private(set) var login: String?
-    public private(set) var reposReason: String?
-    public private(set) var loadingRepos = false
-    /// The search over the loaded repositories.
-    public var reposQuery = ""
-    /// What the New project step was given: the part after `local/`.
-    public var projectName = ""
     /// The name of the new project the draft is planned for, nil when the workspace is a folder that exists. Nothing is made until the
     /// message is sent: `folder` is the path the host will make.
     public private(set) var newProject: String?
-    /// "Let Carrier watch this repo": the person's choice, on by default; `watching` is what it comes to for the repository typed. It is acted on
+    /// "Let Carrier watch this repo": the person's choice, on by default; `watching` is what it comes to for the repository chosen. It is acted on
     /// when the `message` step of the session is done, never before.
     public var watch = true
-    /// The `repos` of the config file as of the last time the popover opened or showed a step; nil when the file cannot be read.
+    /// The `repos` of the config file as of the last time the sheet opened or a repository was chosen; nil when the file cannot be read.
     public private(set) var watched: [String]?
     /// What was said of Carrier's list for each session whose repository was to be added, in words, for its conversation to show.
     public private(set) var watchNotes: [String: WatchNote] = [:]
-    /// Where the footer says the projects folder is.
+    /// The projects folder, where the host clones a repository and makes a new project when the first message is sent.
     public private(set) var projectsPath: String
-    /// Why the last Change… was refused, in words; the old folder stands. Cleared when the popover opens.
-    public private(set) var projectsFolderProblem: String?
+
+    /// Why Add as project could not write the entry, in words; nil when it worked or was not tried.
+    public private(set) var addProjectProblem: String?
 
     @ObservationIgnored private let host: ChatHost
+    /// The projects the app keeps, which Add as project writes to; nil in a draft that cannot add one.
+    @ObservationIgnored private let projects: ProjectsModel?
     @ObservationIgnored private let health: HealthStore?
     @ObservationIgnored private let projectsFolder: () -> String
     @ObservationIgnored private let readConfig: () -> Data?
@@ -183,10 +154,6 @@ public struct WatchNote: Equatable {
     @ObservationIgnored private let reload: Reload
     @ObservationIgnored private let status: ReloadStatus
     @ObservationIgnored private let readChatConfig: () throws -> Data?
-    @ObservationIgnored private let writeChatConfig: (Data) throws -> Void
-    @ObservationIgnored private let carrierFolder: String
-    /// Counts the times the list was started over, so a page that was asked for before is dropped when it comes back.
-    @ObservationIgnored private var reposRead = 0
     /// Counts the fetches (and the times the workspace was chosen), so the answer of one that was left behind is dropped.
     @ObservationIgnored private var fetchRuns = 0
     /// The fetch that choosing a project runs behind the branches, for `refreshed()`.
@@ -213,8 +180,7 @@ public struct WatchNote: Equatable {
 
     /// `ensureHost` starts the chat host when it is not running (#503) and says whether it answers now.
     /// `sleep` is the wait before a typed name is checked. `projectsFolder` is where `chat.json` says the projects folder is, and
-    /// `readChatConfig` and `writeChatConfig` are that file inside `carrierFolder`; `readConfig` and `writeConfig` are the engine's
-    /// config file, which holds the watched repositories.
+    /// `readChatConfig` is that file; `readConfig` and `writeConfig` are the engine's config file, which holds the watched repositories.
     public init(
         host: ChatHost, health: HealthStore? = nil, offers: AgentOfferStore? = nil, ensureHost: @escaping @MainActor () async -> Bool = { true },
         log: @escaping (String) -> Void = { FileHandle.standardError.write(Data("carrier: \($0)\n".utf8)) },
@@ -223,14 +189,15 @@ public struct WatchNote: Equatable {
         readConfig: @escaping () -> Data? = currentConfig, writeConfig: @escaping (Data) throws -> Void = writeCurrentConfig,
         reload: @escaping Reload = { reloadEngine() },
         status: ReloadStatus? = nil,
-        readChatConfig: @escaping () throws -> Data? = currentChatConfig, writeChatConfig: @escaping (Data) throws -> Void = writeCurrentChatConfig,
-        carrierFolder: String = currentCarrierFolder(),
+        readChatConfig: @escaping () throws -> Data? = currentChatConfig,
         start: @escaping () -> NewSessionStart = { AppPreferences().newSessionStart },
-        workIn: @escaping () -> WorkIn = { AppPreferences().workIn }
+        workIn: @escaping () -> WorkIn = { AppPreferences().workIn },
+        projects: ProjectsModel? = nil
     ) {
         self.start = start
         self.workIn = workIn
         self.host = host
+        self.projects = projects
         self.health = health
         self.offers = offers ?? AgentOfferStore()
         self.projectsFolder = projectsFolder
@@ -240,8 +207,6 @@ public struct WatchNote: Equatable {
         self.reload = reload
         self.status = status ?? .shared
         self.readChatConfig = readChatConfig
-        self.writeChatConfig = writeChatConfig
-        self.carrierFolder = carrierFolder
         self.ensureHost = ensureHost
         self.log = log
         self.sleep = sleep
@@ -283,7 +248,7 @@ public struct WatchNote: Equatable {
         switch plan.workspace {
         case .folder(let path): await choose(folder: path)
         case .repo(let name): await choose(repo: name)
-        case .project(let name): choose(project: name)
+        case .newProject(let name): choose(newProject: name)
         }
         text = plan.text
         if agents.contains(where: { $0.name == plan.agent && $0.available }) { agent = plan.agent }
@@ -307,9 +272,6 @@ public struct WatchNote: Equatable {
         clearWorkspace()
         text = ""
         refusal = nil
-        urlText = ""
-        projectName = ""
-        step = .menu
     }
 
     /// The workspace chip's ✕: drops the workspace and what depends on it (branch, worktree choice and name).
@@ -334,9 +296,7 @@ public struct WatchNote: Equatable {
         recent = recentFolders(try await host.list(archived: false) + (try await host.list(archived: true)))
         let capabilities = try await host.capabilities()
         hostOlder = capabilities.contains(.plan) == false
-        hostPlansRepos = capabilities.contains(.repoBranches)
         hostCreates = capabilities.contains(.createProject)
-        hostLists = capabilities.contains(.githubRepos)
         hostStarts = capabilities.contains(.worktreeStart)
         hostFetchesIfStale = capabilities.contains(.fetchIfStale)
     }
@@ -418,90 +378,43 @@ public struct WatchNote: Equatable {
         }
     }
 
-    /// The sources the popover lists under the folders.
-    public var sources: [WorkspaceSource] { [.localFolder] + (hostPlansRepos ? [.githubURL] : []) + (hostLists && hostPlansRepos ? [.githubRepos] : []) + (hostCreates ? [.newProject] : []) }
-
-    /// Why a source of `sources` is off, in words (what `gh` says, the health the app last had); nil when it is on.
-    public func sourceReason(_ source: WorkspaceSource) -> String? { workspaceSourceReason(source, gh: health?.latest?.gh) }
-
-    /// The popover opens on the menu with the projects folder read again.
+    /// The sheet opens: the projects folder and the repositories the engine watches are read again, so what it says about each is current.
     public func openPicker() {
-        refreshFolders()
-        projectsFolderProblem = nil
-        step = .menu
+        refreshWatched()
     }
 
-    private func refreshFolders() {
+    private func refreshWatched() {
         projectsPath = projectsFolder()
-        projects = projectFolders(in: projectsPath)
         watched = readConfig().flatMap { configRepoNames(json: $0) }
     }
 
-    /// The footer's Change…: writes `folder` as `projectsFolder` in `chat.json`, read again just now and made when it is not there. A folder
-    /// the host would refuse, or a file that cannot be read or written, leaves the old one and says why in `projectsFolderProblem`.
-    /// What was in the old folder is not moved.
-    public func changeProjectsFolder(to folder: String) {
-        projectsFolderProblem = nil
-        func refused(_ reason: String) { projectsFolderProblem = "\(reason). The projects folder stays \(projectsPath)." }
-        if let problem = projectsFolderRefusal(folder, carrierFolder: carrierFolder) { return refused(problem) }
-        let json: Data?
-        do { json = try readChatConfig() } catch {
-            log("new session: could not read chat.json: \(error)")
-            return refused("chat.json could not be read")
+    /// Chooses what the sheet's `result` stands for: only the plan is filled, nothing is cloned, made or written until the first message is sent.
+    /// A project or a folder is a folder of the plan, a repository to clone is a repository, and a project listed by its repository is its folder.
+    public func choose(_ result: ProjectSheetResult) async {
+        switch result.kind {
+        case .addPath(let path): await choose(folder: path)
+        case .suggestedFolder(let folder): await choose(folder: folder.path)
+        case .existingProject(let project): await choose(folder: project.path)
+        case .cloneRepo(let repo, _): await choose(repo: repo)
         }
-        guard let updated = applyingProjectsFolder(folder, to: json) else { return refused("chat.json is not a JSON object") }
-        do { try writeChatConfig(updated) } catch {
-            log("new session: could not write chat.json: \(error)")
-            return refused("chat.json is not writable")
-        }
-        refreshFolders()
     }
 
-    public func show(_ next: WorkspaceStep) {
-        if next == .url, sourceReason(.githubURL) != nil { return }
-        if next == .repos, sourceReason(.githubRepos) != nil { return }
-        refreshFolders()
-        step = next
-    }
-
-    /// The repository the URL step's text names.
-    public var reference: String? { repoReference(urlText) }
-
-    /// A repository already among the projects folder's folders is fetched, not cloned again.
-    public var alreadyThere: Bool { reference.map { name in projects.contains { $0.name.lowercased() == name.lowercased() } } ?? false }
-
-    public var repoButton: String { alreadyThere ? "Use (updated when sent)" : "Use (cloned when sent)" }
-
-    /// Why the box cannot be on for the repository typed (already watched, or a folder name another watched repo has); nil when it can.
-    public var watchProblem: String? { reference.flatMap(watchProblem(for:)) }
-
-    /// The same for any repository: why the box cannot apply to it.
+    /// Why the box cannot be on for `repo` (already watched, or a folder name another watched repo has); nil when it can.
     public func watchProblem(for repo: String) -> String? { watched.flatMap { repoProblem(repo, joining: $0) } }
 
-    public var watching: Bool { watch && watchProblem == nil }
+    /// Whether the repository chosen will be watched: the person's box, unless it cannot be on for it.
+    public var watching: Bool { repo.map { watch && watchProblem(for: $0) == nil } ?? false }
 
-    /// "Use" stays off until the text is one repository.
-    public var canUseRepo: Bool { reference != nil }
-
-    /// Chooses the repository of the URL step as the workspace; true when it did. Nothing is cloned: the plan is filled, and the host clones the
-    /// repository (fetches it when it is already in the projects folder) when the message is sent.
-    public func useRepo() async -> Bool {
-        guard let name = reference else { return false }
-        urlText = ""
-        await choose(repo: name)
-        return true
-    }
-
-    /// Chooses `owner/name` as the workspace. One in the projects folder is read locally, as a folder; one that is not on this Mac has its branches
+    /// Chooses `owner/name` as the workspace. One already in the projects folder is read locally, as a folder; one that is not on this Mac has its branches
     /// read from GitHub with the person's login, no uncommitted changes and a worktree whose name is generated at once, the host checking it when the message is sent.
     public func choose(repo name: String) async {
         guard isRepoName(name) else { return }
-        refreshFolders()
-        let there = projects.first { $0.name.lowercased() == name.lowercased() }
-        let path = there?.path ?? "\(projectsPath)/\(name)"
+        refreshWatched()
+        let path = "\(projectsPath)/\(name)"
+        let there = FileManager.default.fileExists(atPath: path)
         reset(folder: path)
-        repo = there?.name ?? name
-        if there != nil { return await read(path) }
+        repo = name
+        if there { return await read(path) }
         toClone = true
         loadingBranches = true
         defer { if folder == path { loadingBranches = false } }
@@ -519,71 +432,26 @@ public struct WatchNote: Equatable {
         }
     }
 
-    /// My GitHub repositories: starts the list over and reads its first page. The step does not open while a clone or a new project is running.
-    public func showRepos() async {
-        show(.repos)
-        guard step == .repos else { return }
-        reposRead += 1
-        repoList = AvailableReposList()
-        login = nil
-        reposReason = nil
-        reposQuery = ""
-        loadingRepos = false
-        await loadRepos()
-    }
-
-    /// Reads the next page, the first one included: what is loaded stays, and a page that fails is `reposReason` and is asked again by the next call.
-    public func loadRepos() async {
-        guard loadingRepos == false else { return }
-        let read = reposRead
-        let page = repoList.nextPage
-        loadingRepos = true
-        defer { if read == reposRead { loadingRepos = false } }
-        do {
-            let loaded = try await host.githubRepos(page: page)
-            guard read == reposRead else { return }
-            if page == 1 { login = loaded.login }
-            repoList.apply(.repos(loaded.repos.filter { isRepoName($0.name) }, hasMore: loaded.hasMore))
-            reposReason = nil
-        } catch {
-            guard read == reposRead else { return }
-            repoList.apply(.githubError)
-            reposReason = report(error, "list repositories")
-        }
-    }
-
-    /// The loaded repositories that match the search, in the host's order.
-    public func repoRows(now: Date = Date()) -> [GithubRepoRow] { githubRepoRows(repoList.repos, watched: watched ?? [], query: reposQuery, now: now) }
-
-    /// The path New project will make, shown before anything is made.
-    public var projectPath: String { "\(projectsPath)/local/\(projectName.isEmpty ? "<name>" : projectName)" }
-
-    /// Why the name typed cannot be used (not a plain folder name, or a project of that name is already there); nil when it can, and while nothing is typed.
-    public var projectNameWarning: String? {
-        guard projectName.isEmpty == false else { return nil }
-        if let problem = projectNameProblem(projectName) { return problem }
-        if projects.contains(where: { $0.name.lowercased() == "local/" + projectName.lowercased() }) { return "\(projectName) is already a project; choose another name" }
-        return nil
-    }
-
-    /// "Use this project" stays off for a name the host would refuse.
-    public var canUseNow: Bool { projectName.isEmpty == false && projectNameWarning == nil }
-
     /// Chooses a new project as the workspace: only the plan is filled, the host makes the folder and runs `git init` when the message is
     /// sent. A project has no commits, so the draft offers neither a branch nor a worktree.
-    public func choose(project name: String) {
+    public func choose(newProject name: String) {
         let path = "\(projectsPath)/local/\(name)"
         reset(folder: path)
         newProject = name
         workspace = WorkspaceInfo(folder: path)
     }
 
-    /// The New project step's button: uses the name typed; false when it cannot be used.
-    public func useProject() -> Bool {
-        guard canUseNow else { return false }
-        choose(project: projectName)
-        projectName = ""
-        return true
+    /// Whether the draft offers Add as project: the workspace is a folder the host read (not a repository, nor a new project, which the host registers
+    /// itself) that is not one of the person's projects. It goes once the folder is.
+    public var offersAddAsProject: Bool {
+        guard let projects, let folder, workspace != nil, repo == nil, newProject == nil else { return false }
+        return projects.rows.contains { isSameFolder($0.path, folder) } == false
+    }
+
+    /// Adds the folder as a project of origin `added`, with the writer the Projects page uses; `addProjectProblem` says why when it could not.
+    public func addAsProject() {
+        guard offersAddAsProject, let folder, let projects else { return }
+        addProjectProblem = projects.add(folder: folder) == nil ? projects.failure ?? projects.problems.first?.text ?? "That folder cannot be added" : nil
     }
 
     /// The line that says beforehand what sending will make, nil unless the workspace is a new project.
@@ -681,6 +549,7 @@ public struct WatchNote: Equatable {
 
     /// Chooses the workspace and asks the host what it is; the worktree choice starts over (a new folder has other branches and names).
     public func choose(folder path: String) async {
+        projects?.reload()
         reset(folder: path)
         await read(path)
     }
@@ -701,9 +570,19 @@ public struct WatchNote: Equatable {
         }
     }
 
-    /// A draft whose folder offers a worktree opens in one when Settings > Sessions says so; one that offers none stays on the base folder.
+    /// What the chosen project sets for a new session here: its agent, where to work and its base branch. Over Settings > Sessions, and the draft shows each
+    /// and lets the person change it. Empty for a folder that is not a project.
+    public private(set) var projectDefaults = ProjectDefaults()
+
+    /// A draft whose folder offers a worktree opens in one when the project, else Settings > Sessions, says so; one that offers none stays on the base folder.
+    /// The project's agent and base branch are filled first; an agent that cannot work, or a branch the folder does not have, is left as it was.
     private func openWhereSettingsSays() async {
-        if workIn() == .newWorktree { await useWorktree(true) }
+        if let wanted = projectDefaults.agent, wanted != agent, agents.contains(where: { $0.name == wanted && $0.available }) {
+            agent = wanted
+            await loadOptions()
+        }
+        if let base = projectDefaults.baseBranch, workspace?.branches.contains(where: { $0.name == base || $0.name == "origin/" + base }) == true { picked = base }
+        if (projectDefaults.workIn ?? workIn()) == .newWorktree { await useWorktree(true) }
     }
 
     /// Waits for the fetch that choosing a project started in the background, if one is running.
@@ -716,6 +595,8 @@ public struct WatchNote: Equatable {
         fetching = false
         unreachable = false
         folder = path
+        projectDefaults = path.flatMap { path in projects?.rows.first { isSameFolder($0.path, path) }?.defaults } ?? ProjectDefaults()
+        addProjectProblem = nil
         newProject = nil
         workspace = nil
         workspaceProblem = nil
@@ -907,7 +788,7 @@ public struct WatchNote: Equatable {
         guard hostOlder == false else { return nil }
         let id: String
         do {
-            id = try await host.open(plan: SessionPlan(agent: agent, workspace: newProject.map(PlanWorkspace.project) ?? repo.map(PlanWorkspace.repo) ?? .folder(folder), branch: branchChange?.to, worktree: worktreeRequest, options: chosenOptions, text: message))
+            id = try await host.open(plan: SessionPlan(agent: agent, workspace: newProject.map(PlanWorkspace.newProject) ?? repo.map(PlanWorkspace.repo) ?? .folder(folder), branch: branchChange?.to, worktree: worktreeRequest, options: chosenOptions, text: message))
         } catch {
             refusal = report(error, "open the session")
             return nil

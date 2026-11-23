@@ -165,6 +165,9 @@ private func settingsRows(_ settingsPage: SettingsPage) -> [SettingsEntry] {
                 ("Archive after", "Days without activity before it is archived"), ("Delete after", "Days an archived session waits before it is deleted"),
                 ("Ask before deleting a session", "The question says its worktree goes with it"),
             ]) + page(.sessions, "With these ages", [("With these ages", "What the ages do to a session left alone from today")])
+    case .projects:
+        // the list and each project's screen are per-project, so their rows are not statically indexed: the page is found by its name and its line
+        return []
     case .sidebar:
         return page(.sidebar, "Order", [
             ("Group epics by", "How the epics under Carrier are grouped"), ("Sort sessions", "How the Sessions list is grouped and ordered"),

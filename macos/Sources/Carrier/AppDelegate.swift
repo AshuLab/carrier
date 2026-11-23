@@ -175,6 +175,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
         watchChatSessions()
+        // a project's name and icon show in the sidebar and its cards, so the file is followed for the life of the app (ponytail: a slow poll of a small file)
+        Task { @MainActor in
+            WindowController.shared.followProjects()
+            await ProjectsModel.shared.follow(every: .seconds(3))
+        }
         // the app lives on with its window closed, so a timer here is enough for the reminders
         let reminders = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { _ in NotificationWatcher.app.remind() }
         // a reminder is not due to the second: the system may fold this wake-up into others
@@ -396,7 +401,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     WindowController.shared.showSettings(place: SettingsPlace(.agents, path: [role.rawValue])); return WindowController.shared.settingsStatus
                 })
             }
-            steps.insert(contentsOf: pages + screens + roles, at: opened + 1)
+            // and the screen of the first project and its actions, when the Carrier folder has one (a fixture does)
+            let projects: [(String, () -> String)] = ((try? ProjectsFile.current().read()) ?? []).prefix(1).flatMap { project in
+                [
+                    ("settings projects screen", {
+                        WindowController.shared.showSettings(place: SettingsPlace(.projects, path: [project.path])); return WindowController.shared.settingsStatus
+                    }),
+                    ("settings projects actions", {
+                        WindowController.shared.showSettings(place: SettingsPlace(.projects, path: [project.path, ProjectsTabView.actionsPath])); return WindowController.shared.settingsStatus
+                    }),
+                ]
+            }
+            steps.insert(contentsOf: pages + screens + roles + projects, at: opened + 1)
         }
         write("start")
         for (index, step) in steps.enumerated() {

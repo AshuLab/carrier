@@ -23,6 +23,8 @@ public struct EpicCard: Equatable {
     public var facts: [Fact]
     /// "queued 2h ago · started 1h 50m ago".
     public var timeline: String?
+    /// "owner/name": the project whose `origin` it is gives the icon.
+    public var repo: String
 }
 
 public func epicCard(_ subject: EpicSubject, now: Int) -> EpicCard {
@@ -60,7 +62,7 @@ public func epicCard(_ subject: EpicSubject, now: Int) -> EpicCard {
     if let pr = header.prLabel { facts.append(.init(label: "PR", value: String(pr.dropFirst(3)))) }
     if case .active(let epic) = subject, let branch = epic.branch, branch.isEmpty == false { facts.append(.init(label: "Branch", value: branch, kind: .branch)) }
 
-    return EpicCard(title: header.title, name: header.repo.split(separator: "/").last.map(String.init) ?? header.repo, subtitle: header.subtitle, steps: steps, facts: facts, timeline: times.isEmpty ? nil : times.joined(separator: " · "))
+    return EpicCard(title: header.title, name: header.repo.split(separator: "/").last.map(String.init) ?? header.repo, subtitle: header.subtitle, steps: steps, facts: facts, timeline: times.isEmpty ? nil : times.joined(separator: " · "), repo: header.repo)
 }
 
 /// What the card of a row does when the pointer moves: it opens after a rest on the row, stays while the pointer is on the row or on the

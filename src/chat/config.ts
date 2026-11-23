@@ -35,7 +35,7 @@ const chatConfigSchema = z.strictObject({
   worktreeStart: z.enum(['remote', 'local']).default('remote'),
   /** Minutes an idle session that no request names stays open before its agent is closed; it wakes with the next message. */
   idleCloseMinutes: z.union([z.literal(10), z.literal(30), z.literal(60)], { error: 'must be 10, 30 or 60 (minutes)' }).default(10),
-  /** When the clock's pass removes a session's worktree folder, keeping its branch (ADR 0035, 0039): once its PR is merged, and once the session is archived and untouched for `afterInactiveDays` (14 by default); `"never"` and false turn each off. */
+  /** When the clock's pass removes a session's worktree folder, keeping its branch (ADR 0035, 0042): once its PR is merged, and once the session is archived and untouched for `afterInactiveDays` (14 by default); `"never"` and false turn each off. */
   worktreeCleanup: z.strictObject({ afterPrMerged: z.boolean().default(true), afterInactiveDays: days.default(14) }).default({ afterPrMerged: true, afterInactiveDays: 14 }),
 }).refine((c) => typeof c.archiveAfterDays !== 'number' || typeof c.deleteAfterDays !== 'number' || c.deleteAfterDays > c.archiveAfterDays, {
   path: ['deleteAfterDays'],

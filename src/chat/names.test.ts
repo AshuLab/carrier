@@ -1,9 +1,11 @@
-import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { FakeGit } from './fake.ts';
-import { generateName, invalidReason, suggestName } from './names.ts';
+import { checkWorktreeClash, generateName, invalidReason, suggestName, worktreePath } from './names.ts';
+import { inspectFolder } from './workspace.ts';
 import { adjectives, places, units } from './words.ts';
 
 describe.each([
@@ -86,5 +88,40 @@ describe('suggestName with the fake git', () => {
   test('after fifty rolls it refuses in words', async () => {
     const all = adjectives.flatMap((adjective) => units.flatMap((unit) => places.map((place) => `carrier/${adjective}-${unit}-${place}`)));
     await expect(suggestName(git({ head: 'main', branches: all }), folder, () => 0)).rejects.toThrow('already taken');
+  });
+});
+
+describe('checkWorktreeClash against the shared table and worktreePath', () => {
+  type Case = { name: string; folder: string; repo?: string; others: { path: string; name?: string; repo?: string }[]; refusal: string | null };
+  const { cases } = JSON.parse(readFileSync(fileURLToPath(new URL('../../macos/Tests/Fixtures/worktree-clash.json', import.meta.url)), 'utf8')) as { cases: Case[] };
+  const remote = (repo: string) => `https://github.com/${repo}.git`;
+  const info = (git: FakeGit, folder: string) => inspectFolder(git, folder);
+  let home: string;
+  beforeEach(() => {
+    home = mkdtempSync(join(tmpdir(), 'nm-'));
+    vi.stubEnv('CARRIER_HOME', home);
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    rmSync(home, { recursive: true, force: true });
+  });
+
+  test.each(cases)('$name', async (entry) => {
+    const git = new FakeGit();
+    for (const { path, repo } of [{ path: entry.folder, repo: entry.repo }, ...entry.others]) git.repos.set(path, { head: 'main', branches: ['main'], ...(repo && { origin: remote(repo) }) });
+    const check = checkWorktreeClash(git, entry.folder, entry.others.map(({ path, name }) => ({ path, name })));
+    if (entry.refusal === null) await expect(check).resolves.toBeUndefined();
+    else await expect(check).rejects.toThrow(entry.refusal);
+    // the rule is the one worktrees are made by: a clash is exactly two projects whose worktree paths would share a directory (compared without case)
+    for (const other of entry.others.filter((other) => other.path !== entry.folder)) {
+      const same = dirname(worktreePath(await info(git, entry.folder), 'x')).toLowerCase() === dirname(worktreePath(await info(git, other.path), 'x')).toLowerCase();
+      expect(same).toBe(entry.refusal !== null);
+    }
+  });
+
+  test('a project whose folder git cannot read is skipped', async () => {
+    const git = new FakeGit();
+    git.repos.set('/work/a/app', { head: 'main', branches: ['main'], origin: remote('acme/app') });
+    await expect(checkWorktreeClash(git, '/work/a/app', [{ path: '/work/gone/app' }])).resolves.toBeUndefined();
   });
 });

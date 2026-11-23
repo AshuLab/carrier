@@ -34,6 +34,7 @@ The top of the folder holds only the files you edit; each process has its own fo
   engine.json      the engine's config, this page
   chat.json        the chat's settings (see Chat configuration), optional
   providers.json   the accounts both read (see AI providers)
+  projects.json    the projects you work on, read and written by the app and the chat host (see Projects)
   engine/          the engine's own folder
   chat/            the chat host's own folder: state/, logs/, worktrees/, projects/, pending/, sessions/
   app/             the macOS app's own folder: state/, logs/, cache/
@@ -328,7 +329,7 @@ The chat host and `carrier chat` start from the Carrier folder alone (`~/.carrie
 | `deleteAfterDays` | `30` | Days of no activity after which an archived session is deleted, with its worktree and branch: a positive whole number, or `"never"`. It must be greater than `archiveAfterDays` when both are numbers (the error is reported on `deleteAfterDays`); with `"never"` on either side there is no such rule. Same checks as `archiveAfterDays`. See [The session clock](#the-session-clock). |
 | `worktreeStart` | `remote` | Where a new session's worktree is cut from when its plan does not say: `remote` is `origin/<branch>` as of the last fetch, `local` is the local branch. Any other value or type stops the host naming the key. A branch that exists only locally is cut from the local branch either way, and a branch that already carries `origin/` is cut from that ref. A plan's own `worktree.startFrom` wins over it. Read at each plan, so a change applies to the next session with no restart, and a file that is wrong keeps the last value that was good. See [ADR 0037](adr/0037-a-new-worktree-is-cut-from-the-remote-branch-by-default-and-choosing-a-project-fetches-it.md). |
 | `idleCloseMinutes` | `10` | Minutes after which the host closes the agent of an idle session that no request names (reading its events, sending to it and changing its options name it; listing the sessions does not): `10`, `30` or `60`. The session stays in the list as asleep and wakes where it left off with the next message; one that works, waits for an approval or waits for a task it started is never closed for being idle. Any other value or type stops the host naming the key. The host takes a change of the file with no restart, at the next listing of the sessions (the app lists them every few seconds) or hourly clock pass, and uses it from the next time a session is named; a session already waiting keeps the time it was armed with until then. |
-| `worktreeCleanup` | `afterPrMerged: true`, `afterInactiveDays: 14` | When the clock removes the folder of a session's worktree and keeps its branch: `afterPrMerged` (`true` or `false`) once the session's pull request is merged, `afterInactiveDays` (a positive whole number or `"never"`, same checks as `archiveAfterDays`) once the session is archived and has had no activity for that many days (the clock of `archiveAfterDays` and `deleteAfterDays`: it counts from the last activity, not from the archiving). To turn it all off, set `"afterPrMerged": false` and `"afterInactiveDays": "never"`. See [ADR 0039](adr/0039-a-session-worktree-folder-is-cleaned-by-default.md) and [The session clock](#the-session-clock). |
+| `worktreeCleanup` | `afterPrMerged: true`, `afterInactiveDays: 14` | When the clock removes the folder of a session's worktree and keeps its branch: `afterPrMerged` (`true` or `false`) once the session's pull request is merged, `afterInactiveDays` (a positive whole number or `"never"`, same checks as `archiveAfterDays`) once the session is archived and has had no activity for that many days (the clock of `archiveAfterDays` and `deleteAfterDays`: it counts from the last activity, not from the archiving). To turn it all off, set `"afterPrMerged": false` and `"afterInactiveDays": "never"`. See [ADR 0042](adr/0042-a-session-worktree-folder-is-cleaned-by-default.md) and [The session clock](#the-session-clock). |
 
 A session never works inside `<folder>/engine/`, nor through a symlink into it. The engine's config has no `chat` section: it rejects one like any unknown key.
 
@@ -361,9 +362,58 @@ A chat applies every key of its account that starts the CLI: `configDir` and `co
 | `model` | no | The model the provider starts with. Not empty. |
 | `options` | no | Default options of the provider, by the provider's own option id. An option the provider does not list is refused when the session opens. |
 
+## Projects
+
+The projects you work on live in `projects.json` in the Carrier folder (`~/.carrier`, or `CARRIER_HOME`), next to `engine.json`, `chat.json` and `providers.json`: [ADR 0041](adr/0041-a-project-is-an-entry-of-projects-json-identified-by-its-folder.md).
+The app and the chat host both read and write it, each reading the file again just before it writes, so you can edit it by hand while Carrier runs.
+It is optional: without it there are no projects.
+A file that does not match is reported with the field named and neither the app nor the host writes over it.
+The host reads it as no projects until you fix it.
+
+```json
+{
+  "projects": [
+    { "path": "/Users/ana/notes", "origin": "added" },
+    {
+      "path": "~/work/carrier",
+      "name": "Carrier",
+      "origin": "cloned",
+      "pinned": true,
+      "hidden": false,
+      "tags": ["work", "swift"],
+      "icon": { "color": "teal", "mark": "bolt" },
+      "defaults": { "agent": "claude", "workIn": "worktree", "baseBranch": "main" },
+      "actions": [{ "name": "Install", "command": "pnpm install", "when": "newWorktree", "on": true, "onFail": "warn" }]
+    }
+  ]
+}
+```
+
+| Field | Required | Meaning |
+|---|---|---|
+| `path` | yes | The project's folder, absolute or starting with `~/`. It is the project's identity: two projects cannot share it. |
+| `name` | no | What the project is called; the folder's name when absent. Not blank. |
+| `origin` | yes | How it came to be: `cloned`, `created` or `added`. |
+| `pinned`, `hidden` | no | Booleans. |
+| `tags` | no | A list of words, each trimmed, in lower case and listed once. |
+| `icon` | no | `color`, `mark` and `image` (a file name in the app's project-icons folder), each a non-empty string. |
+| `defaults` | no | What a new session starts with: `agent`, `workIn` (`baseFolder` or `worktree`) and `baseBranch`. Absent means the same as everywhere. |
+| `actions` | no | Commands the project runs: `name` and `command` (not blank), `when` (`newWorktree` or `afterClone`), `on` (a boolean) and `onFail` (`warn` or `stop`). |
+
+The file is strict: an unknown key, a field of the wrong type, a repeated path, an empty path, a blank name or command and a tag that is not trimmed and in lower case are each refused, naming the field (`projects.1.name`).
+What can be worked out is never stored: the remote, the branch, the worktrees and their size.
+
 ## Projects folder
 
-The chat host clones a GitHub repository for a session when the first message is sent (the `clone` step of a plan, or the older `cloneRepo` request). It goes to `<projects folder>/<owner>/<repo>`; one already there (a `.git` whose `origin` is that repository) is fetched instead, and anything else at that path stops the request and is left untouched. The clone and the fetch use the token of your active `gh` login, handed to git in its environment, so `gh` must be installed and signed in. Each git command has ten minutes. A new project (the `project` step of a plan the host prepares when the first message is sent, or the older `createProject` request) is a folder at `<projects folder>/local/<name>` with `git init -b main`; the name is a plain folder name (letters, digits, `_`, `.` and `-`, at most a hundred, not starting with a dot or a dash), one that is taken is refused and nothing is changed. Its branches are listed, without the repository being on your Mac, for the draft's worktree choice (the `repoBranches` request, with the same `gh` login). The same host lists your repositories for the app's "My GitHub repositories" step (the `githubRepos` request, thirty a page, with the same `gh` login): every repository that login can read, as owner, collaborator or organisation member, archived and disabled ones left out; it needs no config. Carrier never deletes anything in the folder, except the half-made clone or project of a request that failed or was cancelled.
+The chat host clones a GitHub repository for a session when the first message is sent (the `clone` step of a plan, or the older `cloneRepo` request).
+It goes to `<projects folder>/<owner>/<repo>`; one already there (a `.git` whose `origin` is that repository) is fetched instead, and anything else at that path stops the request and is left untouched.
+The clone and the fetch use the token of your active `gh` login, handed to git in its environment, so `gh` must be installed and signed in.
+Each git command has ten minutes.
+A new project (the `project` step of a plan the host prepares when the first message is sent, the older `createProject` request, or `newProject` from Settings, which also registers it in `projects.json` with origin `created` and may go under another folder for that one project) is a folder at `<projects folder>/local/<name>` with `git init -b main`; the name is a plain folder name (letters, digits, `_`, `.` and `-`, at most a hundred, not starting with a dot or a dash), one that is taken is refused and nothing is changed.
+Its branches are listed, without the repository being on your Mac, for the draft's worktree choice (the `repoBranches` request, with the same `gh` login).
+The same host lists your repositories for the app's "My GitHub repositories" step (the `githubRepos` request, thirty a page, with the same `gh` login): every repository that login can read, as owner, collaborator or organisation member, archived and disabled ones left out; it needs no config.
+The Projects page of the app clones into the same folder (or into a parent chosen for that one clone), in the background, and registers the folder in `projects.json` when it ends; it never adds the repository to `engine.json`'s `repos`.
+Carrier never deletes anything in the folder, except the half-made clone or project of a request that failed or was cancelled.
 
 ## Things that are checked
 

@@ -1,0 +1,195 @@
+{
+  "carrier": "home",
+  "layout": {
+    "dirs": [
+      "home/engine/repos/acme/app",
+      "home/engine/worktrees/acme/wt",
+      "home/chat/state",
+      "home/chat/logs",
+      "home/chat/worktrees/acme/wt",
+      "home/chat/pending",
+      "home/chat/sessions",
+      "home/chat/projects/acme/app",
+      "home/engine-old",
+      "work/ordinary",
+      "work/repo/.git/worktrees/wt",
+      "work/repo/.git/modules/sub",
+      "work/repo/sub",
+      "work/linked-wt/sub",
+      "work/submodule",
+      "work/unreadable/nested"
+    ],
+    "files": {
+      "work/file.txt": "",
+      "work/repo/.git/worktrees/wt/commondir": "../..\n",
+      "work/linked-wt/.git": "gitdir: ../repo/.git/worktrees/wt\n",
+      "work/submodule/.git": "gitdir: ../repo/.git/modules/sub\n"
+    },
+    "symlinks": {
+      "work/link-to-engine": "home/engine/repos/acme/app",
+      "work/link-to-worktrees": "home/chat/worktrees",
+      "work/link-to-file": "work/file.txt",
+      "work/link-to-ordinary": "work/ordinary",
+      "work/link-to-linked-wt": "work/linked-wt",
+      "work/broken-link": "work/does-not-exist",
+      "alias-home": "home"
+    },
+    "unreadable": [
+      "work/unreadable"
+    ]
+  },
+  "cases": [
+    {
+      "name": "ordinary folder",
+      "path": "work/ordinary",
+      "refusal": null
+    },
+    {
+      "name": "ordinary git repo",
+      "path": "work/repo",
+      "refusal": null
+    },
+    {
+      "name": "subfolder of an ordinary git repo",
+      "path": "work/repo/sub",
+      "refusal": null
+    },
+    {
+      "name": "git submodule",
+      "path": "work/submodule",
+      "refusal": null
+    },
+    {
+      "name": "project inside chat/projects",
+      "path": "home/chat/projects/acme/app",
+      "refusal": null
+    },
+    {
+      "name": "symlink to an ordinary folder",
+      "path": "work/link-to-ordinary",
+      "refusal": null
+    },
+    {
+      "name": "folder starting with engine prefix",
+      "path": "home/engine-old",
+      "refusal": null
+    },
+    {
+      "name": "relative path",
+      "path": "work/ordinary",
+      "relative": true,
+      "refusal": "The folder must be an absolute path"
+    },
+    {
+      "name": "missing folder",
+      "path": "work/missing",
+      "refusal": "That folder does not exist"
+    },
+    {
+      "name": "broken symlink",
+      "path": "work/broken-link",
+      "refusal": "That folder does not exist"
+    },
+    {
+      "name": "a file",
+      "path": "work/file.txt",
+      "refusal": "That path is not a folder"
+    },
+    {
+      "name": "symlink to a file",
+      "path": "work/link-to-file",
+      "refusal": "That path is not a folder"
+    },
+    {
+      "name": "unreadable folder",
+      "path": "work/unreadable",
+      "refusal": "That folder cannot be read"
+    },
+    {
+      "name": "folder inside an unreadable folder",
+      "path": "work/unreadable/nested",
+      "refusal": "That folder cannot be read"
+    },
+    {
+      "name": "engine folder",
+      "path": "home/engine",
+      "refusal": "That folder is inside Carrier's own engine folder; a project cannot live there"
+    },
+    {
+      "name": "engine clone",
+      "path": "home/engine/repos/acme/app",
+      "refusal": "That folder is inside Carrier's own engine folder; a project cannot live there"
+    },
+    {
+      "name": "engine worktree",
+      "path": "home/engine/worktrees/acme/wt",
+      "refusal": "That folder is inside Carrier's own engine folder; a project cannot live there"
+    },
+    {
+      "name": "chat state folder",
+      "path": "home/chat/state",
+      "refusal": "That folder is inside Carrier's own chat/state folder; a project cannot live there"
+    },
+    {
+      "name": "chat logs folder",
+      "path": "home/chat/logs",
+      "refusal": "That folder is inside Carrier's own chat/logs folder; a project cannot live there"
+    },
+    {
+      "name": "chat worktrees folder",
+      "path": "home/chat/worktrees",
+      "refusal": "That folder is inside Carrier's own chat/worktrees folder; a project cannot live there"
+    },
+    {
+      "name": "session worktree inside chat worktrees",
+      "path": "home/chat/worktrees/acme/wt",
+      "refusal": "That folder is inside Carrier's own chat/worktrees folder; a project cannot live there"
+    },
+    {
+      "name": "chat pending folder",
+      "path": "home/chat/pending",
+      "refusal": "That folder is inside Carrier's own chat/pending folder; a project cannot live there"
+    },
+    {
+      "name": "chat sessions folder",
+      "path": "home/chat/sessions",
+      "refusal": "That folder is inside Carrier's own chat/sessions folder; a project cannot live there"
+    },
+    {
+      "name": "symlink into engine clones",
+      "path": "work/link-to-engine",
+      "refusal": "That folder is inside Carrier's own engine folder; a project cannot live there"
+    },
+    {
+      "name": "symlink into chat worktrees",
+      "path": "work/link-to-worktrees",
+      "refusal": "That folder is inside Carrier's own chat/worktrees folder; a project cannot live there"
+    },
+    {
+      "name": "engine folder via aliased carrier home",
+      "carrier": "alias-home",
+      "path": "home/engine",
+      "refusal": "That folder is inside Carrier's own engine folder; a project cannot live there"
+    },
+    {
+      "name": "aliased engine folder against canonical carrier home",
+      "path": "alias-home/engine",
+      "refusal": "That folder is inside Carrier's own engine folder; a project cannot live there"
+    },
+    {
+      "name": "linked worktree",
+      "path": "work/linked-wt",
+      "refusal": "That folder is a worktree linked to another project"
+    },
+    {
+      "name": "subfolder of a linked worktree",
+      "path": "work/linked-wt/sub",
+      "refusal": "That folder is a worktree linked to another project"
+    },
+    {
+      "name": "symlink to a linked worktree",
+      "path": "work/link-to-linked-wt",
+      "refusal": "That folder is a worktree linked to another project"
+    }
+  ]
+}

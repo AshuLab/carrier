@@ -1,7 +1,7 @@
 import { parseArgs } from 'node:util';
 import { engineConfigPathOf } from '../../config/places.ts';
 
-export const commandNames = ['init', 'doctor', 'schema', 'start', 'status', 'watch', 'stop', 'pause', 'resume', 'check', 'reload', 'restart', 'chat', 'chat-host', 'usage'] as const;
+export const commandNames = ['init', 'doctor', 'schema', 'start', 'status', 'watch', 'stop', 'pause', 'resume', 'check', 'reload', 'restart', 'recover', 'chat', 'chat-host', 'usage'] as const;
 export type CommandName = (typeof commandNames)[number];
 
 export const usage = () => `Usage: carrier --config <path>          run the orchestrator
@@ -14,6 +14,7 @@ export const usage = () => `Usage: carrier --config <path>          run the orch
        carrier stop|pause|resume|check   stop Carrier, pause or resume intake, look at GitHub now
        carrier reload                    make the running Carrier read engine.json and providers.json again (exit 1: not running, or a file is wrong)
        carrier restart <owner/name>#<issue> [--author <option>] [--reviewer <option>]   resume a stopped epic on the options you choose
+       carrier recover <owner/name>#<issue>   continue a running epic whose agent is not alive, from where it really is
        carrier chat --workspace <folder> [--agent <name>]   talk to an agent in a folder (starts the chat host if needed)
        carrier chat --resume <id>        go on with a closed chat session, after the end of its transcript
        carrier chat --list [--archived]  list chat sessions (the archived ones with --archived)
@@ -81,7 +82,7 @@ const options = {
 } as const;
 
 export type Flags = ReturnType<typeof parseArgs<{ options: typeof options; allowPositionals: true }>>['values'];
-/** What `restart` acts on, from `owner/name#N`. */
+/** What `restart` and `recover` act on, from `owner/name#N`. */
 export type EpicTarget = { repo: string; issue: number };
 export type Parsed = { ok: true; command: CommandName | undefined; flags: Flags; target?: EpicTarget } | { ok: false; message: string };
 
@@ -96,10 +97,10 @@ export function parseCli(argv: string[]): Parsed {
     return { ok: false, message: error instanceof Error ? error.message : String(error) };
   }
   const [command, ...extra] = parsed.positionals;
-  if (command === 'restart') {
+  if (command === 'restart' || command === 'recover') {
     const match = extra.length === 1 ? targetPattern.exec(extra[0]!) : null;
     const repo = match?.[1];
-    if (!match || repo!.split('/').some((part) => part === '.' || part === '..') || !Number.isSafeInteger(Number(match[2]))) return { ok: false, message: 'restart takes one epic as owner/name#N, for example AshuLab/carrier#12' };
+    if (!match || repo!.split('/').some((part) => part === '.' || part === '..') || !Number.isSafeInteger(Number(match[2]))) return { ok: false, message: `${command} takes one epic as owner/name#N, for example AshuLab/carrier#12` };
     return { ok: true, command, flags: parsed.values, target: { repo: repo!, issue: Number(match[2]) } };
   }
   if (extra.length > 0 || (command !== undefined && !(commandNames as readonly string[]).includes(command))) return { ok: false, message: `Unknown command: ${parsed.positionals.join(' ')}` };

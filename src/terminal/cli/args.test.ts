@@ -74,6 +74,13 @@ test('restart without its argument or with a second one is a usage error, and th
   expect(parseCli(['status', 'A/a#1'])).toEqual({ ok: false, message: 'Unknown command: status A/a#1' });
 });
 
+test('recover takes one owner/name#N and nothing else', () => {
+  expect(parseCli(['recover', 'AshuLab/carrier#12'])).toMatchObject({ ok: true, command: 'recover', target: { repo: 'AshuLab/carrier', issue: 12 } });
+  expect(parseCli(['recover'])).toMatchObject({ ok: false, message: expect.stringContaining('recover takes one epic as owner/name#N') });
+  expect(parseCli(['recover', 'AshuLab/carrier'])).toMatchObject({ ok: false });
+  expect(usage()).toContain('carrier recover <owner/name>#<issue>');
+});
+
 test('the usage names restart and its flags', () => {
   expect(usage()).toContain('carrier restart <owner/name>#<issue>');
   expect(usage()).toContain('--author <option>');

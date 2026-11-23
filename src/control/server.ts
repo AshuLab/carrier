@@ -6,6 +6,7 @@ import type { ChatCapability } from '../chat/server.ts';
 import type { AvailableRepo } from '../integrations/available-repos.ts';
 import { controlSocketIn } from '../config/places.ts';
 import { optionNamePattern } from '../config/providers.ts';
+import { RecoverRefused } from '../orchestration/recover-refused.ts';
 import { ReloadRefused } from '../orchestration/reload-refused.ts';
 import { ResumeRefused } from '../orchestration/resume-refused.ts';
 import type { EpicReply, EventsReply, FileDiffReply, FilesReply, SessionsReply } from './replies.ts';
@@ -41,15 +42,16 @@ export const request = z.union([
   z.strictObject({ id, cmd: z.literal('availableRepos'), page: z.int().min(1).max(100).optional() }),
   z.strictObject({ id, cmd: z.literal('reload') }),
   z.strictObject({ id, cmd: z.literal('resumeEpic'), repo, issue, author: optionName.optional(), reviewer: optionName.optional() }),
+  z.strictObject({ id, cmd: z.literal('recoverEpic'), repo, issue }),
 ]);
 
 // src/control and dist/control both sit two folders under the package root.
 export const version = (JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')) as { version: string }).version;
 
 /** The optional requests an engine can answer; each one's slice adds its name to `capabilities`. */
-export type Capability = 'sessions' | 'events' | 'epic' | 'files' | 'fileDiff' | 'availableRepos' | 'availableReposPaged' | 'resumeEpic' | 'reload';
+export type Capability = 'sessions' | 'events' | 'epic' | 'files' | 'fileDiff' | 'availableRepos' | 'availableReposPaged' | 'resumeEpic' | 'recoverEpic' | 'reload';
 /** What the hello announces. */
-export const capabilities: Capability[] = ['sessions', 'events', 'epic', 'files', 'fileDiff', 'availableRepos', 'availableReposPaged', 'resumeEpic', 'reload'];
+export const capabilities: Capability[] = ['sessions', 'events', 'epic', 'files', 'fileDiff', 'availableRepos', 'availableReposPaged', 'resumeEpic', 'recoverEpic', 'reload'];
 export type Hello = { event: 'hello'; protocol: 1; pid: number; startedAt: number; version: string; capabilities: (Capability | ChatCapability)[] };
 export type Reply = { id: number; ok: true; data?: unknown } | { id: number | null; ok: false; error: string };
 
@@ -72,6 +74,8 @@ export type Controls = {
   availableRepos(page: number): Promise<{ repos: AvailableRepo[]; hasMore: boolean }>;
   /** Puts a stopped epic back in motion and resolves once it started; rejects with ResumeRefused when it could not. */
   resumeEpic(repo: string, issue: number, chosen: { author?: string; reviewer?: string }): Promise<void>;
+  /** Continues one running epic whose agent is not alive and resolves once it was; rejects with RecoverRefused when it could not. It takes no state: the engine reads the epic's own. */
+  recoverEpic(repo: string, issue: number): Promise<void>;
   /** Reads the settings again and runs on them; throws ReloadRefused, with the settings as they were, when they are not valid. */
   reload(): void;
 };
@@ -181,6 +185,19 @@ function answer(line: string, snapshot: () => unknown, controls: Controls, stopA
         (error): Reply => {
           if (error instanceof ResumeRefused) return { id: replyId, ok: false, error: error.reason };
           log.error('resumeEpic failed', error);
+          return { id: replyId, ok: false, error: 'internal error' };
+        },
+      );
+  }
+  if (parsed.data.cmd === 'recoverEpic') {
+    const { id: replyId, repo, issue } = parsed.data;
+    return Promise.resolve()
+      .then(() => controls.recoverEpic(repo, issue))
+      .then(
+        (): Reply => ({ id: replyId, ok: true }),
+        (error): Reply => {
+          if (error instanceof RecoverRefused) return { id: replyId, ok: false, error: error.reason };
+          log.error('recoverEpic failed', error);
           return { id: replyId, ok: false, error: 'internal error' };
         },
       );

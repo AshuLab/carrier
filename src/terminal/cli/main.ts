@@ -57,6 +57,9 @@ else if (cli.flags.help) {
       case 'restart':
         exit = await (await import('./commands/restart.ts')).restartCommand(folder, cli.target!, { author: cli.flags.author, reviewer: cli.flags.reviewer });
         break;
+      case 'recover':
+        exit = await (await import('./commands/recover.ts')).recoverCommand(folder, cli.target!);
+        break;
       case 'chat':
       case 'chat-host':
         // the chat runs from the Carrier folder alone (ADR 0034), not from an engine config

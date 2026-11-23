@@ -1,0 +1,1 @@
+ALTER TABLE `epics` ADD `headRepeats` integer DEFAULT 0 NOT NULL;

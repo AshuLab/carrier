@@ -153,6 +153,14 @@ test('a round carries the observations its completed review listed, in order; a 
   ]);
 });
 
+test('a review of a head that moved is no round: the repeat on the new head is the round', async () => {
+  const id = epicRow();
+  run(id, 'review', 10, 11, { outcome: 'changes_requested', ...pr(SHA), blockers: [{ title: 'About a head that is gone' }] }, 1);
+  db.update(callerResults).set({ outcome: 'superseded' }).run();
+  run(id, 'review', 20, 21, { outcome: 'completed', ...pr('b'.repeat(40)) }, 1);
+  expect((await reply()).rounds.map((r) => [r.round, r.verdict, r.reviewedSha])).toEqual([[1, 'approved', 'b'.repeat(40)]]);
+});
+
 test('technical retries inside a round do not make a round', async () => {
   await drive([['Only blocker'], 'approved'], { flaky: true });
   const { rounds } = await reply();

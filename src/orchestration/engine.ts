@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createScopedLogger } from '@ashulab/universal-logger';
-import { and, asc, desc, eq, inArray, isNotNull, isNull, lte, notInArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull, isNull, lte, ne, notInArray, sql } from 'drizzle-orm';
 import type { EnginePlaces } from '../config/places.ts';
 import { runtimeOf } from '../config/providers.ts';
 import { failoverStepsFor, type Agent, type EffectiveRepoConfig } from '../config/resolve.ts';
@@ -15,9 +15,9 @@ import { importResult } from '../execution/import-result.ts';
 import type { Workspaces } from '../execution/workspaces.ts';
 import { epicReviewThreads } from '../storage/epic-review-threads.ts';
 import { epicSlices } from '../storage/epic-slices.ts';
-import { callerResults } from '../storage/caller-results.ts';
+import { callerResults, supersededOutcome } from '../storage/caller-results.ts';
 import type { Db } from '../storage/db.ts';
-import { epicEvents, recordEvents } from '../storage/events.ts';
+import { epicEvents, executionEvents, recordEvents } from '../storage/events.ts';
 import { executions, type executionStates } from '../storage/executions.ts';
 import { executionOutput, taskContext } from '../logging/logger.ts';
 import { epics, type needsHumanKinds } from '../storage/schema.ts';
@@ -167,7 +167,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
   const restart = (queuedAt: number) => ({
     status: 'queued' as const, queuedAt, startedAt: null, config: null, labelPending: false, stage: null, stageStartedAt: null, workspace: null,
     lastActivityAt: null, lastError: null, round: null, prNumber: null, prHeadSha: null, pr: null, reviewedSha: null, verification: null, observationsPassAt: null,
-    needsHumanReason: null, needsHumanKind: null, finishedAt: null, authorOption: null, reviewerOption: null, recoveries: 0, autoResumes: 0, resumeStage: null, roundLimit: null, resumeAt: null,
+    needsHumanReason: null, needsHumanKind: null, finishedAt: null, authorOption: null, reviewerOption: null, recoveries: 0, autoResumes: 0, headRepeats: 0, resumeStage: null, roundLimit: null, resumeAt: null,
   });
   // The rounds an epic may have: what a resume granted it, else the live setting (a changed `maxReviews` applies at the epic's next review).
   const roundCap = (epic: Epic) => epic.roundLimit ?? settings().maxReviews;
@@ -175,7 +175,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
   // worktree and the rest of where it stood; `resumeStage` tells `begin` where to start.
   const requeueKeeping = (queuedAt: number) => ({
     status: 'queued' as const, queuedAt, startedAt: null, config: null, labelPending: false, stage: null, stageStartedAt: null,
-    lastActivityAt: null, lastError: null, needsHumanReason: null, needsHumanKind: null, finishedAt: null, authorOption: null, reviewerOption: null, recoveries: 0, autoResumes: 0, resumeAt: null,
+    lastActivityAt: null, lastError: null, needsHumanReason: null, needsHumanKind: null, finishedAt: null, authorOption: null, reviewerOption: null, recoveries: 0, autoResumes: 0, headRepeats: 0, resumeAt: null,
   });
 
   // Mirrors the epic's status on its issue: its labels, none of the other owned ones, and no `ready` while running.
@@ -719,7 +719,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       .select({ result: callerResults.result })
       .from(callerResults)
       .innerJoin(executions, eq(executions.executionId, callerResults.executionId))
-      .where(and(eq(executions.epicId, epicId), inArray(executions.stage, ['review', 'fix'])))
+      .where(and(eq(executions.epicId, epicId), inArray(executions.stage, ['review', 'fix']), ne(callerResults.outcome, supersededOutcome)))
       .orderBy(asc(executions.startedAt))
       .all()
       .map(({ result }) => (JSON.parse(result) as { summary: string }).summary);
@@ -764,9 +764,8 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     if (!found) return `PR #${pr.number} does not exist`;
     if (found.state !== 'open') return `PR #${pr.number} is not open`;
     if (!new RegExp(`\\bcloses #${issue}(?!\\d)`, 'i').test(found.body)) return `PR #${pr.number} does not reference the epic (missing "Closes #${issue}")`;
-    if (found.headSha !== pr.headSha) {
-      return stage === 'review' ? 'the head changed during the review' : `the head of PR #${pr.number} is ${found.headSha}, not ${pr.headSha}`;
-    }
+    // A review's moved head is not a problem of the pull request: it is reviewed again (ADR 0047), `settle` decides.
+    if (stage !== 'review' && found.headSha !== pr.headSha) return `the head of PR #${pr.number} is ${found.headSha}, not ${pr.headSha}`;
     return null;
   }
 
@@ -781,6 +780,9 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       return null;
     }
   }
+
+  // A review of a head that moved is made again at most this many times in a row; the next move stops the epic.
+  const maxHeadRepeats = 2;
 
   // Errors of `git worktree list` per ship execution whose result was left to be settled again; the count is lost on a restart, which only gives it three more.
   const maxWorktreeListRetries = 3;
@@ -811,6 +813,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       return retry(epic.id);
     }
     let problem: { kind: 'workspace' | 'pr_invalid'; text: string } | null = null;
+    let movedTo: string | null = null; // a review whose head moved while it ran: the head GitHub has now, which the next review is made on
     let workspace: string | undefined;
     let branch: string | undefined; // the final PR's branch
     if (parsed.result.outcome !== 'needs_human') {
@@ -818,6 +821,10 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       const found = await github.getPullRequest(epic.repo, pr.number);
       const invalid = prProblem(epic, found, pr, execution.stage);
       if (invalid) problem = { kind: 'pr_invalid', text: invalid };
+      else if (execution.stage === 'review' && found!.headSha !== pr.headSha) {
+        if (epic.headRepeats >= maxHeadRepeats) problem = { kind: 'pr_invalid', text: `the head of PR #${pr.number} changed during the review ${epic.headRepeats + 1} times in a row` };
+        else movedTo = found!.headSha;
+      }
       if (!problem && execution.stage === 'ship') {
         // Solve put the epic's worktree where its solve.md says: read it back from git, keep the real path for the fix turns.
         branch = found!.headRef;
@@ -845,8 +852,16 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     const imported = importResult(db, raw, expected, (tx, result) => {
       // A stage change reaches the issue when a stage has a label: the label follows (labelPending) like a status change does.
       const update = (set: Partial<Epic>) => tx.update(epics).set({ ...set, ...(set.stage !== undefined && { recoveries: 0, autoResumes: 0, ...(stageLabelled() && { labelPending: true }) }) }).where(eq(epics.id, epic.id)).run();
+      if (execution.stage === 'review' && !problem && !movedTo) tx.update(epics).set({ headRepeats: 0 }).where(eq(epics.id, epic.id)).run(); // a review completed on its own head
       if (result.outcome === 'needs_human') toNeedsHuman(tx, epic.id, 'agent_needs_human', result.reason);
       else if (problem) toNeedsHuman(tx, epic.id, problem.kind, problem.text);
+      else if (movedTo) {
+        // The verdict judged a head that is not the pull request's any more: kept as the execution it is, never read by the next round, and the stage and round stay.
+        tx.update(callerResults).set({ outcome: supersededOutcome }).where(eq(callerResults.executionId, execution.executionId)).run();
+        tx.update(epics).set({ prHeadSha: movedTo, headRepeats: epic.headRepeats + 1 }).where(eq(epics.id, epic.id)).run();
+        tx.insert(epicEvents).values({ epicId: epic.id, at: clock.now(), type: 'review_repeated', data: { executionId: execution.executionId, round: epic.round, from: result.pr.headSha, to: movedTo, repeats: epic.headRepeats + 1 } }).run();
+        tx.insert(executionEvents).values({ executionId: execution.executionId, at: clock.now(), kind: 'note', payload: { text: `The head of PR #${result.pr.number} moved from ${result.pr.headSha} to ${movedTo} while this review ran: its verdict is set aside and the new head is reviewed again.` } }).run(); // what the events reply of this execution shows
+      }
       else if (execution.stage === 'ship') update({ stage: 'review', stageStartedAt: clock.now(), round: 1, prNumber: result.pr.number, prHeadSha: result.pr.headSha, workspace, branch });
       // The pass ended with the head that was reviewed: nothing to review again, the reviewer's verification stands.
       else if (execution.stage === 'fix' && latestObservations(db, epic.id) && result.pr.headSha === epic.reviewedSha) update({ status: 'ready_for_test', finishedAt: clock.now(), labelPending: true });

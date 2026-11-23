@@ -162,7 +162,7 @@ private struct HistoryRow: View {
     /// One quiet line under the text: a dot of the outcome's color and its name, then where it went, the words and the length. One `Text`, so it wraps as a sentence.
     private var meta: some View {
         let words = entry.words == 0 ? "" : "\(entry.words) \(entry.words == 1 ? "word" : "words") · "
-        let line = Text("\(Image(systemName: "circle.fill"))").font(.system(size: 6)).baselineOffset(1).foregroundStyle(tint)
+        let line = Text("\(Image(systemName: "circle.fill"))").font(.scaled(6)).baselineOffset(1).foregroundStyle(tint)
             + Text(" \(entry.outcome.title)").fontWeight(.medium).foregroundStyle(.primary)
             + Text(" · \(entry.destination) · \(words)\(seconds(entry.audio))").foregroundStyle(.secondary)
         return Group {

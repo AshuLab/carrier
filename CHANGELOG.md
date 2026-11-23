@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- The app download is smaller: the release binary ships without its debug symbols, which are kept as a dSYM on each GitHub Release.
+  On one measured build the binary is 29 MB smaller on disk (68.3 MB to 39.1 MB) and the zip 4 MB smaller (26.2 MB to 22.0 MB, 16 %).
+
 ## [0.18.0] - 2026-11-22
 
 A Projects page, session titles written by a local model, settings for the chat's text and the dictation widget, and a chat that asks much less of the Mac in long conversations.

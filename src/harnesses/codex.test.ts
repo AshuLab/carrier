@@ -56,7 +56,7 @@ test('the GitHub token goes only in the child env, replacing an inherited one', 
 // Lines as codex 0.153.4 printed them (trimmed).
 test('parseCodexLine reads session, login and lost-session errors', () => {
   expect(parseCodexLine('{"type":"thread.started","thread_id":"01a1425b-2b06-7de1-854b-334d33fbb363"}')).toEqual({ session: '01a1425b-2b06-7de1-854b-334d33fbb363' });
-  expect(parseCodexLine('{"type":"turn.failed","error":{"message":"unexpected status 401 Unauthorized: Missing bearer or basic authentication in header, url: https://api.openai.com/v1/responses"}}')).toEqual({ authFailed: true });
+  expect(parseCodexLine('{"type":"turn.failed","error":{"message":"unexpected status 401 Unauthorized: Missing bearer or basic authentication in header, url: https://api.openai.com/v1/responses"}}')).toEqual({ authFailed: { detail: 'unexpected status 401 Unauthorized: Missing bearer or basic authentication in header, url: https://api.openai.com/v1/responses' } });
   expect(parseCodexLine('Error: thread/resume: thread/resume failed: no rollout found for thread id 01a1 (code -32600)')).toEqual({ sessionUnavailable: true });
   // retries before the turn ends are not the end of the run
   expect(parseCodexLine('{"type":"error","message":"Reconnecting... 2/5 (unexpected status 401 Unauthorized: Missing bearer)"}')).toBeUndefined();
@@ -123,9 +123,15 @@ test('parseCodexLine reads every usage-limit and credit message as usage_limit',
     'You hit your spend cap set in your workspace. Increase your spend cap to continue.',
     'Your workspace is out of credits. Add credits to continue.',
     'Quota exceeded. Check your plan and billing details.',
+    'usage_not_included: To use Codex with your ChatGPT plan, upgrade to Plus.',
   ]) {
     expect(parseCodexLine(failed(message))).toEqual({ failure: { kind: 'usage_limit', detail: message } });
   }
+});
+
+test('a message that does not start with a known prefix is an api_error, usage_not_included in the middle included', () => {
+  const message = 'error type usage_not_included, upgrade to Plus';
+  expect(parseCodexLine(failed(message))).toEqual({ failure: { kind: 'api_error', detail: message } });
 });
 
 test('a retried 429, and a usage-limit error event with no turn.failed, are not usage_limit', () => {

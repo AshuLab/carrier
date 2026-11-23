@@ -1,7 +1,19 @@
-import { and, asc, count, eq, inArray } from 'drizzle-orm';
+import { and, asc, count, eq, inArray, max } from 'drizzle-orm';
 import type { EffectiveRepoConfig } from '../config/resolve.ts';
 import type { Db } from '../storage/db.ts';
 import { epics } from '../storage/schema.ts';
+
+type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
+
+// The queue is first in, first out: by when the epic entered it, then by id (see `queueOrder`).
+export const queueOrder = [asc(epics.queuedAt), asc(epics.id)];
+
+// Where an epic entering the queue (new, resumed or requeued) stands: after every epic already in it, so two never tie even when the clock gives the same millisecond.
+// Read and used in the same transaction as the write that queues the epic.
+export function queuePosition(tx: Db | Tx, now: number) {
+  const last = tx.select({ at: max(epics.queuedAt) }).from(epics).where(eq(epics.status, 'queued')).get()?.at;
+  return last === null || last === undefined ? now : Math.max(now, last + 1);
+}
 
 // Atomic: the check of free slots, the pick of the oldest queued epic and the move to `running`
 // happen in one write transaction, so two connections to the same file can never reserve the
@@ -16,7 +28,7 @@ export function reserve(db: Db, { maxConcurrent, now, repos }: { maxConcurrent: 
         .select()
         .from(epics)
         .where(and(eq(epics.status, 'queued'), inArray(epics.repo, repos.map((r) => r.name))))
-        .orderBy(asc(epics.id))
+        .orderBy(...queueOrder)
         .get();
       if (!next) return null;
       const config = repos.find((r) => r.name === next.repo)!;

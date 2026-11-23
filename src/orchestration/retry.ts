@@ -23,3 +23,15 @@ export function failureStreak(db: Db, epic: { id: number; startedAt: number | nu
   }
   return streak;
 }
+
+const apiErrorWaits = [30_000, 120_000, 600_000];
+
+/**
+ * How long the retry that follows a failure waits, in milliseconds. `streak` is the epic's failure streak (newest first), so its length is the
+ * position of the retry: an `api_error` waits 30 s, then 2 min, then 10 min (the last wait repeats), and a failure of any other kind, a process
+ * that died among them, waits nothing. The wait is by the kind of the failure that just ended and its position in the streak, whatever kinds came before.
+ */
+export function retryWait(streak: { failureKind: string | null }[]) {
+  if (streak[0]?.failureKind !== 'api_error') return 0;
+  return apiErrorWaits[Math.min(streak.length, apiErrorWaits.length) - 1] ?? 0;
+}

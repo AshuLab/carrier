@@ -153,6 +153,14 @@ test('a round carries the observations its completed review listed, in order; a 
   ]);
 });
 
+test('a review of a head that moved is no round: the repeat on the new head is the round', async () => {
+  const id = epicRow();
+  run(id, 'review', 10, 11, { outcome: 'changes_requested', ...pr(SHA), blockers: [{ title: 'About a head that is gone' }] }, 1);
+  db.update(callerResults).set({ outcome: 'superseded' }).run();
+  run(id, 'review', 20, 21, { outcome: 'completed', ...pr('b'.repeat(40)) }, 1);
+  expect((await reply()).rounds.map((r) => [r.round, r.verdict, r.reviewedSha])).toEqual([[1, 'approved', 'b'.repeat(40)]]);
+});
+
 test('technical retries inside a round do not make a round', async () => {
   await drive([['Only blocker'], 'approved'], { flaky: true });
   const { rounds } = await reply();
@@ -227,6 +235,13 @@ test('durations, shas and the commits between them come from the executions and 
   expect(gone.rounds[0]).toMatchObject({ reviewedSha: first, fixedSha: last, commits: [] });
   expect(gone.branch).toBeNull();
   expect(gone.worktrees[0]!.path).toBe(join(dir, 'gone'));
+});
+
+test('the reply carries the unanswered observations only when the epic has them, and an epic saved without them has none', async () => {
+  epicRow({ status: 'ready_for_test', finishedAt: 20_000 });
+  expect(await reply()).not.toHaveProperty('unansweredObservations');
+  db.update(epics).set({ unansweredObservations: 2, unansweredReason: 'last_round' }).run();
+  expect((await reply()).unansweredObservations).toEqual({ count: 2, reason: 'last_round' });
 });
 
 test('a queued epic has only its queue time, and a running one has an open stage', async () => {

@@ -93,20 +93,30 @@ export class FakeWorkspaces implements Workspaces {
     return `/work/${repo}/${epic}/author`;
   }
 
+  /** The commit a reviewer checkout reports. */
+  reviewerCommit: (repo: string, pr: number) => string = () => 'a'.repeat(40);
   async prepareReviewer(repo: string, epic: number, pr: number) {
-    return `/work/${repo}/${epic}/reviewer-${pr}`;
+    return { path: `/work/${repo}/${epic}/reviewer-${pr}`, commit: this.reviewerCommit(repo, pr) };
   }
 
   async findWorktree(repo: string, branch: string): Promise<string | null> {
     return `/work/${repo}/worktrees/${branch}`;
   }
 
+  /** Paths that are not on disk; every other path exists. */
+  readonly missing = new Set<string>();
+  async exists(path: string) {
+    return !this.missing.has(path);
+  }
+
   /** Every clean-up asked for, in order; set `failCleanUp` to make the next ones throw. */
   readonly cleanedUp: { repo: string; epic: number; branch: string | null }[] = [];
   failCleanUp: Error | null = null;
+  /** What the next clean-ups keep. */
+  kept: string[] = [];
   async cleanUp(repo: string, epic: number, branch: string | null) {
     if (this.failCleanUp) throw this.failCleanUp;
     this.cleanedUp.push({ repo, epic, branch });
-    return { kept: [] };
+    return { kept: this.kept };
   }
 }

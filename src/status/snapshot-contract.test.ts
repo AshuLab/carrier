@@ -39,7 +39,7 @@ const config = { name: 'acme', agents: { author: agent('claude', 'claude-sonnet-
 // Every field of the snapshot has a value somewhere in this sample, so the app can be built against it.
 test('the snapshot JSON equals macos/Tests/Fixtures/snapshot.json (UPDATE_FIXTURES=1 rewrites it)', () => {
   const inReview = add('acme/web', 12, 'running', { config, stage: 'review', round: 2, prNumber: 50, queuedAt: 500, startedAt: 1_000, stageStartedAt: 40_000, lastActivityAt: 90_000, lastError: 'the agent process ended with an error', workspace: '/work/acme/web-epic' });
-  const inShip = add('acme/web', 13, 'running', { config, stage: 'ship', queuedAt: 600, startedAt: 7_000, stageStartedAt: 7_000, workspace: '/work/acme/web-13' });
+  const inShip = add('acme/web', 13, 'running', { config, stage: 'ship', queuedAt: 600, startedAt: 7_000, stageStartedAt: 7_000, workspace: '/work/acme/web-13', retryAt: 100_030_000 });
   const waiting = add('acme/api', 4, 'needs_human', { config, stage: 'fix', round: 5, prNumber: 9, queuedAt: 700, startedAt: 2_000, stageStartedAt: 8_000, finishedAt: 60_000, needsHumanKind: 'review_limit', needsHumanReason: 'review limit' });
   for (const [i, kind] of (['agent_needs_human', 'retries_exhausted', 'timeout', 'auth', 'workspace', 'pr_invalid', 'usage_limit', 'engine_error'] as const).entries()) {
     add('acme/api', 5 + i, 'needs_human', { config, stage: 'ship', queuedAt: 800 + i, startedAt: 3_000 + i, finishedAt: 61_000 + i, needsHumanKind: kind, needsHumanReason: kind.replace('_', ' '), ...(kind === 'usage_limit' && { resumeAt: 90_000_000 }) });
@@ -47,7 +47,7 @@ test('the snapshot JSON equals macos/Tests/Fixtures/snapshot.json (UPDATE_FIXTUR
   add('acme/web', 20, 'queued', { queuedAt: 20_000 });
   add('acme/api', 21, 'queued', { queuedAt: 21_000 });
   const shipped = add('acme/web', 30, 'ready_for_test', { prNumber: 77, finishedAt: 95_000 });
-  add('acme/api', 31, 'ready_for_test', { finishedAt: 80_000 });
+  add('acme/api', 31, 'ready_for_test', { finishedAt: 80_000, unansweredObservations: 2, unansweredReason: 'already_taken' });
   const merged = add('acme/web', 40, 'merged', { prNumber: 88, finishedAt: 98_000 });
   add('acme/api', 41, 'cancelled', { finishedAt: 90_000, cancelReason: 'final PR closed without merge' });
   exec('exec-ship-40', merged.id, 'ship', 3_000);

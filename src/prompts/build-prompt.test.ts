@@ -57,7 +57,7 @@ test('ship prompt', () => {
       "reason": "<why a person has to step in>"
     }
     \`\`\`
-    Replace pr.number and pr.headSha with the real final PR and its current head (git rev-parse HEAD). A failing CI is not a completed result.
+    Replace pr.number and pr.headSha with the real final PR and its current head (take the head from gh pr view --json headRefOid). A failing CI is not a completed result.
     verification.ci is "absent" when the repo has no CI; say so in evidence."
   `);
 });
@@ -177,7 +177,7 @@ test('fix prompt', () => {
       "reason": "<why a person has to step in>"
     }
     \`\`\`
-    Replace pr.number and pr.headSha with the real final PR and its current head (git rev-parse HEAD). A failing CI is not a completed result.
+    Replace pr.number and pr.headSha with the real final PR and its current head (take the head from gh pr view --json headRefOid). A failing CI is not a completed result.
     verification.ci is "absent" when the repo has no CI; say so in evidence."
   `);
 });

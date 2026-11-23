@@ -33,7 +33,11 @@
       "labels": [
         "solve:epic"
       ],
-      "executionId": null
+      "executionId": null,
+      "unansweredObservations": {
+        "count": 2,
+        "reason": "already_taken"
+      }
     }
   ],
   "slots": {
@@ -249,7 +253,8 @@
           "model": "gpt-5",
           "provider": "ollama"
         }
-      }
+      },
+      "retryAt": 100030000
     },
     {
       "repo": "acme/api",

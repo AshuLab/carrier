@@ -9,7 +9,7 @@ export interface PanelOutput {
 }
 
 // What a person reads as "the state changed": durations tick every second and do not count.
-const stateOf = (e: PanelEpic) => [e.status, e.stage, e.round, e.blockers, e.needsHumanReason, e.lastError].join('|');
+const stateOf = (e: PanelEpic) => [e.status, e.stage, e.round, e.blockers, e.needsHumanReason, e.lastError, e.retryAt].join('|');
 
 /**
  * Shows the snapshot on `out` every `intervalMs`: redrawn in place with ANSI on a terminal, one plain line

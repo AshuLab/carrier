@@ -6,7 +6,7 @@ import { and, desc, eq, sql } from 'drizzle-orm';
 import type { CallerResult } from '../execution/caller-result.ts';
 import { withGit } from '../execution/git-binary.ts';
 import type { Db } from '../storage/db.ts';
-import { callerResults } from '../storage/caller-results.ts';
+import { callerResults, supersededOutcome } from '../storage/caller-results.ts';
 import { epicReviewThreads } from '../storage/epic-review-threads.ts';
 import { epicSlices } from '../storage/epic-slices.ts';
 import { executionEvents } from '../storage/events.ts';
@@ -163,7 +163,7 @@ export async function epicOf(db: Db, repo: string, issue: number): Promise<EpicR
   const epic = db.select().from(epics).where(and(eq(epics.repo, repo), eq(epics.issue, issue))).get();
   if (epic === undefined) return null;
   const runs = db
-    .select({ run: executions, result: callerResults.result })
+    .select({ run: executions, result: callerResults.result, outcome: callerResults.outcome })
     .from(executions)
     .leftJoin(callerResults, eq(callerResults.executionId, executions.executionId))
     .where(eq(executions.epicId, epic.id))
@@ -175,7 +175,8 @@ export async function epicOf(db: Db, repo: string, issue: number): Promise<EpicR
   let worked = false; // a review or a fix ran in this attempt
   let open: Found[] | null = null; // the previous round's open blockers; null before the first round
   const found: { round: Round; attempt: number; fixed: boolean }[] = [];
-  for (const { run, result } of runs) {
+  for (const { run, result, outcome } of runs) {
+    if (outcome === supersededOutcome) continue; // a review of a head that moved: no verdict, and no round of its own
     if (run.stage === 'ship') {
       if (worked) {
         attempt++;
@@ -255,5 +256,5 @@ export async function epicOf(db: Db, repo: string, issue: number): Promise<EpicR
   // the row records the branch once ship is validated; before that the worktree's HEAD is the only place it is
   const branch = epic.branch ?? (epic.workspace === null ? null : ((await git(epic.workspace, ['symbolic-ref', '--short', 'HEAD']))?.trim() || null));
 
-  return { stages, rounds, slices: slices.map(({ number, title, state, blockedBy, prNumber, prState, prMergedAt, closedAt, readAt }) => ({ number, title, state, blockedBy, prNumber, prState, prMergedAt, closedAt, readAt, lane: null, activity: null, ...(state === 'in_progress' && hints.get(number)) })), slicesTruncated: slices.some((s) => s.truncated), threads: threads.map(({ epicId, position, readAt, truncated, ...thread }) => thread), threadsTruncated: threads.some((t) => t.truncated), worktrees, branch, options: optionsOf(epic), pr: epic.pr };
+  return { stages, rounds, slices: slices.map(({ number, title, state, blockedBy, prNumber, prState, prMergedAt, closedAt, readAt }) => ({ number, title, state, blockedBy, prNumber, prState, prMergedAt, closedAt, readAt, lane: null, activity: null, ...(state === 'in_progress' && hints.get(number)) })), slicesTruncated: slices.some((s) => s.truncated), threads: threads.map(({ epicId, position, readAt, truncated, ...thread }) => thread), threadsTruncated: threads.some((t) => t.truncated), worktrees, branch, options: optionsOf(epic), ...(epic.unansweredObservations !== null && epic.unansweredReason !== null && { unansweredObservations: { count: epic.unansweredObservations, reason: epic.unansweredReason } }), pr: epic.pr };
 }

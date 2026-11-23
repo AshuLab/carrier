@@ -134,6 +134,10 @@ export class GitWorkspaces implements Workspaces {
     });
   }
 
+  async exists(path: string) {
+    return existsSync(path);
+  }
+
   async findWorktree(repo: string, branch: string) {
     return this.serial(repo, async () => (await this.linkedWorktrees(this.clonePath(repo))).find((w) => w.branch === branch)?.path ?? null);
   }
@@ -190,7 +194,10 @@ export class GitWorkspaces implements Workspaces {
     return join(this.places.reviews, repo.split('/')[1]!, String(epic));
   }
 
-  /** A checkout detached at the PR's head, apart from the author's and from Solve's `worktrees/`; each round re-points it. */
+  /**
+   * A checkout detached at the PR's head, apart from the author's and from Solve's `worktrees/`; each round re-points it, resets the tracked
+   * files to it and removes the untracked ones, keeping the ignored (a review does not rebuild its dependencies). Returns the commit it is at.
+   */
   async prepareReviewer(repo: string, epic: number, pr: number) {
     assertCount(epic, 'epic');
     assertCount(pr, 'pr');
@@ -199,13 +206,15 @@ export class GitWorkspaces implements Workspaces {
       await this.remote(repo, ['fetch', 'origin', this.reviewRef(pr)], clone);
       const sha = await git(['rev-parse', '--verify', 'FETCH_HEAD^{commit}'], { cwd: clone });
       const path = this.reviewPath(repo, epic);
-      if (existsSync(join(path, '.git'))) await git(['switch', '--detach', sha], { cwd: path });
-      else {
+      if (existsSync(join(path, '.git'))) {
+        await git(['reset', '--hard', sha], { cwd: path });
+        await git(['clean', '-fd'], { cwd: path });
+      } else {
         await mkdir(dirname(path), { recursive: true });
         await git(['worktree', 'prune'], { cwd: clone });
         await git(['worktree', 'add', '--detach', path, sha], { cwd: clone });
       }
-      return path;
+      return { path, commit: sha };
     });
   }
 }

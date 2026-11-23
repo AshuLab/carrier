@@ -1,7 +1,7 @@
 import { formatDuration } from '../../format/duration.ts';
 import { printable } from './printable.ts';
 import { defaultLabels } from '../../orchestration/github.ts';
-import type { PanelEpic, PanelSnapshot } from '../../status/types.ts';
+import type { PanelEpic, PanelSnapshot, UnansweredObservations } from '../../status/types.ts';
 import { finishedSections, itemsOf, maxListed, type UiState } from './ui-state.ts';
 import { detailOf, historyLine, type DetailProvider } from './history.ts';
 
@@ -30,6 +30,10 @@ export function fit(line: string, columns: number): string {
   }
   return open ? `${out}\x1b[0m` : out;
 }
+
+/** What an epic that went to ready for test with observations nobody answered says: how many and why, short enough to show whole at 50 columns. */
+export const unansweredLine = ({ count, reason }: UnansweredObservations) =>
+  `${count} unanswered observation${count === 1 ? '' : 's'}: ${reason === 'already_taken' ? 'pass already taken' : 'last round'}`;
 
 const stages = ['ship', 'review', 'fix'] as const;
 
@@ -136,6 +140,7 @@ export function renderDashboard(s: PanelSnapshot, { columns = 80, color = true, 
     const slices = e.slices && e.slices.total > 0 ? ` · slices ${e.slices.done}/${e.slices.total}` : '';
     add(` ${bar} ${formatDuration(s.now - e.stageSince)} in stage · ${e.lastActivityAt === null ? 'no activity yet' : `active ${ago(e.lastActivityAt)}`}${blockers}${slices}`);
     add(` ${bar} ${paint(e.prUrl ?? e.issueUrl, 'dim')}`);
+    if (e.retryAt !== undefined) add(` ${bar} ${e.retryAt > s.now ? `retrying in ${formatDuration(e.retryAt - s.now)}` : 'retrying at the next check'}`);
     if (e.lastError) add(` ${bar} ${paint(`error: ${printable(e.lastError)}`, 'red')}`);
     // What the agent is doing: three lines for the selected card, one for the others.
     const now = e.executionId && activity ? activity(e.executionId, chosen ? 3 : 1) : [];
@@ -177,6 +182,7 @@ export function renderDashboard(s: PanelSnapshot, { columns = 80, color = true, 
     section('READY FOR TEST ✔', 'green');
     for (const d of s.done) {
       add(row(d));
+      if (d.unansweredObservations) add(`   ${paint(unansweredLine(d.unansweredObservations), 'yellow')}`);
       const history = detail && detailOf(detail, d);
       if (history && history.length > 0) add(`   ${historyLine(history, s.now, paint, width - 3)}`);
     }

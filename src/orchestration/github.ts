@@ -129,9 +129,7 @@ export type RateLimit = { remaining: number; limit: number; resetAt: number };
 export interface GitHub {
   /** From the headers of the latest call, no request of its own; null before any call carried them. */
   rateLimit(): RateLimit | null;
-  /** All open issues of the repo that carry `label` (the ready label), every page, with their title and labels. Throws GitHubUnavailable when GitHub is down or rate limiting. */
-  listReadyEpics(repo: string, label: string): Promise<{ issue: number; title: string; labels: string[] }[]>;
-  /** The open issues of the repo that carry `label` (the epic marker), every page, each with its title, labels and the slice progress GitHub reports (`null` when it sends none). Throws GitHubUnavailable like the call above. */
+  /** The open issues of the repo that carry `label` (the epic marker), every page, oldest first, each with its title, labels and the slice progress GitHub reports (`null` when it sends none). The ready ones are those whose labels have the ready label: the poll reads this once per repo and cycle. Throws GitHubUnavailable when GitHub is down or rate limiting. */
   listOpenEpics(repo: string, label: string): Promise<{ issue: number; title: string; labels: string[]; slices: Slices | null }[]>;
   /** The first hundred slices of an epic in one query; `truncated` when it has more. Throws GitHubUnavailable like the call above. */
   readSlices(repo: string, issue: number): Promise<{ slices: EpicSlice[]; truncated: boolean }>;

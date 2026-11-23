@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { fit, renderDashboard, visibleLength, type DashboardOptions } from './dashboard.ts';
+import { fit, renderDashboard, unansweredLine, visibleLength, type DashboardOptions } from './dashboard.ts';
 import type { PanelEpic, PanelSnapshot } from '../../status/types.ts';
 
 const now = 10 * 3_600_000;
@@ -90,6 +90,15 @@ test('queue, needs you, ready for test, and a problem banner', () => {
   expect(out).not.toContain('Idle.');
 });
 
+test('a ready-for-test epic with observations nobody answered says how many and why', () => {
+  const done = { repo: 'AshuLab/carrier', issue: 28, title: 'Menu bar', labels: [], prNumber: 44, finishedAt: now - 7_200_000, executionId: null };
+  expect(plain(snap({ done: [{ ...done, unansweredObservations: { count: 2, reason: 'already_taken' } }] }))).toContain('Menu bar\n   2 unanswered observations: pass already taken');
+  expect(plain(snap({ done: [{ ...done, unansweredObservations: { count: 1, reason: 'last_round' } }] }))).toContain('1 unanswered observation: last round');
+  // the reason is never cut, down to the 50-column floor
+  for (const reason of ['already_taken', 'last_round'] as const) expect(plain(snap({ done: [{ ...done, unansweredObservations: { count: 12, reason } }] }), 50)).toContain(unansweredLine({ count: 12, reason }));
+  expect(plain(snap({ done: [done] }))).not.toContain('unanswered');
+});
+
 test('the wait for the next poll reads right before, during and after it is due', () => {
   expect(plain(snap({ nextCheckAt: null }))).toContain('watching 2 repos · starting');
   expect(plain(snap({ nextCheckAt: now - 1 }))).toContain('watching 2 repos · checking now…');
@@ -141,6 +150,13 @@ test('a stopped epic that resumes by itself says in how long, and at the next ch
   expect(out(now + 5 * 3_600_000 + 12 * 60_000)).toContain('   ran out of usage\n   resumes by itself in 5h 12m\n   https://');
   expect(out(now - 1)).toContain('   resumes by itself at the next check');
   expect(out()).not.toContain('resumes');
+});
+
+test('a running card waiting to retry says in how long, and at the next check once the time has passed', () => {
+  const out = (retryAt?: number) => plain(snap({ epics: [epic({ issue: 29, ...(retryAt !== undefined && { retryAt }) })] }));
+  expect(out(now + 600_000)).toContain('retrying in 10m');
+  expect(out(now - 1)).toContain('retrying at the next check');
+  expect(out()).not.toContain('retrying');
 });
 
 test('a review or fix card lists up to three blocker titles and counts the rest; with none it adds nothing', () => {

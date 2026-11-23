@@ -16,6 +16,8 @@ The reviewer's checkout reports the commit it was made at, and a review's result
 When the head GitHub has at the end of a review is not the commit the review was made on, the engine reviews again on the new head and does not count that review as a round.
 It does so at most twice in a row for one epic, and the next move stops the epic in needs-human with `pr_invalid`, as the spec said.
 A verdict is only ever recorded on the commit it judged, so an unreviewed commit is still never declared ready.
+The head a review was given is the commit its checkout is at, not the head the epic stored, and the result of a review of a superseded head is kept but never read for the next round's blockers or observations.
+Resuming an epic at `review` after its head moved adopts the new head, and resuming at `fix` still refuses, because the blockers handed to the author belong to the head the epic stored.
 
 ## Alternatives considered
 

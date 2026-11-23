@@ -8,12 +8,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- The switches and sliders of Settings take the accent the person picks, also after the window was opened; they kept the one it was opened with.
 - A long command in an approval, or many options in a question, no longer push the message box out of a short window: they scroll inside the card, which takes at most a third of the window.
 - A session started from the new session screen keeps the model, reasoning and permissions chosen for it, so it wakes with them after it sleeps instead of on its agent's defaults.
   A session made before this fix kept none of them and wakes on its agent's defaults until they are chosen again.
 
 ### Changed
 
+- The segmented choices of Settings and Usage mark the chosen one with the person's accent, in pieces of the same width that slide from one choice to the next.
 - "Regenerate title" shows the title waiting in the sidebar (it goes quiet and shimmers for at least two seconds, longer if the model takes longer) and then rolls the new title in; the sidebar title rolls whenever it changes.
 - A change of agent shows in the conversation as a divider with the two agents (their mark, label and color as set in `providers.json`, and their models) in a glass capsule and what carried over under it, not as a plain line of text.
 - Picking another agent in a session's panel no longer changes the session on the spot: it changes with the next message you send, with the handoff going out with it.

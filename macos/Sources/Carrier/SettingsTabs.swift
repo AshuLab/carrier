@@ -263,19 +263,24 @@ struct FilterChip: View {
     }
 }
 
-/// A few choices that exclude each other, in one grey capsule: the chosen one is a lighter capsule inside it, never the accent. Every choice
-/// has the same type and padding whether chosen or not, so nothing changes size when the choice moves (Usage's metric and range).
+/// A few choices that exclude each other, in one quiet capsule: the chosen one is a piece tinted with the person's accent (`themeAccent`: the one they picked,
+/// else the theme's, else the Mac's) that slides to the next choice. The choices are as wide as the widest one, so the piece does not change size as it moves,
+/// and every one has the same type and padding whether chosen or not (Usage's metric and range).
 struct SegmentedChoice<Value: Hashable>: View {
     let options: [(value: Value, title: String, icon: AppIcon?)]
     @Binding var selection: Value
+    @Namespace private var thumb
 
     var body: some View {
-        HStack(spacing: 4) {
+        EqualWidthRow {
             ForEach(Array(options.enumerated()), id: \.offset) { _, option in
-                Segment(title: option.title, icon: option.icon, on: selection == option.value) { selection = option.value }
+                Segment(title: option.title, icon: option.icon, on: selection == option.value, thumb: thumb) { selection = option.value }
             }
         }
-        .padding(3).background(Capsule().fill(Color.primary.opacity(0.07)))
+        .padding(2)
+        .background(Capsule().fill(Color.primary.opacity(0.06)))
+        .overlay(Capsule().strokeBorder(Color.primary.opacity(0.06), lineWidth: 1))
+        .animation(.smooth(duration: 0.25), value: selection)
         .accessibilityElement(children: .contain)
     }
 
@@ -283,8 +288,10 @@ struct SegmentedChoice<Value: Hashable>: View {
         let title: String
         let icon: AppIcon?
         let on: Bool
+        let thumb: Namespace.ID
         let action: () -> Void
         @State private var hovered = false
+        @Environment(\.colorScheme) private var scheme
 
         var body: some View {
             Button(action: action) {
@@ -292,14 +299,41 @@ struct SegmentedChoice<Value: Hashable>: View {
                     if let icon { Glyph(icon, size: 11) }
                     Text(title).font(.scaled(12, weight: .medium))
                 }
-                .foregroundStyle(on ? Color.primary : Color.secondary)
-                .padding(.horizontal, 12).padding(.vertical, 4)
-                .background(Capsule().fill(Color.primary.opacity(on ? 0.16 : hovered ? 0.07 : 0)))
+                // the chosen one reads in the accent, a little lifted in the dark and deepened in the light so it keeps its contrast on the tinted piece
+                .foregroundStyle(on ? Color.themeAccent.mix(with: scheme == .dark ? .white : .black, by: scheme == .dark ? 0.3 : 0.2) : hovered ? Color.primary : Color.secondary)
+                .padding(.horizontal, 14).padding(.vertical, 4)
+                // the whole of the slot the row gives it, so the tinted piece (its background) is as wide as the widest choice and not as the words
+                .frame(maxWidth: .infinity)
+                .background {
+                    if on {
+                        Capsule().fill(Color.themeAccent.opacity(0.24))
+                            .overlay(Capsule().strokeBorder(Color.themeAccent.opacity(0.45), lineWidth: 1))
+                            .matchedGeometryEffect(id: "thumb", in: thumb)
+                    } else if hovered {
+                        Capsule().fill(Color.primary.opacity(0.07))
+                    }
+                }
                 .contentShape(Capsule())
             }
             .buttonStyle(.plain).onHover { hovered = $0 }
             .animation(.easeOut(duration: 0.12), value: hovered)
             .accessibilityAddTraits(on ? .isSelected : [])
+        }
+    }
+}
+
+/// Lays its children side by side, each as wide as the widest, none apart.
+private struct EqualWidthRow: Layout {
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let sizes = subviews.map { $0.sizeThatFits(.unspecified) }
+        return CGSize(width: (sizes.map(\.width).max() ?? 0) * CGFloat(subviews.count), height: sizes.map(\.height).max() ?? 0)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        guard subviews.isEmpty == false else { return }
+        let width = bounds.width / CGFloat(subviews.count)
+        for (index, subview) in subviews.enumerated() {
+            subview.place(at: CGPoint(x: bounds.minX + width * CGFloat(index), y: bounds.minY), proposal: ProposedViewSize(width: width, height: bounds.height))
         }
     }
 }

@@ -8,6 +8,7 @@ import { createProjects } from './projects.ts';
 import { ChatRefused } from './runner.ts';
 import { clearWorktree, createWorktree, previewWorktree, removeWorktree, restoreWorktree } from './worktree.ts';
 import { openChatDatabase } from './db.ts';
+import { loadChatConfig } from './config.ts';
 import { FakeChatRunner, fakeProjects } from './fake.ts';
 import { createSessions } from './sessions.ts';
 import { FakeClock } from '../orchestration/fake.ts';
@@ -352,6 +353,42 @@ describe.skipIf(!enabled)('deleting a session in a worktree, with the real git',
     expect(git(base, 'worktree', 'list').trim().split('\n')).toHaveLength(1);
     expect(stateOf(base)).toEqual(before);
     expect(s.list({}).sessions).toEqual([]);
+  });
+
+  test('the default clock pass takes the folder of a session archived and idle 14 days, with its ignored build, and keeps the branch, the unpushed commit and the session; resuming brings the folder back', async () => {
+    const base = repoAt('clock-clean');
+    writeFileSync(join(base, '.gitignore'), 'build/\n');
+    git(base, 'add', '.');
+    git(base, 'commit', '-q', '-m', 'ignore');
+    mkdirSync(home, { recursive: true });
+    const clock = new FakeClock();
+    const s = createSessions({ db: openChatDatabase(join(home, 'chat.db')), agents: [{ name: 'claude', account: 'claude' }], clock, runners: { claude: new FakeChatRunner() }, env: {}, git: realGit, projects: fakeProjects(realGit), binaryFound: () => true, ages: () => ({ archiveAfterDays: 15, deleteAfterDays: 30 }), onLiveChange: () => {} });
+    const { session: opened } = await s.open({ agent: 'claude', folder: base, worktree: { from: 'main', name: 'parked' } });
+    const { path, branch } = opened.workspace as { path: string; branch: string };
+    writeFileSync(join(path, 'work.txt'), 'w\n');
+    git(path, 'add', '.');
+    git(path, 'commit', '-q', '-m', 'work'); // on no remote
+    const tip = git(path, 'rev-parse', 'HEAD').trim();
+    mkdirSync(join(path, 'build'));
+    writeFileSync(join(path, 'build', 'big.bin'), 'x'.repeat(100_000));
+    await s.close({ sessionId: opened.id });
+    await s.archive({ sessionId: opened.id, archived: true });
+    const settings = loadChatConfig({});
+    if (settings.ok === false) throw new Error('the defaults load');
+
+    clock.time += 13 * 24 * 60 * 60_000;
+    await s.applyClock(settings.settings);
+    expect(existsSync(path)).toBe(true); // 13 days: not yet
+    clock.time += 24 * 60 * 60_000;
+    await s.applyClock(settings.settings);
+    expect(existsSync(path)).toBe(false);
+    expect(git(base, 'rev-parse', branch).trim()).toBe(tip);
+    expect(s.list({ archived: true }).sessions.map((one) => one.id)).toEqual([opened.id]);
+
+    await s.resume({ sessionId: opened.id });
+    expect(git(path, 'branch', '--show-current').trim()).toBe(branch);
+    expect(readFileSync(join(path, 'work.txt'), 'utf8')).toBe('w\n');
+    expect(existsSync(join(path, 'build'))).toBe(false);
   });
 
   test('with the base folder removed first the files left in the worktree folder are counted, and the folder is removed directly', async () => {

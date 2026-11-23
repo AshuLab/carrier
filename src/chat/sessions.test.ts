@@ -828,6 +828,32 @@ test('resume opens a closed session again from its native id, folder and options
   expect(sessions.events({ sessionId: id, limit: 50 }).events.map((e) => e.kind)).toEqual(['user', 'assistant', 'turn_end', 'user']); // the transcript goes on from where it was
 });
 
+test('a session made from a plan wakes with the options chosen for it, and the agent\'s own defaults under them', async () => {
+  const s = setup({ agents: { claude: { account: 'claude', model: 'haiku' } } });
+  const offer = offering(['model', ['haiku', 'sonnet'], 'haiku'], ['mode', ['default', 'plan'], 'default']);
+  s.claude.setup = (conversation) => {
+    offer(conversation);
+    conversation.reply = () => conversation.emit({ kind: 'assistant', text: 'ok' }, { kind: 'turn_end', outcome: 'ok' });
+  };
+  const { session } = await s.sessions.openPlan({ plan: planFor({ options: { model: 'sonnet', mode: 'plan' } }) });
+  await vi.waitFor(() => expect(stepsOf(s, session.id)).toContain('message:done'));
+  // what was chosen is kept with the session, not only handed to the first conversation
+  expect(s.db.select().from(schemaSessions).where(eq(schemaSessions.id, session.id)).get()!.options).toEqual({ model: 'sonnet', mode: 'plan' });
+  await s.sessions.close({ sessionId: session.id });
+  await s.sessions.resume({ sessionId: session.id });
+  expect(s.claude.opened[1]).toMatchObject({ options: { model: 'sonnet', mode: 'plan' } });
+});
+
+test('a session that kept no options (made before they were stored) wakes with its agent\'s defaults', async () => {
+  const s = setup({ agents: { claude: { account: 'claude', model: 'haiku' } } });
+  s.claude.setup = offering(['model', ['haiku'], 'haiku']);
+  const { sessions, claude, id } = await openOne(s);
+  s.db.update(schemaSessions).set({ options: null }).where(eq(schemaSessions.id, id)).run();
+  await sessions.close({ sessionId: id });
+  await sessions.resume({ sessionId: id });
+  expect(claude.opened[1]).toMatchObject({ options: { model: 'haiku' } });
+});
+
 test('a resume that began a new conversation says so once, in a notice that keeps the lost id, and the session drops it', async () => {
   const s = setup({ agents: { claude: { account: 'claude', model: 'haiku' } } });
   s.claude.setup = offering(['model', ['haiku'], 'haiku']);

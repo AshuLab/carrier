@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- A session started from the new session screen keeps the model, reasoning and permissions chosen for it, so it wakes with them after it sleeps instead of on its agent's defaults.
+  A session made before this fix kept none of them and wakes on its agent's defaults until they are chosen again.
+
 ### Changed
 
 - A change of agent shows in the conversation as a divider with the two agents (their mark, label and color as set in `providers.json`, and their models) in a glass capsule and what carried over under it, not as a plain line of text.

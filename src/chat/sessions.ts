@@ -984,6 +984,8 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
         return void (await conversation.close().catch((closing) => log.error('closing the agent of a cancelled preparation failed', closing)));
       }
       stepEvent(sessionId, 'agent', 'done');
+      // what was chosen for the session is the session's: the row holds it, so a wake opens the agent as it was and not on its defaults
+      db.update(sessions).set({ options }).where(eq(sessions.id, sessionId)).run();
       const live = attach(sessionId, conversation, issued.invocationId, 'preparing');
       stepEvent(sessionId, 'message', 'running');
       live.awaitingAnswer = true;
@@ -1491,7 +1493,8 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
       let conversation: ChatConversation;
       try {
         const instructions = instructionsOf(sessionId);
-        conversation = await openConversation(launch, { folder, options: current.options ?? {}, mcp: issued.args, ...(current.nativeId !== null && { resume: current.nativeId }), ...(instructions !== undefined && { instructions }) });
+        // the agent's own defaults under what the session kept: a row from before options were stored (a plan's) wakes on them, not on the provider's
+        conversation = await openConversation(launch, { folder, options: { ...(chosen.model && { model: chosen.model }), ...chosen.options, ...current.options }, mcp: issued.args, ...(current.nativeId !== null && { resume: current.nativeId }), ...(instructions !== undefined && { instructions }) });
       } catch (error) {
         revoke(issued.invocationId);
         throw error;

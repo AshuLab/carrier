@@ -35,6 +35,8 @@ export type EngineSettings = {
   pollIntervalMs: number;
   maxConcurrentEpics: number;
   maxExecutionHours: number | 'unlimited';
+  /** Minutes a process may write nothing before it is killed and retried; absent: no watchdog. */
+  idleMinutes?: number;
   /** Technical failures retried per stage after the first attempt. */
   maxExecutionRetries: number;
   /** Reviews of the final PR before the epic goes to a person; fix turns do not count. */
@@ -425,7 +427,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     }
     const executionId = randomUUID();
     const resultPath = join(places.state, 'results', `${executionId}.json`);
-    const hoursLimit = settings().maxExecutionHours; // read once: the run keeps the timeout it launches with
+    const { maxExecutionHours: hoursLimit, idleMinutes } = settings(); // read once: the run keeps the timeout and the idle limit it launches with
     // A fix right after a review that completed is the observations pass; after one that asked for changes, it answers the blockers.
     const observations = stage === 'fix' ? latestObservations(db, epic.id) : null;
     const task: AgentTask = {
@@ -438,6 +440,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       workspace,
       resultPath,
       timeoutMs: hoursLimit === 'unlimited' ? null : hoursLimit * 3_600_000,
+      ...(idleMinutes !== undefined && { idleMs: idleMinutes * 60_000 }),
       ...(resumeSession && { resumeSession }),
       context: {
         previousSummaries: reviewing || rebuild ? previousSummaries(epic.id) : [],

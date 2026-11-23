@@ -11,6 +11,7 @@ import { createEventState, type AgentEvent } from '../execution/events.ts';
 import { claudeAdapter } from './claude.ts';
 import { agyAdapter } from './agy.ts';
 import { codexAdapter } from './codex.ts';
+import { isIdle } from './idle.ts';
 import { resolveBinary, splitLines, type AgentCommand, type HarnessAdapter, type LineSignal } from './common.ts';
 
 const exec = promisify(execFile);
@@ -104,6 +105,8 @@ export class HostAgentRunner implements AgentRunner {
     let sessionId: string | undefined;
     let reason: 'stopped' | 'timed_out' | undefined;
     let pid: number | undefined;
+    let lastOutputAt = Date.now();
+    let idle = false;
     const emit = (stream: 'stdout' | 'stderr', chunk: string) => outputs.forEach((cb) => cb(stream, chunk));
     const graceMs = this.options.graceMs ?? 5000;
 
@@ -164,6 +167,7 @@ export class HostAgentRunner implements AgentRunner {
         const splitter = splitLines();
         return {
           push: (chunk: string) => {
+            lastOutputAt = Date.now();
             emit(stream, chunk);
             const lines = splitter.push(chunk);
             batch = [];
@@ -188,6 +192,12 @@ export class HostAgentRunner implements AgentRunner {
             reason ??= 'timed_out';
             void kill();
           }, task.timeoutMs);
+      lastOutputAt = Date.now();
+      const watchdog = task.idleMs === undefined ? undefined : setInterval(() => {
+        if (idle || !isIdle(Date.now(), lastOutputAt, task.idleMs)) return;
+        idle = true;
+        void kill();
+      }, Math.min(task.idleMs, 1000));
       let startError: string | undefined;
       const [code, killedBy] = await new Promise<[number | null, NodeJS.Signals | null]>((resolve) => {
         child.on('error', (e) => {
@@ -211,10 +221,13 @@ export class HostAgentRunner implements AgentRunner {
       });
       finished = true;
       clearTimeout(timer);
+      clearInterval(watchdog);
       out.flush();
       err.flush();
 
       if (reason) return { exit: reason, sessionId, usage };
+      // Killed by the watchdog: a technical failure like any other, so it is retried with its session.
+      if (idle) return { exit: 'failed', sessionId, usage, failure: { ...processFailure(code, killedBy, undefined), detail: `no output for ${task.idleMs! / 1000} seconds` } };
       if (authFailed) return { exit: 'auth_failed', sessionId, usage };
       if (sessionLost) return { exit: 'session_unavailable', sessionId, usage };
       if (startError !== undefined) return { ...spawnError(`cannot start ${command.bin}: ${startError}`), sessionId };

@@ -48,6 +48,14 @@ if (mode === 'auth') {
     process.on('SIGTERM', () => process.exit(0));
     setInterval(() => {}, 1000);
   } else process.exit(0);
+} else if (mode === 'chatty') {
+  // Writes every 200 ms for a second, then ends: never silent long enough for a short idle limit.
+  let n = 0;
+  const timer = setInterval(() => {
+    out({ type: 'assistant', message: { content: [{ type: 'text', text: `tick ${++n}` }] } });
+    if (n === 5) process.exit(0);
+  }, 200);
+  void timer;
 } else if (mode === 'hang') {
   setInterval(() => {}, 1000);
 } else {

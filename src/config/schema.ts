@@ -103,6 +103,7 @@ export const configSchema = z
       maxExecutionRetries: z.int().nonnegative(),
       maxExecutionHours: z.union([z.literal('unlimited'), z.int().positive()]),
       githubCallTimeoutSeconds: z.int().positive(),
+      idleMinutes: z.int().positive().optional(),
     }, { error: (issue) => (issue.code === 'unrecognized_keys' && issue.keys.includes('optionChoiceSeconds') ? 'limits.optionChoiceSeconds is gone: an epic starts at once on its roles and waits for no choice. Remove it' : undefined) }),
   })
   .superRefine((config, ctx) => {

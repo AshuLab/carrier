@@ -1,7 +1,9 @@
 import { existsSync, readdirSync, rmSync } from 'node:fs';
-import { resolve, sep } from 'node:path';
+import { lstat, readdir } from 'node:fs/promises';
+import { join, resolve, sep } from 'node:path';
 import { createScopedLogger } from '@ashulab/universal-logger';
 import type { Git, GitResult } from './git.ts';
+import { realOfNearest } from './folder.ts';
 import { BRANCH_PREFIX, invalidReason, repository, worktreePath, worktreesDir } from './names.ts';
 import { ChatRefused } from './runner.ts';
 import { countPorcelain } from './workspace.ts';
@@ -87,17 +89,59 @@ export async function removeWorktree(git: Git, { path, branch, base }: MadeWorkt
   if (deleted.ok === false) log.error('the branch of a worktree that was not kept could not be removed', { code: deleted.code });
 }
 
+/** A worktree as `git worktree list --porcelain` reports it: its folder and its branch, null when HEAD is detached or the repository is bare. */
+export type ListedWorktree = { path: string; branch: string | null };
+
+/** The paragraphs of `git worktree list --porcelain`: the main working tree first, then each linked one. */
+export function parseWorktreeList(out: string): ListedWorktree[] {
+  return out
+    .split(/\n\n+/)
+    .map((block) => block.split('\n'))
+    .flatMap((lines) => {
+      const path = lines.find((line) => line.startsWith('worktree '))?.slice('worktree '.length);
+      const branch = lines.find((line) => line.startsWith('branch refs/heads/'))?.slice('branch refs/heads/'.length) ?? null;
+      return path === undefined ? [] : [{ path, branch }];
+    });
+}
+
+/** What git lists for `folder`: its main working tree first, then the linked ones. A folder git cannot read refuses with a fixed sentence. */
+export async function listWorktrees(git: Git, folder: string): Promise<ListedWorktree[]> {
+  const listed = await git.run(folder, ['worktree', 'list', '--porcelain']);
+  if (listed.ok === false) {
+    log.error('git could not list the worktrees of a folder', { code: listed.code, timedOut: listed.timedOut === true });
+    throw new ChatRefused('Git could not list the worktrees of this folder');
+  }
+  return parseWorktreeList(listed.out);
+}
+
+/** What a folder takes on disk, in bytes: the blocks of every file and folder under it, links not followed. A path that cannot be read counts nothing. ponytail: a file hard-linked twice counts twice. */
+export async function folderBytes(path: string): Promise<number> {
+  try {
+    const stats = await lstat(path);
+    let total = stats.blocks * 512;
+    if (stats.isDirectory() === false) return total;
+    for (const name of await readdir(path)) total += await folderBytes(join(path, name));
+    return total;
+  } catch {
+    return 0;
+  }
+}
+
 /** The number `git rev-list --count` printed. */
 export const parseCount = (out: string) => Number.parseInt(out.trim(), 10) || 0;
 
 /** The entries a worktree folder holds besides its `.git` link: what is left to lose when git cannot read the worktree. */
 const filesLeft = (path: string) => (existsSync(path) ? readdirSync(path).filter((entry) => entry !== '.git').length : 0);
 
-/** The path of a recorded worktree, which must be `<worktrees>/<owner>/<repo>/<name>` with the branch `carrier/<name>`; refuses anything else, so a tampered record removes nothing. */
+/**
+ * The path of a recorded worktree, which must be `<worktrees>/<owner>/<repo>/<name>` with the branch `carrier/<name>`; refuses anything else, so a tampered record removes nothing.
+ * Both are compared with their symlinks resolved, as git lists a worktree by its real path, so a Carrier folder that is a link (or sits under one) holds the path either way.
+ */
 function recorded({ path, branch }: MadeWorktree): string {
   const target = resolve(path);
-  const root = resolve(worktreesDir());
-  const [owner, repo, name, ...deeper] = target.startsWith(root + sep) ? target.slice(root.length + 1).split(sep) : [];
+  const real = realOfNearest(target);
+  const root = realOfNearest(resolve(worktreesDir()));
+  const [owner, repo, name, ...deeper] = real.startsWith(root + sep) ? real.slice(root.length + 1).split(sep) : [];
   if (owner === undefined || repo === undefined || name === undefined || deeper.length > 0 || invalidReason(name) !== null || branch !== `${BRANCH_PREFIX}${name}`) throw new ChatRefused('This session\'s worktree is not one Carrier made, so nothing was removed');
   return target;
 }
@@ -115,6 +159,20 @@ export async function previewWorktree(git: Git, made: MadeWorktree, batch: strin
   if (status.ok === false || ahead.ok === false) {
     log.error('git could not read a worktree to preview its deletion', { status: status.ok ? 0 : status.code, ahead: ahead.ok ? 0 : ahead.code });
     throw new ChatRefused('Git could not read the worktree of a session');
+  }
+  return { dirty: countPorcelain(status.out), unpushed: parseCount(ahead.out) };
+}
+
+/** What moving a project's own folder to the Trash would lose: the lines `git status --porcelain` prints in it and the commits of its branch that no remote branch holds (all of them with no remote). No branch, or one with no commits yet, has none. */
+export async function previewMain(git: Git, folder: string, branch: string | null): Promise<{ dirty: number; unpushed: number }> {
+  const hasBranch = branch !== null && (await branchExists(git, folder, branch));
+  const [status, ahead] = await Promise.all([
+    git.run(folder, ['--no-optional-locks', 'status', '--porcelain']),
+    hasBranch ? git.run(folder, ['rev-list', '--count', `refs/heads/${branch}`, '--not', '--remotes']) : Promise.resolve<GitResult>({ ok: true, out: '0' }),
+  ]);
+  if (status.ok === false || ahead.ok === false) {
+    log.error('git could not read a project folder to preview its deletion', { status: status.ok ? 0 : status.code, ahead: ahead.ok ? 0 : ahead.code });
+    throw new ChatRefused('Git could not read the folder of this project');
   }
   return { dirty: countPorcelain(status.out), unpushed: parseCount(ahead.out) };
 }

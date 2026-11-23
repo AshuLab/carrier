@@ -34,6 +34,7 @@ The top of the folder holds only the files you edit; each process has its own fo
   engine.json      the engine's config, this page
   chat.json        the chat's settings (see Chat configuration), optional
   providers.json   the accounts both read (see AI providers)
+  projects.json    the projects you work on, read and written by the app and the chat host (see Projects)
   engine/          the engine's own folder
   chat/            the chat host's own folder: state/, logs/, worktrees/, projects/, pending/, sessions/
   app/             the macOS app's own folder: state/, logs/, cache/
@@ -361,9 +362,58 @@ A chat applies every key of its account that starts the CLI: `configDir` and `co
 | `model` | no | The model the provider starts with. Not empty. |
 | `options` | no | Default options of the provider, by the provider's own option id. An option the provider does not list is refused when the session opens. |
 
+## Projects
+
+The projects you work on live in `projects.json` in the Carrier folder (`~/.carrier`, or `CARRIER_HOME`), next to `engine.json`, `chat.json` and `providers.json`: [ADR 0041](adr/0041-a-project-is-an-entry-of-projects-json-identified-by-its-folder.md).
+The app and the chat host both read and write it, each reading the file again just before it writes, so you can edit it by hand while Carrier runs.
+It is optional: without it there are no projects.
+A file that does not match is reported with the field named and neither the app nor the host writes over it.
+The host reads it as no projects until you fix it.
+
+```json
+{
+  "projects": [
+    { "path": "/Users/ana/notes", "origin": "added" },
+    {
+      "path": "~/work/carrier",
+      "name": "Carrier",
+      "origin": "cloned",
+      "pinned": true,
+      "hidden": false,
+      "tags": ["work", "swift"],
+      "icon": { "color": "teal", "mark": "bolt" },
+      "defaults": { "agent": "claude", "workIn": "worktree", "baseBranch": "main" },
+      "actions": [{ "name": "Install", "command": "pnpm install", "when": "newWorktree", "on": true, "onFail": "warn" }]
+    }
+  ]
+}
+```
+
+| Field | Required | Meaning |
+|---|---|---|
+| `path` | yes | The project's folder, absolute or starting with `~/`. It is the project's identity: two projects cannot share it. |
+| `name` | no | What the project is called; the folder's name when absent. Not blank. |
+| `origin` | yes | How it came to be: `cloned`, `created` or `added`. |
+| `pinned`, `hidden` | no | Booleans. |
+| `tags` | no | A list of words, each trimmed, in lower case and listed once. |
+| `icon` | no | `color`, `mark` and `image` (a file name in the app's project-icons folder), each a non-empty string. |
+| `defaults` | no | What a new session starts with: `agent`, `workIn` (`baseFolder` or `worktree`) and `baseBranch`. Absent means the same as everywhere. |
+| `actions` | no | Commands the project runs: `name` and `command` (not blank), `when` (`newWorktree` or `afterClone`), `on` (a boolean) and `onFail` (`warn` or `stop`). |
+
+The file is strict: an unknown key, a field of the wrong type, a repeated path, an empty path, a blank name or command and a tag that is not trimmed and in lower case are each refused, naming the field (`projects.1.name`).
+What can be worked out is never stored: the remote, the branch, the worktrees and their size.
+
 ## Projects folder
 
-The chat host clones a GitHub repository for a session when the first message is sent (the `clone` step of a plan, or the older `cloneRepo` request). It goes to `<projects folder>/<owner>/<repo>`; one already there (a `.git` whose `origin` is that repository) is fetched instead, and anything else at that path stops the request and is left untouched. The clone and the fetch use the token of your active `gh` login, handed to git in its environment, so `gh` must be installed and signed in. Each git command has ten minutes. A new project (the `project` step of a plan the host prepares when the first message is sent, or the older `createProject` request) is a folder at `<projects folder>/local/<name>` with `git init -b main`; the name is a plain folder name (letters, digits, `_`, `.` and `-`, at most a hundred, not starting with a dot or a dash), one that is taken is refused and nothing is changed. Its branches are listed, without the repository being on your Mac, for the draft's worktree choice (the `repoBranches` request, with the same `gh` login). The same host lists your repositories for the app's "My GitHub repositories" step (the `githubRepos` request, thirty a page, with the same `gh` login): every repository that login can read, as owner, collaborator or organisation member, archived and disabled ones left out; it needs no config. Carrier never deletes anything in the folder, except the half-made clone or project of a request that failed or was cancelled.
+The chat host clones a GitHub repository for a session when the first message is sent (the `clone` step of a plan, or the older `cloneRepo` request).
+It goes to `<projects folder>/<owner>/<repo>`; one already there (a `.git` whose `origin` is that repository) is fetched instead, and anything else at that path stops the request and is left untouched.
+The clone and the fetch use the token of your active `gh` login, handed to git in its environment, so `gh` must be installed and signed in.
+Each git command has ten minutes.
+A new project (the `project` step of a plan the host prepares when the first message is sent, the older `createProject` request, or `newProject` from Settings, which also registers it in `projects.json` with origin `created` and may go under another folder for that one project) is a folder at `<projects folder>/local/<name>` with `git init -b main`; the name is a plain folder name (letters, digits, `_`, `.` and `-`, at most a hundred, not starting with a dot or a dash), one that is taken is refused and nothing is changed.
+Its branches are listed, without the repository being on your Mac, for the draft's worktree choice (the `repoBranches` request, with the same `gh` login).
+The same host lists your repositories for the app's "My GitHub repositories" step (the `githubRepos` request, thirty a page, with the same `gh` login): every repository that login can read, as owner, collaborator or organisation member, archived and disabled ones left out; it needs no config.
+The Projects page of the app clones into the same folder (or into a parent chosen for that one clone), in the background, and registers the folder in `projects.json` when it ends; it never adds the repository to `engine.json`'s `repos`.
+Carrier never deletes anything in the folder, except the half-made clone or project of a request that failed or was cancelled.
 
 ## Things that are checked
 

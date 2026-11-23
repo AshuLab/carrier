@@ -15,8 +15,8 @@ const log = createScopedLogger('chat');
 const MAX_LINE_BYTES = 1024 * 1024;
 
 /** The requests a chat host answers; each slice that adds one adds its name here. */
-export type ChatCapability = 'agents' | 'list' | 'open' | 'resume' | 'send' | 'answer' | 'interrupt' | 'setOption' | 'agentOptions' | 'events' | 'close' | 'archive' | 'delete' | 'workspace' | 'fetch' | 'suggestName' | 'checkName' | 'deletePreview' | 'cloneRepo' | 'createProject' | 'githubRepos' | 'repoBranches' | 'health' | 'providers' | 'plan' | 'stop' | 'reasoning' | 'rename' | 'usage' | 'usageOverride' | 'accountIdentity' | 'accountPalette' | 'switchAgent' | 'stopTask' | 'worktreeStart' | 'fetchIfStale' | 'listsRev' | 'textGenerators' | 'regenerateTitle' | 'regenerateTitles';
-export const capabilities: ChatCapability[] = ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'agentOptions', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'createProject', 'githubRepos', 'repoBranches', 'health', 'providers', 'plan', 'stop', 'reasoning', 'rename', 'usage', 'usageOverride', 'accountIdentity', 'accountPalette', 'switchAgent', 'stopTask', 'worktreeStart', 'fetchIfStale', 'listsRev', 'textGenerators', 'regenerateTitle', 'regenerateTitles'];
+export type ChatCapability = 'agents' | 'list' | 'open' | 'resume' | 'send' | 'answer' | 'interrupt' | 'setOption' | 'agentOptions' | 'events' | 'close' | 'archive' | 'delete' | 'workspace' | 'fetch' | 'suggestName' | 'checkName' | 'deletePreview' | 'cloneRepo' | 'createProject' | 'githubRepos' | 'repoBranches' | 'health' | 'providers' | 'plan' | 'stop' | 'reasoning' | 'rename' | 'usage' | 'usageOverride' | 'accountIdentity' | 'accountPalette' | 'switchAgent' | 'stopTask' | 'worktreeStart' | 'fetchIfStale' | 'listsRev' | 'projects' | 'textGenerators' | 'regenerateTitle' | 'regenerateTitles';
+export const capabilities: ChatCapability[] = ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'agentOptions', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'createProject', 'githubRepos', 'repoBranches', 'health', 'providers', 'plan', 'stop', 'reasoning', 'rename', 'usage', 'usageOverride', 'accountIdentity', 'accountPalette', 'switchAgent', 'stopTask', 'worktreeStart', 'fetchIfStale', 'listsRev', 'projects', 'textGenerators', 'regenerateTitle', 'regenerateTitles'];
 
 const id = z.number().int().positive();
 const sessionId = z.uuid();
@@ -66,6 +66,15 @@ export const chatRequest = z.union([
   z.strictObject({ id, cmd: z.literal('checkName'), folder: z.string().min(1), name: z.string().max(1000) }),
   z.strictObject({ id, cmd: z.literal('deletePreview'), sessionIds: z.array(sessionId).min(1).max(500) }),
   z.strictObject({ id, cmd: z.literal('cloneRepo'), repo: z.string().regex(repoNamePattern) }),
+  // the `projects` capability: what the Projects page asks of the host
+  z.strictObject({ id, cmd: z.literal('cloneProject'), repo: z.string().regex(repoNamePattern), parent: z.string().min(1).max(4096).optional() }),
+  z.strictObject({ id, cmd: z.literal('projectClones') }),
+  z.strictObject({ id, cmd: z.literal('projectWorktrees'), folder: z.string().min(1).max(4096) }),
+  z.strictObject({ id, cmd: z.literal('projectDisk'), folders: z.array(z.string().min(1).max(4096)).min(1).max(500), refresh: z.enum(['stale', 'now']).optional() }),
+  z.strictObject({ id, cmd: z.literal('removeProjectWorktree'), folder: z.string().min(1).max(4096), path: z.string().min(1).max(4096) }),
+  z.strictObject({ id, cmd: z.literal('cleanProjectWorktrees'), folder: z.string().min(1).max(4096), run: z.boolean().optional() }),
+  z.strictObject({ id, cmd: z.literal('dismissClone'), repo: z.string().regex(repoNamePattern) }),
+  z.strictObject({ id, cmd: z.literal('newProject'), name: z.string().regex(projectNamePattern), parent: z.string().min(1).max(4096).optional() }),
   z.strictObject({ id, cmd: z.literal('createProject'), name: z.string().regex(projectNamePattern) }),
   z.strictObject({ id, cmd: z.literal('githubRepos'), page: z.int().min(1).max(100) }),
   z.strictObject({ id, cmd: z.literal('repoBranches'), repo: z.string().regex(repoNamePattern) }),
@@ -117,6 +126,22 @@ export type ChatControls = {
   deletePreview(args: Args<'deletePreview'>): Promise<unknown>;
   /** `gone` aborts when the client closes its connection. */
   cloneRepo(args: Args<'cloneRepo'>, gone: AbortSignal): Promise<unknown>;
+  /** Starts the clone of a repository into `parent/<owner>/<name>` and answers at once with it, cloning; the host registers the project when it ends. Shared with one that runs. */
+  cloneProject(args: Args<'cloneProject'>): unknown;
+  /** The clones started from Settings that are running or failed, with git's latest progress line or the reason. */
+  projectClones(): unknown;
+  /** A project's main clone and the worktrees git lists for its folder that lie under the worktrees folder, each with its branch, session, age and state. */
+  projectWorktrees(args: Args<'projectWorktrees'>): Promise<unknown>;
+  /** What each project takes on disk as last measured (none yet: nulls), and which are queued or running; `stale` queues those never measured or a day old, `now` all of them. */
+  projectDisk(args: Args<'projectDisk'>): unknown;
+  /** Removes the folder of one worktree of a project, keeping its branch and session; refused while its session is open or it has uncommitted changes. */
+  removeProjectWorktree(args: Args<'removeProjectWorktree'>): Promise<unknown>;
+  /** The merged worktrees of a project that Clean up would remove (with their bytes) and the ones it skips (with the reason); `run` removes them. */
+  cleanProjectWorktrees(args: { folder: string; run: boolean }): Promise<unknown>;
+  /** Forgets a failed clone; answers the clones that are left. */
+  dismissClone(args: Args<'dismissClone'>): unknown;
+  /** Makes `<parent>/local/<name>` with `git init` and registers it as a project with origin `created`; answers its folder. */
+  newProject(args: Args<'newProject'>): Promise<unknown>;
   createProject(args: Args<'createProject'>): Promise<unknown>;
   githubRepos(args: Args<'githubRepos'>): Promise<unknown>;
   /** The default branch and the branches of a repository that need not be on disk; read-only. */
@@ -184,6 +209,22 @@ async function run(request: Exclude<Request, { cmd: 'stop' }>, controls: ChatCon
       return controls.deletePreview({ sessionIds: request.sessionIds });
     case 'cloneRepo':
       return controls.cloneRepo({ repo: request.repo }, gone);
+    case 'cloneProject':
+      return controls.cloneProject({ repo: request.repo, parent: request.parent });
+    case 'projectClones':
+      return controls.projectClones();
+    case 'projectWorktrees':
+      return controls.projectWorktrees({ folder: request.folder });
+    case 'projectDisk':
+      return controls.projectDisk({ folders: request.folders, refresh: request.refresh });
+    case 'removeProjectWorktree':
+      return controls.removeProjectWorktree({ folder: request.folder, path: request.path });
+    case 'cleanProjectWorktrees':
+      return controls.cleanProjectWorktrees({ folder: request.folder, run: request.run === true });
+    case 'dismissClone':
+      return controls.dismissClone({ repo: request.repo });
+    case 'newProject':
+      return controls.newProject({ name: request.name, parent: request.parent });
     case 'createProject':
       return controls.createProject({ name: request.name });
     case 'githubRepos':

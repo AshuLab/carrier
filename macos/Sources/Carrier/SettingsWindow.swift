@@ -106,6 +106,7 @@ struct SettingsRoot: View {
     @State private var query = ""
     @State private var resetter = SettingsReset()
     @State private var saver = SettingsSave()
+    @State private var headerAction = SettingsHeaderAction()
     @State private var title: SettingsTitle?
     @State private var confirmingReset = false
 
@@ -117,7 +118,7 @@ struct SettingsRoot: View {
                 .navigationSplitViewColumnWidth(min: 200, ideal: 240, max: 300)
         } detail: {
             SettingsPages(
-                state: model.state, canReload: model.epics.canReload, navigator: navigator, target: $navigator.target, headerNote: $headerNote, title: $title
+                state: model.state, canReload: model.epics.canReload, sessions: model.sessions.rows, navigator: navigator, target: $navigator.target, headerNote: $headerNote, title: $title
             )
                 .navigationTitle(title?.text ?? navigator.page.rawValue)
                 .navigationSubtitle(title?.subtitle ?? navigator.page.detail)
@@ -129,6 +130,19 @@ struct SettingsRoot: View {
                             .disabled(navigator.history.canGoForward == false).keyboardShortcut("]", modifiers: .command).help("Forward")
                     }
                     if let headerNote { ToolbarItem(placement: .primaryAction) { SettingsNoteView(note: headerNote) } }
+                    if let actionTitle = headerAction.title {
+                        ToolbarItem(placement: .primaryAction) {
+                            ToolbarPillButton(
+                                title: actionTitle,
+                                icon: headerAction.icon,
+                                iconTint: headerAction.active ? Color.themeAccent : nil
+                            ) { headerAction.run?() }
+                            .glassEffect(.regular, in: .capsule)
+                            .help(headerAction.help.isEmpty ? actionTitle : headerAction.help)
+                            .accessibilityAddTraits(headerAction.active ? .isSelected : [])
+                        }
+                        .sharedBackgroundVisibility(.hidden)
+                    }
                     // the save of a screen that edits something (an account): on its own glass pill, as the window's other actions
                     if let saveTitle = saver.title {
                         ToolbarItem(placement: .primaryAction) {
@@ -151,6 +165,7 @@ struct SettingsRoot: View {
         }
         .environment(\.settingsReset, resetter)
         .environment(\.settingsSave, saver)
+        .environment(\.settingsHeaderAction, headerAction)
         // the session rows of the Sidebar page's preview read what the main window gives its own
         .environment(model.actions)
         .alert("Reset \(navigator.page.rawValue)?", isPresented: $confirmingReset) {
@@ -284,6 +299,7 @@ extension SettingsPage {
         case .keepAwake: .yellow
         case .chat: .teal
         case .sessions: .indigo
+        case .projects: .mint
         case .sidebar: .cyan
         case .terminal: Color(white: 0.25)
         case .agents: .orange
@@ -301,6 +317,7 @@ let settingsColumnWidth: CGFloat = 760
 struct SettingsPages: View {
     let state: ConnectionState?
     let canReload: Bool
+    var sessions: [SessionRow] = []
     let navigator: SettingsNavigator
     /// The place the search chose: scrolled to and shown for a moment, once the page is drawn.
     @Binding var target: SettingsEntry?
@@ -318,7 +335,7 @@ struct SettingsPages: View {
     /// The width the page has, to center a column in it.
     @State private var width: CGFloat = 0
     private var page: SettingsPage { navigator.page }
-    private var inset: CGFloat { page.isColumn ? max(0, (width - settingsColumnWidth) / 2) : 0 }
+    private var inset: CGFloat { navigator.place.isColumn ? max(0, (width - settingsColumnWidth) / 2) : 0 }
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -405,6 +422,7 @@ struct SettingsPages: View {
         case .repos: ReposTabView(state: state, canReload: canReload, openAgents: { navigator.go(.agents) })
         case .agents: AgentsTabView(place: navigator.place, go: navigator.go)
         case .sessions: SessionsTabView()
+        case .projects: ProjectsTabView(place: navigator.place, go: navigator.go, sessions: sessions, state: state, canReload: canReload)
         case .notifications: NotificationsTabView()
         case .health: HealthTabView(state: state)
         }

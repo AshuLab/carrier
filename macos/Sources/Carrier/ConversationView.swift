@@ -269,7 +269,8 @@ private struct ConversationBox: View {
             if model.background.isEmpty == false {
                 BackgroundWorkCard(tasks: model.background, stop: { Task { await model.stop() } }, stopTask: model.canStopTask ? { id in Task { await model.stopTask(id) } } : nil).transition(.move(edge: .bottom).combined(with: .opacity))
             }
-            if model.asleep { ClosedSessionNotice(chosen: model.wakeOptions.isEmpty == false).transition(.opacity) }
+            if model.folderGone { FolderGoneNotice().transition(.opacity) }
+            else if model.asleep { ClosedSessionNotice(chosen: model.wakeOptions.isEmpty == false).transition(.opacity) }
             if let queued = model.queued {
                 QueuedMessageCard(
                     text: queued, interrupts: whileWorking == .interrupt,
@@ -637,6 +638,13 @@ struct ArchivedSessionNotice: View {
         NoticeCard(symbol: .archive, tint: .gray, title: archivedSessionNotice.title, detail: archivedSessionNotice.detail, detailLines: 2) {
             Button("Resume", action: resume).buttonStyle(NoticeActionStyle())
         }
+    }
+}
+
+/// An idle session whose folder was deleted with its project: it stays as history and cannot go on.
+struct FolderGoneNotice: View {
+    var body: some View {
+        NoticeCard(symbol: .trash, tint: .gray, title: folderGoneNotice.title, detail: folderGoneNotice.detail) {}
     }
 }
 

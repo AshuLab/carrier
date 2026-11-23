@@ -77,7 +77,7 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
 }
 
 @MainActor private func model(_ host: FakeChat, log: @escaping (String) -> Void = { _ in }) -> ConversationModel {
-    ConversationModel(host: host, sessionId: session, log: log)
+    ConversationModel(host: host, sessionId: session, log: log, folderExists: { _ in true })
 }
 
 @MainActor @Test func enterSendsTheTrimmedDraftAndEmptiesTheBox() async {

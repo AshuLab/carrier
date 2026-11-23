@@ -68,6 +68,26 @@ const controls = (): ChatControls => ({
     seen.push(gone);
     return { repo };
   },
+  cloneProject: ({ repo, parent }) => {
+    if (repo === 'acme/missing') throw new ChatRefused('acme/missing is already a project');
+    return { repo, folder: `${parent ?? '/projects'}/${repo}`, state: 'cloning' };
+  },
+  projectClones: () => ({ clones: [{ repo: 'acme/app', folder: '/projects/acme/app', state: 'cloning', progress: 'Receiving objects: 45%' }] }),
+  projectWorktrees: async ({ folder }) => {
+    if (folder === '/gone') throw new ChatRefused('That folder does not exist');
+    return { main: { path: folder, branch: 'main', state: 'clean' }, worktrees: [{ path: '/home/chat/worktrees/acme/app/kerrigan', branch: 'carrier/kerrigan', session: null, lastActiveAt: 1000, state: 'clean' }] };
+  },
+  projectDisk: ({ folders, refresh }) => ({ projects: folders.map((folder) => ({ folder, bytes: 2048, measuredAt: 5, parts: { [folder]: 2048 } })), measuring: refresh === 'now' ? folders : [] }),
+  removeProjectWorktree: async ({ path }) => {
+    if (path === '/open') throw new ChatRefused('Its session is open');
+    return {};
+  },
+  cleanProjectWorktrees: async ({ run }) => ({ removed: [{ path: '/w/a', bytes: run ? 2048 : 1024 }], skipped: [{ path: '/w/b', reason: 'It has uncommitted changes' }] }),
+  dismissClone: () => ({ clones: [] }),
+  newProject: async ({ name, parent }) => {
+    if (name === 'taken') throw new ChatRefused('taken is already a project; choose another name');
+    return { folder: `${parent ?? '/projects'}/local/${name}` };
+  },
   createProject: async ({ name }) => ({ folder: `/projects/local/${name}` }),
   githubRepos: async ({ page }) => ({ page }),
   repoBranches: async ({ repo }) => ({ repo }),
@@ -116,7 +136,7 @@ test('the socket is 0600, and a client gets a hello and the empty list', async (
   await open();
   expect(statSync(join(dir, 'chat.sock')).mode & 0o777).toBe(0o600);
   const c = await client();
-  expect(c.hello).toMatchObject({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, capabilities: ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'agentOptions', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'createProject', 'githubRepos', 'repoBranches', 'health', 'providers', 'plan', 'stop', 'reasoning', 'rename', 'usage', 'usageOverride', 'accountIdentity', 'accountPalette', 'switchAgent', 'stopTask', 'worktreeStart', 'fetchIfStale', 'listsRev', 'textGenerators', 'regenerateTitle', 'regenerateTitles'] });
+  expect(c.hello).toMatchObject({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, capabilities: ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'agentOptions', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'createProject', 'githubRepos', 'repoBranches', 'health', 'providers', 'plan', 'stop', 'reasoning', 'rename', 'usage', 'usageOverride', 'accountIdentity', 'accountPalette', 'switchAgent', 'stopTask', 'worktreeStart', 'fetchIfStale', 'listsRev', 'projects', 'textGenerators', 'regenerateTitle', 'regenerateTitles'] });
   expect(typeof c.hello.version).toBe('string');
   expect(await c.ask('{"id":1,"cmd":"list"}')).toEqual({ id: 1, ok: true, data: { sessions: [] } });
 });
@@ -357,6 +377,85 @@ test('createProject takes one plain folder name and nothing else', async () => {
   expect(await c.ask('{"id":20,"cmd":"createProject"}')).toEqual({ id: 20, ok: false, error: 'invalid request' });
   expect(await c.ask('{"id":21,"cmd":"createProject","name":"a","force":true}')).toEqual({ id: 21, ok: false, error: 'invalid request' });
   expect(await c.ask(`{"id":22,"cmd":"createProject","name":"${'a'.repeat(100)}"}`)).toMatchObject({ ok: true });
+});
+
+test('the projects requests: a clone starts and answers at once, the clones in flight are listed, a failed one is dismissed', async () => {
+  await open();
+  const c = await client();
+  expect(await c.ask('{"id":1,"cmd":"cloneProject","repo":"acme/app"}')).toEqual({ id: 1, ok: true, data: { repo: 'acme/app', folder: '/projects/acme/app', state: 'cloning' } });
+  expect(await c.ask('{"id":2,"cmd":"cloneProject","repo":"acme/app","parent":"/work"}')).toMatchObject({ ok: true, data: { folder: '/work/acme/app' } });
+  expect(await c.ask('{"id":3,"cmd":"cloneProject","repo":"acme/missing"}')).toEqual({ id: 3, ok: false, error: 'acme/missing is already a project' });
+  expect(await c.ask('{"id":4,"cmd":"projectClones"}')).toEqual({ id: 4, ok: true, data: { clones: [{ repo: 'acme/app', folder: '/projects/acme/app', state: 'cloning', progress: 'Receiving objects: 45%' }] } });
+  expect(await c.ask('{"id":5,"cmd":"dismissClone","repo":"acme/app"}')).toEqual({ id: 5, ok: true, data: { clones: [] } });
+  const bad = [
+    '{"id":10,"cmd":"cloneProject"}',
+    '{"id":11,"cmd":"cloneProject","repo":"../x"}',
+    '{"id":12,"cmd":"cloneProject","repo":"a/b","parent":""}',
+    '{"id":13,"cmd":"cloneProject","repo":"a/b","force":true}',
+    '{"id":14,"cmd":"projectClones","repo":"a/b"}',
+    '{"id":15,"cmd":"dismissClone"}',
+    '{"id":16,"cmd":"dismissClone","repo":"a/b/c"}',
+  ];
+  for (const line of bad) expect(await c.ask(line)).toMatchObject({ ok: false, error: 'invalid request' });
+});
+
+test('projectWorktrees takes a folder and nothing else, and answers the main clone and the worktrees', async () => {
+  await open();
+  const c = await client();
+  expect(await c.ask('{"id":1,"cmd":"projectWorktrees","folder":"/work/app"}')).toEqual({ id: 1, ok: true, data: { main: { path: '/work/app', branch: 'main', state: 'clean' }, worktrees: [{ path: '/home/chat/worktrees/acme/app/kerrigan', branch: 'carrier/kerrigan', session: null, lastActiveAt: 1000, state: 'clean' }] } });
+  expect(await c.ask('{"id":2,"cmd":"projectWorktrees","folder":"/gone"}')).toEqual({ id: 2, ok: false, error: 'That folder does not exist' });
+  const bad = ['{"id":10,"cmd":"projectWorktrees"}', '{"id":11,"cmd":"projectWorktrees","folder":""}', '{"id":12,"cmd":"projectWorktrees","folder":"/a","force":true}', `{"id":13,"cmd":"projectWorktrees","folder":"/${'a'.repeat(4096)}"}`];
+  for (const line of bad) expect(await c.ask(line)).toMatchObject({ ok: false, error: 'invalid request' });
+});
+
+test('projectDisk takes one to 500 folders and a refresh of stale or now, and nothing else', async () => {
+  await open();
+  const c = await client();
+  expect(await c.ask('{"id":1,"cmd":"projectDisk","folders":["/work/app"]}')).toEqual({ id: 1, ok: true, data: { projects: [{ folder: '/work/app', bytes: 2048, measuredAt: 5, parts: { '/work/app': 2048 } }], measuring: [] } });
+  expect(await c.ask('{"id":2,"cmd":"projectDisk","folders":["/work/app"],"refresh":"now"}')).toMatchObject({ ok: true, data: { measuring: ['/work/app'] } });
+  const many = JSON.stringify(Array.from({ length: 500 }, (_, index) => `/w/${index}`));
+  expect(await c.ask(`{"id":3,"cmd":"projectDisk","folders":${many}}`)).toMatchObject({ ok: true });
+  const bad = ['{"id":10,"cmd":"projectDisk"}', '{"id":11,"cmd":"projectDisk","folders":[]}', '{"id":12,"cmd":"projectDisk","folders":[""]}', '{"id":13,"cmd":"projectDisk","folders":["/a"],"refresh":"always"}', '{"id":14,"cmd":"projectDisk","folders":["/a"],"force":true}', `{"id":15,"cmd":"projectDisk","folders":${JSON.stringify(Array.from({ length: 501 }, () => '/a'))}}`, `{"id":16,"cmd":"projectDisk","folders":["/${'a'.repeat(4096)}"]}`, '{"id":17,"cmd":"projectDisk","folders":"/a"}'];
+  for (const line of bad) expect(await c.ask(line)).toMatchObject({ ok: false, error: 'invalid request' });
+});
+
+test('removeProjectWorktree takes a project folder and a worktree path, and cleanProjectWorktrees a folder and whether to run', async () => {
+  await open();
+  const c = await client();
+  expect(await c.ask('{"id":1,"cmd":"removeProjectWorktree","folder":"/work/app","path":"/w/a"}')).toEqual({ id: 1, ok: true, data: {} });
+  expect(await c.ask('{"id":2,"cmd":"removeProjectWorktree","folder":"/work/app","path":"/open"}')).toEqual({ id: 2, ok: false, error: 'Its session is open' });
+  const removed = [{ path: '/w/a', bytes: 1024 }];
+  const skipped = [{ path: '/w/b', reason: 'It has uncommitted changes' }];
+  // asking without `run` only says what would go; the answer to `run` is what went
+  expect(await c.ask('{"id":3,"cmd":"cleanProjectWorktrees","folder":"/work/app"}')).toEqual({ id: 3, ok: true, data: { removed, skipped } });
+  expect(await c.ask('{"id":4,"cmd":"cleanProjectWorktrees","folder":"/work/app","run":true}')).toEqual({ id: 4, ok: true, data: { removed: [{ path: '/w/a', bytes: 2048 }], skipped } });
+  const bad = [
+    '{"id":10,"cmd":"removeProjectWorktree","folder":"/a"}',
+    '{"id":11,"cmd":"removeProjectWorktree","path":"/a"}',
+    '{"id":12,"cmd":"removeProjectWorktree","folder":"","path":"/a"}',
+    '{"id":13,"cmd":"removeProjectWorktree","folder":"/a","path":"/b","force":true}',
+    `{"id":14,"cmd":"removeProjectWorktree","folder":"/a","path":"/${'a'.repeat(4096)}"}`,
+    '{"id":15,"cmd":"cleanProjectWorktrees"}',
+    '{"id":16,"cmd":"cleanProjectWorktrees","folder":"/a","run":"yes"}',
+    '{"id":17,"cmd":"cleanProjectWorktrees","folder":"/a","run":true,"force":true}',
+  ];
+  for (const line of bad) expect(await c.ask(line)).toMatchObject({ ok: false, error: 'invalid request' });
+});
+
+test('newProject takes a plain folder name and an optional parent, and nothing else', async () => {
+  await open();
+  const c = await client();
+  expect(await c.ask('{"id":1,"cmd":"newProject","name":"my-app"}')).toEqual({ id: 1, ok: true, data: { folder: '/projects/local/my-app' } });
+  expect(await c.ask('{"id":2,"cmd":"newProject","name":"my-app","parent":"/work"}')).toEqual({ id: 2, ok: true, data: { folder: '/work/local/my-app' } });
+  expect(await c.ask('{"id":3,"cmd":"newProject","name":"taken"}')).toEqual({ id: 3, ok: false, error: 'taken is already a project; choose another name' });
+  const bad = [
+    '{"id":10,"cmd":"newProject"}',
+    '{"id":11,"cmd":"newProject","name":"a/b"}',
+    '{"id":12,"cmd":"newProject","name":".hidden"}',
+    '{"id":13,"cmd":"newProject","name":"a","parent":""}',
+    '{"id":14,"cmd":"newProject","name":"a","force":true}',
+  ];
+  for (const line of bad) expect(await c.ask(line)).toMatchObject({ ok: false, error: 'invalid request' });
 });
 
 const planOf = (extra: object = {}, workspace: object = { kind: 'folder', folder: '/work' }) => JSON.stringify({ id: 1, cmd: 'open', plan: { workspace, agent: 'claude', text: 'hi', ...extra } });

@@ -48,6 +48,7 @@
     "worktreeStart",
     "fetchIfStale",
     "listsRev",
+    "projects",
     "textGenerators",
     "regenerateTitle",
     "regenerateTitles"

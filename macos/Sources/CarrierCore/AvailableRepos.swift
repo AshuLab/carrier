@@ -3,21 +3,25 @@ import Foundation
 // The Repos tab's picker: the repos the engine's gh login can push to (the `availableRepos` request), grouped by owner.
 // The app has no GitHub token (ADR 0005); the engine does the read.
 
-public struct AvailableRepo: Decodable, Equatable {
+public struct AvailableRepo: Decodable, Equatable, Sendable {
     public var name: String
     public var isPrivate: Bool
     /// ISO 8601; nil when GitHub gave none.
     public var pushedAt: String?
+    /// What GitHub says the repository is, in one line; only the chat host's listing carries it.
+    public var about: String?
 
-    public init(name: String, isPrivate: Bool = false, pushedAt: String? = nil) {
+    public init(name: String, isPrivate: Bool = false, pushedAt: String? = nil, about: String? = nil) {
         self.name = name
         self.isPrivate = isPrivate
         self.pushedAt = pushedAt
+        self.about = about
     }
 
     enum CodingKeys: String, CodingKey {
         case name, pushedAt
         case isPrivate = "private"
+        case about = "description"
     }
 }
 

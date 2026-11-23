@@ -1,0 +1,573 @@
+{
+  "valid": [
+    {
+      "name": "no projects",
+      "file": {},
+      "entries": []
+    },
+    {
+      "name": "an empty list",
+      "file": {
+        "projects": []
+      },
+      "entries": []
+    },
+    {
+      "name": "an entry with every optional field absent",
+      "file": {
+        "projects": [
+          {
+            "path": "/Users/ana/notes",
+            "origin": "added"
+          }
+        ]
+      },
+      "entries": [
+        {
+          "path": "/Users/ana/notes",
+          "origin": "added"
+        }
+      ]
+    },
+    {
+      "name": "an entry with every field",
+      "file": {
+        "projects": [
+          {
+            "path": "~/work/carrier",
+            "name": "Carrier",
+            "origin": "cloned",
+            "pinned": true,
+            "hidden": false,
+            "tags": [
+              "work",
+              "swift"
+            ],
+            "icon": {
+              "color": "teal",
+              "mark": "bolt",
+              "image": "carrier.png"
+            },
+            "defaults": {
+              "agent": "claude",
+              "workIn": "worktree",
+              "baseBranch": "main"
+            },
+            "actions": [
+              {
+                "name": "Install",
+                "command": "pnpm install",
+                "when": "newWorktree",
+                "on": true,
+                "onFail": "stop"
+              },
+              {
+                "name": "Setup",
+                "command": "make",
+                "when": "afterClone"
+              }
+            ]
+          }
+        ]
+      },
+      "entries": [
+        {
+          "path": "~/work/carrier",
+          "name": "Carrier",
+          "origin": "cloned",
+          "pinned": true,
+          "hidden": false,
+          "tags": [
+            "work",
+            "swift"
+          ],
+          "icon": {
+            "color": "teal",
+            "mark": "bolt",
+            "image": "carrier.png"
+          },
+          "defaults": {
+            "agent": "claude",
+            "workIn": "worktree",
+            "baseBranch": "main"
+          },
+          "actions": [
+            {
+              "name": "Install",
+              "command": "pnpm install",
+              "when": "newWorktree",
+              "on": true,
+              "onFail": "stop"
+            },
+            {
+              "name": "Setup",
+              "command": "make",
+              "when": "afterClone"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "two entries and an action with no optional field",
+      "file": {
+        "projects": [
+          {
+            "path": "/Users/ana/notes",
+            "origin": "added"
+          },
+          {
+            "path": "/b",
+            "origin": "created",
+            "actions": [
+              {
+                "name": "a",
+                "command": "b",
+                "when": "afterClone"
+              }
+            ]
+          }
+        ]
+      },
+      "entries": [
+        {
+          "path": "/Users/ana/notes",
+          "origin": "added"
+        },
+        {
+          "path": "/b",
+          "origin": "created",
+          "actions": [
+            {
+              "name": "a",
+              "command": "b",
+              "when": "afterClone"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "invalid": [
+    {
+      "name": "a repeated path",
+      "file": {
+        "projects": [
+          {
+            "path": "/Users/ana/notes",
+            "origin": "added"
+          },
+          {
+            "path": "/x",
+            "origin": "added"
+          },
+          {
+            "path": "/Users/ana/notes",
+            "origin": "added",
+            "name": "Again"
+          }
+        ]
+      },
+      "fields": [
+        "projects.2.path"
+      ]
+    },
+    {
+      "name": "an empty path",
+      "file": {
+        "projects": [
+          {
+            "path": "",
+            "origin": "added"
+          }
+        ]
+      },
+      "fields": [
+        "projects.0.path"
+      ]
+    },
+    {
+      "name": "a relative path",
+      "file": {
+        "projects": [
+          {
+            "path": "work/x",
+            "origin": "added"
+          }
+        ]
+      },
+      "fields": [
+        "projects.0.path"
+      ]
+    },
+    {
+      "name": "an empty name",
+      "file": {
+        "projects": [
+          {
+            "path": "/Users/ana/notes",
+            "origin": "added",
+            "name": ""
+          }
+        ]
+      },
+      "fields": [
+        "projects.0.name"
+      ]
+    },
+    {
+      "name": "a blank name",
+      "file": {
+        "projects": [
+          {
+            "path": "/Users/ana/notes",
+            "origin": "added",
+            "name": "  \t"
+          }
+        ]
+      },
+      "fields": [
+        "projects.0.name"
+      ]
+    },
+    {
+      "name": "an empty command",
+      "file": {
+        "projects": [
+          {
+            "path": "/Users/ana/notes",
+            "origin": "added",
+            "actions": [
+              {
+                "name": "a",
+                "command": "",
+                "when": "newWorktree"
+              }
+            ]
+          }
+        ]
+      },
+      "fields": [
+        "projects.0.actions.0.command"
+      ]
+    },
+    {
+      "name": "a blank command",
+      "file": {
+        "projects": [
+          {
+            "path": "/Users/ana/notes",
+            "origin": "added",
+            "actions": [
+              {
+                "name": "a",
+                "command": " ",
+                "when": "newWorktree"
+              }
+            ]
+          }
+        ]
+      },
+      "fields": [
+        "projects.0.actions.0.command"
+      ]
+    },
+    {
+      "name": "a blank action name",
+      "file": {
+        "projects": [
+          {
+            "path": "/Users/ana/notes",
+            "origin": "added",
+            "actions": [
+              {
+                "name": " ",
+                "command": "x",
+                "when": "newWorktree"
+              }
+            ]
+          }
+        ]
+      },
+      "fields": [
+        "projects.0.actions.0.name"
+      ]
+    },
+    {
+      "name": "an unknown key of an entry",
+      "file": {
+        "projects": [
+          {
+            "path": "/Users/ana/notes",
+            "origin": "added",
+            "color": "red"
+          }
+        ]
+      },
+      "fields": [
+        "projects.0.color"
+      ]
+    },
+    {
+      "name": "an unknown key of the icon",
+      "file": {
+        "projects": [
+          {
+            "path": "/Users/ana/notes",
+            "origin": "added",
+            "icon": {
+              "colour": "red"
+            }
+          }
+        ]
+      },
+      "fields": [
+        "projects.0.icon.colour"
+      ]
+    },
+    {
+      "name": "an unknown key of an action",
+      "file": {
+        "projects": [
+          {
+            "path": "/Users/ana/notes",
+            "origin": "added",
+            "actions": [
+              {
+                "name": "a",
+                "command": "b",
+                "when": "afterClone",
+                "timeout": 3
+              }
+            ]
+          }
+        ]
+      },
+      "fields": [
+        "projects.0.actions.0.timeout"
+      ]
+    },
+    {
+      "name": "an unknown key of the file",
+      "file": {
+        "projects": [],
+        "version": 1
+      },
+      "fields": [
+        "version"
+      ]
+    },
+    {
+      "name": "a file that is not an object",
+      "file": [],
+      "fields": [
+        "(root)"
+      ]
+    },
+    {
+      "name": "projects that is not a list",
+      "file": {
+        "projects": {}
+      },
+      "fields": [
+        "projects"
+      ]
+    },
+    {
+      "name": "a name that is not a string",
+      "file": {
+        "projects": [
+          {
+            "path": "/Users/ana/notes",
+            "origin": "added",
+            "name": 3
+          }
+        ]
+      },
+      "fields": [
+        "projects.0.name"
+      ]
+    },
+    {
+      "name": "a pinned that is not a boolean",
+      "file": {
+        "projects": [
+          {
+            "path": "/Users/ana/notes",
+            "origin": "added",
+            "pinned": "yes"
+          }
+        ]
+      },
+      "fields": [
+        "projects.0.pinned"
+      ]
+    },
+    {
+      "name": "a null field",
+      "file": {
+        "projects": [
+          {
+            "path": "/Users/ana/notes",
+            "origin": "added",
+            "hidden": null
+          }
+        ]
+      },
+      "fields": [
+        "projects.0.hidden"
+      ]
+    },
+    {
+      "name": "tags that are not a list",
+      "file": {
+        "projects": [
+          {
+            "path": "/Users/ana/notes",
+            "origin": "added",
+            "tags": "work"
+          }
+        ]
+      },
+      "fields": [
+        "projects.0.tags"
+      ]
+    },
+    {
+      "name": "a tag with capitals",
+      "file": {
+        "projects": [
+          {
+            "path": "/Users/ana/notes",
+            "origin": "added",
+            "tags": [
+              "Work"
+            ]
+          }
+        ]
+      },
+      "fields": [
+        "projects.0.tags.0"
+      ]
+    },
+    {
+      "name": "a repeated tag",
+      "file": {
+        "projects": [
+          {
+            "path": "/Users/ana/notes",
+            "origin": "added",
+            "tags": [
+              "a",
+              "a"
+            ]
+          }
+        ]
+      },
+      "fields": [
+        "projects.0.tags"
+      ]
+    },
+    {
+      "name": "a missing origin",
+      "file": {
+        "projects": [
+          {
+            "path": "/x"
+          }
+        ]
+      },
+      "fields": [
+        "projects.0.origin"
+      ]
+    },
+    {
+      "name": "an unknown origin",
+      "file": {
+        "projects": [
+          {
+            "path": "/Users/ana/notes",
+            "origin": "bought"
+          }
+        ]
+      },
+      "fields": [
+        "projects.0.origin"
+      ]
+    },
+    {
+      "name": "an unknown workIn",
+      "file": {
+        "projects": [
+          {
+            "path": "/Users/ana/notes",
+            "origin": "added",
+            "defaults": {
+              "workIn": "folder"
+            }
+          }
+        ]
+      },
+      "fields": [
+        "projects.0.defaults.workIn"
+      ]
+    },
+    {
+      "name": "an action with no when",
+      "file": {
+        "projects": [
+          {
+            "path": "/Users/ana/notes",
+            "origin": "added",
+            "actions": [
+              {
+                "name": "a",
+                "command": "b"
+              }
+            ]
+          }
+        ]
+      },
+      "fields": [
+        "projects.0.actions.0.when"
+      ]
+    },
+    {
+      "name": "an unknown onFail",
+      "file": {
+        "projects": [
+          {
+            "path": "/Users/ana/notes",
+            "origin": "added",
+            "actions": [
+              {
+                "name": "a",
+                "command": "b",
+                "when": "afterClone",
+                "onFail": "ignore"
+              }
+            ]
+          }
+        ]
+      },
+      "fields": [
+        "projects.0.actions.0.onFail"
+      ]
+    },
+    {
+      "name": "an icon that is not an object",
+      "file": {
+        "projects": [
+          {
+            "path": "/Users/ana/notes",
+            "origin": "added",
+            "icon": "bolt"
+          }
+        ]
+      },
+      "fields": [
+        "projects.0.icon"
+      ]
+    }
+  ]
+}

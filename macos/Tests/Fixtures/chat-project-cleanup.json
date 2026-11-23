@@ -1,0 +1,10 @@
+{
+  "carrier": {
+    "removed": [
+      { "path": "/Users/dev/.carrier/chat/worktrees/AshuLab/carrier/raynor", "bytes": 1288490189 }
+    ],
+    "skipped": [
+      { "path": "/Users/dev/.carrier/chat/worktrees/AshuLab/carrier/zeratul", "reason": "It has uncommitted changes" }
+    ]
+  }
+}

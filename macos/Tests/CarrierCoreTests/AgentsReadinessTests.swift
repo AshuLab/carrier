@@ -144,3 +144,8 @@ private func readiness(_ json: String, providers: String? = nil) throws -> Agent
     #expect(roleInitials("  ") == "?" && roleInitials("") == "?")
     #expect(roleInitials("élan vital") == "ÉV")
 }
+
+@Test func onlyAGithubLoginMakesTheAddressOfAPicture() {
+    #expect(["vemec", "a", "Diego-G", "user123"].allSatisfy(isGithubLogin))
+    #expect(["", "-bad", "has space", "a/b", "a?s=1", "../x", "ñandú", String(repeating: "a", count: 40)].contains(where: isGithubLogin) == false)
+}

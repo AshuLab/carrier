@@ -162,7 +162,11 @@ async function agyHas(deps: SkillsDeps, folder: string, name: string): Promise<S
   };
   const inManifest = (file: string, base: string, inside?: string) => async () => {
     const { places, filters } = await manifestOf(file, base, inside);
-    if (filters) sure = false;
+    // A filter may hide a skill that is on disk, so what the manifest points at proves nothing: the answer stays open unless another place has it.
+    if (filters) {
+      sure = false;
+      return false;
+    }
     return inFolders(places);
   };
   const folders = [join(folder, '.agents', 'skills'), join(folder, '.agent', 'skills'), join(gemini, 'config', 'skills'), join(gemini, 'antigravity-cli', 'skills'), join(gemini, 'skills'), join(gemini, 'antigravity', 'builtin', 'skills')];

@@ -574,7 +574,13 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       if (skill === null || !skill.named) continue;
       if ((await skills.has(agent.harness, agent.configDir, folder, skill.name)) !== 'absent') continue;
       const account = agent.configDir ?? `the default folder of ${agent.harness}`;
-      return `the skill ${skill.name} (skills.${key}) is not installed for the ${role}: ${agent.harness} looked where it finds skills, in the account folder (${account}), the repo (${folder}) and the plugins it lists · install it, or name another in skills.${key}, then resume the epic`;
+      // The places each reader looks in (`src/harnesses/skills.ts`): Antigravity has no account folder, and Codex reads its plugin cache instead of listing plugins.
+      const where = {
+        claude: `in the account folder (${account}), the repo (${folder}) and the plugins it lists`,
+        codex: `in the account folder (${account}), ~/.agents/skills, the repo (${folder}), /etc/codex/skills and its plugin cache`,
+        agy: `in the repo (${folder}), ~/.gemini and the plugins it lists`,
+      }[agent.harness];
+      return `the skill ${skill.name} (skills.${key}) is not installed for the ${role}: ${agent.harness} looked where it finds skills, ${where} · install it, or name another in skills.${key}, then resume the epic`;
     }
     return undefined;
   }

@@ -349,7 +349,7 @@ Carrier remembers which skills you named at any level (a global one that is Solv
 Before an epic starts, resumes or changes the option of a role (a failover, or `carrier restart --author` or `--reviewer`), Carrier asks whether the harness and account of that role find each skill the role invokes.
 Only a skill you named stops an epic, and only when the answer is that it is absent: the epic stops in needs-human with the kind `skill_missing`, naming the skill, the role and where it looked, before any agent run is spent.
 A skill that is Solve's default never stops an epic, and neither does an answer of "cannot tell" (a place Carrier cannot read might hold the skill), so a role that runs today keeps running.
-Only Claude Code is read so far; Codex and Antigravity always answer "cannot tell".
+Carrier reads the places of Claude Code, Codex and Antigravity (`agy`) for this; [troubleshooting](troubleshooting.md) lists where each harness is read.
 See [troubleshooting](troubleshooting.md) for what to do when it stops.
 
 ## Profiles

@@ -251,6 +251,15 @@ test.each([
   expect(await agy().has('ship')).toBe('cannot-tell');
 });
 
+test.each([
+  ['include_only', (path: string) => ({ entries: [{ path }], include_only: ['x'] })],
+  ['exclude', (path: string) => ({ entries: [{ path, exclude: ['ship'] }] })],
+])('an agy skill in a folder a manifest with %s points at is cannot-tell, since the filter may hide it', async (_what, manifest) => {
+  skill(join(root, 'p'));
+  json(join(gemini(), 'config', 'skills.json'), manifest(join(root, 'p')));
+  expect(await agy().has('ship')).toBe('cannot-tell');
+});
+
 test.each([[new Error('agy is not installed')], ['not json'], [[{ nope: true }]]])('a plugin list that fails or cannot be read makes agy cannot-tell', async (list) => {
   expect(await agy(list).has('ship')).toBe('cannot-tell');
 });

@@ -14,7 +14,7 @@ export const persona = z.strictObject({
 });
 
 /** The name of a skill, as the prompt spells it after `/` or `$`: one token, no path, no blanks, no shell characters. */
-export const skillNamePattern = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$/;
+const skillNamePattern = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$/;
 const skillName = z.string().regex(skillNamePattern, 'must be a skill name: letters, digits, "_", ".", ":" or "-", at most 64 characters, starting with a letter or a digit');
 
 const shipSkills = { ship: skillName.optional(), fix: skillName.optional() };

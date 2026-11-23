@@ -51,9 +51,10 @@ For each role of each repo it also asks whether each skill the role invokes exis
 Each skill gets one check with one of three answers.
 Present is ok.
 Absent means Carrier read every place the harness looks and none had the skill: it fails when you named the skill, and only warns when it is Solve's default, because an epic runs without it today.
-Cannot tell is a warning: a place the harness may read could not be read (the plugin list failed or was unreadable), or Carrier has no reader for the harness yet, which is the case for Codex and Antigravity, so they always answer cannot tell.
+Cannot tell is a warning: a place the harness may read could not be read (the plugin list failed or was unreadable, a manifest could not be parsed, or a manifest filters skills with `include_only` or `exclude`).
 For Claude Code the places are the account's `skills/<name>/SKILL.md` and `commands/<name>.md` (its `configDir`, or `~/.claude`), `.claude/skills/<name>` in the repo and its parent folders up to the repo root, and the skills of each plugin `claude plugin list --json` reports for that account.
 A bare name matches `<name>` or `<plugin>:<name>`.
+Codex and Antigravity are read the same way, in their own places; [troubleshooting](troubleshooting.md) lists them.
 
 `carrier doctor --json` prints the checks as a JSON array (`{ name, status, detail?, fix?, repo?, profiles? }`, `status` `ok`, `warn` or `fail`; `repo` and `profiles`, the names under `config.profiles` the check stands for, are set together on the checks about one repo) and nothing else, with the same exit code (1 when any fails); the macOS app's Health tab reads it.
 

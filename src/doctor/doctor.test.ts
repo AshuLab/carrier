@@ -569,6 +569,7 @@ test.each([['codex', 'Codex'], ['agy', 'Antigravity']] as const)('the three answ
   ]);
   expect(checks[2]!.detail).toBe(`${label} does not find it for the account of the reviewer (it is Solve's default, so the epic runs anyway)`);
   expect(checks[3]!.detail).toBe(`could not tell whether ${label} finds it: some place it looks could not be read`);
+  expect(checks[3]!.fix).toContain('plugin list');
 });
 
 test('a review that does not publish with another skill has no check for it', async () => {

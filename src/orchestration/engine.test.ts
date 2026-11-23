@@ -2309,6 +2309,19 @@ const resumeStopping = async (engine: Awaited<ReturnType<typeof start>>, options
 // The requeue freezes the repo's configuration again, so the skills must be in the one the engine runs with.
 const watching = (skillsOf: ReturnType<typeof resolveSkills>) => { watched = watched.map((repo) => ({ ...repo, skills: skillsOf })); };
 
+test.each([
+  ['codex', /^the skill my-ship \(skills\.ship\) is not installed for the author: codex looked where it finds skills, in the account folder .*~\/\.agents\/skills.*\/etc\/codex\/skills and its plugin cache/],
+  ['agy', /^the skill my-ship \(skills\.ship\) is not installed for the author: agy looked where it finds skills, in the repo \(.*\), ~\/\.gemini and the plugins it lists/],
+] as const)('the stop of a %s author names the places that harness reads', async (harness, reason) => {
+  skills.answers['my-ship'] = 'absent';
+  github.ready = { 'AshuLab/a': ready(1) };
+  const author = { ...agents.author, harness };
+  const engine = await start(1, [{ ...repos[0]!, agents: { ...agents, author }, skills: namedShip }, repos[1]!]);
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(skillStop(engine).needsHumanReason).toMatch(reason);
+});
+
 test('an epic whose named ship skill is absent stops with skill_missing before any execution, naming the skill, the role and where it looked', async () => {
   skills.answers['my-ship'] = 'absent';
   github.ready = { 'AshuLab/a': ready(1) };

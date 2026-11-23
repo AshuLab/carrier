@@ -312,6 +312,7 @@ final class WindowController: NSObject, NSWindowDelegate {
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
+        MainActor.assumeIsolated { LaunchPhases.shared.windowOrdered() }
         refreshPace()
     }
 

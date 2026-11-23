@@ -70,7 +70,8 @@ import SwiftUI
         self.preferences = preferences
         self.cleanupClient = cleanupClient
         enabled = preferences.dictationEnabled
-        microphone = access.status()
+        // macOS is asked once the window is drawn (`refreshMicrophone`): the question took 11 to 21 ms cold, in the first frame's way
+        microphone = .notAsked
         store = ModelStore(
             root: modelsRoot, models: { registry.recognizers.flatMap(\.models) },
             downloader: downloader, inUse: { preferences.dictationModel(among: registry.recognizers.flatMap(\.models))?.id },
@@ -101,11 +102,12 @@ import SwiftUI
         }
     }
 
-    /// Deletes the audio past the limit of days now and once a day while the app runs.
+    /// Reads the history off the main thread, then deletes the audio past the limit of days now and once a day while the app runs.
     func startAudioSweep() {
         sweep = Task { [records] in
+            await records.load()
             while Task.isCancelled == false {
-                records.deleteOldAudio()
+                await records.deleteOldAudio()
                 try? await Task.sleep(for: .seconds(86_400))
             }
         }
@@ -128,6 +130,9 @@ import SwiftUI
         guard let model, let recognizer = registry.recognizers.first(where: { $0.models.contains(model) }) else { return nil }
         return (recognizer, model)
     }
+
+    /// Reads what macOS says about the microphone, which the init leaves for after the first frame.
+    func refreshMicrophone() { microphone = access.status() }
 
     /// What macOS says about the microphone now.
     func microphoneStatus() -> MicrophonePermission {

@@ -17,6 +17,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - An agent run's raw output log is capped at 50 MB per stream; the newest part is kept, in `stdout.log` and the `.1` file beside it.
 - The app download is smaller: the release binary ships without its debug symbols, which are kept as a dSYM on each GitHub Release.
   On one measured build the binary is 29 MB smaller on disk (68.3 MB to 39.1 MB) and the zip 4 MB smaller (26.2 MB to 22.0 MB, 16 %).
+- The app opens its window sooner when dictation has a long history: the history, the speech models' disk use and the microphone's permission are read after the window is drawn, and the history off the main thread.
+  The History screen and the last transcripts in the menu fill in a moment after launch.
 
 ## [0.18.0] - 2026-11-22
 

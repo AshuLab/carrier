@@ -10,7 +10,7 @@ SpeechAnalyzer needs only the microphone permission, not `NSSpeechRecognitionUsa
 
 ## The model ready before the press
 
-Keep the speech model ready (`dictation.model.keepReady`, on by default) loads the chosen model in the background when Carrier opens with Dictation on, when Dictation is turned on, when Keep it ready is turned on and when the chosen model or language changes, so the first dictation does not say "Getting the model ready…" for long.
+Keep the speech model ready (`dictation.model.keepReady`, on by default) loads the chosen model in the background when Carrier opens with Dictation on (a moment after its window is drawn), when Dictation is turned on, when Keep it ready is turned on and when the chosen model or language changes, so the first dictation does not say "Getting the model ready…" for long.
 Release the model after (`dictation.model.releaseAfter`: 5, 15, 30 or 60 minutes, or Never, 15 by default; a saved value that is not on offer reads as 15) frees the model of someone who is not dictating, whatever the switch says: the minutes count from the end of the last dictation (from the load, when nobody has dictated yet), the next dictation loads the model again and says "Getting the model ready…", and Never keeps it until Carrier quits.
 With the switch off a model loads at the first dictation, as before, and the release still applies; with Dictation off nothing loads, and turning Dictation off releases what was loaded.
 Both rows are drawn at 40% with Dictation off (they are in Memory, on the Speech recognition screen), and `reset(.dictation)` puts them back.
@@ -131,7 +131,7 @@ The text starts at the top and goes down; when it is longer than the lines of th
 
 Every dictation that ends in the widget or in a message box is written to a history, which the History screen of the Dictation page lists (`Carrier/HistoryGroup.swift`, over `CarrierCore/DictationRecords.swift` and [0031](../adr/0031-dictation-keeps-a-history-and-its-statistics-live-apart-from-it.md)).
 It starts with Keep the text of my dictations (`dictation.history.keepText`, on by default, put back by `reset(.dictation)`), which says that the text is kept in plain text on this Mac: off, nothing new is recorded and the entries that exist stay.
-The store is `<Carrier folder>/app/state/dictations.jsonl`, one JSON entry per line (readable by the account only), read into memory when the app starts and filtered there; `dictation.log` still never holds text.
+The store is `<Carrier folder>/app/state/dictations.jsonl`, one JSON entry per line (readable by the account only), read into memory, off the main thread, a moment after the window is drawn (or when the History screen opens), and filtered there; `dictation.log` still never holds text.
 An entry has the time it started, the text as recognized, the text after cleanup (empty when Cleanup did not run on it or failed), the speech model, the seconds the recognizer took after the person stopped (for a model that gives its text at the end, the transcription itself), the cleanup model and its time, the seconds of audio, the words, where it went and how it ended.
 It went to the name of the app a paste reached, to Carrier when it was dictated in a message box, or to the widget only when it was copied, cancelled or failed; it ended pasted (a box counts the text left in it as pasted), copied, cancelled (the text heard until Esc) or failed (the text heard until the failure).
 A dictation with no words records nothing, and neither does one that could not start.
@@ -149,7 +149,7 @@ Copy puts the text on the clipboard (the cleaned text when there is one) and say
 
 Keep the audio (`dictation.history.keepAudio`, off by default) saves the audio of each dictation that is recorded as `<Carrier folder>/app/state/audio/<entry id>.wav`, a 16-bit mono WAV readable by the account only; with it off no audio is written, and a dictation that is not recorded (no words, or Keep the text off) has none.
 The session gathers the samples only if the switch is on as the dictation starts and gives them in the `DictationTake`; the entry does not point to the file, which is named for its id, so `DictationRecords` knows what has audio by listing the folder (`audioIDs`, `audioURL(of:)`).
-Delete audio older than (`dictation.history.deleteAudioAfter`: 7 days, 30 days, 90 days or Never, 30 by default) deletes the audio of the entries that started before the limit when the app starts, once a day while it runs (`DictationController.startAudioSweep`) and at once when the choice changes; the entries stay.
+Delete audio older than (`dictation.history.deleteAudioAfter`: 7 days, 30 days, 90 days or Never, 30 by default) deletes the audio of the entries that started before the limit a moment after the window is drawn, once a day while it runs (`DictationController.startAudioSweep`) and at once when the choice changes; the entries stay.
 Audio on disk says how much there is ("182 MB in 214 files"), and Delete all audio, after a confirmation, deletes every audio file and keeps every transcript. Deleting an entry deletes its audio.
 An entry with audio shows a player in its detail (`Carrier/AudioPlayerView.swift`, over `AVAudioPlayer`): Play and Pause, the place it has got to and the time; it stops when the row closes.
 `reset(.dictation)` puts the two switches back and never deletes audio.

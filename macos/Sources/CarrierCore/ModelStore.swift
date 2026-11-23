@@ -57,6 +57,10 @@ public enum ModelState: Equatable, Sendable {
     /// registers late is still seen as downloaded, and this is what makes a view that reads the state ask again.
     private var revision = 0
     @ObservationIgnored private var tasks: [String: Task<Void, Never>] = [:]
+    /// The count of what the models take, which is a walk of every file: the one the init starts, and the number of the latest measurement,
+    /// so that an older one that ends late does not write over a newer.
+    @ObservationIgnored private var measuring: Task<Void, Never>?
+    @ObservationIgnored private var measurement = 0
     @ObservationIgnored private let models: @MainActor () -> [SpeechModel]
     @ObservationIgnored private let downloader: any ModelDownloader
     @ObservationIgnored private let inUse: @MainActor () -> String?
@@ -79,7 +83,7 @@ public enum ModelState: Equatable, Sendable {
         self.announce = announce
         self.freeSpace = freeSpace
         removePartials()
-        refresh()
+        measureInBackground()
     }
 
     /// `<root>/<recognizer>/<model>`, the model being the id without its recognizer's prefix.
@@ -190,13 +194,32 @@ public enum ModelState: Equatable, Sendable {
         }
     }
 
+    /// Counts what the models take now, in the main thread: after a download or a delete, which the person did and waits to see.
     private func refresh() {
         let signpost = Signposts.launch.beginInterval("model store refresh")
         defer { Signposts.launch.endInterval("model store refresh", signpost) }
-        let fileManager = FileManager.default
         revision += 1
-        let files = fileManager.enumerator(at: root, includingPropertiesForKeys: [.fileSizeKey, .isRegularFileKey])
-        usedBytes = (files?.allObjects as? [URL] ?? []).reduce(0) { total, file in
+        measurement += 1
+        usedBytes = Self.bytes(under: root)
+    }
+
+    /// The same count, off the main thread, for the init: walking the folder of every model is not the first frame's to wait for.
+    private func measureInBackground() {
+        measurement += 1
+        let mine = measurement, root = root
+        measuring = Task { [weak self] in
+            let bytes = await Task.detached { Self.bytes(under: root) }.value
+            guard let self, measurement == mine else { return }
+            usedBytes = bytes
+        }
+    }
+
+    /// Waits for the measurement the init started.
+    func measured() async { await measuring?.value }
+
+    nonisolated static func bytes(under root: URL) -> Int64 {
+        let files = FileManager.default.enumerator(at: root, includingPropertiesForKeys: [.fileSizeKey, .isRegularFileKey])
+        return (files?.allObjects as? [URL] ?? []).reduce(0) { total, file in
             let values = try? file.resourceValues(forKeys: [.fileSizeKey, .isRegularFileKey])
             return total + (values?.isRegularFile == true ? Int64(values?.fileSize ?? 0) : 0)
         }

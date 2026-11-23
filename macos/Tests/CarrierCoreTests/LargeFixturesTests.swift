@@ -32,7 +32,7 @@ private let noon = Date(timeIntervalSince1970: 1_794_744_000)
 /// 1000 rows (for `--fixture <folder>/fixtures`), and `<folder>/home/app/state/dictations.jsonl` with 10,000 dictations (for
 /// CARRIER_HOME=<folder>/home). Run it to measure by hand: `swift test --filter writesTheLargeFixtures`.
 @MainActor @Test(.enabled(if: ProcessInfo.processInfo.environment["CARRIER_PERF_FIXTURES"] != nil))
-func writesTheLargeFixturesForAMeasurementByHand() throws {
+func writesTheLargeFixturesForAMeasurementByHand() async throws {
     // an empty value would make the folder the current one, and the copy below would replace its `fixtures`
     let path = try #require(ProcessInfo.processInfo.environment["CARRIER_PERF_FIXTURES"])
     try #require(path.isEmpty == false)
@@ -64,5 +64,7 @@ func writesTheLargeFixturesForAMeasurementByHand() throws {
     let server = try FixtureServer(fixtures: fixtures.path)
     defer { server.stop() }
     let records = DictationRecords(carrierFolder: home.path, keep: { true })
-    #expect(records.entries.count == 10_000)
+    #expect(records.entries.isEmpty && records.loaded == false)
+    await records.load()
+    #expect(records.entries.count == 10_000 && records.loaded)
 }

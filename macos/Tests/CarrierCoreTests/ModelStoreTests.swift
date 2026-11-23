@@ -188,7 +188,22 @@ func aFailureSaysItsCauseAndLeavesNothingBehind(failure: ModelDownloadFailure) a
     #expect(FileManager.default.fileExists(atPath: partial.path) == false)
     #expect(relaunched.state(of: tiny) == .notDownloaded)
     #expect(relaunched.state(of: parakeet) == .downloaded)
+    #expect(relaunched.usedBytes == 0, "the init counts off the main thread")
+    await relaunched.measured()
     #expect(relaunched.usedBytes == 1_500)
+}
+
+/// The count the init starts ends after a person's own refresh (a delete here): the older number must not write over the newer.
+@MainActor @Test func aCountThatEndsAfterANewerOneDoesNotWriteOverIt() async throws {
+    let root = try temporaryRoot()
+    let first = store(root, Script([.succeeds]), holds: false)
+    first.download(parakeet.id)
+    await first.settled()
+    let relaunched = store(root, Script([]))
+    #expect(relaunched.delete(parakeet.id))
+    #expect(relaunched.usedBytes == 0)
+    await relaunched.measured()
+    #expect(relaunched.usedBytes == 0)
 }
 
 @MainActor @Test func storageIsTheSizeOfTheFilesUnderTheFolder() async throws {
@@ -228,6 +243,7 @@ func aFailureSaysItsCauseAndLeavesNothingBehind(failure: ModelDownloadFailure) a
     let late = ModelStore(root: root, models: { listed }, downloader: FakeDownloader(script: script, holds: false), inUse: { nil })
     listed = [apple, parakeet, tiny]
     #expect(late.state(of: parakeet) == .downloaded)
+    await late.measured()
     #expect(late.usedBytes == 1_500)
     late.download(parakeet.id)
     await late.settled()

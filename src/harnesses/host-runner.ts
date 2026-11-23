@@ -40,10 +40,12 @@ async function listMarked(): Promise<Map<string, number>> {
 }
 
 // The agent leads its own process group (detached), so the signal reaches the whole group.
-function signal(pid: number, sig: NodeJS.Signals) {
+// `groupOnly` is for a leader that may be gone: its pid could belong to another process by now.
+function signal(pid: number, sig: NodeJS.Signals, groupOnly = false) {
   try {
     process.kill(-pid, sig);
   } catch {
+    if (groupOnly) return;
     try {
       process.kill(pid, sig);
     } catch {
@@ -51,6 +53,9 @@ function signal(pid: number, sig: NodeJS.Signals) {
     }
   }
 }
+
+/** Time the pipes get to drain after the leader exited and its group was killed, before they are cut. */
+const drainMs = 1000;
 
 const spawnError = (message: string): AgentDone => ({
   exit: 'failed',
@@ -75,12 +80,13 @@ const alive = (pid: number) => {
   }
 };
 
-// SIGTERM first (Claude cleans its children up on it), SIGKILL if it has not exited after the grace period.
+// SIGTERM first (Claude cleans its children up on it), then SIGKILL to the whole group after the grace period,
+// also when the leader is already gone and a child of its group is not.
 async function terminate(pid: number, graceMs: number) {
   signal(pid, 'SIGTERM');
   const deadline = Date.now() + graceMs;
   while (alive(pid) && Date.now() < deadline) await new Promise((r) => setTimeout(r, 50));
-  if (alive(pid)) signal(pid, 'SIGKILL');
+  signal(pid, 'SIGKILL', true);
 }
 
 export class HostAgentRunner implements AgentRunner {
@@ -189,7 +195,19 @@ export class HostAgentRunner implements AgentRunner {
           startError = e.message;
           resolve([null, null]);
         });
-        child.on('close', (c, sig) => resolve([c, sig]));
+        // The leader's exit ends the run: a child holding the pipes open must not keep it waiting for 'close'.
+        child.on('exit', (c, sig) => {
+          signal(child.pid!, 'SIGKILL', true);
+          const drain = setTimeout(() => {
+            child.stdout.destroy();
+            child.stderr.destroy();
+            resolve([c, sig]);
+          }, drainMs);
+          child.on('close', () => {
+            clearTimeout(drain);
+            resolve([c, sig]);
+          });
+        });
       });
       finished = true;
       clearTimeout(timer);

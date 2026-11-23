@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Stand-in for the claude binary in host-runner.integration.test.ts: the --model value picks the behavior.
 // Lines have the shape claude 2.1.301 prints.
+import { spawn } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -34,6 +35,19 @@ if (mode === 'auth') {
   // The real 429 result of epic #302's failed executions, then the exit the claude CLI makes on an error result.
   console.log(readFileSync(new URL('./claude-usage-limit.fixture.jsonl', import.meta.url), 'utf8').trimEnd());
   process.exit(1);
+} else if (mode === 'child' || mode === 'child-escaped' || mode === 'child-term') {
+  // A child that ignores SIGTERM and keeps this process's stdout open. 'child-escaped' leaves the process group.
+  const child = spawn(process.execPath, ['-e', "process.on('SIGTERM', () => {}); setInterval(() => {}, 1000)"], {
+    stdio: ['ignore', 'inherit', 'inherit'],
+    detached: mode === 'child-escaped',
+  });
+  writeFileSync(join(process.cwd(), 'child.pid'), String(child.pid));
+  child.unref();
+  if (mode === 'child-term') {
+    // The leader exits on SIGTERM and leaves the child behind.
+    process.on('SIGTERM', () => process.exit(0));
+    setInterval(() => {}, 1000);
+  } else process.exit(0);
 } else if (mode === 'hang') {
   setInterval(() => {}, 1000);
 } else {

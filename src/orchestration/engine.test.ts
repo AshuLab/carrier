@@ -864,6 +864,43 @@ test('a usage limit does not count in the retry streak', async () => {
   expect(failureStreak(db, 1).map((e) => e.executionId)).toEqual(['e2']);
 });
 
+test('an unexpected error while settling one epic stops only that epic with engine_error and a redacted reason, and the other keeps running', async () => {
+  github.ready = { 'AshuLab/a': ready(1, 2) };
+  pull(50);
+  runner.behavior = (task) => (task.epic === 1 ? { write: completed(task) } : { exit: 'hang' });
+  const getPullRequest = github.getPullRequest.bind(github);
+  github.getPullRequest = async () => {
+    throw new Error('exploded with token ghp_abcdefghijklmnopqrstuvwxyz0123456789\nsecond line');
+  };
+  const engine = await start(2);
+  await clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'engine_error' }));
+
+  const [stopped, other] = rows(engine.db);
+  expect(stopped?.needsHumanReason).toMatch(/^exploded with token \S+ second line$/);
+  expect(stopped?.needsHumanReason).not.toContain('ghp_abcdefghijklmnopqrstuvwxyz0123456789');
+  expect(other).toMatchObject({ issue: 2, status: 'running' });
+  expect(labelsOf(1)).toEqual(['solve:epic:needs-human']);
+  github.getPullRequest = getPullRequest;
+});
+
+test('an error that leaves a launched execution running ends it as failed and does not leave the epic running', async () => {
+  github.ready = { 'AshuLab/a': ready(1, 2) };
+  let launches = 0;
+  const run = runner.run.bind(runner);
+  runner.run = (task) => {
+    if (task.epic === 1 && ++launches === 2) throw new Error('could not spawn the retry');
+    return run(task);
+  };
+  runner.behavior = (task) => (task.epic === 1 ? { exit: 'failed' } : { exit: 'hang' });
+  const engine = await start(2);
+  await clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'engine_error', needsHumanReason: 'could not spawn the retry' }));
+
+  expect(executionsOf(engine.db).filter((e) => e.epicId === 1).map((e) => e.status)).toEqual(['failed', 'failed']);
+  expect(rows(engine.db)[1]).toMatchObject({ issue: 2, status: 'running' });
+});
+
 // Failover: three options, the author on `claude` and the reviewer on `codex`; `spare` is the one only the list can name.
 type Steps = { provider: string; model?: string; effort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max' }[];
 const failoverRepos = (roles?: { author?: Steps; reviewer?: Steps }): EffectiveRepoConfig[] =>

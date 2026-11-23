@@ -152,9 +152,9 @@ describe('labels', () => {
     const { labels } = (load({}) as { config: { labels: object } }).config;
     expect(labels).not.toHaveProperty('stages');
     expect(labels).not.toHaveProperty('reasons');
-    expect(load({ labels: { stages: { review: 'c:reviewing' }, reasons: { review_limit: 'c:rounds', timeout: 'c:slow' } } })).toMatchObject({
+    expect(load({ labels: { stages: { review: 'c:reviewing' }, reasons: { review_limit: 'c:rounds', timeout: 'c:slow', engine_error: 'c:engine' } } })).toMatchObject({
       ok: true,
-      config: { labels: { stages: { review: 'c:reviewing' }, reasons: { review_limit: 'c:rounds', timeout: 'c:slow' } } },
+      config: { labels: { stages: { review: 'c:reviewing' }, reasons: { review_limit: 'c:rounds', timeout: 'c:slow', engine_error: 'c:engine' } } },
     });
   });
 

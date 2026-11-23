@@ -570,6 +570,46 @@
           "provider": "ollama"
         }
       }
+    },
+    {
+      "repo": "acme/api",
+      "issue": 12,
+      "status": "needs_human",
+      "stage": "ship",
+      "round": null,
+      "maxReviews": 5,
+      "blockers": 0,
+      "stageSince": 3007,
+      "lastActivityAt": null,
+      "issueUrl": "https://github.com/acme/api/issues/12",
+      "prUrl": null,
+      "lastError": null,
+      "needsHumanReason": "engine error",
+      "slices": null,
+      "executionId": null,
+      "title": "Issue 12 of acme/api",
+      "labels": [
+        "solve:epic"
+      ],
+      "queuedAt": 807,
+      "startedAt": 3007,
+      "finishedAt": 61007,
+      "branch": "feat/issue-12/epic",
+      "workspace": null,
+      "needsHumanKind": "engine_error",
+      "blockerTitles": [],
+      "agents": {
+        "author": {
+          "harness": "claude",
+          "model": "claude-sonnet-5-5",
+          "provider": null
+        },
+        "reviewer": {
+          "harness": "codex",
+          "model": "gpt-5",
+          "provider": "ollama"
+        }
+      }
     }
   ]
 }

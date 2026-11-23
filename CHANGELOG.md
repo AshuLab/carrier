@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-11-22
+
+A Projects page, session titles written by a local model, settings for the chat's text and the dictation widget, and a chat that asks much less of the Mac in long conversations.
+
 ### Added
 
 - Sessions get titles written by a local text generator after their first reply instead of keeping the first line of the first message. Choose an LM Studio or Ollama model in Settings > Providers > Text generators (`textGenerators` and `textGenerator` in `providers.json`), run "Titles of earlier sessions" there to title active and archived sessions that still have a first-line title, or use Regenerate title in a session's menu; renamed titles are kept.

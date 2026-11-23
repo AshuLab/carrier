@@ -763,6 +763,8 @@ test('a result freeing a slot while another epic is still being reserved never l
 // --- failures: retries and timeout ---
 
 const eventsOf = (db: Db) => db.select().from(epicEvents).all();
+// What the engine records when it spends a retry or a recovery attempt on an epic.
+const retriesOf = (db: Db) => eventsOf(db).filter((e) => e.type === 'execution_retried' || e.type === 'recovered');
 const statuses = (db: Db) => executionsOf(db).map((e) => e.status);
 
 test.each([
@@ -1942,6 +1944,58 @@ test('a fix turn for an epic with no saved workspace goes to needs_human instead
   expect(runner.tasks.map((t) => t.stage)).toEqual(['ship', 'review']);
 });
 
+test('a fix whose saved workspace is not on disk stops the epic in needs_human with kind workspace and the path, before any agent and with no retry spent', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50, { headRef: 'feat/demo/epic' });
+  const gone = '/home/me/.solve/worktrees/a/demo';
+  workspaces.findWorktree = async () => gone;
+  runner.behavior = (task) => {
+    if (task.stage === 'ship') return { write: completed(task) };
+    workspaces.missing.add(gone); // deleted while the review ran
+    return { write: result(task, { outcome: 'changes_requested', pr: { number: 50, headSha: SHA }, blockers: [{ title: 'x' }] }) };
+  };
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  await engine.idle();
+
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'workspace', needsHumanReason: `could not prepare the workspace: the saved workspace ${gone} does not exist` });
+  expect(runner.tasks.map((t) => t.stage)).toEqual(['ship', 'review']);
+  expect(executionsOf(engine.db).map((e) => e.stage)).toEqual(['ship', 'review']);
+  expect(retriesOf(engine.db)).toEqual([]);
+  expect(rows(engine.db)[0]?.recoveries).toBe(0);
+});
+
+test('a resume at fix whose saved workspace is not on disk stops the epic with kind workspace and launches no agent', async () => {
+  const engine = await start(1);
+  stoppedAt(engine.db, 'fix');
+  workspaces.missing.add('/w/epic');
+  const resumed = refusal(engine.resumeEpic('AshuLab/a', 1, { from: 'fix' }));
+  await flush();
+  await clock.advance(60_000);
+  expect(await resumed).toBe('did not restart'); // it stopped again at once, so the command saw no restart
+
+  expect(runner.tasks).toEqual([]);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'workspace', needsHumanReason: 'could not prepare the workspace: the saved workspace /w/epic does not exist' });
+  expect(retriesOf(engine.db)).toEqual([]);
+  expect(executionsOf(engine.db).filter((e) => e.stage === 'fix')).toEqual([]);
+  expect(rows(engine.db)[0]?.recoveries).toBe(0);
+});
+
+test('the poll recovering a fix whose saved workspace is not on disk stops the epic with kind workspace and launches no agent', async () => {
+  const engine = await start(1);
+  seedEpic(engine.db, 1, { stage: 'fix', round: 1, prNumber: 50, prHeadSha: SHA, workspace: '/w/epic' });
+  seedExecution(engine.db, 'r1', 1, { stage: 'review', status: 'finished' });
+  engine.db.insert(callerResults).values({ executionId: 'r1', outcome: 'changes_requested', result: JSON.stringify({ summary: 's', blockers: [{ title: 'fix it' }] }) }).run();
+  workspaces.missing.add('/w/epic');
+
+  await clock.advance(5 * MIN);
+  expect(runner.tasks).toEqual([]);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'workspace', needsHumanReason: 'could not prepare the workspace: the saved workspace /w/epic does not exist' });
+  expect(retriesOf(engine.db)).toEqual([]);
+  expect(executionsOf(engine.db).filter((e) => e.stage === 'fix')).toEqual([]);
+  expect(rows(engine.db)[0]?.recoveries).toBe(0);
+});
+
 test('the final PR\'s branch is kept when ship is validated, and a restart from needs_human clears the kind', async () => {
   github.ready = { 'AshuLab/a': ready(1) };
   pull(50, { headRef: 'feat/demo/epic' });
@@ -1958,24 +2012,60 @@ test('the final PR\'s branch is kept when ship is validated, and a restart from 
   expect(rows(engine.db)[0]).toMatchObject({ status: 'running', needsHumanKind: null });
 });
 
-test('a ship result whose epic worktree git does not list sends the epic to needs_human with the branch', async () => {
-  github.ready = { 'AshuLab/a': ready(1, 2) };
+test('a ship result whose epic worktree is not among the worktrees of git sends the epic to needs_human with the branch, at once', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
   pull(50, { headRef: 'feat/demo/epic' });
-  pull(51, { headRef: 'feat/other/epic' }, 2);
-  runner.behavior = (task) => ({ write: completed(task, { number: 49 + task.epic, headSha: SHA }) });
-  workspaces.findWorktree = async (_repo, branch) => {
-    if (branch === 'feat/other/epic') throw new Error('git broke');
-    return null;
-  };
-  const engine = await start(2);
+  runner.behavior = (task) => ({ write: completed(task, { number: 50, headSha: SHA }) });
+  let asked = 0;
+  workspaces.findWorktree = async () => (asked++, null);
+  const engine = await start(1);
   await clock.advance(5 * MIN);
   await engine.idle();
 
   expect(rows(engine.db).map((e) => [e.status, e.needsHumanKind, e.needsHumanReason, e.workspace, e.prNumber])).toEqual([
     ['needs_human', 'workspace', 'could not find the worktree for branch feat/demo/epic in the clone of AshuLab/a', null, null],
-    ['needs_human', 'workspace', 'could not find the worktree for branch feat/other/epic in the clone of AshuLab/a', null, null],
   ]);
-  expect(runner.tasks.map((t) => t.stage)).toEqual(['ship', 'ship']);
+  expect(asked).toBe(1);
+  expect(runner.tasks.map((t) => t.stage)).toEqual(['ship']);
+});
+
+test('an error of git worktree list after ship leaves the result to be settled again, and the epic goes on once git answers', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50, { headRef: 'feat/demo/epic' });
+  runner.behavior = (task) => (task.stage === 'ship' ? { write: completed(task, { number: 50, headSha: SHA }) } : { exit: 'hang' });
+  let asked = 0;
+  workspaces.findWorktree = async () => {
+    if (++asked <= 3) throw new Error('git broke');
+    return '/home/me/.solve/worktrees/a/demo';
+  };
+  const engine = await start(1);
+  for (let i = 0; i < 5; i++) await clock.advance(5 * MIN);
+
+  expect(asked).toBe(4);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'review', workspace: '/home/me/.solve/worktrees/a/demo', needsHumanKind: null });
+  expect(runner.tasks.map((t) => t.stage)).toEqual(['ship', 'review']);
+});
+
+test('the fourth error of git worktree list after ship stops the epic with kind workspace, never engine_error', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50, { headRef: 'feat/demo/epic' });
+  runner.behavior = (task) => ({ write: completed(task, { number: 50, headSha: SHA }) });
+  let asked = 0;
+  workspaces.findWorktree = async () => {
+    asked++;
+    throw new Error('git broke');
+  };
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'ship' }); // the first three leave it to be settled again
+
+  for (let i = 0; i < 5; i++) await clock.advance(5 * MIN);
+  await engine.idle();
+
+  expect(asked).toBe(4);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'workspace', needsHumanReason: 'could not list the worktrees of the clone of AshuLab/a after 4 attempts: git broke', prNumber: null });
+  expect(runner.tasks.map((t) => t.stage)).toEqual(['ship']);
 });
 
 test('last activity is written from the first output and then at most once every 10 s; stage start and last error follow the stage', async () => {

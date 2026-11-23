@@ -103,6 +103,12 @@ export class FakeWorkspaces implements Workspaces {
     return `/work/${repo}/worktrees/${branch}`;
   }
 
+  /** Paths that are not on disk; every other path exists. */
+  readonly missing = new Set<string>();
+  async exists(path: string) {
+    return !this.missing.has(path);
+  }
+
   /** Every clean-up asked for, in order; set `failCleanUp` to make the next ones throw. */
   readonly cleanedUp: { repo: string; epic: number; branch: string | null }[] = [];
   failCleanUp: Error | null = null;

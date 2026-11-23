@@ -547,6 +547,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       if (stage === 'fix') {
         // Where `ship` left the epic's worktree: a session resumed anywhere else would act in another cwd.
         if (!epic.workspace) throw new Error('the epic has no saved worktree');
+        if (!(await workspaces.exists(epic.workspace))) throw new Error(`the saved workspace ${epic.workspace} does not exist`);
         workspace = epic.workspace;
       } else if (reviewing) {
         const checkout = await workspaces.prepareReviewer(epic.repo, epic.issue, epic.prNumber!);
@@ -781,11 +782,18 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     }
   }
 
+  // Errors of `git worktree list` per ship execution whose result was left to be settled again; the count is lost on a restart, which only gives it three more.
+  const maxWorktreeListRetries = 3;
+  const worktreeListFailures = new Map<string, number>();
+
   // Imports the result of a finished execution and moves the epic. Safe to repeat: the import is idempotent.
   async function settle(execution: Execution) {
     if (stopping || suspended) return; // stays `finished` without a result: the next run imports it
     const epic = fresh(execution.epicId);
-    if (outside(epic.id)) return; // ended from outside or stopped: nothing new moves
+    if (outside(epic.id)) {
+      worktreeListFailures.delete(execution.executionId); // cancelled or parked between two tries of `git worktree list`: its count goes
+      return; // ended from outside or stopped: nothing new moves
+    }
     const epoch = epochOf(epic.id);
     const expected = expectedOf(epic, execution);
     const raw = readResult(execution);
@@ -813,12 +821,24 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       if (!problem && execution.stage === 'ship') {
         // Solve put the epic's worktree where its solve.md says: read it back from git, keep the real path for the fix turns.
         branch = found!.headRef;
+        let listError: unknown;
         try {
           workspace = (await workspaces.findWorktree(epic.repo, branch)) ?? undefined;
+          worktreeListFailures.delete(execution.executionId);
         } catch (e) {
+          listError = e;
           log.error('could not list the worktrees', e, context);
         }
-        if (!workspace) problem = { kind: 'workspace', text: `could not find the worktree for branch ${branch} in the clone of ${epic.repo}` };
+        if (listError !== undefined) {
+          // An error of git is not a missing worktree: the execution stays `finished` without a result and the next poll settles it again, up to three times.
+          const failures = (worktreeListFailures.get(execution.executionId) ?? 0) + 1;
+          if (failures <= maxWorktreeListRetries) {
+            worktreeListFailures.set(execution.executionId, failures);
+            return;
+          }
+          worktreeListFailures.delete(execution.executionId);
+          problem = { kind: 'workspace', text: `could not list the worktrees of the clone of ${epic.repo} after ${failures} attempts: ${listError instanceof Error ? listError.message : String(listError)}` };
+        } else if (!workspace) problem = { kind: 'workspace', text: `could not find the worktree for branch ${branch} in the clone of ${epic.repo}` };
       }
     }
     if (outside(epic.id) || epochOf(epic.id) !== epoch) return; // it ended, or was parked (and maybe restored) while GitHub was asked: stays `finished` without a result, the next run imports it

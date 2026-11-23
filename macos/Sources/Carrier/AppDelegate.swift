@@ -36,8 +36,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 if let apple = await AppleRecognizer.make() { RecognizerRegistry.shared.register(apple) }
                 RecognizerRegistry.shared.register(FluidAudioRecognizer(modelsRoot: dictationModelsRoot()))
                 RecognizerRegistry.shared.register(WhisperKitRecognizer(modelsRoot: dictationModelsRoot()))
-                // the chosen model loads in the background now, so the first dictation does not wait for it; a self-test or a smoke run loads nothing
-                if Self.selfTestPath() == nil, CommandLine.arguments.contains("--smoke-window") == false { DictationController.shared.warmUp() }
+                // the chosen model loads in the background once the window is drawn, so the first dictation does not wait for it; a self-test or a smoke run loads nothing
+                if Self.selfTestPath() == nil, CommandLine.arguments.contains("--smoke-window") == false {
+                    LaunchPhases.shared.afterFirstFrame { DictationController.shared.warmUp() }
+                }
             }
         }
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -77,11 +79,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem = item
         watchCarrier(stateLine)
         SystemNotificationCentre.shared.attachDelegate()
-        // the shortcut of the global dictation; a self-test or a smoke run takes no key of the Mac
-        if Self.selfTestPath() == nil, CommandLine.arguments.contains("--smoke-window") == false {
+        // what macOS says about the microphone, and then, for a real run, the shortcut of the global dictation and the audio sweep (which also reads the
+        // history): none of it is the first frame's. A self-test or a smoke run takes no key of the Mac
+        let takesKeys = Self.selfTestPath() == nil && CommandLine.arguments.contains("--smoke-window") == false
+        LaunchPhases.shared.afterFirstFrame {
             let dictation = Signposts.launch.beginInterval("dictation")
-            GlobalDictationController.shared.start()
-            DictationController.shared.startAudioSweep()
+            DictationController.shared.refreshMicrophone()
+            if takesKeys {
+                GlobalDictationController.shared.start()
+                DictationController.shared.startAudioSweep()
+            }
             Signposts.launch.endInterval("dictation", dictation)
         }
         // the Notifications page writes user defaults: the badge follows its switch at once
@@ -148,6 +155,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             MetricsSink.shared.start()
             Signposts.launch.endInterval("metrics", metrics)
         }
+        // a launch that opens no window (a self-test) has no first frame to wait for
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { LaunchPhases.shared.fire() }
     }
 
     /// A click on the Dock icon with no window open opens it.

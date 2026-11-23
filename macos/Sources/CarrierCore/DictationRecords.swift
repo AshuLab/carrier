@@ -78,8 +78,10 @@ public struct DictationEntry: Codable, Equatable, Identifiable, Sendable {
     public let path: String
     /// The counters of the statistics, in their own file: they hold no text and neither the switch nor a delete touches them.
     public let statisticsPath: String
-    /// Every entry, newest first.
+    /// Every entry, newest first. Empty until `load()` has read the file, except what was recorded since the app opened.
     public private(set) var entries: [DictationEntry] = []
+    /// Whether `entries` has the file's history: what rewrites the file (a delete) and what reads the ages (the audio sweep) wait for it.
+    public private(set) var loaded = false
     /// What was dictated per day, hour and model, in the order it was first counted.
     public private(set) var counts: [DictationCount] = []
     /// The audio files, `<id>.wav` each, next to the history.
@@ -92,6 +94,7 @@ public struct DictationEntry: Codable, Equatable, Identifiable, Sendable {
     @ObservationIgnored private let audioDays: () -> Int
     @ObservationIgnored private let now: () -> Date
     @ObservationIgnored private let calendar: Calendar
+    @ObservationIgnored private var loading: Task<Void, Never>?
 
     /// `keep` says whether the text is kept right now (the Keep the text switch), `keepAudio` whether the audio is too, and `audioDays` how many days
     /// the audio stays (0 is for ever); `calendar` says which day and hour a dictation belongs to.
@@ -111,12 +114,37 @@ public struct DictationEntry: Codable, Equatable, Identifiable, Sendable {
         self.calendar = calendar
         if let data = FileManager.default.contents(atPath: statisticsPath) { counts = (try? JSONDecoder().decode([DictationCount].self, from: data)) ?? [] }
         scanAudio()
-        defer { Signposts.launch.endInterval("dictation records", signpost, "\(self.entries.count) entries") }
-        guard let file = try? String(contentsOfFile: path, encoding: .utf8) else { return }
-        let decoder = Self.decoder
-        // a line that does not read (the last one, cut by a crash) is left out, and goes when the next delete rewrites the file
+        Signposts.launch.endInterval("dictation records", signpost)
+    }
+
+    /// Reads the history off the main thread, once (a second call waits for the first); what was recorded meanwhile stays on top, once.
+    /// A line that does not read (the last one, cut by a crash) is left out, and goes when the next delete rewrites the file.
+    public func load() async {
+        if let loading { return await loading.value }
+        let path = path
+        let task = Task {
+            let signpost = Signposts.launch.beginInterval("dictation history")
+            let read = await Task.detached { Self.read(path) }.value
+            if entries.isEmpty {
+                entries = read
+            } else {
+                let mine = Set(entries.map(\.id))
+                entries = (entries + read.filter { mine.contains($0.id) == false }).sorted { $0.started > $1.started }
+            }
+            loaded = true
+            Signposts.launch.endInterval("dictation history", signpost, "\(self.entries.count) entries")
+        }
+        loading = task
+        await task.value
+    }
+
+    /// The file's entries, newest first; the decoder is made here because the class's own belongs to the main actor.
+    nonisolated static func read(_ path: String) -> [DictationEntry] {
+        guard let file = try? String(contentsOfFile: path, encoding: .utf8) else { return [] }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
         let kept = file.split(separator: "\n").compactMap { try? decoder.decode(DictationEntry.self, from: Data($0.utf8)) }
-        entries = kept.reversed().sorted { $0.started > $1.started }
+        return kept.reversed().sorted { $0.started > $1.started }
     }
 
     /// Counts a dictation that had words and ended pasted or copied, whatever the switches say, adds its entry at the top when the text is kept, and
@@ -153,9 +181,11 @@ public struct DictationEntry: Codable, Equatable, Identifiable, Sendable {
     public func audioURL(of id: UUID) -> URL? { audioIDs.contains(id) ? audioFile(id) : nil }
 
     /// Deletes the audio of the entries older than the limit of days; the entries stay. Run when the app starts and once a day.
-    public func deleteOldAudio() {
+    /// It reads the ages in the history, so it waits for the history to be loaded.
+    public func deleteOldAudio() async {
         let days = audioDays()
         guard days > 0 else { return }
+        await load()
         let cutoff = now().addingTimeInterval(-Double(days) * 86_400)
         for entry in entries where entry.started < cutoff { removeAudio(of: entry.id) }
         scanAudio()
@@ -245,8 +275,10 @@ public struct DictationEntry: Codable, Equatable, Identifiable, Sendable {
         }
     }
 
-    /// Deletes an entry, whatever the switch says. The file is written again without it.
-    public func delete(_ id: UUID) {
+    /// Deletes an entry, whatever the switch says. The file is written again without it, so the history has to be loaded first: written from a
+    /// list that lacks it, the file would lose every other entry.
+    public func delete(_ id: UUID) async {
+        await load()
         guard let index = entries.firstIndex(where: { $0.id == id }) else { return }
         var rest = entries
         rest.remove(at: index)
@@ -267,12 +299,6 @@ public struct DictationEntry: Codable, Equatable, Identifiable, Sendable {
         encoder.dateEncodingStrategy = .iso8601
         encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
         return encoder
-    }()
-
-    private static let decoder: JSONDecoder = {
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        return decoder
     }()
 }
 

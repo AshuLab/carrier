@@ -41,6 +41,7 @@ import SwiftUI
     @ObservationIgnored private let log: DictationLog?
     @ObservationIgnored private let sleep: (Duration) async throws -> Void
     @ObservationIgnored private let now: () -> Date
+    @ObservationIgnored private let launch: LaunchPhases
     /// Whether a speech model may be in memory (asked to load, or used by a dictation), since when nobody has dictated, the timer that releases it and
     /// the loads and releases in the order they were asked.
     @ObservationIgnored private var loaded = false
@@ -57,11 +58,12 @@ import SwiftUI
         downloader: any ModelDownloader = FixtureModelDownloader(), cleanupClient: any TextModelClient = LocalModelClient(),
         // a fixture build, like a test, keeps its history in a temporary folder, never in the person's Carrier folder
         recordsFolder: String = NSTemporaryDirectory() + "carrier-fixture-dictations-\(UUID().uuidString)",
-        sleep: ((Duration) async throws -> Void)? = nil, now: @escaping () -> Date = Date.init
+        sleep: ((Duration) async throws -> Void)? = nil, now: @escaping () -> Date = Date.init, launch: LaunchPhases? = nil
     ) {
         // chosen here and not as the default of the argument, as `DictationSession` does: see the note there
         let sleep = sleep ?? { try await Task.sleep(for: $0) }
         self.log = log
+        self.launch = launch ?? .shared
         self.sleep = sleep
         self.now = now
         idleSince = now()
@@ -70,7 +72,8 @@ import SwiftUI
         self.preferences = preferences
         self.cleanupClient = cleanupClient
         enabled = preferences.dictationEnabled
-        microphone = access.status()
+        // macOS is asked once the window is drawn (`refreshMicrophone`): the question took 11 to 21 ms cold, in the first frame's way
+        microphone = .notAsked
         store = ModelStore(
             root: modelsRoot, models: { registry.recognizers.flatMap(\.models) },
             downloader: downloader, inUse: { preferences.dictationModel(among: registry.recognizers.flatMap(\.models))?.id },
@@ -97,15 +100,20 @@ import SwiftUI
         }
         // the person may have allowed the microphone in System Settings and come back
         NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.microphone = self?.access.status() ?? .denied }
+            // an activation before the first frame leaves the question to `refreshMicrophone`, which the launch runs after it
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.launch.afterFirstFrame { self.microphone = self.access.status() }
+            }
         }
     }
 
-    /// Deletes the audio past the limit of days now and once a day while the app runs.
+    /// Reads the history off the main thread, then deletes the audio past the limit of days now and once a day while the app runs.
     func startAudioSweep() {
         sweep = Task { [records] in
+            await records.load()
             while Task.isCancelled == false {
-                records.deleteOldAudio()
+                await records.deleteOldAudio()
                 try? await Task.sleep(for: .seconds(86_400))
             }
         }
@@ -128,6 +136,9 @@ import SwiftUI
         guard let model, let recognizer = registry.recognizers.first(where: { $0.models.contains(model) }) else { return nil }
         return (recognizer, model)
     }
+
+    /// Reads what macOS says about the microphone, which the init leaves for after the first frame.
+    func refreshMicrophone() { microphone = access.status() }
 
     /// What macOS says about the microphone now.
     func microphoneStatus() -> MicrophonePermission {

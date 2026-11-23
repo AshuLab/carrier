@@ -30,7 +30,7 @@ struct HistoryGroup: View {
                     .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).disabled(dictation.records.audioIDs.isEmpty)
             }
         }
-        .onChange(of: days) { dictation.records.deleteOldAudio() }
+        .onChange(of: days) { Task { await dictation.records.deleteOldAudio() } }
         .confirmationDialog("Delete all the audio?", isPresented: $confirmingDelete) {
             Button("Delete all audio", role: .destructive) { dictation.records.deleteAllAudio() }
         } message: {
@@ -55,7 +55,7 @@ struct HistoryList: View {
 
     private func refresh() {
         shown = dictationHistory(records.entries, matching: query, outcome: outcome, limit: limit)
-        ready = true
+        ready = records.loaded
     }
 
     /// A new search or filter starts from the first page; `limit` moving is what refreshes when it was further down.
@@ -78,6 +78,8 @@ struct HistoryList: View {
         .onChange(of: query, initial: true) { startOver() }
         .onChange(of: outcome) { startOver() }
         .onChange(of: records.entries) { refresh() }
+        .onChange(of: records.loaded) { refresh() }
+        .task { await records.load() }
         .onChange(of: limit) { refresh() }
         if ready == false {
             EmptyView()
@@ -93,7 +95,7 @@ struct HistoryList: View {
             ForEach(shown.days) { day in
                 SettingsGroup(title: dictationDayTitle(day.day, now: Date())) {
                     ForEach(day.entries) { entry in
-                        HistoryRow(entry: entry, audio: records.audioURL(of: entry.id), open: open == entry.id, toggle: { open = open == entry.id ? nil : entry.id }, delete: { records.delete(entry.id) })
+                        HistoryRow(entry: entry, audio: records.audioURL(of: entry.id), open: open == entry.id, toggle: { open = open == entry.id ? nil : entry.id }, delete: { Task { await records.delete(entry.id) } })
                     }
                 }
             }

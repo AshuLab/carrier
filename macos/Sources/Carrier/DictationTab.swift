@@ -56,6 +56,7 @@ struct DictationTabView: View {
             }
         }
         .id(screen)
+        .task { await dictation.records.load() }
         .preference(key: SettingsTitleKey.self, value: screen.map { SettingsTitle(text: $0.title, subtitle: summary($0)) })
     }
 
@@ -110,6 +111,7 @@ struct DictationTabView: View {
             return "\(startOn ? start : "—") · \(endOn ? end : "—") · \(volume)%"
         case .history:
             let count = dictation.records.entries.count
+            guard dictation.records.loaded || count > 0 else { return "Reading…" }
             return count == 0 ? "No dictations yet" : "\(count) \(count == 1 ? "dictation" : "dictations")"
         case .statistics:
             let month = dictationFigures(dictation.records.counts, range: .month, now: Date()).current.dictations

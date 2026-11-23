@@ -26,7 +26,7 @@ import { latestBlockers, latestObservations } from './blockers.ts';
 import { changesSlices } from './changes-slices.ts';
 import { ResumeRefused } from './resume-refused.ts';
 import { endOf } from './final-pr.ts';
-import { AuthError, GitHubRejected, GitHubUnavailable, labelStyles, type GitHub, type LabelStyle, type Labels, type PullRequestState, type Slices } from './github.ts';
+import { AuthError, GitHubRejected, GitHubUnavailable, hasLabel, labelStyles, type GitHub, type LabelStyle, type Labels, type PullRequestState, type Slices } from './github.ts';
 import { reserve } from './reserve.ts';
 import { startRetention, type SessionDirs } from './retention.ts';
 import { failureStreak } from './retry.ts';
@@ -105,7 +105,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
   let suspended: AuthError | null = null;
   let cancel: (() => void) | null = null;
   let stopRetention: (() => void) | null = null;
-  // By repo and the three names Carrier writes there: a reload that renames one makes the repo lack a label again.
+  // By repo and the names Carrier creates there (its status labels, and the stage and reason ones named): a reload that renames one makes the repo lack a label again.
   const labelledRepos = new Set<string>();
   // Slice progress GitHub reported on the last good read, by repo and issue; not stored, so it is empty until the first poll after a start.
   const progress = new Map<string, Map<number, Slices | null>>();
@@ -119,11 +119,11 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
   // Creates the owned labels a repo lacks, with their colour and description; never touches existing ones nor creates `ready` (Solve's).
   // Runs right before the first label write on a repo; the repo is remembered only once every label exists, so a failure is retried by the next write.
   async function ensureLabels(repo: string) {
-    const done = [repo, ...ownedLabels()].join('\n');
-    if (labelledRepos.has(done)) return;
+    const key = [repo, ...ownedLabels()].join('\n');
+    if (labelledRepos.has(key)) return;
     const existing = await github.listLabels(repo);
-    for (const [name, style] of owned()) if (!existing.includes(name)) await github.createLabel(repo, name, style);
-    labelledRepos.add(done);
+    for (const [name, style] of owned()) if (!hasLabel(existing, name)) await github.createLabel(repo, name, style);
+    labelledRepos.add(key);
   }
 
   // Every label Carrier may write now, with the style it is created in: the three of the status, then those of the stages and of the stops, when named.
@@ -170,7 +170,9 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       add: wanted,
       remove: [...ownedLabels().filter((l) => !wanted.includes(l)), ...(status === 'running' ? [settings().labels.ready] : [])],
     });
-    db.update(epics).set({ labelPending: false }).where(eq(epics.id, id)).run();
+    // A stage or a stop that changed while the labels were written still has its own to write: only the state just written clears the mark.
+    const now = fresh(id);
+    if (now.status === status && now.stage === epic.stage && now.needsHumanKind === epic.needsHumanKind) db.update(epics).set({ labelPending: false }).where(eq(epics.id, id)).run();
   };
 
   const fresh = (id: number) => db.select().from(epics).where(eq(epics.id, id)).get()!;
@@ -759,7 +761,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       }
       if (!stillRunning(epic.id)) continue; // parked while GitHub was asked: it keeps where it was
       if (issue.state === 'closed') cancelWith('closed before it started');
-      else if (!issue.labels.includes(settings().labels.ready)) cancelWith('ready label removed');
+      else if (!hasLabel(issue.labels, settings().labels.ready)) cancelWith('ready label removed');
       else {
         // Its slices exist before it is ready: read them now so the app has the list from the first second, not after the next poll.
         // Not `forRepo`: the extra turns it adds to this await change when a run that just ended gets its result imported, which tests depend on.
@@ -882,7 +884,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     for (const epic of db.select().from(epics).where(and(inArray(epics.status, ['running', 'needs_human', 'ready_for_test']), inArray(epics.repo, repos().map((r) => r.name)))).orderBy(asc(epics.id)).all()) {
       const { labels } = await github.getIssue(epic.repo, epic.issue);
       const wanted = wantedLabels(epic);
-      if (ownedLabels().some((l) => labels.includes(l) !== wanted.includes(l)) || (epic.status === 'running' && labels.includes(settings().labels.ready))) await applyLabels(epic);
+      if (ownedLabels().some((l) => hasLabel(labels, l) !== hasLabel(wanted, l)) || (epic.status === 'running' && hasLabel(labels, settings().labels.ready))) await applyLabels(epic);
     }
   }
   // One recovery at a time: a check asked while the start recovers waits for that one, never a second recoverEpic on the same epic. A failed one is

@@ -63,7 +63,7 @@ const failoverSchema = z.strictObject(
 );
 
 /** A label name: one line without commas (a comma splits the GitHub query), at most 50 characters. */
-const labelName = z.string().trim().min(1).max(50).regex(/^[^,\r\n]+$/, 'must be one line without commas');
+const labelName = z.string().trim().min(1).max(50).regex(/^[^,\p{Cc}]+$/u, 'must be one line without commas or control characters');
 
 export const configSchema = z
   .strictObject({

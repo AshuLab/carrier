@@ -41,6 +41,8 @@ export type Labels = Record<(typeof labelRoles)[number], string> & {
   stages?: Partial<Record<StageName, string>>;
   reasons?: Partial<Record<(typeof needsHumanKinds)[number], string>>;
 };
+/** Whether `labels` has `name`: GitHub compares label names without case, so Carrier does too. */
+export const hasLabel = (labels: readonly string[], name: string) => labels.some((label) => label.toLowerCase() === name.toLowerCase());
 export const defaultLabels: Labels = {
   epic: 'solve:epic',
   ready: 'solve:epic:ready',

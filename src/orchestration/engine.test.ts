@@ -389,6 +389,48 @@ test('an issue that cannot be checked goes back to the queue in its place', asyn
   expect(rows(engine.db)[0]).toMatchObject({ startedAt: null, config: null });
 });
 
+test('the open epics are listed by the epic label the config names', async () => {
+  github.openEpics = { 'AshuLab/a': [{ issue: 1, slices: null }] };
+  await start();
+  settings.labels = { ...defaultLabels, epic: 'carrier:epic' };
+  await clock.advance(5 * MIN);
+  expect(github.openEpicsAsked.length).toBeGreaterThan(0);
+  expect(new Set(github.openEpicsAsked)).toEqual(new Set(['carrier:epic']));
+});
+
+test('labels are compared without case, as GitHub does: a ready label spelled another way still starts the epic and comes off, and an owned label that exists in another case is not created', async () => {
+  github.repoLabels = { 'AshuLab/a': ['Solve:Epic:Running'] };
+  github.ready = { 'AshuLab/a': ready(6) };
+  github.issue('AshuLab/a', 6).labels = ['carrier:go'];
+  const engine = await start(1);
+  settings.labels = { ...defaultLabels, ready: 'Carrier:Go' };
+  await clock.advance(5 * MIN);
+  expect(rows(engine.db).map((e) => [e.issue, e.status, e.cancelReason])).toEqual([[6, 'running', null]]);
+  expect(labelsOf(6)).toEqual(['solve:epic:running']);
+  expect(github.created).not.toContain('AshuLab/a:solve:epic:running');
+});
+
+test('labels: a stage that changes while the labels of the one before are being written keeps its own to write', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50);
+  runner.behavior = (task) => (task.stage === 'ship' ? { sessionId: 's', write: completed(task) } : { exit: 'stopped' });
+  const engine = await start(1);
+  settings.labels = { ...defaultLabels, stages: { ship: 'carrier:building', review: 'carrier:reviewing', fix: 'carrier:fixing' } };
+  const set = github.setLabels.bind(github);
+  let moved = false;
+  github.setLabels = async (repo, issue, change) => {
+    await set(repo, issue, change);
+    if (!moved && change.add.includes('carrier:reviewing')) {
+      moved = true;
+      engine.db.update(epics).set({ stage: 'fix', labelPending: true }).where(eq(epics.issue, issue)).run(); // the stage moved on while this write was going
+    }
+  };
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(moved).toBe(true);
+  expect(rows(engine.db)[0]).toMatchObject({ stage: 'fix', labelPending: true }); // the write of `review` does not clear what `fix` still has to write
+});
+
 test('labels: start asks for none; the first epic taken in a repo creates that repo\'s missing owned labels, never ready, and the second asks nothing more', async () => {
   github.repoLabels = { 'AshuLab/a': ['solve:epic:running', 'bug'] };
   github.ready = { 'AshuLab/a': [{ issue: 1, title: '' }, { issue: 2, title: '' }] };

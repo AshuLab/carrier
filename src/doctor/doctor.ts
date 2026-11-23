@@ -12,7 +12,7 @@ import { forgeCwd } from '../integrations/forge-cwd.ts';
 import { GhGitHub, type GitHubProfile } from '../integrations/github.ts';
 import { listLocalModels, localLabel, localUrl, type LocalProvider } from '../harnesses/local.ts';
 import { configDirVariable } from '../harnesses/names.ts';
-import { defaultLabels } from '../orchestration/github.ts';
+import { defaultLabels, hasLabel } from '../orchestration/github.ts';
 import { fixes, installFix } from './fixes.ts';
 
 /**
@@ -270,9 +270,9 @@ export async function runDoctor(config: Config, folder: string, overrides: Parti
     // The labels the read check already fetched say whether Solve is set up: no second call.
     const solveName = `${repo.name} has the Solve labels`;
     onStart(solveName);
-    const missing = [config.labels.epic, config.labels.ready].filter((label) => !labels.includes(label));
+    const missing = [config.labels.epic, config.labels.ready].filter((label) => !hasLabel(labels, label));
     // Solve creates the default labels; one the person chose is theirs to create.
-    const own = missing.filter((label) => label !== defaultLabels.epic && label !== defaultLabels.ready);
+    const own = missing.filter((label) => !hasLabel([defaultLabels.epic, defaultLabels.ready], label));
     const fix = own.length === 0 ? fixes.solve : fixes.ownLabels(own);
     report(missing.length === 0 ? { name: solveName, status: 'ok', repo: repo.name, profiles: [config.orchestratorProfile] } : { name: solveName, status: 'fail', detail: `missing ${missing.join(', ')}`, fix, repo: repo.name, profiles: [config.orchestratorProfile] });
   }

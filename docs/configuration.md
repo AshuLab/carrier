@@ -122,7 +122,9 @@ Two more groups are off until you name them, so a Carrier that does not name the
 - `labels.stages`: `{ ship, review, fix }`, each optional. While an epic runs, the issue carries the label of its stage beside `running`, and the next stage replaces it.
 - `labels.reasons`: one optional label per kind of stop, `review_limit`, `agent_needs_human`, `retries_exhausted`, `timeout`, `auth`, `workspace`, `pr_invalid` and `usage_limit`. While an epic waits for a person, the issue carries the label of its kind beside `needsHuman`.
 
-A stage label costs one more write to GitHub at each stage change, which is why it is opt-in. Carrier creates these labels in a repo like the three it owns (a stage in light blue, a stop in yellow), and removes them from the issue when the epic moves on or ends.
+A stage label costs one more write to GitHub at each stage change, which is why it is opt-in.
+While any of these groups is named, a status change also sends one removal for each owned label the issue lacks, so the writes grow with the labels named.
+Carrier creates these labels in a repo like the three it owns (a stage in light blue, a stop in yellow), and removes them from the issue when the epic moves on or ends.
 
 The first time Carrier writes a label on a repo it creates the three it owns that the repo lacks, with their colour and description; it never creates `epic` or `ready` (Solve creates the defaults), and `carrier doctor` reports one of them missing in a repo, saying you create it when its name is not the default.
 A change applies to the next check after a reload: an epic already queued stays queued (and is cancelled at its start if its issue lost the `ready` label then in force), and an issue that carries the old name of a status label keeps it, because Carrier only removes the names it has now.

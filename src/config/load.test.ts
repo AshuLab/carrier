@@ -135,6 +135,8 @@ describe('labels', () => {
     ['blank', '   '],
     ['a comma, which splits the GitHub query', 'a,b'],
     ['a line break', 'a\nb'],
+    ['a tab', 'a\tb'],
+    ['a control character', 'a\u0000b'],
     ['over 50 characters', 'x'.repeat(51)],
     ['not a string', 7],
   ])('refuses %s', (_why, ready) => {

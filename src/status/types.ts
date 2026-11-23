@@ -107,6 +107,7 @@ export type PanelSession = {
 
 export type ControlSnapshot = Omit<PanelSnapshot, 'queue' | 'epics'> & {
   queue: (PanelSnapshot['queue'][number] & { title: string | null; queuedAt: number })[];
+  labels: Labels;
   epics: (PanelEpic & EpicAdditions)[];
   engine: {
     version: string;

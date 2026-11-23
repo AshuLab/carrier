@@ -233,6 +233,14 @@ test('the Solve check looks for the configured ready label, and its remedy says 
   expect(missing?.fix).toContain('create "carrier:go"');
 });
 
+test('the Solve check compares label names without case, as GitHub does, and a custom epic label is the person\'s to create', async () => {
+  const same = (await doctor(config({ labels: { ...defaultLabels, epic: 'Carrier:Epic', ready: 'CARRIER:GO' } }), deps({ listLabels: async () => ['carrier:epic', 'carrier:go'] }))).find((c) => c.name === 'AshuLab/carrier has the Solve labels');
+  expect(same).toMatchObject({ status: 'ok' });
+  const missing = (await doctor(config({ labels: { ...defaultLabels, epic: 'carrier:epic' } }), deps({ listLabels: async () => ['solve:epic:ready'] }))).find((c) => c.name === 'AshuLab/carrier has the Solve labels');
+  expect(missing).toMatchObject({ status: 'fail', detail: 'missing carrier:epic' });
+  expect(missing?.fix).toContain('create "carrier:epic"');
+});
+
 test('listLabels is called once per repo', async () => {
   const listLabels = vi.fn(async () => ['solve:epic', 'solve:epic:ready']);
   await doctor(config({ repos: [{ name: 'AshuLab/one' }, { name: 'AshuLab/two' }] }), deps({ listLabels }));

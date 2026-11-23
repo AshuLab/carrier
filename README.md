@@ -50,10 +50,10 @@ Then add the label `solve:epic:ready` to an epic in one of your repos and watch 
 
 Carrier polls the repos you list and, for every epic labelled `solve:epic:ready`, runs the whole loop without supervision:
 
-1. **Pick up.** It takes the oldest ready epic when a slot is free and relabels it `solve:epic:running`.
+1. **Pick up.** It takes the oldest ready epic when a slot is free and relabels it `carrier:status:running`.
 2. **Ship.** An _author_ agent (Claude Code, Codex or Antigravity) runs [Solve](https://github.com/AshuLab/skills)'s `ship` on the epic in a managed clone, and Carrier checks the final PR on GitHub.
 3. **Review.** A _reviewer_ agent with a **different GitHub identity** reviews that PR. If it asks for changes, the author fixes and the reviewer goes again, up to `maxReviews` rounds.
-4. **Hand-off.** The epic ends as `solve:epic:ready-for-test` or `solve:epic:needs-human` (with the reason shown). Carrier never merges the final PR: you test it and decide.
+4. **Hand-off.** The epic ends as `carrier:status:ready-for-test` or `carrier:status:needs-human` (with the reason shown). Carrier never merges the final PR: you test it and decide.
 
 It survives interruptions: state lives in SQLite, retries first check the real state on GitHub (no duplicate PRs or comments), and a restart picks up where it left. More in [what the engine does](docs/cli.md#what-the-engine-does).
 

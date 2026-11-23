@@ -125,7 +125,7 @@ The wait is by the kind of the failure that just ended and its position among th
 `carrier status`, the panel and the app's snapshot (`retryAt`) show when a waiting retry starts, and the wait is not counted as a retry until it starts.
 The wait is a time saved with the epic, not a sleep: stopping Carrier does not wait for it, and a retry that came due while Carrier was stopped starts at the first check after it starts again.
 
-## An epic ends in `solve:epic:needs-human`
+## An epic ends in `carrier:status:needs-human`
 
 The reason is in the panel and the logs. Carrier stops the epic and leaves everything as it was (sessions, worktrees, uncommitted work); the others keep going. Common reasons:
 

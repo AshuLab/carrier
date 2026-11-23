@@ -57,9 +57,9 @@ export const hasLabel = (labels: readonly string[], name: string) => labels.some
 export const defaultLabels: Labels = {
   epic: 'solve:epic',
   ready: 'solve:epic:ready',
-  running: 'solve:epic:running',
-  readyForTest: 'solve:epic:ready-for-test',
-  needsHuman: 'solve:epic:needs-human',
+  running: 'carrier:status:running',
+  readyForTest: 'carrier:status:ready-for-test',
+  needsHuman: 'carrier:status:needs-human',
 };
 
 /** Slices closed out of the total, as GitHub reports them. */

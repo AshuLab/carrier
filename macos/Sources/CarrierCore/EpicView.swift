@@ -161,7 +161,7 @@ public func epicHeader(_ subject: EpicSubject, reply: EpicReply? = nil) -> EpicH
         subtitle: "\(repo) · #\(issue)",
         repo: repo,
         issue: issue,
-        labels: labels.filter { $0.hasPrefix("solve:") == false },
+        labels: labels.filter { $0.hasPrefix("solve:") == false && $0.hasPrefix("carrier:") == false },
         prURL: prURL,
         prLabel: number.map { "PR #\($0)" },
         issueURL: issueURL,

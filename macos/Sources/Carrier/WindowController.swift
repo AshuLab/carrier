@@ -32,7 +32,7 @@ import SwiftUI
         actions.didRemoveSession = { sessionId in
             CarrierTerminalStore.sharedIfInitialized?.forceCloseAll(for: .session(sessionId))
         }
-        actions.didDeleteSession = { OptionsMemory.userDefaults.forget($0) }
+        actions.forgetDeletedSessions(in: .userDefaults)
         return actions
     }()
     init() {

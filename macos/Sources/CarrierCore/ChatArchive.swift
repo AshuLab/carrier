@@ -196,6 +196,9 @@ public enum SessionRemovalKind: Sendable {
     /// Only after a delete the host accepted: `didRemoveSession` also runs on archive, and an archived session can be restored.
     @ObservationIgnored public var didDeleteSession: @MainActor (String) -> Void = { _ in }
 
+    /// What the app calls at start: a deleted session takes with it what `memory` kept for it.
+    public func forgetDeletedSessions(in memory: OptionsMemory) { didDeleteSession = { memory.forget($0) } }
+
     public init(
         host: ChatHost, preferences: AppPreferences = AppPreferences(),
         log: @escaping (String) -> Void = { FileHandle.standardError.write(Data("carrier: \($0)\n".utf8)) }

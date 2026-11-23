@@ -262,25 +262,48 @@ private final class AgentBox: @unchecked Sendable {
 
 // MARK: forgetting a deleted session
 
+private func keptKeys(_ defaults: UserDefaults, for id: String) -> Set<String> {
+    Set(defaults.dictionaryRepresentation().keys.filter { $0.hasSuffix(".\(id)") })
+}
+
 @Test func forgettingASessionRemovesEveryKeyItHasAndNoOtherSessions() throws {
     let suite = "carrier.tests.forget.\(UUID().uuidString)"
     let defaults = try #require(UserDefaults(suiteName: suite))
-    defer { defaults.removePersistentDomain(forName: suite) }
     let memory = OptionsMemory.stored(in: defaults)
+    let ids = ["s1", "s10"]  // one id is a prefix of the other
+    defer {
+        defaults.removePersistentDomain(forName: suite)
+        for id in ids { memory.saveDraft(id, "") }  // the drafts are process-global
+    }
     let command = ChatCommand(id: "review", name: "review", description: "Review", argumentHint: nil)
-    for id in ["gone", "kept"] {
+    for id in ids {
         memory.save(id, claude)
         memory.saveCommands(id, [command])
         memory.saveAgent(id, "claude")
         memory.saveDraft(id, "half a thought")
     }
-    #expect(Set(defaults.dictionaryRepresentation().keys.filter { $0.hasSuffix(".gone") }) == Set(SessionKey.allCases.map { $0.key("gone") }))
+    #expect(keptKeys(defaults, for: "s1") == Set(SessionKey.allCases.map { $0.key("s1") }))
 
-    memory.forget("gone")
+    memory.forget("s1")
 
-    #expect(defaults.dictionaryRepresentation().keys.contains { $0.hasSuffix(".gone") } == false)
-    #expect(memory.load("gone").isEmpty && memory.loadCommands("gone").isEmpty && memory.loadAgent("gone") == "" && memory.loadDraft("gone") == "")
-    #expect(memory.load("kept").count == claude.count && memory.loadCommands("kept").count == 1)
-    #expect(memory.loadAgent("kept") == "claude" && memory.loadDraft("kept") == "half a thought")
-    memory.saveDraft("kept", "")
+    #expect(keptKeys(defaults, for: "s1").isEmpty)
+    #expect(memory.load("s1").isEmpty && memory.loadCommands("s1").isEmpty && memory.loadAgent("s1") == "" && memory.loadDraft("s1") == "")
+    #expect(memory.load("s10").count == claude.count && memory.loadCommands("s10").count == 1)
+    #expect(memory.loadAgent("s10") == "claude" && memory.loadDraft("s10") == "half a thought")
+}
+
+@MainActor @Test func theAppWiringForgetsADeletedSessionAndKeepsAnArchivedOne() async throws {
+    let suite = "carrier.tests.wiring.\(UUID().uuidString)"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let memory = OptionsMemory.stored(in: defaults)
+    let actions = SessionActions(host: OptionsHost(), log: { _ in })
+    actions.forgetDeletedSessions(in: memory)
+    for id in ["archived", "deleted"] { memory.saveAgent(id, "claude") }
+
+    _ = await actions.archive("archived")
+    #expect(memory.loadAgent("archived") == "claude")
+    _ = await actions.delete("deleted")
+    #expect(memory.loadAgent("deleted") == "")
+    #expect(memory.loadAgent("archived") == "claude")
 }

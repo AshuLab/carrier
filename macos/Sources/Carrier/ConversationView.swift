@@ -17,6 +17,8 @@ struct ConversationView: View {
     @State private var animatesRows = false
     /// Whether the feed has been taken to its end after it loaded: until then it is not drawn, so the way down is not seen.
     @State private var positioned = false
+    /// The height of the conversation's pane, for what sits over the message box to leave it room (`cardRoom`).
+    @State private var paneHeight: CGFloat = 0
     @AppStorage(AppPreferences.toolOutputKey) private var toolOutput = AppPreferences.defaultToolOutput
     @AppStorage(AppPreferences.chatMessageSpacingKey) private var messageSpacing = AppPreferences.defaultChatMessageSpacing
     @AppStorage(AppPreferences.showsReasoningKey) private var showsReasoning = AppPreferences.defaultShowsReasoning
@@ -192,7 +194,8 @@ struct ConversationView: View {
                 animatesRows = true
             }
         }
-        .safeAreaInset(edge: .bottom, spacing: 0) { if model.archived { archivedBox } else { box } }
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { paneHeight = $0 }
+        .safeAreaInset(edge: .bottom, spacing: 0) { if model.archived { archivedBox } else { box.environment(\.conversationHeight, paneHeight) } }
         .font(.scaled(13))
         .task {
             if let first = draft?.takeFirstMessage(of: model.sessionId) { model.show(firstMessage: first) }

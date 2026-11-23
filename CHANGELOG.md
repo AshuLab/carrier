@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- A long command in an approval, or many options in a question, no longer push the message box out of a short window: they scroll inside the card, which takes at most a third of the window.
 - A session started from the new session screen keeps the model, reasoning and permissions chosen for it, so it wakes with them after it sleeps instead of on its agent's defaults.
   A session made before this fix kept none of them and wakes on its agent's defaults until they are chosen again.
 

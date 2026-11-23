@@ -17,6 +17,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - An agent run's raw output log is capped at 50 MB per stream; the newest part is kept, in `stdout.log` and the `.1` file beside it.
 - The app download is smaller: the release binary ships without its debug symbols, which are kept as a dSYM on each GitHub Release.
   On one measured build the binary is 29 MB smaller on disk (68.3 MB to 39.1 MB) and the zip 4 MB smaller (26.2 MB to 22.0 MB, 16 %).
+- Deleting a chat session now also removes what the app saved for it in its settings (the options, commands and agent it last showed), so those no longer grow with every deleted session.
+  Archiving keeps them, since an archived session can be restored.
 
 ## [0.18.0] - 2026-11-22
 

@@ -12,7 +12,6 @@ struct SessionPlacePill: View {
         HStack(spacing: 5) {
             Glyph(row.branch == nil ? .folder : .gitBranch).foregroundStyle(Color.themeAccent)
             if let branch = row.branch {
-                Text("Worktree").fontWeight(.medium)
                 Text(branch).font(.caption.monospaced()).lineLimit(1).truncationMode(.middle)
             } else {
                 Text("In the folder").fontWeight(.medium)
@@ -24,7 +23,7 @@ struct SessionPlacePill: View {
         .frame(maxWidth: 300)
         // the toolbar item has no glass of its own, so nothing insets it from the window's rounded corner: match the gap above it
         .padding(.trailing, 6)
-        .help(row.branch == nil ? "Works in \(row.folder) itself" : "Works in a worktree of \(row.workspace): \(row.folder)")
+        .help(row.branch == nil ? "Works in \(row.folder) itself" : "The branch checked out in this worktree")
         .contextMenu {
             ForEach(openMenuItems(row), id: \.title) { item in Button(item.title) { run(item) } }
         }

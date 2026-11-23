@@ -108,6 +108,8 @@ public struct ChatSession: Decodable, Equatable {
     public struct Workspace: Decodable, Equatable {
         public let base: String
         public let branch: String?
+        /// The branch the worktree was cut from.
+        public let from: String?
     }
 
     private enum CodingKeys: String, CodingKey { case id, agent, harness, folder, title, state, createdAt, lastActiveAt, archived, workspace, live, preparation, kept, deleteAt, lastMessage, turns, model, parentSessionId, children, diff, pr, background }
@@ -115,6 +117,7 @@ public struct ChatSession: Decodable, Equatable {
         let kind: String
         let base: String?
         let branch: String?
+        let from: String?
     }
 
     public init(from decoder: Decoder) throws {
@@ -146,7 +149,7 @@ public struct ChatSession: Decodable, Equatable {
         let placed = try values.decodeIfPresent(Kind.self, forKey: .workspace)
         guard let placed, placed.kind == "worktree" else { workspace = nil; return }
         guard let base = placed.base else { throw DecodingError.keyNotFound(CodingKeys.workspace, .init(codingPath: decoder.codingPath, debugDescription: "a worktree without its base folder")) }
-        workspace = Workspace(base: base, branch: placed.branch)
+        workspace = Workspace(base: base, branch: placed.branch, from: placed.from)
     }
 }
 

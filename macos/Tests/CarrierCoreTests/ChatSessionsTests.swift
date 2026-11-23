@@ -632,7 +632,9 @@ private func worktreeSession() throws -> ChatSession {
 
 @Test func theTitleBarSaysTheBranchOfAWorktreeSessionAndItsMenuCopiesIt() throws {
     let row = sessionRows([try worktreeSession()])[0]
-    #expect(conversationSubtitle(row) == "web")
+    // the project and, after it, the worktree's folder
+    #expect(conversationSubtitle(row) == "web · fix")
+    #expect(row.branchFrom == "main")
     #expect(openMenuItems(row) == [
         OpenItem(title: "Reveal in Finder", action: .reveal(path: "/w/fix")), OpenItem(title: "Copy path", action: .copy("/w/fix")),
         OpenItem(title: "Copy branch name", action: .copy("carrier/fix")),

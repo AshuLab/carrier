@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- A worktree session names its folder in the header, under the title ("AshuLab/carrier · plagued-marine-hatchery"), and the toolbar pill is the branch alone.
+  The card on the sidebar row says whose worktree it is, the branch it was cut from, and the folder by its name with the whole path under it.
 - A worktree session shows the branch checked out in it now (in the toolbar, the sidebar and Copy branch name), not the `carrier/...` branch it was created with, which an agent may have moved off.
 - A project's "New sessions here" has "Starts with", the same panel as Settings > Sessions: provider, model, reasoning and access, where it only had the provider.
   A project left on "Same as everywhere" follows Settings > Sessions.

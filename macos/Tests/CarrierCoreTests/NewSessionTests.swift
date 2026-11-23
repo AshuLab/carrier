@@ -619,7 +619,7 @@ private func cleanRepo(_ folder: String) -> WorkspaceInfo {
     func plan(_ folder: String, _ worktree: WorktreeRequest?) -> SessionPlan { SessionPlan(agent: "claude", folder: folder, worktree: worktree, text: "hello") }
     let id = try await host.open(plan: plan("/Users/dev/carrier", WorktreeRequest(from: "origin/main", name: "my-fix")))
     let made = try #require(try await host.list(archived: false).first { $0.id == id })
-    #expect(made.workspace == ChatSession.Workspace(base: "/Users/dev/carrier", branch: "carrier/my-fix") && made.folder.hasSuffix("/my-fix"))
+    #expect(made.workspace == ChatSession.Workspace(base: "/Users/dev/carrier", branch: "carrier/my-fix", from: "origin/main") && made.folder.hasSuffix("/my-fix"))
     #expect(try await host.events(id, after: 0, limit: 10).events.map(\.kind) == ["step", "step", "user"])
     // refused as the host does
     await #expect(throws: ControlError.remote("The branch to start from is not one this repository lists")) {

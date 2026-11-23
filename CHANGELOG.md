@@ -15,6 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- The filters with a few fixed values (the speech models, the dictation history and the visibility of the repositories) are segmented choices, and the chips that remain (the tags of the projects) take the same look: the person's accent, a fine edge.
 - The segmented choices of Settings and Usage mark the chosen one with the person's accent, in pieces of the same width that slide from one choice to the next.
 - "Regenerate title" shows the title waiting in the sidebar (it goes quiet and shimmers for at least two seconds, longer if the model takes longer) and then rolls the new title in; the sidebar title rolls whenever it changes.
 - A change of agent shows in the conversation as a divider with the two agents (their mark, label and color as set in `providers.json`, and their models) in a glass capsule and what carried over under it, not as a plain line of text.

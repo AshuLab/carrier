@@ -237,14 +237,19 @@ extension View {
     }
 }
 
-/// A filter as a small capsule that is on or off: a quiet fill when off, the theme's accent when on. A row of them narrows a list; the first of
-/// a set that excludes each other is "All".
+/// The accent as text on its own tinted piece (the chosen filter, the chosen segment): a little lifted in the dark and deepened in the light, so it keeps its contrast.
+@MainActor func accentInk(_ scheme: ColorScheme) -> Color { Color.themeAccent.mix(with: scheme == .dark ? .white : .black, by: scheme == .dark ? 0.3 : 0.2) }
+
+/// A filter as a small capsule that is on or off: a quiet fill and a fine edge when off, the person's accent when on (the piece of `SegmentedChoice`, in its own
+/// capsule). For a set that grows with the data (the tags of the projects) or filters that are not one list of choices; a few fixed choices are a `SegmentedChoice`.
+/// A row of them narrows a list; the first of a set that excludes each other is "All".
 struct FilterChip: View {
     let title: String
     var icon: AppIcon?
     let on: Bool
     let action: () -> Void
     @State private var hovered = false
+    @Environment(\.colorScheme) private var scheme
 
     var body: some View {
         Button(action: action) {
@@ -252,9 +257,10 @@ struct FilterChip: View {
                 if let icon { Glyph(icon, size: 11) }
                 Text(title).font(.scaled(12, weight: .medium))
             }
-            .foregroundStyle(on ? Color.themeAccent : hovered ? Color.primary : Color.secondary)
-            .padding(.horizontal, 10).padding(.vertical, 4)
-            .background(Capsule().fill(on ? Color.themeAccent.opacity(0.18) : Color.primary.opacity(hovered ? 0.12 : 0.07)))
+            .foregroundStyle(on ? accentInk(scheme) : hovered ? Color.primary : Color.secondary)
+            .padding(.horizontal, 11).padding(.vertical, 4)
+            .background(Capsule().fill(on ? Color.themeAccent.opacity(0.24) : Color.primary.opacity(hovered ? 0.1 : 0.06)))
+            .overlay(Capsule().strokeBorder(on ? Color.themeAccent.opacity(0.45) : Color.primary.opacity(0.06), lineWidth: 1))
             .contentShape(Capsule())
         }
         .buttonStyle(.plain).onHover { hovered = $0 }
@@ -300,7 +306,7 @@ struct SegmentedChoice<Value: Hashable>: View {
                     Text(title).font(.scaled(12, weight: .medium))
                 }
                 // the chosen one reads in the accent, a little lifted in the dark and deepened in the light so it keeps its contrast on the tinted piece
-                .foregroundStyle(on ? Color.themeAccent.mix(with: scheme == .dark ? .white : .black, by: scheme == .dark ? 0.3 : 0.2) : hovered ? Color.primary : Color.secondary)
+                .foregroundStyle(on ? accentInk(scheme) : hovered ? Color.primary : Color.secondary)
                 .padding(.horizontal, 14).padding(.vertical, 4)
                 // the whole of the slot the row gives it, so the tinted piece (its background) is as wide as the widest choice and not as the words
                 .frame(maxWidth: .infinity)

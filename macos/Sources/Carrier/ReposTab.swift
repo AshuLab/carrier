@@ -677,16 +677,15 @@ private struct AddReposSheet: View {
         }
     }
 
-    /// Visibility as chips that exclude each other, the owner as a pop-up when there is more than one, and whether the ones already watched show.
+    /// Visibility as a segmented choice, the owner as a pop-up when there is more than one, and whether the ones already watched show.
     private func filters(_ list: AvailableReposList) -> some View {
         let owners = list.repos.reduce(into: [String]()) { found, repo in
             let name = String(repo.name.split(separator: "/").first ?? "")
             if found.contains(name) == false { found.append(name) }
         }
         return HStack(spacing: 6) {
-            FilterChip(title: "All", on: visibility == .all) { visibility = .all }
-            FilterChip(title: "Private", icon: .lock, on: visibility == .onlyPrivate) { visibility = visibility == .onlyPrivate ? .all : .onlyPrivate }
-            FilterChip(title: "Public", icon: .world, on: visibility == .onlyPublic) { visibility = visibility == .onlyPublic ? .all : .onlyPublic }
+            SegmentedChoice(options: [(value: RepoVisibility.all, title: "All", icon: nil), (.onlyPrivate, "Private", .lock), (.onlyPublic, "Public", .world)], selection: $visibility)
+                .accessibilityLabel("Visibility")
             Spacer(minLength: 8)
             if owners.count > 1 {
                 SelectMenu(

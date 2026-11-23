@@ -67,13 +67,9 @@ struct HistoryList: View {
         let _ = Signposts.render.emitEvent("history body", "\(records.entries.count) entries")
         SettingsGroup(title: "") {
             TextField("", text: $query, prompt: Text("Search your dictations")).accessibilityLabel("Search your dictations").settingsField(icon: .search)
-            HStack(spacing: 6) {
-                FilterChip(title: "All", on: outcome == nil) { outcome = nil }
-                ForEach(DictationOutcome.allCases, id: \.self) { choice in
-                    FilterChip(title: choice.title, on: outcome == choice) { outcome = choice }
-                }
-            }
-            .padding(.vertical, 4)
+            SegmentedChoice(options: [(value: DictationOutcome?.none, title: "All", icon: nil)] + DictationOutcome.allCases.map { (value: Optional($0), title: $0.title, icon: nil) }, selection: $outcome)
+                .accessibilityLabel("Outcome")
+                .padding(.vertical, 4)
         }
         .onChange(of: query, initial: true) { startOver() }
         .onChange(of: outcome) { startOver() }

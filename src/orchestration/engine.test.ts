@@ -3459,6 +3459,30 @@ test('a run already launched keeps its timeout, and the next one launched has th
   expect(engine.db.select().from(executions).all().map((e) => e.status)).toEqual(['running', 'running']); // epic 1's run was not touched
 });
 
+test('idleMinutes reaches the run as milliseconds; a reload applies it to the next run only, and absent it no run has one', async () => {
+  github.ready = { 'AshuLab/a': ready(1, 2, 3) };
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  reload(engine, { idleMinutes: 45, maxConcurrentEpics: 2 });
+  await vi.waitFor(() => expect(runner.tasks).toHaveLength(2));
+  reload(engine, { idleMinutes: undefined, maxConcurrentEpics: 3 });
+  await vi.waitFor(() => expect(runner.tasks).toHaveLength(3));
+  expect(runner.tasks.map((t) => [t.epic, t.idleMs])).toEqual([[1, undefined], [2, 45 * MIN], [3, undefined]]);
+});
+
+test('a process the watchdog killed is retried as a technical failure, resuming its session', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  const idleKill = { kind: 'killed' as const, detail: 'no output for 2700 seconds', exitCode: null, signal: 'SIGTERM', hostFreeMemMb: 1, hostLoad: 1 };
+  runner.behavior = (task) => (task.resumeSession ? { exit: 'hang' } : { sessionId: 's-1', exit: 'failed', failure: idleKill });
+  const engine = await start(1);
+  reload(engine, { idleMinutes: 45 });
+  await clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(runner.tasks).toHaveLength(2));
+  expect(runner.tasks[0]!.idleMs).toBe(45 * MIN);
+  expect(runner.tasks[1]).toMatchObject({ resumeSession: 's-1', idleMs: 45 * MIN });
+  expect(executionsOf(engine.db)[0]).toMatchObject({ status: 'failed', failureKind: 'killed', failureDetail: 'no output for 2700 seconds' });
+});
+
 test('a timeout names the limit the run started with, not the one in force when it ended', async () => {
   github.ready = { 'AshuLab/a': ready(1) };
   let end!: () => void;
@@ -4104,7 +4128,7 @@ test('an epic a reload parked and restored while the poll recovered another is l
 test('the count of recoveries is saved: after three in a row, also across an engine restart, the next failure parks the epic in engine_error', async () => {
   const first = await start(1);
   seedEpic(first.db, 1, { stage: 'review', round: 1, prNumber: 50, prHeadSha: SHA });
-  seedExecution(first.db, 'e0', 1, { stage: 'review', status: 'timed_out' }); // nothing in the recovery moves it: it would stay stuck
+  seedExecution(first.db, 'e0', 1, { stage: 'ship', status: 'interrupted' }); // of a stage the epic left: nothing in the recovery moves it, it would stay stuck
   await clock.advance(5 * MIN);
   await clock.advance(5 * MIN);
   expect(rows(first.db)[0]).toMatchObject({ status: 'running', recoveries: 2 });
@@ -4120,6 +4144,59 @@ test('the count of recoveries is saved: after three in a row, also across an eng
   await clock.advance(5 * MIN);
   expect(rows(second.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'engine_error', needsHumanReason: 'the poll recovered this epic 3 times in a row and it is still stuck at review' });
   expect(recovered(second.db)).toHaveLength(3);
+});
+
+test('the poll launches a stage a resume left claimed with no execution, once, though an execution of the previous attempt finished', async () => {
+  const engine = await start(1);
+  seedEpic(engine.db, 1, { stage: 'ship', startedAt: 10 * MIN }); // resumed: the launch claimed the stage and was cut (engine stopping, epic parked) before its execution
+  seedExecution(engine.db, 'old', 1, { stage: 'ship', status: 'finished', startedAt: 5 * MIN });
+  engine.db.insert(callerResults).values({ executionId: 'old', outcome: 'needs_human', result: JSON.stringify({ summary: 's', reason: 'x' }) }).run();
+  runner.behavior = () => ({ exit: 'hang' });
+
+  await clock.advance(5 * MIN);
+  await clock.advance(5 * MIN);
+  expect(runner.tasks.map((t) => t.stage)).toEqual(['ship']);
+  expect(recovered(engine.db).map((e) => e.data)).toEqual([{ stage: 'ship', attempt: 1 }]);
+});
+
+test('an epic whose last execution timed out while it was parked is stopped for a person by the poll', async () => {
+  const engine = await start(1);
+  seedEpic(engine.db, 1, { stage: 'review', round: 1, prNumber: 50, prHeadSha: SHA });
+  seedExecution(engine.db, 'e0', 1, { stage: 'review', status: 'timed_out' });
+
+  await clock.advance(5 * MIN);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'timeout', needsHumanReason: 'the review execution exceeded the time limit' });
+  expect(runner.tasks).toEqual([]);
+});
+
+test('the poll does nothing for an interrupted execution of a stage the epic has moved on from', async () => {
+  const engine = await start(1);
+  seedEpic(engine.db, 1, { stage: 'review', round: 1, prNumber: 50, prHeadSha: SHA });
+  seedExecution(engine.db, 'e0', 1, { stage: 'ship', status: 'interrupted' });
+  runner.behavior = () => ({ exit: 'hang' });
+
+  await clock.advance(5 * MIN);
+  expect(runner.tasks).toEqual([]);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'review' });
+});
+
+test('the poll recovers nothing for an epic that stopped being running while it waited for the one before', async () => {
+  const engine = await start(2);
+  seedEpic(engine.db, 1);
+  seedEpic(engine.db, 2);
+  let opens!: () => void;
+  const gate = new Promise<void>((resolve) => (opens = resolve));
+  workspaces.prepareAuthor = async (repo, epic) => (epic === 1 ? (await gate, `/work/${repo}/${epic}/author`) : `/work/${repo}/${epic}/author`);
+  runner.behavior = () => ({ exit: 'hang' });
+  void clock.advance(5 * MIN); // the poll recovers epic 1 and waits for its workspace
+  await vi.waitFor(() => expect(github.calls).toBeGreaterThan(0));
+  await settle();
+
+  engine.db.update(epics).set({ status: 'needs_human', needsHumanKind: 'agent_needs_human', needsHumanReason: 'x' }).where(eq(epics.issue, 2)).run();
+  opens();
+  await settle();
+  expect(runner.tasks.map((t) => t.epic)).toEqual([1]);
+  expect(recovered(engine.db).map((e) => e.epicId)).toEqual([1]);
 });
 
 test('the count starts again when an execution of the epic ends', async () => {

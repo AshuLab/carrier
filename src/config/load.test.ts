@@ -2,6 +2,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, test } from 'vitest';
 import { engineConfigPathOf } from './places.ts';
+import { userConfigJsonSchema } from './json-schema.ts';
 import { defaults, loadConfig } from './load.ts';
 import { resolveRepoConfig } from './resolve.ts';
 import { loadProviders } from './providers.ts';
@@ -101,6 +102,18 @@ describe('invalid config', () => {
 
   test.each([0, -1, 1.5, 'forever'])('maxExecutionHours %j', (value) => {
     expect(errorsOf({ limits: { maxExecutionHours: value } }).map((e) => e.path)).toEqual(['limits.maxExecutionHours']);
+  });
+
+  test.each([0, -1, 1.5, 'forever'])('idleMinutes %j', (value) => {
+    expect(errorsOf({ limits: { idleMinutes: value } }).map((e) => e.path)).toEqual(['limits.idleMinutes']);
+  });
+
+  test('idleMinutes has no default and a positive whole number is accepted', () => {
+    expect(defaults.limits).not.toHaveProperty('idleMinutes');
+    expect(load({ limits: { idleMinutes: 45 } }).ok).toBe(true);
+    const limits = userConfigJsonSchema().properties!.limits!;
+    expect(limits.properties).toHaveProperty('idleMinutes');
+    expect(limits.required ?? []).not.toContain('idleMinutes');
   });
 
   test('unknown profile references', () => {

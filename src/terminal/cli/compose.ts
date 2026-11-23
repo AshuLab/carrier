@@ -131,6 +131,7 @@ export async function startCarrier(started: Config, folder: string, loadConfig: 
       maxReviews: config.limits.maxReviews,
       maxExecutionRetries: config.limits.maxExecutionRetries,
       maxExecutionHours: config.limits.maxExecutionHours,
+      idleMinutes: config.limits.idleMinutes,
       labels: config.labels,
     }),
     places,

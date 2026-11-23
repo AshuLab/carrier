@@ -36,6 +36,8 @@ export type EngineSettings = {
   pollIntervalMs: number;
   maxConcurrentEpics: number;
   maxExecutionHours: number | 'unlimited';
+  /** Minutes a process may write nothing before it is killed and retried; absent: no watchdog. */
+  idleMinutes?: number;
   /** Technical failures retried per stage after the first attempt. */
   maxExecutionRetries: number;
   /** Reviews of the final PR before the epic goes to a person; fix turns do not count. */
@@ -426,7 +428,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     }
     const executionId = randomUUID();
     const resultPath = join(places.state, 'results', `${executionId}.json`);
-    const hoursLimit = settings().maxExecutionHours; // read once: the run keeps the timeout it launches with
+    const { maxExecutionHours: hoursLimit, idleMinutes } = settings(); // read once: the run keeps the timeout and the idle limit it launches with
     // A fix right after a review that completed is the observations pass; after one that asked for changes, it answers the blockers.
     const observations = stage === 'fix' ? latestObservations(db, epic.id) : null;
     const task: AgentTask = {
@@ -439,6 +441,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       workspace,
       resultPath,
       timeoutMs: hoursLimit === 'unlimited' ? null : hoursLimit * 3_600_000,
+      ...(idleMinutes !== undefined && { idleMs: idleMinutes * 60_000 }),
       ...(resumeSession && { resumeSession }),
       context: {
         previousSummaries: reviewing || rebuild ? previousSummaries(epic.id) : [],
@@ -894,7 +897,12 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       // Stopped between claiming the launch and inserting the execution: no agent ever ran, so launching is not a blind restart.
       db.update(epics).set({ stage: null }).where(eq(epics.id, id)).run();
       await launch(fresh(id), 'ship');
+    } else if (last.status === 'timed_out') {
+      // The run ended while the epic was parked, so its end handler did not stop it for a person: it does now, as that handler does.
+      toNeedsHuman(db, id, 'timeout', `the ${last.stage} execution exceeded the time limit`);
+      await freeSlot();
     } else if (last.status === 'interrupted') {
+      if (epic.stage !== last.stage) return; // the epic moved on (or has no stage yet): this cut execution is not where it stands
       // The agent may have written its result just before the cut: import it once instead of launching again.
       if (parseCallerResult(readResult(last), expectedOf(epic, last)).ok) {
         db.update(executions).set({ status: 'finished' }).where(eq(executions.executionId, last.executionId)).run();

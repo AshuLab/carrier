@@ -4,6 +4,13 @@ import Testing
 
 private func folder() -> String { NSTemporaryDirectory() + "carrier-dictation-records-\(UUID().uuidString)" }
 
+/// A history opened again from `folder`, once its file is read.
+@MainActor private func reopened(_ folder: String, keep: Bool = true, calendar: Calendar = .current) async -> DictationRecords {
+    let records = DictationRecords(carrierFolder: folder, keep: { keep }, calendar: calendar)
+    await records.load()
+    return records
+}
+
 private func entry(
     _ text: String, at seconds: TimeInterval = 0, outcome: DictationOutcome = .pasted, destination: String = "Notes", cleaned: String? = nil
 ) -> DictationEntry {
@@ -12,7 +19,7 @@ private func entry(
         destination: destination, outcome: outcome)
 }
 
-@MainActor @Test func anEntryIsRecordedWithItsFieldsAndIsThereAfterARelaunch() throws {
+@MainActor @Test func anEntryIsRecordedWithItsFieldsAndIsThereAfterARelaunch() async throws {
     let folder = folder()
     defer { try? FileManager.default.removeItem(atPath: folder) }
     let records = DictationRecords(carrierFolder: folder, keep: { true })
@@ -23,16 +30,18 @@ private func entry(
     #expect(records.path == folder + "/app/state/dictations.jsonl")
     #expect(try String(contentsOfFile: records.path, encoding: .utf8).split(separator: "\n").count == 2)
     #expect(try FileManager.default.attributesOfItem(atPath: records.path)[.posixPermissions] as? Int == 0o600)
-    #expect(DictationRecords(carrierFolder: folder, keep: { true }).entries == [second, first])
+    let reread = await reopened(folder)
+    #expect(reread.entries == [second, first])
 }
 
-@MainActor @Test func aTextWithNewlinesAndQuotesStaysOneLineAndComesBackTheSame() {
+@MainActor @Test func aTextWithNewlinesAndQuotesStaysOneLineAndComesBackTheSame() async {
     let folder = folder()
     defer { try? FileManager.default.removeItem(atPath: folder) }
     let records = DictationRecords(carrierFolder: folder, keep: { true })
     let odd = entry("dijo \"hola\"\nluego / adiós", cleaned: "Dijo \"hola\".")
     records.record(odd)
-    #expect(DictationRecords(carrierFolder: folder, keep: { true }).entries == [odd])
+    let reread = await reopened(folder)
+    #expect(reread.entries == [odd])
 }
 
 @MainActor @Test func aDictationWithNoWordsRecordsNothingWhateverItsOutcome() {
@@ -43,7 +52,7 @@ private func entry(
     #expect(records.entries.isEmpty && FileManager.default.fileExists(atPath: records.path) == false)
 }
 
-@MainActor @Test func withTheSwitchOffNothingNewIsRecordedAndWhatThereIsStays() {
+@MainActor @Test func withTheSwitchOffNothingNewIsRecordedAndWhatThereIsStays() async {
     let folder = folder()
     defer { try? FileManager.default.removeItem(atPath: folder) }
     nonisolated(unsafe) var keep = true
@@ -53,28 +62,32 @@ private func entry(
     keep = false
     #expect(records.record(entry("adiós", at: 5)) == false)
     #expect(records.entries == [kept])
-    #expect(DictationRecords(carrierFolder: folder, keep: { false }).entries == [kept])
+    let reread = await reopened(folder, keep: false)
+    #expect(reread.entries == [kept])
     // a delete is the person's own, so it works with the switch off too
-    records.delete(kept.id)
-    #expect(records.entries.isEmpty && DictationRecords(carrierFolder: folder, keep: { false }).entries.isEmpty)
+    await records.delete(kept.id)
+    let rereadOff = await reopened(folder, keep: false)
+    #expect(records.entries.isEmpty && rereadOff.entries.isEmpty)
 }
 
-@MainActor @Test func deletingAnEntryRemovesOnlyThatOneFromTheListAndTheFile() throws {
+@MainActor @Test func deletingAnEntryRemovesOnlyThatOneFromTheListAndTheFile() async throws {
     let folder = folder()
     defer { try? FileManager.default.removeItem(atPath: folder) }
     let records = DictationRecords(carrierFolder: folder, keep: { true })
     let (a, b, c) = (entry("uno", at: 0), entry("dos", at: 10), entry("tres", at: 20))
     [a, b, c].forEach { records.record($0) }
-    records.delete(b.id)
-    records.delete(UUID())
+    await records.delete(b.id)
+    await records.delete(UUID())
     #expect(records.entries == [c, a])
     #expect(try FileManager.default.attributesOfItem(atPath: records.path)[.posixPermissions] as? Int == 0o600)
-    #expect(DictationRecords(carrierFolder: folder, keep: { true }).entries == [c, a])
+    let reread = await reopened(folder)
+    #expect(reread.entries == [c, a])
     records.record(entry("cuatro", at: 30))
-    #expect(DictationRecords(carrierFolder: folder, keep: { true }).entries.map(\.text) == ["cuatro", "tres", "uno"])
+    let rereadLast = await reopened(folder)
+    #expect(rereadLast.entries.map(\.text) == ["cuatro", "tres", "uno"])
 }
 
-@MainActor @Test func aLineThatDoesNotReadIsLeftOutAndTheRestLoads() throws {
+@MainActor @Test func aLineThatDoesNotReadIsLeftOutAndTheRestLoads() async throws {
     let folder = folder()
     defer { try? FileManager.default.removeItem(atPath: folder) }
     let records = DictationRecords(carrierFolder: folder, keep: { true })
@@ -84,7 +97,8 @@ private func entry(
     try handle.seekToEnd()
     try handle.write(contentsOf: Data("{\"id\":\"cut here".utf8))
     try handle.close()
-    #expect(DictationRecords(carrierFolder: folder, keep: { true }).entries == [good])
+    let reread = await reopened(folder)
+    #expect(reread.entries == [good])
 }
 
 @Test func theSearchLooksAtTheTextTheCleanedTextAndTheDestinationInAnyCaseAndTheFilterAtTheOutcome() {
@@ -180,34 +194,35 @@ private let clip = AudioClip(samples: [0, 0.5, -0.5, 1], sampleRate: 16_000)
     #expect(on.audioIDs.isEmpty && FileManager.default.fileExists(atPath: folder + "/app/state/audio") == false)
 }
 
-@MainActor @Test func theLimitOfDaysDeletesTheAudioPastItAndKeepsTheEntriesAndTheRecentAudio() {
+@MainActor @Test func theLimitOfDaysDeletesTheAudioPastItAndKeepsTheEntriesAndTheRecentAudio() async {
     let folder = folder(), clock = Clock()
     defer { try? FileManager.default.removeItem(atPath: folder) }
     let records = records(folder, clock, days: 30)
     let (recent, old, older) = (recordedAgo(5, "reciente", in: records, clock), recordedAgo(40, "viejo", in: records, clock), recordedAgo(100, "más viejo", in: records, clock))
-    records.deleteOldAudio()
+    await records.deleteOldAudio()
     #expect(records.audioIDs == [recent.id])
     #expect(Set(records.entries.map(\.id)) == [recent.id, old.id, older.id])
     // 29 days old, still inside the limit; two days on it is past it
     clock.now.addTimeInterval(24 * day)
-    records.deleteOldAudio()
+    await records.deleteOldAudio()
     #expect(records.audioIDs == [recent.id])
     clock.now.addTimeInterval(2 * day)
-    records.deleteOldAudio()
+    await records.deleteOldAudio()
     #expect(records.audioIDs.isEmpty && records.audioBytes == 0 && records.entries.count == 3)
-    #expect(DictationRecords(carrierFolder: folder, keep: { true }).entries.count == 3)
+    let reread = await reopened(folder)
+    #expect(reread.entries.count == 3)
 }
 
-@MainActor @Test func neverKeepsEveryAudioWhateverItsAge() {
+@MainActor @Test func neverKeepsEveryAudioWhateverItsAge() async {
     let folder = folder(), clock = Clock()
     defer { try? FileManager.default.removeItem(atPath: folder) }
     let records = records(folder, clock, days: 0)
     _ = recordedAgo(1000, "antiguo", in: records, clock)
-    records.deleteOldAudio()
+    await records.deleteOldAudio()
     #expect(records.audioIDs.count == 1)
 }
 
-@MainActor @Test func deleteAllAudioDeletesEveryFileAndKeepsEveryTranscript() {
+@MainActor @Test func deleteAllAudioDeletesEveryFileAndKeepsEveryTranscript() async {
     let folder = folder(), clock = Clock()
     defer { try? FileManager.default.removeItem(atPath: folder) }
     let records = records(folder, clock)
@@ -216,15 +231,16 @@ private let clip = AudioClip(samples: [0, 0.5, -0.5, 1], sampleRate: 16_000)
     #expect(records.audioIDs.isEmpty && records.audioBytes == 0)
     #expect(((try? FileManager.default.contentsOfDirectory(atPath: folder + "/app/state/audio")) ?? []).isEmpty)
     #expect(Set(records.entries.map(\.id)) == Set(kept.map(\.id)))
-    #expect(DictationRecords(carrierFolder: folder, keep: { true }).entries.count == 2)
+    let reread = await reopened(folder)
+    #expect(reread.entries.count == 2)
 }
 
-@MainActor @Test func deletingAnEntryDeletesItsAudioAndOnlyItsAudio() {
+@MainActor @Test func deletingAnEntryDeletesItsAudioAndOnlyItsAudio() async {
     let folder = folder(), clock = Clock()
     defer { try? FileManager.default.removeItem(atPath: folder) }
     let records = records(folder, clock)
     let (gone, stays) = (recordedAgo(0, "uno", in: records, clock), recordedAgo(1, "dos", in: records, clock))
-    records.delete(gone.id)
+    await records.delete(gone.id)
     #expect(records.audioIDs == [stays.id] && records.audioURL(of: gone.id) == nil)
     #expect(FileManager.default.fileExists(atPath: folder + "/app/state/audio/\(gone.id.uuidString).wav") == false)
 }
@@ -278,7 +294,7 @@ private var utc: Calendar {
     #expect(records.counts.isEmpty && FileManager.default.fileExists(atPath: records.statisticsPath) == false)
 }
 
-@MainActor @Test func theCountersSplitByHourDayAndModelAndSurviveDeletingEntriesAndTurningTheHistoryOff() {
+@MainActor @Test func theCountersSplitByHourDayAndModelAndSurviveDeletingEntriesAndTurningTheHistoryOff() async {
     let folder = folder()
     defer { try? FileManager.default.removeItem(atPath: folder) }
     var keep = true
@@ -290,12 +306,12 @@ private var utc: Calendar {
     records.record(DictationEntry(started: first.started, text: "cuatro", model: "Whisper", transcription: 1, audio: 9, destination: "Notes", outcome: .pasted))
     #expect(records.counts.map(\.hour) == [22, 23, 22, 22] && records.counts.map(\.day) == ["2023-11-14", "2023-11-14", "2023-11-15", "2023-11-14"])
     let before = records.counts
-    records.delete(first.id)
+    await records.delete(first.id)
     keep = false
     #expect(records.counts == before && records.entries.count == 3)
 }
 
-@MainActor @Test func resetStatisticsDeletesTheCountersAndLeavesTheHistory() {
+@MainActor @Test func resetStatisticsDeletesTheCountersAndLeavesTheHistory() async {
     let folder = folder()
     defer { try? FileManager.default.removeItem(atPath: folder) }
     let records = DictationRecords(carrierFolder: folder, keep: { true }, calendar: utc)
@@ -303,19 +319,20 @@ private var utc: Calendar {
     records.resetStatistics()
     #expect(records.counts.isEmpty && records.entries.count == 1)
     #expect(DictationRecords(carrierFolder: folder, keep: { true }, calendar: utc).counts.isEmpty)
-    #expect(DictationRecords(carrierFolder: folder, keep: { true }, calendar: utc).entries.count == 1)
+    let reread = await reopened(folder, calendar: utc)
+    #expect(reread.entries.count == 1)
 }
 
-@MainActor @Test func deletingAudioOrAnEntryWithAudioLeavesTheCountersAsTheyWereAndTheyAreCountedWithTheAudioAndTheTextOff() {
+@MainActor @Test func deletingAudioOrAnEntryWithAudioLeavesTheCountersAsTheyWereAndTheyAreCountedWithTheAudioAndTheTextOff() async {
     let folder = folder(), clock = Clock()
     defer { try? FileManager.default.removeItem(atPath: folder) }
     let records = records(folder, clock)
     let (gone, stays) = (recordedAgo(0, "uno", in: records, clock), recordedAgo(1, "dos tres", in: records, clock))
     let before = records.counts
     #expect(before.map(\.dictations).reduce(0, +) == 2 && before.map(\.words).reduce(0, +) == 3)
-    records.delete(gone.id)
+    await records.delete(gone.id)
     records.deleteAllAudio()
-    records.deleteOldAudio()
+    await records.deleteOldAudio()
     #expect(records.counts == before && records.entries.map(\.id) == [stays.id])
     let off = DictationRecords(carrierFolder: folder + "-off", keep: { false }, keepAudio: { true })
     defer { try? FileManager.default.removeItem(atPath: folder + "-off") }
@@ -352,4 +369,113 @@ private let noon = Date(timeIntervalSince1970: 1_794_744_000)
     let matching = dictationEntries(entries, matching: "slack", outcome: nil)
     #expect(matching.count == 400 && found.matched == 400)
     #expect(found.days.flatMap(\.entries) == Array(matching.prefix(dictationHistoryPage)))
+}
+
+// MARK: loading the history off the main thread
+
+/// A history of `count` dictations on disk, in `folder`, newest first as `entries` lists them.
+@MainActor private func writtenHistory(_ folder: String, count: Int) -> [DictationEntry] {
+    let writer = DictationRecords(carrierFolder: folder, keep: { true })
+    let all = (0..<count).map { entry("dictado \($0) uno", at: Double($0) * 10) }
+    all.forEach { writer.record($0) }
+    return all.reversed()
+}
+
+@MainActor @Test func theInitReadsNoHistoryAndLoadGivesWhatTheFileHolds() async {
+    let folder = folder()
+    defer { try? FileManager.default.removeItem(atPath: folder) }
+    let written = writtenHistory(folder, count: 50)
+    let records = DictationRecords(carrierFolder: folder, keep: { true })
+    #expect(records.entries.isEmpty && records.loaded == false)
+    await records.load()
+    #expect(records.entries == written && records.loaded)
+}
+
+@MainActor @Test func loadingTwiceReadsOnceAndTheSecondCallWaitsForTheFirst() async {
+    let folder = folder()
+    defer { try? FileManager.default.removeItem(atPath: folder) }
+    let written = writtenHistory(folder, count: 5)
+    let records = DictationRecords(carrierFolder: folder, keep: { true })
+    async let first: Void = records.load()
+    async let second: Void = records.load()
+    _ = await (first, second)
+    #expect(records.entries == written)
+    // a line another process added since does not come in: the history is read once
+    DictationRecords(carrierFolder: folder, keep: { true }).record(entry("tarde", at: 9_999))
+    await records.load()
+    #expect(records.entries == written)
+}
+
+@MainActor @Test func aDictationRecordedBeforeTheLoadStaysOnTopOnceAndTheOldOnesComeUnderIt() async {
+    let folder = folder()
+    defer { try? FileManager.default.removeItem(atPath: folder) }
+    let written = writtenHistory(folder, count: 3)
+    let records = DictationRecords(carrierFolder: folder, keep: { true })
+    let fresh = entry("recién dicho", at: 5_000)
+    #expect(records.record(fresh))
+    #expect(records.entries == [fresh])
+    await records.load()
+    #expect(records.entries == [fresh] + written)
+}
+
+@MainActor @Test func deletingBeforeTheLoadKeepsEveryOtherEntryInTheFile() async throws {
+    let folder = folder()
+    defer { try? FileManager.default.removeItem(atPath: folder) }
+    let written = writtenHistory(folder, count: 4)
+    let records = DictationRecords(carrierFolder: folder, keep: { true })
+    let gone = written[1]
+    await records.delete(gone.id)
+    let rest = written.filter { $0.id != gone.id }
+    #expect(records.entries == rest)
+    let file = try String(contentsOfFile: records.path, encoding: .utf8).split(separator: "\n")
+    #expect(file.count == 3 && file.allSatisfy { $0.contains(gone.id.uuidString) == false })
+    let reread = await reopened(folder)
+    #expect(reread.entries == rest)
+}
+
+@MainActor @Test func deletingTheEntryRecordedBeforeTheLoadDoesNotRewriteTheFileFromThatEntryAlone() async {
+    let folder = folder()
+    defer { try? FileManager.default.removeItem(atPath: folder) }
+    let written = writtenHistory(folder, count: 3)
+    let records = DictationRecords(carrierFolder: folder, keep: { true })
+    let fresh = entry("nuevo", at: 5_000)
+    records.record(fresh)
+    await records.delete(fresh.id)
+    let reread = await reopened(folder)
+    #expect(reread.entries == written)
+}
+
+@MainActor @Test func theAudioSweepBeforeTheLoadReadsTheAgesInTheFileAndDeletesNothingElse() async {
+    let folder = folder(), clock = Clock()
+    defer { try? FileManager.default.removeItem(atPath: folder) }
+    let before = records(folder, clock, days: 30)
+    let (recent, old) = (recordedAgo(5, "reciente", in: before, clock), recordedAgo(40, "viejo", in: before, clock))
+    let relaunched = records(folder, clock, days: 30)
+    #expect(relaunched.entries.isEmpty && relaunched.audioIDs == [recent.id, old.id])
+    await relaunched.deleteOldAudio()
+    #expect(relaunched.audioIDs == [recent.id] && Set(relaunched.entries.map(\.id)) == [recent.id, old.id])
+}
+
+@MainActor @Test func aSweepWithNoLimitLeavesTheHistoryUnread() async {
+    let folder = folder(), clock = Clock()
+    defer { try? FileManager.default.removeItem(atPath: folder) }
+    _ = recordedAgo(400, "viejo", in: records(folder, clock, days: 0), clock)
+    let relaunched = records(folder, clock, days: 0)
+    await relaunched.deleteOldAudio()
+    #expect(relaunched.loaded == false && relaunched.audioIDs.count == 1)
+}
+
+@MainActor @Test func aLargeHistoryLoadsAndTheInitDecodesNoneOfIt() async throws {
+    let folder = folder()
+    defer { try? FileManager.default.removeItem(atPath: folder) }
+    let encoder = JSONEncoder()
+    encoder.dateEncodingStrategy = .iso8601
+    let jsonl = try longDictationEntries(count: 10_000, perDay: 50, newest: noon).reversed().map { String(decoding: try encoder.encode($0), as: UTF8.self) }.joined(separator: "\n") + "\n"
+    let path = DictationRecords(carrierFolder: folder, keep: { true }).path
+    try FileManager.default.createDirectory(atPath: (path as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
+    try jsonl.write(toFile: path, atomically: true, encoding: .utf8)
+    let opened = DictationRecords(carrierFolder: folder, keep: { true })
+    #expect(opened.entries.isEmpty)
+    await opened.load()
+    #expect(opened.entries.count == 10_000)
 }

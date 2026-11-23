@@ -34,6 +34,7 @@ export const executions = sqliteTable('executions', {
   configDir: text(), // that option's config folder, absolute; null when it had none
   workspace: text(), // the cwd of the session: what resuming it needs
   round: integer(), // the review round, null for ship
+  headSha: text(), // a review's: the commit its checkout was made at, which its result must carry; null for the others and from before it was recorded
   usage: text({ mode: 'json' }).$type<ExecutionUsage>(), // null on a run that reported none, or from before it was recorded
   resultPath: text().notNull(),
   startedAt: integer().notNull(),

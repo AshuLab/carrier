@@ -93,8 +93,10 @@ export class FakeWorkspaces implements Workspaces {
     return `/work/${repo}/${epic}/author`;
   }
 
+  /** The commit a reviewer checkout reports. */
+  reviewerCommit: (repo: string, pr: number) => string = () => 'a'.repeat(40);
   async prepareReviewer(repo: string, epic: number, pr: number) {
-    return `/work/${repo}/${epic}/reviewer-${pr}`;
+    return { path: `/work/${repo}/${epic}/reviewer-${pr}`, commit: this.reviewerCommit(repo, pr) };
   }
 
   async findWorktree(repo: string, branch: string): Promise<string | null> {

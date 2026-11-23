@@ -540,14 +540,20 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     const switched = before !== undefined && (before.option ?? null) !== optionNow;
     if (switched) rebuild = { pr: null };
     const resumeSession = rebuild ? undefined : (retryOf?.sessionId ?? (stage === 'fix' ? authorSession(epic.id) : stage === 'ship' && !retryOf ? sameOptionSession(epic) : undefined));
-    const pr = rebuild?.pr ?? (epic.prNumber ? { number: epic.prNumber, headSha: epic.prHeadSha! } : undefined);
+    let pr = rebuild?.pr ?? (epic.prNumber ? { number: epic.prNumber, headSha: epic.prHeadSha! } : undefined);
     let workspace: string;
+    let reviewedCommit: string | undefined; // the commit the reviewer's checkout is at: the head it is given
     try {
       if (stage === 'fix') {
         // Where `ship` left the epic's worktree: a session resumed anywhere else would act in another cwd.
         if (!epic.workspace) throw new Error('the epic has no saved worktree');
         workspace = epic.workspace;
-      } else workspace = reviewing ? await workspaces.prepareReviewer(epic.repo, epic.issue, epic.prNumber!) : await workspaces.prepareAuthor(epic.repo, epic.issue);
+      } else if (reviewing) {
+        const checkout = await workspaces.prepareReviewer(epic.repo, epic.issue, epic.prNumber!);
+        workspace = checkout.path;
+        reviewedCommit = checkout.commit;
+        pr = { number: epic.prNumber!, headSha: reviewedCommit };
+      } else workspace = await workspaces.prepareAuthor(epic.repo, epic.issue);
     } catch (e) {
       log.error('could not prepare the workspace', e, { repo: epic.repo, epic: epic.issue, stage });
       if (!unchanged(epic.id, epoch)) return; // parked while the workspace was prepared: it keeps where it was
@@ -582,7 +588,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     if (stopping || !unchanged(epic.id, epoch)) return; // the repo may have left the configuration (and come back) while the workspace was prepared
     if (switched) db.insert(epicEvents).values({ epicId: epic.id, at: clock.now(), type: 'session_rebuilt', data: { stage, from: before!.option, to: optionNow, pr: pr ?? null } }).run();
     db.insert(executions)
-      .values({ executionId, epicId: epic.id, stage, harness: task.harness, model: task.model, provider: task.provider ?? null, option: task.option ?? null, configDir: task.configDir ?? null, workspace, round: epic.round, resultPath, startedAt: clock.now() })
+      .values({ executionId, epicId: epic.id, stage, harness: task.harness, model: task.model, provider: task.provider ?? null, option: task.option ?? null, configDir: task.configDir ?? null, workspace, round: epic.round, headSha: reviewedCommit ?? null, resultPath, startedAt: clock.now() })
       .run();
     const context = taskContext({ repo: epic.repo, epic: epic.issue, executionId, stage, round: epic.round });
     log.info('execution started', context);
@@ -785,10 +791,15 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     const raw = readResult(execution);
     const parsed = parseCallerResult(raw, expected);
     const context = taskContext({ repo: epic.repo, epic: epic.issue, executionId: execution.executionId, stage: execution.stage, round: epic.round });
-    if (!parsed.ok) {
-      log.warn('invalid caller result', { ...context, reason: parsed.message });
-      db.update(executions).set({ status: 'invalid_result', error: parsed.message, ...failureColumns({ ...noExit, kind: 'invalid_result', detail: failureDetail(parsed.message) }) }).where(eq(executions.executionId, execution.executionId)).run();
-      db.update(epics).set({ lastError: parsed.message }).where(eq(epics.id, epic.id)).run();
+    // A review's result carries the commit its checkout was made at (ADR 0047), else it judged something the reviewer was not given.
+    const wrongHead = parsed.ok && parsed.result.outcome !== 'needs_human' && execution.headSha !== null && parsed.result.pr.headSha !== execution.headSha
+      ? `the review reports head ${parsed.result.pr.headSha}, not ${execution.headSha}, the commit its checkout was made at`
+      : null;
+    if (!parsed.ok || wrongHead) {
+      const message = parsed.ok ? wrongHead! : parsed.message;
+      log.warn('invalid caller result', { ...context, reason: message });
+      db.update(executions).set({ status: 'invalid_result', error: message, ...failureColumns({ ...noExit, kind: 'invalid_result', detail: failureDetail(message) }) }).where(eq(executions.executionId, execution.executionId)).run();
+      db.update(epics).set({ lastError: message }).where(eq(epics.id, epic.id)).run();
       return retry(epic.id);
     }
     let problem: { kind: 'workspace' | 'pr_invalid'; text: string } | null = null;

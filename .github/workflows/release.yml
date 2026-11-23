@@ -248,7 +248,7 @@ jobs:
           mkdir -p out
           ditto -c -k --sequesterRsrc --keepParent macos/Carrier.app "out/Carrier-$VERSION.zip"
           # the symbols the release binary was stripped of: crash reports are symbolicated with it
-          ditto -c -k --keepParent macos/Carrier.dSYM "out/Carrier-$VERSION.dSYM.zip"
+          ditto -c -k --sequesterRsrc --keepParent macos/Carrier.dSYM "out/Carrier-$VERSION.dSYM.zip"
           (cd out && shasum -a 256 "Carrier-$VERSION.zip" > "Carrier-$VERSION.zip.sha256")
 
       - name: Check the zip

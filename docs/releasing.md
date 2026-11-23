@@ -28,7 +28,7 @@ npm does not wait for the app: the engine is ready once its checks and the formu
 
 What **Publish** does, in this order (each step needs the ones above it):
 
-1. **The GitHub Release, as a draft,** with the zip, its checksum and the dSYM zip, the symbols to symbolicate a crash report of that version (`.github/scripts/github-release.sh draft`). A draft is never `releases/latest`, so the update feed still answers with the previous release.
+1. **The GitHub Release, as a draft,** with the zip, its checksum and the dSYM zip, the symbols to symbolicate a crash report of that version (`.github/scripts/github-release.sh draft`). To symbolicate an address, unzip the dSYM and run `xcrun atos -o <Carrier.dSYM>/Contents/Resources/DWARF/Carrier -arch arm64 -l <load address> <address>`; the dSYM's UUID must equal the binary's, which the release already checks. The dSYM embeds the absolute path of the build folder (`/Users/runner` on the runner; a release by hand should be built from a clean clone in a neutral folder). A draft is never `releases/latest`, so the update feed still answers with the previous release.
 2. **The tap.** The formula (with the sha npm serves) and the cask are pushed to `AshuLab/homebrew-tap` as `carrier X.Y.Z`. From here `brew upgrade` finds the new version.
 3. **The appcast** is attached to the draft (`github-release.sh attach`). It is still invisible to the apps.
 4. **Publish.** `github-release.sh publish` runs `gh release edit --draft=false`. Only now does `https://github.com/AshuLab/carrier/releases/latest/download/appcast.xml` answer with the new version. Right after the release is published that address may answer 404 for about ten seconds.

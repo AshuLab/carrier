@@ -97,6 +97,20 @@ test('no --from sends the request as before, whatever the engine lists', async (
   expect(sent(requests)).toEqual([{ cmd: 'resumeEpic', ...target }]);
 });
 
+test('--extra-rounds is sent as a number with the stage', async () => {
+  const requests = await fakeCarrier(['resumeEpic', 'resumeFromStage']);
+  vi.spyOn(process.stdout, 'write').mockReturnValue(true);
+  expect(await restartCommand(folder!, target, { from: 'fix', extraRounds: 2 })).toBe(0);
+  expect(sent(requests)).toEqual([{ cmd: 'resumeEpic', ...target, from: 'fix', extraRounds: 2 }]);
+});
+
+test('--extra-rounds against an engine that does not list resumeFromStage says so and asks nothing', async () => {
+  const requests = await fakeCarrier(['resumeEpic']);
+  const error = (await restartCommand(folder!, target, { extraRounds: 2 }).catch((e) => e)) as CliError;
+  expect([error.code, error.message]).toEqual([1, 'The running Carrier is too old to resume from a stage: restart it to get --from.']);
+  expect(requests).toEqual([]);
+});
+
 test('--from against an engine that does not list resumeFromStage says so and asks nothing', async () => {
   const requests = await fakeCarrier(['resumeEpic']);
   const error = (await restartCommand(folder!, target, { from: 'review' }).catch((e) => e)) as CliError;
@@ -106,6 +120,7 @@ test('--from against an engine that does not list resumeFromStage says so and as
 
 test.each([
   ['no pull request', 'AshuLab/carrier#5 has no pull request yet, so it can only be restarted from ship.'],
+  ['extra rounds need a stage', '--extra-rounds needs --from review or --from fix: a restart from ship starts the rounds over.'],
   ['pull request not open', "The epic's pull request is not open any more, so nothing was changed. Restart it from ship, or reopen the pull request."],
   ['pull request head changed', 'The pull request has a different head than the one Carrier saved, so nothing was changed. Restart it from ship to start over.'],
 ])('a refusal as "%s" says what it means and exits 1', async (reason, words) => {

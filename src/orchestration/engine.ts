@@ -159,8 +159,10 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
   const restart = (queuedAt: number) => ({
     status: 'queued' as const, queuedAt, startedAt: null, config: null, labelPending: false, stage: null, stageStartedAt: null, workspace: null,
     lastActivityAt: null, lastError: null, round: null, prNumber: null, prHeadSha: null, pr: null, reviewedSha: null, verification: null, observationsPassAt: null,
-    needsHumanReason: null, needsHumanKind: null, finishedAt: null, authorOption: null, reviewerOption: null, recoveries: 0, resumeStage: null,
+    needsHumanReason: null, needsHumanKind: null, finishedAt: null, authorOption: null, reviewerOption: null, recoveries: 0, resumeStage: null, roundLimit: null,
   });
+  // The rounds an epic may have: what a resume granted it, else the live setting (a changed `maxReviews` applies at the epic's next review).
+  const roundCap = (epic: Epic) => epic.roundLimit ?? settings().maxReviews;
   // An epic a person resumed at `review` or `fix` (resume from a stage): it takes the same way through the queue, but keeps its round, pull request,
   // worktree and the rest of where it stood; `resumeStage` tells `begin` where to start.
   const requeueKeeping = (queuedAt: number) => ({
@@ -715,11 +717,11 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       else if (execution.stage === 'fix') update({ stage: 'review', stageStartedAt: clock.now(), round: (epic.round ?? 0) + 1, prHeadSha: result.pr.headSha });
       // The round stays: the fix turn answers it, and the next review numbers the following one.
       else if (result.outcome === 'changes_requested') {
-        if ((epic.round ?? 0) >= settings().maxReviews) toNeedsHuman(tx, epic.id, 'review_limit', `review limit: round ${epic.round} of ${settings().maxReviews} still has requested changes`);
+        if ((epic.round ?? 0) >= roundCap(epic)) toNeedsHuman(tx, epic.id, 'review_limit', `review limit: round ${epic.round} of ${roundCap(epic)} still has requested changes`);
         else update({ stage: 'fix', stageStartedAt: clock.now() });
       }
       // The one observations pass: the author answers them on the same round, and the reviewed head and verification wait for how it ends.
-      else if (result.outcome === 'completed' && result.observations?.length && epic.observationsPassAt === null && (epic.round ?? 0) < settings().maxReviews) {
+      else if (result.outcome === 'completed' && result.observations?.length && epic.observationsPassAt === null && (epic.round ?? 0) < roundCap(epic)) {
         update({ stage: 'fix', stageStartedAt: clock.now(), observationsPassAt: clock.now(), reviewedSha: result.pr.headSha, verification: result.verification });
       }
       else update({ status: 'ready_for_test', reviewedSha: result.pr.headSha, verification: result.verification, finishedAt: clock.now(), labelPending: true });
@@ -1315,9 +1317,10 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
      * Puts `ready` on a stopped epic's issue, as a person does, and checks now; resolves once the epic is no longer in
      * needs_human. It restarts on the option named for each role and on the one it has for a role left out.
      * With `from` `review` or `fix` the epic keeps its round, pull request and worktree and starts at that stage, when its pull request is open with the head it has stored.
+     * One that stopped on the review limit then gets `extraRounds` more rounds from the current one, `maxReviews` when none is named.
      * Rejects with ResumeRefused: nothing was changed unless it is `did not restart`, which leaves the label for the next check.
      */
-    async resumeEpic(repo: string, issue: number, chosen: { author?: string; reviewer?: string; from?: 'ship' | 'review' | 'fix' } = {}) {
+    async resumeEpic(repo: string, issue: number, chosen: { author?: string; reviewer?: string; from?: 'ship' | 'review' | 'fix'; extraRounds?: number } = {}) {
       // The socket answers while the start recovers, and the recovery is not the epic's wait: it is waited for on its own, up to the same 30 seconds, and
       // refused before anything is touched when it takes longer (the label is not put, the chosen options are not kept), so the client has not given up first.
       if (recovering) {
@@ -1337,6 +1340,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       const declared = (repoConfig?.providers ?? repoConfig?.options) ?? {};
       if ([chosen.author, chosen.reviewer].some((name) => name !== undefined && !Object.hasOwn(declared, name))) throw new ResumeRefused('unknown option');
       const keeping = chosen.from === 'review' || chosen.from === 'fix' ? chosen.from : null;
+      if (chosen.extraRounds !== undefined && !keeping) throw new ResumeRefused('extra rounds need a stage');
       if (keeping) {
         if (epic.prNumber === null) throw new ResumeRefused('no pull request');
         let found;
@@ -1354,12 +1358,14 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       const reviewer = chosen.reviewer ?? epic.reviewerOption;
       restarts.set(epic.id, { ...(author && { author }), ...(reviewer && { reviewer }) });
       // Saved with the epic before the label goes on: a restart of the engine, or a check that finds the label later, takes the same stage. Any resume sets it, so an old ask never lingers.
-      db.update(epics).set({ resumeStage: keeping }).where(eq(epics.id, epic.id)).run();
+      // The rounds granted go with it, counted from the round the epic is at; a resume that grants none leaves the cap as it was.
+      const grant = chosen.extraRounds ?? (epic.needsHumanKind === 'review_limit' ? settings().maxReviews : undefined);
+      db.update(epics).set({ resumeStage: keeping, roundLimit: keeping && grant !== undefined ? (epic.round ?? 0) + grant : epic.roundLimit }).where(eq(epics.id, epic.id)).run();
       try {
         await github.setLabels(repo, issue, { add: [settings().labels.ready], remove: [] });
       } catch (e) {
         restarts.delete(epic.id);
-        db.update(epics).set({ resumeStage: null }).where(eq(epics.id, epic.id)).run();
+        db.update(epics).set({ resumeStage: null, roundLimit: epic.roundLimit }).where(eq(epics.id, epic.id)).run();
         if (e instanceof GitHubUnavailable || e instanceof AuthError) throw new ResumeRefused('github unavailable');
         throw e;
       }

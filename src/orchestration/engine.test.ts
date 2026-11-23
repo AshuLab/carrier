@@ -4435,8 +4435,8 @@ function stoppedAt(db: Db, stage: 'review' | 'fix', extra: Partial<typeof epics.
   pull(50);
   runner.behavior = () => ({ exit: 'hang' });
 }
-const resumeFrom = async (engine: Awaited<ReturnType<typeof start>>, from?: 'ship' | 'review' | 'fix') => {
-  const resumed = engine.resumeEpic('AshuLab/a', 1, { from });
+const resumeFrom = async (engine: Awaited<ReturnType<typeof start>>, from?: 'ship' | 'review' | 'fix', extraRounds?: number) => {
+  const resumed = engine.resumeEpic('AshuLab/a', 1, { from, extraRounds });
   await flush();
   await clock.advance(1000);
   await resumed;
@@ -4538,6 +4538,72 @@ test('a resume without from clears a stage an earlier resume asked and did not s
   await clock.advance(1000);
   await resumed;
   expect(rows(engine.db)[0]).toMatchObject({ status: 'queued', round: null, resumeStage: null });
+});
+
+// --- extra rounds: a resume of a review_limit stop grants rounds counted from the current one ---
+
+test.each([
+  ['the default is maxReviews', undefined, 7],
+  ['extraRounds names the number', 2, 4],
+])('resuming a review_limit stop at round 2 keeps the grant in roundLimit: %s', async (_name, extraRounds, limit) => {
+  const engine = await start(0, repos, 4, 3, 5);
+  stoppedAt(engine.db, 'review');
+  await resumeFrom(engine, 'review', extraRounds);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'queued', round: 2, roundLimit: limit, resumeStage: 'review' });
+});
+
+test('a resumed review_limit stop runs the rounds it was granted and stops again with review_limit, its snapshot showing its own cap', async () => {
+  const engine = await start(1, repos, 4, 3, 2);
+  seedEpic(engine.db, 1, { status: 'needs_human', stage: 'fix', round: 2, prNumber: 50, prHeadSha: SHA, workspace: '/w/epic', needsHumanKind: 'review_limit', needsHumanReason: 'review limit' }); // round 2 of maxReviews 2
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50);
+  let go!: () => void;
+  const gate = new Promise<void>((resolve) => (go = resolve)); // the resume answers once the epic started: its first stage waits for that
+  runner.behavior = (task) =>
+    task.stage === 'review' ? { write: result(task, { outcome: 'changes_requested', pr: { number: 50, headSha: SHA }, blockers: [{ title: `round ${task.context.round}` }] }) }
+    : { write: result(task, { outcome: 'completed', pr: { number: 50, headSha: SHA }, verification: { ci: 'absent', evidence: 'ok' } }), when: gate };
+  await resumeFrom(engine, 'fix');
+  go();
+  await engine.idle();
+  expect(runner.tasks.map((t) => [t.stage, t.context.round])).toEqual([['fix', 2], ['review', 3], ['fix', 3], ['review', 4]]);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'review_limit', round: 4, roundLimit: 4 });
+  expect(rows(engine.db)[0]!.needsHumanReason).toBe('review limit: round 4 of 4 still has requested changes');
+  expect(buildSnapshot(engine.db, { now: clock.now(), maxConcurrentEpics: 1, maxReviews: 2, finishedWindowDays: 15, startedAt: 0, repos: 1, nextCheckAt: null, problem: null, paused: false, slices: engine.slices, version: 'x', pollIntervalMs: 1, labels: defaultLabels }).epics[0]).toMatchObject({ round: 4, maxReviews: 4 });
+});
+
+test('the cap of an epic is its roundLimit when set, whatever maxReviews is', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50);
+  let ends!: () => void;
+  runner.behavior = (task) =>
+    task.stage === 'ship' ? { write: completed(task) }
+    : task.stage === 'fix' ? { exit: 'stopped' }
+    : { write: result(task, { outcome: 'changes_requested', pr: { number: 50, headSha: SHA }, blockers: [{ title: 'x' }] }), when: new Promise<void>((resolve) => (ends = resolve)) };
+  const engine = await start(1, repos, 4, 3, 1); // maxReviews 1: round 1 is the limit for an epic with no grant
+  await clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(runner.tasks.map((t) => t.stage)).toEqual(['ship', 'review']));
+  engine.db.update(epics).set({ roundLimit: 2 }).run();
+  ends();
+  await engine.idle();
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'fix', round: 1 });
+});
+
+test('a resume that grants nothing leaves the cap as it was, and one from ship takes the grant away with the rounds', async () => {
+  const engine = await start(0);
+  stoppedAt(engine.db, 'review', { needsHumanKind: 'agent_needs_human', roundLimit: 9 });
+  await resumeFrom(engine, 'review');
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'queued', roundLimit: 9 });
+  engine.db.update(epics).set({ status: 'needs_human', resumeStage: null }).run();
+  await resumeFrom(engine, 'ship');
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'queued', round: null, roundLimit: null });
+});
+
+test('extraRounds without a stage to keep is refused and nothing changes', async () => {
+  const engine = await start(1);
+  stoppedAt(engine.db, 'review');
+  for (const from of [undefined, 'ship' as const]) expect(await refusal(engine.resumeEpic('AshuLab/a', 1, { from, extraRounds: 3 }))).toBe('extra rounds need a stage');
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', roundLimit: null, resumeStage: null });
+  expect(runner.tasks).toEqual([]);
 });
 
 test('the ready label of a stopped epic whose own label is still pending is seen by the poll: the reconciliation does not take it off first', async () => {

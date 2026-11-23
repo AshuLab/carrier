@@ -17,7 +17,7 @@ Work already running keeps what it started with, and a change reaches what start
 
 - An agent run keeps the agent, account and time limit it was launched with.
 - An epic keeps the configuration it stored when it started (see [Things that are checked](#things-that-are-checked)); epics that start later use the new roles, effort, persona, failover and accounts, and a restarted epic takes the settings of that moment.
-- A limit is read when the decision is made: a changed `maxReviews` or `maxExecutionRetries` applies at the epic's next review or failure, and a `maxConcurrentEpics` lowered below the epics running only stops new ones from starting.
+- A limit is read when the decision is made: a changed `maxReviews` or `maxExecutionRetries` applies at the epic's next review or failure (an epic that a resume granted more review rounds keeps the cap of that grant), and a `maxConcurrentEpics` lowered below the epics running only stops new ones from starting.
 - A repo taken out of `repos` has its epics parked as `repo_removed` where they were, its active agent runs stopped (they end interrupted) and no more calls to GitHub; adding it back restores them.
 - A profile removed while a running epic names it stops that epic's next run in `needs-human`, naming the profile; put the profile back and restart the epic.
 

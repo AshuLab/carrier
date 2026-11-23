@@ -55,7 +55,7 @@ else if (cli.flags.help) {
         exit = await (await import('./commands/control.ts')).controlCommand(cli.command, folder);
         break;
       case 'restart':
-        exit = await (await import('./commands/restart.ts')).restartCommand(folder, cli.target!, { author: cli.flags.author, reviewer: cli.flags.reviewer, from: cli.flags.from as 'ship' | 'review' | 'fix' | undefined });
+        exit = await (await import('./commands/restart.ts')).restartCommand(folder, cli.target!, { author: cli.flags.author, reviewer: cli.flags.reviewer, from: cli.flags.from as 'ship' | 'review' | 'fix' | undefined, extraRounds: cli.flags['extra-rounds'] === undefined ? undefined : Number(cli.flags['extra-rounds']) });
         break;
       case 'recover':
         exit = await (await import('./commands/recover.ts')).recoverCommand(folder, cli.target!);

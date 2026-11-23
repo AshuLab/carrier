@@ -30,6 +30,7 @@ const repo = z
   .refine((value) => value.split('/').every((part) => part !== '.' && part !== '..'));
 const issue = z.number().int().positive();
 const optionName = z.string().regex(optionNamePattern);
+const extraRounds = z.int().min(1);
 // An allowlist: any other command, field or type is rejected before anything acts on it.
 export const request = z.union([
   z.strictObject({ id, cmd: z.enum(['snapshot', 'pause', 'resume', 'checkNow', 'stop']) }),
@@ -41,7 +42,7 @@ export const request = z.union([
   z.strictObject({ id, cmd: z.literal('fileDiff'), repo, issue, section: z.string().min(1).max(100), path: z.string().min(1).max(500) }),
   z.strictObject({ id, cmd: z.literal('availableRepos'), page: z.int().min(1).max(100).optional() }),
   z.strictObject({ id, cmd: z.literal('reload') }),
-  z.strictObject({ id, cmd: z.literal('resumeEpic'), repo, issue, author: optionName.optional(), reviewer: optionName.optional(), from: z.enum(['ship', 'review', 'fix']).optional() }),
+  z.strictObject({ id, cmd: z.literal('resumeEpic'), repo, issue, author: optionName.optional(), reviewer: optionName.optional(), from: z.enum(['ship', 'review', 'fix']).optional(), extraRounds: extraRounds.optional() }),
   z.strictObject({ id, cmd: z.literal('recoverEpic'), repo, issue }),
 ]);
 
@@ -73,7 +74,7 @@ export type Controls = {
   /** One page of the repos the gh login can push to, and whether there is a next one; rejects when GitHub cannot be read. */
   availableRepos(page: number): Promise<{ repos: AvailableRepo[]; hasMore: boolean }>;
   /** Puts a stopped epic back in motion and resolves once it started; rejects with ResumeRefused when it could not. */
-  resumeEpic(repo: string, issue: number, chosen: { author?: string; reviewer?: string; from?: 'ship' | 'review' | 'fix' }): Promise<void>;
+  resumeEpic(repo: string, issue: number, chosen: { author?: string; reviewer?: string; from?: 'ship' | 'review' | 'fix'; extraRounds?: number }): Promise<void>;
   /** Continues one running epic whose agent is not alive and resolves once it was; rejects with RecoverRefused when it could not. It takes no state: the engine reads the epic's own. */
   recoverEpic(repo: string, issue: number): Promise<void>;
   /** Reads the settings again and runs on them; throws ReloadRefused, with the settings as they were, when they are not valid. */
@@ -105,7 +106,10 @@ function answer(line: string, snapshot: () => unknown, controls: Controls, stopA
   if (parsed.success === false) {
     // the id is echoed only when it is a valid one, so the client can match the error
     const given = typeof value === 'object' && value !== null ? id.safeParse((value as { id?: unknown }).id) : null;
-    return { id: given?.success ? given.data : null, ok: false, error: 'invalid request' };
+    // a refused extraRounds names its field, so `restart --extra-rounds` can say what to fix; other fields stay the generic refusal
+    const asked = typeof value === 'object' && value !== null ? (value as { cmd?: unknown; extraRounds?: unknown }) : {};
+    const error = asked.cmd === 'resumeEpic' && 'extraRounds' in asked && extraRounds.safeParse(asked.extraRounds).success === false ? 'invalid request: extraRounds takes a positive whole number' : 'invalid request';
+    return { id: given?.success ? given.data : null, ok: false, error };
   }
   if (parsed.data.cmd === 'snapshot') {
     try {
@@ -177,9 +181,9 @@ function answer(line: string, snapshot: () => unknown, controls: Controls, stopA
       );
   }
   if (parsed.data.cmd === 'resumeEpic') {
-    const { id: replyId, repo, issue, author, reviewer, from } = parsed.data;
+    const { id: replyId, repo, issue, author, reviewer, from, extraRounds } = parsed.data;
     return Promise.resolve()
-      .then(() => controls.resumeEpic(repo, issue, { author, reviewer, from }))
+      .then(() => controls.resumeEpic(repo, issue, { author, reviewer, from, extraRounds }))
       .then(
         (): Reply => ({ id: replyId, ok: true }),
         (error): Reply => {

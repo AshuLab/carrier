@@ -409,3 +409,15 @@ _Avoid_: tech lead, final reviewer, approver.
 Planned, not built yet: this belongs to a later epic of [the engine improvements](specs/carrier-engine-improvements.md), so the config it names does not exist today.
 It does not count toward `maxReviews`, and the other reviewers do not see the commits it makes.
 _Avoid_: round (that is a review round).
+
+**Re-review (of a moved head)** - A review made again on the new head, without counting a round, because the pull request's head moved while the review ran; at most twice in a row, then the epic stops in `pr_invalid`.
+It is not a review round: the round count is about how many times the author and the reviewer disagree.
+See [ADR 0047](adr/0047-a-review-is-tied-to-the-head-it-was-given-and-a-moved-head-is-reviewed-again.md).
+_Avoid_: retry (a retry is the new execution after a technical failure), second round.
+
+**Unanswered observations** - The observations of the last review that no author pass answered because the one pass was already taken (`already_taken`) or the round was the last the epic's cap allows (`last_round`); the epic goes to ready for test with their count and the reason.
+_Avoid_: ignored observations, skipped comments.
+
+**Cancelled before it started** - An epic cancelled with no execution yet, because its `ready` label was removed or its issue closed; it goes back to the queue when `ready` returns, with nothing of the cancel left on it.
+One cancelled because its pull request was closed, because its issue no longer exists or after it had worked is not this, and stays cancelled.
+_Avoid_: dropped, withdrawn.

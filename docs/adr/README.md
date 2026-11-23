@@ -57,3 +57,4 @@ A status that names a later record means that record changed part or all of this
 | 0047 | [A review is tied to the head it was given, and a moved head is reviewed again](0047-a-review-is-tied-to-the-head-it-was-given-and-a-moved-head-is-reviewed-again.md) | accepted |
 | 0048 | [A review round has several reviewers in parallel, and a lead reviewer closes it](0048-a-review-round-has-several-reviewers-in-parallel-and-a-lead-reviewer-closes-it.md) | accepted |
 | 0049 | [A quota stop wakes up by itself when the provider says the window is back](0049-a-quota-stop-wakes-up-by-itself-when-the-provider-says-the-window-is-back.md) | accepted |
+| 0050 | [One authentication signal is a technical failure of its epic, and a profile stops when it repeats](0050-one-authentication-signal-is-a-technical-failure-of-its-epic-and-a-profile-stops-when-it-repeats.md) | accepted |

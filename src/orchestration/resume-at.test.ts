@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import type { QuotaSnapshot, QuotaWindow } from '../usage/types.ts';
-import { resumeAtOf } from './resume-at.ts';
+import { isBack, resumeAtOf } from './resume-at.ts';
 
 const H = 3_600_000;
 const win = (id: string, usedPercent: number, resetsAt?: number, group?: string): QuotaWindow => ({ id, label: id, usedPercent, ...(resetsAt !== undefined && { resetsAt }), ...(group !== undefined && { group }) });
@@ -46,4 +46,18 @@ test.each([
 
 test('with no option tried there is no time', () => {
   expect(resumeAtOf([])).toBeUndefined();
+});
+
+test('a window is back only when the probe answered, has windows and none is at 100%', () => {
+  expect(isBack(claude(win('5h', 30, 5 * H), win('weekly', 99, 90 * H)))).toBe(true);
+  expect(isBack(claude(win('5h', 100, 5 * H)))).toBe(false);
+  expect(isBack(claude())).toBe(false);
+  expect(isBack({ model: 'opus', snapshot: snap('claude', [win('5h', 0)], { status: 'rate_limited' }) })).toBe(false);
+});
+
+test('for agy only the group of the option\'s model decides if it is back', () => {
+  const windows = [win('gemini-5h', 20, undefined, 'Gemini Models'), win('3p-5h', 100, 8 * H, 'Claude and GPT models')];
+  expect(isBack({ model: 'gemini-3.8-flash-low', snapshot: snap('agy', windows) })).toBe(true);
+  expect(isBack({ model: 'claude-sonnet-4-6', snapshot: snap('agy', windows) })).toBe(false);
+  expect(isBack({ model: 'unknown-model', snapshot: snap('agy', windows) })).toBe(false);
 });

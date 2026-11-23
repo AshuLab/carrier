@@ -1316,6 +1316,207 @@ test('any other change of the epic\'s status clears resumeAt: ended from outside
   await vi.waitFor(() => expect(rows(engine.db)[0]).toMatchObject({ status: 'cancelled', resumeAt: null }));
 });
 
+// The wake-up: at the first poll after `resumeAt` the quota is read again, and the epic resumes only when its window is below 100%.
+const back = (provider: 'claude' | 'codex' = 'claude'): QuotaSnapshot => ({ provider, status: 'ok', checkedAt: 0, windows: [{ id: 'w', label: 'w', usedPercent: 20, resetsAt: 9 * HOUR }] });
+const WAKE = 5 * MIN + 3 * HOUR; // the epic stops at 5 minutes and its window says it is back 3 hours later
+async function stoppedForQuota(over: Parameters<typeof stopOnQuota>[0] = {}) {
+  fakeQuota.snapshots['/cfg/claude'] = full('claude', WAKE);
+  const engine = await stopOnQuota(over);
+  runner.behavior = () => ({ exit: 'hang' });
+  return engine;
+}
+const shipTasks = () => runner.tasks.filter((t) => t.stage === 'ship').length;
+
+test('before resumeAt the probe is not asked again and the epic stays stopped', async () => {
+  const engine = await stoppedForQuota();
+  fakeQuota.snapshots['/cfg/claude'] = back();
+  await clock.advance(2 * HOUR);
+
+  expect(fakeQuota.asked).toHaveLength(1);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', resumeAt: WAKE });
+});
+
+test('at the first poll after resumeAt the probe is asked again and a window below 100% resumes the epic from ship through the queue, with an auto_resumed event', async () => {
+  const engine = await stoppedForQuota();
+  fakeQuota.snapshots['/cfg/claude'] = back();
+  await clock.advance(WAKE - clock.now() - 1);
+  expect(fakeQuota.asked).toHaveLength(1); // not before the time
+  await clock.advance(5 * MIN);
+
+  expect(fakeQuota.asked).toHaveLength(2);
+  expect(shipTasks()).toBe(2);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'ship', resumeAt: null, autoResumes: 1, needsHumanKind: null });
+  expect(eventsOf(engine.db).map((e) => [e.type, e.data])).toEqual([['auto_resume_scheduled', { resumeAt: WAKE }], ['auto_resumed', { stage: 'ship', option: 'claude', resumeAt: WAKE, count: 1 }]]);
+  expect(labelsOf(1)).toEqual(['solve:epic:running']);
+});
+
+test.each([
+  ['the window is still at 100%', () => { fakeQuota.snapshots['/cfg/claude'] = full('claude', 9 * HOUR); }],
+  ['the probe is rate limited', () => { fakeQuota.snapshots['/cfg/claude'] = { provider: 'claude', status: 'rate_limited', checkedAt: 0, windows: [], message: 'x' }; }],
+  ['the probe fails', () => { fakeQuota.failing = true; }],
+  ['the probe has no data for the account', () => { delete fakeQuota.snapshots['/cfg/claude']; }],
+])('when %s the epic waits for the next poll and nothing is guessed, and resumes at the poll that finds it back', async (_, setUp) => {
+  const engine = await stoppedForQuota();
+  setUp();
+  await clock.advance(3 * HOUR); // past resumeAt: the poll at its time asks
+  const asked = fakeQuota.asked.length;
+
+  expect(asked).toBeGreaterThan(1);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', resumeAt: WAKE, autoResumes: 0 });
+  expect(shipTasks()).toBe(1);
+
+  fakeQuota.failing = false;
+  fakeQuota.snapshots['/cfg/claude'] = back();
+  await clock.advance(5 * MIN);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', autoResumes: 1 });
+  expect(shipTasks()).toBe(2);
+});
+
+test('the wake-up takes a slot like any epic: with none free it waits queued and starts when one frees', async () => {
+  const engine = await stoppedForQuota();
+  settings.maxConcurrentEpics = 0;
+  fakeQuota.snapshots['/cfg/claude'] = back();
+  await clock.advance(3 * HOUR);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'queued', autoResumes: 1 });
+  expect(shipTasks()).toBe(1);
+
+  settings.maxConcurrentEpics = 1;
+  await clock.advance(5 * MIN);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'ship' });
+  expect(shipTasks()).toBe(2);
+});
+
+test.each(['review', 'fix'] as const)('an epic that stopped at %s wakes up at that stage with its round, pull request, worktree and session', async (stage) => {
+  const db = open();
+  seedEpic(db, 1, { status: 'needs_human', stage, round: 2, prNumber: 50, prHeadSha: SHA, workspace: '/w/epic', needsHumanKind: 'usage_limit', needsHumanReason: 'out of usage', resumeAt: MIN, config: quotaRepos()[0] });
+  seedExecution(db, 's1', 1, { status: 'finished', stage: 'ship' });
+  seedExecution(db, 'x1', 1, { status: 'failed', stage, round: stage === 'review' ? 2 : null, option: 'claude', harness: 'claude', model: 'opus', configDir: '/cfg/claude', failureKind: 'usage_limit' });
+  db.insert(callerResults).values({ executionId: 'x1', outcome: 'changes_requested', result: JSON.stringify({ summary: 's', blockers: [] }) }).run();
+  pull(50);
+  runner.behavior = () => ({ exit: 'hang' });
+  fakeQuota.snapshots['/cfg/claude'] = back();
+  db.$client.close();
+  dbs.pop();
+  const engine = await start(1, quotaRepos());
+  settings = { ...settings, autoResume: true };
+  await clock.advance(5 * MIN);
+
+  expect(runner.tasks.map((t) => t.stage)).toEqual([stage]);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage, round: 2, prNumber: 50, workspace: '/w/epic', resumeAt: null, resumeStage: null, autoResumes: 1 });
+  expect(eventsOf(engine.db).map((e) => [e.type, e.data])).toEqual([['auto_resumed', { stage, option: 'claude', resumeAt: MIN, count: 1 }]]);
+});
+
+test('an epic that stopped at review does not wake up when its pull request head changed', async () => {
+  const db = open();
+  seedEpic(db, 1, { status: 'needs_human', stage: 'review', round: 2, prNumber: 50, prHeadSha: SHA, workspace: '/w/epic', needsHumanKind: 'usage_limit', resumeAt: MIN, config: quotaRepos()[0] });
+  seedExecution(db, 'x1', 1, { status: 'failed', stage: 'review', option: 'claude', harness: 'claude', model: 'opus', configDir: '/cfg/claude', failureKind: 'usage_limit' });
+  pull(50, { headSha: 'b'.repeat(40) });
+  fakeQuota.snapshots['/cfg/claude'] = back();
+  db.$client.close();
+  dbs.pop();
+  const engine = await start(1, quotaRepos());
+  settings = { ...settings, autoResume: true };
+  await clock.advance(10 * MIN);
+
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', resumeAt: MIN, autoResumes: 0 });
+  expect(fakeQuota.asked).toEqual([]);
+});
+
+test('the wake-up goes on the option that came back, not the last one the failover tried', async () => {
+  fakeQuota.snapshots['/cfg/spare'] = full('codex', WAKE + HOUR);
+  const engine = await stoppedForQuota({ failover: true });
+  fakeQuota.snapshots['/cfg/claude'] = back(); // spare is still at 100%
+  await clock.advance(3 * HOUR);
+
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', authorOption: 'claude', autoResumes: 1 });
+  expect(runner.tasks.at(-1)).toMatchObject({ stage: 'ship', option: 'claude' });
+});
+
+test('an epic wakes up at most three times in a row: the stop after the third stays in needs-human', async () => {
+  // Each stop reads the window full for an hour, each wake-up finds it back.
+  fakeQuota.read = async (target) => {
+    fakeQuota.asked.push(target);
+    return fakeQuota.asked.length % 2 === 1 ? full('claude', clock.now() + HOUR) : back();
+  };
+  github.ready = { 'AshuLab/a': ready(1) };
+  runner.behavior = (task) => outOf('claude')(task, { exit: 'hang' });
+  const engine = await start(1, quotaRepos());
+  settings = { ...settings, autoResume: true };
+  await clock.advance(5 * MIN);
+  await clock.advance(6 * HOUR);
+
+  expect(shipTasks()).toBe(4);
+  expect(fakeQuota.asked).toHaveLength(6); // the fourth stop does not ask
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'usage_limit', resumeAt: null, autoResumes: 3 });
+  expect(rows(engine.db)[0]?.needsHumanReason).toContain('it already resumed by itself 3 times in a row: it will not again');
+  expect(eventTypes(engine.db).filter((t) => t === 'auto_resumed')).toHaveLength(3);
+});
+
+test('the count starts again when an execution of the epic ends with anything but usage_limit', async () => {
+  const engine = await stoppedForQuota();
+  engine.db.update(epics).set({ autoResumes: 2 }).run();
+  pull(50);
+  runner.behavior = (task) => (task.stage === 'ship' ? { sessionId: 's', write: completed(task) } : { exit: 'hang' });
+  fakeQuota.snapshots['/cfg/claude'] = back();
+  await clock.advance(3 * HOUR);
+
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'review', autoResumes: 0 });
+});
+
+test('with the engine paused nothing resumes, and it resumes once the engine is not paused', async () => {
+  const engine = await stoppedForQuota();
+  fakeQuota.snapshots['/cfg/claude'] = back();
+  await engine.setPaused(true);
+  await clock.advance(4 * HOUR);
+
+  expect(fakeQuota.asked).toHaveLength(1);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', resumeAt: WAKE });
+
+  await engine.setPaused(false);
+  await clock.advance(5 * MIN);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', autoResumes: 1 });
+});
+
+test('with limits.autoResume off by a reload nothing resumes', async () => {
+  const engine = await stoppedForQuota();
+  fakeQuota.snapshots['/cfg/claude'] = back();
+  settings = { ...settings, autoResume: false };
+  await clock.advance(4 * HOUR);
+
+  expect(fakeQuota.asked).toHaveLength(1);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', resumeAt: WAKE });
+});
+
+test('resumeAt survives a restart of the engine: the epic resumes once the time passes', async () => {
+  const first = await stoppedForQuota();
+  await settle(); // the stop's own label write ends before the database closes
+  first.stop();
+  dbs.pop()!.$client.close();
+  fakeQuota.snapshots['/cfg/claude'] = back();
+  const second = await start(1, quotaRepos());
+  settings = { ...settings, autoResume: true };
+  expect(rows(second.db)[0]).toMatchObject({ status: 'needs_human', resumeAt: WAKE });
+  await clock.advance(3 * HOUR);
+
+  expect(rows(second.db)[0]).toMatchObject({ status: 'running', stage: 'ship', autoResumes: 1 });
+  expect(shipTasks()).toBe(2);
+});
+
+test('a resume by a person before the time clears resumeAt and the wake-up does not run a second time', async () => {
+  const engine = await stoppedForQuota();
+  const resumed = engine.resumeEpic('AshuLab/a', 1);
+  await flush();
+  await clock.advance(1000);
+  await resumed;
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', resumeAt: null });
+
+  fakeQuota.snapshots['/cfg/claude'] = back();
+  await clock.advance(3 * HOUR);
+  expect(shipTasks()).toBe(2);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', autoResumes: 0 });
+  expect(eventTypes(engine.db)).not.toContain('auto_resumed');
+});
+
 test('a later epic starts on its own role, whatever ran out in an earlier one', async () => {
   github.ready = { 'AshuLab/a': ready(1, 2) };
   runner.behavior = (task) => (task.epic === 1 ? outOf('claude')(task, { exit: 'hang' }) : { exit: 'hang' });

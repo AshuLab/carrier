@@ -54,6 +54,8 @@ export const epics = sqliteTable(
     roundLimit: integer(),
     // ms since epoch: when the provider says the window an epic stopped on (`usage_limit`) comes back, with `limits.autoResume` on; cleared by any change of status. Null: no wake-up.
     resumeAt: integer(),
+    // Automatic resumes in a row (ADR 0049): back to 0 when one of the epic's executions ends with anything but `usage_limit`; the stop after the third stays in needs-human.
+    autoResumes: integer().notNull().default(0),
   },
   (table) => [uniqueIndex('epics_repo_issue').on(table.repo, table.issue)],
 );

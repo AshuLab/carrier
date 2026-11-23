@@ -4,7 +4,9 @@ Carrier does not prepare epics, it runs them. A repo is ready for it when these 
 
 ## The repo uses Solve
 
-Carrier runs the [Solve](https://github.com/AshuLab/skills) skills (`ship`, `code-review`, `code-post`) through the agents, so the repo needs Solve's setup (`solve:setup`): its labels and `docs/agents/solve.md`.
+By default Carrier runs the [Solve](https://github.com/AshuLab/skills) skills (`ship`, `code-review`, `code-post`, `code-resolve`) through the agents, so the repo needs Solve's setup (`solve:setup`): its labels and `docs/agents/solve.md`.
+The skill of each stage is configurable in the `skills` block of `engine.json` ([configuration](configuration.md)); a repo that names its own needs those skills, not Solve's.
+The sentences of the ship prompt about `solve.md` and the design artifacts on the remote are said only while the ship skill is Solve's `ship`.
 Epics and tickets are GitHub issues created by Solve.
 The skills have to be available to each agent CLI you use.
 For Claude Code, install the Solve plugin:

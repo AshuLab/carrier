@@ -2256,6 +2256,40 @@ test('the skills of the repo are saved with the epic when it is reserved; a row 
   expect(savedSkills(without!.config)).toEqual(defaultSkills);
 });
 
+test('the tasks carry the skills the epic was saved with: a reload while it runs changes nothing, a restart from ship takes the new ones', async () => {
+  const before = resolveSkills(solveSkills, { ship: 'build', fix: 'my-fix' });
+  const after = resolveSkills(solveSkills, { ship: 'build-two', review: { review: 'my-review', publish: null } });
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50);
+  let engine: Awaited<ReturnType<typeof start>>;
+  runner.behavior = (task) => {
+    if (task.stage === 'ship' && runner.tasks.length === 1) {
+      reload(engine, { repos: [{ ...repos[0]!, skills: after }, repos[1]!] }); // while the epic runs
+      return { write: completed(task) };
+    }
+    return task.stage === 'review' ? { write: result(task, { outcome: 'needs_human', reason: 'unclear' }) } : { exit: 'stopped' };
+  };
+  engine = await start(1, [{ ...repos[0]!, skills: before }, repos[1]!]);
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(runner.tasks.map((t) => [t.stage, t.skills])).toEqual([['ship', before], ['review', before]]);
+
+  github.issue('AshuLab/a', 1).labels.push('solve:epic:ready'); // restarted from ship
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(runner.tasks.at(-1)).toMatchObject({ stage: 'ship', skills: after });
+});
+
+test('the task of an epic saved without skills reads Solve\'s defaults', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  runner.behavior = () => ({ exit: 'stopped' });
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(rows(engine.db)[0]!.config!.skills).toBeUndefined();
+  expect(runner.tasks[0]!.skills).toEqual(defaultSkills);
+});
+
 test('an epic resumed after the config changed keeps the sharedIdentity it started with', async () => {
   const shared = repos.map((r) => ({ ...r, sharedIdentity: true }));
   github.ready = { 'AshuLab/a': ready(1) };

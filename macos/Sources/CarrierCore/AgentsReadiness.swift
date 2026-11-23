@@ -64,7 +64,7 @@ public func agentsReadiness(_ page: AgentsPage) -> AgentsReadiness {
 public struct RoleStage: Equatable, Identifiable {
     public let title: String
     public let detail: String
-    /// The skill the engine invokes in this stage, as `src/prompts` spells it (`AgentsReadinessTests` reads those files and fails when this drifts).
+    /// The skill the engine invokes in this stage, as the engine's defaults name it (`skills` in `engine.json`; `AgentsReadinessTests` reads them from the contract fixture and fails when this drifts).
     public let skill: String
     public var id: String { skill }
 }

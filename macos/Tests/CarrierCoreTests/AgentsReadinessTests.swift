@@ -96,18 +96,15 @@ private func readiness(_ json: String, providers: String? = nil) throws -> Agent
 // MARK: the skill of each stage
 
 @Test func theStagesAreWhatTheEngineInvokesNotMore() throws {
-    let prompts = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        .appendingPathComponent("src/prompts")
-    let code = try FileManager.default.contentsOfDirectory(at: prompts, includingPropertiesForKeys: nil)
-        .filter { $0.pathExtension == "ts" && $0.lastPathComponent.hasSuffix(".test.ts") == false }
-        .map { try String(contentsOf: $0, encoding: .utf8) }.joined(separator: "\n")
-    let regex = try NSRegularExpression(pattern: #"invoke\(task, '([a-z0-9:_-]+)'\)"#)
-    let invoked = Set(regex.matches(in: code, range: NSRange(code.startIndex..., in: code)).compactMap { match in
-        Range(match.range(at: 1), in: code).map { String(code[$0]) }
-    })
+    // The prompts take the skill names from the config (`src/prompts` hard-codes none); the defaults are the ones the engine's contract test pins in the fixture.
+    let tests = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+    let fixture = try JSONSerialization.jsonObject(with: Data(contentsOf: tests.appendingPathComponent("Fixtures/engine-config.json"))) as? [String: Any]
+    let skills = try #require((fixture?["defaults"] as? [String: Any])?["skills"] as? [String: Any])
+    let review = try #require(skills["review"] as? [String: String])
+    let invoked = Set([skills["ship"] as? String, skills["fix"] as? String, review["review"], review["publish"]].compactMap { $0 })
     let listed = Set(AgentRole.allCases.flatMap(\.stages).map(\.skill))
-    #expect(invoked.isEmpty == false)
-    #expect(listed == invoked, "AgentRole.stages and src/prompts disagree on the skills each stage runs")
+    #expect(invoked.count == 4)
+    #expect(listed == invoked, "AgentRole.stages and the default skills disagree on the skills each stage runs")
 }
 
 @Test func theLeadReviewerHasNoStageAndTheOthersHaveTheirSkillsInOrder() {

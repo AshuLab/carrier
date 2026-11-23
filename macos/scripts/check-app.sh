@@ -44,7 +44,8 @@ grep -q "OUT OF OR IN CONNECTION WITH THE SOFTWARE" "$L/THIRD-PARTY-NOTICES.md" 
 codesign --verify --deep --strict Carrier.app || fail "codesign --verify --deep --strict failed"
 # a release ships without its debug map (STABs, type "-" in nm -a) and keeps the symbols in Carrier.dSYM, which must be the one of the signed binary (crash reports are symbolicated with it)
 BIN=Carrier.app/Contents/MacOS/Carrier
-expect "STABs left in the release binary (not stripped)" "$(nm -a "$BIN" | awk '$2 == "-"' | wc -l | tr -d ' ')" 0
+# (the linker's own OPT marker, `radr://5614542`, survives `strip -S`: it is no debug map)
+expect "STABs left in the release binary (not stripped)" "$(nm -a "$BIN" | awk '$2 == "-" && $5 != "OPT"' | wc -l | tr -d ' ')" 0
 [ -d Carrier.dSYM ] || fail "the release build left no Carrier.dSYM"
 expect "dSYM UUID" "$(xcrun dwarfdump --uuid Carrier.dSYM | awk '{print $2}')" "$(xcrun dwarfdump --uuid "$BIN" | awk '{print $2}')"
 

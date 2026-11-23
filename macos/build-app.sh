@@ -52,11 +52,17 @@ else
   swift build -c release
 fi
 APP=Carrier.app
-rm -rf "$APP"
+rm -rf "$APP" Carrier.dSYM
 mkdir -p "$APP/Contents/MacOS"
 cp .build/release/Carrier "$APP/Contents/MacOS/"
 # Sparkle: SwiftPM does not give the executable an rpath into the bundle, and without it the app dies at launch. ditto keeps the framework's symlinks.
 install_name_tool -add_rpath @executable_path/../Frameworks "$APP/Contents/MacOS/Carrier"
+if [ "$GIVEN" = true ]; then
+  # a release ships without its debug map (STABs, 30 MB of the binary): it points at .build's .o files, so dsymutil reads it now, before the strip drops it,
+  # and crash reports are symbolicated with Carrier.dSYM. Neither install_name_tool nor strip change the LC_UUID, so the dSYM matches the signed binary (check-app.sh).
+  dsymutil .build/release/Carrier -o Carrier.dSYM
+  strip -S -x "$APP/Contents/MacOS/Carrier"
+fi
 mkdir -p "$APP/Contents/Frameworks"
 ditto .build/artifacts/sparkle/Sparkle/Sparkle.xcframework/macos-arm64_x86_64/Sparkle.framework "$APP/Contents/Frameworks/Sparkle.framework"
 # the golden files `--fixture` serves

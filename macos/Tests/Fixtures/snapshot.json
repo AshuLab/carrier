@@ -33,7 +33,11 @@
       "labels": [
         "solve:epic"
       ],
-      "executionId": null
+      "executionId": null,
+      "unansweredObservations": {
+        "count": 2,
+        "reason": "already_taken"
+      }
     }
   ],
   "slots": {

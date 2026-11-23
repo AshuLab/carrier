@@ -47,7 +47,7 @@ test('the snapshot JSON equals macos/Tests/Fixtures/snapshot.json (UPDATE_FIXTUR
   add('acme/web', 20, 'queued', { queuedAt: 20_000 });
   add('acme/api', 21, 'queued', { queuedAt: 21_000 });
   const shipped = add('acme/web', 30, 'ready_for_test', { prNumber: 77, finishedAt: 95_000 });
-  add('acme/api', 31, 'ready_for_test', { finishedAt: 80_000 });
+  add('acme/api', 31, 'ready_for_test', { finishedAt: 80_000, unansweredObservations: 2, unansweredReason: 'already_taken' });
   const merged = add('acme/web', 40, 'merged', { prNumber: 88, finishedAt: 98_000 });
   add('acme/api', 41, 'cancelled', { finishedAt: 90_000, cancelReason: 'final PR closed without merge' });
   exec('exec-ship-40', merged.id, 'ship', 3_000);

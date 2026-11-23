@@ -1,5 +1,5 @@
 import type { ReviewThread } from '../orchestration/github.ts';
-import type { EpicOptions, PanelAgent } from '../status/types.ts';
+import type { EpicOptions, PanelAgent, UnansweredObservations } from '../status/types.ts';
 import type { executionStates } from '../storage/executions.ts';
 import type { AgentFailure } from '../execution/agent-runner.ts';
 
@@ -115,6 +115,8 @@ export type EpicReply = {
     fixedSha: string | null;
     commits: { sha: string; subject: string }[];
   }[];
+  /** Only an epic that went to ready for test with observations nobody answered has it. */
+  unansweredObservations?: UnansweredObservations;
   /** A cache of GitHub, never read to decide anything (ADR 0008). */
   slices: {
     number: number;

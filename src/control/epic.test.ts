@@ -237,6 +237,13 @@ test('durations, shas and the commits between them come from the executions and 
   expect(gone.worktrees[0]!.path).toBe(join(dir, 'gone'));
 });
 
+test('the reply carries the unanswered observations only when the epic has them, and an epic saved without them has none', async () => {
+  epicRow({ status: 'ready_for_test', finishedAt: 20_000 });
+  expect(await reply()).not.toHaveProperty('unansweredObservations');
+  db.update(epics).set({ unansweredObservations: 2, unansweredReason: 'last_round' }).run();
+  expect((await reply()).unansweredObservations).toEqual({ count: 2, reason: 'last_round' });
+});
+
 test('a queued epic has only its queue time, and a running one has an open stage', async () => {
   const id = epicRow({ status: 'queued', startedAt: null, finishedAt: null });
   expect(await reply()).toMatchObject({ stages: [{ stage: 'queued', startedAt: 500, endedAt: null }], rounds: [], worktrees: [], branch: null });

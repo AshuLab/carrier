@@ -296,6 +296,10 @@
     }
   ],
   "branch": "feat/issue-12/epic",
+  "unansweredObservations": {
+    "count": 2,
+    "reason": "already_taken"
+  },
   "pr": {
     "number": 50,
     "url": "https://github.com/acme/web/pull/50",

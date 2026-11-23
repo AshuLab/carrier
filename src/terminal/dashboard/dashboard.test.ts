@@ -90,6 +90,13 @@ test('queue, needs you, ready for test, and a problem banner', () => {
   expect(out).not.toContain('Idle.');
 });
 
+test('a ready-for-test epic with observations nobody answered says how many and why', () => {
+  const done = { repo: 'AshuLab/carrier', issue: 28, title: 'Menu bar', labels: [], prNumber: 44, finishedAt: now - 7_200_000, executionId: null };
+  expect(plain(snap({ done: [{ ...done, unansweredObservations: { count: 2, reason: 'already_taken' } }] }))).toContain('Menu bar\n   2 observations left unanswered: the one pass was already taken');
+  expect(plain(snap({ done: [{ ...done, unansweredObservations: { count: 1, reason: 'last_round' } }] }))).toContain('1 observation left unanswered: the round was the last its cap allows');
+  expect(plain(snap({ done: [done] }))).not.toContain('unanswered');
+});
+
 test('the wait for the next poll reads right before, during and after it is due', () => {
   expect(plain(snap({ nextCheckAt: null }))).toContain('watching 2 repos · starting');
   expect(plain(snap({ nextCheckAt: now - 1 }))).toContain('watching 2 repos · checking now…');

@@ -167,7 +167,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
   const restart = (queuedAt: number) => ({
     status: 'queued' as const, queuedAt, startedAt: null, config: null, labelPending: false, stage: null, stageStartedAt: null, workspace: null,
     lastActivityAt: null, lastError: null, round: null, prNumber: null, prHeadSha: null, pr: null, reviewedSha: null, verification: null, observationsPassAt: null,
-    needsHumanReason: null, needsHumanKind: null, finishedAt: null, authorOption: null, reviewerOption: null, recoveries: 0, autoResumes: 0, headRepeats: 0, resumeStage: null, roundLimit: null, resumeAt: null,
+    needsHumanReason: null, needsHumanKind: null, finishedAt: null, authorOption: null, reviewerOption: null, recoveries: 0, autoResumes: 0, headRepeats: 0, unansweredObservations: null, unansweredReason: null, resumeStage: null, roundLimit: null, resumeAt: null,
   });
   // The rounds an epic may have: what a resume granted it, else the live setting (a changed `maxReviews` applies at the epic's next review).
   const roundCap = (epic: Epic) => epic.roundLimit ?? settings().maxReviews;
@@ -175,7 +175,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
   // worktree and the rest of where it stood; `resumeStage` tells `begin` where to start.
   const requeueKeeping = (queuedAt: number) => ({
     status: 'queued' as const, queuedAt, startedAt: null, config: null, labelPending: false, stage: null, stageStartedAt: null,
-    lastActivityAt: null, lastError: null, needsHumanReason: null, needsHumanKind: null, finishedAt: null, authorOption: null, reviewerOption: null, recoveries: 0, autoResumes: 0, headRepeats: 0, resumeAt: null,
+    lastActivityAt: null, lastError: null, needsHumanReason: null, needsHumanKind: null, finishedAt: null, authorOption: null, reviewerOption: null, recoveries: 0, autoResumes: 0, headRepeats: 0, unansweredObservations: null, unansweredReason: null, resumeAt: null,
   });
 
   // Mirrors the epic's status on its issue: its labels, none of the other owned ones, and no `ready` while running.
@@ -891,7 +891,14 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       else if (result.outcome === 'completed' && result.observations?.length && epic.observationsPassAt === null && (epic.round ?? 0) < roundCap(epic)) {
         update({ stage: 'fix', stageStartedAt: clock.now(), observationsPassAt: clock.now(), reviewedSha: result.pr.headSha, verification: result.verification });
       }
-      else update({ status: 'ready_for_test', reviewedSha: result.pr.headSha, verification: result.verification, finishedAt: clock.now(), labelPending: true });
+      else {
+        // Observations a review listed that no pass will answer: how many, and whether the pass was taken or the round was the last its cap allows.
+        const left = result.outcome === 'completed' ? (result.observations?.length ?? 0) : 0;
+        update({
+          status: 'ready_for_test', reviewedSha: result.pr.headSha, verification: result.verification, finishedAt: clock.now(), labelPending: true,
+          ...(left > 0 && { unansweredObservations: left, unansweredReason: epic.observationsPassAt === null ? 'last_round' : 'already_taken' }),
+        });
+      }
     });
     if (!('duplicate' in imported)) db.update(epics).set({ lastError: null }).where(eq(epics.id, epic.id)).run();
     log.info('result imported', { ...context, outcome: parsed.result.outcome, duplicate: 'duplicate' in imported });

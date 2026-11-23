@@ -1945,6 +1945,29 @@ test('the result of a review of a superseded head is kept but its blockers and s
   expect(engine.db.select().from(callerResults).all().map((r) => r.outcome)).toEqual(['completed', 'changes_requested', 'completed', 'superseded']);
 });
 
+test('a review after one that completed gets no blockers, even when an earlier round asked for changes; a review after one that asked for changes still gets its blockers', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50);
+  runner.behavior = (task) => {
+    if (task.stage === 'ship') return { sessionId: 's-ship', write: completed(task) };
+    const head = task.context.pr?.headSha ?? SHA;
+    if (task.stage === 'fix') {
+      if (task.context.observations) pull(50, { headSha: HEAD2 }); // the pass commits
+      return fixDone(task, task.context.observations ? HEAD2 : head);
+    }
+    // round 1 asks for changes, round 2 completes with observations (the pass), round 3 is the review after the pass
+    if (task.context.round === 1) return { write: result(task, { outcome: 'changes_requested', pr: { number: 50, headSha: head }, blockers: [{ title: 'answered in round 1' }] }) };
+    if (task.context.round === 2) return { write: result(task, { outcome: 'completed', pr: { number: 50, headSha: head }, verification: reviewerVerification, observations: [{ title: 'a nitpick' }] }) };
+    return { exit: 'stopped' };
+  };
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(runner.tasks.map((t) => [t.stage, t.context.round])).toEqual([['ship', undefined], ['review', 1], ['fix', 1], ['review', 2], ['fix', 2], ['review', 3]]);
+  expect(runner.tasks[3]!.context.blockers).toEqual([{ title: 'answered in round 1' }]);
+  expect(runner.tasks[5]!.context.blockers).toEqual([]);
+});
+
 test('a needs_human review, an inconclusive one included, stops the epic with its reason', async () => {
   const engine = await reviewing((task) => ({ write: result(task, { outcome: 'needs_human', reason: 'inconclusive review: missing context' }) }));
   expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanReason: 'inconclusive review: missing context', reviewedSha: null });
@@ -2413,10 +2436,31 @@ test('a review completed with observations at the last round goes to ready for t
   expect(rows(engine.db)[0]).toMatchObject({ status: 'ready_for_test', round: 1, reviewedSha: SHA, verification: reviewerVerification, observationsPassAt: null });
 });
 
+test('a pass after which the head moved and the next review listed new observations: ready for test, two left, the pass was already taken', async () => {
+  const engine = await passing(
+    (task) => {
+      pull(50, { headSha: HEAD2 });
+      return fixDone(task, HEAD2);
+    },
+    { later: (task) => ({ write: result(task, { outcome: 'completed', pr: { number: 50, headSha: HEAD2 }, verification: reviewerVerification, observations: [{ title: 'again' }, { title: 'and again' }] }) }) },
+  );
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'ready_for_test', observationsPassAt: 5 * MIN, unansweredObservations: 2, unansweredReason: 'already_taken' });
+});
+
+test('observations left at the last round the cap allows: ready for test with their count and last_round, no pass taken', async () => {
+  const engine = await passing(() => ({ exit: 'stopped' }), { maxReviews: 1 });
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'ready_for_test', observationsPassAt: null, unansweredObservations: 2, unansweredReason: 'last_round' });
+});
+
+test('an epic whose pass answered the observations has no unanswered ones', async () => {
+  const engine = await passing((task) => ({ write: result(task, { outcome: 'completed', pr: { number: 50, headSha: SHA }, verification: { ci: 'absent', evidence: 'the author says so' } }) }));
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'ready_for_test', unansweredObservations: null, unansweredReason: null });
+});
+
 test('a review completed with an empty list of observations goes to ready for test as before', async () => {
   const engine = await passing(() => ({ exit: 'stopped' }), { listed: [] });
   expect(runner.tasks.map((t) => t.stage)).toEqual(['ship', 'review']);
-  expect(rows(engine.db)[0]).toMatchObject({ status: 'ready_for_test', reviewedSha: SHA, observationsPassAt: null });
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'ready_for_test', reviewedSha: SHA, observationsPassAt: null, unansweredObservations: null, unansweredReason: null });
 });
 
 test('a fix for blockers carries the blockers and no observations, and still goes to the next review', async () => {

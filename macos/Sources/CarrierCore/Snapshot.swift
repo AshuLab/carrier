@@ -68,6 +68,12 @@ public struct PanelSnapshot: Codable, Equatable, Sendable {
         public var last: Last?
     }
 
+    /// The observations an epic went to ready for test with because no pass would answer them; `reason` is `already_taken` or `last_round`.
+    public struct UnansweredObservations: Codable, Equatable, Sendable {
+        public var count: Int
+        public var reason: String
+    }
+
     public struct DoneEpic: Codable, Equatable, Sendable {
         public var repo: String
         public var issue: Int
@@ -76,6 +82,8 @@ public struct PanelSnapshot: Codable, Equatable, Sendable {
         public var executionId: String?
         /// The issue's title; an engine that does not send it for finished epics leaves nil and the header says "Epic #N".
         public var title: String?
+        /// Absent when none were left, and from an engine that predates the field.
+        public var unansweredObservations: UnansweredObservations?
     }
 
     /// A merged or cancelled epic that ended inside the engine's finished window.

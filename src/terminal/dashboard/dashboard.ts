@@ -1,7 +1,7 @@
 import { formatDuration } from '../../format/duration.ts';
 import { printable } from './printable.ts';
 import { defaultLabels } from '../../orchestration/github.ts';
-import type { PanelEpic, PanelSnapshot } from '../../status/types.ts';
+import type { PanelEpic, PanelSnapshot, UnansweredObservations } from '../../status/types.ts';
 import { finishedSections, itemsOf, maxListed, type UiState } from './ui-state.ts';
 import { detailOf, historyLine, type DetailProvider } from './history.ts';
 
@@ -30,6 +30,10 @@ export function fit(line: string, columns: number): string {
   }
   return open ? `${out}\x1b[0m` : out;
 }
+
+/** What an epic that went to ready for test with observations nobody answered says: how many and why. */
+export const unansweredLine = ({ count, reason }: UnansweredObservations) =>
+  `${count} observation${count === 1 ? '' : 's'} left unanswered: ${reason === 'already_taken' ? 'the one pass was already taken' : 'the round was the last its cap allows'}`;
 
 const stages = ['ship', 'review', 'fix'] as const;
 
@@ -177,6 +181,7 @@ export function renderDashboard(s: PanelSnapshot, { columns = 80, color = true, 
     section('READY FOR TEST ✔', 'green');
     for (const d of s.done) {
       add(row(d));
+      if (d.unansweredObservations) add(`   ${paint(unansweredLine(d.unansweredObservations), 'yellow')}`);
       const history = detail && detailOf(detail, d);
       if (history && history.length > 0) add(`   ${historyLine(history, s.now, paint, width - 3)}`);
     }

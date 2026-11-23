@@ -948,6 +948,93 @@ test('an error that leaves a launched execution running ends it as failed and do
   expect(rows(engine.db)[1]).toMatchObject({ issue: 2, status: 'running' });
 });
 
+// Two epics whose finished executions wait for the poll: GitHub was down when their results arrived.
+async function startWithResultsPending() {
+  github.ready = { 'AshuLab/a': ready(1, 2) };
+  pull(50);
+  pull(51, {}, 2);
+  runner.behavior = (task) => (task.stage === 'ship' ? { write: completed(task, { number: 50 + task.epic - 1, headSha: SHA }) } : { exit: 'hang' });
+  const engine = await start(2);
+  const getPullRequest = github.getPullRequest.bind(github);
+  github.getPullRequest = async () => {
+    throw new GitHubUnavailable('network', 'down');
+  };
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(executionsOf(engine.db).map((e) => e.status)).toEqual(['finished', 'finished']);
+  return { engine, getPullRequest };
+}
+
+test('an error settling the first of two pending results stops that epic with engine_error, the second is settled and launched, and the poll finishes', async () => {
+  const { engine, getPullRequest } = await startWithResultsPending();
+  github.getPullRequest = async (repo, number) => {
+    if (number === 50) throw new Error('could not read the pull request');
+    return getPullRequest(repo, number);
+  };
+  await clock.advance(5 * MIN);
+
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'engine_error', needsHumanReason: 'could not read the pull request' });
+  expect(rows(engine.db)[1]).toMatchObject({ issue: 2, status: 'running', stage: 'review', round: 1 });
+  expect(runner.tasks.filter((t) => t.epic === 2).map((t) => t.stage)).toEqual(['ship', 'review']);
+  expect(engine.nextPollAt).toBe(15 * MIN);
+});
+
+test('an error retrying the first of two epics with a retry pending stops that epic with engine_error, the second is retried, and the poll finishes', async () => {
+  github.ready = { 'AshuLab/a': ready(1, 2) };
+  const launched = new Set<number>();
+  runner.behavior = (task) => (launched.has(task.epic) ? { exit: 'hang' } : (launched.add(task.epic), { exit: 'failed' })); // each epic's first run fails, its retry hangs
+  const engine = await start(2);
+  const findPullRequest = github.findPullRequest.bind(github);
+  github.findPullRequest = async () => {
+    throw new GitHubUnavailable('network', 'down');
+  };
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(runner.tasks).toHaveLength(2); // nothing was retried: GitHub was down
+
+  github.findPullRequest = async (repo, issue) => {
+    if (issue === 1) throw new Error('could not look for the pull request');
+    return findPullRequest(repo, issue);
+  };
+  await clock.advance(5 * MIN);
+
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'engine_error', needsHumanReason: 'could not look for the pull request' });
+  expect(rows(engine.db)[1]).toMatchObject({ issue: 2, status: 'running' });
+  expect(runner.tasks.filter((t) => t.epic === 2)).toHaveLength(2);
+  expect(engine.nextPollAt).toBe(15 * MIN);
+});
+
+test('an error about the whole engine while settling stops the poll with its message and parks no epic', async () => {
+  const { engine } = await startWithResultsPending();
+  const fail = Object.assign(new Error('attempt to write a readonly database'), { code: 'SQLITE_READONLY' });
+  github.getPullRequest = async () => {
+    throw fail;
+  };
+  const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+  try {
+    await clock.advance(5 * MIN);
+    expect(logged.mock.calls.flat().join(' ')).toContain('attempt to write a readonly database');
+  } finally {
+    logged.mockRestore();
+  }
+  expect(rows(engine.db).map((e) => e.status)).toEqual(['running', 'running']);
+});
+
+test('a configuration that cannot be read stops the poll with a message that names it, parks no epic, and the next check is armed', async () => {
+  const { engine } = await startWithResultsPending();
+  const unreadable = new Error('could not read the configuration: config.yaml is unreadable');
+  watched = { [Symbol.iterator]: () => { throw unreadable; }, map: () => { throw unreadable; } } as unknown as EffectiveRepoConfig[];
+  const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+  try {
+    await engine.pollNow();
+    expect(logged.mock.calls.flat().join(' ')).toContain('could not read the configuration');
+  } finally {
+    logged.mockRestore();
+  }
+  expect(rows(engine.db).map((e) => e.status)).toEqual(['running', 'running']);
+  expect(engine.nextPollAt).toBe(clock.now() + settings.pollIntervalMs);
+});
+
 // Failover: three options, the author on `claude` and the reviewer on `codex`; `spare` is the one only the list can name.
 type Steps = { provider: string; model?: string; effort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max' }[];
 const failoverRepos = (roles?: { author?: Steps; reviewer?: Steps }): EffectiveRepoConfig[] =>
@@ -4066,4 +4153,85 @@ test('an unexpected error in a recovery stops that epic in engine_error and the 
   await clock.advance(5 * MIN);
   expect(rows(engine.db).map((e) => [e.status, e.needsHumanKind, e.needsHumanReason])).toEqual([['needs_human', 'engine_error', 'boom'], ['running', null, null]]);
   expect(runner.tasks.map((t) => t.epic)).toEqual([2]);
+});
+
+// --- An issue that is gone, and a repo that does not answer ---
+
+const goneReason = 'the epic issue no longer exists';
+
+test('an epic whose issue answers 404 while its repo answers is cancelled at the start, the engine starts and the other epics of the repo go on', async () => {
+  const db = open();
+  seedEpic(db, 1, { labelPending: true });
+  seedEpic(db, 2);
+  github.missingIssues.add('AshuLab/a#1');
+  runner.behavior = () => ({ exit: 'hang' });
+  const engine = await start(2);
+  await vi.waitFor(() => expect(runner.tasks.map((t) => t.epic)).toEqual([2])); // epic 2 was launched, epic 1 got no agent
+
+  expect(rows(engine.db).map((e) => [e.issue, e.status, e.cancelReason, e.labelPending])).toEqual([[1, 'cancelled', goneReason, false], [2, 'running', null, false]]);
+  expect(eventTypes(engine.db)).toContain('epic_cancelled');
+  await clock.advance(5 * MIN);
+  expect(engine.lastCheck('AshuLab/a')).toEqual({ at: 5 * MIN, ok: true, error: null }); // the repo is not refused
+});
+
+test('the poll cancels an epic whose issue turned 404, 410 too, in any state it waits in, and goes on with the others of its repo', async () => {
+  const db = open();
+  seedEpic(db, 1, { status: 'needs_human', needsHumanKind: 'agent_needs_human', needsHumanReason: 'x' });
+  seedEpic(db, 2, { status: 'ready_for_test' });
+  seedEpic(db, 3, { status: 'needs_human', needsHumanKind: 'agent_needs_human', needsHumanReason: 'x' });
+  github.ready = { 'AshuLab/a': ready(4) };
+  runner.behavior = () => ({ exit: 'hang' });
+  const engine = await start(1);
+  github.missingIssues.add('AshuLab/a#1');
+  github.missingIssues.add('AshuLab/a#2');
+  await clock.advance(5 * MIN);
+
+  expect(rows(engine.db).map((e) => [e.issue, e.status, e.cancelReason])).toEqual([[1, 'cancelled', goneReason], [2, 'cancelled', goneReason], [3, 'needs_human', null], [4, 'running', null]]);
+  expect(engine.lastCheck('AshuLab/a')).toEqual({ at: 5 * MIN, ok: true, error: null });
+});
+
+test('a queued epic whose issue is 404 when its slot comes is cancelled and does not block the queue of its repo', async () => {
+  github.ready = { 'AshuLab/a': ready(1, 2) };
+  github.missingIssues.add('AshuLab/a#1');
+  runner.behavior = () => ({ exit: 'hang' });
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+
+  expect(rows(engine.db).map((e) => [e.issue, e.status, e.cancelReason])).toEqual([[1, 'cancelled', goneReason], [2, 'running', null]]);
+  expect(engine.lastCheck('AshuLab/a')).toMatchObject({ ok: true });
+});
+
+test('a repo that answers 404 is its own refusal at the start and at the poll: no epic of it is cancelled, the others are untouched, and it is tried again', async () => {
+  const db = open();
+  seedEpic(db, 1, { repo: 'AshuLab/b', config: repos[1], labelPending: true });
+  seedEpic(db, 2, { repo: 'AshuLab/b', config: repos[1], status: 'needs_human', needsHumanKind: 'agent_needs_human', needsHumanReason: 'x' });
+  seedEpic(db, 3);
+  github.ready = { 'AshuLab/a': ready(4) };
+  github.missingRepos.add('AshuLab/b');
+  runner.behavior = () => ({ exit: 'hang' });
+  const engine = await start(3);
+  await clock.advance(5 * MIN);
+
+  expect(rows(engine.db).map((e) => [e.repo.slice(-1), e.issue, e.status])).toEqual([['b', 1, 'running'], ['b', 2, 'needs_human'], ['a', 3, 'running'], ['a', 4, 'running']]);
+  expect(rows(engine.db).every((e) => e.cancelReason === null)).toBe(true);
+  expect(engine.lastCheck('AshuLab/b')).toEqual({ at: 5 * MIN, ok: false, error: 'GitHub answered HTTP 404: Not Found' });
+  expect(engine.lastCheck('AshuLab/a')).toEqual({ at: 5 * MIN, ok: true, error: null });
+
+  await clock.advance(5 * MIN);
+  expect(engine.lastCheck('AshuLab/b')).toMatchObject({ at: 10 * MIN, ok: false }); // tried again at the next check
+
+  github.missingRepos.clear();
+  await clock.advance(5 * MIN);
+  expect(engine.lastCheck('AshuLab/b')).toEqual({ at: 15 * MIN, ok: true, error: null });
+  expect(byStatus(engine.db, 'cancelled')).toEqual([]);
+});
+
+test('a missing issue in a repo that does not answer is the repo\'s refusal at the poll too: the epic stays', async () => {
+  const db = open();
+  seedEpic(db, 1, { status: 'needs_human', needsHumanKind: 'agent_needs_human', needsHumanReason: 'x' });
+  const engine = await start(0);
+  github.missingRepos.add('AshuLab/a'); // GitHub answers 404 for the repo and so for its issues
+  await clock.advance(5 * MIN);
+  expect(byStatus(engine.db, 'cancelled')).toEqual([]);
+  expect(engine.lastCheck('AshuLab/a')).toMatchObject({ ok: false });
 });

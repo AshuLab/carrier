@@ -31,11 +31,8 @@ const networkStderr =
 
 /** Any non-2xx answer that is neither "GitHub is down" nor "bad credentials", e.g. 404 or 422. */
 class HttpError extends GitHubRejected {
-  readonly status: number;
-
   constructor(status: number, body: string) {
-    super(`GitHub answered HTTP ${status}: ${body.slice(0, 300)}`);
-    this.status = status;
+    super(`GitHub answered HTTP ${status}: ${body.slice(0, 300)}`, status);
   }
 }
 

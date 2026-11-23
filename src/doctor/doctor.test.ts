@@ -554,6 +554,23 @@ test('a skill the check cannot tell about is a warning, named or not', async () 
   expect(skillChecks(checks).filter((check) => check.status === 'warn').map((check) => check.name)).toEqual(['AshuLab/carrier author can use the skill my-ship', 'AshuLab/carrier reviewer can use the skill code-post']);
 });
 
+test.each([['codex', 'Codex'], ['agy', 'Antigravity']] as const)('the three answers are shown for a %s role as for a Claude one', async (harness, label) => {
+  const skills = new FakeSkills();
+  skills.answers['code-review'] = 'absent';
+  skills.answers['code-post'] = 'cannot-tell';
+  const cfg = config({ providers: { claude: { harness: 'claude' }, other: { harness } }, agents: { author: { profile: 'a', provider: 'claude', model: 'm' }, reviewer: { profile: 'b', provider: 'other', model: 'm' } } });
+  const checks = skillChecks(await doctor(cfg, deps({ skills })));
+  expect(skills.asked.map((asked) => asked.harness)).toEqual(['claude', 'claude', harness, harness]);
+  expect(checks.map((check) => [check.name, check.status])).toEqual([
+    ['AshuLab/carrier author can use the skill ship', 'ok'],
+    ['AshuLab/carrier author can use the skill code-resolve', 'ok'],
+    ['AshuLab/carrier reviewer can use the skill code-review', 'warn'],
+    ['AshuLab/carrier reviewer can use the skill code-post', 'warn'],
+  ]);
+  expect(checks[2]!.detail).toBe(`${label} does not find it for the account of the reviewer (it is Solve's default, so the epic runs anyway)`);
+  expect(checks[3]!.detail).toBe(`could not tell whether ${label} finds it: some place it looks could not be read`);
+});
+
 test('a review that does not publish with another skill has no check for it', async () => {
   const checks = await doctor(config({ skills: { review: { publish: null } } }), deps());
   expect(skillChecks(checks).map((check) => check.name)).not.toContain('AshuLab/carrier reviewer can use the skill code-post');

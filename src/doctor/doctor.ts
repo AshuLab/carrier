@@ -297,7 +297,7 @@ export async function runDoctor(config: Config, folder: string, overrides: Parti
         const answer = await deps.skills.has(agent.harness, agent.configDir, clone, skill.name);
         const where = { repo: repo.name, profiles: [agent.profile] };
         if (answer === 'present') report({ name, status: 'ok', ...where });
-        else if (answer === 'cannot-tell') report({ name, status: 'warn', detail: `could not tell whether ${harnessLabel[agent.harness]} finds it: some place it looks was not read, or Carrier does not read ${harnessLabel[agent.harness]}'s places yet`, ...where });
+        else if (answer === 'cannot-tell') report({ name, status: 'warn', detail: `could not tell whether ${harnessLabel[agent.harness]} finds it: some place it looks could not be read`, ...where });
         else report({ name, status: skill.named ? 'fail' : 'warn', detail: `${harnessLabel[agent.harness]} does not find it for the account of the ${role}${skill.named ? '' : ' (it is Solve\'s default, so the epic runs anyway)'}`, fix: fixes.skill(skill.name), ...where });
       }
     }

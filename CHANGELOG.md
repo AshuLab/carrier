@@ -9,7 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added
 
 - `carrier doctor` shows, for each role of each repo, whether each skill the role invokes is present, absent or cannot be told for the account the role runs on, with a failure for a named skill that is absent and a warning for a default that is absent and for any it cannot tell.
-  Only Claude Code is read so far; Codex and Antigravity always answer cannot tell.
+  Claude Code, Codex and Antigravity (`agy`) are each read where they look for skills (see Troubleshooting); an answer is absent only when every place was read, and cannot tell when one could not be.
 - `carrier recover <repo>#<issue>` continues a running epic whose agent is gone from its real state, and refuses with a reason when the epic is not running or an agent of it is really alive.
   It also refuses while Carrier is recovering its epics at start, or when there is nothing a recovery would move.
   Each use that continued the epic leaves a `recovered` event in the epic's history.

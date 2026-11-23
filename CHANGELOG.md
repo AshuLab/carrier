@@ -24,6 +24,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - `limits.idleMinutes` (off by default) kills an agent process that writes nothing for that long and retries it with its session, as a technical failure.
 - A new kind of stop, `engine_error`, for an unexpected error on one epic's path (`labels.reasons.engine_error` names its label).
   Only that epic stops, with the error as one redacted line, and the other epics go on; resuming it starts a new attempt.
+- A review is tied to the commit its checkout was made at: the prompt tells the reviewer that commit, and a result that reports another head is invalid and retried.
+  The checkout is clean before each round.
+- When the pull request's head moves while a review runs, Carrier stores the new head and reviews it again without counting a round, at most twice in a row; a third move stops the epic in needs-human with `pr_invalid`.
+  Each repeat is an event with the old and the new head, and the result of a review of a superseded head is kept but never read.
+- `carrier restart <repo>#<issue> --from review` on an epic whose head moved adopts the new head and says so in its `resumed` event; `--from fix` still refuses.
+- An epic that goes to ready for test with observations nobody answered says how many and why, in `carrier status` and its snapshot.
+- An `api_error` is retried after 30 seconds, then 2 minutes, then 10 minutes.
+  The due time is saved with the epic, so a retry that comes due while Carrier is down starts at the first poll after it starts, and the panel and `carrier status` show it.
+- A repo that GitHub answers badly (a timeout, a 5xx or a network error) is skipped for that cycle and shown with its reason, and the other repos go on.
 
 ### Changed
 
@@ -48,6 +57,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   The History screen and the last transcripts in the menu fill in a moment after launch.
 - Deleting a chat session now also removes what the app saved for it in its settings (the options, commands and agent it last showed), so those no longer grow with every deleted session.
   Archiving keeps them, since an archived session can be restored.
+- A review never gets the blockers of an earlier round once a later review completed.
+- One authentication signal of a profile is a technical failure of that execution, retried like any other, and the profile's other epics go on; a second signal of the same profile stops every epic of the profile as before.
+  On `agy` the plain text `Authentication required` counts only on stderr, and the real message of the error is kept as the epic's stop reason.
+- The Codex message `usage_not_included` is a usage limit, and an exit 0 with an error the tool printed and no valid result is a failure.
+- Queued epics start in the order they entered, and a resumed one starts after those already waiting when slots are scarce.
+- An epic cancelled before it started goes back to the queue when `ready` comes back; one cancelled with `pr_closed` or `issue_gone`, or one that already ran, stays cancelled.
+- A rate limit in any read of the poll ends it, and Carrier waits what GitHub asked for instead of going on.
+- `ready` is removed from the issue of an epic in every status except queued, so a failed write cannot restart a stopped epic by itself.
+  Only the labels the issue has are removed, one listing per repo and cycle serves the poll, and no label is written for a repo that left the config.
+  An issue with `ready` but without the epic label is no longer queued.
+- Stop messages say what happened: the limit that ended a timeout, the kind and message of the last failure behind `retries_exhausted`, and that a provider answered with a server error and not that the epic ran out of usage.
+- A cleanup that kept a worktree or a branch still marks the epic as cleaned, and what it kept shows in the events of the epic's last execution.
+- `ship` and `fix` find their worktree, and the head `ship` reports comes from `gh pr view`.
 
 ## [0.18.0] - 2026-11-22
 

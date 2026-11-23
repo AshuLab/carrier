@@ -16,7 +16,7 @@ Why it was built and what was left out: the [spec](../specs/keep-awake.md).
 - **The icon**: a small cup shows before the count and the bar while the Mac is held, and goes when it is not.
   A Mac that Carrier is not running on still shows the cup in full: the rest of the icon is faded, the cup is not.
   The icon's tooltip says "Keeping the Mac awake" and VoiceOver reads "Carrier, keeping the Mac awake" (`awakeIconWords`).
-- **The page**: Now (the state, a chip On, Off or Paused, and a switch that does what the menu's first item does: on starts the default length, off stops what runs by hand), By hand (Length, Keep the screen on, Shortcut), With agents (the switch and Stay awake after they finish: Right away, 5, 15 or 30 min) and Battery and notices (On battery, and Tell me when it stops by itself).
+- **The page**: Now (the state in a sentence, and a switch that does what the menu's first item does: on starts the default length, off stops what runs by hand), By hand (Length, Keep the screen on, Shortcut), With agents (the switch and Stay awake after they finish: Right away, 5, 15 or 30 min) and Battery and notices (On battery, and Tell me when it stops by itself).
   Reset puts the page back.
   The button's result is read out by VoiceOver.
 - **The shortcut** turns keep awake on or off from any app.

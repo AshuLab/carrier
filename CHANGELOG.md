@@ -27,6 +27,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- Moving a role to the provider and model its first failover step names (for example from one account to the other one that was its fallback) no longer leaves a config the engine refuses: that step is dropped, since falling back to the account that ran out is no fallback.
 - The switches and sliders of Settings take the accent the person picks, also after the window was opened; they kept the one it was opened with.
 - A long command in an approval, or many options in a question, no longer push the message box out of a short window: they scroll inside the card, which takes at most a third of the window.
 - A session started from the new session screen keeps the model, reasoning and permissions chosen for it, so it wakes with them after it sleeps instead of on its agent's defaults.

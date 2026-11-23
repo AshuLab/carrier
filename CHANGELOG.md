@@ -22,6 +22,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- The app download is smaller: the release binary ships without its debug symbols, which are kept as a dSYM on each GitHub Release.
+  The binary went from 68.3 MB to 39.1 MB and the zip from 26.2 MB to 22.0 MB (one measured build of 1.2.3).
 - Long conversations use far less CPU while the agent writes: the chat's rows are no longer drawn again at each update, only the ones that changed.
   With a conversation of 2,100 events and the agent writing, the app went from 66 % of a core to 20 % (one measured run against the fixture host), and 5,000 events from 98 % to 27 %.
 - The sidebar's title bar shows only the logo's mark, centred, and no longer the name beside it: it reads less crowded.

@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createScopedLogger } from '@ashulab/universal-logger';
-import { and, asc, desc, eq, inArray, isNotNull, isNull, notInArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull, isNull, lte, notInArray, sql } from 'drizzle-orm';
 import type { EnginePlaces } from '../config/places.ts';
 import { runtimeOf } from '../config/providers.ts';
 import { failoverStepsFor, type Agent, type EffectiveRepoConfig } from '../config/resolve.ts';
@@ -32,7 +32,7 @@ import { reserve } from './reserve.ts';
 import { startRetention, type SessionDirs } from './retention.ts';
 import { failureStreak, isOfAttempt } from './retry.ts';
 import type { QuotaReader } from './quota.ts';
-import { resumeAtOf } from './resume-at.ts';
+import { isBack, resumeAtOf } from './resume-at.ts';
 
 export type EngineSettings = {
   pollIntervalMs: number;
@@ -167,7 +167,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
   const restart = (queuedAt: number) => ({
     status: 'queued' as const, queuedAt, startedAt: null, config: null, labelPending: false, stage: null, stageStartedAt: null, workspace: null,
     lastActivityAt: null, lastError: null, round: null, prNumber: null, prHeadSha: null, pr: null, reviewedSha: null, verification: null, observationsPassAt: null,
-    needsHumanReason: null, needsHumanKind: null, finishedAt: null, authorOption: null, reviewerOption: null, recoveries: 0, resumeStage: null, roundLimit: null, resumeAt: null,
+    needsHumanReason: null, needsHumanKind: null, finishedAt: null, authorOption: null, reviewerOption: null, recoveries: 0, autoResumes: 0, resumeStage: null, roundLimit: null, resumeAt: null,
   });
   // The rounds an epic may have: what a resume granted it, else the live setting (a changed `maxReviews` applies at the epic's next review).
   const roundCap = (epic: Epic) => epic.roundLimit ?? settings().maxReviews;
@@ -175,7 +175,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
   // worktree and the rest of where it stood; `resumeStage` tells `begin` where to start.
   const requeueKeeping = (queuedAt: number) => ({
     status: 'queued' as const, queuedAt, startedAt: null, config: null, labelPending: false, stage: null, stageStartedAt: null,
-    lastActivityAt: null, lastError: null, needsHumanReason: null, needsHumanKind: null, finishedAt: null, authorOption: null, reviewerOption: null, recoveries: 0, resumeAt: null,
+    lastActivityAt: null, lastError: null, needsHumanReason: null, needsHumanKind: null, finishedAt: null, authorOption: null, reviewerOption: null, recoveries: 0, autoResumes: 0, resumeAt: null,
   });
 
   // Mirrors the epic's status on its issue: its labels, none of the other owned ones, and no `ready` while running.
@@ -399,22 +399,70 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     return { relaunched: true };
   }
 
-  // When the windows the epic ran out of come back, by the probe of each option's account asked now: the option of this execution and the ones that
-  // ran out earlier in this attempt. An option that is a local server, or whose probe does not answer, says nothing.
-  async function windowComesBack(epic: Epic, execution: Execution) {
+  // A resume that keeps the epic's stage needs its pull request open and its head to be the stored one.
+  async function pullRequestRefusal(epic: Epic): Promise<'no pull request' | 'pull request not open' | 'pull request head changed' | undefined> {
+    if (epic.prNumber === null) return 'no pull request';
+    const found = await github.getPullRequest(epic.repo, epic.prNumber);
+    if (found?.state !== 'open') return 'pull request not open';
+    if (found.headSha !== epic.prHeadSha) return 'pull request head changed';
+  }
+
+  // What the probe of each option's account says now: the option of this execution and the ones that ran out earlier in this attempt.
+  // An option that is a local server, or whose probe does not answer, says nothing.
+  async function probeRanOut(epic: Epic, execution: Execution) {
     const earlier = db.select().from(executions).where(and(eq(executions.epicId, epic.id), eq(executions.failureKind, 'usage_limit'))).all().filter((run) => isOfAttempt(run, epic));
     const runs = new Map([execution, ...earlier].map((run) => [`${run.option}\n${run.model}`, run]));
     const ranOut = await Promise.all([...runs.values()].map(async (run) => {
       if (run.provider !== null || !(run.harness === 'claude' || run.harness === 'codex' || run.harness === 'agy')) return undefined;
       const command = run.option ? epic.config?.providers?.[run.option]?.command : undefined;
       try {
-        return { model: run.model, snapshot: await quota({ provider: run.harness, ...(run.configDir && { configDir: run.configDir }), ...(command && { command }) }) };
+        return { run, model: run.model, snapshot: await quota({ provider: run.harness, ...(run.configDir && { configDir: run.configDir }), ...(command && { command }) }) };
       } catch (e) {
         log.error('the quota check failed', e, { epicId: epic.id });
         return undefined;
       }
     }));
-    return resumeAtOf(ranOut.filter((r) => r !== undefined));
+    return ranOut.filter((r) => r !== undefined);
+  }
+
+  // The automatic resumes in a row an epic gets (ADR 0049).
+  const maxAutoResumes = 3;
+
+  // An epic stopped on its quota whose `resumeAt` has passed: the provider is asked again, without its cache, and only when an option it ran out of shows its
+  // window below 100% the epic resumes, from the stage where it stopped and on that option. Otherwise it waits for the next poll, and nothing is guessed.
+  // The resume is the one of a person (the queue, a slot), made by the engine; with the engine paused, or `autoResume` off now, nothing resumes.
+  async function wakeUp() {
+    if (stopping || suspended || paused || !settings().autoResume) return;
+    const configured = repos().map((r) => r.name);
+    const due = db.select().from(epics).where(and(eq(epics.status, 'needs_human'), eq(epics.needsHumanKind, 'usage_limit'), isNotNull(epics.resumeAt), lte(epics.resumeAt, clock.now()), inArray(epics.repo, configured))).orderBy(asc(epics.id)).all();
+    for (const epic of due) await isolating(epic.id, epic.repo, () => wakeOne(epic));
+  }
+
+  async function wakeOne(epic: Epic) {
+    const stage = epic.stage === 'review' || epic.stage === 'fix' ? epic.stage : null;
+    if (epic.autoResumes >= maxAutoResumes) return;
+    // Like a resume from a stage: the pull request must be open with the head the epic stored, or the stage would work on something else.
+    if (stage) {
+      const refusal = await pullRequestRefusal(epic);
+      if (refusal) return log.warn('the epic does not wake up', { epicId: epic.id, refusal });
+    }
+    const last = db.select().from(executions).where(eq(executions.epicId, epic.id)).orderBy(desc(sql`rowid`)).get();
+    const back = last && (await probeRanOut(epic, last)).find(isBack);
+    if (!back) return;
+    const role = epic.stage === 'review' ? 'reviewer' : 'author';
+    // What a person's resume puts: a queued epic whose issue lost `ready` is cancelled when it is reserved.
+    await github.setLabels(epic.repo, epic.issue, { add: [settings().labels.ready], remove: [] });
+    const queuedAt = clock.now();
+    const woke = db.transaction((tx) => {
+      const moved = tx.update(epics)
+        .set({ ...(stage ? { ...requeueKeeping(queuedAt), resumeStage: stage } : restart(queuedAt)), autoResumes: epic.autoResumes + 1 })
+        .where(and(eq(epics.id, epic.id), eq(epics.status, 'needs_human'), eq(epics.resumeAt, epic.resumeAt!))) // a person resumed it, or it ended, while the probe answered
+        .returning().get();
+      if (moved) tx.insert(epicEvents).values({ epicId: epic.id, at: queuedAt, type: 'auto_resumed', data: { stage: epic.stage, option: back.run.option ?? null, resumeAt: epic.resumeAt, count: epic.autoResumes + 1 } }).run();
+      return moved;
+    });
+    // The option that came back, when it is not the one the role has now (failover left the epic on the last one it tried).
+    if (woke && back.run.option && back.run.option !== epic.config?.agents[role].option) restarts.set(epic.id, { [role]: back.run.option });
   }
 
   // A stage ended on its usage limit: another option of the failover list, or the epic stops for a person. The reason says how to go on
@@ -424,7 +472,8 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     const moved = await failOver(epicId, execution.stage, execution);
     if (moved.relaunched || !stillRunning(epicId)) return;
     const { autoResume, autoResumeMaxHours } = settings(); // read once: a reload applies to the next stop
-    const back = autoResume ? await windowComesBack(fresh(epicId), execution) : undefined;
+    const spent = fresh(epicId).autoResumes >= maxAutoResumes;
+    const back = autoResume && !spent ? resumeAtOf(await probeRanOut(fresh(epicId), execution)) : undefined;
     if (!stillRunning(epicId)) return; // the probe took time: the epic may have ended or been parked meanwhile
     const { repo, issue } = fresh(epicId);
     const role = execution.stage === 'review' ? 'reviewer' : 'author';
@@ -432,6 +481,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     const scheduled = back !== undefined && back - clock.now() <= autoResumeMaxHours * 3_600_000;
     const when = back === undefined ? '' : new Date(back).toISOString();
     const wake = !autoResume ? ''
+      : spent ? ` · it already resumed by itself ${maxAutoResumes} times in a row: it will not again`
       : back === undefined ? ' · it will not resume by itself: the provider did not say when the window comes back'
       : scheduled ? ` · resumes by itself at ${when}`
       : ` · the window comes back at ${when}, more than ${autoResumeMaxHours} h away: it will not resume by itself`;
@@ -572,7 +622,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
           .set({ status: executionStatus[exit], finishedAt: clock.now(), ...(sessionId && { sessionId }), ...(usage && { usage }), ...(failure && { error: failure }), ...failureColumns(processFailure ?? (endFailure[exit] && { ...noExit, ...endFailure[exit] })) })
           .where(eq(executions.executionId, executionId))
           .run();
-        db.update(epics).set({ recoveries: 0, ...(failure && { lastError: failure }) }).where(eq(epics.id, epic.id)).run();
+        db.update(epics).set({ recoveries: 0, ...(!outOfCredits && { autoResumes: 0 }), ...(failure && { lastError: failure }) }).where(eq(epics.id, epic.id)).run();
         if (exit === 'ok') await settle(db.select().from(executions).where(eq(executions.executionId, executionId)).get()!);
         else if (isFailoverFailure || outOfCredits) {
           // Retrying the same option only burns the retries.
@@ -750,7 +800,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     if (outside(epic.id) || epochOf(epic.id) !== epoch) return; // it ended, or was parked (and maybe restored) while GitHub was asked: stays `finished` without a result, the next run imports it
     const imported = importResult(db, raw, expected, (tx, result) => {
       // A stage change reaches the issue when a stage has a label: the label follows (labelPending) like a status change does.
-      const update = (set: Partial<Epic>) => tx.update(epics).set({ ...set, ...(set.stage !== undefined && { recoveries: 0, ...(stageLabelled() && { labelPending: true }) }) }).where(eq(epics.id, epic.id)).run();
+      const update = (set: Partial<Epic>) => tx.update(epics).set({ ...set, ...(set.stage !== undefined && { recoveries: 0, autoResumes: 0, ...(stageLabelled() && { labelPending: true }) }) }).where(eq(epics.id, epic.id)).run();
       if (result.outcome === 'needs_human') toNeedsHuman(tx, epic.id, 'agent_needs_human', result.reason);
       else if (problem) toNeedsHuman(tx, epic.id, problem.kind, problem.text);
       else if (execution.stage === 'ship') update({ stage: 'review', stageStartedAt: clock.now(), round: 1, prNumber: result.pr.number, prHeadSha: result.pr.headSha, workspace, branch });
@@ -1242,6 +1292,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
         }
       });
       await stopEnded(seen);
+      await wakeUp();
       // After the probe: a suspended engine makes no GitHub call, and a restored epic's recovery makes some. After stopEnded: an epic whose PR
       // was merged or closed while its repo was parked ends there and is not launched just to be stopped.
       await restore();
@@ -1384,16 +1435,14 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       const keeping = chosen.from === 'review' || chosen.from === 'fix' ? chosen.from : null;
       if (chosen.extraRounds !== undefined && !keeping) throw new ResumeRefused('extra rounds need a stage');
       if (keeping) {
-        if (epic.prNumber === null) throw new ResumeRefused('no pull request');
-        let found;
+        let refusal;
         try {
-          found = await github.getPullRequest(repo, epic.prNumber);
+          refusal = await pullRequestRefusal(epic);
         } catch (e) {
           if (e instanceof GitHubUnavailable || e instanceof AuthError) throw new ResumeRefused('github unavailable');
           throw e;
         }
-        if (found?.state !== 'open') throw new ResumeRefused('pull request not open');
-        if (found.headSha !== epic.prHeadSha) throw new ResumeRefused('pull request head changed');
+        if (refusal) throw new ResumeRefused(refusal);
       }
       // A role left out keeps the option it has: the epic is not asked again.
       const author = chosen.author ?? epic.authorOption;

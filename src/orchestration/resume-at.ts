@@ -13,15 +13,27 @@ function agyGroupOf(model: string, groups: (string | undefined)[]) {
   return names.filter((g) => id.startsWith(key(g))).sort((a, b) => key(b).length - key(a).length)[0];
 }
 
-// When one option's exhausted windows are all back: the latest of the windows at 100%. Nothing when the probe did not answer, no window is full,
-// or a full one gives no time (a time is never guessed).
-function backAt({ model, snapshot }: RanOut) {
+// The windows that count for one option: those of its account, and for `agy` those of the group of its model. Nothing when the probe did not answer
+// or the group is not found.
+function windowsOf({ model, snapshot }: RanOut) {
   if (snapshot.status !== 'ok') return undefined;
   const group = snapshot.provider === 'agy' ? agyGroupOf(model ?? '', snapshot.windows.map((w) => w.group)) : undefined;
   if (snapshot.provider === 'agy' && group === undefined) return undefined;
-  const full = snapshot.windows.filter((w) => (group === undefined || w.group === group) && w.usedPercent >= 100);
+  return snapshot.windows.filter((w) => group === undefined || w.group === group);
+}
+
+// When one option's exhausted windows are all back: the latest of the windows at 100%. Nothing when the probe did not answer, no window is full,
+// or a full one gives no time (a time is never guessed).
+function backAt(ranOut: RanOut) {
+  const full = windowsOf(ranOut)?.filter((w) => w.usedPercent >= 100) ?? [];
   if (full.length === 0 || full.some((w) => w.resetsAt === undefined)) return undefined;
   return Math.max(...full.map((w) => w.resetsAt!));
+}
+
+/** Whether a fresh read of an option's account shows its window back: it answered, it has windows and none is at 100%. Anything else is not back. */
+export function isBack(ranOut: RanOut) {
+  const windows = windowsOf(ranOut);
+  return windows !== undefined && windows.length > 0 && windows.every((w) => w.usedPercent < 100);
 }
 
 /** When an epic stopped on its quota may go on: the earliest time one of the options it ran out of comes back, or undefined when no option says. */

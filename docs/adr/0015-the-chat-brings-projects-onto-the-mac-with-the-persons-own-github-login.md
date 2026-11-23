@@ -1,6 +1,6 @@
 # 0015 - The chat brings projects onto the Mac with the person's own GitHub login
 
-- Status: accepted
+- Status: accepted; the chat's own list and what the projects folder is are amended by [0041](0041-a-project-is-an-entry-of-projects-json-identified-by-its-folder.md), and its "never deletes" by [0040](0040-deleting-a-project-from-disk-is-only-for-what-carrier-made-and-goes-to-the-trash.md)
 - Date: 2026-10-28
 
 ## Context

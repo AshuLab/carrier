@@ -1,21 +1,8 @@
 import Foundation
 
-// The pieces of the workspace popover that need no model (docs/specs/workspace-sources.md): what the URL step accepts, where the
-// projects folder is and what is in it. `NewSessionModel` drives the popover with them.
+// The pieces of the shared sheet that need no model: what a pasted address is, where the projects folder is and the checks on a folder.
 
-/// Why `source` is off, in words; nil when it is on. Only the sources that list and clone with the person's `gh` login (a GitHub URL and
-/// My GitHub repositories, ADR 0015) are off, and only for a `gh` that is `missing` or `signedOut`: `ready`, `unknown` and a host that did
-/// not report the health (`gh` nil) leave the sheet as it was. A local folder, the recent folders and a new project never depend on `gh`.
-public func workspaceSourceReason(_ source: WorkspaceSource, gh: ToolState?) -> String? {
-    guard source == .githubURL || source == .githubRepos else { return nil }
-    switch gh {
-    case .missing: return "gh is not installed. See Health in Settings."
-    case .signedOut: return "gh is signed out. See Health in Settings."
-    case .ready, .unknown, nil: return nil
-    }
-}
-
-/// `owner/repo` for what the URL step was given, nil when it is not exactly one GitHub repository: the form itself, with or without
+/// `owner/repo` for what the sheet field was given, nil when it is not exactly one GitHub repository: the form itself, with or without
 /// `.git`, a trailing slash, `github.com/` or `https://github.com/` in front. The host takes only the `owner/repo` form, and only
 /// with the characters and parts its own pattern takes (no empty, `.` or `..` part).
 public func repoReference(_ text: String) -> String? {
@@ -51,15 +38,104 @@ public func projectsFolder(chatJSON: Data?, carrierFolder: String, home: String)
     return chosen.hasPrefix("~/") ? home + chosen.dropFirst() : chosen
 }
 
+private func realOfNearest(_ path: String) -> String {
+    let clean = (path as NSString).standardizingPath
+    if let resolved = realpath(clean, nil) {
+        let real = String(cString: resolved)
+        free(resolved)
+        return real
+    }
+    let ns = clean as NSString
+    let parent = ns.deletingLastPathComponent
+    if parent == clean || parent.isEmpty { return clean }
+    return (realOfNearest(parent) as NSString).appendingPathComponent(ns.lastPathComponent)
+}
+
+private func ownCarrierFolders(carrierFolder: String) -> [(name: String, path: String)] {
+    let places = CarrierPlaces(folder: realOfNearest(carrierFolder))
+    return [places.engine, places.chatState, places.chatLogs, places.chatWorktrees, places.chatPending, places.chatSessions].map { own in
+        (name: String(own.dropFirst(places.folder.count + 1)), path: own)
+    }
+}
+
 /// Why `folder` cannot be the projects folder, in words; nil when it can. The host's own rule (src/chat/folder.ts): an absolute path
-/// that is not the Carrier folder's `engine` or the chat's own `state`, `logs` or `worktrees`, or inside one, symlinks resolved.
+/// that is not the Carrier folder's `engine` or the chat's own `state`, `logs`, `worktrees`, `pending` or `sessions`, or inside one, symlinks resolved.
 public func projectsFolderRefusal(_ folder: String, carrierFolder: String) -> String? {
     guard folder.hasPrefix("/") else { return "The projects folder must be an absolute path" }
-    let real = URL(fileURLWithPath: folder).resolvingSymlinksInPath().path
-    let places = CarrierPlaces(folder: URL(fileURLWithPath: carrierFolder).resolvingSymlinksInPath().path)
-    for own in [places.engine, places.chatState, places.chatLogs, places.chatWorktrees] {
-        let name = String(own.dropFirst(places.folder.count + 1))
+    let real = realOfNearest(folder)
+    for (name, own) in ownCarrierFolders(carrierFolder: carrierFolder) {
         if real == own || real.hasPrefix(own + "/") { return "That folder is inside Carrier's own \(name) folder; the chat never works there" }
+    }
+    return nil
+}
+
+/// `path` made absolute against `base` and tidied of `.` and `..`. Not `URL(relativeTo:).path`: on some Foundation versions that drops the base.
+private func absolutePath(_ path: String, from base: String) -> String {
+    URL(fileURLWithPath: path.hasPrefix("/") ? path : base + "/" + path).standardized.path
+}
+
+/// Whether `folder` (an existing, readable real path) is inside a git worktree linked to another repository.
+private func isLinkedWorktree(_ folder: String) -> Bool {
+    var dir = folder
+    while true {
+        let dotGit = (dir as NSString).appendingPathComponent(".git")
+        var info = stat()
+        if stat(dotGit, &info) == 0 {
+            if (info.st_mode & S_IFMT) == S_IFDIR { return false }
+            guard (info.st_mode & S_IFMT) == S_IFREG,
+                  let text = try? String(contentsOfFile: dotGit, encoding: .utf8),
+                  let line = text.split(whereSeparator: \.isNewline).first(where: { $0.hasPrefix("gitdir:") })
+            else { return false }
+            let target = line.dropFirst("gitdir:".count).trimmingCharacters(in: .whitespaces)
+            guard target.isEmpty == false else { return false }
+            let gitDir = absolutePath(target, from: dir)
+            let commondir = (gitDir as NSString).appendingPathComponent("commondir")
+            guard let common = try? String(contentsOfFile: commondir, encoding: .utf8) else { return false }
+            let resolved = absolutePath(common.trimmingCharacters(in: .whitespacesAndNewlines), from: gitDir)
+            return resolved != gitDir
+        }
+        let parent = (dir as NSString).deletingLastPathComponent
+        if parent == dir || parent.isEmpty { return false }
+        dir = parent
+    }
+}
+
+/// Why `folder` cannot be added as a project, in words; nil when it can. The host's `checkProjectFolder` rule (src/chat/folder.ts):
+/// an existing, readable folder that is not inside Carrier's own folders (symlinks resolved) and not a worktree linked to another project.
+public func projectFolderRefusal(_ folder: String, carrierFolder: String = currentCarrierFolder()) -> String? {
+    guard folder.hasPrefix("/") else { return "The folder must be an absolute path" }
+    guard let resolved = realpath(folder, nil) else {
+        return errno == EACCES || errno == EPERM ? "That folder cannot be read" : "That folder does not exist"
+    }
+    let real = String(cString: resolved)
+    free(resolved)
+    var info = stat()
+    guard stat(real, &info) == 0 else {
+        return errno == EACCES || errno == EPERM ? "That folder cannot be read" : "That folder does not exist"
+    }
+    guard (info.st_mode & S_IFMT) == S_IFDIR else { return "That path is not a folder" }
+    guard access(real, R_OK | X_OK) == 0 else { return "That folder cannot be read" }
+    for (name, own) in ownCarrierFolders(carrierFolder: carrierFolder) {
+        if real == own || real.hasPrefix(own + "/") { return "That folder is inside Carrier's own \(name) folder; a project cannot live there" }
+    }
+    if isLinkedWorktree(real) { return "That folder is a worktree linked to another project" }
+    return nil
+}
+
+/// The folder of `worktrees/` a repository's worktrees live in: `<owner>/<repo>`, or `local/<folder name>` without a GitHub origin. The rule of
+/// `worktreeDirectory` in src/chat/names.ts, which `worktreePath` makes worktrees by; `worktree-clash.json` is the table both tests read.
+public func worktreeDirectory(folder: String, repo: String?) -> String {
+    repo ?? "local/" + (normalizedFolder(folder) as NSString).lastPathComponent
+}
+
+/// Why adding `folder` (whose GitHub `owner/name` is `repo`, if any) would clash with one of `projects`, in words naming it; nil when it would not. A clash is
+/// another project whose worktree directory is the same, compared without regard to case; the same folder is already a project, not a clash.
+/// The twin of `checkWorktreeClash` in src/chat/names.ts (ADR 0041).
+public func worktreeClashRefusal(folder: String, repo: String?, among projects: [ProjectRow]) -> String? {
+    let mine = worktreeDirectory(folder: folder, repo: repo)
+    for project in projects where isSameFolder(project.path, folder) == false {
+        let theirs = worktreeDirectory(folder: project.path, repo: project.repo)
+        if theirs.lowercased() == mine.lowercased() { return "The worktrees of \(project.name) already use the folder \(theirs); two projects cannot share it" }
     }
     return nil
 }
@@ -74,25 +150,6 @@ public func applyingProjectsFolder(_ folder: String, to json: Data?) -> Data? {
     }
     file["projectsFolder"] = folder
     return try? JSONSerialization.data(withJSONObject: file, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
-}
-
-/// A folder the projects folder holds: `name` is `<owner>/<repo>` (`local/<name>` for a new project) and `path` its full path.
-public struct ProjectFolder: Equatable {
-    public let name: String
-    public let path: String
-}
-
-/// The `<owner>/<repo>` folders of the projects folder, read from disk, by name; none when the folder is not there.
-public func projectFolders(in root: String) -> [ProjectFolder] {
-    func folders(_ path: String) -> [String] {
-        let names = (try? FileManager.default.contentsOfDirectory(atPath: path)) ?? []
-        return names.filter { name in
-            var isFolder: ObjCBool = false
-            return name.hasPrefix(".") == false && FileManager.default.fileExists(atPath: path + "/" + name, isDirectory: &isFolder) && isFolder.boolValue
-        }
-    }
-    return folders(root).flatMap { owner in folders(root + "/" + owner).map { ProjectFolder(name: owner + "/" + $0, path: root + "/" + owner + "/" + $0) } }
-        .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
 }
 
 private func currentConfigURL() -> URL { URL(fileURLWithPath: configFilePath()) }
@@ -133,25 +190,32 @@ public func writeCurrentChatConfig(_ data: Data) throws {
     try data.write(to: url, options: .atomic)
 }
 
+/// Writes `folder` as `projectsFolder` in `chat.json` after checking `projectsFolderRefusal`; returns nil on success, or a refusal message.
+public func saveProjectsFolder(
+    _ folder: String,
+    currentPath: String,
+    carrierFolder: String,
+    readChatConfig: () throws -> Data?,
+    writeChatConfig: (Data) throws -> Void,
+    log: (String) -> Void = { _ in }
+) -> String? {
+    func refused(_ reason: String) -> String {
+        "\(reason). The projects folder stays \(currentPath)."
+    }
+    if let problem = projectsFolderRefusal(folder, carrierFolder: carrierFolder) { return refused(problem) }
+    let json: Data?
+    do { json = try readChatConfig() } catch {
+        log("could not read chat.json: \(error)")
+        return refused("chat.json could not be read")
+    }
+    guard let updated = applyingProjectsFolder(folder, to: json) else { return refused("chat.json is not a JSON object") }
+    do { try writeChatConfig(updated) } catch {
+        log("could not write chat.json: \(error)")
+        return refused("chat.json is not writable")
+    }
+    return nil
+}
+
 /// `projectsFolder` of the chat's `chat.json`.
 public func currentProjectsFolder() -> String { projectsFolder(chatJSON: try? currentChatConfig(), carrierFolder: currentCarrierFolder(), home: NSHomeDirectory()) }
 
-/// A row of My GitHub repositories: when it was last pushed, whether the config already watches it, and why the "watch" box would not
-/// apply to it when it is not watched but cannot be (a folder name another watched repo has).
-public struct GithubRepoRow: Equatable, Identifiable {
-    public var name: String
-    public var isPrivate: Bool
-    public var pushed: String
-    public var watched: Bool
-    public var cannotWatch: String?
-    public var id: String { name }
-}
-
-/// The loaded repositories that contain `query` (case-insensitive), in order, each with what the watch box would do for it.
-public func githubRepoRows(_ repos: [AvailableRepo], watched: [String], query: String, now: Date = Date()) -> [GithubRepoRow] {
-    let needle = query.trimmingCharacters(in: .whitespaces).lowercased()
-    return repos.filter { needle.isEmpty || $0.name.lowercased().contains(needle) }.map { repo in
-        let isWatched = watched.contains { $0.lowercased() == repo.name.lowercased() }
-        return GithubRepoRow(name: repo.name, isPrivate: repo.isPrivate, pushed: pushedLine(repo.pushedAt, now: now), watched: isWatched, cannotWatch: isWatched ? nil : repoProblem(repo.name, joining: watched))
-    }
-}

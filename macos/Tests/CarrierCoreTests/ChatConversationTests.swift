@@ -528,13 +528,15 @@ private final class ScriptedHost: ChatHost, @unchecked Sendable {
     var retried = 0
     var cancelled = 0
     var refusePreparation: ControlError?
-    var cancelPlan = SessionPlan(agent: "claude", folder: "/x", text: "hello")
+    var cancelPlan: SessionPlan? = SessionPlan(agent: "claude", folder: "/x", text: "hello")
     /// What the hello of the host lists; a host that predates `stopTask` leaves it out.
     var capabilities: Set<ControlClient.Capability> = [.stopTask]
     var stopped: [String] = []
     var refusingStopTask: ControlError?
     /// The state the host reports with its events; nil leaves the model's as it was (idle).
     var state: ChatSession.State?
+    /// The folder the summary of `events` says the session works from.
+    var baseFolder: String?
     var interrupts = 0
     /// Set, the next `events` waits on it before it reads the page: a test holds a round in flight while another starts.
     var hold: (@Sendable () async -> Void)?
@@ -551,7 +553,7 @@ private final class ScriptedHost: ChatHost, @unchecked Sendable {
         if let refusePreparation { throw refusePreparation }
         preparation = .running
     }
-    func cancelPreparation(_ id: String) async throws -> SessionPlan {
+    func cancelPreparation(_ id: String) async throws -> SessionPlan? {
         cancelled += 1
         if let refusePreparation { throw refusePreparation }
         return cancelPlan
@@ -568,7 +570,7 @@ private final class ScriptedHost: ChatHost, @unchecked Sendable {
     }
     /// What the summary of an `events` reply says of the session, when the host does: as it is, an archived session that was resumed says `live`.
     private var facts: SessionFacts? {
-        summaryHasLive ? SessionFacts(agent: "claude", archived: archivedSession, live: live, background: background) : nil
+        summaryHasLive ? SessionFacts(agent: "claude", archived: archivedSession, live: live, background: background, baseFolder: baseFolder) : nil
     }
     func resume(_ id: String) async throws {
         resumed += 1
@@ -624,6 +626,56 @@ private func say(_ id: Int) -> ChatEvent { ChatEvent(id: id, at: id, kind: "assi
     host.events += (452...651).map(say)
     await model.poll()
     #expect(model.cursor == 651 && host.asked.suffix(2).map(\.after) == [451, 651])
+}
+
+// A project deleted from disk leaves its idle sessions as history: a notice says their folder is gone and a send is refused (docs/adr/0040).
+
+@MainActor @Test func anIdleSessionWhoseFolderWasDeletedSaysSoAndRefusesASendWithoutAskingTheHost() async {
+    let host = ScriptedHost()
+    host.state = .idle
+    host.live = false
+    host.baseFolder = "/projects/gone"
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in }, folderExists: { $0 != "/projects/gone" })
+    await model.poll()
+    #expect(model.folderGone)
+    model.draft = "hello"
+    await model.submit()
+    #expect(model.refusal == folderGoneRefusal && model.draft == "hello")
+    // nothing reached the host: not a resume, not a send
+    #expect(host.sent.isEmpty && host.resumed == 0)
+    #expect(folderGoneNotice.title.contains("folder was deleted"))
+}
+
+@MainActor @Test func theFolderNoticeIsOnlyForAnIdleSessionWhoseFolderIsReallyGone() async {
+    func read(_ prepare: (ScriptedHost) -> Void, exists: Bool = false) async -> Bool {
+        let host = ScriptedHost()
+        host.baseFolder = "/projects/gone"
+        prepare(host)
+        let model = ConversationModel(host: host, sessionId: "s", log: { _ in }, folderExists: { _ in exists })
+        await model.poll()
+        return model.folderGone
+    }
+    #expect(await read { $0.state = .idle })
+    // the folder is there, or the session works, or waits, or is being prepared (a clone has not made its folder yet), or failed preparing, or is archived, or the host does not say
+    #expect(await read({ $0.state = .idle }, exists: true) == false)
+    #expect(await read { $0.state = .working } == false)
+    #expect(await read { $0.state = .waitingApproval } == false)
+    #expect(await read { $0.state = .preparing } == false)
+    #expect(await read { $0.state = .idle; $0.preparation = .failed } == false)
+    #expect(await read { $0.state = .idle; $0.archivedSession = true } == false)
+    #expect(await read { $0.state = .idle; $0.baseFolder = nil } == false)
+    // an idle session in a folder that is there is sent to as ever
+}
+
+@MainActor @Test func aSessionWhoseFolderIsThereIsSentToAsEver() async {
+    let host = ScriptedHost()
+    host.state = .idle
+    host.baseFolder = "/projects/app"
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in }, folderExists: { _ in true })
+    await model.poll()
+    model.draft = "hello"
+    await model.submit()
+    #expect(model.folderGone == false && model.refusal == nil && host.sent == ["hello"])
 }
 
 @MainActor @Test func theStreamingTextIsTheMessageInProgressAndGoesWhenTheMessageIsStored() async {
@@ -906,6 +958,70 @@ private func step(_ id: Int, _ step: String, _ status: String, _ detail: String?
     #expect(rows.count == 1 && rows[0].status == .running && rows[0].reason == nil)
 }
 
+private func actionStep(_ id: Int, _ name: String, _ when: String, _ status: String, _ detail: String? = nil) -> ChatEvent {
+    ChatEvent(id: id, at: id, kind: "step", status: status, step: "action", detail: detail, action: name, when: when)
+}
+
+@Test func eachActionIsARowOfItsOwnNamedByItsTitleWithTheTerminalIconAndTheOtherStepsHaveNone() {
+    let rows = preparationSteps(
+        [step(1, "clone", "done"), actionStep(2, "Install", "afterClone", "running"), actionStep(3, "Install", "afterClone", "done"), step(4, "worktree", "done"),
+         actionStep(5, "Install", "newWorktree", "running"), actionStep(6, "Copy env", "newWorktree", "failed", "Copy env failed with exit code 1: no such file")],
+        preparation: .failed, progress: "resolving"
+    )
+    #expect(rows.map(\.line) == ["Cloned the repository", "Ran Install", "Made the worktree", "Running Install…", "Copy env failed"])
+    #expect(rows.map(\.icon) == [nil, .terminal, nil, .terminal, .terminal])
+    #expect(Set(rows.map(\.id)).count == 5)
+    #expect(rows[3].progress == "resolving" && rows[4].reason == "Copy env failed with exit code 1: no such file")
+    // the outline keeps each row's icon and its own id
+    #expect(preparationOutline(rows).prefix(5).map(\.icon) == [nil, .terminal, nil, .terminal, .terminal])
+    #expect(Set(preparationOutline(rows).map(\.id)).count == preparationOutline(rows).count)
+}
+
+@Test func aRestoreListsOnlyTheStepsFromItsWorktreeMarkerThatEndTheLogAndNotTheStepsOfEarlierTurns() {
+    let log = [
+        step(1, "worktree", "running"), step(2, "worktree", "done"), actionStep(3, "Install", "newWorktree", "done"), step(4, "agent", "done"), step(5, "message", "done"), say(6),
+        step(7, "worktree", "running"), step(8, "worktree", "done"), actionStep(9, "Install", "newWorktree", "done"), ChatEvent(id: 10, at: 10, kind: "notice", text: "x"),
+        actionStep(11, "Copy env", "newWorktree", "running"),
+    ]
+    let restore = preparationSteps(log, preparation: .running, progress: "copying", restoring: true)
+    #expect(restore.map(\.line) == ["Made the worktree", "Ran Install", "Running Copy env…"] && restore.map(\.progress) == [nil, nil, "copying"])
+    // the same log read as a preparation lists every step, as before
+    #expect(preparationSteps(log, preparation: .running).map(\.step) == ["worktree", "action", "agent", "message", "action"])
+    // a restore whose first action has not started lists the worktree row, and the steps of the turns before it are not its own
+    #expect(preparationSteps(Array(log.prefix(7)), preparation: .running, restoring: true).map(\.line) == ["Making the worktree…"])
+    #expect(preparationSteps(Array(log.prefix(8)), preparation: .running, restoring: true).map(\.line) == ["Made the worktree"])
+    // a restore whose worktree could not come back says why
+    let failed = preparationSteps(Array(log.prefix(6)) + [step(7, "worktree", "running"), step(8, "worktree", "failed", "gone")], preparation: .running, restoring: true)
+    #expect(failed.map(\.status) == [.failed] && failed.first?.reason == "gone")
+}
+
+@Test func restoresOneAfterTheOtherListOnlyTheLastAndOneThatGoesOnKeepsTheFirstTrysFinishedActions() {
+    // two restores with no other step between them: only the last one's rows
+    let back = [
+        step(1, "worktree", "running"), step(2, "worktree", "done"), actionStep(3, "Install", "newWorktree", "done"), actionStep(4, "Old only", "newWorktree", "done"),
+        step(5, "worktree", "running"), step(6, "worktree", "done"), actionStep(7, "Install", "newWorktree", "running"),
+    ]
+    #expect(preparationSteps(back, preparation: .running, restoring: true).map(\.line) == ["Made the worktree", "Running Install…"])
+    // a restore that stopped and goes on has the one marker of its first try, and the actions it finished still show
+    let resumed = [step(1, "message", "done"), step(2, "worktree", "running"), step(3, "worktree", "done"), actionStep(4, "Install", "newWorktree", "done"), actionStep(5, "Copy env", "newWorktree", "failed"), actionStep(6, "Copy env", "newWorktree", "running")]
+    #expect(preparationSteps(resumed, preparation: .running, restoring: true).map(\.line) == ["Made the worktree", "Ran Install", "Running Copy env…"])
+    // a log from before the marker: the trailing actions, as they were
+    let old = [step(1, "message", "done"), actionStep(2, "Install", "newWorktree", "done"), actionStep(3, "Copy env", "newWorktree", "running")]
+    #expect(preparationSteps(old, preparation: .running, restoring: true).map(\.line) == ["Ran Install", "Running Copy env…"])
+}
+
+@MainActor @Test func theModelScopesTheStepsToTheRestoreWhenTheSessionIsNotPreparingButItsPreparationRuns() async {
+    let host = ScriptedHost()
+    host.preparation = .running
+    host.events = [step(1, "agent", "done"), step(2, "message", "done"), say(3), step(4, "worktree", "running")]
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
+    await model.poll()
+    #expect(model.steps.map(\.line) == ["Making the worktree…"])
+    host.events += [step(5, "worktree", "done"), actionStep(6, "Install", "newWorktree", "running")]
+    await model.poll()
+    #expect(model.steps.map(\.line) == ["Made the worktree", "Running Install…"])
+}
+
 @Test func theListEndsWhenTheSessionIsNotBeingPreparedAnyMoreOrTheHostSaysNothing() {
     let events = [step(1, "agent", "done"), step(2, "message", "done")]
     #expect(preparationSteps(events, preparation: nil).isEmpty)
@@ -918,6 +1034,7 @@ private func step(_ id: Int, _ step: String, _ status: String, _ detail: String?
     let host = ScriptedHost()
     let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
     host.preparation = .running
+    host.state = .preparing
     host.progress = "Receiving objects: 10%"
     host.events = [step(1, "clone", "running")]
     await model.poll()
@@ -955,6 +1072,7 @@ private func step(_ id: Int, _ step: String, _ status: String, _ detail: String?
     await model.poll()
     #expect(model.preparation == .failed && model.steps.map(\.status) == [.failed])
     host.events.append(step(2, "agent", "running"))
+    host.state = .preparing // as the host sets it when it retries
     await model.retryPreparation()
     #expect(host.retried == 1 && model.preparation == .running && model.steps.map(\.status) == [.running] && model.preparationRefusal == nil)
 }
@@ -970,6 +1088,15 @@ private func step(_ id: Int, _ step: String, _ status: String, _ detail: String?
     host.refusePreparation = .remote("This session is not being prepared, so there is nothing to cancel")
     #expect(await model.cancelPreparation() == nil)
     #expect(model.preparationRefusal == "This session is not being prepared, so there is nothing to cancel")
+}
+
+@MainActor @Test func cancelOfARestoreHasNoPlanAndIsNotARefusal() async {
+    let host = ScriptedHost()
+    host.preparation = .running
+    host.cancelPlan = nil
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
+    #expect(await model.cancelPreparation() == nil)
+    #expect(host.cancelled == 1 && model.preparationRefusal == nil)
 }
 
 @MainActor @Test func cancelGivesBackThePlanTheHostStoredWithTheText() async {

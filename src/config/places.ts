@@ -18,6 +18,9 @@ export const chatConfigPathOf = (folder = carrierHome()) => join(folder, 'chat.j
 /** The accounts both processes read, `<folder>/providers.json` (ADR 0020). */
 export const providersPathOf = (folder = carrierHome()) => join(folder, 'providers.json');
 
+/** The person's projects, `<folder>/projects.json`, read by the app and the chat host and written by both (ADR 0041). */
+export const projectsPathOf = (folder = carrierHome()) => join(folder, 'projects.json');
+
 /** Where the engine keeps what it owns. Only the engine writes in `dir`. */
 export type EnginePlaces = {
   /** `<folder>/engine`. */

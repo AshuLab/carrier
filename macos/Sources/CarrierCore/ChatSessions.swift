@@ -8,11 +8,7 @@ import Foundation
 /// base folders would have the same title. A session that is not live is idle, whatever the host last said.
 public func sessionRows(_ sessions: [ChatSession]) -> [SessionRow] {
     func base(_ session: ChatSession) -> String { session.workspace?.base ?? session.folder }
-    func name(_ path: String) -> String { URL(fileURLWithPath: path).lastPathComponent }
-    let clashing = Set(Dictionary(grouping: Set(sessions.map(base)), by: name).filter { $0.value.count > 1 }.keys)
-    func title(_ path: String) -> String {
-        clashing.contains(name(path)) ? "\(name(URL(fileURLWithPath: path).deletingLastPathComponent().path))/\(name(path))" : name(path)
-    }
+    let titles = groupTitles(Set(sessions.map(base)), projects: [])
     return sessions.map { session in
         let state: SessionState = switch (session.live, session.state) {
         // the host prepares it in the background: it shows at once, working, whether or not its agent has started
@@ -22,7 +18,7 @@ public func sessionRows(_ sessions: [ChatSession]) -> [SessionRow] {
         case (true, .waitingApproval): .waiting
         }
         return SessionRow(
-            id: session.id, title: session.title ?? "Untitled session", workspace: title(base(session)), agent: session.agent, state: state,
+            id: session.id, title: session.title ?? "Untitled session", workspace: titles[base(session)] ?? "", agent: session.agent, state: state,
             updatedAt: Date(timeIntervalSince1970: Double(session.lastActiveAt) / 1000), archived: session.archived,
             branch: session.workspace?.branch, folder: session.folder, base: base(session), providers: [session.harness], titled: session.title != nil,
             kept: session.kept, deleteAt: session.deleteAt.map { Date(timeIntervalSince1970: Double($0) / 1000) },
@@ -55,6 +51,27 @@ public func openMenuItems(_ row: SessionRow) -> [OpenItem] {
     var items = [OpenItem(title: "Reveal in Finder", action: .reveal(path: row.folder)), OpenItem(title: "Copy path", action: .copy(row.folder))]
     if let branch = row.branch { items.append(OpenItem(title: "Copy branch name", action: .copy(branch))) }
     return items
+}
+
+/// The title of the group of each base folder: the project's name when it is one, else the folder's name, with the parent folder added when two
+/// different base folders would have the same title.
+func groupTitles(_ bases: Set<String>, projects: [ProjectRow]) -> [String: String] {
+    func name(_ path: String) -> String { projectIdentity(path: path, in: projects).title }
+    let clashing = Set(Dictionary(grouping: bases, by: name).filter { $0.value.count > 1 }.keys)
+    return Dictionary(uniqueKeysWithValues: bases.map { path in
+        let parent = URL(fileURLWithPath: path).deletingLastPathComponent().path
+        return (path, clashing.contains(name(path)) ? "\(URL(fileURLWithPath: parent).lastPathComponent)/\(name(path))" : name(path))
+    })
+}
+
+/// `rows` with the title of each group taken from `projects`: a project's name replaces its folder's.
+public func retitled(_ rows: [SessionRow], projects: [ProjectRow]) -> [SessionRow] {
+    let titles = groupTitles(Set(rows.map(\.base)), projects: projects)
+    return rows.map { row in
+        var row = row
+        row.workspace = titles[row.base] ?? row.workspace
+        return row
+    }
 }
 
 /// Keeps the sidebar's rows current from the host's updates (`ChatHost.sessionUpdates`): the active and the archived sessions as rows, and, once

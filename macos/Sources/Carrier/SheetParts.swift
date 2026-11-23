@@ -76,69 +76,6 @@ struct RowHint: View {
     }
 }
 
-/// The rail of a sheet (the workspace chooser, Settings): the sheet's round mark with its name and a line, then rows made of `RailRow`.
-struct RailHeader: View {
-    let title: String
-    let detail: String
-    var icon: AppIcon?
-
-    var body: some View {
-        HStack(spacing: 10) {
-            if let icon {
-                Glyph(icon, size: 15, bold: true).foregroundStyle(.white)
-                    .frame(width: 36, height: 36)
-                    .background(Circle().fill(LinearGradient(colors: [.themeAccent, .themeAccent.opacity(0.55)], startPoint: .topLeading, endPoint: .bottomTrailing)))
-                    .accessibilityHidden(true)
-            }
-            // without an icon the title carries the header alone, so it is larger
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(icon == nil ? .title2.weight(.semibold) : .headline)
-                Text(detail).font(icon == nil ? .callout : .subheadline).foregroundStyle(.secondary)
-            }
-        }
-        .padding(.horizontal, 8).padding(.bottom, 14)
-    }
-}
-
-/// One choice of a rail: an icon tile, a title and a line, filled when it is the chosen one.
-struct RailRow: View {
-    let title: String
-    /// The line under the title; nil leaves the row at one line (Settings' rail says it in the page's header).
-    let detail: String?
-    let icon: AppIcon
-    let selected: Bool
-    var off = false
-    let action: () -> Void
-
-    var body: some View {
-        HoverRow(action: action, fill: selected ? Color.themeAccent.opacity(0.22) : nil) { _ in
-            HStack(spacing: 10) {
-                Glyph(icon, size: 13).foregroundStyle(selected ? Color.themeAccent : .secondary)
-                    .frame(width: 28, height: 28)
-                    .background(RoundedRectangle(cornerRadius: 8).fill(selected ? Color.themeAccent.opacity(0.18) : Color.secondary.opacity(0.12)))
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(title).fontWeight(.medium)
-                    if let detail { Text(detail).font(.subheadline).foregroundStyle(.secondary).lineLimit(off ? 2 : 1) }
-                }
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, 8).padding(.vertical, 6)
-        }
-        .disabled(off)
-    }
-}
-
-/// The action of a repository row: a round glass button with a chevron, shown under the pointer. The row itself is the button.
-struct RowChevron: View {
-    let shown: Bool
-
-    var body: some View {
-        Glyph(.chevronRight, size: 11, bold: true).foregroundStyle(.white)
-            .frame(width: 26, height: 26).glassEffect(.regular.tint(Color.accentGlass), in: .circle)
-            .opacity(shown ? 1 : 0).accessibilityHidden(true)
-    }
-}
-
 /// A row that is a button: it takes a faint fill under the pointer, or `fill` when it is the chosen one.
 struct HoverRow<Content: View>: View {
     let action: () -> Void

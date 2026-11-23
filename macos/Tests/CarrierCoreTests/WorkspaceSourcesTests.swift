@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import CarrierCore
 
-// What the workspace popover needs without a model: the URL step's text, the projects folder and what is in it.
+// What the shared sheet needs without a model: a pasted address and the projects folder.
 
 @Test func theUrlStepAcceptsOneRepositoryInTheFormsTheSpecListsAndNothingElse() {
     for text in [
@@ -28,21 +28,6 @@ import Testing
     #expect(folder("{\"projectsFolder\":\"~/Projects/carrier\"}") == "/Users/x/Projects/carrier")
     #expect(folder("{\"projectsFolder\":\"/srv/p\"}") == "/srv/p")
     #expect(folder("{\"projectsFolder\":\"\"}") == "/Users/x/.carrier/chat/projects")
-}
-
-@Test func theProjectsFoldersAreTheOwnerAndRepoFoldersOnDiskByName() throws {
-    let root = NSTemporaryDirectory() + "projects-\(UUID().uuidString)"
-    defer { try? FileManager.default.removeItem(atPath: root) }
-    for path in ["vemec/blog", "AshuLab/carrier", "local/my-idea", ".hidden/x", "AshuLab/.cache"] {
-        try FileManager.default.createDirectory(atPath: root + "/" + path, withIntermediateDirectories: true)
-    }
-    FileManager.default.createFile(atPath: root + "/AshuLab/notes.txt", contents: Data())
-    #expect(projectFolders(in: root) == [
-        ProjectFolder(name: "AshuLab/carrier", path: root + "/AshuLab/carrier"),
-        ProjectFolder(name: "local/my-idea", path: root + "/local/my-idea"),
-        ProjectFolder(name: "vemec/blog", path: root + "/vemec/blog"),
-    ])
-    #expect(projectFolders(in: root + "/nowhere").isEmpty)
 }
 
 @Test func aProjectNameIsOnePlainFolderNameOfAtMostAHundredCharacters() {
@@ -77,17 +62,83 @@ import Testing
     #expect(projectsFolderRefusal(base + "/alias", carrierFolder: base + "/carrier") != nil)
 }
 
-@Test func withGhMissingOrSignedOutOnlyTheSourcesThatNeedItAreOffAndSayWhy() {
-    let needGh: [WorkspaceSource] = [.githubURL, .githubRepos]
-    let noGh: [WorkspaceSource] = [.localFolder, .newProject]
-    for gh in [ToolState.missing, .signedOut] {
-        for source in needGh { #expect(workspaceSourceReason(source, gh: gh) != nil, "\(source) \(gh)") }
-        for source in noGh { #expect(workspaceSourceReason(source, gh: gh) == nil, "\(source) \(gh)") }
+private struct ProjectFolderFixture: Decodable {
+    let carrier: String
+    let layout: Layout
+    let cases: [Case]
+
+    struct Layout: Decodable {
+        let dirs: [String]
+        let files: [String: String]
+        let symlinks: [String: String]
+        let unreadable: [String]
     }
-    #expect(workspaceSourceReason(.githubURL, gh: .missing)?.contains("not installed") == true)
-    #expect(workspaceSourceReason(.githubRepos, gh: .signedOut)?.contains("signed out") == true)
-    // ready, unknown and a host that did not report the health leave every source on
-    for gh in [ToolState.ready, .unknown, nil] {
-        for source in needGh + noGh { #expect(workspaceSourceReason(source, gh: gh) == nil, "\(source) \(String(describing: gh))") }
+
+    struct Case: Decodable {
+        let name: String
+        let path: String
+        let carrier: String?
+        let relative: Bool?
+        let refusal: String?
+    }
+}
+
+@Test func projectFolderRefusalMatchesTheSharedContractTable() throws {
+    let fixtureURL = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures/project-folder.json")
+    let fixture = try JSONDecoder().decode(ProjectFolderFixture.self, from: Data(contentsOf: fixtureURL))
+    let root = NSTemporaryDirectory() + "pf-\(UUID().uuidString)"
+    let fm = FileManager.default
+    try fm.createDirectory(atPath: root, withIntermediateDirectories: true)
+    defer {
+        for dir in fixture.layout.unreadable { _ = chmod(root + "/" + dir, 0o755) }
+        try? fm.removeItem(atPath: root)
+    }
+    for dir in fixture.layout.dirs {
+        try fm.createDirectory(atPath: root + "/" + dir, withIntermediateDirectories: true)
+    }
+    for (file, body) in fixture.layout.files {
+        let path = root + "/" + file
+        try fm.createDirectory(atPath: (path as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
+        try Data(body.utf8).write(to: URL(fileURLWithPath: path))
+    }
+    for (link, target) in fixture.layout.symlinks {
+        try fm.createSymbolicLink(atPath: root + "/" + link, withDestinationPath: root + "/" + target)
+    }
+    for dir in fixture.layout.unreadable {
+        #expect(chmod(root + "/" + dir, 0o000) == 0)
+    }
+    for entry in fixture.cases {
+        let carrier = root + "/" + (entry.carrier ?? fixture.carrier)
+        let target = entry.relative == true ? entry.path : root + "/" + entry.path
+        #expect(projectFolderRefusal(target, carrierFolder: carrier) == entry.refusal, Comment(rawValue: entry.name))
+    }
+}
+
+private struct WorktreeClashFixture: Decodable {
+    struct Other: Decodable {
+        let path: String
+        let name: String?
+        let repo: String?
+    }
+
+    struct Case: Decodable {
+        let name: String
+        let folder: String
+        let repo: String?
+        let others: [Other]
+        let refusal: String?
+    }
+
+    let cases: [Case]
+}
+
+@Test func worktreeClashRefusalMatchesTheSharedTableTheHostChecksToo() throws {
+    let url = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures/worktree-clash.json")
+    let fixture = try JSONDecoder().decode(WorktreeClashFixture.self, from: Data(contentsOf: url))
+    for entry in fixture.cases {
+        let others = entry.others.map { ProjectRow(path: $0.path, name: $0.name ?? projectFolderName($0.path), repo: $0.repo) }
+        #expect(worktreeClashRefusal(folder: entry.folder, repo: entry.repo, among: others) == entry.refusal, Comment(rawValue: entry.name))
     }
 }

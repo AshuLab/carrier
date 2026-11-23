@@ -13,6 +13,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - The dictation widget has a theme, chosen in Settings > Dictation > Widget: Default (the app's accent as glass, as it was), Black, Dark glass, Clear glass (the system's glass with no tint) and Theme glow (the colours of the dictation line's glow as a gradient from one side to the other, over glass). The preview under the rows shows the one chosen.
 - Settings > Dictation > Widget > Live text turns the words off: the widget keeps its box, with the time and the keys, and shows no words; an error or a copied text still show theirs.
 - The dictation widget can be dragged anywhere on the screen, and it opens there the next time. The Position row reads Custom while it holds a dragged place, and choosing Top or Bottom there puts it back.
+- Settings > Workspace has a Projects page: every project in one list, with a search, tag chips, grouping and order, and a page for each one with its name, icon (a colour and mark, or an image), tags, the defaults of its new sessions (agent, work in, base branch), whether it shows when starting a session, its worktrees and what they take on disk, and a switch for Carrier to watch it. Projects are added one folder at a time with Add project, by a pasted GitHub address, a search or a path; the clones you already have are not imported.
+- A project can have actions that run when a new worktree or a clone is prepared and when a cleaned worktree comes back, a worktree can be removed and the merged ones cleaned up from the project's page (only the folder goes, the branch and the session stay), and a project can be removed from Carrier, with Also delete from disk (to the Trash) for the ones Carrier cloned or created.
+- New Session chooses where to work with the same sheet as Add project, and a project made by a new session's first message is added to the list by itself.
 
 ### Fixed
 

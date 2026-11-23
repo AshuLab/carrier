@@ -122,6 +122,72 @@ private func sameJSON(_ a: Data, _ b: Data) throws -> Bool {
     await #expect(throws: ControlError.remote("This session is working; interrupt it or wait, then switch its agent")) { try await host.switchAgent(working.id, to: "codex") }
 }
 
+@Test func theFixtureHomeCarriesProjectsThatTheListShowsWithTheirRemotes() throws {
+    let server = try FixtureServer(fixtures: fixtures)
+    defer { server.stop() }
+    let rows = projectRows(try ProjectsFile(folder: server.home).read())
+    #expect(rows.count == 8)
+    #expect(rows.first?.line == "AshuLab/carrier" && rows.first?.pinned == true && rows.first?.tags == ["swift", "macos"])
+    #expect(rows.first?.tile == ProjectTile(name: "carrier", color: .named(.teal), content: .mark(.bolt)))
+    #expect(rows[1].name.count > 60 && rows[1].repo?.hasSuffix("/" + rows[1].path.split(separator: "/").last!) == true)
+    #expect(rows[1].tags.count >= 8)
+    // a folder that is not a repository shows its path, and so does one that is not there (with a missing icon copy)
+    #expect(rows[2].line == rows[2].path && rows[2].iconColor == .orange && rows[2].tags.count >= 4 && rows[3].line == "/Users/demo/gone")
+    #expect(rows[3].iconImage == "missing.png" && ProjectIconStore(folder: server.home).existingURL(for: rows[3].iconImage) == nil)
+    #expect(rows[4].name == "studio" && ProjectIconStore(folder: server.home).existingURL(for: rows[4].iconImage) != nil)
+    // the sessions' folders and the epic repository `acme/web` show their projects' identities
+    #expect(projectIdentity(path: "/Users/dev/carrier", in: rows).tile == ProjectTile(name: "Carrier app", color: .named(.red), content: .mark(.star)))
+    #expect(projectIdentity(path: "/Users/dev/agent-forge", in: rows).tile.image == rows[4].iconImage)
+    #expect(projectIdentity(path: "/Users/dev/web", in: rows).tile.image == nil && projectIdentity(repo: "acme/web", in: rows)?.tile.image == rows[4].iconImage)
+}
+
+@Test func theFixtureChatHostAnswersTheWorktreesOfAProjectByItsFolderName() async throws {
+    let server = try FixtureServer(fixtures: fixtures)
+    defer { server.stop() }
+    let host = SocketChatHost(socketPath: { server.chatSocketPath })
+    let listed = try await host.projectWorktrees(server.home + "/projects/carrier")
+    #expect(listed.main == .init(path: server.home + "/projects/carrier", branch: "main", state: .notPushed))
+    #expect(listed.worktrees.count == 5 && listed.worktrees.contains { $0.session == nil })
+    // a project the golden file does not list has its main clone and nothing else
+    #expect(try await host.projectWorktrees(server.home + "/projects/notes") == .init(main: .init(path: server.home + "/projects/notes", branch: "main", state: .clean), worktrees: []))
+}
+
+@Test func theFixtureChatHostAnswersTheDiskOfAProjectByItsFolderNameAndNeverMeasuredForTheRest() async throws {
+    let server = try FixtureServer(fixtures: fixtures)
+    defer { server.stop() }
+    let host = SocketChatHost(socketPath: { server.chatSocketPath })
+    let carrier = server.home + "/projects/carrier"
+    let reply = try await host.projectDisk([carrier, server.home + "/projects/studio"], refresh: .stale)
+    #expect(reply.measuring.isEmpty)
+    // the golden's "main" is the folder asked for, and the parts add up to the total
+    #expect(reply.projects[0].bytes == 6_420_000_000 && reply.projects[0].parts[carrier] == 1_830_000_000 && reply.projects[0].parts.count == 6)
+    #expect(reply.projects[0].parts.values.reduce(0, +) == reply.projects[0].bytes)
+    #expect(reply.projects[1] == .init(folder: server.home + "/projects/studio", bytes: nil))
+}
+
+@Test func theFixtureChatHostRemovesAWorktreeAsTheHostDoesAndCleansUpTheMergedOnes() async throws {
+    let server = try FixtureServer(fixtures: fixtures)
+    defer { server.stop() }
+    let host = SocketChatHost(socketPath: { server.chatSocketPath })
+    let project = server.home + "/projects/carrier"
+    let worktree = { (name: String) in "/Users/dev/.carrier/chat/worktrees/AshuLab/carrier/" + name }
+    // an open session and uncommitted changes are refused with the host's words, and nothing is listed away
+    await #expect(throws: ControlError.remote("Its session is open")) { try await host.removeProjectWorktree(project, path: worktree("kerrigan")) }
+    await #expect(throws: ControlError.remote("It has uncommitted changes")) { try await host.removeProjectWorktree(project, path: worktree("zeratul")) }
+    await #expect(throws: ControlError.remote("That is not a worktree of this project")) { try await host.removeProjectWorktree(project, path: "/nowhere") }
+    #expect(try await host.projectWorktrees(project).worktrees.count == 5)
+
+    try await host.removeProjectWorktree(project, path: worktree("tassadar"))
+    #expect(try await host.projectWorktrees(project).worktrees.map(\.path).contains(worktree("tassadar")) == false)
+
+    let preview = try await host.cleanProjectWorktrees(project, run: false)
+    #expect(preview.removed.map(\.path) == [worktree("raynor")] && preview.skipped.map(\.path) == [worktree("zeratul")])
+    #expect(try await host.projectWorktrees(project).worktrees.count == 4) // a preview lists nothing away
+    #expect(try await host.cleanProjectWorktrees(project, run: true) == preview)
+    #expect(try await host.projectWorktrees(project).worktrees.count == 3)
+    #expect(try await host.cleanProjectWorktrees(project, run: false).removed.isEmpty)
+}
+
 @Test func theFixtureChatHostWritesANewTitleAndRefusesInWordsWhereTheListSaysSo() async throws {
     let server = try FixtureServer(fixtures: fixtures)
     defer { server.stop() }

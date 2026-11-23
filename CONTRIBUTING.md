@@ -74,7 +74,7 @@ carrier/
 │   ├── status/         # what Carrier is doing right now, read from SQLite (the view any front-end draws)
 │   ├── control/        # the control socket: snapshot, pause/resume, check, stop, sessions, events, epic, files, fileDiff, availableRepos (a page at a time), resumeEpic, reload
 │   ├── doctor/         # the checks of `carrier doctor` and the remedy for each failure
-│   ├── config/         # config schema, the accounts' `providers.json`, defaults, loading/merging, per-repo resolution, JSON Schema, default path
+│   ├── config/         # config schema, the accounts' `providers.json`, the projects' `projects.json`, defaults, loading/merging, per-repo resolution, JSON Schema, default path
 │   ├── orchestration/  # engine: polling, scheduler, stages, retries, restart, final-PR rules, ports + fakes
 │   ├── execution/      # AgentRunner/Workspaces ports, caller result parsing and idempotent import
 │   ├── harnesses/      # Claude, Codex and Antigravity runners, credentials, local providers, orphan detection

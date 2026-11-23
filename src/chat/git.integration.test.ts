@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
@@ -10,6 +10,8 @@ import { clearWorktree, createWorktree, previewWorktree, removeWorktree, restore
 import { openChatDatabase } from './db.ts';
 import { FakeChatRunner, fakeProjects } from './fake.ts';
 import { createSessions } from './sessions.ts';
+import { sessions } from './schema.ts';
+import { eq } from 'drizzle-orm';
 import { FakeClock } from '../orchestration/fake.ts';
 import { fetchFolder, inspectFolder } from './workspace.ts';
 
@@ -385,6 +387,152 @@ describe.skipIf(!enabled)('deleting a session in a worktree, with the real git',
     await s.delete({ sessionId: id });
     expect(git(base, 'branch', '--list', branch).trim()).toBe('');
     expect(git(base, 'worktree', 'list').trim().split('\n')).toHaveLength(1);
+  });
+});
+
+describe.skipIf(!enabled)('the worktrees of a project, with the real git', () => {
+  let home: string;
+  beforeAll(() => void (dir = realpathSync(mkdtempSync(join(tmpdir(), 'carrier-pw-')))));
+  afterAll(() => rmSync(dir, { recursive: true, force: true }));
+  beforeEach(() => {
+    home = join(dir, `home-${Math.random().toString(36).slice(2)}`);
+    mkdirSync(home, { recursive: true });
+    vi.stubEnv('CARRIER_HOME', home);
+  });
+  afterEach(() => void vi.unstubAllEnvs());
+
+  const db = () => openChatDatabase(join(home, 'chat.db'));
+  const sessionsOf = (chatDb = db()) => createSessions({ db: chatDb, agents: [{ name: 'claude', account: 'claude' }], clock: new FakeClock(), runners: { claude: new FakeChatRunner() }, env: {}, git: realGit, projects: fakeProjects(realGit), binaryFound: () => true, ages: () => ({ archiveAfterDays: 15, deleteAfterDays: 30 }), onLiveChange: () => {} });
+
+  test('lists the main clone and each worktree under the worktrees folder, joined to its session, with each state, an orphan and a vanished folder left out', async () => {
+    const chatDb = db();
+    const s = sessionsOf(chatDb);
+    const base = repoAt('project');
+    const open = async (name: string, { live = false } = {}) => {
+      const { session } = await s.open({ agent: 'claude', folder: base, worktree: { from: 'main', name } });
+      if (live === false) await s.close({ sessionId: session.id });
+      return { id: session.id, ...(session.workspace as { path: string; branch: string }) };
+    };
+    const [clean, pushed, ahead, dirty, merged, orphan, gone] = [await open('clean'), await open('pushed'), await open('ahead'), await open('dirty'), await open('merged'), await open('orphan'), await open('gone')];
+    const live = await open('live', { live: true });
+    git(pushed.path, 'commit', '-q', '--allow-empty', '-m', 'pushed');
+    git(pushed.path, 'update-ref', `refs/remotes/origin/${pushed.branch}`, git(pushed.path, 'rev-parse', 'HEAD').trim());
+    git(ahead.path, 'commit', '-q', '--allow-empty', '-m', 'mine'); // a commit no other branch holds
+    writeFileSync(join(dirty.path, 'a.txt'), 'changed\n');
+    git(merged.path, 'commit', '-q', '--allow-empty', '-m', 'squashed on GitHub'); // not on any remote branch either, but its pull request is merged
+    chatDb.update(sessions).set({ prState: 'merged' }).where(eq(sessions.id, merged.id)).run();
+    chatDb.delete(sessions).where(eq(sessions.id, orphan.id)).run();
+    git(orphan.path, 'checkout', '-q', '--detach'); // no branch to hold commits: only its files count
+    rmSync(gone.path, { recursive: true, force: true }); // git still lists the folder until it prunes
+    git(base, 'worktree', 'add', '-q', '-b', 'mine', join(dir, `elsewhere-${Math.random().toString(36).slice(2)}`)); // a worktree git lists that is not under the worktrees folder
+
+    const { main, worktrees } = await s.projectWorktrees({ folder: base });
+    const found = Object.fromEntries(worktrees.map((entry) => [entry.path, entry]));
+    // the project's only commit is held by a remote branch (the pushed worktree's)
+    expect(main).toEqual({ path: realpathSync(base), branch: 'main', state: 'clean' });
+    expect(Object.keys(found).sort()).toEqual([clean, pushed, ahead, dirty, merged, live, orphan].map((entry) => entry.path).sort());
+    expect(found[clean.path]).toMatchObject({ branch: clean.branch, session: { id: clean.id }, state: 'clean' });
+    expect(found[pushed.path]).toMatchObject({ state: 'clean' });
+    expect(found[ahead.path]).toMatchObject({ state: 'notPushed' });
+    expect(found[dirty.path]).toMatchObject({ state: 'uncommitted' });
+    expect(found[merged.path]).toMatchObject({ state: 'merged' });
+    expect(found[live.path]).toMatchObject({ state: 'sessionOpen' });
+    // an orphan has no session, and its age is the folder's modification time
+    expect(found[orphan.path]).toMatchObject({ branch: null, session: null, state: 'clean', lastActiveAt: statSync(orphan.path).mtimeMs });
+    // with a session the age is its last activity
+    expect(found[clean.path]!.lastActiveAt).toBe(chatDb.select().from(sessions).where(eq(sessions.id, clean.id)).get()!.lastActiveAt);
+    // the main clone: a commit no remote holds is not pushed, a changed file is uncommitted (and wins over it)
+    git(base, 'commit', '-q', '--allow-empty', '-m', 'local only');
+    expect((await s.projectWorktrees({ folder: base })).main.state).toBe('notPushed');
+    writeFileSync(join(base, 'a.txt'), 'changed\n');
+    expect((await s.projectWorktrees({ folder: base })).main.state).toBe('uncommitted');
+  });
+
+  /** A project with one session per name, each in its own worktree and closed unless `live`. */
+  const projectWith = async (names: string[], live: string[] = []) => {
+    const chatDb = db();
+    const s = sessionsOf(chatDb);
+    const base = repoAt(`project-${Math.random().toString(36).slice(2)}`);
+    const made: Record<string, { id: string; path: string; branch: string }> = {};
+    for (const name of names) {
+      const { session } = await s.open({ agent: 'claude', folder: base, worktree: { from: 'main', name } });
+      if (live.includes(name) === false) await s.close({ sessionId: session.id });
+      made[name] = { id: session.id, ...(session.workspace as { path: string; branch: string }) };
+    }
+    return { chatDb, s, base, made };
+  };
+  const merge = (chatDb: ReturnType<typeof db>, id: string) => chatDb.update(sessions).set({ prState: 'merged' }).where(eq(sessions.id, id)).run();
+
+  test('removing a worktree takes only its folder (ignored files too): the branch and its commits and the session stay, and the next message of the session brings the folder back', async () => {
+    const { chatDb, s, base, made } = await projectWith(['gone-soon']);
+    const { id, path, branch } = made['gone-soon']!;
+    writeFileSync(join(path, 'work.txt'), 'w\n');
+    git(path, 'add', '.');
+    git(path, 'commit', '-q', '-m', 'work');
+    const tip = git(path, 'rev-parse', 'HEAD').trim();
+    mkdirSync(join(path, 'node_modules'));
+    writeFileSync(join(path, 'node_modules', 'big.bin'), 'x'); // untracked but ignored through info/exclude below
+    writeFileSync(join(base, '.git', 'info', 'exclude'), 'node_modules/\n');
+
+    await s.removeProjectWorktree({ folder: base, path });
+    expect(existsSync(path)).toBe(false);
+    expect(git(base, 'rev-parse', branch).trim()).toBe(tip);
+    expect(chatDb.select().from(sessions).where(eq(sessions.id, id)).get()).toMatchObject({ worktreePath: path, worktreeBranch: branch });
+    expect((await s.projectWorktrees({ folder: base })).worktrees).toEqual([]);
+
+    await s.resume({ sessionId: id });
+    expect(git(path, 'branch', '--show-current').trim()).toBe(branch);
+    expect(readFileSync(join(path, 'work.txt'), 'utf8')).toBe('w\n');
+    expect(existsSync(join(path, 'node_modules'))).toBe(false);
+  });
+
+  test('removing is refused with its reason for a worktree whose session is open, one with uncommitted changes and one the project does not list, and nothing is touched', async () => {
+    const { s, base, made } = await projectWith(['open', 'dirty', 'fine'], ['open']);
+    writeFileSync(join(made['dirty']!.path, 'a.txt'), 'changed\n');
+    await expect(s.removeProjectWorktree({ folder: base, path: made['open']!.path })).rejects.toThrow('Its session is open');
+    await expect(s.removeProjectWorktree({ folder: base, path: made['dirty']!.path })).rejects.toThrow('It has uncommitted changes');
+    await expect(s.removeProjectWorktree({ folder: base, path: join(dir, 'not-listed') })).rejects.toThrow('That is not a worktree of this project');
+    expect([made['open'], made['dirty']].map((entry) => existsSync(entry!.path))).toEqual([true, true]);
+    expect(readFileSync(join(made['dirty']!.path, 'a.txt'), 'utf8')).toBe('changed\n');
+    // what is not blocked goes by hand, merged or not
+    await s.removeProjectWorktree({ folder: base, path: made['fine']!.path });
+    expect(existsSync(made['fine']!.path)).toBe(false);
+  });
+
+  test('a worktree with no session can be removed by hand, and is never in the clean-up', async () => {
+    const { chatDb, s, base, made } = await projectWith(['orphan']);
+    chatDb.delete(sessions).where(eq(sessions.id, made['orphan']!.id)).run();
+    expect(await s.cleanProjectWorktrees({ folder: base, run: true })).toEqual({ removed: [], skipped: [] });
+    expect(existsSync(made['orphan']!.path)).toBe(true);
+    await s.removeProjectWorktree({ folder: base, path: made['orphan']!.path });
+    expect(existsSync(made['orphan']!.path)).toBe(false);
+    expect(git(base, 'branch', '--list', made['orphan']!.branch).trim()).toBe(made['orphan']!.branch);
+  });
+
+  test('the clean-up lists the merged worktrees nothing blocks with their size and the blocked ones with the reason, and removing takes the first only', async () => {
+    const { chatDb, s, base, made } = await projectWith(['done', 'done-too', 'busy', 'wip', 'unmerged'], ['busy']);
+    writeFileSync(join(base, '.git', 'info', 'exclude'), '*.bin\n');
+    writeFileSync(join(made['done']!.path, 'big.bin'), 'x'.repeat(100_000)); // ignored: not uncommitted work
+    writeFileSync(join(made['wip']!.path, 'a.txt'), 'changed\n');
+    for (const name of ['done', 'done-too', 'busy', 'wip']) merge(chatDb, made[name]!.id);
+
+    const preview = await s.cleanProjectWorktrees({ folder: base, run: false });
+    expect(preview.removed.map((entry) => entry.path).sort()).toEqual([made['done']!.path, made['done-too']!.path].sort());
+    expect(preview.removed.find((entry) => entry.path === made['done']!.path)!.bytes).toBeGreaterThanOrEqual(100_000);
+    expect(preview.skipped.sort((a, b) => a.path.localeCompare(b.path))).toEqual([{ path: made['busy']!.path, reason: 'Its session is open' }, { path: made['wip']!.path, reason: 'It has uncommitted changes' }].sort((a, b) => a.path.localeCompare(b.path)));
+    expect(Object.values(made).every((entry) => existsSync(entry.path))).toBe(true); // a preview removes nothing
+
+    expect(await s.cleanProjectWorktrees({ folder: base, run: true })).toEqual(preview);
+    expect(Object.fromEntries(Object.entries(made).map(([name, entry]) => [name, existsSync(entry.path)]))).toEqual({ done: false, 'done-too': false, busy: true, wip: true, unmerged: true });
+    // the branches and the sessions stay
+    expect(git(base, 'branch', '--list', 'carrier/done*').trim().split('\n').map((line) => line.trim()).sort()).toEqual(['carrier/done', 'carrier/done-too']);
+    expect(chatDb.select().from(sessions).where(eq(sessions.id, made['done']!.id)).get()).toBeDefined();
+  });
+
+  test('a folder that is not a repository is refused in words', async () => {
+    const plain = join(dir, 'plain-pw');
+    mkdirSync(plain);
+    await expect(sessionsOf().projectWorktrees({ folder: plain })).rejects.toThrow('Git could not list the worktrees of this folder');
   });
 });
 

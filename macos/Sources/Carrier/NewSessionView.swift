@@ -87,7 +87,7 @@ struct NewSessionView: View {
                     )
                 }
                 .buttonStyle(SelectButtonStyle()).accessibilityLabel("Workspace")
-                .sheet(isPresented: $foldersOpen) { WorkspaceSheet(model: model, openHealth: openHealth).themed() }
+                .sheet(isPresented: $foldersOpen) { AddProjectSheet(mode: .newSession, model: ProjectsModel.shared, recent: model.recent, newSession: model, openHealth: openHealth).themed() }
                 if model.folder != nil {
                     // the circle of the selects' chevrons, with a cross
                     Button { model.clearWorkspace() } label: {
@@ -114,6 +114,15 @@ struct NewSessionView: View {
             .accessibilityElement(children: .contain)
             if model.branchesPartial { Text("Only the first branches GitHub lists are offered; the others can be checked out once the repository is on this Mac.").font(.subheadline).foregroundStyle(.secondary) }
             if let note = model.projectNote { Label(note, icon: .folderPlus).font(.subheadline).foregroundStyle(.secondary).textSelection(.enabled) }
+            if model.offersAddAsProject {
+                // a folder chosen with Open a folder stays a plain workspace until the person adds it
+                HStack(spacing: 8) {
+                    Button { model.addAsProject() } label: { Label("Add as project", icon: .folderPlus).labelStyle(.titleAndIcon) }
+                        .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
+                        .help("Keep this folder in your projects")
+                    if let problem = model.addProjectProblem { ProblemLine(text: problem, font: .scaled(12)) }
+                }
+            }
             if case .problem(let reason) = model.nameState, model.worktree {
                 ProblemNotice(title: "That name cannot be used", detail: reason)
             }

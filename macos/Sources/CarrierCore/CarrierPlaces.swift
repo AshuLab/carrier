@@ -22,6 +22,8 @@ public struct CarrierPlaces: Sendable, Equatable {
     public var engineConfig: String { folder + "/engine.json" }
     public var chatConfig: String { folder + "/chat.json" }
     public var providers: String { folder + "/providers.json" }
+    /// The person's projects, read by the app and the chat host and written by both (docs/adr/0041).
+    public var projects: String { folder + "/projects.json" }
 
     // The engine's: its clones, review checkouts, state and logs.
     public var engine: String { folder + "/engine" }
@@ -45,6 +47,7 @@ public struct CarrierPlaces: Sendable, Equatable {
     /// The app's copies of the files a person attaches, until the message goes: `<id>/<name>`. The host then moves each one into
     /// `chat/sessions/<session>/attachments/` and sweeps what was never sent after a day.
     public var chatPending: String { chat + "/pending" }
+    public var chatSessions: String { chat + "/sessions" }
 
     // The app's: state it keeps, its logs, and a cache that can be deleted and comes back.
     public var app: String { folder + "/app" }
@@ -54,6 +57,8 @@ public struct CarrierPlaces: Sendable, Equatable {
     public var appMetrics: String { appLogs + "/metrics" }
     /// Kept out of Time Machine (`prepareAppCache`).
     public var appCache: String { app + "/cache" }
+    /// Project icon images chosen by the person: `<random>.png`.
+    public var projectIcons: String { app + "/project-icons" }
     public var terminals: String { appState + "/terminals.json" }
     public var dictations: String { appState + "/dictations.jsonl" }
     public var dictationStatistics: String { appState + "/dictation-statistics.json" }

@@ -20,7 +20,7 @@ import type { Db } from '../storage/db.ts';
 import { epicEvents, executionEvents, recordEvents } from '../storage/events.ts';
 import { executions, type executionStates } from '../storage/executions.ts';
 import { executionOutput, taskContext } from '../logging/logger.ts';
-import { epics, type needsHumanKinds } from '../storage/schema.ts';
+import { epics, type cancelKinds, type needsHumanKinds } from '../storage/schema.ts';
 import type { Clock } from './clock.ts';
 import { latestBlockers, latestObservations } from './blockers.ts';
 import { changesSlices } from './changes-slices.ts';
@@ -28,7 +28,7 @@ import { RecoverRefused } from './recover-refused.ts';
 import { ResumeRefused } from './resume-refused.ts';
 import { endOf } from './final-pr.ts';
 import { AuthError, GitHubRejected, GitHubUnavailable, hasLabel, isNotFound, labelStyles, type GitHub, type LabelStyle, type Labels, type PullRequestState, type Slices } from './github.ts';
-import { reserve } from './reserve.ts';
+import { queueOrder, queuePosition, reserve } from './reserve.ts';
 import { startRetention, type SessionDirs } from './retention.ts';
 import { failureStreak, isOfAttempt, retryWait } from './retry.ts';
 import type { QuotaReader } from './quota.ts';
@@ -86,6 +86,7 @@ type SeenThisPoll = { prState: Map<number, { number: number; state: PullRequestS
 export type RepoCheck = { at: number; ok: boolean; error: string | null };
 
 type Epic = typeof epics.$inferSelect;
+type CancelKind = (typeof cancelKinds)[number];
 type Execution = typeof executions.$inferSelect;
 
 // Technical end of the process; whether the epic moves on depends on its result (retries and timeouts: later slices).
@@ -170,6 +171,8 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     needsHumanReason: null, needsHumanKind: null, finishedAt: null, authorOption: null, reviewerOption: null, recoveries: 0, autoResumes: 0, headRepeats: 0, unansweredObservations: null, unansweredReason: null, retryAt: null, resumeStage: null, roundLimit: null, resumeAt: null,
   });
   // The rounds an epic may have: what a resume granted it, else the live setting (a changed `maxReviews` applies at the epic's next review).
+  // The cancels that lost no work: `ready` coming back before the epic had an execution puts it in the queue again.
+  const requeueable: (CancelKind | null)[] = ['ready_removed', 'issue_closed'];
   const roundCap = (epic: Epic) => epic.roundLimit ?? settings().maxReviews;
   // An epic a person resumed at `review` or `fix` (resume from a stage): it takes the same way through the queue, but keeps its round, pull request,
   // worktree and the rest of where it stood; `resumeStage` tells `begin` where to start.
@@ -474,8 +477,8 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     const role = epic.stage === 'review' ? 'reviewer' : 'author';
     // What a person's resume puts: a queued epic whose issue lost `ready` is cancelled when it is reserved.
     await github.setLabels(epic.repo, epic.issue, { add: [settings().labels.ready], remove: [] });
-    const queuedAt = clock.now();
     const woke = db.transaction((tx) => {
+      const queuedAt = queuePosition(tx, clock.now()); // after the epics already waiting, and in this write so none enters between
       const moved = tx.update(epics)
         .set({ ...(stage ? { ...requeueKeeping(queuedAt), resumeStage: stage } : restart(queuedAt)), autoResumes: epic.autoResumes + 1 })
         .where(and(eq(epics.id, epic.id), eq(epics.status, 'needs_human'), eq(epics.resumeAt, epic.resumeAt!))) // a person resumed it, or it ended, while the probe answered
@@ -948,9 +951,9 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
   }
 
   // The epic ended outside Carrier: its status and event are written, its runs stopped. `labelPending` is false when the issue cannot be written to.
-  async function finish(epic: Epic, end: { status: 'merged' | 'cancelled'; reason: string }, labelPending = true) {
+  async function finish(epic: Epic, end: { status: 'merged' | 'cancelled'; reason: string; cancelKind?: CancelKind }, labelPending = true) {
     const ended = db.update(epics)
-      .set({ status: end.status, ...(end.status === 'cancelled' && { cancelReason: end.reason }), finishedAt: clock.now(), labelPending, resumeAt: null })
+      .set({ status: end.status, ...(end.status === 'cancelled' && { cancelReason: end.reason, cancelKind: end.cancelKind ?? null }), finishedAt: clock.now(), labelPending, resumeAt: null })
       .where(and(eq(epics.id, epic.id), inArray(epics.status, ['running', 'needs_human', 'ready_for_test']))) // parked while GitHub was asked: `repo_removed` stays
       .returning()
       .get();
@@ -975,7 +978,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     } catch (e) {
       const epic = fresh(id);
       if (!(await ifGone(epic.repo, e))) throw e;
-      await finish(epic, { status: 'cancelled', reason: goneReason }, false);
+      await finish(epic, { status: 'cancelled', reason: goneReason, cancelKind: 'issue_gone' }, false);
     }
   }
 
@@ -1028,8 +1031,8 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       const epic = reserve(db, { maxConcurrent: settings().maxConcurrentEpics, now: clock.now(), repos: repos().filter((r) => !rejected.has(r.name) && !skipped.has(r.name)) });
       if (!epic) return;
       const epoch = epochOf(epic.id);
-      const cancelWith = (cancelReason: string) =>
-        db.update(epics).set({ status: 'cancelled', cancelReason, finishedAt: clock.now(), labelPending: false }).where(and(eq(epics.id, epic.id), eq(epics.status, 'running'))).run();
+      const cancelWith = (cancelReason: string, cancelKind: CancelKind) =>
+        db.update(epics).set({ status: 'cancelled', cancelReason, cancelKind, finishedAt: clock.now(), labelPending: false }).where(and(eq(epics.id, epic.id), eq(epics.status, 'running'))).run();
       let issue;
       try {
         issue = await github.getIssue(epic.repo, epic.issue);
@@ -1041,7 +1044,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
           e = probe; // the repo does not answer normally: its refusal below
         }
         if (gone) {
-          cancelWith(goneReason);
+          cancelWith(goneReason, 'issue_gone');
           continue;
         }
         // Could not check it: give the slot back, the epic keeps its place in the queue.
@@ -1053,8 +1056,8 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
         throw e;
       }
       if (!stillRunning(epic.id)) continue; // parked while GitHub was asked: it keeps where it was
-      if (issue.state === 'closed') cancelWith('closed before it started');
-      else if (!hasLabel(issue.labels, settings().labels.ready)) cancelWith('ready label removed');
+      if (issue.state === 'closed') cancelWith('closed before it started', 'issue_closed');
+      else if (!hasLabel(issue.labels, settings().labels.ready)) cancelWith('ready label removed', 'ready_removed');
       else {
         // Its slices exist before it is ready: read them now so the app has the list from the first second, not after the next poll.
         // Not `forRepo`: the extra turns it adds to this await change when a run that just ended gets its result imported, which tests depend on.
@@ -1402,16 +1405,27 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
         read.add(repo); // a repo that failed has its own error: the one below is not written over it
       }
       if (skipped.size < repos().length || repos().length === 0) suspended = null; // a listing worked: the orchestrator's profile is back, the cycle goes on
-      const queuedAt = clock.now();
       db.transaction((tx) => {
         // A reload may have removed a repo while the lists were read: nothing is queued for a repo that is not configured now.
         const configured = new Set(repos().map((r) => r.name));
         for (const epic of found.filter(({ repo }) => configured.has(repo))) {
-          tx.insert(epics).values({ ...epic, queuedAt }).onConflictDoUpdate({ target: [epics.repo, epics.issue], set: { title: epic.title, labels: epic.labels } }).run();
+          const known = tx.select().from(epics).where(and(eq(epics.repo, epic.repo), eq(epics.issue, epic.issue))).get();
+          if (!known) {
+            tx.insert(epics).values({ ...epic, queuedAt: queuePosition(tx, clock.now()) }).run();
+            continue;
+          }
+          tx.update(epics).set({ title: epic.title, labels: epic.labels }).where(eq(epics.id, known.id)).run();
           // Carrier never leaves `ready` on a stopped epic, so finding it on a `needs_human` one is a person saying "go on":
           // it starts again from ship, which reuses the epic's worktree and PR, or from the stage the person asked for, which keeps where it stood.
-          const stopped = tx.select({ resumeStage: epics.resumeStage }).from(epics).where(and(eq(epics.repo, epic.repo), eq(epics.issue, epic.issue), eq(epics.status, 'needs_human'))).get();
-          if (stopped) tx.update(epics).set(stopped.resumeStage ? requeueKeeping(queuedAt) : restart(queuedAt)).where(and(eq(epics.repo, epic.repo), eq(epics.issue, epic.issue))).run();
+          if (known.status === 'needs_human') {
+            const queuedAt = queuePosition(tx, clock.now());
+            tx.update(epics).set(known.resumeStage ? requeueKeeping(queuedAt) : restart(queuedAt)).where(eq(epics.id, known.id)).run();
+          } else if (known.status === 'cancelled' && requeueable.includes(known.cancelKind as CancelKind) && !tx.select({ id: executions.executionId }).from(executions).where(eq(executions.epicId, known.id)).get()) {
+            // Cancelled before it started (no execution yet) and `ready` is back: no work was lost, so it goes back in the line with nothing of the cancel left on it.
+            const queuedAt = queuePosition(tx, clock.now());
+            tx.update(epics).set({ ...restart(queuedAt), cancelReason: null, cancelKind: null, cleanedAt: null }).where(eq(epics.id, known.id)).run();
+            tx.insert(epicEvents).values({ epicId: known.id, at: queuedAt, type: 'requeued', data: { kind: known.cancelKind, reason: known.cancelReason } }).run();
+          }
         }
       });
       await stopEnded(seen);
@@ -1664,6 +1678,6 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     /** The last poll of a repo; undefined until the first one after a start. */
     lastCheck: (repo: string) => checks.get(repo),
     /** Queued epics, oldest first. */
-    queue: () => db.select().from(epics).where(eq(epics.status, 'queued')).orderBy(asc(epics.id)).all(),
+    queue: () => db.select().from(epics).where(eq(epics.status, 'queued')).orderBy(...queueOrder).all(),
   };
 }

@@ -453,6 +453,93 @@ test('an issue that cannot be checked goes back to the queue in its place', asyn
   expect(rows(engine.db)[0]).toMatchObject({ startedAt: null, config: null });
 });
 
+test('epics that enter the queue in the same millisecond never tie, and keep the order they were listed in', async () => {
+  github.ready = { 'AshuLab/a': ready(5, 3), 'AshuLab/b': ready(4) };
+  const engine = await start();
+  await clock.advance(5 * MIN);
+  expect(engine.queue().map((e) => [e.issue, e.queuedAt])).toEqual([[5, 5 * MIN], [3, 5 * MIN + 1], [4, 5 * MIN + 2]]);
+});
+
+test('the reserve takes the epic that entered the queue first, then the lowest id', async () => {
+  const db = open();
+  seedEpic(db, 1, { status: 'queued', queuedAt: 7, stage: null, startedAt: null, config: null });
+  seedEpic(db, 2, { status: 'queued', queuedAt: 3, stage: null, startedAt: null, config: null });
+  seedEpic(db, 3, { status: 'queued', queuedAt: 3, stage: null, startedAt: null, config: null });
+  const picked = [reserve(db, { maxConcurrent: 3, now: 10, repos })?.issue, reserve(db, { maxConcurrent: 3, now: 10, repos })?.issue, reserve(db, { maxConcurrent: 3, now: 10, repos })?.issue];
+  expect(picked).toEqual([2, 3, 1]);
+});
+
+test('an epic resumed while others wait goes to the end of the line, and the queue the app reads has the same order', async () => {
+  const engine = await start();
+  seedEpic(engine.db, 9, { status: 'needs_human', needsHumanKind: 'retries_exhausted', needsHumanReason: 'x' }); // id 1: the lowest
+  github.ready = { 'AshuLab/a': ready(1, 2) };
+  await clock.advance(5 * MIN);
+  github.ready = { 'AshuLab/a': ready(1, 2, 9) }; // the person's resume put `ready` back
+  await clock.advance(5 * MIN);
+  expect(ids(engine)).toEqual(['AshuLab/a#1', 'AshuLab/a#2', 'AshuLab/a#9']);
+  const snapshot = buildSnapshot(engine.db, { now: clock.now(), maxConcurrentEpics: 1, maxReviews: 5, finishedWindowDays: 15, startedAt: 0, repos: 1, nextCheckAt: null, problem: null, paused: false, slices: engine.slices, version: 'x', pollIntervalMs: 1, labels: defaultLabels });
+  expect(snapshot.queue.map((q) => q.issue)).toEqual([1, 2, 9]);
+
+  settings.maxConcurrentEpics = 1; // scarce slots: the epic that waited longest starts
+  runner.behavior = () => ({ exit: 'hang' });
+  await clock.advance(5 * MIN);
+  expect(rows(engine.db).filter((e) => e.status === 'running').map((e) => e.issue)).toEqual([1]);
+});
+
+test('an epic resumed with a slot free starts at once', async () => {
+  const engine = await start(1);
+  seedEpic(engine.db, 9, { status: 'needs_human', needsHumanKind: 'retries_exhausted', needsHumanReason: 'x' });
+  github.ready = { 'AshuLab/a': ready(9) };
+  runner.behavior = () => ({ exit: 'hang' });
+  await clock.advance(5 * MIN);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'ship' });
+});
+
+test.each([
+  ['ready removed', 'ready_removed', 'ready label removed'],
+  ['issue closed', 'issue_closed', 'closed before it started'],
+] as const)('an epic cancelled before it started (%s) goes back to the queue when ready comes back, with nothing of the cancel left', async (_, kind, reason) => {
+  github.ready = { 'AshuLab/a': ready(1, 2) };
+  const list = github.listReadyEpics.bind(github);
+  github.listReadyEpics = async (repo, label) => {
+    const listed = await list(repo, label);
+    if (kind === 'ready_removed') github.issue('AshuLab/a', 2).labels = [];
+    else github.issue('AshuLab/a', 2).state = 'closed'; // the issue closes after the listing, before the slot is reserved
+    return listed;
+  };
+  runner.behavior = () => ({ exit: 'hang' });
+  const engine = await start(2);
+  await clock.advance(5 * MIN);
+  expect(rows(engine.db)[1]).toMatchObject({ status: 'cancelled', cancelKind: kind, cancelReason: reason });
+  expect(rows(engine.db)[1]?.cleanedAt).not.toBeNull();
+
+  github.listReadyEpics = list;
+  github.issue('AshuLab/a', 2).labels = [defaultLabels.ready];
+  github.issue('AshuLab/a', 2).state = 'open';
+  settings.maxConcurrentEpics = 1; // the first epic holds the only slot: the requeued one waits
+  await clock.advance(5 * MIN);
+  expect(rows(engine.db)[1]).toMatchObject({ status: 'queued', queuedAt: 10 * MIN, cancelKind: null, cancelReason: null, cleanedAt: null, finishedAt: null, resumeAt: null });
+  expect(eventsOf(engine.db).filter((e) => e.type === 'requeued')).toMatchObject([{ epicId: 2, at: 10 * MIN, data: { kind, reason } }]);
+});
+
+test.each([
+  ['its pull request was closed', { cancelKind: 'pr_closed' as const }, false],
+  ['its issue no longer exists', { cancelKind: 'issue_gone' as const }, false],
+  ['it was cancelled before kinds were kept', { cancelKind: null }, false],
+  ['it already had an execution', { cancelKind: 'ready_removed' as const }, true],
+])('an epic stays cancelled when ready comes back if %s', async (_, extra, ran) => {
+  const db = open();
+  seedEpic(db, 1, { status: 'cancelled', cancelReason: 'why', finishedAt: MIN, cleanedAt: MIN, stage: null, ...extra });
+  if (ran) seedExecution(db, 'x1', 1, { status: 'finished' });
+  db.$client.close();
+  dbs.pop();
+  github.ready = { 'AshuLab/a': ready(1) };
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'cancelled', cancelReason: 'why', finishedAt: MIN, cleanedAt: MIN });
+  expect(eventsOf(engine.db)).toEqual([]);
+});
+
 test('the open epics are listed by the epic label the config names', async () => {
   github.openEpics = { 'AshuLab/a': [{ issue: 1, slices: null }] };
   await start();
@@ -2700,7 +2787,7 @@ test.each(['ready_for_test', 'needs_human'] as const)('a %s epic whose final PR 
   github.issue('AshuLab/a', 1).state = 'closed';
   await clock.advance(5 * MIN);
   await engine.idle();
-  expect(rows(engine.db)[0]).toMatchObject({ status: 'cancelled', cancelReason: 'the epic issue was closed without merging' });
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'cancelled', cancelKind: 'issue_closed', cancelReason: 'the epic issue was closed without merging' });
 });
 
 test('a final PR closed without merge cancels the epic with the reason and stops its executions', async () => {
@@ -2709,7 +2796,7 @@ test('a final PR closed without merge cancels the epic with the reason and stops
   await clock.advance(5 * MIN);
   await engine.idle();
 
-  expect(rows(engine.db)[0]).toMatchObject({ status: 'cancelled', cancelReason: 'the final PR #50 was closed without merging', finishedAt: 10 * MIN });
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'cancelled', cancelKind: 'pr_closed', cancelReason: 'the final PR #50 was closed without merging', finishedAt: 10 * MIN });
   expect(runner.stopped).toHaveLength(1);
   expect(labelsOf(1)).toEqual([]);
 });
@@ -2800,7 +2887,7 @@ test('a closed epic issue cancels the epic even before it has a final PR', async
   github.issue('AshuLab/a', 1).state = 'closed';
   await clock.advance(5 * MIN);
   await engine.idle();
-  expect(rows(engine.db)[0]).toMatchObject({ status: 'cancelled', cancelReason: 'the epic issue was closed without merging', finishedAt: 10 * MIN });
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'cancelled', cancelKind: 'issue_closed', cancelReason: 'the epic issue was closed without merging', finishedAt: 10 * MIN });
   expect(runner.stopped).toHaveLength(1);
   expect(labelsOf(1)).toEqual([]);
 });
@@ -5043,6 +5130,7 @@ test('an epic whose issue answers 404 while its repo answers is cancelled at the
   await vi.waitFor(() => expect(runner.tasks.map((t) => t.epic)).toEqual([2])); // epic 2 was launched, epic 1 got no agent
 
   expect(rows(engine.db).map((e) => [e.issue, e.status, e.cancelReason, e.labelPending])).toEqual([[1, 'cancelled', goneReason, false], [2, 'running', null, false]]);
+  expect(rows(engine.db)[0]?.cancelKind).toBe('issue_gone');
   expect(eventTypes(engine.db)).toContain('epic_cancelled');
   await clock.advance(5 * MIN);
   expect(engine.lastCheck('AshuLab/a')).toEqual({ at: 5 * MIN, ok: true, error: null }); // the repo is not refused
@@ -5061,6 +5149,7 @@ test('the poll cancels an epic whose issue turned 404, 410 too, in any state it 
   await clock.advance(5 * MIN);
 
   expect(rows(engine.db).map((e) => [e.issue, e.status, e.cancelReason])).toEqual([[1, 'cancelled', goneReason], [2, 'cancelled', goneReason], [3, 'needs_human', null], [4, 'running', null]]);
+  expect(rows(engine.db).map((e) => e.cancelKind)).toEqual(['issue_gone', 'issue_gone', null, null]);
   expect(engine.lastCheck('AshuLab/a')).toEqual({ at: 5 * MIN, ok: true, error: null });
 });
 

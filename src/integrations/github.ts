@@ -157,7 +157,7 @@ export class GhGitHub implements GitHub {
 
   async listReadyEpics(repo: string, label: string) {
     const epics: { issue: number; title: string; labels: string[] }[] = [];
-    for await (const rows of this.pages(repo, 'issues', { labels: label, state: 'open' }, issueRow)) {
+    for await (const rows of this.pages(repo, 'issues', { labels: label, state: 'open', sort: 'created', direction: 'asc' }, issueRow)) {
       for (const row of rows) if (row.pull_request === undefined) epics.push({ issue: row.number, title: row.title, labels: row.labels.map((label) => label.name) });
     }
     return epics;

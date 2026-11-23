@@ -12,7 +12,7 @@ export type KnownOfEpic = { prState?: PullRequestState; issueOpen?: boolean };
 export async function endOf(github: GitHub, { repo, issue, prNumber }: { repo: string; issue: number; prNumber: number | null }, known: KnownOfEpic = {}) {
   const state = prNumber === null ? null : (known.prState ?? (await github.getPullRequest(repo, prNumber))?.state ?? null);
   if (state === 'merged') return { status: 'merged' as const, reason: `the final PR #${prNumber} was merged` };
-  if (state === 'closed') return { status: 'cancelled' as const, reason: `the final PR #${prNumber} was closed without merging` };
-  if (known.issueOpen !== true && (await github.getIssue(repo, issue)).state === 'closed') return { status: 'cancelled' as const, reason: 'the epic issue was closed without merging' };
+  if (state === 'closed') return { status: 'cancelled' as const, reason: `the final PR #${prNumber} was closed without merging`, cancelKind: 'pr_closed' as const };
+  if (known.issueOpen !== true && (await github.getIssue(repo, issue)).state === 'closed') return { status: 'cancelled' as const, reason: 'the epic issue was closed without merging', cancelKind: 'issue_closed' as const };
   return null;
 }

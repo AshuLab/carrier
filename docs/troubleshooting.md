@@ -92,7 +92,7 @@ Each recovery is an event of the epic, `recovered`, with its stage and its numbe
 After three recoveries in a row the next check stops the epic in `engine_error`: the count starts again when an execution of the epic ends or its stage changes, so an epic that makes progress never reaches it.
 Resume it from there like any stopped epic.
 
-To not wait for the next check, run `carrier recover <owner/name>#<issue>`: it asks the engine to continue that one epic now, with the same guards, and refuses with its reason when the epic is not running or an agent of it is alive.
+To not wait for the next check, run `carrier recover <owner/name>#<issue>`: it asks the engine to continue that one epic now, with the same guards, and refuses with its reason when the epic is not running, an agent of it is alive, Carrier is still recovering its epics at start, or the epic is in a state a recovery does not move.
 The event it leaves is also `recovered`, with `by: command` instead of a number.
 
 ## An epic stopped on its quota wakes up
@@ -104,6 +104,7 @@ If the window is still full, or the check fails or is rate limited, the epic wai
 It does not resume when the wait is longer than `limits.autoResumeMaxHours` (12 by default, so a 5-hour window is covered and a weekly one is not), when the check gives no time, with the engine paused or with `limits.autoResume` turned off; the reason says why, and you resume it yourself.
 An epic resumes by itself at most three times in a row, and the stop after the third stays in needs-human: the count starts again when one of its executions ends with anything but a usage limit.
 Resuming it yourself before the time clears `resumeAt`, and the wake-up does not run a second time.
+A stage wake-up (review or fix) whose pull request is not open any more, or whose head is not the one Carrier saved, does not go on: the epic stops waiting, the reason says why it will not resume by itself, and you resume it yourself.
 Turn it on in the `limits` of the configuration ([configuration](configuration.md)).
 
 ## An epic ends in `solve:epic:needs-human`
@@ -130,7 +131,14 @@ The reason is in the panel and the logs. Carrier stops the epic and leaves every
 | `could not prepare the workspace: ...` | Clone, checkout or worktree failed. | Check disk, git credentials and `<folder>/engine/repos` and the epic's worktree (by default under `<folder>/engine/worktrees`). |
 | `authentication error for profile X` | `auth`: Forge could not authenticate that profile (the detail is `profile X`), or no GitHub token could be minted for it. Only epics using it stop. | `agent-forge token --agent <name>` from a clone of the repo; fix the App, key or installation. |
 
-**To continue an epic that is in `needs-human`:** fix what the reason says (outside Carrier), then use **Resume** on the epic in the macOS app, or `carrier restart <owner/name>#<issue>` in a terminal (add `--author <option>` or `--reviewer <option>` to run a role on another agent option: the same option continues its session, another one starts a new session in the same worktree and pull request). Underneath, Carrier does what you can do by hand: it puts the `ready` label (`solve:epic:ready` by default) back on the issue and checks at once (`r` in the panel does the check), so the epic is queued again and starts from `ship`, which reuses the epic's worktree and its PR; the review rounds start over. To keep the round instead, `carrier restart <owner/name>#<issue> --from review` (or `--from fix`) starts at that stage with the round, pull request, worktree and blockers the epic had; Carrier refuses it when the pull request is not open or its head is not the one it saved, and then `--from ship` is the way. An epic that stopped on `review_limit` gets more rounds that way, counted from the round it is at: `limits.maxReviews` of them, or `--extra-rounds K` of them (it stops again with `review_limit` when they are used). Without the app or the command, put the label back yourself and wait for the next check. Without that label the epic stays stopped, even across restarts. Nothing checks that the cause is fixed: if it is not, the epic stops again with the new reason. If the app says the epic did not restart, the label is on and the next check takes it.
+**To continue an epic that is in `needs-human`:** fix what the reason says (outside Carrier), then use **Resume** on the epic in the macOS app, or `carrier restart <owner/name>#<issue>` in a terminal (add `--author <option>` or `--reviewer <option>` to run a role on another agent option: the same option continues its session, another one starts a new session in the same worktree and pull request).
+Underneath, Carrier does what you can do by hand: it puts the `ready` label (`solve:epic:ready` by default) back on the issue and checks at once (`r` in the panel does the check), so the epic is queued again and starts from `ship`, which reuses the epic's worktree and its PR; the review rounds start over.
+To keep the round instead, `carrier restart <owner/name>#<issue> --from review` (or `--from fix`) starts at that stage with the round, pull request, worktree and blockers the epic had; Carrier refuses it when the pull request is not open or its head is not the one it saved, and then `--from ship` is the way.
+An epic that stopped on `review_limit` gets more rounds that way, counted from the round it is at: `limits.maxReviews` of them, or `--extra-rounds K` of them (it stops again with `review_limit` when they are used).
+Without the app or the command, put the label back yourself and wait for the next check.
+Without that label the epic stays stopped, even across restarts.
+Nothing checks that the cause is fixed: if it is not, the epic stops again with the new reason.
+If the app says the epic did not restart, the label is on and the next check takes it.
 
 ## A new session does not start
 

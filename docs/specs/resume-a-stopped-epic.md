@@ -12,7 +12,11 @@ The engine already knows how to continue: a poll that finds `ready` on a stopped
 
 ## Solution
 
-The engine gets one new command on the control socket, `resumeEpic`, for one epic by repository and number. It does what the person does by hand today, no more: it puts `solve:epic:ready` on the epic's issue and runs a check, and the poll that finds `ready` on a stopped epic starts it again from ship, with its worktree and pull request, the review rounds starting over (unless the resume names a stage, below). The `needs-human` mirror comes off when the epic starts, through the reconciliation the engine already does. SQLite stays the authority and the labels stay its mirror, so ADR 0002 does not change and nothing is requeued behind GitHub's back. The command is named `resumeEpic` because the socket already has a `resume` that takes the engine out of pause.
+The engine gets one new command on the control socket, `resumeEpic`, for one epic by repository and number.
+It does what the person does by hand today, no more: it puts `solve:epic:ready` on the epic's issue and runs a check, and the poll that finds `ready` on a stopped epic starts it again from ship, with its worktree and pull request, the review rounds starting over (unless the resume names a stage, below).
+The `needs-human` mirror comes off when the epic starts, through the reconciliation the engine already does.
+SQLite stays the authority and the labels stay its mirror, so ADR 0002 does not change and nothing is requeued behind GitHub's back.
+The command is named `resumeEpic` because the socket already has a `resume` that takes the engine out of pause.
 
 The command answers when the epic has started again, not when the label is on, so the app never waits on something that may not happen. It refuses with a reason the app can show when the epic is unknown or is not stopped, when GitHub cannot be reached, and when the epic did not start within thirty seconds of the label going on (the label stays, and the next check takes it). An engine that does not list `resumeEpic` among its capabilities cannot be asked.
 
@@ -30,9 +34,9 @@ With `review` or `fix` the epic keeps its round, pull request, worktree, blocker
 The engine saves the stage with the epic (`resumeStage`), so a restart of the engine while the epic waits for a slot keeps it.
 The resume still goes through the queue and takes a slot like any epic, and the command answers when the epic has started, or refuses at the same thirty seconds.
 It refuses, with a reason, when the epic has no pull request, when the pull request is not open, and when its head is not the one Carrier stored.
-Each use that names a stage is an event of the epic, `resumed`, that says a command asked for it.
+Every resume is an event of the epic, `resumed`, that says a command asked for it and from which stage (`ship` when none is named), as the epic's story 18 asks for every manual transition.
 When the epic stopped with the kind `review_limit`, the resume grants more review rounds counted from the current one: `extraRounds` of them, `maxReviews` when none is named, saved with the epic as `roundLimit`, which is the cap of its rounds when set and the live `maxReviews` otherwise.
-`extraRounds` is a positive whole number and is refused when `from` is not `review` or `fix`.
+`extraRounds` is a positive whole number and is refused when `from` is not `review` or `fix`, and when the epic did not stop with the kind `review_limit`.
 The app does not send `from` yet: it is `carrier restart --from` for now.
 
 What was cut. A button in the toolbar next to "Open issue" lost because it is far from the reason and has no room for the words by kind; a button beside the status pill lost for the same reason, the pill being too small to say what resuming does. The app putting the label on GitHub itself lost because it has no GitHub credentials and talks to the engine only through the control socket (ADR 0005). The engine requeuing from SQLite without touching the label lost because GitHub would disagree with the app until the next reconciliation, and because the label is the contract with Solve. A preflight that tries the cause (credits, login) before resuming lost as above. Resuming with no confirmation lost because the action restarts the review rounds and publishes a label change on GitHub, so the person should read what happens first. An answer sent as soon as the label is on lost because the button could then say "Resuming…" for as long as the next check takes, or forever when the epic never starts. The button is called Resume and not Retry: an execution retry is the automatic one after a technical failure (glossary).

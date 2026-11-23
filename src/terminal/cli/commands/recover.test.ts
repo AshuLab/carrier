@@ -57,7 +57,8 @@ test.each([
   ['not running', 'AshuLab/carrier#5 is not running, so there is nothing to recover. An epic that stopped for a person is resumed with carrier restart.'],
   ['agent alive', 'An agent of AshuLab/carrier#5 is alive or about to start, so nothing was changed. If the epic does not move, try again in a moment.'],
   ['not started', 'AshuLab/carrier#5 has not started its first stage yet: the next check launches it.'],
-  ['engine unavailable', 'Carrier is stopping or cannot act now (its agent profile was rejected), so nothing changed.'],
+  ['nothing to recover', 'AshuLab/carrier#5 is in a state a recovery does not move (a retry or the next check takes it from here), so nothing was changed.'],
+  ['engine unavailable', 'Carrier is stopping, still recovering its epics at start, or cannot act now (its agent profile was rejected), so nothing changed.'],
   ['github unavailable', 'GitHub did not answer, so nothing changed. Try again in a moment.'],
   ['internal error', 'Carrier refused: internal error'],
 ])('a refusal as "%s" says what it means and exits 1', async (reason, words) => {

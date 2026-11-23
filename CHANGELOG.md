@@ -9,12 +9,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added
 
 - `carrier recover <repo>#<issue>` continues a running epic whose agent is gone from its real state, and refuses with a reason when the epic is not running or an agent of it is really alive.
-  Each use leaves a `recovered` event in the epic's history.
+  It also refuses while Carrier is recovering its epics at start, or when there is nothing a recovery would move.
+  Each use that continued the epic leaves a `recovered` event in the epic's history.
 - `carrier restart <repo>#<issue> --from review|fix` resumes a stopped epic at that stage and keeps its round, pull request, worktree and blockers.
   It refuses when the pull request is not open or its head is not the one Carrier stored.
   `--from ship`, or no `--from`, behaves as before.
+  Every restart leaves a `resumed` event in the epic's history.
 - An epic that stopped on the review limit and is resumed from `review` or `fix` gets more rounds counted from the current one, by default as many as `maxReviews`.
-  `--extra-rounds K` changes the number.
+  `--extra-rounds K` changes the number, and is refused when the epic did not stop on the review limit.
 - `limits.autoResume` (off by default) wakes up an epic that stopped on `usage_limit` by itself.
   When the provider says when the exhausted window comes back, the epic keeps that time (`resumeAt`), shown in the panel and in `carrier status`.
   At the first poll after it, Carrier asks for the quota again and resumes the epic from the stage where it stopped, only if the window is below 100 %.

@@ -194,7 +194,10 @@ _Avoid_: daemon, service (a launchd service is the alternative that was not chos
 **Attention colours** - The two colours the macOS app uses for an epic that cannot go on alone: orange when a person's input is needed (the review limit was reached, the agent asks for help), red when something failed (retries exhausted, a timeout, failed authentication, a workspace problem, an invalid pull request). A kind the app does not know is orange, because a person has to act either way. Cancelled is neither: nothing is asked and nothing failed, so it is grey. Both colours still sit under the same "Needs you" group; only the colour tells which of the two it is.
 _Avoid_: warning colour, error orange, problem state.
 
-**Resume (an epic)** - Putting an epic that stopped in needs-human back in the queue once a person has dealt with the cause. It does what the person did by hand before: `solve:epic:ready` goes back on the issue, the `needs-human` mirror comes off, and the epic starts again from ship, reusing its worktree and its pull request, with the review rounds starting over (a resume that names a stage keeps them: see Resume from a stage). Nothing checks that the cause is really fixed: if it is not, the epic stops again with the new error. The macOS app asks the engine to do it, with a confirmation first; in a terminal it is `carrier restart`, which can also change the option of each role.
+**Resume (an epic)** - Putting an epic that stopped in needs-human back in the queue once a person has dealt with the cause.
+It does what the person did by hand before: `solve:epic:ready` goes back on the issue, the `needs-human` mirror comes off, and the epic starts again from ship, reusing its worktree and its pull request, with the review rounds starting over (a resume that names a stage keeps them: see Resume from a stage).
+Nothing checks that the cause is really fixed: if it is not, the epic stops again with the new error.
+The macOS app asks the engine to do it, with a confirmation first; in a terminal it is `carrier restart`, which can also change the option of each role.
 _Avoid_: retry (an execution retry is the automatic one after a technical failure), continue (continue in terminal is about a session).
 
 **Separate identities** - Setup where the author and the reviewer use different GitHub profiles: two Agent Forge bots, or one bot and the user's `gh` login. It follows from the two roles' accounts, no key says it, and it is what makes the reviewer's comments not the author's own.
@@ -370,6 +373,7 @@ The epic keeps that cap as its `roundLimit`; an epic with none follows the live 
 _Avoid_: restart from review, rewind.
 
 **Stage skill** - The skill a stage invokes, named in the `skills` block of the config (a repo's `skills` replaces what it names): by default Solve's `ship`, `code-review` with `code-post` to publish, and `code-resolve`.
+Planned, not built yet: this belongs to a later epic of [the engine improvements](specs/carrier-engine-improvements.md), so the config it names does not exist today.
 Only the name is configurable; Carrier keeps the prompt around it and the result contract, and the skill has to leave what the engine checks, above all a linked worktree and an open pull request that closes the epic after ship.
 See [ADR 0045](adr/0045-each-stage-runs-a-skill-the-config-names-and-carrier-keeps-the-contract.md).
 _Avoid_: command, plugin, custom prompt (the prompt is not configurable).
@@ -390,15 +394,18 @@ See [ADR 0049](adr/0049-a-quota-stop-wakes-up-by-itself-when-the-provider-says-t
 _Avoid_: auto-retry (a retry is the automatic new execution after a technical failure), auto-restart, resume by timer.
 
 **Review round** - One pass of every reviewer of the epic over the same head, in parallel, each in its own checkout.
+Planned, not built yet: today a review round is the single review defined above, and several reviewers in parallel belong to a later epic of [the engine improvements](specs/carrier-engine-improvements.md).
 It ends when every reviewer has settled, and it counts once toward `maxReviews` however many reviewers it has.
 It is not a lead round.
 See [ADR 0048](adr/0048-a-review-round-has-several-reviewers-in-parallel-and-a-lead-reviewer-closes-it.md).
 _Avoid_: review (that is one reviewer's execution), turn.
 
 **Lead reviewer** - The optional role (`leadReviewer`) that reviews last, once the reviewers and the author agree on a head, and gives or withholds the approval of the pull request.
+Planned, not built yet: this belongs to a later epic of [the engine improvements](specs/carrier-engine-improvements.md), so the config it names does not exist today.
 It has its own skill (`skills.lead`) and exchanges with the author alone, one lead round at a time.
 _Avoid_: tech lead, final reviewer, approver.
 
 **Lead round** - One exchange of the lead reviewer asking for changes and the author fixing them, up to `limits.maxLeadRounds` (3 by default).
+Planned, not built yet: this belongs to a later epic of [the engine improvements](specs/carrier-engine-improvements.md), so the config it names does not exist today.
 It does not count toward `maxReviews`, and the other reviewers do not see the commits it makes.
 _Avoid_: round (that is a review round).

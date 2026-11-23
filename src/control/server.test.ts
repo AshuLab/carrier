@@ -329,7 +329,7 @@ test('resumeEpic passes extraRounds, a positive whole number, and refuses zero, 
   expect(resumeEpic).not.toHaveBeenCalled();
 });
 
-test.each(['unknown epic', 'not stopped', 'github unavailable', 'did not restart', 'unknown option', 'no pull request', 'pull request not open', 'pull request head changed', 'extra rounds need a stage'] as const)('resumeEpic refused as "%s" is that reason in the reply', async (reason) => {
+test.each(['unknown epic', 'not stopped', 'github unavailable', 'did not restart', 'unknown option', 'no pull request', 'pull request not open', 'pull request head changed', 'extra rounds need a stage', 'extra rounds need a review limit'] as const)('resumeEpic refused as "%s" is that reason in the reply', async (reason) => {
   await open(undefined, { ...fakeControls().controls, resumeEpic: () => Promise.reject(new ResumeRefused(reason)) });
   expect(await (await client()).ask('{"id":4,"cmd":"resumeEpic","repo":"AshuLab/carrier","issue":5}')).toEqual({ id: 4, ok: false, error: reason });
 });
@@ -352,7 +352,7 @@ test('recoverEpic answers ok once the engine says the epic was continued, and as
 });
 
 // the refusal table: each reason the engine gives reaches the client as it is
-test.each(['unknown epic', 'not running', 'agent alive', 'not started', 'engine unavailable', 'github unavailable'] as const)('recoverEpic refused as "%s" is that reason in the reply', async (reason) => {
+test.each(['unknown epic', 'not running', 'agent alive', 'not started', 'nothing to recover', 'engine unavailable', 'github unavailable'] as const)('recoverEpic refused as "%s" is that reason in the reply', async (reason) => {
   await open(undefined, { ...fakeControls().controls, recoverEpic: () => Promise.reject(new RecoverRefused(reason)) });
   expect(await (await client()).ask('{"id":4,"cmd":"recoverEpic","repo":"AshuLab/carrier","issue":5}')).toEqual({ id: 4, ok: false, error: reason });
 });

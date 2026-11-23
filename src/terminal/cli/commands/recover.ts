@@ -9,7 +9,8 @@ const refusals: Record<string, (target: string) => string> = {
   'not running': (target) => `${target} is not running, so there is nothing to recover. An epic that stopped for a person is resumed with carrier restart.`,
   'agent alive': (target) => `An agent of ${target} is alive or about to start, so nothing was changed. If the epic does not move, try again in a moment.`,
   'not started': (target) => `${target} has not started its first stage yet: the next check launches it.`,
-  'engine unavailable': () => 'Carrier is stopping or cannot act now (its agent profile was rejected), so nothing changed.',
+  'nothing to recover': (target) => `${target} is in a state a recovery does not move (a retry or the next check takes it from here), so nothing was changed.`,
+  'engine unavailable': () => 'Carrier is stopping, still recovering its epics at start, or cannot act now (its agent profile was rejected), so nothing changed.',
   'github unavailable': () => 'GitHub did not answer, so nothing changed. Try again in a moment.',
 };
 

@@ -71,7 +71,8 @@ The panel is a dependency-free ANSI dashboard: uptime, repos watched and the nex
 In a terminal and without flags it asks for each role, with the current option preselected and the role that failed marked; without a terminal it keeps the current options.
 The same option continues the agent's session with `--resume`; another one starts a new session in the epic's worktree and pull request, rebuilt from SQLite and GitHub like a lost session.
 With `--from review` or `--from fix` the epic keeps its round, pull request, worktree and blockers and starts at that stage instead of ship; it still goes through the queue and takes a slot.
-Carrier refuses it, with the reason printed, when the epic has no pull request, when the pull request is not open, or when its head is not the one Carrier saved: restart it from ship then.
+Carrier refuses it, with the reason printed, when the epic has no pull request, when the pull request is not open, or, at `fix`, when its head is not the one Carrier saved, since the blockers it hands to the author belong to that head: restart it from ship then.
+At `review` a head that moved is not a refusal: the epic stores the new head and its review starts on it, and the `resumed` event says which head was adopted, from which one.
 An epic that stopped on the review limit and is resumed at `review` or `fix` gets more review rounds counted from the round it is at: `limits.maxReviews` of them by default, or `--extra-rounds K` (a positive whole number) of them.
 `--extra-rounds` needs `--from review` or `--from fix`, and an epic that stopped on the review limit: it is refused otherwise, with the reason printed.
 The epic stops again with `review_limit` when it has used them, and the panel shows its own cap in the round.

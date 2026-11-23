@@ -1019,7 +1019,11 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
         // Marked as cleaned even with something kept: the cleanup would keep it again at every poll. The event is where it shows.
         db.transaction((tx) => {
           tx.update(epics).set({ cleanedAt: clock.now() }).where(eq(epics.id, epic.id)).run();
-          if (kept.length > 0) tx.insert(epicEvents).values({ epicId: epic.id, at: clock.now(), type: 'cleanup_kept', data: { kept } }).run();
+          if (kept.length === 0) return;
+          tx.insert(epicEvents).values({ epicId: epic.id, at: clock.now(), type: 'cleanup_kept', data: { kept } }).run();
+          // What the events reply of the epic's last execution shows: the app reads no epic event.
+          const last = tx.select({ executionId: executions.executionId }).from(executions).where(eq(executions.epicId, epic.id)).orderBy(desc(sql`rowid`)).limit(1).get();
+          if (last) tx.insert(executionEvents).values({ executionId: last.executionId, at: clock.now(), kind: 'note', payload: { text: `The clean-up of this ended epic kept what has unsaved work or is not on the remote: ${kept.join(', ')}. Delete it by hand when it is no longer needed.` } }).run();
         });
       } catch (e) {
         log.warn('could not clean up an ended epic, trying again at the next poll', { repo: epic.repo, issue: epic.issue, error: (e as Error).message });

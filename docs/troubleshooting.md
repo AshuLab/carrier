@@ -245,7 +245,7 @@ The session and its branch stay, and the next message brings a fresh folder back
 ## Cleaning up
 
 A merged or cancelled epic's worktrees, reviewer checkout and local branches are removed, except a worktree with unsaved work and a branch that is not on the remote.
-The epic is marked as cleaned even then, so the cleanup does not repeat at every check, and what it kept is an event of the epic, `cleanup_kept`, with the list.
+The epic is marked as cleaned even then, so the cleanup does not repeat at every check, and what it kept is an event of the epic, `cleanup_kept`, with the list, and a note in the events of the epic's last execution that says the same.
 Look at what was kept and delete it by hand when it is no longer needed.
 
 Logs and sessions of a merged or cancelled epic are deleted 30 days after the merge or the close.

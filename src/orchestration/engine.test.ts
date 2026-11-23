@@ -15,7 +15,7 @@ import { reserve } from './reserve.ts';
 import { FakeAgentRunner, FakeWorkspaces, type Behavior } from '../execution/fake.ts';
 import type { AgentFailure, AgentTask } from '../execution/agent-runner.ts';
 import { epicOf } from '../control/epic.ts';
-import { lastEventOf } from '../control/events.ts';
+import { eventsOf as eventsReplyOf, lastEventOf } from '../control/events.ts';
 import { buildSnapshot } from '../status/snapshot.ts';
 import { epicEvents, executionEvents } from '../storage/events.ts';
 import { executions } from '../storage/executions.ts';
@@ -2806,11 +2806,15 @@ test('a clean-up that kept a worktree or a branch still marks the epic as cleane
   await engine.idle();
   expect(rows(engine.db)[0]).toMatchObject({ status: 'merged', cleanedAt: 10 * MIN });
   expect(eventsOf(engine.db).filter((e) => e.type === 'cleanup_kept')).toMatchObject([{ epicId: 1, at: 10 * MIN, data: { kept: ['/w/epic', 'feat/f1/001-x'] } }]);
+  // The same read as the events reply of the epic's last execution.
+  const last = executionsOf(engine.db).at(-1)!;
+  expect(eventsReplyOf(engine.db, last.executionId, 0, 100)?.events.filter((e) => e.kind === 'note' && e.text?.includes('kept'))).toMatchObject([{ at: 10 * MIN, text: expect.stringContaining('/w/epic, feat/f1/001-x') }]);
 
   await clock.advance(5 * MIN);
   await engine.idle();
   expect(workspaces.cleanedUp).toHaveLength(1);
   expect(eventsOf(engine.db).filter((e) => e.type === 'cleanup_kept')).toHaveLength(1);
+  expect(eventsReplyOf(engine.db, last.executionId, 0, 100)?.events.filter((e) => e.text?.includes('clean-up'))).toHaveLength(1);
 });
 
 test('epics that ended before the clean-up existed are caught up, and live or parked ones are never touched', async () => {

@@ -10,7 +10,7 @@ A SwiftPM package for macOS 26+: `CarrierCore` (library), `Carrier` (AppKit shel
 ## Tests
 
 The gated recognizer tests (`{Apple,FluidAudio,WhisperKit}RecognizerTests`) run only with `CARRIER_IT_DICTATION` naming a folder laid out as the app keeps its models ([layout](../docs/macos/dictation.md#speech-models)).
-`CarrierTerminalStoreTests` spawns a real Ghostty surface offscreen, only with `CARRIER_IT_TERMINAL=1`.
+The live shell test (`CarrierTerminalStoreTests`) spawns a real Ghostty surface offscreen, only with `CARRIER_IT_TERMINAL=1`.
 
 ## Starting Carrier and the chat host
 
@@ -102,7 +102,7 @@ The worktree choice is `CarrierCore/WorktreeChoice.swift` (pure values over the 
 
 What the person sees: [sessions](../docs/macos/sessions.md#conversation).
 
-The words are tested; Finder and pasteboard calls not.
+The words are tested; the Finder and pasteboard calls not.
 `CarrierCore/ChatLink.swift` reads the chat host ([how](../docs/macos/sessions.md#how-the-app-reads-the-chat-host); `ChatLinkTests`).
 A subagent's row is `Subagent` (`ChatToolGroups.swift`), built by `chatFeed` from `task` events (`SubagentRowTests`).
 
@@ -114,7 +114,7 @@ What the person sees: [usage](../docs/macos/usage.md).
 
 What the person sees: [dictation](../docs/macos/dictation.md).
 
-The logic: `CarrierCore/Dictation.swift`, `DictationSession.swift`, `TentativeText.swift`, `DictationPresentation.swift`, tested with `ScriptedDictation.swift`; `DictationController` holds the switch both boxes read; `Carrier/LaunchPhases.swift` holds what waits for the first frame (`LaunchPhasesTests`).
+The logic: `CarrierCore/Dictation.swift`, `DictationSession.swift`, `TentativeText.swift`, `DictationPresentation.swift`, tested with `ScriptedDictation.swift`; `DictationController` holds the switch both boxes read; `LaunchPhases`: after the first frame.
 Readiness: `speechModelStep`, `ModelSlot`, run by `DictationController.warmUp`; `DictationSession.run` captures before `prepare`.
 Firm and tentative: `DictationEvent.partial`, `TentativeText.tentativeRange`, `GlobalDictation.split`.
 The page is `Carrier/DictationTab.swift` (`reset(.dictation)` restores `AppPreferences.keys(of:)`); views untested.
@@ -126,8 +126,8 @@ See [dictation](../docs/macos/dictation.md#global-dictation). The machine is `Ca
 
 ### History, statistics and cleanup
 
-[History](../docs/macos/dictation.md#history) and [statistics](../docs/macos/dictation.md#statistics): `DictationRecords.swift` (fake clock; `load()` reads off the main actor, `delete` waits for it), `DictationAudio.swift`, `DictationStatistics.swift`; the player is untested.
-Cleanup: `DictationCleanup.swift` (`TextModelClient`, `CleanupRun`) and `LocalModelClient.swift`; `.cleaning` is in `DictationSessionTests`; `CleanupController.swift`, `CleanupGroup.swift` untested.
+[History](../docs/macos/dictation.md#history) and [statistics](../docs/macos/dictation.md#statistics): `DictationRecords.swift` (fake clock, fed by `DictationSession.take`; `load()` is async), `DictationAudio.swift`, `DictationStatistics.swift`; the player is untested.
+Cleanup: `DictationCleanup.swift` (`TextModelClient`, `CleanupRun`) and `LocalModelClient.swift`; the `.cleaning` state of `DictationSession` is in `DictationSessionTests`; `CleanupController.swift`, `CleanupGroup.swift` untested.
 
 ## Embedded terminal
 

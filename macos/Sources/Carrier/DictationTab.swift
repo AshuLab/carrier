@@ -56,6 +56,7 @@ struct DictationTabView: View {
             }
         }
         .id(screen)
+        .task { await dictation.records.load() }
         .preference(key: SettingsTitleKey.self, value: screen.map { SettingsTitle(text: $0.title, subtitle: summary($0)) })
     }
 

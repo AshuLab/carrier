@@ -193,15 +193,39 @@ func aFailureSaysItsCauseAndLeavesNothingBehind(failure: ModelDownloadFailure) a
     #expect(relaunched.usedBytes == 1_500)
 }
 
-/// The count the init starts ends after a person's own refresh (a delete here): the older number must not write over the newer.
+/// Holds a count until the test lets it end.
+private actor Gate {
+    private var open = false
+    private var waiting: [CheckedContinuation<Void, Never>] = []
+
+    func wait() async {
+        if open { return }
+        await withCheckedContinuation { waiting.append($0) }
+    }
+
+    func release() {
+        open = true
+        waiting.forEach { $0.resume() }
+        waiting = []
+    }
+}
+
+/// The count the init starts ends after a person's own refresh (a delete here), and it holds the old number: it must not write over the newer.
 @MainActor @Test func aCountThatEndsAfterANewerOneDoesNotWriteOverIt() async throws {
     let root = try temporaryRoot()
     let first = store(root, Script([.succeeds]), holds: false)
     first.download(parakeet.id)
     await first.settled()
-    let relaunched = store(root, Script([]))
+    let gate = Gate()
+    let relaunched = ModelStore(
+        root: root, models: { [apple, parakeet, tiny] }, downloader: FakeDownloader(script: Script([]), holds: false), inUse: { nil },
+        count: { _ in
+            await gate.wait()
+            return 1_500
+        })
     #expect(relaunched.delete(parakeet.id))
     #expect(relaunched.usedBytes == 0)
+    await gate.release()
     await relaunched.measured()
     #expect(relaunched.usedBytes == 0)
 }

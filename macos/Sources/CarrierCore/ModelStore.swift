@@ -67,13 +67,16 @@ public enum ModelState: Equatable, Sendable {
     @ObservationIgnored private let log: @MainActor (DictationFailure) -> Void
     @ObservationIgnored private let announce: @MainActor (String) -> Void
     @ObservationIgnored private let freeSpace: @MainActor (URL) -> Int64?
+    @ObservationIgnored private let count: @Sendable (URL) async -> Int64
 
     /// `models` is the list on offer (it may grow as recognizers register), `inUse` the id of the model dictation uses, which has no delete.
     /// `freeSpace` is what the volume of the folder has free; nil (unknown) does not stop a download.
+    /// `count` is the init's count of what the models take, which runs off the main thread (a test holds it to end it late).
     public init(
         root: URL, models: @escaping @MainActor () -> [SpeechModel], downloader: any ModelDownloader, inUse: @escaping @MainActor () -> String?,
         log: @escaping @MainActor (DictationFailure) -> Void = { _ in }, announce: @escaping @MainActor (String) -> Void = { _ in },
-        freeSpace: @escaping @MainActor (URL) -> Int64? = ModelStore.availableBytes
+        freeSpace: @escaping @MainActor (URL) -> Int64? = ModelStore.availableBytes,
+        count: (@Sendable (URL) async -> Int64)? = nil
     ) {
         self.root = root
         self.models = models
@@ -82,6 +85,7 @@ public enum ModelState: Equatable, Sendable {
         self.log = log
         self.announce = announce
         self.freeSpace = freeSpace
+        self.count = count ?? { Self.bytes(under: $0) }
         removePartials()
         measureInBackground()
     }
@@ -206,9 +210,9 @@ public enum ModelState: Equatable, Sendable {
     /// The same count, off the main thread, for the init: walking the folder of every model is not the first frame's to wait for.
     private func measureInBackground() {
         measurement += 1
-        let mine = measurement, root = root
+        let mine = measurement, root = root, count = count
         measuring = Task { [weak self] in
-            let bytes = await Task.detached { Self.bytes(under: root) }.value
+            let bytes = await Task.detached { await count(root) }.value
             guard let self, measurement == mine else { return }
             usedBytes = bytes
         }

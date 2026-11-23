@@ -141,6 +141,20 @@ func theMessageBoxBuildsInEveryStateOfADictationAtWideAndNarrowWidths(state: Dic
     #expect(asked == 1 && dictation.microphone == .denied)
 }
 
+@MainActor @Test func comingBackActiveBeforeTheFirstFrameWaitsForItAndAfterAsksAtOnce() {
+    nonisolated(unsafe) var asked = 0
+    let access = MicrophoneAccess(status: { asked += 1; return .allowed }, request: { true })
+    let phases = LaunchPhases()
+    let dictation = DictationController(registry: RecognizerRegistry(), capture: ScriptedCapture(), microphone: access, launch: phases)
+    NotificationCenter.default.post(name: NSApplication.didBecomeActiveNotification, object: nil)
+    #expect(asked == 0 && dictation.microphone == .notAsked)
+    phases.fire()
+    #expect(asked == 1 && dictation.microphone == .allowed)
+    // the person comes back from System Settings once the window is drawn
+    NotificationCenter.default.post(name: NSApplication.didBecomeActiveNotification, object: nil)
+    #expect(asked == 2)
+}
+
 private let boxField = DictationField(owner: "box", text: { "" }, caret: { 0 }, put: { _, _, _ in })
 
 @MainActor @Test func aBlockedMicrophoneDrawsTheSlashAndAClickExplainsInsteadOfListening() async {

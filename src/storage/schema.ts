@@ -46,6 +46,8 @@ export const epics = sqliteTable(
     // The agent option each role runs on, set when the epic is reserved and replaced by a choice at a restart; null on epics from before options existed.
     authorOption: text(),
     reviewerOption: text(),
+    // Recoveries by the poll in a row (ADR 0046): back to 0 when an execution of the epic ends or its stage changes; the fourth failure parks it in `engine_error`.
+    recoveries: integer().notNull().default(0),
   },
   (table) => [uniqueIndex('epics_repo_issue').on(table.repo, table.issue)],
 );

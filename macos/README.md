@@ -37,7 +37,7 @@ This is how the app is developed; it is not how it is installed.
 
 ```sh
 cd macos
-./build-app.sh          # dev build wrapped in Carrier.app: "Carrier Dev", bundle id dev.ashulab.carrier.dev (its own settings), no updater, a DEV badge on the Dock icon and a "DEV BUILD" mark in the toolbar; signed ad hoc
+./build-app.sh          # dev build wrapped in Carrier.app: "Carrier Dev", bundle id dev.ashulab.carrier.dev (its own settings), no updater, a DEV badge on the Dock icon and the sidebar's logo in pink with a "DEV MODE" badge; signed ad hoc
 ./build-app.sh --open   # same, then opens it
 ./build-app.sh 1.2.3    # a release build: "Carrier", bundle id dev.ashulab.carrier, the updater, 1.2.3 as the version in the plist (0.1.0 for a dev build); the release workflow does this with the tag's version
 open Carrier.app

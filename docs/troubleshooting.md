@@ -194,7 +194,14 @@ The session and its branch stay, and the next message brings a fresh folder back
 
 ## While it runs
 
-- **GitHub is down or rate limiting.** Carrier keeps the queue, shows the error and tries again at the next interval or after the wait GitHub indicates. It does not spend agent retries. The log and the `REPOS GITHUB REFUSED` line say which kind it was and the detail, like `GitHub unavailable (rate_limited: HTTP 403)`: `rate_limited`, `server_error`, `timeout` or `network`.
+- **A repo is skipped with `GitHub unavailable (timeout: ...)`.** GitHub answered one repo with a timeout, a 5xx or a network error while it was being read.
+  Carrier skips that repo for the cycle and shows the reason where it shows a refused repo (the repo's last check, and the `REPOS GITHUB REFUSED` line).
+  The other repos are read, their epics queued and launched, and nothing is reserved for the skipped repo until the next cycle, which reads it again.
+  If GitHub asked for a wait, Carrier waits the longest one asked among the skipped repos before the next cycle, and no agent retry is spent.
+  Nothing to do unless the same repo is skipped every cycle: then its reason says whether it is `timeout`, `server_error` or `network`.
+- **GitHub is rate limiting (`GitHub unavailable (rate_limited: ...)`).** A rate limit is about the account and not about one repo, so it ends the cycle at once, in the listing and in the reads of progress, slices and pull requests alike.
+  Carrier keeps the queue, shows the error and tries again after the wait GitHub indicated, or at the next interval when it indicated none.
+  It does not spend agent retries and it does not keep asking meanwhile.
 - **An epic ends as cancelled with `the epic issue no longer exists`.** GitHub answered 404 or 410 for the epic's issue while its repo answered normally, so the issue was deleted or transferred.
   Carrier cancels that epic, writes nothing to the issue, and the other epics of the repo go on.
   Nothing to do, unless the issue should exist: then recreate it and label it `ready`, which is a new epic.

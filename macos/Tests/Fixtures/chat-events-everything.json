@@ -47,9 +47,17 @@
     {"at": 1792000900000, "kind": "notice", "text": "The previous conversation could not be resumed: this one starts from the session's summary.", "id": 44},
     {"at": 1792000901000, "kind": "user", "text": "Are you there?", "id": 45},
     {"at": 1792000902000, "kind": "assistant", "text": "Yes. The login folder passes.", "id": 46},
-    {"at": 1792000903000, "kind": "turn_end", "outcome": "ok", "model": "claude-sonnet-5-5", "usage": {"input_tokens": 300, "output_tokens": 40}, "id": 47}
+    {"at": 1792000903000, "kind": "turn_end", "outcome": "ok", "model": "claude-sonnet-5-5", "usage": {"input_tokens": 300, "output_tokens": 40}, "id": 47},
+    {"at": 1792000904000, "kind": "user", "text": "One more check before I go: does the whole login folder still pass?", "id": 48},
+    {"at": 1792000905000, "kind": "assistant", "text": "It does: all 12 tests in the login folder pass.", "id": 49},
+    {"at": 1792000906000, "kind": "turn_end", "outcome": "ok", "model": "claude-sonnet-5-5", "usage": {"input_tokens": 300, "output_tokens": 31, "context_tokens": 38800, "context_window": 200000}, "id": 50},
+    {"at": 1792000907000, "kind": "user", "text": "/clear", "id": 51},
+    {"at": 1792000908000, "kind": "turn_end", "outcome": "ok", "model": "claude-sonnet-5-5", "usage": {"input_tokens": 0, "output_tokens": 0}, "id": 52},
+    {"at": 1792000909000, "kind": "user", "text": "Now, where were we?", "id": 53},
+    {"at": 1792000910000, "kind": "assistant", "text": "I have no memory of the earlier conversation: tell me what you want to work on.", "id": 54},
+    {"at": 1792000911000, "kind": "turn_end", "outcome": "ok", "model": "claude-sonnet-5-5", "usage": {"input_tokens": 120, "output_tokens": 22, "context_tokens": 1900, "context_window": 200000}, "id": 55}
   ],
-  "cursor": 47,
+  "cursor": 55,
   "streaming": "",
   "options": [
     {"id": "model", "label": "Model", "values": [{"id": "sonnet", "label": "Sonnet"}, {"id": "opus", "label": "Opus"}], "current": "sonnet"},

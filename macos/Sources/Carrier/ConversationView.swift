@@ -409,6 +409,8 @@ struct FeedRowView: View, Equatable {
             Text(text).codeFont(12).foregroundStyle(.secondary).lineLimit(2).textSelection(.enabled)
         case .switched(_, let switched):
             AgentSwitchDivider(switched: switched)
+        case .cleared(_, let freed):
+            ClearedDivider(freed: freed, agent: ProviderIdentityStore.shared.shortName(of: agent))
         case .error(_, let text):
             BannerView(banner: failedTurnBanner(agent: ProviderIdentityStore.shared.shortName(of: agent), error: text), agent: agent, copyDetails: true, retry: offersWayOut ? actions.retry : nil)
         case .stopped:

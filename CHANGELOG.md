@@ -36,6 +36,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- A `/clear` shows a cut in the conversation, under your own `/clear`: a glass capsule "Context cleared" with the tokens it freed and a line that says the messages above stay to read but the agent no longer sees them, in place of an empty line of statistics. The context shown in the message box is none after it.
 - With flat surfaces (Settings > Chat > Surfaces), the fill of every surface of the chat (bubbles, code blocks, cards, notices, the message box) shows over the window's color: it was drawn behind it and never seen, so flat looked flat. The message box is also a notch darker than the window in the dark scheme.
 - A dictation of the History is a row with one quiet line of data under its text (outcome, destination, words and length) in place of five chips, and its detail has no box and no longer repeats the text, the destination or the length.
 - In Statistics, the Overview's cards sit with no container behind them, and the Records are four cards in a row (two by two when narrow) in place of a list of rows.

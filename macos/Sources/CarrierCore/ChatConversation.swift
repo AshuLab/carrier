@@ -299,11 +299,14 @@ public enum FeedRow: Equatable, Identifiable {
     case error(id: String, text: String)
     /// A turn the person stopped: the mark with Continue.
     case stopped(id: String)
+    /// A `/clear` that went through: the agent starts again from an empty context. `freed` is the context the turn before it ended with, nil when
+    /// no turn said it. It stands where the empty turn's line would be.
+    case cleared(id: String, freed: Double?)
 
     public var id: String {
         switch self {
         case .user(let id, _), .agent(let id, _, _), .turnEnd(let id, _), .tools(let id, _), .approval(let id, _), .decided(let id, _, _),
-            .line(let id, _), .switched(let id, _), .error(let id, _), .stopped(let id): id
+            .line(let id, _), .switched(let id, _), .error(let id, _), .stopped(let id), .cleared(let id, _): id
         }
     }
 }
@@ -312,6 +315,20 @@ public enum FeedRow: Equatable, Identifiable {
 public func handoffDetail(to agent: String) -> String {
     "\(agent) goes on from a selection of the messages above and can read the rest. Reasoning and tool results did not carry over."
 }
+
+/// What the divider of a `/clear` says under the capsule: the messages stay to be read, and the agent no longer has them.
+public func clearedDetail(agent: String) -> String {
+    "The messages above stay here to read, but \(agent) no longer sees them: it starts again from an empty context."
+}
+
+/// `38.8k tokens freed`: what the capsule of a `/clear` says beside its title, nil when no turn before it said the context.
+public func clearedFreedText(_ freed: Double?) -> String? {
+    guard let freed, freed > 0 else { return nil }
+    return "\(TurnSummary.tokens(freed)) tokens freed"
+}
+
+/// Whether a message of the person is the `/clear` command: the whole text, with no argument.
+public func isClearCommand(_ text: String) -> Bool { text.trimmingCharacters(in: .whitespacesAndNewlines) == "/clear" }
 
 /// The row of the mark or banner that offers a way out (Continue, Try again): the last stopped or failed turn, and only while the
 /// person has not written since. Earlier ones are only a record.
@@ -402,6 +419,8 @@ public func chatFeed(_ events: [ChatEvent], streaming: String = "", pending: Set
     var going: [String: (row: Int, call: Int)] = [:]
     var asked: [String: (row: Int, event: ChatEvent)] = [:]
     var turnStart: Int?
+    /// The context the last turn that said it ended with: what a `/clear` frees.
+    var lastContext: Double?
     var held: [Thought] = []
     // the calls that launched a subagent of the main agent (a `task` event names its call), and where each subagent is: its row and its place in it
     let launching = Set(events.compactMap { $0.kind == "task" && $0.parentCallId == nil ? $0.callId : nil })
@@ -479,7 +498,14 @@ public func chatFeed(_ events: [ChatEvent], streaming: String = "", pending: Set
             }
             going = [:]
             if event.outcome == "error" { markLastRunErred(in: &rows) }
-            if let summary = TurnSummary(event, turnStart: turnStart) { rows.append(.turnEnd(id: id, summary)) }
+            // a `/clear` the agent answered with nothing: the empty line of its turn is the divider of the clear, and the context starts again from none
+            if event.outcome != "error", event.outcome != "interrupted", case .user(_, let said)? = rows.last, isClearCommand(said) {
+                rows.append(.cleared(id: id, freed: lastContext))
+                lastContext = nil
+            } else if let summary = TurnSummary(event, turnStart: turnStart) {
+                rows.append(.turnEnd(id: id, summary))
+                lastContext = summary.contextTokens ?? lastContext
+            }
             if event.outcome == "interrupted" { rows.append(.stopped(id: "\(id)-stopped")) }
             turnStart = nil
         case "error":
@@ -596,6 +622,8 @@ public struct ContextUse: Equatable {
 /// The context of the last turn that told it (a turn that was cut short, or a host that does not say it, leaves the one before).
 public func contextUse(_ rows: [FeedRow]) -> ContextUse? {
     for row in rows.reversed() {
+        // a `/clear` emptied it: what the turns before it read is not the context any more
+        if case .cleared = row { return nil }
         if case .turnEnd(_, let summary) = row, let tokens = summary.contextTokens { return ContextUse(tokens: tokens, window: summary.contextWindow) }
     }
     return nil

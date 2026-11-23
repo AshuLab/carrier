@@ -24,6 +24,7 @@ private func texts(_ rows: [FeedRow]) -> [String] {
         case .switched(_, let switched): "switched: \(switched.from) -> \(switched.to)"
         case .error(_, let text): "error: \(text)"
         case .stopped: "stopped"
+        case .cleared(_, let freed): "cleared: \(clearedFreedText(freed) ?? "")"
         }
     }
 }
@@ -1288,6 +1289,40 @@ private func runs(_ rows: [FeedRow]) -> [ToolGroup] { rows.compactMap { if case 
     let ask = ChatEvent(id: 3, at: 3, kind: "approval", tool: "Bash", arg: "ls", approvalId: "p", choices: [])
     let answered = chatFeed([user, think, ask, ChatEvent(id: 4, at: 4, kind: "approval_answered", approvalId: "p", choiceId: "y")])
     #expect(workInProgress(in: answered) == "e2")
+}
+
+// MARK: /clear
+
+private func person(_ id: Int, _ text: String) -> ChatEvent { ChatEvent(id: id, at: id * 1000, kind: "user", text: text) }
+private func turnEnd(_ id: Int, _ usage: [String: Double]?, outcome: String = "ok") -> ChatEvent { ChatEvent(id: id, at: id * 1000, kind: "turn_end", outcome: outcome, model: "claude-sonnet-5-5", usage: usage) }
+
+@Test func aClearTheAgentAnsweredWithNothingIsADividerThatSaysWhatItFreedInPlaceOfTheEmptyTurnLine() {
+    let events = [
+        person(1, "hi"), say(2), turnEnd(3, ["context_tokens": 38_800, "output_tokens": 27]),
+        person(4, "/clear"), turnEnd(5, ["input_tokens": 0, "output_tokens": 0]),
+        person(6, "and now?"), say(7), turnEnd(8, ["context_tokens": 1_900, "output_tokens": 22]),
+    ]
+    let rows = texts(chatFeed(events))
+    #expect(rows == ["user: hi", "agent: m2", "end: sonnet 5.5 · 2s · 38.8k context · 27 out", "user: /clear", "cleared: 38.8k tokens freed", "user: and now?", "agent: m7", "end: sonnet 5.5 · 2s · 1.9k context · 22 out"])
+}
+
+@Test func theContextAfterAClearIsNoneUntilAnotherTurnTellsIt() {
+    let after = chatFeed([person(1, "hi"), turnEnd(2, ["context_tokens": 38_800]), person(3, "/clear"), turnEnd(4, nil)])
+    #expect(contextUse(after) == nil)
+    #expect(contextUse(chatFeed([person(1, "hi"), turnEnd(2, ["context_tokens": 38_800])]))?.tokens == 38_800)
+    // a second clear frees nothing and says so by saying nothing of it
+    let twice = texts(chatFeed([person(1, "a"), turnEnd(2, ["context_tokens": 5_000]), person(3, "/clear"), turnEnd(4, nil), person(5, "/clear"), turnEnd(6, nil)]))
+    #expect(twice.filter { $0.hasPrefix("cleared") } == ["cleared: 5.0k tokens freed", "cleared: "])
+}
+
+@Test func onlyTheWholeClearCommandAnsweredWithNothingMakesTheDivider() {
+    #expect(isClearCommand(" /clear\n") && isClearCommand("/clear now") == false && isClearCommand("please /clear") == false)
+    // an answer, a failed turn or a stopped one keep their lines
+    #expect(texts(chatFeed([person(1, "/clear"), say(2), turnEnd(3, ["output_tokens": 4])])).contains { $0.hasPrefix("cleared") } == false)
+    #expect(texts(chatFeed([person(1, "/clear"), turnEnd(2, nil, outcome: "error")])).contains { $0.hasPrefix("cleared") } == false)
+    #expect(texts(chatFeed([person(1, "/clear"), turnEnd(2, nil, outcome: "interrupted")])).contains { $0.hasPrefix("cleared") } == false)
+    #expect(clearedFreedText(nil) == nil && clearedFreedText(0) == nil)
+    #expect(clearedDetail(agent: "Lu").hasPrefix("The messages above stay here to read, but Lu no longer sees them"))
 }
 
 @Test func theContextInUseIsTheLastTurnThatToldItWithTheWindowItCameWith() {

@@ -98,7 +98,7 @@ public final class ControlClient {
 
     /// The optional requests an engine can answer, and the chat host's own (`agents` onwards). A name this app does not know is dropped, so a newer engine never breaks an older app.
     public enum Capability: String, CaseIterable {
-        case sessions, events, epic, files, fileDiff, availableRepos, availableReposPaged, resumeEpic, recoverEpic, reload
+        case sessions, events, epic, files, fileDiff, availableRepos, availableReposPaged, resumeEpic, resumeFromStage, recoverEpic, reload
         case agents, list, open, resume, send, answer, interrupt, setOption, agentOptions, close, archive, delete, deletePreview, stop
         case workspace, fetch, suggestName, checkName, cloneRepo, createProject, githubRepos, repoBranches, health, providers, plan, reasoning, rename, regenerateTitle, regenerateTitles, usage, usageOverride, accountIdentity, accountPalette, switchAgent, stopTask, worktreeStart, fetchIfStale, listsRev, projects, textGenerators
     }

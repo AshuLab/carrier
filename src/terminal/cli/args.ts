@@ -13,7 +13,7 @@ export const usage = () => `Usage: carrier --config <path>          run the orch
        carrier watch                     the live panel of the running Carrier; q leaves it running (exit 1: not running)
        carrier stop|pause|resume|check   stop Carrier, pause or resume intake, look at GitHub now
        carrier reload                    make the running Carrier read engine.json and providers.json again (exit 1: not running, or a file is wrong)
-       carrier restart <owner/name>#<issue> [--author <option>] [--reviewer <option>]   resume a stopped epic on the options you choose
+       carrier restart <owner/name>#<issue> [--author <option>] [--reviewer <option>] [--from <ship|review|fix>]   resume a stopped epic on the options you choose
        carrier recover <owner/name>#<issue>   continue a running epic whose agent is not alive, from where it really is
        carrier chat --workspace <folder> [--agent <name>]   talk to an agent in a folder (starts the chat host if needed)
        carrier chat --resume <id>        go on with a closed chat session, after the end of its transcript
@@ -28,6 +28,7 @@ export const usage = () => `Usage: carrier --config <path>          run the orch
 
 restart: with neither flag it asks for each role in a terminal and keeps the current options without one. --author and --reviewer name an option
 of the config here, not the <harness>:<model> of init.
+restart --from review or fix keeps the epic's round, pull request and worktree and starts at that stage; ship (the default) starts over with the rounds reset.
 
 init flags (each one skips its question; --yes never asks):
   --repo <owner/name>            repeat for several repos
@@ -48,6 +49,7 @@ const options = {
   'lead-reviewer-profile': { type: 'string' },
   author: { type: 'string' },
   reviewer: { type: 'string' },
+  from: { type: 'string' },
   'lead-reviewer': { type: 'string' },
   'author-provider': { type: 'string' },
   'reviewer-provider': { type: 'string' },
@@ -86,6 +88,7 @@ export type Flags = ReturnType<typeof parseArgs<{ options: typeof options; allow
 export type EpicTarget = { repo: string; issue: number };
 export type Parsed = { ok: true; command: CommandName | undefined; flags: Flags; target?: EpicTarget } | { ok: false; message: string };
 
+const resumeStages: string[] = ['ship', 'review', 'fix'];
 const targetPattern = /^([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)#([1-9]\d*)$/;
 
 /** The command line as data: no process exit, no output. A bad flag or an unknown command is `ok: false` with what to say. */
@@ -101,6 +104,7 @@ export function parseCli(argv: string[]): Parsed {
     const match = extra.length === 1 ? targetPattern.exec(extra[0]!) : null;
     const repo = match?.[1];
     if (!match || repo!.split('/').some((part) => part === '.' || part === '..') || !Number.isSafeInteger(Number(match[2]))) return { ok: false, message: `${command} takes one epic as owner/name#N, for example AshuLab/carrier#12` };
+    if (command === 'restart' && parsed.values.from !== undefined && !resumeStages.includes(parsed.values.from)) return { ok: false, message: `--from takes ${resumeStages.join(', ')}` };
     return { ok: true, command, flags: parsed.values, target: { repo: repo!, issue: Number(match[2]) } };
   }
   if (extra.length > 0 || (command !== undefined && !(commandNames as readonly string[]).includes(command))) return { ok: false, message: `Unknown command: ${parsed.positionals.join(' ')}` };

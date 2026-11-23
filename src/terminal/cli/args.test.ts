@@ -74,6 +74,13 @@ test('restart without its argument or with a second one is a usage error, and th
   expect(parseCli(['status', 'A/a#1'])).toEqual({ ok: false, message: 'Unknown command: status A/a#1' });
 });
 
+test('restart takes --from ship, review or fix and refuses any other', () => {
+  for (const from of ['ship', 'review', 'fix']) expect(parseCli(['restart', 'A/a#1', '--from', from])).toMatchObject({ ok: true, flags: { from } });
+  expect(parseCli(['restart', 'A/a#1'])).toMatchObject({ ok: true });
+  for (const from of ['merged', '', 'Review']) expect(parseCli(['restart', 'A/a#1', '--from', from])).toEqual({ ok: false, message: '--from takes ship, review, fix' });
+  expect(usage()).toContain('--from <ship|review|fix>');
+});
+
 test('recover takes one owner/name#N and nothing else', () => {
   expect(parseCli(['recover', 'AshuLab/carrier#12'])).toMatchObject({ ok: true, command: 'recover', target: { repo: 'AshuLab/carrier', issue: 12 } });
   expect(parseCli(['recover'])).toMatchObject({ ok: false, message: expect.stringContaining('recover takes one epic as owner/name#N') });

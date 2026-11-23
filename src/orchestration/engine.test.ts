@@ -4422,3 +4422,128 @@ test('a missing issue in a repo that does not answer is the repo\'s refusal at t
   expect(byStatus(engine.db, 'cancelled')).toEqual([]);
   expect(engine.lastCheck('AshuLab/a')).toMatchObject({ ok: false });
 });
+
+// --- resume from a stage: review or fix keeps the round, the pull request, the worktree, the blockers and the session ---
+
+// An epic stopped in needs_human at `stage` on round 2 with its pull request, worktree, one author session and the reviewer's blockers; `ready` can be put on it.
+function stoppedAt(db: Db, stage: 'review' | 'fix', extra: Partial<typeof epics.$inferInsert> = {}) {
+  seedEpic(db, 1, { status: 'needs_human', stage, round: 2, prNumber: 50, prHeadSha: SHA, workspace: '/w/epic', needsHumanKind: 'review_limit', needsHumanReason: 'review limit', observationsPassAt: 7, ...extra });
+  seedExecution(db, 's1', 1, { status: 'finished', stage: 'ship' });
+  seedExecution(db, 'r1', 1, { status: 'finished', stage: 'review', round: 1 });
+  db.insert(callerResults).values({ executionId: 'r1', outcome: 'changes_requested', result: JSON.stringify({ summary: 's', blockers: [{ title: 'fix it' }] }) }).run();
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50);
+  runner.behavior = () => ({ exit: 'hang' });
+}
+const resumeFrom = async (engine: Awaited<ReturnType<typeof start>>, from?: 'ship' | 'review' | 'fix') => {
+  const resumed = engine.resumeEpic('AshuLab/a', 1, { from });
+  await flush();
+  await clock.advance(1000);
+  await resumed;
+};
+
+test.each(['review', 'fix'] as const)('resuming at %s starts that stage with the round, pull request, worktree, blockers and session of the epic kept, takes a slot and leaves a resumed event', async (stage) => {
+  const engine = await start(1);
+  stoppedAt(engine.db, stage);
+  await resumeFrom(engine, stage);
+
+  expect(runner.tasks.map((t) => t.stage)).toEqual([stage]);
+  expect(runner.tasks[0]).toMatchObject({ context: { round: 2, pr: { number: 50, headSha: SHA } }, ...(stage === 'fix' && { workspace: '/w/epic', resumeSession: 's-s1', context: { round: 2, pr: { number: 50, headSha: SHA }, blockers: [{ title: 'fix it' }] } }) });
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage, round: 2, prNumber: 50, prHeadSha: SHA, workspace: '/w/epic', observationsPassAt: 7, needsHumanKind: null, resumeStage: null });
+  expect(eventsOf(engine.db).filter((e) => e.type === 'resumed').map((e) => e.data)).toEqual([{ from: stage, by: 'command' }]);
+  expect(labelsOf(1)).toEqual(['solve:epic:running']);
+});
+
+test('a resume at a stage goes through the queue: with no free slot the epic waits queued with its stage saved, and starts there once a slot is free', async () => {
+  const engine = await start(0);
+  stoppedAt(engine.db, 'review');
+  await resumeFrom(engine, 'review');
+  expect(runner.tasks).toEqual([]);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'queued', stage: null, round: 2, prNumber: 50, resumeStage: 'review' });
+
+  settings.maxConcurrentEpics = 1;
+  await clock.advance(5 * MIN);
+  expect(runner.tasks.map((t) => t.stage)).toEqual(['review']);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'review', round: 2, resumeStage: null });
+});
+
+test('the stage asked is saved with the epic: an engine restarted while the epic waits for a slot starts it at that stage', async () => {
+  const first = await start(0);
+  stoppedAt(first.db, 'fix');
+  await resumeFrom(first, 'fix');
+  expect(rows(first.db)[0]).toMatchObject({ status: 'queued', resumeStage: 'fix' });
+  first.stop();
+
+  const second = await start(1);
+  await clock.advance(5 * MIN);
+  expect(runner.tasks.map((t) => [t.stage, t.workspace, t.resumeSession])).toEqual([['fix', '/w/epic', 's-s1']]);
+  expect(rows(second.db)[0]).toMatchObject({ status: 'running', stage: 'fix', round: 2 });
+});
+
+test('an epic resumed at a stage whose claim was cut before its execution starts that stage again and never ship', async () => {
+  const first = await start(1);
+  seedEpic(first.db, 1, { stage: 'fix', round: 2, prNumber: 50, prHeadSha: SHA, workspace: '/w/epic', startedAt: 1000 });
+  seedExecution(first.db, 's1', 1, { status: 'finished', stage: 'ship', startedAt: 0 }); // an earlier attempt's
+  pull(50);
+  runner.behavior = () => ({ exit: 'hang' });
+  first.stop();
+  const second = await start(1);
+  await clock.advance(5 * MIN);
+  expect(runner.tasks.map((t) => t.stage)).toEqual(['fix']);
+  expect(rows(second.db)[0]).toMatchObject({ status: 'running', stage: 'fix', round: 2 });
+});
+
+test.each([
+  ['the pull request is closed', { state: 'closed' as const }, 'pull request not open'],
+  ['the pull request is merged', { state: 'merged' as const }, 'pull request not open'],
+  ['its head is not the stored one', { headSha: 'b'.repeat(40) }, 'pull request head changed'],
+])('resuming at a stage is refused when %s, and nothing changes', async (_name, change, reason) => {
+  const engine = await start(1);
+  stoppedAt(engine.db, 'review');
+  pull(50, change);
+  const before = github.issue('AshuLab/a', 1).labels.slice();
+  expect(await refusal(engine.resumeEpic('AshuLab/a', 1, { from: 'review' }))).toBe(reason);
+  expect(await refusal(engine.resumeEpic('AshuLab/a', 1, { from: 'fix' }))).toBe(reason);
+  expect(labelsOf(1)).toEqual(before);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', resumeStage: null, round: 2 });
+  expect(runner.tasks).toEqual([]);
+});
+
+test('resuming at a stage is refused for an epic with no pull request or whose pull request GitHub does not know, and when GitHub is down', async () => {
+  const engine = await start(1);
+  stoppedAt(engine.db, 'review', { prNumber: null, prHeadSha: null });
+  expect(await refusal(engine.resumeEpic('AshuLab/a', 1, { from: 'review' }))).toBe('no pull request');
+  engine.db.update(epics).set({ prNumber: 99, prHeadSha: SHA }).run();
+  expect(await refusal(engine.resumeEpic('AshuLab/a', 1, { from: 'review' }))).toBe('pull request not open');
+  engine.db.update(epics).set({ prNumber: 50 }).run();
+  github.unavailable = new GitHubUnavailable('network', 'down');
+  expect(await refusal(engine.resumeEpic('AshuLab/a', 1, { from: 'review' }))).toBe('github unavailable');
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', resumeStage: null });
+});
+
+test.each([undefined, 'ship' as const])('resuming with from %s behaves as before: it starts from ship with the rounds reset and the pull request read again', async (from) => {
+  const engine = await start(1);
+  stoppedAt(engine.db, 'review');
+  await resumeFrom(engine, from);
+  expect(runner.tasks.map((t) => t.stage)).toEqual(['ship']);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'ship', round: null, prNumber: null, resumeStage: null });
+});
+
+test('a resume without from clears a stage an earlier resume asked and did not see start', async () => {
+  const engine = await start(0);
+  stoppedAt(engine.db, 'review');
+  engine.db.update(epics).set({ resumeStage: 'review' }).run();
+  const resumed = engine.resumeEpic('AshuLab/a', 1);
+  await flush();
+  await clock.advance(1000);
+  await resumed;
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'queued', round: null, resumeStage: null });
+});
+
+test('the ready label of a stopped epic whose own label is still pending is seen by the poll: the reconciliation does not take it off first', async () => {
+  const engine = await start(1);
+  stoppedAt(engine.db, 'review', { labelPending: true }); // it stopped, and its needs-human mirror is not on the issue yet
+  await resumeFrom(engine, 'review');
+  expect(runner.tasks.map((t) => t.stage)).toEqual(['review']);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'review', round: 2 });
+});

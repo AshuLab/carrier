@@ -2,6 +2,8 @@
 
 Status: implemented (v0.1.0)
 
+Amended by [the engine never leaves an epic stuck](engine-never-stuck.md): where the rounds below start over, a resume that names the stage `review` or `fix` keeps them (see "Resume from a stage").
+
 ## Problem
 
 When an epic stops in needs-human, the only way to get it going again is to put the `solve:epic:ready` label back on its issue by hand on GitHub, and `docs/troubleshooting.md` says so: "There is no command or key for it". The macOS app shows why the epic stopped and has nothing to say or do about what comes next. It happened for real: the account Carrier runs on ran out of Claude credits, the epic retried several times, failed and stopped, and once the credits were back the person who fixed it had to leave the app and edit labels on GitHub to continue.
@@ -10,7 +12,7 @@ The engine already knows how to continue: a poll that finds `ready` on a stopped
 
 ## Solution
 
-The engine gets one new command on the control socket, `resumeEpic`, for one epic by repository and number. It does what the person does by hand today, no more: it puts `solve:epic:ready` on the epic's issue and runs a check, and the poll that finds `ready` on a stopped epic starts it again from ship, with its worktree and pull request, the review rounds starting over. The `needs-human` mirror comes off when the epic starts, through the reconciliation the engine already does. SQLite stays the authority and the labels stay its mirror, so ADR 0002 does not change and nothing is requeued behind GitHub's back. The command is named `resumeEpic` because the socket already has a `resume` that takes the engine out of pause.
+The engine gets one new command on the control socket, `resumeEpic`, for one epic by repository and number. It does what the person does by hand today, no more: it puts `solve:epic:ready` on the epic's issue and runs a check, and the poll that finds `ready` on a stopped epic starts it again from ship, with its worktree and pull request, the review rounds starting over (unless the resume names a stage, below). The `needs-human` mirror comes off when the epic starts, through the reconciliation the engine already does. SQLite stays the authority and the labels stay its mirror, so ADR 0002 does not change and nothing is requeued behind GitHub's back. The command is named `resumeEpic` because the socket already has a `resume` that takes the engine out of pause.
 
 The command answers when the epic has started again, not when the label is on, so the app never waits on something that may not happen. It refuses with a reason the app can show when the epic is unknown or is not stopped, when GitHub cannot be reached, and when the epic did not start within thirty seconds of the label going on (the label stays, and the next check takes it). An engine that does not list `resumeEpic` among its capabilities cannot be asked.
 
@@ -19,6 +21,17 @@ The app shows the epic's stuck state in a card between the title and the tabs, o
 Resume always asks first. A sheet says what will happen: `solve:epic:ready` goes back on the issue, the epic starts again from ship reusing its worktree and its pull request, the review rounds start over, and if the cause is not fixed it will stop here again. After confirming, the button reads "Resuming…" until the engine answers. On success the epic is running again and the card is gone with the stuck state; on a refusal the card stays, shows the reason in words, and the button comes back.
 
 Nothing checks that the cause is fixed. If the credits are still empty the epic retries, fails and stops again with the new error and the card comes back. The engine cannot know in advance whether credits will be enough, and a check that guesses wrong would block a resume that would have worked.
+
+### Resume from a stage
+
+`resumeEpic` takes an optional `from` of `ship`, `review` or `fix`, and the engine announces it as the capability `resumeFromStage`.
+With no `from`, or with `ship`, nothing above changes: the epic starts from ship and the review rounds start over.
+With `review` or `fix` the epic keeps its round, pull request, worktree, blockers and the author's session, and starts at that stage.
+The engine saves the stage with the epic (`resumeStage`), so a restart of the engine while the epic waits for a slot keeps it.
+The resume still goes through the queue and takes a slot like any epic, and the command answers when the epic has started, or refuses at the same thirty seconds.
+It refuses, with a reason, when the epic has no pull request, when the pull request is not open, and when its head is not the one Carrier stored.
+Each use that names a stage is an event of the epic, `resumed`, that says a command asked for it.
+The app does not send `from` yet: it is `carrier restart --from` for now.
 
 What was cut. A button in the toolbar next to "Open issue" lost because it is far from the reason and has no room for the words by kind; a button beside the status pill lost for the same reason, the pill being too small to say what resuming does. The app putting the label on GitHub itself lost because it has no GitHub credentials and talks to the engine only through the control socket (ADR 0005). The engine requeuing from SQLite without touching the label lost because GitHub would disagree with the app until the next reconciliation, and because the label is the contract with Solve. A preflight that tries the cause (credits, login) before resuming lost as above. Resuming with no confirmation lost because the action restarts the review rounds and publishes a label change on GitHub, so the person should read what happens first. An answer sent as soon as the label is on lost because the button could then say "Resuming…" for as long as the next check takes, or forever when the epic never starts. The button is called Resume and not Retry: an execution retry is the automatic one after a technical failure (glossary).
 

@@ -159,7 +159,13 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
   const restart = (queuedAt: number) => ({
     status: 'queued' as const, queuedAt, startedAt: null, config: null, labelPending: false, stage: null, stageStartedAt: null, workspace: null,
     lastActivityAt: null, lastError: null, round: null, prNumber: null, prHeadSha: null, pr: null, reviewedSha: null, verification: null, observationsPassAt: null,
-    needsHumanReason: null, needsHumanKind: null, finishedAt: null, authorOption: null, reviewerOption: null, recoveries: 0,
+    needsHumanReason: null, needsHumanKind: null, finishedAt: null, authorOption: null, reviewerOption: null, recoveries: 0, resumeStage: null,
+  });
+  // An epic a person resumed at `review` or `fix` (resume from a stage): it takes the same way through the queue, but keeps its round, pull request,
+  // worktree and the rest of where it stood; `resumeStage` tells `begin` where to start.
+  const requeueKeeping = (queuedAt: number) => ({
+    status: 'queued' as const, queuedAt, startedAt: null, config: null, labelPending: false, stage: null, stageStartedAt: null,
+    lastActivityAt: null, lastError: null, needsHumanReason: null, needsHumanKind: null, finishedAt: null, authorOption: null, reviewerOption: null, recoveries: 0,
   });
 
   // Mirrors the epic's status on its issue: its labels, none of the other owned ones, and no `ready` while running.
@@ -258,8 +264,24 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     if (epic.status !== 'running' || epic.stage !== null || !unchanged(epic.id, epoch)) return;
     const restarted = restarts.get(epic.id);
     restarts.delete(epic.id);
-    await launch(restarted ? onChosen(epic.id, declaredOnly(epic, restarted)) : epic, 'ship', epoch);
+    const start = restarted ? onChosen(epic.id, declaredOnly(epic, restarted)) : epic;
+    if (start.resumeStage) await launchResumed(start, start.resumeStage, epoch);
+    else await launch(start, 'ship', epoch);
   };
+
+  // The stage a resume asked for, claimed like `launch` claims ship: the claim also clears the ask, and the stage runs with the epic's round, pull request,
+  // worktree and session as they were. The new attempt (`startedAt`, set by the reserve) has its retries back.
+  async function launchResumed(epic: Epic, stage: 'review' | 'fix', epoch: number) {
+    if (stopping || !unchanged(epic.id, epoch)) return;
+    const claimed = db.update(epics).set({ stage, stageStartedAt: clock.now(), recoveries: 0, resumeStage: null, ...(stageLabelled() && { labelPending: true }) }).where(and(eq(epics.id, epic.id), isNull(epics.stage), eq(epics.status, 'running'))).returning().get();
+    if (!claimed) return;
+    launching.add(epic.id);
+    try {
+      await execute(claimed, stage);
+    } finally {
+      launching.delete(epic.id);
+    }
+  }
 
   // The options a person picked when restarting a stopped epic, by epic id, until the poll that requeues it reserves it again.
   // ponytail: in memory, an engine restart in between falls back to the roles as saved; persist it if that bites.
@@ -294,7 +316,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     if (stopping || suspended) return;
     const pending = db.select().from(epics).where(and(eq(epics.status, 'running'), isNull(epics.stage))).orderBy(asc(epics.id)).all();
     const epochsRead = pending.map((epic) => epochOf(epic.id));
-    for (const [i, epic] of pending.entries()) await forRepo(epic.repo, () => launch(epic, 'ship', epochsRead[i]));
+    for (const [i, epic] of pending.entries()) await forRepo(epic.repo, () => (epic.resumeStage ? launchResumed(epic, epic.resumeStage, epochsRead[i]!) : launch(epic, 'ship', epochsRead[i])));
   }
 
   const defaultHarnessModels: Record<HarnessName, string> = {
@@ -894,6 +916,16 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     if (!last) {
       // A launch of this engine that claimed the stage and is still preparing its workspace is not a cut one: it makes the execution itself.
       if (launching.has(id)) return;
+      // A resumed stage claimed and cut before its execution: it starts that stage again, never ship.
+      if (epic.stage === 'review' || epic.stage === 'fix') {
+        launching.add(id);
+        try {
+          await execute(epic, epic.stage);
+        } finally {
+          launching.delete(id);
+        }
+        return;
+      }
       // Stopped between claiming the launch and inserting the execution: no agent ever ran, so launching is not a blind restart.
       db.update(epics).set({ stage: null }).where(eq(epics.id, id)).run();
       await launch(fresh(id), 'ship');
@@ -1160,8 +1192,9 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
         for (const epic of found.filter(({ repo }) => configured.has(repo))) {
           tx.insert(epics).values({ ...epic, queuedAt }).onConflictDoUpdate({ target: [epics.repo, epics.issue], set: { title: epic.title, labels: epic.labels } }).run();
           // Carrier never leaves `ready` on a stopped epic, so finding it on a `needs_human` one is a person saying "go on":
-          // it starts again from ship, which reuses the epic's worktree and PR.
-          tx.update(epics).set(restart(queuedAt)).where(and(eq(epics.repo, epic.repo), eq(epics.issue, epic.issue), eq(epics.status, 'needs_human'))).run();
+          // it starts again from ship, which reuses the epic's worktree and PR, or from the stage the person asked for, which keeps where it stood.
+          const stopped = tx.select({ resumeStage: epics.resumeStage }).from(epics).where(and(eq(epics.repo, epic.repo), eq(epics.issue, epic.issue), eq(epics.status, 'needs_human'))).get();
+          if (stopped) tx.update(epics).set(stopped.resumeStage ? requeueKeeping(queuedAt) : restart(queuedAt)).where(and(eq(epics.repo, epic.repo), eq(epics.issue, epic.issue))).run();
         }
       });
       await stopEnded(seen);
@@ -1281,9 +1314,10 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     /**
      * Puts `ready` on a stopped epic's issue, as a person does, and checks now; resolves once the epic is no longer in
      * needs_human. It restarts on the option named for each role and on the one it has for a role left out.
+     * With `from` `review` or `fix` the epic keeps its round, pull request and worktree and starts at that stage, when its pull request is open with the head it has stored.
      * Rejects with ResumeRefused: nothing was changed unless it is `did not restart`, which leaves the label for the next check.
      */
-    async resumeEpic(repo: string, issue: number, chosen: { author?: string; reviewer?: string } = {}) {
+    async resumeEpic(repo: string, issue: number, chosen: { author?: string; reviewer?: string; from?: 'ship' | 'review' | 'fix' } = {}) {
       // The socket answers while the start recovers, and the recovery is not the epic's wait: it is waited for on its own, up to the same 30 seconds, and
       // refused before anything is touched when it takes longer (the label is not put, the chosen options are not kept), so the client has not given up first.
       if (recovering) {
@@ -1302,14 +1336,30 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       const repoConfig = repos().find((r) => r.name === repo);
       const declared = (repoConfig?.providers ?? repoConfig?.options) ?? {};
       if ([chosen.author, chosen.reviewer].some((name) => name !== undefined && !Object.hasOwn(declared, name))) throw new ResumeRefused('unknown option');
+      const keeping = chosen.from === 'review' || chosen.from === 'fix' ? chosen.from : null;
+      if (keeping) {
+        if (epic.prNumber === null) throw new ResumeRefused('no pull request');
+        let found;
+        try {
+          found = await github.getPullRequest(repo, epic.prNumber);
+        } catch (e) {
+          if (e instanceof GitHubUnavailable || e instanceof AuthError) throw new ResumeRefused('github unavailable');
+          throw e;
+        }
+        if (found?.state !== 'open') throw new ResumeRefused('pull request not open');
+        if (found.headSha !== epic.prHeadSha) throw new ResumeRefused('pull request head changed');
+      }
       // A role left out keeps the option it has: the epic is not asked again.
       const author = chosen.author ?? epic.authorOption;
       const reviewer = chosen.reviewer ?? epic.reviewerOption;
       restarts.set(epic.id, { ...(author && { author }), ...(reviewer && { reviewer }) });
+      // Saved with the epic before the label goes on: a restart of the engine, or a check that finds the label later, takes the same stage. Any resume sets it, so an old ask never lingers.
+      db.update(epics).set({ resumeStage: keeping }).where(eq(epics.id, epic.id)).run();
       try {
         await github.setLabels(repo, issue, { add: [settings().labels.ready], remove: [] });
       } catch (e) {
         restarts.delete(epic.id);
+        db.update(epics).set({ resumeStage: null }).where(eq(epics.id, epic.id)).run();
         if (e instanceof GitHubUnavailable || e instanceof AuthError) throw new ResumeRefused('github unavailable');
         throw e;
       }
@@ -1331,6 +1381,8 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
         }
         await new Promise<void>((resolve) => clock.after(resumeTickMs, async () => resolve()));
       }
+      // The plain resume leaves its history as it always did; one that names a stage says that a command asked for it, as `recover` does.
+      if (chosen.from) db.insert(epicEvents).values({ epicId: epic.id, at: clock.now(), type: 'resumed', data: { from: chosen.from, by: 'command' } }).run();
     },
     /**
      * Continues one running epic whose agent is not alive, from its real state, through the code of the poll's recovery (ADR 0044); resolves once it was continued.

@@ -48,6 +48,8 @@ export const epics = sqliteTable(
     reviewerOption: text(),
     // Recoveries by the poll in a row (ADR 0046): back to 0 when an execution of the epic ends or its stage changes; the fourth failure parks it in `engine_error`.
     recoveries: integer().notNull().default(0),
+    // The stage a resume asked for (`review` or `fix`): kept while the epic waits in the queue, so a restart of the engine in between keeps it. Null: start from ship.
+    resumeStage: text({ enum: ['review', 'fix'] }),
   },
   (table) => [uniqueIndex('epics_repo_issue').on(table.repo, table.issue)],
 );

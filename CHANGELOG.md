@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- A session's menu in the sidebar and on the home has Mark as unread (Mark as read), New session on its branch (the draft opens with a worktree cut from it), Project settings… and Delete… for any session that is not working, not only an archived one.
 - `carrier recover <repo>#<issue>` continues a running epic whose agent is gone from its real state, and refuses with a reason when the epic is not running or an agent of it is really alive.
   It also refuses while Carrier is recovering its epics at start, or when there is nothing a recovery would move.
   Each use that continued the epic leaves a `recovered` event in the epic's history.

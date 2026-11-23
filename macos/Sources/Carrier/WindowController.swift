@@ -91,6 +91,19 @@ import SwiftUI
         if sessions.rows != rows { sessions.rows = rows }
     }
 
+    /// Mark as unread or as read, from a session's menu. The session open on screen is seen as it moves, so its menu does not offer it.
+    func setUnread(_ id: String, _ unread: Bool) {
+        if unread { seen.markUnread([id]) } else { seen.markSeen(id, in: hostRows ?? []) }
+        seen.store()
+        refreshUnread()
+    }
+
+    /// New session on a branch, from a session's menu: the draft opens in the project, with a worktree cut from the branch when one is given.
+    @MainActor func startNewSession(in base: String, branch: String?) {
+        newSession.start(in: base, branch: branch)
+        shell.selection = .newSession
+    }
+
     /// The person leaves a session: what it did up to now is seen.
     func leave(_ id: String) {
         seen.markSeen(id, in: hostRows ?? [])
@@ -207,6 +220,11 @@ final class WindowController: NSObject, NSWindowDelegate {
 
     /// For the Conversation menu: acts only while a conversation is open.
     func conversation(_ action: ConversationAction) { model.shell.perform(.conversation(action)) }
+
+    /// What a session's menu does in the window (`SessionContextMenu`).
+    func setUnread(_ id: String, _ unread: Bool) { model.setUnread(id, unread) }
+    @MainActor func startNewSession(in base: String, branch: String?) { model.startNewSession(in: base, branch: branch) }
+    var viewingSession: String? { if case .session(let id) = model.shell.selection { id } else { nil } }
 
     /// What is in front, for the global dictation (`dictationFront`): Carrier's main window (or a sheet over it) or its Settings window must be the key window.
     @MainActor

@@ -6,8 +6,9 @@ extension View {
     /// The session's context menu (`sessionMenu`). It is an AppKit menu, built once when the right button goes down: SwiftUI's rebuilds an open
     /// menu whenever the list behind it changes (the submenu flickered), drops the icons and gets "Ask Siri" added on top.
     /// `filterWorkspace` is only given by the Sessions home.
-    func sessionContextMenu(_ row: SessionRow, filterWorkspace: ((String) -> Void)? = nil) -> some View {
-        modifier(SessionContextMenu(row: row, filterWorkspace: filterWorkspace))
+    /// `inWindow` is for the lists of the main window (the sidebar and the home): they can mark unread and start a session on the branch; the Archive cannot.
+    func sessionContextMenu(_ row: SessionRow, filterWorkspace: ((String) -> Void)? = nil, inWindow: Bool = false) -> some View {
+        modifier(SessionContextMenu(row: row, filterWorkspace: filterWorkspace, inWindow: inWindow))
     }
 }
 
@@ -15,6 +16,7 @@ extension View {
 private struct SessionContextMenu: ViewModifier {
     let row: SessionRow
     let filterWorkspace: ((String) -> Void)?
+    let inWindow: Bool
     @Environment(SessionActions.self) private var actions
     @AppStorage(SidebarStore.pinnedKey) private var pinnedStored = ""
 
@@ -27,7 +29,10 @@ private struct SessionContextMenu: ViewModifier {
         menu.allowsContextMenuPlugIns = false
         // an item the menu cannot use stays off: with auto-enabling the target it has would turn it on
         menu.autoenablesItems = false
-        let sections = sessionMenu(row, pinned: pinnedIds(pinnedStored).contains(row.id), canFilter: filterWorkspace != nil, canRegenerateTitle: actions.canRegenerateTitle)
+        let context = SessionMenuContext(
+            marksUnread: inWindow, viewing: WindowController.shared.viewingSession == row.id, startsSessions: inWindow,
+            projectKnown: ProjectsModel.shared.rows.contains { $0.path == row.base })
+        let sections = sessionMenu(row, pinned: pinnedIds(pinnedStored).contains(row.id), canFilter: filterWorkspace != nil, canRegenerateTitle: actions.canRegenerateTitle, context: context)
         for (index, section) in sections.enumerated() {
             if index > 0 { menu.addItem(.separator()) }
             for item in section { menu.addItem(menuItem(item)) }
@@ -70,6 +75,10 @@ private struct SessionContextMenu: ViewModifier {
         case .archive: refuse { await actions.archive(row.id) }
         case .restore: refuse { await actions.restore(row.id) }
         case .delete: deleteArchived(row, actions)
+        case .markUnread: WindowController.shared.setUnread(row.id, true)
+        case .markRead: WindowController.shared.setUnread(row.id, false)
+        case .newSession(let base, let branch): WindowController.shared.startNewSession(in: base, branch: branch)
+        case .openProject(let base): WindowController.shared.showSettings(place: SettingsPlace(.projects, path: [base]))
         case .copy(let text):
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(text, forType: .string)

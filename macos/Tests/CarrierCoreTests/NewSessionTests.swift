@@ -208,6 +208,27 @@ private func cleanRepo(_ folder: String) -> WorkspaceInfo {
     #expect(model.folder == nil)
 }
 
+@MainActor @Test func aSessionsNewSessionOnItsBranchOpensTheDraftWithAWorktreeCutFromThatBranch() async {
+    let host = FakeChat()
+    host.workspaces["/w/api"] = WorkspaceInfo(
+        folder: "/w/api", branch: "main", defaultBranch: "main",
+        branches: [.init(name: "main", remote: false), .init(name: "carrier/fix-x", remote: false), .init(name: "origin/carrier/only-remote", remote: true)])
+    let model = await draft(host)
+    model.start(in: "/w/api", branch: "carrier/fix-x")
+    await model.load()
+    #expect(model.folder == "/w/api" && model.worktree && model.startBranch == "carrier/fix-x" && model.startTab == .local)
+    // a branch only the remote has is cut from the remote side
+    model.start(in: "/w/api", branch: "carrier/only-remote")
+    await model.load()
+    #expect(model.worktree && model.startBranch == "carrier/only-remote" && model.startTab == .remote)
+    // a branch the folder no longer has leaves the draft as the project sets it, and the next load is blank
+    model.start(in: "/w/api", branch: "gone")
+    await model.load()
+    #expect(model.folder == "/w/api" && model.worktree == false && model.startBranch == "main")
+    await model.load()
+    #expect(model.folder == nil)
+}
+
 @MainActor @Test func theBoxCannotSendWithoutAWorkspaceAnAgentAndAMessage() async {
     let host = FakeChat()
     let model = await draft(host)

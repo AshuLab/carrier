@@ -161,7 +161,7 @@ struct SessionRowView: View {
             Task { try? await Task.sleep(for: .seconds(1.2)); ringKept = false }
         }
         .onHover { hovered = $0 }
-        .sessionContextMenu(row)
+        .sessionContextMenu(row, inWindow: hoverActions)
         .hoverCard { SessionPeekView(card: sessionPeek(row, now: Date())) }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(label(content))

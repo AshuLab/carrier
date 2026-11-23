@@ -173,8 +173,9 @@ public struct WatchNote: Equatable {
     /// The plan of a cancelled preparation, put back in the draft the next time it loads, and the options of it that wait for the agent's list.
     @ObservationIgnored private var restoring: SessionPlan?
     @ObservationIgnored private var restoredOptions: [String: String]?
-    /// The folder a workspace header's + asked for, chosen when the draft loads next.
+    /// The folder a workspace header's + asked for, chosen when the draft loads next, and the branch a session's menu asked to cut the worktree from.
     @ObservationIgnored private var startFolder: String?
+    @ObservationIgnored private var startBranchName: String?
     /// Counts the asks for a folder, so the open draft loads again for the new one.
     public private(set) var starts = 0
 
@@ -230,14 +231,39 @@ public struct WatchNote: Equatable {
             await apply(plan)
         } else if let path = startFolder {
             startFolder = nil
+            let branch = startBranchName
+            startBranchName = nil
             await choose(folder: path)
+            if let branch { await cutWorktree(from: branch) }
         }
     }
 
     /// The + of a workspace in the sidebar: the draft opens (or starts over, if it is open) with that folder chosen.
     public func start(in path: String) {
         startFolder = path
+        startBranchName = nil
         starts += 1
+    }
+
+    /// The same for "New session on <branch>" of a session's menu: the draft opens with the folder chosen and a new worktree cut from that branch.
+    public func start(in path: String, branch: String?) {
+        startFolder = path
+        startBranchName = branch
+        starts += 1
+    }
+
+    /// A worktree cut from `branch`, on the side of it the folder has (its local branch, else the remote one); a folder that has no such branch, or
+    /// offers no worktree, keeps the draft as the project sets it.
+    private func cutWorktree(from branch: String) async {
+        guard let workspace, workspace.branches.isEmpty == false else { return }
+        if workspace.branches.contains(where: { $0.name == branch && $0.remote == false }) {
+            choose(startBranch: branch, on: .local)
+        } else if workspace.branches.contains(where: { $0.remote && $0.name == "origin/" + branch }) {
+            choose(startBranch: branch, on: .remote)
+        } else {
+            return
+        }
+        await useWorktree(true)
     }
 
     /// A cancelled preparation gives the plan back: the draft that loads next has the folder, the branch or the worktree, the agent and its

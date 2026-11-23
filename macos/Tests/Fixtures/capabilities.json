@@ -8,6 +8,8 @@
     "availableRepos",
     "availableReposPaged",
     "resumeEpic",
+    "resumeFromStage",
+    "recoverEpic",
     "reload"
   ],
   "chat": [

@@ -30,6 +30,13 @@ test('the agent\'s reason and error are shown without control characters', () =>
   expect(lines).not.toMatch(/[\x07\x1b\r]/);
 });
 
+test('an epic that resumes by itself says when, and one past its time says at the next check', () => {
+  const lines = (resumeAt: number) => renderPanel(snapshot({ epics: [epic({ status: 'needs_human', needsHumanReason: 'ran out', resumeAt })] })).join('\n');
+  expect(lines(now + 90 * 60_000)).toContain('reason: ran out\n  resumes: in 1h 30m');
+  expect(lines(now - 1_000)).toContain('resumes: at the next check');
+  expect(renderPanel(snapshot({ epics: [epic({ status: 'needs_human' })] })).join('\n')).not.toContain('resumes');
+});
+
 test('slices show next to the round when GitHub reports some, and nothing when it sends none or the epic has no sub-issues', () => {
   const line = (slices: PanelEpic['slices']) => renderPanel(snapshot({ epics: [epic({ round: 2, slices })] }))[1];
   expect(line({ done: 3, total: 5 })).toContain('round 2/5  slices 3/5  blockers 0');

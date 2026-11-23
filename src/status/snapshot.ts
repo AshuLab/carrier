@@ -90,7 +90,7 @@ export function buildSnapshot(
         status: e.status as 'running' | 'needs_human',
         stage: e.stage,
         round: e.round,
-        maxReviews,
+        maxReviews: e.roundLimit ?? maxReviews,
         blockers: blockers.length,
         stageSince: e.stageStartedAt ?? e.startedAt ?? now,
         lastActivityAt: e.lastActivityAt,
@@ -111,6 +111,7 @@ export function buildSnapshot(
         blockerTitles: blockers.slice(0, maxBlockerTitles).map((b) => b.title.slice(0, maxBlockerTitleLength)),
         agents: epicAgents(e),
         options: optionsOf(e),
+        ...(e.resumeAt !== null && { resumeAt: e.resumeAt }),
       };
     }),
   };

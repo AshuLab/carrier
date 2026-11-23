@@ -152,8 +152,8 @@ private func connect(_ engine: FixtureEngine) throws -> ControlClient {
 @Test func theGoldenSnapshotHasAStoppedEpicOfEachKindAndOthersThatAreNotStopped() throws {
     let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures/snapshot.json")
     let epics = try decodeSnapshot(Data(contentsOf: url)).epics
-    // usage_limit (an option ran out of credits) is not a kind the app words: it is drawn by the generic card for kinds it does not know.
-    #expect(Set(epics.filter { $0.status == .needsHuman }.compactMap(\.needsHumanKind)) == Set(allKinds + ["usage_limit"]))
+    // usage_limit (an option ran out of credits) and engine_error (the engine hit an unexpected error) are not kinds the app words: they are drawn by the generic card for kinds it does not know.
+    #expect(Set(epics.filter { $0.status == .needsHuman }.compactMap(\.needsHumanKind)) == Set(allKinds + ["usage_limit", "engine_error"]))
     #expect(epics.filter { $0.status == .running }.allSatisfy { resumeCard($0, canResume: true) == nil })
     #expect(epics.filter { $0.status == .needsHuman }.allSatisfy { resumeCard($0, canResume: true) != nil })
 }

@@ -17,7 +17,7 @@ Work already running keeps what it started with, and a change reaches what start
 
 - An agent run keeps the agent, account and time limit it was launched with.
 - An epic keeps the configuration it stored when it started (see [Things that are checked](#things-that-are-checked)); epics that start later use the new roles, effort, persona, failover and accounts, and a restarted epic takes the settings of that moment.
-- A limit is read when the decision is made: a changed `maxReviews` or `maxExecutionRetries` applies at the epic's next review or failure, and a `maxConcurrentEpics` lowered below the epics running only stops new ones from starting.
+- A limit is read when the decision is made: a changed `maxReviews` or `maxExecutionRetries` applies at the epic's next review or failure (an epic that a resume granted more review rounds keeps the cap of that grant), and a `maxConcurrentEpics` lowered below the epics running only stops new ones from starting.
 - A repo taken out of `repos` has its epics parked as `repo_removed` where they were, its active agent runs stopped (they end interrupted) and no more calls to GitHub; adding it back restores them.
 - A profile removed while a running epic names it stops that epic's next run in `needs-human`, naming the profile; put the profile back and restart the epic.
 
@@ -104,6 +104,9 @@ The accounts the roles name (`claude` and `codex` here) are declared in `provide
 | `limits.maxExecutionRetries` | no | `3` | Retries after a technical failure of an agent execution. |
 | `limits.maxExecutionHours` | no | `4` | Time limit of one agent execution, or `"unlimited"`. `0` does not mean infinite. |
 | `limits.githubCallTimeoutSeconds` | no | `30` | Limit for each short call to GitHub or Forge. |
+| `limits.idleMinutes` | no | none | A whole number of minutes. An agent process that writes nothing to stdout or stderr for that long is killed, and the execution is retried with its session as a technical failure (kind `killed`, detail `no output for N seconds`). Without it a silent process is never touched. A reload applies it to the next execution; one already running keeps what it started with. Zero, negatives and fractions are refused. |
+| `limits.autoResume` | no | `false` | `true` or `false`. When an epic stops in `usage_limit` and the provider's quota check says when the exhausted window comes back, the epic keeps that time as `resumeAt`, shown in the panel, `carrier status` and the control snapshot, and records an `auto_resume_scheduled` event. It is off because resuming later spends credits with nobody watching. At the first check after `resumeAt` the engine reads the quota again and, when the window is below 100%, resumes the epic from the stage where it stopped (an `auto_resumed` event), at most three times in a row; with the engine paused nothing resumes. A reload applies it to the next stop, and turning it off stops the wake-ups of epics already scheduled. |
+| `limits.autoResumeMaxHours` | no | `12` | A positive number of hours. A window that comes back later than this is not scheduled: the epic stays stopped and its reason says when the window comes back (12 covers a 5-hour window and not a weekly one). Zero and negatives are refused. A reload applies it to the next stop. |
 
 ## Labels
 
@@ -120,7 +123,8 @@ Carrier reads and writes five labels on an epic's issue, each named by a role in
 Two more groups are off until you name them, so a Carrier that does not name them writes exactly what it wrote before:
 
 - `labels.stages`: `{ ship, review, fix }`, each optional. While an epic runs, the issue carries the label of its stage beside `running`, and the next stage replaces it.
-- `labels.reasons`: one optional label per kind of stop, `review_limit`, `agent_needs_human`, `retries_exhausted`, `timeout`, `auth`, `workspace`, `pr_invalid` and `usage_limit`. While an epic waits for a person, the issue carries the label of its kind beside `needsHuman`.
+- `labels.reasons`: one optional label per kind of stop, `review_limit`, `agent_needs_human`, `retries_exhausted`, `timeout`, `auth`, `workspace`, `pr_invalid`, `usage_limit` and `engine_error`.
+  While an epic waits for a person, the issue carries the label of its kind beside `needsHuman`.
 
 A stage label costs one more write to GitHub at each stage change, which is why it is opt-in.
 While any of these groups is named, a status change also sends one removal for each owned label the issue lacks, so the writes grow with the labels named.

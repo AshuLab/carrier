@@ -50,3 +50,10 @@ A status that names a later record means that record changed part or all of this
 | 0040 | [Deleting a project from disk is only for what Carrier made, goes to the Trash and stops at unsaved work](0040-deleting-a-project-from-disk-is-only-for-what-carrier-made-and-goes-to-the-trash.md) | accepted |
 | 0041 | [A project is an entry of `projects.json`, identified by its folder](0041-a-project-is-an-entry-of-projects-json-identified-by-its-folder.md) | accepted |
 | 0042 | [A session's worktree folder is cleaned by default](0042-a-session-worktree-folder-is-cleaned-by-default.md) | accepted; amends [0035](0035-a-worktree-folder-goes-when-its-work-is-done-and-its-branch-stays.md) and [0006](0006-agent-events-stored-in-sqlite-with-bounded-output.md) |
+| 0043 | [Labels are named by who writes them, and every one is configurable](0043-labels-are-named-by-who-writes-them-and-every-one-is-configurable.md) | accepted |
+| 0044 | [Recover continues an epic from its real state, and no command sets one](0044-recover-continues-an-epic-from-its-real-state-and-no-command-sets-one.md) | accepted |
+| 0045 | [Each stage runs a skill the config names, and Carrier keeps the contract](0045-each-stage-runs-a-skill-the-config-names-and-carrier-keeps-the-contract.md) | accepted |
+| 0046 | [An unexpected error stops the epic it happened on, and the poll recovers an epic that lost its agent](0046-an-unexpected-error-stops-the-epic-it-happened-on-and-the-poll-recovers-an-epic-that-lost-its-agent.md) | accepted |
+| 0047 | [A review is tied to the head it was given, and a moved head is reviewed again](0047-a-review-is-tied-to-the-head-it-was-given-and-a-moved-head-is-reviewed-again.md) | accepted |
+| 0048 | [A review round has several reviewers in parallel, and a lead reviewer closes it](0048-a-review-round-has-several-reviewers-in-parallel-and-a-lead-reviewer-closes-it.md) | accepted |
+| 0049 | [A quota stop wakes up by itself when the provider says the window is back](0049-a-quota-stop-wakes-up-by-itself-when-the-provider-says-the-window-is-back.md) | accepted |

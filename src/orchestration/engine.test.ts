@@ -7,6 +7,7 @@ import type { EffectiveRepoConfig } from '../config/resolve.ts';
 import { openDatabase, type Db } from '../storage/db.ts';
 import { eq } from 'drizzle-orm';
 import { epics } from '../storage/schema.ts';
+import type { QuotaSnapshot } from '../usage/types.ts';
 import { createEngine, type EngineSettings } from './engine.ts';
 import { ReloadRefused } from './reload-refused.ts';
 import type { ResumeRefused } from './resume-refused.ts';
@@ -20,7 +21,7 @@ import { epicEvents, executionEvents } from '../storage/events.ts';
 import { executions } from '../storage/executions.ts';
 import { failureStreak } from './retry.ts';
 import { callerResults } from '../storage/caller-results.ts';
-import { FakeClock, FakeGitHub } from './fake.ts';
+import { FakeClock, FakeGitHub, FakeQuota } from './fake.ts';
 import { AuthError, GitHubRejected, GitHubUnavailable, type EpicSlice, type PullRequestBlock, type ReviewThread } from './github.ts';
 import { epicReviewThreads } from '../storage/epic-review-threads.ts';
 import { epicSlices } from '../storage/epic-slices.ts';
@@ -39,12 +40,14 @@ let dbs: Db[];
 let github: FakeGitHub;
 let clock: FakeClock;
 let runner: FakeAgentRunner;
+let fakeQuota: FakeQuota;
 let workspaces: FakeWorkspaces;
 let settings: EngineSettings; // what the engine reads: a test changes it the way a reload does
 let watched: EffectiveRepoConfig[]; // the repos the engine reads, changed the same way
 let declaredProfile: (name: string) => boolean; // whether the configuration declares a profile, changed the same way
 beforeEach(() => {
   runner = new FakeAgentRunner();
+  fakeQuota = new FakeQuota();
   workspaces = new FakeWorkspaces();
   dir = mkdtempSync(join(tmpdir(), 'carrier-'));
   dbs = [];
@@ -65,9 +68,9 @@ function open() {
 }
 async function start(maxConcurrentEpics = 0, config = repos, maxExecutionHours: number | 'unlimited' = 4, maxExecutionRetries = 3, maxReviews = 5) {
   const db = open();
-  settings = { pollIntervalMs: 5 * MIN, labels: defaultLabels, maxConcurrentEpics, maxExecutionHours, maxExecutionRetries, maxReviews };
+  settings = { pollIntervalMs: 5 * MIN, labels: defaultLabels, maxConcurrentEpics, maxExecutionHours, maxExecutionRetries, maxReviews, autoResume: false, autoResumeMaxHours: 12 };
   watched = config;
-  const engine = createEngine({ db, github, clock, repos: () => watched, settings: () => settings, profileDeclared: (name) => declaredProfile(name), runner, workspaces, places: enginePlacesOf(dir) });
+  const engine = createEngine({ db, github, clock, repos: () => watched, settings: () => settings, profileDeclared: (name) => declaredProfile(name), runner, workspaces, quota: fakeQuota.read, places: enginePlacesOf(dir) });
   await engine.start();
   return Object.assign(engine, { db });
 }
@@ -718,7 +721,8 @@ test('importing the same result twice changes nothing', async () => {
   engine.db.update(executions).set({ status: 'interrupted' }).run();
   await clock.advance(5 * MIN);
   expect(rows(engine.db)[0]).toMatchObject({ stage: 'review', round: 1 });
-  expect(runner.tasks.map((t) => t.stage)).toEqual(['ship', 'review']); // no second reviewer
+  expect(runner.tasks.map((t) => t.stage)).toEqual(['ship', 'review', 'review']); // the ship result is not imported again; the stopped review is the poll's recovery, resumed
+  expect(engine.db.select().from(callerResults).all()).toHaveLength(1);
 });
 
 test('a workspace that cannot be prepared leaves the epic in needs_human and frees the slot', async () => {
@@ -820,6 +824,52 @@ test('with maxExecutionRetries 3 there are four attempts, then the epic needs a 
   expect(runner.tasks.filter((t) => t.epic === 1)).toHaveLength(4);
 });
 
+// An epic that ran out of retries, resumed a minute later: the executions it had before the resume are another attempt's.
+async function exhaustedThenResumed(config = repos) {
+  github.ready = { 'AshuLab/a': ready(1) };
+  runner.behavior = () => ({ sessionId: 's', exit: 'failed' });
+  const engine = await start(1, config);
+  await clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'retries_exhausted' }));
+  expect(runner.tasks).toHaveLength(4);
+  await clock.advance(MIN);
+  return engine;
+}
+
+test('a resumed epic that stopped in retries_exhausted has the full retries for its first technical failure', async () => {
+  const engine = await exhaustedThenResumed();
+  let fail!: () => void;
+  const gate = new Promise<void>((resolve) => (fail = resolve)); // the epic is seen running again before its first failure
+  runner.behavior = () => ({ sessionId: 's', exit: 'failed', ...(runner.tasks.length === 5 && { when: gate }) });
+  const resumed = engine.resumeEpic('AshuLab/a', 1);
+  await flush();
+  await clock.advance(1000);
+  await resumed;
+  fail();
+  await vi.waitFor(() => expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'retries_exhausted' }));
+
+  expect(runner.tasks).toHaveLength(8); // four more tries, not the one that the old attempt's failures left
+  expect(eventsOf(engine.db).filter((e) => e.type !== 'resumed').map((e) => e.data.attempt)).toEqual([2, 3, 4, 2, 3, 4]);
+  expect(rows(engine.db)[0]?.needsHumanReason).toContain('(4 attempts)');
+});
+
+test('a resumed epic gets back the failover options that ran out in its previous attempt', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  runner.behavior = (task) => outOf('claude', 'spare')(task, { exit: 'hang' });
+  const engine = await startFailover(['spare']);
+  await vi.waitFor(() => expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'usage_limit' }));
+  expect(runner.tasks.map((t) => t.option)).toEqual(['claude', 'spare']);
+
+  await clock.advance(MIN);
+  runner.behavior = (task) => outOf('claude')(task, { exit: 'hang' }); // `spare` is back
+  const resumed = engine.resumeEpic('AshuLab/a', 1, { author: 'claude' });
+  await flush();
+  await clock.advance(1000);
+  await resumed;
+  await vi.waitFor(() => expect(runner.tasks.map((t) => t.option)).toEqual(['claude', 'spare', 'claude', 'spare']));
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', needsHumanKind: null });
+});
+
 const killedBy: AgentFailure = { kind: 'killed', detail: 'SIGKILL', exitCode: null, signal: 'SIGKILL', hostFreeMemMb: 1234, hostLoad: 2.5 };
 
 test('a killed execution stores its failure, names the kind in the epic error, and the exhausted reason quotes it', async () => {
@@ -861,7 +911,131 @@ test('a usage limit does not count in the retry streak', async () => {
   seedExecution(db, 'e0', 1, { status: 'failed', error: 'boom', failureKind: 'crashed' });
   seedExecution(db, 'e1', 1, { status: 'failed', failureKind: 'usage_limit', failureDetail: 'resets 12:40pm' });
   seedExecution(db, 'e2', 1, { status: 'failed', error: 'boom', failureKind: 'crashed' });
-  expect(failureStreak(db, 1).map((e) => e.executionId)).toEqual(['e2']);
+  expect(failureStreak(db, { id: 1, startedAt: 0 }).map((e) => e.executionId)).toEqual(['e2']);
+});
+
+test('an unexpected error while settling one epic stops only that epic with engine_error and a redacted reason, and the other keeps running', async () => {
+  github.ready = { 'AshuLab/a': ready(1, 2) };
+  pull(50);
+  runner.behavior = (task) => (task.epic === 1 ? { write: completed(task) } : { exit: 'hang' });
+  const getPullRequest = github.getPullRequest.bind(github);
+  github.getPullRequest = async () => {
+    throw new Error('exploded with token ghp_abcdefghijklmnopqrstuvwxyz0123456789\nsecond line');
+  };
+  const engine = await start(2);
+  await clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'engine_error' }));
+
+  const [stopped, other] = rows(engine.db);
+  expect(stopped?.needsHumanReason).toMatch(/^exploded with token \S+ second line$/);
+  expect(stopped?.needsHumanReason).not.toContain('ghp_abcdefghijklmnopqrstuvwxyz0123456789');
+  expect(other).toMatchObject({ issue: 2, status: 'running' });
+  expect(labelsOf(1)).toEqual(['solve:epic:needs-human']);
+  github.getPullRequest = getPullRequest;
+});
+
+test('an error that leaves a launched execution running ends it as failed and does not leave the epic running', async () => {
+  github.ready = { 'AshuLab/a': ready(1, 2) };
+  let launches = 0;
+  const run = runner.run.bind(runner);
+  runner.run = (task) => {
+    if (task.epic === 1 && ++launches === 2) throw new Error('could not spawn the retry');
+    return run(task);
+  };
+  runner.behavior = (task) => (task.epic === 1 ? { exit: 'failed' } : { exit: 'hang' });
+  const engine = await start(2);
+  await clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'engine_error', needsHumanReason: 'could not spawn the retry' }));
+
+  expect(executionsOf(engine.db).filter((e) => e.epicId === 1).map((e) => e.status)).toEqual(['failed', 'failed']);
+  expect(rows(engine.db)[1]).toMatchObject({ issue: 2, status: 'running' });
+});
+
+// Two epics whose finished executions wait for the poll: GitHub was down when their results arrived.
+async function startWithResultsPending() {
+  github.ready = { 'AshuLab/a': ready(1, 2) };
+  pull(50);
+  pull(51, {}, 2);
+  runner.behavior = (task) => (task.stage === 'ship' ? { write: completed(task, { number: 50 + task.epic - 1, headSha: SHA }) } : { exit: 'hang' });
+  const engine = await start(2);
+  const getPullRequest = github.getPullRequest.bind(github);
+  github.getPullRequest = async () => {
+    throw new GitHubUnavailable('network', 'down');
+  };
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(executionsOf(engine.db).map((e) => e.status)).toEqual(['finished', 'finished']);
+  return { engine, getPullRequest };
+}
+
+test('an error settling the first of two pending results stops that epic with engine_error, the second is settled and launched, and the poll finishes', async () => {
+  const { engine, getPullRequest } = await startWithResultsPending();
+  github.getPullRequest = async (repo, number) => {
+    if (number === 50) throw new Error('could not read the pull request');
+    return getPullRequest(repo, number);
+  };
+  await clock.advance(5 * MIN);
+
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'engine_error', needsHumanReason: 'could not read the pull request' });
+  expect(rows(engine.db)[1]).toMatchObject({ issue: 2, status: 'running', stage: 'review', round: 1 });
+  expect(runner.tasks.filter((t) => t.epic === 2).map((t) => t.stage)).toEqual(['ship', 'review']);
+  expect(engine.nextPollAt).toBe(15 * MIN);
+});
+
+test('an error retrying the first of two epics with a retry pending stops that epic with engine_error, the second is retried, and the poll finishes', async () => {
+  github.ready = { 'AshuLab/a': ready(1, 2) };
+  const launched = new Set<number>();
+  runner.behavior = (task) => (launched.has(task.epic) ? { exit: 'hang' } : (launched.add(task.epic), { exit: 'failed' })); // each epic's first run fails, its retry hangs
+  const engine = await start(2);
+  const findPullRequest = github.findPullRequest.bind(github);
+  github.findPullRequest = async () => {
+    throw new GitHubUnavailable('network', 'down');
+  };
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(runner.tasks).toHaveLength(2); // nothing was retried: GitHub was down
+
+  github.findPullRequest = async (repo, issue) => {
+    if (issue === 1) throw new Error('could not look for the pull request');
+    return findPullRequest(repo, issue);
+  };
+  await clock.advance(5 * MIN);
+
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'engine_error', needsHumanReason: 'could not look for the pull request' });
+  expect(rows(engine.db)[1]).toMatchObject({ issue: 2, status: 'running' });
+  expect(runner.tasks.filter((t) => t.epic === 2)).toHaveLength(2);
+  expect(engine.nextPollAt).toBe(15 * MIN);
+});
+
+test('an error about the whole engine while settling stops the poll with its message and parks no epic', async () => {
+  const { engine } = await startWithResultsPending();
+  const fail = Object.assign(new Error('attempt to write a readonly database'), { code: 'SQLITE_READONLY' });
+  github.getPullRequest = async () => {
+    throw fail;
+  };
+  const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+  try {
+    await clock.advance(5 * MIN);
+    expect(logged.mock.calls.flat().join(' ')).toContain('attempt to write a readonly database');
+  } finally {
+    logged.mockRestore();
+  }
+  expect(rows(engine.db).map((e) => e.status)).toEqual(['running', 'running']);
+});
+
+test('a configuration that cannot be read stops the poll with a message that names it, parks no epic, and the next check is armed', async () => {
+  const { engine } = await startWithResultsPending();
+  const unreadable = new Error('could not read the configuration: config.yaml is unreadable');
+  watched = { [Symbol.iterator]: () => { throw unreadable; }, map: () => { throw unreadable; } } as unknown as EffectiveRepoConfig[];
+  const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+  try {
+    await engine.pollNow();
+    expect(logged.mock.calls.flat().join(' ')).toContain('could not read the configuration');
+  } finally {
+    logged.mockRestore();
+  }
+  expect(rows(engine.db).map((e) => e.status)).toEqual(['running', 'running']);
+  expect(engine.nextPollAt).toBe(clock.now() + settings.pollIntervalMs);
 });
 
 // Failover: three options, the author on `claude` and the reviewer on `codex`; `spare` is the one only the list can name.
@@ -1038,6 +1212,319 @@ test.each([['an empty list', { author: [], reviewer: [] }], ['absent', undefined
   expect(rows(engine.db)[0]?.needsHumanReason).toBe(`the ship execution ran out of usage on option claude · carrier restart AshuLab/a#1 --author <option> · ${outOfCredits.detail}`);
 });
 
+// Auto-resume: the epic keeps the time its window comes back, read from the quota of the account of each option that ran out.
+const HOUR = 60 * MIN;
+const claudeAccount = { harness: 'claude' as const, model: 'opus', configDir: '/cfg/claude' };
+const spareAccount = { harness: 'codex' as const, model: 'gpt', configDir: '/cfg/spare' };
+const quotaRepos = (failover?: boolean): EffectiveRepoConfig[] => [{
+  name: 'AshuLab/a',
+  providers: { claude: claudeAccount, spare: spareAccount } as any,
+  ...(failover && { failover: { roles: { author: [{ provider: 'spare' }], reviewer: [] } } }),
+  agents: { author: { profile: 'a', option: 'claude', ...claudeAccount }, reviewer: { profile: 'b', option: 'spare', ...spareAccount } },
+}];
+const full = (provider: 'claude' | 'codex', resetsAt: number): QuotaSnapshot => ({ provider, status: 'ok', checkedAt: 0, windows: [{ id: 'w', label: 'w', usedPercent: 100, resetsAt }] });
+// The author runs out on `claude` (and on `spare` with failover) and the epic stops; `on` is auto-resume.
+async function stopOnQuota(over: { autoResume?: boolean; failover?: boolean; autoResumeMaxHours?: number } = {}) {
+  github.ready = { 'AshuLab/a': ready(1) };
+  runner.behavior = (task) => outOf('claude', 'spare')(task, { exit: 'hang' });
+  const engine = await start(1, quotaRepos(over.failover));
+  settings = { ...settings, autoResume: over.autoResume ?? true, ...(over.autoResumeMaxHours && { autoResumeMaxHours: over.autoResumeMaxHours }) }; // a reload before the stop
+  await clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'usage_limit' }));
+  return engine;
+}
+
+test('with auto-resume on and a time within the maximum the epic keeps resumeAt, writes auto_resume_scheduled, and the reason says when', async () => {
+  fakeQuota.snapshots['/cfg/claude'] = full('claude', 5 * MIN + 3 * HOUR);
+  const engine = await stopOnQuota();
+
+  expect(fakeQuota.asked).toEqual([{ provider: 'claude', configDir: '/cfg/claude' }]);
+  expect(rows(engine.db)[0]).toMatchObject({ resumeAt: 5 * MIN + 3 * HOUR });
+  expect(rows(engine.db)[0]?.needsHumanReason).toBe(`the ship execution ran out of usage on option claude · carrier restart AshuLab/a#1 --author <option> · resumes by itself at 1970-01-01T03:05:00.000Z · ${outOfCredits.detail}`);
+  expect(eventsOf(engine.db)).toMatchObject([{ epicId: 1, at: 5 * MIN, type: 'auto_resume_scheduled', data: { resumeAt: 5 * MIN + 3 * HOUR } }]);
+  expect(buildSnapshot(engine.db, { now: clock.now(), maxConcurrentEpics: 1, maxReviews: 5, finishedWindowDays: 15, startedAt: 0, repos: 1, nextCheckAt: null, problem: null, paused: false, slices: engine.slices, version: 'x', pollIntervalMs: 1, labels: defaultLabels }).epics[0]).toMatchObject({ status: 'needs_human', resumeAt: 5 * MIN + 3 * HOUR });
+});
+
+test('with failover the time is the earliest over the options the epic ran out of', async () => {
+  fakeQuota.snapshots['/cfg/claude'] = full('claude', 5 * MIN + 5 * HOUR);
+  fakeQuota.snapshots['/cfg/spare'] = full('codex', 5 * MIN + 2 * HOUR);
+  const engine = await stopOnQuota({ failover: true });
+
+  expect(fakeQuota.asked.map((t) => t.configDir).sort()).toEqual(['/cfg/claude', '/cfg/spare']);
+  expect(rows(engine.db)[0]).toMatchObject({ resumeAt: 5 * MIN + 2 * HOUR });
+});
+
+test('with auto-resume off the quota is not asked, resumeAt is not set and the reason is the usual one', async () => {
+  fakeQuota.snapshots['/cfg/claude'] = full('claude', 5 * MIN + 3 * HOUR);
+  const engine = await stopOnQuota({ autoResume: false });
+
+  expect(fakeQuota.asked).toEqual([]);
+  expect(rows(engine.db)[0]).toMatchObject({ resumeAt: null });
+  expect(rows(engine.db)[0]?.needsHumanReason).toBe(`the ship execution ran out of usage on option claude · carrier restart AshuLab/a#1 --author <option> · ${outOfCredits.detail}`);
+  expect(eventTypes(engine.db)).toEqual([]);
+});
+
+test.each([
+  ['the probe says no window is full', () => {}],
+  ['the probe is rate limited', () => { fakeQuota.snapshots['/cfg/claude'] = { provider: 'claude', status: 'rate_limited', checkedAt: 0, windows: [], message: 'x' }; }],
+  ['the probe throws', () => { fakeQuota.failing = true; }],
+])('with no known time (%s) resumeAt is not set and the reason says why', async (_, setUp) => {
+  fakeQuota.snapshots['/cfg/claude'] = { provider: 'claude', status: 'ok', checkedAt: 0, windows: [{ id: 'w', label: 'w', usedPercent: 40 }] };
+  setUp();
+  const engine = await stopOnQuota();
+
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'usage_limit', resumeAt: null });
+  expect(rows(engine.db)[0]?.needsHumanReason).toContain('it will not resume by itself: the provider did not say when the window comes back');
+  expect(eventTypes(engine.db)).toEqual([]);
+});
+
+test('a wait longer than autoResumeMaxHours is not scheduled and the reason says when the window comes back', async () => {
+  fakeQuota.snapshots['/cfg/claude'] = full('claude', 5 * MIN + 13 * HOUR);
+  const engine = await stopOnQuota();
+
+  expect(rows(engine.db)[0]).toMatchObject({ resumeAt: null });
+  expect(rows(engine.db)[0]?.needsHumanReason).toContain('the window comes back at 1970-01-01T13:05:00.000Z, more than 12 h away: it will not resume by itself');
+  expect(eventTypes(engine.db)).toEqual([]);
+});
+
+test('the maximum is the live setting: a wait of 13 hours is within 24', async () => {
+  fakeQuota.snapshots['/cfg/claude'] = full('claude', 5 * MIN + 13 * HOUR);
+  const engine = await stopOnQuota({ autoResumeMaxHours: 24 });
+
+  expect(rows(engine.db)[0]).toMatchObject({ resumeAt: 5 * MIN + 13 * HOUR });
+});
+
+test('a resume by a person clears resumeAt', async () => {
+  fakeQuota.snapshots['/cfg/claude'] = full('claude', 5 * MIN + 3 * HOUR);
+  const engine = await stopOnQuota();
+  expect(rows(engine.db)[0]?.resumeAt).toBe(5 * MIN + 3 * HOUR);
+
+  runner.behavior = () => ({ exit: 'hang' });
+  const resumed = engine.resumeEpic('AshuLab/a', 1);
+  await flush();
+  await clock.advance(1000);
+  await resumed;
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', resumeAt: null });
+});
+
+test('any other change of the epic\'s status clears resumeAt: ended from outside', async () => {
+  fakeQuota.snapshots['/cfg/claude'] = full('claude', 5 * MIN + 3 * HOUR);
+  const engine = await stopOnQuota();
+
+  github.issue('AshuLab/a', 1).state = 'closed';
+  await clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(rows(engine.db)[0]).toMatchObject({ status: 'cancelled', resumeAt: null }));
+});
+
+// The wake-up: at the first poll after `resumeAt` the quota is read again, and the epic resumes only when its window is below 100%.
+const back = (provider: 'claude' | 'codex' = 'claude'): QuotaSnapshot => ({ provider, status: 'ok', checkedAt: 0, windows: [{ id: 'w', label: 'w', usedPercent: 20, resetsAt: 9 * HOUR }] });
+const WAKE = 5 * MIN + 3 * HOUR; // the epic stops at 5 minutes and its window says it is back 3 hours later
+async function stoppedForQuota(over: Parameters<typeof stopOnQuota>[0] = {}) {
+  fakeQuota.snapshots['/cfg/claude'] = full('claude', WAKE);
+  const engine = await stopOnQuota(over);
+  runner.behavior = () => ({ exit: 'hang' });
+  return engine;
+}
+const shipTasks = () => runner.tasks.filter((t) => t.stage === 'ship').length;
+
+test('before resumeAt the probe is not asked again and the epic stays stopped', async () => {
+  const engine = await stoppedForQuota();
+  fakeQuota.snapshots['/cfg/claude'] = back();
+  await clock.advance(2 * HOUR);
+
+  expect(fakeQuota.asked).toHaveLength(1);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', resumeAt: WAKE });
+});
+
+test('at the first poll after resumeAt the probe is asked again and a window below 100% resumes the epic from ship through the queue, with an auto_resumed event', async () => {
+  const engine = await stoppedForQuota();
+  fakeQuota.snapshots['/cfg/claude'] = back();
+  await clock.advance(WAKE - clock.now() - 1);
+  expect(fakeQuota.asked).toHaveLength(1); // not before the time
+  await clock.advance(5 * MIN);
+
+  expect(fakeQuota.asked).toHaveLength(2);
+  expect(shipTasks()).toBe(2);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'ship', resumeAt: null, autoResumes: 1, needsHumanKind: null });
+  expect(eventsOf(engine.db).map((e) => [e.type, e.data])).toEqual([['auto_resume_scheduled', { resumeAt: WAKE }], ['auto_resumed', { stage: 'ship', option: 'claude', resumeAt: WAKE, count: 1 }]]);
+  expect(labelsOf(1)).toEqual(['solve:epic:running']);
+});
+
+test.each([
+  ['the window is still at 100%', () => { fakeQuota.snapshots['/cfg/claude'] = full('claude', 9 * HOUR); }],
+  ['the probe is rate limited', () => { fakeQuota.snapshots['/cfg/claude'] = { provider: 'claude', status: 'rate_limited', checkedAt: 0, windows: [], message: 'x' }; }],
+  ['the probe fails', () => { fakeQuota.failing = true; }],
+  ['the probe has no data for the account', () => { delete fakeQuota.snapshots['/cfg/claude']; }],
+])('when %s the epic waits for the next poll and nothing is guessed, and resumes at the poll that finds it back', async (_, setUp) => {
+  const engine = await stoppedForQuota();
+  setUp();
+  await clock.advance(3 * HOUR); // past resumeAt: the poll at its time asks
+  const asked = fakeQuota.asked.length;
+
+  expect(asked).toBeGreaterThan(1);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', resumeAt: WAKE, autoResumes: 0 });
+  expect(shipTasks()).toBe(1);
+
+  fakeQuota.failing = false;
+  fakeQuota.snapshots['/cfg/claude'] = back();
+  await clock.advance(5 * MIN);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', autoResumes: 1 });
+  expect(shipTasks()).toBe(2);
+});
+
+test('the wake-up takes a slot like any epic: with none free it waits queued and starts when one frees', async () => {
+  const engine = await stoppedForQuota();
+  settings.maxConcurrentEpics = 0;
+  fakeQuota.snapshots['/cfg/claude'] = back();
+  await clock.advance(3 * HOUR);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'queued', autoResumes: 1 });
+  expect(shipTasks()).toBe(1);
+
+  settings.maxConcurrentEpics = 1;
+  await clock.advance(5 * MIN);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'ship' });
+  expect(shipTasks()).toBe(2);
+});
+
+test.each(['review', 'fix'] as const)('an epic that stopped at %s wakes up at that stage with its round, pull request, worktree and session', async (stage) => {
+  const db = open();
+  seedEpic(db, 1, { status: 'needs_human', stage, round: 2, prNumber: 50, prHeadSha: SHA, workspace: '/w/epic', needsHumanKind: 'usage_limit', needsHumanReason: 'out of usage', resumeAt: MIN, config: quotaRepos()[0] });
+  seedExecution(db, 's1', 1, { status: 'finished', stage: 'ship' });
+  seedExecution(db, 'x1', 1, { status: 'failed', stage, round: stage === 'review' ? 2 : null, option: 'claude', harness: 'claude', model: 'opus', configDir: '/cfg/claude', failureKind: 'usage_limit' });
+  db.insert(callerResults).values({ executionId: 'x1', outcome: 'changes_requested', result: JSON.stringify({ summary: 's', blockers: [] }) }).run();
+  pull(50);
+  runner.behavior = () => ({ exit: 'hang' });
+  fakeQuota.snapshots['/cfg/claude'] = back();
+  db.$client.close();
+  dbs.pop();
+  const engine = await start(1, quotaRepos());
+  settings = { ...settings, autoResume: true };
+  await clock.advance(5 * MIN);
+
+  expect(runner.tasks.map((t) => t.stage)).toEqual([stage]);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage, round: 2, prNumber: 50, workspace: '/w/epic', resumeAt: null, resumeStage: null, autoResumes: 1 });
+  expect(eventsOf(engine.db).map((e) => [e.type, e.data])).toEqual([['auto_resumed', { stage, option: 'claude', resumeAt: MIN, count: 1 }]]);
+});
+
+test('an epic that stopped at review does not wake up when its pull request head changed', async () => {
+  const db = open();
+  seedEpic(db, 1, { status: 'needs_human', stage: 'review', round: 2, prNumber: 50, prHeadSha: SHA, workspace: '/w/epic', needsHumanKind: 'usage_limit', resumeAt: MIN, config: quotaRepos()[0] });
+  seedExecution(db, 'x1', 1, { status: 'failed', stage: 'review', option: 'claude', harness: 'claude', model: 'opus', configDir: '/cfg/claude', failureKind: 'usage_limit' });
+  pull(50, { headSha: 'b'.repeat(40) });
+  fakeQuota.snapshots['/cfg/claude'] = back();
+  db.$client.close();
+  dbs.pop();
+  const engine = await start(1, quotaRepos());
+  settings = { ...settings, autoResume: true };
+  await clock.advance(10 * MIN);
+
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', resumeAt: null, autoResumes: 0 });
+  expect(fakeQuota.asked).toEqual([]);
+});
+
+test('the wake-up goes on the option that came back, not the last one the failover tried', async () => {
+  fakeQuota.snapshots['/cfg/spare'] = full('codex', WAKE + HOUR);
+  const engine = await stoppedForQuota({ failover: true });
+  fakeQuota.snapshots['/cfg/claude'] = back(); // spare is still at 100%
+  await clock.advance(3 * HOUR);
+
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', authorOption: 'claude', autoResumes: 1 });
+  expect(runner.tasks.at(-1)).toMatchObject({ stage: 'ship', option: 'claude' });
+});
+
+test('an epic wakes up at most three times in a row: the stop after the third stays in needs-human', async () => {
+  // Each stop reads the window full for an hour, each wake-up finds it back.
+  fakeQuota.read = async (target) => {
+    fakeQuota.asked.push(target);
+    return fakeQuota.asked.length % 2 === 1 ? full('claude', clock.now() + HOUR) : back();
+  };
+  github.ready = { 'AshuLab/a': ready(1) };
+  runner.behavior = (task) => outOf('claude')(task, { exit: 'hang' });
+  const engine = await start(1, quotaRepos());
+  settings = { ...settings, autoResume: true };
+  await clock.advance(5 * MIN);
+  await clock.advance(6 * HOUR);
+
+  expect(shipTasks()).toBe(4);
+  expect(fakeQuota.asked).toHaveLength(6); // the fourth stop does not ask
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'usage_limit', resumeAt: null, autoResumes: 3 });
+  expect(rows(engine.db)[0]?.needsHumanReason).toContain('it already resumed by itself 3 times in a row: it will not again');
+  expect(eventTypes(engine.db).filter((t) => t === 'auto_resumed')).toHaveLength(3);
+});
+
+test('the count starts again when an execution of the epic ends with anything but usage_limit', async () => {
+  const engine = await stoppedForQuota();
+  engine.db.update(epics).set({ autoResumes: 2 }).run();
+  pull(50);
+  runner.behavior = (task) => (task.stage === 'ship' ? { sessionId: 's', write: completed(task) } : { exit: 'hang' });
+  fakeQuota.snapshots['/cfg/claude'] = back();
+  await clock.advance(3 * HOUR);
+
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'review', autoResumes: 0 });
+});
+
+test.each([['review'], ['fix'], [undefined]] as const)('the count starts again when a person resumes the epic at another stage (from %s)', async (from) => {
+  const engine = await start(1);
+  stoppedAt(engine.db, 'review', { autoResumes: 2 });
+  await resumeFrom(engine, from);
+
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', autoResumes: 0 });
+});
+
+test('with the engine paused nothing resumes, and it resumes once the engine is not paused', async () => {
+  const engine = await stoppedForQuota();
+  fakeQuota.snapshots['/cfg/claude'] = back();
+  await engine.setPaused(true);
+  await clock.advance(4 * HOUR);
+
+  expect(fakeQuota.asked).toHaveLength(1);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', resumeAt: WAKE });
+
+  await engine.setPaused(false);
+  await clock.advance(5 * MIN);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', autoResumes: 1 });
+});
+
+test('with limits.autoResume off by a reload nothing resumes', async () => {
+  const engine = await stoppedForQuota();
+  fakeQuota.snapshots['/cfg/claude'] = back();
+  settings = { ...settings, autoResume: false };
+  await clock.advance(4 * HOUR);
+
+  expect(fakeQuota.asked).toHaveLength(1);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', resumeAt: WAKE });
+});
+
+test('resumeAt survives a restart of the engine: the epic resumes once the time passes', async () => {
+  const first = await stoppedForQuota();
+  await settle(); // the stop's own label write ends before the database closes
+  first.stop();
+  dbs.pop()!.$client.close();
+  fakeQuota.snapshots['/cfg/claude'] = back();
+  const second = await start(1, quotaRepos());
+  settings = { ...settings, autoResume: true };
+  expect(rows(second.db)[0]).toMatchObject({ status: 'needs_human', resumeAt: WAKE });
+  await clock.advance(3 * HOUR);
+
+  expect(rows(second.db)[0]).toMatchObject({ status: 'running', stage: 'ship', autoResumes: 1 });
+  expect(shipTasks()).toBe(2);
+});
+
+test('a resume by a person before the time clears resumeAt and the wake-up does not run a second time', async () => {
+  const engine = await stoppedForQuota();
+  const resumed = engine.resumeEpic('AshuLab/a', 1);
+  await flush();
+  await clock.advance(1000);
+  await resumed;
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', resumeAt: null });
+
+  fakeQuota.snapshots['/cfg/claude'] = back();
+  await clock.advance(3 * HOUR);
+  expect(shipTasks()).toBe(2);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', autoResumes: 0 });
+  expect(eventTypes(engine.db)).not.toContain('auto_resumed');
+});
+
 test('a later epic starts on its own role, whatever ran out in an earlier one', async () => {
   github.ready = { 'AshuLab/a': ready(1, 2) };
   runner.behavior = (task) => (task.epic === 1 ? outOf('claude')(task, { exit: 'hang' }) : { exit: 'hang' });
@@ -1117,7 +1604,7 @@ test('a timed-out execution does not count in the retry streak', async () => {
   const db = open();
   seedEpic(db, 1);
   seedExecution(db, 'e0', 1, { status: 'timed_out', failureKind: 'timeout', failureDetail: 'exceeded 4 h' });
-  expect(failureStreak(db, 1)).toEqual([]);
+  expect(failureStreak(db, { id: 1, startedAt: 0 })).toEqual([]);
 });
 
 test('a lost session is rebuilt because of its kind, whatever the error text says', async () => {
@@ -1170,7 +1657,7 @@ test('an execution that did not fail resets the failure streak', async () => {
   github.ready = { 'AshuLab/a': ready(1) };
   const engine = await start(1, repos, 4, 1);
   await clock.advance(5 * MIN);
-  const base = { epicId: 1, stage: 'ship' as const, resultPath: '/r', startedAt: 0 };
+  const base = { epicId: 1, stage: 'ship' as const, resultPath: '/r', startedAt: 5 * MIN };
   engine.db.update(executions).set({ status: 'interrupted' }).run();
   engine.db.insert(executions).values([
     { ...base, executionId: 'f1', status: 'failed', error: 'x' },
@@ -2050,9 +2537,9 @@ async function startWhileRecovering() {
   const gate = new Promise<void>((resolve) => (open1 = resolve));
   workspaces.prepareAuthor = async (repo, epic) => (await gate, `/work/${repo}/${epic}/author`);
   runner.behavior = () => ({ exit: 'hang' });
-  settings = { pollIntervalMs: 5 * MIN, labels: defaultLabels, maxConcurrentEpics: 1, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews: 5 };
+  settings = { pollIntervalMs: 5 * MIN, labels: defaultLabels, maxConcurrentEpics: 1, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews: 5, autoResume: false, autoResumeMaxHours: 12 };
   watched = repos;
-  const engine = createEngine({ db, github, clock, repos: () => watched, settings: () => settings, profileDeclared: () => true, runner, workspaces, places: enginePlacesOf(dir) });
+  const engine = createEngine({ db, github, clock, repos: () => watched, settings: () => settings, profileDeclared: () => true, runner, workspaces, quota: fakeQuota.read, places: enginePlacesOf(dir) });
   const started = engine.start();
   const checked = engine.pollNow();
   await settle();
@@ -2104,6 +2591,17 @@ test('a Ctrl+C then a restart resumes each interrupted execution as a new one wi
   ]);
   expect(executionsOf(second.db).map((e) => e.status)).toEqual(['interrupted', 'interrupted', 'running', 'running']);
   expect(byStatus(second.db, 'running')).toEqual([1, 2]);
+});
+
+test('the recovery at start ignores the executions of an earlier attempt: its last one is not this stop', async () => {
+  const db = open();
+  seedEpic(db, 1, { stage: 'ship', startedAt: 10 * MIN }); // restarted: the stage was claimed and no execution inserted before the cut
+  seedExecution(db, 'old', 1, { stage: 'ship', status: 'interrupted', startedAt: 5 * MIN });
+  await start(1);
+  expect(runner.tasks).toHaveLength(1);
+  expect(runner.tasks[0]!.resumeSession).toBeUndefined(); // not the old execution continued
+  expect(runner.tasks[0]!.context?.verifyStateFirst).toBeFalsy();
+  expect(executionsOf(db).find((e) => e.executionId === 'old')!.status).toBe('interrupted');
 });
 
 test('a running execution a dead process left behind counts as interrupted and is resumed', async () => {
@@ -2446,7 +2944,7 @@ test('purges expired logs and sessions when the engine starts and every 24 hours
   db.insert(executions).values({ executionId: 'x-old', epicId: old.id, stage: 'ship', sessionId: 's-old', resultPath: 'r', startedAt: 0 }).run();
   const logs = join(dir, 'engine', 'logs', 'executions', 'x-old');
   mkdirSync(logs, { recursive: true });
-  const engine = createEngine({ db, github, clock, profileDeclared: () => true, repos: () => repos, settings: () => ({ pollIntervalMs: 5 * MIN, labels: defaultLabels, maxConcurrentEpics: 0, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews: 5 }), runner, workspaces, places: enginePlacesOf(dir) });
+  const engine = createEngine({ db, github, clock, profileDeclared: () => true, repos: () => repos, settings: () => ({ pollIntervalMs: 5 * MIN, labels: defaultLabels, maxConcurrentEpics: 0, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews: 5, autoResume: false, autoResumeMaxHours: 12 }), runner, workspaces, quota: fakeQuota.read, places: enginePlacesOf(dir) });
   await engine.start();
   expect(existsSync(logs)).toBe(false);
   mkdirSync(logs, { recursive: true });
@@ -2948,9 +3446,9 @@ test('a resume asked while the start recovers waits for it up to thirty seconds,
   workspaces.prepareAuthor = async (repo, epic) => (await gate, `/work/${repo}/${epic}/author`);
   runner.behavior = () => ({ exit: 'hang' });
   github.ready = { 'AshuLab/a': ready(2) };
-  settings = { pollIntervalMs: 5 * MIN, labels: defaultLabels, maxConcurrentEpics: 2, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews: 5 };
+  settings = { pollIntervalMs: 5 * MIN, labels: defaultLabels, maxConcurrentEpics: 2, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews: 5, autoResume: false, autoResumeMaxHours: 12 };
   watched = repos;
-  const engine = createEngine({ db, github, clock, repos: () => watched, settings: () => settings, profileDeclared: () => true, runner, workspaces, places: enginePlacesOf(dir) });
+  const engine = createEngine({ db, github, clock, repos: () => watched, settings: () => settings, profileDeclared: () => true, runner, workspaces, quota: fakeQuota.read, places: enginePlacesOf(dir) });
   const setLabels = vi.spyOn(github, 'setLabels');
   const started = engine.start();
   const refused = refusal(engine.resumeEpic('AshuLab/a', 2));
@@ -3121,7 +3619,7 @@ test('resumeEpic with another author option launches it with no resumeSession, i
   expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'ship', authorOption: 'claude', reviewerOption: 'codex' });
   expect(rows(engine.db)[0]!.config!.agents.author).toMatchObject({ option: 'claude', harness: 'claude' });
   expect(executionsOf(engine.db).map((e) => e.option)).toEqual(['codex', 'claude']);
-  expect(eventTypes(engine.db)).toEqual(['session_rebuilt']);
+  expect(eventTypes(engine.db)).toEqual(['session_rebuilt', 'resumed']);
 });
 
 test('a GitHub error reading the pull request while restarting on another option leaves the epic unstarted, and the poll starts the epic on the chosen option once GitHub answers', async () => {
@@ -3141,7 +3639,7 @@ test('a GitHub error reading the pull request while restarting on another option
   expect(runner.tasks[1]).toMatchObject({ stage: 'ship', option: 'claude', context: { pr: { number: 50, headSha: SHA } } });
   expect(runner.tasks[1]!.resumeSession).toBeUndefined();
   expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'ship', authorOption: 'claude' });
-  expect(eventTypes(engine.db)).toEqual(['session_rebuilt']);
+  expect(eventTypes(engine.db)).toEqual(['resumed', 'session_rebuilt']);
 });
 
 test('a resumeEpic that ends as did not restart forgets its choice: the epic restarted by a later check starts at once on its roles', async () => {
@@ -3275,6 +3773,30 @@ test('a run already launched keeps its timeout, and the next one launched has th
   await vi.waitFor(() => expect(runner.tasks).toHaveLength(2));
   expect(runner.tasks.map((t) => [t.epic, t.timeoutMs])).toEqual([[1, 4 * 3_600_000], [2, 9 * 3_600_000]]);
   expect(engine.db.select().from(executions).all().map((e) => e.status)).toEqual(['running', 'running']); // epic 1's run was not touched
+});
+
+test('idleMinutes reaches the run as milliseconds; a reload applies it to the next run only, and absent it no run has one', async () => {
+  github.ready = { 'AshuLab/a': ready(1, 2, 3) };
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  reload(engine, { idleMinutes: 45, maxConcurrentEpics: 2 });
+  await vi.waitFor(() => expect(runner.tasks).toHaveLength(2));
+  reload(engine, { idleMinutes: undefined, maxConcurrentEpics: 3 });
+  await vi.waitFor(() => expect(runner.tasks).toHaveLength(3));
+  expect(runner.tasks.map((t) => [t.epic, t.idleMs])).toEqual([[1, undefined], [2, 45 * MIN], [3, undefined]]);
+});
+
+test('a process the watchdog killed is retried as a technical failure, resuming its session', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  const idleKill = { kind: 'killed' as const, detail: 'no output for 2700 seconds', exitCode: null, signal: 'SIGTERM', hostFreeMemMb: 1, hostLoad: 1 };
+  runner.behavior = (task) => (task.resumeSession ? { exit: 'hang' } : { sessionId: 's-1', exit: 'failed', failure: idleKill });
+  const engine = await start(1);
+  reload(engine, { idleMinutes: 45 });
+  await clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(runner.tasks).toHaveLength(2));
+  expect(runner.tasks[0]!.idleMs).toBe(45 * MIN);
+  expect(runner.tasks[1]).toMatchObject({ resumeSession: 's-1', idleMs: 45 * MIN });
+  expect(executionsOf(engine.db)[0]).toMatchObject({ status: 'failed', failureKind: 'killed', failureDetail: 'no output for 2700 seconds' });
 });
 
 test('a timeout names the limit the run started with, not the one in force when it ended', async () => {
@@ -3821,4 +4343,810 @@ test('a reload whose parking of the removed repos fails still answers: its setti
   expect(() => reload(engine, { repos: [flaky], maxConcurrentEpics: 3 })).not.toThrow();
   expect(settings.maxConcurrentEpics).toBe(3);
   await settle();
+});
+
+// --- the poll recovers a running epic that lost its agent (ADR 0046) ---
+
+const recovered = (db: Db) => db.select().from(epicEvents).all().filter((e) => e.type === 'recovered');
+
+test('the poll continues a running epic whose last execution ended on a usage limit and was not failed over, from where it was, and leaves a recovered event', async () => {
+  const config = failoverRepos({ author: [{ provider: 'spare' }] });
+  const engine = await start(1, config);
+  seedEpic(engine.db, 1, { config: config[0] }); // the epic was running when its handler lost the end: no agent, nothing scheduled
+  seedExecution(engine.db, 'e0', 1, { status: 'failed', option: 'claude', failureKind: 'usage_limit', failureDetail: 'resets 12:40pm' });
+  pull(50);
+  runner.behavior = () => ({ exit: 'hang' });
+
+  await clock.advance(5 * MIN);
+  expect(runner.tasks.map((t) => [t.stage, t.option])).toEqual([['ship', 'spare']]);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', authorOption: 'spare', recoveries: 1 });
+  expect(recovered(engine.db).map((e) => e.data)).toEqual([{ stage: 'ship', attempt: 1 }]);
+});
+
+test('the poll launches the next stage of an epic whose result was imported and whose launch never happened', async () => {
+  const engine = await start(1);
+  seedEpic(engine.db, 1, { stage: 'fix', round: 1, prNumber: 50, prHeadSha: SHA, workspace: '/w/epic' });
+  seedExecution(engine.db, 'r1', 1, { stage: 'review', status: 'finished' });
+  engine.db.insert(callerResults).values({ executionId: 'r1', outcome: 'changes_requested', result: JSON.stringify({ summary: 's', blockers: [{ title: 'fix it' }] }) }).run();
+
+  await clock.advance(5 * MIN);
+  expect(runner.tasks.map((t) => t.stage)).toEqual(['fix']);
+  expect(recovered(engine.db)).toHaveLength(1);
+});
+
+test('the poll recovers nothing while the engine holds the epic\'s run', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  await clock.advance(5 * MIN);
+  await clock.advance(5 * MIN);
+  expect(runner.tasks).toHaveLength(1);
+  expect(recovered(engine.db)).toEqual([]);
+});
+
+test('the poll recovers nothing for an epic whose launch is in flight, and starts no second agent', async () => {
+  github.ready = { 'AshuLab/a': ready(1, 2) };
+  let ends!: () => void;
+  let opens!: () => void;
+  const gate = new Promise<void>((resolve) => (opens = resolve));
+  runner.behavior = (task) => (task.epic === 1 ? { write: result(task, { outcome: 'needs_human', reason: 'x' }), when: new Promise<void>((resolve) => (ends = resolve)) } : { exit: 'hang' });
+  workspaces.prepareAuthor = async (repo, epic) => (epic === 2 ? (await gate, `/work/${repo}/${epic}/author`) : `/work/${repo}/${epic}/author`);
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  ends(); // epic 1 stops, and the slot it frees starts epic 2, which waits for its workspace with its stage claimed
+  await vi.waitFor(() => expect(rows(engine.db)[1]).toMatchObject({ status: 'running', stage: 'ship' }));
+
+  await clock.advance(5 * MIN); // a poll meanwhile: epic 2 has a stage and no execution yet, and is not a cut one
+  expect(recovered(engine.db)).toEqual([]);
+  opens();
+  await settle();
+  expect(runner.tasks.filter((t) => t.epic === 2)).toHaveLength(1);
+});
+
+test('the poll recovers nothing for an epic whose retry is in flight, and starts no second agent', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  let opens!: () => void;
+  const gate = new Promise<void>((resolve) => (opens = resolve));
+  runner.behavior = (task) => (runner.tasks.length === 1 ? { exit: 'failed' } : { exit: 'hang' });
+  const find = github.findPullRequest.bind(github);
+  github.findPullRequest = async (...args) => (await gate, find(...args)); // the retry reads GitHub before it launches
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(executionsOf(engine.db).map((e) => e.status)).toEqual(['failed']));
+
+  await clock.advance(5 * MIN);
+  expect(recovered(engine.db)).toEqual([]);
+  opens();
+  await settle();
+  expect(runner.tasks).toHaveLength(2);
+});
+
+test('an epic a reload parked and restored while the poll recovered another is left to its restore, not recovered twice', async () => {
+  const engine = await start(2);
+  seedEpic(engine.db, 1);
+  seedEpic(engine.db, 2, { repo: 'AshuLab/b', config: repos[1] });
+  let opens!: () => void;
+  const gate = new Promise<void>((resolve) => (opens = resolve));
+  workspaces.prepareAuthor = async (repo, epic) => (epic === 1 ? (await gate, `/work/${repo}/${epic}/author`) : `/work/${repo}/${epic}/author`);
+  void clock.advance(5 * MIN); // the poll recovers epic 1 and waits for its workspace
+  await vi.waitFor(() => expect(github.calls).toBeGreaterThan(0));
+  await settle();
+
+  reload(engine, { repos: [repos[0]!] }); // epic 2's repo leaves...
+  reload(engine, { repos }); // ...and comes back, while the poll still has to reach epic 2
+  opens();
+  await vi.waitFor(() => expect(runner.tasks.filter((t) => t.epic === 2)).toHaveLength(1));
+  await settle();
+  expect(runner.tasks.filter((t) => t.epic === 2)).toHaveLength(1); // the restore's, once
+  expect(recovered(engine.db).map((e) => e.epicId)).toEqual([1]);
+});
+
+test('the count of recoveries is saved with the epic: after three in a row, also across an engine restart, the next poll stops it in engine_error', async () => {
+  const first = await start(1);
+  seedEpic(first.db, 1, { stage: 'review', round: 1, prNumber: 50, prHeadSha: SHA, recoveries: 3 });
+  seedExecution(first.db, 'e0', 1, { stage: 'ship', status: 'interrupted' }); // of a stage the epic left: nothing a recovery moves, so it stays stuck
+  first.stop();
+  dbs.pop()!.$client.close();
+
+  const second = await start(1); // the same database: the count survives the restart
+  expect(rows(second.db)[0]).toMatchObject({ status: 'running', recoveries: 3 });
+  await clock.advance(5 * MIN);
+  expect(rows(second.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'engine_error', needsHumanReason: 'the poll recovered this epic 3 times in a row and it is still stuck at review' });
+  expect(recovered(second.db)).toEqual([]);
+});
+
+test('the poll launches a stage a resume left claimed with no execution, once, though an execution of the previous attempt finished', async () => {
+  const engine = await start(1);
+  seedEpic(engine.db, 1, { stage: 'ship', startedAt: 10 * MIN }); // resumed: the launch claimed the stage and was cut (engine stopping, epic parked) before its execution
+  seedExecution(engine.db, 'old', 1, { stage: 'ship', status: 'finished', startedAt: 5 * MIN });
+  engine.db.insert(callerResults).values({ executionId: 'old', outcome: 'needs_human', result: JSON.stringify({ summary: 's', reason: 'x' }) }).run();
+  runner.behavior = () => ({ exit: 'hang' });
+
+  await clock.advance(5 * MIN);
+  await clock.advance(5 * MIN);
+  expect(runner.tasks.map((t) => t.stage)).toEqual(['ship']);
+  expect(recovered(engine.db).map((e) => e.data)).toEqual([{ stage: 'ship', attempt: 1 }]);
+});
+
+test('an epic whose last execution timed out while it was parked is stopped for a person by the poll', async () => {
+  const engine = await start(1);
+  seedEpic(engine.db, 1, { stage: 'review', round: 1, prNumber: 50, prHeadSha: SHA });
+  seedExecution(engine.db, 'e0', 1, { stage: 'review', status: 'timed_out' });
+
+  await clock.advance(5 * MIN);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'timeout', needsHumanReason: 'the review execution exceeded the time limit' });
+  expect(runner.tasks).toEqual([]);
+});
+
+test('the poll does nothing for an interrupted execution of a stage the epic has moved on from', async () => {
+  const engine = await start(1);
+  seedEpic(engine.db, 1, { stage: 'review', round: 1, prNumber: 50, prHeadSha: SHA });
+  seedExecution(engine.db, 'e0', 1, { stage: 'ship', status: 'interrupted' });
+  runner.behavior = () => ({ exit: 'hang' });
+
+  await clock.advance(5 * MIN);
+  expect(runner.tasks).toEqual([]);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'review' });
+});
+
+test('the poll recovers nothing for an epic that stopped being running while it waited for the one before', async () => {
+  const engine = await start(2);
+  seedEpic(engine.db, 1);
+  seedEpic(engine.db, 2);
+  let opens!: () => void;
+  const gate = new Promise<void>((resolve) => (opens = resolve));
+  workspaces.prepareAuthor = async (repo, epic) => (epic === 1 ? (await gate, `/work/${repo}/${epic}/author`) : `/work/${repo}/${epic}/author`);
+  runner.behavior = () => ({ exit: 'hang' });
+  void clock.advance(5 * MIN); // the poll recovers epic 1 and waits for its workspace
+  await vi.waitFor(() => expect(github.calls).toBeGreaterThan(0));
+  await settle();
+
+  engine.db.update(epics).set({ status: 'needs_human', needsHumanKind: 'agent_needs_human', needsHumanReason: 'x' }).where(eq(epics.issue, 2)).run();
+  opens();
+  await settle();
+  expect(runner.tasks.map((t) => t.epic)).toEqual([1]);
+  expect(recovered(engine.db).map((e) => e.epicId)).toEqual([1]);
+});
+
+test('the count starts again when an execution of the epic ends', async () => {
+  const engine = await start(1);
+  seedEpic(engine.db, 1, { recoveries: 2 });
+  seedExecution(engine.db, 'e0', 1, { status: 'interrupted' });
+  let ends!: () => void;
+  runner.behavior = (task) => (task.stage === 'ship' ? { write: completed(task), when: new Promise<void>((resolve) => (ends = resolve)) } : { exit: 'hang' });
+  pull(50);
+
+  await clock.advance(5 * MIN);
+  expect(rows(engine.db)[0]).toMatchObject({ recoveries: 3 });
+  ends();
+  await vi.waitFor(() => expect(runner.tasks.map((t) => t.stage)).toEqual(['ship', 'review']));
+  expect(rows(engine.db)[0]).toMatchObject({ stage: 'review', recoveries: 0 });
+});
+
+test('an unexpected error in a recovery stops that epic in engine_error and the poll goes on with the others', async () => {
+  const config = failoverRepos({ author: [{ provider: 'spare' }] });
+  const engine = await start(2, config);
+  seedEpic(engine.db, 1, { config: config[0] });
+  seedExecution(engine.db, 'e1', 1, { status: 'failed', option: 'claude', failureKind: 'usage_limit', failureDetail: 'resets' });
+  seedEpic(engine.db, 2, { config: config[0] });
+  seedExecution(engine.db, 'e2', 2, { status: 'interrupted' });
+  github.findPullRequest = async (_repo, issue) => {
+    if (issue === 1) throw new TypeError('boom');
+    return null;
+  };
+  runner.behavior = () => ({ exit: 'hang' });
+
+  await clock.advance(5 * MIN);
+  expect(rows(engine.db).map((e) => [e.status, e.needsHumanKind, e.needsHumanReason])).toEqual([['needs_human', 'engine_error', 'boom'], ['running', null, null]]);
+  expect(runner.tasks.map((t) => t.epic)).toEqual([2]);
+});
+
+// --- recoverEpic: the same recovery, asked for one epic (ADR 0044) ---
+
+test('recoverEpic continues a running epic that lost its agent from its real state, leaves a recovered event that says a command asked, and answers once it was continued', async () => {
+  const config = failoverRepos({ author: [{ provider: 'spare' }] });
+  const engine = await start(1, config);
+  seedEpic(engine.db, 1, { config: config[0] });
+  seedExecution(engine.db, 'e0', 1, { status: 'failed', option: 'claude', failureKind: 'usage_limit', failureDetail: 'resets 12:40pm' });
+  pull(50);
+  runner.behavior = () => ({ exit: 'hang' });
+
+  await engine.recoverEpic('AshuLab/a', 1);
+  expect(runner.tasks.map((t) => [t.stage, t.option])).toEqual([['ship', 'spare']]); // already started when it answers
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', authorOption: 'spare', recoveries: 0 }); // the poll's budget is not spent by a person
+  expect(recovered(engine.db).map((e) => e.data)).toEqual([{ stage: 'ship', by: 'command' }]);
+  await clock.advance(5 * MIN); // the poll finds an agent alive: no second one
+  expect(runner.tasks).toHaveLength(1);
+});
+
+test('recoverEpic refuses an epic the engine does not know, and one that is not running, and touches nothing', async () => {
+  const engine = await start(1);
+  seedEpic(engine.db, 1, { status: 'needs_human', needsHumanKind: 'agent_needs_human', needsHumanReason: 'x' });
+  seedExecution(engine.db, 'e0', 1, { status: 'interrupted' });
+  expect(await refusal(engine.recoverEpic('AshuLab/a', 9))).toBe('unknown epic');
+  expect(await refusal(engine.recoverEpic('AshuLab/other', 1))).toBe('unknown epic');
+  expect(await refusal(engine.recoverEpic('AshuLab/a', 1))).toBe('not running');
+  expect(runner.tasks).toEqual([]);
+  expect(recovered(engine.db)).toEqual([]);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human' });
+});
+
+test('recoverEpic refuses an epic whose execution is alive, and starts no second agent', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  runner.behavior = () => ({ exit: 'hang' });
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  expect(runner.tasks).toHaveLength(1);
+  expect(await refusal(engine.recoverEpic('AshuLab/a', 1))).toBe('agent alive');
+  expect(runner.tasks).toHaveLength(1);
+  expect(recovered(engine.db)).toEqual([]);
+});
+
+test('recoverEpic refuses an epic whose launch is in flight, and starts no second agent', async () => {
+  github.ready = { 'AshuLab/a': ready(1, 2) };
+  let ends!: () => void;
+  let opens!: () => void;
+  const gate = new Promise<void>((resolve) => (opens = resolve));
+  runner.behavior = (task) => (task.epic === 1 ? { write: result(task, { outcome: 'needs_human', reason: 'x' }), when: new Promise<void>((resolve) => (ends = resolve)) } : { exit: 'hang' });
+  workspaces.prepareAuthor = async (repo, epic) => (epic === 2 ? (await gate, `/work/${repo}/${epic}/author`) : `/work/${repo}/${epic}/author`);
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  ends(); // epic 1 stops, and the slot it frees starts epic 2, which waits for its workspace with its stage claimed
+  await vi.waitFor(() => expect(rows(engine.db)[1]).toMatchObject({ status: 'running', stage: 'ship' }));
+
+  expect(await refusal(engine.recoverEpic('AshuLab/a', 2))).toBe('agent alive');
+  opens();
+  await settle();
+  expect(runner.tasks.filter((t) => t.epic === 2)).toHaveLength(1);
+  expect(recovered(engine.db)).toEqual([]);
+});
+
+test('recoverEpic refuses an epic whose retry is in flight, and starts no second agent', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  let opens!: () => void;
+  const gate = new Promise<void>((resolve) => (opens = resolve));
+  runner.behavior = () => (runner.tasks.length === 1 ? { exit: 'failed' } : { exit: 'hang' });
+  const find = github.findPullRequest.bind(github);
+  github.findPullRequest = async (...args) => (await gate, find(...args)); // the retry reads GitHub before it launches
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(executionsOf(engine.db).map((e) => e.status)).toEqual(['failed']));
+
+  expect(await refusal(engine.recoverEpic('AshuLab/a', 1))).toBe('agent alive');
+  opens();
+  await settle();
+  expect(runner.tasks).toHaveLength(2);
+  expect(recovered(engine.db)).toEqual([]);
+});
+
+test('recoverEpic refuses an epic that has no stage yet, and a second one while the first is in flight', async () => {
+  const engine = await start(1);
+  seedEpic(engine.db, 1, { stage: null });
+  expect(await refusal(engine.recoverEpic('AshuLab/a', 1))).toBe('not started');
+
+  seedEpic(engine.db, 2);
+  seedExecution(engine.db, 'e0', 2, { status: 'interrupted' });
+  let opens!: () => void;
+  const gate = new Promise<void>((resolve) => (opens = resolve));
+  const find = github.findPullRequest.bind(github);
+  github.findPullRequest = async (...args) => (await gate, find(...args));
+  runner.behavior = () => ({ exit: 'hang' });
+  const first = engine.recoverEpic('AshuLab/a', 2);
+  await flush();
+  expect(await refusal(engine.recoverEpic('AshuLab/a', 2))).toBe('agent alive');
+  opens();
+  await first;
+  expect(runner.tasks).toHaveLength(1);
+});
+
+test('an unexpected error while recovering one epic stops it in engine_error, as the poll does, and the request fails', async () => {
+  const config = failoverRepos({ author: [{ provider: 'spare' }] });
+  const engine = await start(1, config);
+  seedEpic(engine.db, 1, { config: config[0] });
+  seedExecution(engine.db, 'e0', 1, { status: 'failed', option: 'claude', failureKind: 'usage_limit', failureDetail: 'resets' });
+  github.findPullRequest = async () => {
+    throw new TypeError('boom');
+  };
+  await expect(engine.recoverEpic('AshuLab/a', 1)).rejects.toThrow('boom');
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'engine_error', needsHumanReason: 'boom' });
+});
+
+// --- An issue that is gone, and a repo that does not answer ---
+
+const goneReason = 'the epic issue no longer exists';
+
+test('an epic whose issue answers 404 while its repo answers is cancelled at the start, the engine starts and the other epics of the repo go on', async () => {
+  const db = open();
+  seedEpic(db, 1, { labelPending: true });
+  seedEpic(db, 2);
+  github.missingIssues.add('AshuLab/a#1');
+  runner.behavior = () => ({ exit: 'hang' });
+  const engine = await start(2);
+  await vi.waitFor(() => expect(runner.tasks.map((t) => t.epic)).toEqual([2])); // epic 2 was launched, epic 1 got no agent
+
+  expect(rows(engine.db).map((e) => [e.issue, e.status, e.cancelReason, e.labelPending])).toEqual([[1, 'cancelled', goneReason, false], [2, 'running', null, false]]);
+  expect(eventTypes(engine.db)).toContain('epic_cancelled');
+  await clock.advance(5 * MIN);
+  expect(engine.lastCheck('AshuLab/a')).toEqual({ at: 5 * MIN, ok: true, error: null }); // the repo is not refused
+});
+
+test('the poll cancels an epic whose issue turned 404, 410 too, in any state it waits in, and goes on with the others of its repo', async () => {
+  const db = open();
+  seedEpic(db, 1, { status: 'needs_human', needsHumanKind: 'agent_needs_human', needsHumanReason: 'x' });
+  seedEpic(db, 2, { status: 'ready_for_test' });
+  seedEpic(db, 3, { status: 'needs_human', needsHumanKind: 'agent_needs_human', needsHumanReason: 'x' });
+  github.ready = { 'AshuLab/a': ready(4) };
+  runner.behavior = () => ({ exit: 'hang' });
+  const engine = await start(1);
+  github.missingIssues.add('AshuLab/a#1');
+  github.missingIssues.add('AshuLab/a#2');
+  await clock.advance(5 * MIN);
+
+  expect(rows(engine.db).map((e) => [e.issue, e.status, e.cancelReason])).toEqual([[1, 'cancelled', goneReason], [2, 'cancelled', goneReason], [3, 'needs_human', null], [4, 'running', null]]);
+  expect(engine.lastCheck('AshuLab/a')).toEqual({ at: 5 * MIN, ok: true, error: null });
+});
+
+test('a queued epic whose issue is 404 when its slot comes is cancelled and does not block the queue of its repo', async () => {
+  github.ready = { 'AshuLab/a': ready(1, 2) };
+  github.missingIssues.add('AshuLab/a#1');
+  runner.behavior = () => ({ exit: 'hang' });
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+
+  expect(rows(engine.db).map((e) => [e.issue, e.status, e.cancelReason])).toEqual([[1, 'cancelled', goneReason], [2, 'running', null]]);
+  expect(engine.lastCheck('AshuLab/a')).toMatchObject({ ok: true });
+});
+
+test('a repo that answers 404 is its own refusal at the start and at the poll: no epic of it is cancelled, the others are untouched, and it is tried again', async () => {
+  const db = open();
+  seedEpic(db, 1, { repo: 'AshuLab/b', config: repos[1], labelPending: true });
+  seedEpic(db, 2, { repo: 'AshuLab/b', config: repos[1], status: 'needs_human', needsHumanKind: 'agent_needs_human', needsHumanReason: 'x' });
+  seedEpic(db, 3);
+  github.ready = { 'AshuLab/a': ready(4) };
+  github.missingRepos.add('AshuLab/b');
+  runner.behavior = () => ({ exit: 'hang' });
+  const engine = await start(3);
+  await clock.advance(5 * MIN);
+
+  expect(rows(engine.db).map((e) => [e.repo.slice(-1), e.issue, e.status])).toEqual([['b', 1, 'running'], ['b', 2, 'needs_human'], ['a', 3, 'running'], ['a', 4, 'running']]);
+  expect(rows(engine.db).every((e) => e.cancelReason === null)).toBe(true);
+  expect(engine.lastCheck('AshuLab/b')).toEqual({ at: 5 * MIN, ok: false, error: 'GitHub answered HTTP 404: Not Found' });
+  expect(engine.lastCheck('AshuLab/a')).toEqual({ at: 5 * MIN, ok: true, error: null });
+
+  await clock.advance(5 * MIN);
+  expect(engine.lastCheck('AshuLab/b')).toMatchObject({ at: 10 * MIN, ok: false }); // tried again at the next check
+
+  github.missingRepos.clear();
+  await clock.advance(5 * MIN);
+  expect(engine.lastCheck('AshuLab/b')).toEqual({ at: 15 * MIN, ok: true, error: null });
+  expect(byStatus(engine.db, 'cancelled')).toEqual([]);
+});
+
+test('a missing issue in a repo that does not answer is the repo\'s refusal at the poll too: the epic stays', async () => {
+  const db = open();
+  seedEpic(db, 1, { status: 'needs_human', needsHumanKind: 'agent_needs_human', needsHumanReason: 'x' });
+  const engine = await start(0);
+  github.missingRepos.add('AshuLab/a'); // GitHub answers 404 for the repo and so for its issues
+  await clock.advance(5 * MIN);
+  expect(byStatus(engine.db, 'cancelled')).toEqual([]);
+  expect(engine.lastCheck('AshuLab/a')).toMatchObject({ ok: false });
+});
+
+// --- resume from a stage: review or fix keeps the round, the pull request, the worktree, the blockers and the session ---
+
+// An epic stopped in needs_human at `stage` on round 2 with its pull request, worktree, one author session and the reviewer's blockers; `ready` can be put on it.
+function stoppedAt(db: Db, stage: 'review' | 'fix', extra: Partial<typeof epics.$inferInsert> = {}) {
+  seedEpic(db, 1, { status: 'needs_human', stage, round: 2, prNumber: 50, prHeadSha: SHA, workspace: '/w/epic', needsHumanKind: 'review_limit', needsHumanReason: 'review limit', observationsPassAt: 7, ...extra });
+  seedExecution(db, 's1', 1, { status: 'finished', stage: 'ship', option: 'o' }); // the option the epic's author has
+  seedExecution(db, 'r1', 1, { status: 'finished', stage: 'review', round: 1 });
+  db.insert(callerResults).values({ executionId: 'r1', outcome: 'changes_requested', result: JSON.stringify({ summary: 's', blockers: [{ title: 'fix it' }] }) }).run();
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50);
+  runner.behavior = () => ({ exit: 'hang' });
+}
+const resumeFrom = async (engine: Awaited<ReturnType<typeof start>>, from?: 'ship' | 'review' | 'fix', extraRounds?: number) => {
+  const resumed = engine.resumeEpic('AshuLab/a', 1, { from, extraRounds });
+  await flush();
+  await clock.advance(1000);
+  await resumed;
+};
+
+test.each(['review', 'fix'] as const)('resuming at %s starts that stage with the round, pull request, worktree, blockers and session of the epic kept, takes a slot and leaves a resumed event', async (stage) => {
+  const engine = await start(1);
+  stoppedAt(engine.db, stage);
+  await resumeFrom(engine, stage);
+
+  expect(runner.tasks.map((t) => t.stage)).toEqual([stage]);
+  expect(runner.tasks[0]).toMatchObject({ context: { round: 2, pr: { number: 50, headSha: SHA } }, ...(stage === 'fix' && { workspace: '/w/epic', resumeSession: 's-s1', context: { round: 2, pr: { number: 50, headSha: SHA }, blockers: [{ title: 'fix it' }] } }) });
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage, round: 2, prNumber: 50, prHeadSha: SHA, workspace: '/w/epic', observationsPassAt: 7, needsHumanKind: null, resumeStage: null });
+  expect(eventsOf(engine.db).filter((e) => e.type === 'resumed').map((e) => e.data)).toEqual([{ from: stage, by: 'command' }]);
+  expect(labelsOf(1)).toEqual(['solve:epic:running']);
+});
+
+test('a resume at a stage goes through the queue: with no free slot the epic waits queued with its stage saved, and starts there once a slot is free', async () => {
+  const engine = await start(0);
+  stoppedAt(engine.db, 'review');
+  await resumeFrom(engine, 'review');
+  expect(runner.tasks).toEqual([]);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'queued', stage: null, round: 2, prNumber: 50, resumeStage: 'review' });
+
+  settings.maxConcurrentEpics = 1;
+  await clock.advance(5 * MIN);
+  expect(runner.tasks.map((t) => t.stage)).toEqual(['review']);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'review', round: 2, resumeStage: null });
+});
+
+test('the stage asked is saved with the epic: an engine restarted while the epic waits for a slot starts it at that stage', async () => {
+  const first = await start(0);
+  stoppedAt(first.db, 'fix');
+  await resumeFrom(first, 'fix');
+  expect(rows(first.db)[0]).toMatchObject({ status: 'queued', resumeStage: 'fix' });
+  first.stop();
+
+  const second = await start(1);
+  await clock.advance(5 * MIN);
+  expect(runner.tasks.map((t) => [t.stage, t.workspace, t.resumeSession])).toEqual([['fix', '/w/epic', 's-s1']]);
+  expect(rows(second.db)[0]).toMatchObject({ status: 'running', stage: 'fix', round: 2 });
+});
+
+test('an epic resumed at a stage whose claim was cut before its execution starts that stage again and never ship', async () => {
+  const first = await start(1);
+  seedEpic(first.db, 1, { stage: 'fix', round: 2, prNumber: 50, prHeadSha: SHA, workspace: '/w/epic', startedAt: 1000 });
+  seedExecution(first.db, 's1', 1, { status: 'finished', stage: 'ship', startedAt: 0 }); // an earlier attempt's
+  pull(50);
+  runner.behavior = () => ({ exit: 'hang' });
+  first.stop();
+  const second = await start(1);
+  await clock.advance(5 * MIN);
+  expect(runner.tasks.map((t) => t.stage)).toEqual(['fix']);
+  expect(rows(second.db)[0]).toMatchObject({ status: 'running', stage: 'fix', round: 2 });
+});
+
+test.each([
+  ['the pull request is closed', { state: 'closed' as const }, 'pull request not open'],
+  ['the pull request is merged', { state: 'merged' as const }, 'pull request not open'],
+  ['its head is not the stored one', { headSha: 'b'.repeat(40) }, 'pull request head changed'],
+])('resuming at a stage is refused when %s, and nothing changes', async (_name, change, reason) => {
+  const engine = await start(1);
+  stoppedAt(engine.db, 'review');
+  pull(50, change);
+  const before = github.issue('AshuLab/a', 1).labels.slice();
+  expect(await refusal(engine.resumeEpic('AshuLab/a', 1, { from: 'review' }))).toBe(reason);
+  expect(await refusal(engine.resumeEpic('AshuLab/a', 1, { from: 'fix' }))).toBe(reason);
+  expect(labelsOf(1)).toEqual(before);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', resumeStage: null, round: 2 });
+  expect(runner.tasks).toEqual([]);
+});
+
+test('resuming at a stage is refused for an epic with no pull request or whose pull request GitHub does not know, and when GitHub is down', async () => {
+  const engine = await start(1);
+  stoppedAt(engine.db, 'review', { prNumber: null, prHeadSha: null });
+  expect(await refusal(engine.resumeEpic('AshuLab/a', 1, { from: 'review' }))).toBe('no pull request');
+  engine.db.update(epics).set({ prNumber: 99, prHeadSha: SHA }).run();
+  expect(await refusal(engine.resumeEpic('AshuLab/a', 1, { from: 'review' }))).toBe('pull request not open');
+  engine.db.update(epics).set({ prNumber: 50 }).run();
+  github.unavailable = new GitHubUnavailable('network', 'down');
+  expect(await refusal(engine.resumeEpic('AshuLab/a', 1, { from: 'review' }))).toBe('github unavailable');
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', resumeStage: null });
+});
+
+test.each([undefined, 'ship' as const])('resuming with from %s behaves as before: it starts from ship with the rounds reset and the pull request read again', async (from) => {
+  const engine = await start(1);
+  stoppedAt(engine.db, 'review');
+  await resumeFrom(engine, from);
+  expect(runner.tasks.map((t) => t.stage)).toEqual(['ship']);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'ship', round: null, prNumber: null, resumeStage: null });
+});
+
+test('a resume without from clears a stage an earlier resume asked and did not see start', async () => {
+  const engine = await start(0);
+  stoppedAt(engine.db, 'review');
+  engine.db.update(epics).set({ resumeStage: 'review' }).run();
+  const resumed = engine.resumeEpic('AshuLab/a', 1);
+  await flush();
+  await clock.advance(1000);
+  await resumed;
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'queued', round: null, resumeStage: null });
+});
+
+// --- extra rounds: a resume of a review_limit stop grants rounds counted from the current one ---
+
+test.each([
+  ['the default is maxReviews', undefined, 7],
+  ['extraRounds names the number', 2, 4],
+])('resuming a review_limit stop at round 2 keeps the grant in roundLimit: %s', async (_name, extraRounds, limit) => {
+  const engine = await start(0, repos, 4, 3, 5);
+  stoppedAt(engine.db, 'review');
+  await resumeFrom(engine, 'review', extraRounds);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'queued', round: 2, roundLimit: limit, resumeStage: 'review' });
+});
+
+test('a resumed review_limit stop runs the rounds it was granted and stops again with review_limit, its snapshot showing its own cap', async () => {
+  const engine = await start(1, repos, 4, 3, 2);
+  seedEpic(engine.db, 1, { status: 'needs_human', stage: 'fix', round: 2, prNumber: 50, prHeadSha: SHA, workspace: '/w/epic', needsHumanKind: 'review_limit', needsHumanReason: 'review limit' }); // round 2 of maxReviews 2
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50);
+  let go!: () => void;
+  const gate = new Promise<void>((resolve) => (go = resolve)); // the resume answers once the epic started: its first stage waits for that
+  runner.behavior = (task) =>
+    task.stage === 'review' ? { write: result(task, { outcome: 'changes_requested', pr: { number: 50, headSha: SHA }, blockers: [{ title: `round ${task.context.round}` }] }) }
+    : { write: result(task, { outcome: 'completed', pr: { number: 50, headSha: SHA }, verification: { ci: 'absent', evidence: 'ok' } }), when: gate };
+  await resumeFrom(engine, 'fix');
+  go();
+  await engine.idle();
+  expect(runner.tasks.map((t) => [t.stage, t.context.round])).toEqual([['fix', 2], ['review', 3], ['fix', 3], ['review', 4]]);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'review_limit', round: 4, roundLimit: 4 });
+  expect(rows(engine.db)[0]!.needsHumanReason).toBe('review limit: round 4 of 4 still has requested changes');
+  expect(buildSnapshot(engine.db, { now: clock.now(), maxConcurrentEpics: 1, maxReviews: 2, finishedWindowDays: 15, startedAt: 0, repos: 1, nextCheckAt: null, problem: null, paused: false, slices: engine.slices, version: 'x', pollIntervalMs: 1, labels: defaultLabels }).epics[0]).toMatchObject({ round: 4, maxReviews: 4 });
+});
+
+test('the cap of an epic is its roundLimit when set, whatever maxReviews is', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50);
+  let ends!: () => void;
+  runner.behavior = (task) =>
+    task.stage === 'ship' ? { write: completed(task) }
+    : task.stage === 'fix' ? { exit: 'stopped' }
+    : { write: result(task, { outcome: 'changes_requested', pr: { number: 50, headSha: SHA }, blockers: [{ title: 'x' }] }), when: new Promise<void>((resolve) => (ends = resolve)) };
+  const engine = await start(1, repos, 4, 3, 1); // maxReviews 1: round 1 is the limit for an epic with no grant
+  await clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(runner.tasks.map((t) => t.stage)).toEqual(['ship', 'review']));
+  engine.db.update(epics).set({ roundLimit: 2 }).run();
+  ends();
+  await engine.idle();
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'fix', round: 1 });
+});
+
+test('a resume that grants nothing leaves the cap as it was, and one from ship takes the grant away with the rounds', async () => {
+  const engine = await start(0);
+  stoppedAt(engine.db, 'review', { needsHumanKind: 'agent_needs_human', roundLimit: 9 });
+  await resumeFrom(engine, 'review');
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'queued', roundLimit: 9 });
+  engine.db.update(epics).set({ status: 'needs_human', resumeStage: null }).run();
+  await resumeFrom(engine, 'ship');
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'queued', round: null, roundLimit: null });
+});
+
+test('extraRounds without a stage to keep is refused and nothing changes', async () => {
+  const engine = await start(1);
+  stoppedAt(engine.db, 'review');
+  for (const from of [undefined, 'ship' as const]) expect(await refusal(engine.resumeEpic('AshuLab/a', 1, { from, extraRounds: 3 }))).toBe('extra rounds need a stage');
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', roundLimit: null, resumeStage: null });
+  expect(runner.tasks).toEqual([]);
+});
+
+test('the ready label of a stopped epic whose own label is still pending is seen by the poll: the reconciliation does not take it off first', async () => {
+  const engine = await start(1);
+  stoppedAt(engine.db, 'review', { labelPending: true }); // it stopped, and its needs-human mirror is not on the issue yet
+  await resumeFrom(engine, 'review');
+  expect(runner.tasks.map((t) => t.stage)).toEqual(['review']);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'review', round: 2 });
+});
+
+// --- findings of the review of this epic ---
+
+// The epic stopped at `fix` after the failover moved the author from `claude` to `spare` and both ran out, with the session of each option stored.
+function stoppedAtFixAfterFailover(db: Db) {
+  const quota = quotaRepos(true)[0]!;
+  seedEpic(db, 1, { status: 'needs_human', stage: 'fix', round: 2, prNumber: 50, prHeadSha: SHA, workspace: '/w/epic', needsHumanKind: 'usage_limit', needsHumanReason: 'out of usage', resumeAt: MIN, config: { ...quota, agents: { ...quota.agents, author: { profile: 'a', option: 'spare', ...spareAccount } } }, authorOption: 'spare' });
+  seedExecution(db, 's1', 1, { status: 'finished', stage: 'ship', option: 'claude', harness: 'claude', model: 'opus' });
+  seedExecution(db, 'r1', 1, { status: 'finished', stage: 'review', round: 1 });
+  db.insert(callerResults).values({ executionId: 'r1', outcome: 'changes_requested', result: JSON.stringify({ summary: 'why', blockers: [{ title: 'fix it' }] }) }).run();
+  seedExecution(db, 'x1', 1, { status: 'failed', stage: 'fix', option: 'claude', harness: 'claude', model: 'opus', configDir: '/cfg/claude', failureKind: 'usage_limit' });
+  seedExecution(db, 'x2', 1, { status: 'failed', stage: 'fix', option: 'spare', harness: 'codex', model: 'gpt', configDir: '/cfg/spare', failureKind: 'usage_limit' });
+  pull(50);
+  runner.behavior = () => ({ exit: 'hang' });
+}
+async function restartedWithAutoResume(config: EffectiveRepoConfig[]) {
+  dbs.pop()!.$client.close();
+  const engine = await start(1, config);
+  settings = { ...settings, autoResume: true };
+  return engine;
+}
+
+test('a wake-up at fix on the option that came back after a failover starts a rebuilt session, never the session another option wrote', async () => {
+  stoppedAtFixAfterFailover(open());
+  fakeQuota.snapshots['/cfg/claude'] = back();
+  fakeQuota.snapshots['/cfg/spare'] = full('codex', 9 * HOUR);
+  await restartedWithAutoResume(quotaRepos(true));
+  await clock.advance(5 * MIN);
+
+  expect(runner.tasks).toHaveLength(1);
+  expect(runner.tasks[0]).toMatchObject({ stage: 'fix', option: 'claude', context: { round: 2, pr: { number: 50, headSha: SHA }, previousSummaries: ['why'] } });
+  expect(runner.tasks[0]!.resumeSession).toBeUndefined();
+});
+
+test('a resume at fix that switches the author to another option starts a rebuilt session, never the session the first option wrote', async () => {
+  const engine = await start(1, quotaRepos());
+  seedEpic(engine.db, 1, { status: 'needs_human', stage: 'fix', round: 2, prNumber: 50, prHeadSha: SHA, workspace: '/w/epic', needsHumanKind: 'agent_needs_human', needsHumanReason: 'x', config: quotaRepos()[0] });
+  seedExecution(engine.db, 's1', 1, { status: 'finished', stage: 'ship', option: 'claude', harness: 'claude', model: 'opus' });
+  pull(50);
+  runner.behavior = () => ({ exit: 'hang' });
+  github.ready = { 'AshuLab/a': ready(1) };
+  const resumed = engine.resumeEpic('AshuLab/a', 1, { author: 'spare', from: 'fix' });
+  await flush();
+  await clock.advance(1000);
+  await resumed;
+  expect(runner.tasks.map((t) => [t.option, t.resumeSession])).toEqual([['spare', undefined]]);
+  expect(eventsOf(engine.db).filter((e) => e.type === 'session_rebuilt').map((e) => e.data)).toMatchObject([{ stage: 'fix', from: 'claude', to: 'spare' }]);
+});
+
+test('a fix on another author option that failed before it had a session is retried as a rebuilt session, never with the first option\'s', async () => {
+  const engine = await start(1, quotaRepos());
+  seedEpic(engine.db, 1, { status: 'needs_human', stage: 'fix', round: 2, prNumber: 50, prHeadSha: SHA, workspace: '/w/epic', needsHumanKind: 'agent_needs_human', needsHumanReason: 'x', config: quotaRepos()[0] });
+  seedExecution(engine.db, 's1', 1, { status: 'finished', stage: 'ship', option: 'claude', harness: 'claude', model: 'opus' });
+  seedExecution(engine.db, 'r1', 1, { status: 'finished', stage: 'review', round: 1 });
+  engine.db.insert(callerResults).values({ executionId: 'r1', outcome: 'changes_requested', result: JSON.stringify({ summary: 'why', blockers: [{ title: 'fix it' }] }) }).run();
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50);
+  runner.behavior = () => (runner.tasks.length === 1 ? { exit: 'failed' } : { exit: 'hang' }); // the first run on the other option ends before it writes a session id
+  const resumed = engine.resumeEpic('AshuLab/a', 1, { author: 'spare', from: 'fix' });
+  await flush();
+  await clock.advance(1000);
+  await resumed;
+  await vi.waitFor(() => expect(runner.tasks).toHaveLength(2)); // the first run and its retry
+
+  expect(runner.tasks.map((t) => [t.stage, t.option, t.resumeSession])).toEqual([['fix', 'spare', undefined], ['fix', 'spare', undefined]]);
+  expect(runner.tasks[1]!.context.previousSummaries).toEqual(['why']);
+});
+
+test('a wake-up on the option the epic already holds goes on that option, not on the repo default the queue resets it to', async () => {
+  // claude (the default) ran out, the failover moved the epic to spare, spare ran out too, and spare is the one that comes back first.
+  fakeQuota.snapshots['/cfg/spare'] = full('codex', WAKE + HOUR);
+  const engine = await stoppedForQuota({ failover: true });
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', authorOption: 'spare' });
+  fakeQuota.snapshots['/cfg/claude'] = full('claude', 9 * HOUR);
+  fakeQuota.snapshots['/cfg/spare'] = back('codex');
+  await clock.advance(3 * HOUR);
+
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', authorOption: 'spare', autoResumes: 1 });
+  expect(runner.tasks.at(-1)).toMatchObject({ stage: 'ship', option: 'spare' });
+});
+
+test('a wake-up refused because its pull request changed stops waiting: resumeAt is cleared so no later poll picks it again, and the panel does not promise a resume', async () => {
+  const db = open();
+  seedEpic(db, 1, { status: 'needs_human', stage: 'review', round: 2, prNumber: 50, prHeadSha: SHA, workspace: '/w/epic', needsHumanKind: 'usage_limit', needsHumanReason: `the review execution ran out of usage on option claude · carrier restart AshuLab/a#1 --reviewer <option> · resumes by itself at 1970-01-01T00:01:00.000Z · out`, resumeAt: MIN, config: quotaRepos()[0] });
+  seedExecution(db, 'x1', 1, { status: 'failed', stage: 'review', option: 'claude', harness: 'claude', model: 'opus', configDir: '/cfg/claude', failureKind: 'usage_limit' });
+  pull(50, { headSha: 'b'.repeat(40) });
+  fakeQuota.snapshots['/cfg/claude'] = back();
+  const engine = await restartedWithAutoResume(quotaRepos());
+  await clock.advance(5 * MIN); // the wake-up looks once, and refuses
+  const reasonThen = rows(engine.db)[0]!.needsHumanReason;
+  await clock.advance(30 * MIN); // nothing is due any more: the epic is not picked again by the wake-up
+  expect(rows(engine.db)[0]!.needsHumanReason).toBe(reasonThen);
+  expect(fakeQuota.asked).toEqual([]);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', resumeAt: null, autoResumes: 0 });
+  expect(rows(engine.db)[0]!.needsHumanReason).toBe('the review execution ran out of usage on option claude · carrier restart AshuLab/a#1 --reviewer <option> · it will not resume by itself: pull request head changed · out');
+  expect(buildSnapshot(engine.db, { now: clock.now(), maxConcurrentEpics: 1, maxReviews: 5, finishedWindowDays: 15, startedAt: 0, repos: 1, nextCheckAt: null, problem: null, paused: false, slices: engine.slices, version: 'x', pollIntervalMs: 1, labels: defaultLabels }).epics[0]!.resumeAt).toBeUndefined();
+});
+
+test('a person resuming while the wake-up probes does not have the stage and options they asked overwritten by the wake-up', async () => {
+  const engine = await start(1, quotaRepos());
+  settings = { ...settings, autoResume: true };
+  seedEpic(engine.db, 1, { status: 'needs_human', stage: 'review', round: 2, prNumber: 50, prHeadSha: SHA, workspace: '/w/epic', needsHumanKind: 'usage_limit', needsHumanReason: 'out of usage', resumeAt: MIN, config: quotaRepos()[0] });
+  seedExecution(engine.db, 's1', 1, { status: 'finished', stage: 'ship', option: 'claude', harness: 'claude', model: 'opus' });
+  seedExecution(engine.db, 'x1', 1, { status: 'failed', stage: 'review', option: 'claude', harness: 'claude', model: 'opus', configDir: '/cfg/claude', failureKind: 'usage_limit' });
+  pull(50);
+  fakeQuota.snapshots['/cfg/claude'] = back();
+  runner.behavior = () => ({ exit: 'hang' });
+  // The person's label write is held: the epic is in the middle of their resume when the poll wakes it up.
+  let opens!: () => void;
+  const gate = new Promise<void>((resolve) => (opens = resolve));
+  const set = github.setLabels.bind(github);
+  let held = false;
+  github.setLabels = async (...args) => {
+    if (!held) {
+      held = true;
+      await gate;
+    }
+    return set(...args);
+  };
+  const resumed = engine.resumeEpic('AshuLab/a', 1, { reviewer: 'spare', from: 'fix' });
+  await flush();
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', resumeStage: 'fix' });
+  await clock.advance(5 * MIN); // the poll: its wake-up probes and finds the window back
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', resumeStage: 'fix', autoResumes: 0 });
+  expect(eventTypes(engine.db)).not.toContain('auto_resumed');
+  github.ready = { 'AshuLab/a': ready(1) }; // the label the person put is on the issue now
+  opens();
+  await flush();
+  await clock.advance(1000);
+  await resumed;
+
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'fix', autoResumes: 0, resumeAt: null });
+  expect(runner.tasks.map((t) => [t.stage, t.option])).toEqual([['fix', 'claude']]); // the author keeps its option; the reviewer asked for is saved with the epic
+  expect(rows(engine.db)[0]!.config!.agents.reviewer.option).toBe('spare');
+  expect(eventTypes(engine.db)).not.toContain('auto_resumed');
+});
+
+test('the poll does not count a recovery for an epic in a repo GitHub refused this cycle, and goes on with it once the repo answers', async () => {
+  github.missingRepos.add('AshuLab/a');
+  const db = open();
+  seedEpic(db, 1);
+  seedExecution(db, 'e0', 1, { status: 'failed', failureKind: 'unknown', error: 'the agent process ended with an error (unknown)' });
+  runner.behavior = () => ({ exit: 'hang' });
+  const engine = await start(1);
+  for (let i = 0; i < 4; i++) await clock.advance(5 * MIN);
+
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', recoveries: 0 });
+  expect(recovered(engine.db)).toEqual([]);
+  github.missingRepos.clear();
+  await clock.advance(5 * MIN);
+  expect(runner.tasks.map((t) => t.stage)).toEqual(['ship']); // the retry the refused repo held back
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running' });
+});
+
+test('the poll leaves no recovered event for an epic its recovery parked', async () => {
+  const engine = await start(1);
+  seedEpic(engine.db, 1, { stage: 'review', round: 1, prNumber: 50, prHeadSha: SHA });
+  seedExecution(engine.db, 'e0', 1, { stage: 'review', status: 'timed_out' });
+  await clock.advance(5 * MIN);
+
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'timeout', recoveries: 0 });
+  expect(recovered(engine.db)).toEqual([]);
+});
+
+test('the poll counts no recovery for an epic its recovery did not move, and never stops it in engine_error for that', async () => {
+  const engine = await start(1);
+  seedEpic(engine.db, 1, { stage: 'review', round: 1, prNumber: 50, prHeadSha: SHA });
+  seedExecution(engine.db, 'e0', 1, { stage: 'ship', status: 'interrupted' }); // the cut execution is of a stage the epic has left: nothing to continue
+  runner.behavior = () => ({ exit: 'hang' });
+  for (let i = 0; i < 5; i++) await clock.advance(5 * MIN);
+
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', recoveries: 0 });
+  expect(recovered(engine.db)).toEqual([]);
+  expect(runner.tasks).toEqual([]);
+});
+
+test('recoverEpic refuses an epic with nothing a recovery continues, and records no recovered event', async () => {
+  const engine = await start(1);
+  seedEpic(engine.db, 1);
+  seedExecution(engine.db, 'e0', 1, { status: 'failed', failureKind: 'unknown' }); // a retry owns it, not a recovery
+  seedEpic(engine.db, 2, { stage: 'review', round: 1, prNumber: 50, prHeadSha: SHA });
+  seedExecution(engine.db, 'e1', 2, { stage: 'ship', status: 'interrupted' }); // of a stage the epic has left
+  expect(await refusal(engine.recoverEpic('AshuLab/a', 1))).toBe('nothing to recover');
+  expect(await refusal(engine.recoverEpic('AshuLab/a', 2))).toBe('nothing to recover');
+  expect(runner.tasks).toEqual([]);
+  expect(recovered(engine.db)).toEqual([]);
+  expect(rows(engine.db).map((e) => e.status)).toEqual(['running', 'running']);
+});
+
+test('recoverEpic asked while the start recovers is refused: the start launches that epic, and a second agent would act on its workspace', async () => {
+  const db = open();
+  seedEpic(db, 1);
+  seedExecution(db, 'e0', 1, { status: 'running' }); // the previous process's agent, gone
+  let opens!: () => void;
+  const gate = new Promise<void>((resolve) => (opens = resolve));
+  workspaces.prepareAuthor = async (repo, epic) => (await gate, `/work/${repo}/${epic}/author`);
+  runner.behavior = () => ({ exit: 'hang' });
+  settings = { pollIntervalMs: 5 * MIN, labels: defaultLabels, maxConcurrentEpics: 1, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews: 5, autoResume: false, autoResumeMaxHours: 12 };
+  watched = repos;
+  const engine = createEngine({ db, github, clock, repos: () => watched, settings: () => settings, profileDeclared: () => true, runner, workspaces, quota: fakeQuota.read, places: enginePlacesOf(dir) });
+  const started = engine.start();
+  await settle(); // the start marked the execution interrupted and is preparing the workspace of the launch
+  expect(await refusal(engine.recoverEpic('AshuLab/a', 1))).toBe('engine unavailable');
+  opens();
+  await started;
+  await settle();
+
+  expect(runner.tasks).toHaveLength(1);
+  expect(recovered(db)).toEqual([]);
+  // once the start has recovered, a request is answered as any other
+  expect(await refusal(engine.recoverEpic('AshuLab/a', 1))).toBe('agent alive');
+  engine.stop();
+});
+
+test('a plain resume leaves a resumed event from ship, like one that names a stage', async () => {
+  const engine = await start(1);
+  stoppedAt(engine.db, 'review');
+  await resumeFrom(engine, undefined);
+  expect(eventsOf(engine.db).filter((e) => e.type === 'resumed').map((e) => e.data)).toEqual([{ from: 'ship', by: 'command' }]);
+});
+
+test('extraRounds is refused when the epic did not stop on the review limit, and nothing changes', async () => {
+  const engine = await start(1);
+  stoppedAt(engine.db, 'review', { needsHumanKind: 'agent_needs_human' });
+  for (const from of ['review', 'fix'] as const) expect(await refusal(engine.resumeEpic('AshuLab/a', 1, { from, extraRounds: 3 }))).toBe('extra rounds need a review limit');
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', roundLimit: null, resumeStage: null });
+  expect(runner.tasks).toEqual([]);
 });

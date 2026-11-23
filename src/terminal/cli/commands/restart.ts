@@ -10,6 +10,7 @@ import { connectControl, ControlUnreachable, type CarrierClient } from '../contr
 const RESTART_WAIT_MS = 40_000;
 
 type Chosen = { author?: string; reviewer?: string };
+type Flags = Chosen & { from?: 'ship' | 'review' | 'fix'; extraRounds?: number };
 
 // What the engine's short refusal means for the person, and what to do next.
 const refusals: Record<string, (target: string) => string> = {
@@ -18,6 +19,11 @@ const refusals: Record<string, (target: string) => string> = {
   'github unavailable': () => 'GitHub did not answer, so nothing changed. Try again in a moment.',
   'did not restart': () => 'The ready label is back on the issue, but the epic did not start within 30 seconds. The next check will take it.',
   'unknown option': () => 'That account is not declared in providers.json. Use a name declared there.',
+  'no pull request': (target) => `${target} has no pull request yet, so it can only be restarted from ship.`,
+  'extra rounds need a stage': () => '--extra-rounds needs --from review or --from fix: a restart from ship starts the rounds over.',
+  'extra rounds need a review limit': (target) => `--extra-rounds grants rounds to an epic that stopped on the review limit, and ${target} stopped for another reason.`,
+  'pull request not open': () => 'The epic\'s pull request is not open any more, so nothing was changed. Restart it from ship, or reopen the pull request.',
+  'pull request head changed': () => 'The pull request has a different head than the one Carrier saved, so nothing was changed. Restart it from ship to start over.',
 };
 
 /**
@@ -43,7 +49,7 @@ export async function askRestartOptions(epic: (Pick<PanelEpic, 'stage' | 'option
 }
 
 /** `carrier restart <owner/repo>#<issue>`: resumes a stopped epic over the control socket. Returns the exit code. */
-export async function restartCommand(folder: string, { repo, issue }: EpicTarget, flags: Chosen): Promise<number> {
+export async function restartCommand(folder: string, { repo, issue }: EpicTarget, flags: Flags): Promise<number> {
   const path = enginePlacesOf(folder).socket;
   let client: CarrierClient;
   try {
@@ -55,6 +61,8 @@ export async function restartCommand(folder: string, { repo, issue }: EpicTarget
     throw new CliError(1, 'Carrier is not running');
   }
   try {
+    // an engine that does not list `resumeFromStage` would only answer "invalid request"
+    if ((flags.from !== undefined || flags.extraRounds !== undefined) && client.hello.capabilities.includes('resumeFromStage') === false) throw new CliError(1, 'The running Carrier is too old to resume from a stage: restart it to get --from.');
     let chosen: Chosen = { ...(flags.author && { author: flags.author }), ...(flags.reviewer && { reviewer: flags.reviewer }) };
     if (flags.author === undefined && flags.reviewer === undefined && process.stdin.isTTY && process.stdout.isTTY) {
       const { epics } = (await client.request('snapshot')) as ControlSnapshot;
@@ -71,7 +79,7 @@ export async function restartCommand(folder: string, { repo, issue }: EpicTarget
       }
     }
     process.stdout.write(`Restarting ${repo}#${issue}…\n`); // the engine waits up to 30 seconds
-    await client.request('resumeEpic', { repo, issue, ...chosen });
+    await client.request('resumeEpic', { repo, issue, ...chosen, ...(flags.from && { from: flags.from }), ...(flags.extraRounds !== undefined && { extraRounds: flags.extraRounds }) });
   } catch (error) {
     if (error instanceof CliError) throw error;
     if (error instanceof ControlUnreachable) throw new CliError(1, `Carrier does not answer on ${path}`);

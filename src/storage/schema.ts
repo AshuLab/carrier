@@ -2,7 +2,7 @@ import type { EffectiveRepoConfig } from '../config/resolve.ts';
 import type { PullRequestBlock } from '../orchestration/github.ts';
 import { integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
 
-export const needsHumanKinds = ['review_limit', 'agent_needs_human', 'retries_exhausted', 'timeout', 'auth', 'workspace', 'pr_invalid', 'usage_limit'] as const;
+export const needsHumanKinds = ['review_limit', 'agent_needs_human', 'retries_exhausted', 'timeout', 'auth', 'workspace', 'pr_invalid', 'usage_limit', 'engine_error'] as const;
 export const epicStates = ['queued', 'running', 'ready_for_test', 'needs_human', 'cancelled', 'merged', 'repo_removed'] as const;
 
 export const epics = sqliteTable(
@@ -46,6 +46,16 @@ export const epics = sqliteTable(
     // The agent option each role runs on, set when the epic is reserved and replaced by a choice at a restart; null on epics from before options existed.
     authorOption: text(),
     reviewerOption: text(),
+    // Recoveries by the poll in a row (ADR 0046): back to 0 when an execution of the epic ends or its stage changes; the fourth failure parks it in `engine_error`.
+    recoveries: integer().notNull().default(0),
+    // The stage a resume asked for (`review` or `fix`): kept while the epic waits in the queue, so a restart of the engine in between keeps it. Null: start from ship.
+    resumeStage: text({ enum: ['review', 'fix'] }),
+    // The cap of review rounds a resume granted this epic; null: the live `maxReviews`. A restart from ship clears it with the rounds.
+    roundLimit: integer(),
+    // ms since epoch: when the provider says the window an epic stopped on (`usage_limit`) comes back, with `limits.autoResume` on; cleared by any change of status. Null: no wake-up.
+    resumeAt: integer(),
+    // Automatic resumes in a row (ADR 0049): back to 0 when one of the epic's executions ends with anything but `usage_limit`; the stop after the third stays in needs-human.
+    autoResumes: integer().notNull().default(0),
   },
   (table) => [uniqueIndex('epics_repo_issue').on(table.repo, table.issue)],
 );

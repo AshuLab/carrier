@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- `carrier recover <repo>#<issue>` continues a running epic whose agent is gone from its real state, and refuses with a reason when the epic is not running or an agent of it is really alive.
+  It also refuses while Carrier is recovering its epics at start, or when there is nothing a recovery would move.
+  Each use that continued the epic leaves a `recovered` event in the epic's history.
+- `carrier restart <repo>#<issue> --from review|fix` resumes a stopped epic at that stage and keeps its round, pull request, worktree and blockers.
+  It refuses when the pull request is not open or its head is not the one Carrier stored.
+  `--from ship`, or no `--from`, behaves as before.
+  Every restart leaves a `resumed` event in the epic's history.
+- An epic that stopped on the review limit and is resumed from `review` or `fix` gets more rounds counted from the current one, by default as many as `maxReviews`.
+  `--extra-rounds K` changes the number, and is refused when the epic did not stop on the review limit.
+- `limits.autoResume` (off by default) wakes up an epic that stopped on `usage_limit` by itself.
+  When the provider says when the exhausted window comes back, the epic keeps that time (`resumeAt`), shown in the panel and in `carrier status`.
+  At the first poll after it, Carrier asks for the quota again and resumes the epic from the stage where it stopped, only if the window is below 100 %.
+  It does nothing when the wait is longer than `limits.autoResumeMaxHours` (12 by default) or when no reset time is known, and it resumes an epic at most three times in a row.
+- `limits.idleMinutes` (off by default) kills an agent process that writes nothing for that long and retries it with its session, as a technical failure.
+- A new kind of stop, `engine_error`, for an unexpected error on one epic's path (`labels.reasons.engine_error` names its label).
+  Only that epic stops, with the error as one redacted line, and the other epics go on; resuming it starts a new attempt.
+
 ### Fixed
 
 - The switches and sliders of Settings take the accent the person picks, also after the window was opened; they kept the one it was opened with.
@@ -29,6 +48,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - A worktree session shows the branch checked out in it now (in the toolbar, the sidebar and Copy branch name), not the `carrier/...` branch it was created with, which an agent may have moved off.
 - A project's "New sessions here" has "Starts with", the same panel as Settings > Sessions: provider, model, reasoning and access, where it only had the provider.
   A project left on "Same as everywhere" follows Settings > Sessions.
+- The poll recovers a running epic that has no live agent and nothing scheduled, at most three times in a row, and each recovery is an event; the next failure stops the epic in `engine_error`.
+  It also moves an epic whose last execution timed out and was parked.
+- A resumed epic starts a new attempt: only the executions since its current start count for its retries and for the failover's memory, and its retries are back to the maximum.
+- One failing item (a finished execution or a retry) no longer stops the poll for the other epics and repos.
+- An epic whose issue answers 404 or 410 while its repo answers normally is cancelled with the reason that the issue no longer exists, so the engine starts and the rest of its repo goes on.
+  A repo that does not answer normally, a 404 for the whole repo included, is shown as refused with its reason and tried again at the next check, and none of its epics is cancelled.
+- A process is never waited on past its exit, and its whole process group is killed after the grace period and once more after the exit.
 - A chat session's worktree folder is removed once its pull request is merged, or once the session is archived and untouched for 14 days.
   The whole folder goes, including every file git ignores: build output and dependencies, but also a local `.env` or config kept inside the worktree, which does not come back.
   Its branch stays, and the folder comes back when you resume the session, without its dependencies until something installs them.

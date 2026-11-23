@@ -340,3 +340,64 @@ _Avoid_: caffeinate (the command it replaces), prevent sleep, wake lock.
 The first kinds are the local servers (LM Studio, Ollama); external APIs come later.
 Today the one chosen writes session titles ([0038](adr/0038-a-text-generator-is-declared-in-providers-json-and-the-chat-host-writes-session-titles-with-it.md)).
 _Avoid_: model provider (who serves the model an agent runs on), account (a login of an agent CLI), agent (it has no tools and runs nothing), cleanup model (the dictation cleanup keeps its own server and model).
+
+**Label role** - Each label Carrier reads or writes on an epic's issue has a role, and the config names the label of each role in `labels`: `epic` and `ready` are written by Solve and by people, `running`, `readyForTest` and `needsHuman` by Carrier.
+No two roles, stages or reasons may share a label.
+See [ADR 0043](adr/0043-labels-are-named-by-who-writes-them-and-every-one-is-configurable.md).
+_Avoid_: tag, state label (a status label is only the three Carrier writes).
+
+**Status label** - The label Carrier puts on an epic's issue to mirror its status: `running`, `ready for test` or `needs human`, by default `carrier:status:*`.
+Only Carrier writes it, and it takes off the ones that no longer apply.
+_Avoid_: state label, epic label (that is the `epic` role, the marker Solve writes).
+
+**Stage label** - An optional label, named in `labels.stages` for `ship`, `review` or `fix`, that Carrier puts beside `running` while the epic is in that stage.
+It is off until named, because it is one more write to GitHub at every stage change.
+_Avoid_: phase label, step label.
+
+**Reason label** - An optional label, named in `labels.reasons` for a kind of stop (review limit, agent asked for help, retries exhausted, timeout, authentication, workspace, invalid pull request, usage limit, a stage skill that does not exist, an engine error, no reviewer giving a verdict, the lead's limit), that Carrier puts beside `needs human` while the epic waits.
+It is off until named.
+_Avoid_: cause label, error label.
+
+**Recover (an epic)** - Asking the engine to continue one running epic whose agent is not alive, from its real state: it reads the epic's last execution and GitHub and goes on from there, as the engine does at start.
+It refuses when an execution of that epic is really alive, and it never sets a status, stage or round the caller picked.
+An epic in needs-human is resumed, not recovered.
+See [ADR 0044](adr/0044-recover-continues-an-epic-from-its-real-state-and-no-command-sets-one.md).
+_Avoid_: unstick, fix the state, reset, retry (an execution retry is the automatic one after a technical failure).
+
+**Resume from a stage** - Resuming an epic at `review` or `fix` instead of `ship`, keeping its round, pull request, worktree and blockers.
+When the epic stopped on the review limit, resuming gives it more rounds counted from the current one, by default the same number as `maxReviews`, which a flag can change.
+_Avoid_: restart from review, rewind.
+
+**Stage skill** - The skill a stage invokes, named in the `skills` block of the config (a repo's `skills` replaces what it names): by default Solve's `ship`, `code-review` with `code-post` to publish, and `code-resolve`.
+Only the name is configurable; Carrier keeps the prompt around it and the result contract, and the skill has to leave what the engine checks, above all a linked worktree and an open pull request that closes the epic after ship.
+See [ADR 0045](adr/0045-each-stage-runs-a-skill-the-config-names-and-carrier-keeps-the-contract.md).
+_Avoid_: command, plugin, custom prompt (the prompt is not configurable).
+
+**Attempt (of an epic)** - The stretch of an epic since its current start: the engine sets its start when it reserves the epic, and a resume starts a new one.
+Only the executions of the current attempt count for recovering the epic and for its retry budget, and the retries are back to the maximum with each attempt.
+It is not a retry: a retry is the automatic new execution after a technical failure inside an attempt.
+_Avoid_: run, try, session (a session belongs to an agent, not to the epic).
+
+**Engine error** - The kind of stop (`engine_error`) for an epic whose own path hit an unexpected error of the engine, or that the poll recovered three times in a row without success.
+The reason is the error in one redacted line, and the epic can be resumed.
+See [ADR 0046](adr/0046-an-unexpected-error-stops-the-epic-it-happened-on-and-the-poll-recovers-an-epic-that-lost-its-agent.md).
+_Avoid_: crash, internal error.
+
+**Wake-up (on quota)** - An epic stopped in `usage_limit` that resumes by itself once the provider's probe says the exhausted window is back, from the stage where it stopped.
+It is off until `limits.autoResume` is set, saves the time as `resumeAt`, checks the probe again before resuming, and does nothing when the wait is longer than `limits.autoResumeMaxHours`.
+See [ADR 0049](adr/0049-a-quota-stop-wakes-up-by-itself-when-the-provider-says-the-window-is-back.md).
+_Avoid_: auto-retry (a retry is the automatic new execution after a technical failure), auto-restart, resume by timer.
+
+**Review round** - One pass of every reviewer of the epic over the same head, in parallel, each in its own checkout.
+It ends when every reviewer has settled, and it counts once toward `maxReviews` however many reviewers it has.
+It is not a lead round.
+See [ADR 0048](adr/0048-a-review-round-has-several-reviewers-in-parallel-and-a-lead-reviewer-closes-it.md).
+_Avoid_: review (that is one reviewer's execution), turn.
+
+**Lead reviewer** - The optional role (`leadReviewer`) that reviews last, once the reviewers and the author agree on a head, and gives or withholds the approval of the pull request.
+It has its own skill (`skills.lead`) and exchanges with the author alone, one lead round at a time.
+_Avoid_: tech lead, final reviewer, approver.
+
+**Lead round** - One exchange of the lead reviewer asking for changes and the author fixing them, up to `limits.maxLeadRounds` (3 by default).
+It does not count toward `maxReviews`, and the other reviewers do not see the commits it makes.
+_Avoid_: round (that is a review round).

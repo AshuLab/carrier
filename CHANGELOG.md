@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- A session that changed agent shows every provider it ran on in the sidebar, not only the current one.
 - A card of the conversation (a run of tools, a table) covers the text next to it while it opens or folds, instead of showing it through the glass.
 - The new session screen no longer has a ✕ beside the workspace; click the workspace to choose another.
 - A role that runs as your own `gh` login (Settings > Agents) shows your GitHub picture, not a gray person.

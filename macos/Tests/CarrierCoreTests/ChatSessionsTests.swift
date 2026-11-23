@@ -1108,3 +1108,14 @@ private func clockSession(_ extra: String) throws -> ChatSession {
     ])
     #expect(archivePage(activeSample, now: now).notes.isEmpty)
 }
+
+@Test func aRowHasEveryProviderTheSessionRanOnAndAHostThatDoesNotSayLeavesItsOwn() throws {
+    func decoded(_ extra: String) throws -> ChatSession {
+        try JSONDecoder().decode(ChatSession.self, from: Data(
+            """
+            {"id":"p","agent":"codex","harness":"codex","folder":"/w","title":"Hola","state":"idle","createdAt":1,"lastActiveAt":2,"archived":false,"live":false\(extra)}
+            """.utf8))
+    }
+    #expect(sessionRows([try decoded(#","providers":["claude","codex"]"#)])[0].providers == ["claude", "codex"])
+    #expect(sessionRows([try decoded("")])[0].providers == ["codex"])
+}

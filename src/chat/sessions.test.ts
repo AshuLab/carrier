@@ -3972,6 +3972,17 @@ test('a switch answers the session and the options of the new agent, and the nex
   const turns = rows('chat_turns');
   expect(turns[0]).toMatchObject({ harness: 'claude', agent: 'a', nativeId: 'claude-1' });
   expect(turns[1]).toMatchObject({ harness: 'codex', agent: 'b', nativeId: 'codex-1', model: 'gpt-5' });
+
+  // the list says every harness the session ran a turn on, in the order it first used them
+  expect(s.sessions.list({}).sessions.find((listed) => listed.id === id)).toMatchObject({ providers: ['claude', 'codex'] });
+});
+
+test('the list gives a session the harness it works on now, also before it has run a turn there, and one only once', async () => {
+  const s = switching();
+  const { id } = await s.talked();
+  expect(s.sessions.list({}).sessions.find((listed) => listed.id === id)?.providers).toEqual(['claude']);
+  await s.sessions.switchAgent({ sessionId: id, agent: 'b' });
+  expect(s.sessions.list({}).sessions.find((listed) => listed.id === id)?.providers).toEqual(['claude', 'codex']);
 });
 
 test('a switch can go to another account of the same harness, and the agent takes its configured model', async () => {

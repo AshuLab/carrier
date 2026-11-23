@@ -145,7 +145,7 @@ public struct SessionRow: Equatable {
     public var folder: String
     /// The folder the session is grouped under: the repository's folder for a session in a worktree, `folder` otherwise.
     public var base: String
-    /// The providers the session has worked with, as the names of their icons; one today, and the row has room for more.
+    /// The providers the session has worked with, as the names of their icons, in the order it first used them: more than one after it changed agent.
     public var providers: [String]
     /// Whether the host has a title for it; `title` says "Untitled session" when it has none.
     public var titled: Bool

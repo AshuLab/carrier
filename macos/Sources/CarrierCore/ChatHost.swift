@@ -93,6 +93,9 @@ public struct ChatSession: Decodable, Equatable {
     public let parentSessionId: String?
     /// The child sessions this one started, oldest first; empty from a host that does not say. The list of sessions leaves the children themselves out.
     public let children: [Child]
+    /// The harnesses the session has run turns on, in the order it first used them; a session that changed agent has more than one. Just its own
+    /// harness from a host that does not say.
+    public let providers: [String]
 
     /// A child session as its parent lists it. `level` is the permission level it runs at (0 reads only, 1 asks before each change, 2 edits without asking), nil when the host does not say.
     public struct Child: Decodable, Equatable {
@@ -112,7 +115,7 @@ public struct ChatSession: Decodable, Equatable {
         public let from: String?
     }
 
-    private enum CodingKeys: String, CodingKey { case id, agent, harness, folder, title, state, createdAt, lastActiveAt, archived, workspace, live, preparation, kept, deleteAt, lastMessage, turns, model, parentSessionId, children, diff, pr, background }
+    private enum CodingKeys: String, CodingKey { case id, agent, harness, folder, title, state, createdAt, lastActiveAt, archived, workspace, live, preparation, kept, deleteAt, lastMessage, turns, model, parentSessionId, children, diff, pr, background, providers }
     private struct Kind: Decodable {
         let kind: String
         let base: String?
@@ -146,6 +149,8 @@ public struct ChatSession: Decodable, Equatable {
         background = (try? values.decodeIfPresent([BackgroundTask].self, forKey: .background)) ?? []
         parentSessionId = try values.decodeIfPresent(String.self, forKey: .parentSessionId)
         children = try values.decodeIfPresent([Child].self, forKey: .children) ?? []
+        let used = try values.decodeIfPresent([String].self, forKey: .providers) ?? []
+        providers = used.isEmpty ? [harness] : used
         let placed = try values.decodeIfPresent(Kind.self, forKey: .workspace)
         guard let placed, placed.kind == "worktree" else { workspace = nil; return }
         guard let base = placed.base else { throw DecodingError.keyNotFound(CodingKeys.workspace, .init(codingPath: decoder.codingPath, debugDescription: "a worktree without its base folder")) }

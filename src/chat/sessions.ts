@@ -2,7 +2,7 @@ import { accessSync, constants, existsSync, realpathSync, rmSync, statSync } fro
 import { basename, sep } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createHash, randomUUID } from 'node:crypto';
-import { and, asc, count, desc, eq, gt, inArray, isNotNull, isNull, lt, ne, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gt, inArray, isNotNull, isNull, lt, min, ne, sql } from 'drizzle-orm';
 import { createScopedLogger } from '@ashulab/universal-logger';
 import { carrierHome, expandHome } from '../config/places.ts';
 import { updateProjectsFile, readProjectsFile } from '../config/projects.ts';
@@ -1347,15 +1347,24 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
       const { archiveAfterDays, deleteAfterDays } = ages();
       const found = db.select().from(sessions).where(and(eq(sessions.archived, archived), isNull(sessions.parentSessionId))).orderBy(desc(sessions.lastActiveAt)).all();
       if (archived === false) data.kick(found);
+      // The harnesses each session has run a turn on, in the order it first used them: a session that changed agent has more than one.
+      // ponytail: one grouped read of every turn per list (a few hundred rows); a column kept on the session if the table grows.
+      const used = new Map<string, string[]>();
+      for (const { sessionId, harness } of db.select({ sessionId: chatTurns.sessionId, harness: chatTurns.harness }).from(chatTurns).where(isNotNull(chatTurns.harness)).groupBy(chatTurns.sessionId, chatTurns.harness).orderBy(asc(min(chatTurns.id))).all()) {
+        used.set(sessionId, [...(used.get(sessionId) ?? []), harness!]);
+      }
       return {
         sessions: found.map((found) => {
+          // the one it works on now goes last when it has not run a turn yet (a session that was just switched)
+          const providers = used.get(found.id) ?? [];
+          if (providers.includes(found.harness) === false) providers.push(found.harness);
           const dueAt = found.archived && archiveAfterDays !== 'never' && deleteAfterDays !== 'never' ? familyClock(found).lastActiveAt + deleteAfterDays * DAY : null;
           const kept = found.keptAt !== null && dueAt !== null && clock.now() >= dueAt; // a session the clock no longer considers (ages raised or never) is not kept
           const { branch, ...view } = data.view(found);
           const row = summary(found);
           // a worktree shows the branch checked out in it now: the agent may have moved it off the one it was cut with
           const workspace = row.workspace.kind === 'worktree' && branch !== null ? { ...row.workspace, branch } : row.workspace;
-          return { ...row, workspace, live: lives.has(found.id), kept, deleteAt: kept ? null : dueAt, ...activity(found.id), ...view, background: lives.get(found.id)?.background ?? [] };
+          return { ...row, workspace, providers, live: lives.has(found.id), kept, deleteAt: kept ? null : dueAt, ...activity(found.id), ...view, background: lives.get(found.id)?.background ?? [] };
         }),
       };
     },

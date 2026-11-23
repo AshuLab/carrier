@@ -256,6 +256,7 @@ The widget of the global dictation (`DictationWidget.swift`) is a floating panel
 - A `Spacer` inside a view that sits in `safeAreaBar` (the page header) takes all the height the bar offers: the header filled the window. Size such a view by what it holds.
 - `frame` before `padding` and `background` lets a `TextEditor` spill over the row above it. Size last.
 - A page-wide `.buttonStyle(…)` reaches inside menus and forms; a control that must differ sets its own style.
+- A switch is the size a native `Form` gives it (what `.controlSize(.mini)` draws, 36 pt wide) on every settings page. The pages that are not a `Form` (Projects, Repos, Health) draw it at 54 pt unless the switch says `.controlSize(.mini)`.
 - A `contentShape` row with a gesture and a button inside is fine; two gestures on the same view are not.
 - A row that opens on `.onTapGesture` alone is invisible to the keyboard and to Full Keyboard Access: make it a `Button` (`.buttonStyle(.plain)`).
 - The window's size does not matter to a build that only compiles. **Open the app and look** at the state with a long value, a missing value, an error and the empty state.

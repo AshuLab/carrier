@@ -464,7 +464,7 @@ private struct ProjectDetailView: View {
                     first: true
                 ) {
                     Toggle("Show when starting a session", isOn: Binding(get: { row.hidden == false }, set: { model.setHidden($0 == false, path: row.path) }))
-                        .labelsHidden().toggleStyle(.switch)
+                        .labelsHidden().toggleStyle(.switch).controlSize(.mini)
                 }
                 SettingsTabRow(title: "Starts with", detail: "Provider, model and reasoning; Same as everywhere is Settings > Sessions") {
                     startPicker
@@ -564,7 +564,7 @@ private struct ProjectDetailView: View {
         return SettingsGroup(title: "Carrier") {
             SettingsTabRow(title: "Let Carrier watch this project", detail: watch.detail, first: true, problem: watch.problem) {
                 Toggle("Let Carrier watch this project", isOn: Binding(get: { watch.isOn }, set: { $0 ? setWatching(true) : (confirmingStop = true) }))
-                    .labelsHidden().toggleStyle(.switch).disabled(watch.canChange == false)
+                    .labelsHidden().toggleStyle(.switch).controlSize(.mini).disabled(watch.canChange == false)
             }
         }
     }
@@ -1061,7 +1061,7 @@ private struct ProjectActionsView: View {
                 TextField("", text: binding(item.id, \.name), prompt: Text("Install dependencies"))
                     .accessibilityLabel("Name").settingsField(width: 200)
                 Toggle("On", isOn: binding(item.id, \.on))
-                    .labelsHidden().toggleStyle(.switch)
+                    .labelsHidden().toggleStyle(.switch).controlSize(.mini)
                     .accessibilityLabel("Enable \(named)")
                     .help(item.action.on ? "Turn off" : "Turn on")
                 IconButton(icon: .trash, name: "Delete \(named)") { delete(item.id) }

@@ -1909,7 +1909,7 @@ test('a live session is never cleaned up, and resuming one whose folder was clea
   expect(s.git.calls.at(-1)?.args).toEqual(['worktree', 'add', one.path, one.branch]);
 });
 
-test('the folder is kept when the worktree HEAD is detached or on another branch, as commits there are held by no branch', async () => {
+test('the folder is kept when the worktree HEAD is detached, as a commit there is held by no branch, and cleaned when HEAD is on another branch, as that branch lives in the shared clone', async () => {
   const s = worktreeSetup();
   const detached = await s.inWorktree('detached');
   const moved = await s.inWorktree('moved');
@@ -1918,7 +1918,7 @@ test('the folder is kept when the worktree HEAD is detached or on another branch
   s.git.repos.get(detached.path)!.head = null;
   s.git.repos.get(moved.path)!.head = 'other';
   await s.sessions.applyClock(cleanup({ afterPrMerged: true, afterInactiveDays: 'never' }));
-  expect([detached, moved, home].map((w) => existsSync(w.path))).toEqual([true, true, false]);
+  expect([detached, moved, home].map((w) => existsSync(w.path))).toEqual([true, false, false]);
 });
 
 test('the folder is kept when the worktree holds a submodule, shown by its git dir or a gitlink with a repository in it, as its commits live in the worktree\'s own git dir', async () => {

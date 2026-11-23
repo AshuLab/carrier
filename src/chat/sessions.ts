@@ -34,7 +34,7 @@ import { createProject, projectFolder, type createProjects } from './projects.ts
 import type { PullRequests } from './pull-requests.ts';
 import { createSessionData } from './session-data.ts';
 import { githubWorkOf } from './shell-effects.ts';
-import { clearWorktree, createWorktree, deleteWorktree, folderBytes, headAway, hiddenWork, isWorktreeFolder, listWorktrees, previewMain, previewWorktree, removeWorktree, restoreWorktree } from './worktree.ts';
+import { clearWorktree, createWorktree, deleteWorktree, folderBytes, headDetached, hiddenWork, isWorktreeFolder, listWorktrees, previewMain, previewWorktree, removeWorktree, restoreWorktree } from './worktree.ts';
 import { worktreesDir } from './names.ts';
 import { checkout, FETCH_FRESH_MS, fetchFolder, inspectFolder } from './workspace.ts';
 
@@ -297,10 +297,10 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
       if (dueNow(found) === false) continue;
       const clear = async () => {
         if (isWorktreeFolder(found.worktreePath!)) {
-          const [{ dirty }, away] = await Promise.all([previewWorktree(git, worktreeOf(found), [found.worktreeBranch!]), headAway(git, worktreeOf(found))]);
-          const hidden = dirty > 0 || away ? null : await hiddenWork(git, worktreeOf(found));
-          if (dirty > 0 || away || hidden !== null) {
-            log.info(away ? 'kept a worktree whose HEAD is not on its branch' : dirty > 0 ? 'kept a worktree with uncommitted work' : `kept a worktree that holds ${hidden}`, { sessionId: found.id, dirty });
+          const [{ dirty }, detached] = await Promise.all([previewWorktree(git, worktreeOf(found), [found.worktreeBranch!]), headDetached(git, worktreeOf(found))]);
+          const hidden = dirty > 0 || detached ? null : await hiddenWork(git, worktreeOf(found));
+          if (dirty > 0 || detached || hidden !== null) {
+            log.info(detached ? 'kept a worktree whose HEAD is detached' : dirty > 0 ? 'kept a worktree with uncommitted work' : `kept a worktree that holds ${hidden}`, { sessionId: found.id, dirty });
             return;
           }
         }

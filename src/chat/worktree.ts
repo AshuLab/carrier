@@ -181,13 +181,13 @@ export async function previewMain(git: Git, folder: string, branch: string | nul
 }
 
 /**
- * Whether the worktree's HEAD is somewhere else than its recorded branch: detached (also in the middle of a rebase) or on another branch.
- * Commits made there are held by no branch this session kept, so the folder is not removed. A detached HEAD already contained in a branch counts too: the safe side.
+ * Whether the worktree's HEAD is detached (a rebase or a bisect in progress detaches it too). A commit made there is held by no branch, so the folder is not removed.
+ * A HEAD on a branch other than the recorded one is not a loss: branches live in the clone every worktree shares and survive the removal of the folder, with what was committed on them.
  */
-export async function headAway(git: Git, made: MadeWorktree): Promise<boolean> {
-  const head = await git.run(made.path, ['symbolic-ref', '-q', '--short', 'HEAD']);
-  if (head.ok) return head.out.trim() !== made.branch;
-  if (head.code === 1) return true; // `-q` exits 1 when HEAD is not a branch
+export async function headDetached(git: Git, made: MadeWorktree): Promise<boolean> {
+  const head = await git.run(made.path, ['symbolic-ref', '-q', 'HEAD']);
+  if (head.ok) return false;
+  if (head.code === 1) return true; // `-q` exits 1 when HEAD is not a symbolic ref
   log.error('git could not tell where the HEAD of a worktree is', { code: head.code, timedOut: head.timedOut === true });
   throw new ChatRefused('Git could not read the worktree of a session');
 }
@@ -232,7 +232,7 @@ export async function hiddenWork(git: Git, made: MadeWorktree): Promise<string |
   // the worktree's own git dir: where its submodules' repositories live
   const gitDir = /^gitdir: (.+)$/m.exec(readText(join(path, '.git')))?.[1]?.trim();
   if (gitDir !== undefined && existsSync(join(isAbsolute(gitDir) ? gitDir : join(path, gitDir), 'modules'))) return 'a submodule';
-  const [index, reflog] = await Promise.all([git.run(path, ['ls-files', '-v', '-s', '-z']), git.run(path, ['reflog', 'show', '-n', '1000', '--format=%H%x09%gs', 'HEAD'])]);
+  const [index, reflog] = await Promise.all([git.run(path, ['ls-files', '-v', '-s', '-z']), git.run(path, ['reflog', 'show', '--format=%H%x09%gs', 'HEAD'])]);
   if (index.ok === false) throw unread('a submodule', index);
   if (reflog.ok === false) throw unread('commits', reflog);
   for (const entry of index.out.split('\0')) {
@@ -244,7 +244,7 @@ export async function hiddenWork(git: Git, made: MadeWorktree): Promise<string |
   }
   const fresh = new Set(reflog.out.split('\n').flatMap((line) => (/^[0-9a-f]{40,64}\t(commit|cherry-pick|revert)/.test(line) ? [line.slice(0, line.indexOf('\t'))] : [])));
   if (fresh.size === 0) return null;
-  const branch = await git.run(path, ['reflog', 'show', '-n', '1000', '--format=%H', `refs/heads/${made.branch}`]); // a branch that is gone has no reflog, and nothing was made on it
+  const branch = await git.run(path, ['reflog', 'show', '--format=%H', `refs/heads/${made.branch}`]); // a branch that is gone has no reflog, and nothing was made on it
   const ofBranch = new Set(branch.ok ? branch.out.split('\n') : []);
   const candidates = [...fresh].filter((sha) => ofBranch.has(sha) === false);
   if (candidates.length === 0) return null;

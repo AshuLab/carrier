@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
@@ -393,7 +393,7 @@ describe.skipIf(!enabled)('deleting a session in a worktree, with the real git',
     expect(existsSync(join(path, 'build'))).toBe(false);
   });
 
-  test('the clock pass keeps the folder when the worktree HEAD is detached with a commit, mid-rebase or on another branch, and the commit is still there', async () => {
+  test('the clock pass keeps the folder when the worktree HEAD is detached with a commit or mid-rebase, and cleans one on another branch, whose commit the shared clone keeps', async () => {
     const base = repoAt('clock-head');
     mkdirSync(home, { recursive: true });
     const clock = new FakeClock();
@@ -426,9 +426,9 @@ describe.skipIf(!enabled)('deleting a session in a worktree, with the real git',
 
     clock.time += 14 * 24 * 60 * 60_000;
     await s.applyClock(settings.settings);
-    expect([detached, aside, rebasing, settled].map((w) => existsSync(w.path))).toEqual([true, true, true, false]);
+    expect([detached, aside, rebasing, settled].map((w) => existsSync(w.path))).toEqual([true, false, true, false]);
     expect(git(detached.path, 'rev-parse', 'HEAD').trim()).toBe(lost);
-    expect(git(aside.path, 'rev-parse', 'other').trim()).toBe(onOther);
+    expect(git(base, 'rev-parse', 'other').trim()).toBe(onOther); // the branch lives in the clone, not in the removed folder
   });
 
   /** A host over the real git with a clock of its own, and sessions parked (closed and archived) in worktrees of `base`; `pass` is the clock's cleanup 14 days later, with the default settings. */
@@ -516,6 +516,22 @@ describe.skipIf(!enabled)('deleting a session in a worktree, with the real git',
     await pass();
     expect([dangling, rewritten, pushed].map((w) => existsSync(w.path))).toEqual([true, false, false]);
     expect(git(dangling.path, 'cat-file', '-t', lost).trim()).toBe('commit');
+  });
+
+  test('a commit made detached and left behind is still found under a long reflog, with no window on it', async () => {
+    const base = repoAt('clock-long-reflog');
+    const { parked, pass } = parkedHost(base);
+    const buried = await parked('buried');
+    git(buried.path, 'switch', '-q', '--detach');
+    const lost = commitIn(buried.path, 'only-here.txt', 'x\n');
+    git(buried.path, 'switch', '-q', buried.branch);
+    // 1,100 later entries of HEAD's reflog, written the way git does, so the commit is far from its top
+    const log = join(git(buried.path, 'rev-parse', '--absolute-git-dir').trim(), 'logs', 'HEAD');
+    const tip = git(buried.path, 'rev-parse', 'HEAD').trim();
+    appendFileSync(log, Array.from({ length: 1100 }, () => `${tip} ${tip} Carrier <c@example.com> 1700000000 +0000\tcheckout: moving from a to b\n`).join(''));
+    await pass();
+    expect(existsSync(buried.path)).toBe(true);
+    expect(git(buried.path, 'cat-file', '-t', lost).trim()).toBe('commit');
   });
 
   test('a folder a stopped removal left without its .git is not a worktree: the clock pass takes it, and resuming brings a real one back', async () => {

@@ -4,9 +4,9 @@
     "labels": {
       "epic": "solve:epic",
       "ready": "solve:epic:ready",
-      "running": "solve:epic:running",
-      "readyForTest": "solve:epic:ready-for-test",
-      "needsHuman": "solve:epic:needs-human"
+      "running": "carrier:status:running",
+      "readyForTest": "carrier:status:ready-for-test",
+      "needsHuman": "carrier:status:needs-human"
     },
     "finishedWindowDays": 15,
     "logLevel": "info",

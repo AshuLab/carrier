@@ -128,13 +128,15 @@ private func reply(stages: [EpicReply.Stage], rounds: Int = 0) -> EpicReply {
     #expect(epicHeader(.finished(done)).title == "Checkout flow")
 }
 
-@Test func theHeaderHidesTheSolveLabels() {
+@Test func theHeaderHidesTheSolveAndCarrierLabels() {
     var labelled = epic()
     #expect(epicHeader(.active(labelled)).labels == [])
-    labelled.labels = ["solve:epic", "solve:epic:running", "shop", "payments"]
+    labelled.labels = ["solve:epic", "carrier:status:running", "shop", "payments"]
     #expect(epicHeader(.active(labelled)).labels == ["shop", "payments"])
     labelled.labels = ["solve:epic"]
     #expect(epicHeader(.active(labelled)).labels == [])
+    labelled.labels = ["carrier:status:needs-human", "carrier:stage:building", "Carrier"]
+    #expect(epicHeader(.active(labelled)).labels == ["Carrier"])
 }
 
 @Test func theHeaderHasNoPullRequestUntilThereIsOne() {

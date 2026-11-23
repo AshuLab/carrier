@@ -148,9 +148,9 @@ describe('invalid config', () => {
 });
 
 describe('labels', () => {
-  test('default to the solve:epic ones, and take another name per role, trimmed', () => {
-    expect(load({})).toMatchObject({ ok: true, config: { labels: { epic: 'solve:epic', ready: 'solve:epic:ready', running: 'solve:epic:running', readyForTest: 'solve:epic:ready-for-test', needsHuman: 'solve:epic:needs-human' } } });
-    expect(load({ labels: { ready: '  carrier go ', running: 'carrier:busy' } })).toMatchObject({ ok: true, config: { labels: { epic: 'solve:epic', ready: 'carrier go', running: 'carrier:busy', needsHuman: 'solve:epic:needs-human' } } });
+  test('default to solve:epic and solve:epic:ready for Solve and carrier:status:* for Carrier, and take another name per role, trimmed', () => {
+    expect(load({})).toMatchObject({ ok: true, config: { labels: { epic: 'solve:epic', ready: 'solve:epic:ready', running: 'carrier:status:running', readyForTest: 'carrier:status:ready-for-test', needsHuman: 'carrier:status:needs-human' } } });
+    expect(load({ labels: { ready: '  carrier go ', running: 'carrier:busy' } })).toMatchObject({ ok: true, config: { labels: { epic: 'solve:epic', ready: 'carrier go', running: 'carrier:busy', needsHuman: 'carrier:status:needs-human' } } });
   });
 
   test.each([
@@ -167,7 +167,7 @@ describe('labels', () => {
   });
 
   test('refuses two roles on one label, whatever the case, naming the second', () => {
-    expect(errorsOf({ labels: { ready: 'solve:epic:running' } })).toEqual([{ path: 'labels.running', message: 'is the same label as labels.ready: each role needs its own' }]);
+    expect(errorsOf({ labels: { ready: 'carrier:status:running' } })).toEqual([{ path: 'labels.running', message: 'is the same label as labels.ready: each role needs its own' }]);
     expect(errorsOf({ labels: { needsHuman: 'Solve:Epic' } }).map((e) => e.path)).toEqual(['labels.needsHuman']);
   });
 
@@ -184,7 +184,7 @@ describe('labels', () => {
   test('refuse a stage or a kind of stop the engine does not have, and a label shared across groups', () => {
     expect(errorsOf({ labels: { stages: { build: 'x' } } }).map((e) => e.path)[0]).toMatch(/^labels\.stages/);
     expect(errorsOf({ labels: { reasons: { tired: 'x' } } }).map((e) => e.path)[0]).toMatch(/^labels\.reasons/);
-    expect(errorsOf({ labels: { stages: { fix: 'Solve:Epic:Running' } } })).toEqual([{ path: 'labels.stages.fix', message: 'is the same label as labels.running: each role needs its own' }]);
+    expect(errorsOf({ labels: { stages: { fix: 'Carrier:Status:Running' } } })).toEqual([{ path: 'labels.stages.fix', message: 'is the same label as labels.running: each role needs its own' }]);
     expect(errorsOf({ labels: { stages: { ship: 'same' }, reasons: { auth: 'SAME' } } })).toEqual([{ path: 'labels.reasons.auth', message: 'is the same label as labels.stages.ship: each role needs its own' }]);
   });
 

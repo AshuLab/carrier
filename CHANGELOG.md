@@ -36,6 +36,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- The labels Carrier writes default to `carrier:status:running`, `carrier:status:ready-for-test` and `carrier:status:needs-human`, because Carrier writes them and not Solve; `solve:epic` and `solve:epic:ready` stay as Solve writes them.
+  An issue that already has `solve:epic:running`, `solve:epic:ready-for-test` or `solve:epic:needs-human` keeps it, since Carrier only removes the labels it names now and nothing cleans the old names.
+  Set them in `labels` to keep the old ones.
+  The app's epic header also hides labels that start with `carrier:`.
 - The poll recovers a running epic that has no live agent and nothing scheduled, at most three times in a row, and each recovery is an event; the next failure stops the epic in `engine_error`.
   It also moves an epic whose last execution timed out and was parked.
 - A resumed epic starts a new attempt: only the executions since its current start count for its retries and for the failover's memory, and its retries are back to the maximum.

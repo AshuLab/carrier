@@ -116,15 +116,28 @@ Carrier reads and writes five labels on an epic's issue, each named by a role in
 | --- | --- | --- | --- |
 | `epic` | `solve:epic` | Solve, a person | Marks an epic. Carrier reads the open ones for the slice progress and the title. |
 | `ready` | `solve:epic:ready` | Solve, a person | Queues the epic. Carrier takes it off in every status except queued (running, needs human, ready for test, merged, cancelled) and never leaves it on a stopped one, so a person puts it back to restart: pick a label that is not part of your own workflow. A removal that failed is retried at the next check, and until it succeeds the `ready` on a stopped epic is not read as a restart. |
-| `running` | `solve:epic:running` | Carrier | An orchestrator is building the epic. |
-| `readyForTest` | `solve:epic:ready-for-test` | Carrier | Reviewed on the current head; a person tests and merges. |
-| `needsHuman` | `solve:epic:needs-human` | Carrier | Stopped for a person, with the reason in the app. |
+| `running` | `carrier:status:running` | Carrier | An orchestrator is building the epic. |
+| `readyForTest` | `carrier:status:ready-for-test` | Carrier | Reviewed on the current head; a person tests and merges. |
+| `needsHuman` | `carrier:status:needs-human` | Carrier | Stopped for a person, with the reason in the app. |
 
-Two more groups are off until you name them, so a Carrier that does not name them writes exactly what it wrote before:
+Solve writes `epic` and `ready`, so they keep the `solve:` names; Carrier writes the other three, so they are named `carrier:status:*`.
+An issue that already carries an old name (`solve:epic:running`, `solve:epic:ready-for-test` or `solve:epic:needs-human`) keeps it: Carrier only removes the labels it names now, and nothing cleans the old ones.
+A board or an automation keyed on an old name changes it, or you set the old names in `labels`.
+
+Two more groups are off until you name them, so a Carrier that does not name them writes nothing more than the five above:
 
 - `labels.stages`: `{ ship, review, fix }`, each optional. While an epic runs, the issue carries the label of its stage beside `running`, and the next stage replaces it.
 - `labels.reasons`: one optional label per kind of stop, `review_limit`, `agent_needs_human`, `retries_exhausted`, `timeout`, `auth`, `workspace`, `pr_invalid`, `usage_limit` and `engine_error`.
   While an epic waits for a person, the issue carries the label of its kind beside `needsHuman`.
+
+The names below are proposals you may copy into `labels`; none is on until you name it:
+
+| Where | Label |
+| --- | --- |
+| `labels.stages.ship` | `carrier:stage:building` |
+| `labels.stages.review` | `carrier:stage:reviewing` |
+| `labels.stages.fix` | `carrier:stage:fixing-review` |
+| `labels.reasons.<kind>` | `carrier:reason:<kind>`, for example `carrier:reason:review_limit` |
 
 A stage label costs one more write to GitHub at each stage change, which is why it is opt-in.
 A status change removes only the owned labels the issue has, taken from the labels the poll read in the same check (or read once from GitHub when a request causes the change), so the writes do not grow with the labels named.

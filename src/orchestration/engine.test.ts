@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { loadProviders } from '../config/providers.ts';
 import type { EffectiveRepoConfig } from '../config/resolve.ts';
+import { defaultSkills, resolveSkills, savedSkills, solveSkills } from '../config/skills.ts';
 import { openDatabase, type Db } from '../storage/db.ts';
 import { eq } from 'drizzle-orm';
 import { epics } from '../storage/schema.ts';
@@ -2238,6 +2239,21 @@ test.each([[true], [false]])('with sharedIdentity %s in the epic\'s config the t
   await engine.idle();
 
   expect(runner.tasks.map((t) => [t.stage, t.sharedIdentity])).toEqual([['ship', expected], ['review', expected], ['fix', expected]]);
+});
+
+test('the skills of the repo are saved with the epic when it is reserved; a row saved without them reads Solve\'s defaults', async () => {
+  const named = resolveSkills(solveSkills, { fix: 'my-fix' });
+  github.ready = { 'AshuLab/a': ready(1), 'AshuLab/b': ready(2) };
+  runner.behavior = () => ({ exit: 'stopped' });
+  const engine = await start(2, [{ ...repos[0]!, skills: named }, repos[1]!]);
+  await clock.advance(5 * MIN);
+  await engine.idle();
+
+  const [withSkills, without] = rows(engine.db).sort((x, y) => x.repo.localeCompare(y.repo));
+  expect(withSkills!.config!.skills).toEqual(named);
+  expect(savedSkills(withSkills!.config).fix).toEqual({ name: 'my-fix', named: true });
+  expect(without!.config!.skills).toBeUndefined();
+  expect(savedSkills(without!.config)).toEqual(defaultSkills);
 });
 
 test('an epic resumed after the config changed keeps the sharedIdentity it started with', async () => {

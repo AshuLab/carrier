@@ -10,6 +10,14 @@
     },
     "finishedWindowDays": 15,
     "logLevel": "info",
+    "skills": {
+      "ship": "ship",
+      "review": {
+        "review": "code-review",
+        "publish": "code-post"
+      },
+      "fix": "code-resolve"
+    },
     "limits": {
       "maxConcurrentEpics": 3,
       "maxReviews": 5,

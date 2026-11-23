@@ -33,6 +33,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - An `api_error` is retried after 30 seconds, then 2 minutes, then 10 minutes.
   The due time is saved with the epic, so a retry that comes due while Carrier is down starts at the first poll after it starts, and the panel and `carrier status` show it.
 - A repo that GitHub answers badly (a timeout, a 5xx or a network error) is skipped for that cycle and shown with its reason, and the other repos go on.
+- `skills` in `engine.json`, globally, per repo and per role (`agents.author.skills`, `agents.reviewer.skills`), names the skill of each stage (`ship`, `review` with `publish`, `fix`).
+  The defaults are Solve's (`ship`, `code-review` with `code-post`, `code-resolve`), a name is checked when the config loads, and the resolved skills are saved with an epic when it starts.
+  The prompts do not read them yet.
 
 ### Changed
 

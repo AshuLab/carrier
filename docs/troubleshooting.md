@@ -133,8 +133,14 @@ The whole folder is removed, including every file git ignores: build output and 
 Copy such a file out of the worktree, or turn the cleanup off with `"afterPrMerged": false` and `"afterInactiveDays": "never"` (see [The session clock](configuration.md#the-session-clock)).
 To get one back on its own, give the project a `newWorktree` action: those run again every time the folder comes back, so an action like `cp "$CARRIER_PROJECT/.env" .` puts the file in again.
 An action with no `onFail` only warns when it fails and the session goes on without the file; with `"onFail": "stop"` the open is refused, the folder stays, and the next open goes on from the action that failed.
-A folder is kept when it has uncommitted or untracked files, files git is told not to show (`--assume-unchanged`, `--skip-worktree`), a submodule, a detached HEAD or one on another branch, or a commit that only the worktree's own reflog holds; `<folder>/chat/logs/chat-host.log` says which and why.
-A folder that a stopped removal left without its `.git` is removed on the next pass, or when the session is resumed.
+A folder is kept when it has uncommitted or untracked files, files git is told not to show (`--assume-unchanged`, `--skip-worktree`), an initialised submodule (even with no edits), a detached HEAD, or a commit that only the worktree's own reflog holds; `<folder>/chat/logs/chat-host.log` says which and why.
+A HEAD on another branch does not keep it: that branch lives in the clone and stays.
+Removing a big folder can take up to three minutes, during which resuming that session waits and stopping the host can wait too.
+
+A removal killed halfway (power loss, `SIGKILL`) can leave a half-removed folder, with no `.git` or with a `.git` that points nowhere.
+Carrier does not delete such a folder by itself, as it cannot tell leftovers from work: the log says `kept a worktree folder git cannot read` on every pass.
+To clear it, check nothing in it matters, then run `git -C <the project's clone> worktree prune` and remove the folder (`rm -rf <folder>/chat/worktrees/<owner>/<repo>/<name>`).
+The session and its branch stay, and the next message brings a fresh folder back.
 
 ## Start-up errors
 

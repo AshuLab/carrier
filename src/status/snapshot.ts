@@ -2,6 +2,7 @@ import { and, asc, count, desc, eq, gte, inArray, sql } from 'drizzle-orm';
 import type { EffectiveRepoConfig } from '../config/resolve.ts';
 import { latestBlockers } from '../orchestration/blockers.ts';
 import type { Labels } from '../orchestration/github.ts';
+import { queueOrder } from '../orchestration/reserve.ts';
 import type { Db } from '../storage/db.ts';
 import { executions } from '../storage/executions.ts';
 import { epics } from '../storage/schema.ts';
@@ -49,7 +50,7 @@ export function buildSnapshot(
   },
 ): ControlSnapshot {
   const busy = db.select({ n: count() }).from(epics).where(eq(epics.status, 'running')).get()!.n;
-  const queue = db.select({ repo: epics.repo, issue: epics.issue, title: epics.title, queuedAt: epics.queuedAt }).from(epics).where(eq(epics.status, 'queued')).orderBy(asc(epics.id)).all()
+  const queue = db.select({ repo: epics.repo, issue: epics.issue, title: epics.title, queuedAt: epics.queuedAt }).from(epics).where(eq(epics.status, 'queued')).orderBy(...queueOrder).all()
     .map((q) => ({ repo: q.repo, issue: q.issue, title: q.title, queuedAt: q.queuedAt }));
   const shown = db.select().from(epics).where(inArray(epics.status, ['running', 'needs_human'])).orderBy(asc(epics.id)).all();
   const lastExecution = (epicId: number) => db.select({ id: executions.executionId }).from(executions).where(eq(executions.epicId, epicId)).orderBy(desc(executions.startedAt), sql`rowid desc`).limit(1).get()?.id ?? null;

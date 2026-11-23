@@ -161,6 +161,7 @@ describe('responses', () => {
     expect(epics[0]).toEqual({ issue: 1, title: 'epic 1', labels: ['solve:epic', 'bug'] });
     expect(calls()).toHaveLength(3);
     expect(calls()[0]?.args.at(-1)).toContain('labels=solve%3Aepic%3Aready');
+    expect(calls()[0]?.args.at(-1)).toContain('sort=created&direction=asc'); // the oldest first: the queue is first in, first out
   });
 
   test('listOpenEpics reads sub_issues_summary when GitHub sends it, null when it does not, and skips pull requests', async () => {

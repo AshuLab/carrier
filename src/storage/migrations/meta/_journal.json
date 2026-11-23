@@ -232,6 +232,13 @@
       "when": 1795456667384,
       "tag": "0032_rich_owl",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "6",
+      "when": 1795457906704,
+      "tag": "0033_certain_randall",
+      "breakpoints": true
     }
   ]
 }

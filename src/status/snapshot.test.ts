@@ -55,6 +55,17 @@ test('an epic stopped with a resumeAt carries it, and one with none has no such 
   expect(renderPanel(snapshot()).join('\n')).toContain('resumes: in 1m 30s');
 });
 
+test('a running epic waiting to retry carries its due time, and one that is not waiting has no such field', () => {
+  add(1, 'running', { retryAt: 130_000 });
+  add(2, 'running');
+  add(3, 'needs_human', { needsHumanKind: 'retries_exhausted', retryAt: 130_000 });
+  const [waiting, plain, stopped] = snapshot().epics;
+  expect(waiting).toMatchObject({ issue: 1, retryAt: 130_000 });
+  expect(plain).not.toHaveProperty('retryAt');
+  expect(stopped).not.toHaveProperty('retryAt');
+  expect(renderPanel(snapshot()).join('\n')).toContain('retries: in 30s');
+});
+
 test('an epic carries its stage, round, links, activity, error and the blockers of the last review that asked for changes', () => {
   const epic = add(12, 'running', {
     stage: 'fix', round: 2, prNumber: 50, startedAt: 1_000, stageStartedAt: 40_000, lastActivityAt: 90_000, lastError: 'the agent process ended with an error',

@@ -62,6 +62,8 @@ export const epics = sqliteTable(
     // The observations left unanswered when the epic went to ready for test, and why (glossary: Unanswered observations); both null when none were left, set together.
     unansweredObservations: integer(),
     unansweredReason: text({ enum: unansweredReasons }),
+    // When the retry of an `api_error` may start (ms since epoch); null when none waits. A due time and not a sleep: a restart of the engine finds it.
+    retryAt: integer(),
   },
   (table) => [uniqueIndex('epics_repo_issue').on(table.repo, table.issue)],
 );

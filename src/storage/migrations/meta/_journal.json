@@ -225,6 +225,13 @@
       "when": 1795456212313,
       "tag": "0031_bizarre_songbird",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "6",
+      "when": 1795456667384,
+      "tag": "0032_rich_owl",
+      "breakpoints": true
     }
   ]
 }

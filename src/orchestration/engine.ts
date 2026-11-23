@@ -30,7 +30,7 @@ import { endOf } from './final-pr.ts';
 import { AuthError, GitHubRejected, GitHubUnavailable, hasLabel, isNotFound, labelStyles, type GitHub, type LabelStyle, type Labels, type PullRequestState, type Slices } from './github.ts';
 import { reserve } from './reserve.ts';
 import { startRetention, type SessionDirs } from './retention.ts';
-import { failureStreak, isOfAttempt } from './retry.ts';
+import { failureStreak, isOfAttempt, retryWait } from './retry.ts';
 import type { QuotaReader } from './quota.ts';
 import { isBack, resumeAtOf } from './resume-at.ts';
 
@@ -167,7 +167,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
   const restart = (queuedAt: number) => ({
     status: 'queued' as const, queuedAt, startedAt: null, config: null, labelPending: false, stage: null, stageStartedAt: null, workspace: null,
     lastActivityAt: null, lastError: null, round: null, prNumber: null, prHeadSha: null, pr: null, reviewedSha: null, verification: null, observationsPassAt: null,
-    needsHumanReason: null, needsHumanKind: null, finishedAt: null, authorOption: null, reviewerOption: null, recoveries: 0, autoResumes: 0, headRepeats: 0, unansweredObservations: null, unansweredReason: null, resumeStage: null, roundLimit: null, resumeAt: null,
+    needsHumanReason: null, needsHumanKind: null, finishedAt: null, authorOption: null, reviewerOption: null, recoveries: 0, autoResumes: 0, headRepeats: 0, unansweredObservations: null, unansweredReason: null, retryAt: null, resumeStage: null, roundLimit: null, resumeAt: null,
   });
   // The rounds an epic may have: what a resume granted it, else the live setting (a changed `maxReviews` applies at the epic's next review).
   const roundCap = (epic: Epic) => epic.roundLimit ?? settings().maxReviews;
@@ -175,7 +175,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
   // worktree and the rest of where it stood; `resumeStage` tells `begin` where to start.
   const requeueKeeping = (queuedAt: number) => ({
     status: 'queued' as const, queuedAt, startedAt: null, config: null, labelPending: false, stage: null, stageStartedAt: null,
-    lastActivityAt: null, lastError: null, needsHumanReason: null, needsHumanKind: null, finishedAt: null, authorOption: null, reviewerOption: null, recoveries: 0, autoResumes: 0, headRepeats: 0, unansweredObservations: null, unansweredReason: null, resumeAt: null,
+    lastActivityAt: null, lastError: null, needsHumanReason: null, needsHumanKind: null, finishedAt: null, authorOption: null, reviewerOption: null, recoveries: 0, autoResumes: 0, headRepeats: 0, unansweredObservations: null, unansweredReason: null, retryAt: null, resumeAt: null,
   });
 
   // Mirrors the epic's status on its issue: its labels, none of the other owned ones, and no `ready` while running.
@@ -249,7 +249,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
 
   // The epic leaves `running` for `needs_human`; the label follows (labelPending) and the slot is free.
   const toNeedsHuman = (writer: Pick<Db, 'update'>, id: number, kind: (typeof needsHumanKinds)[number], reason: string) =>
-    writer.update(epics).set({ status: 'needs_human', needsHumanKind: kind, needsHumanReason: reason, finishedAt: clock.now(), labelPending: true }).where(eq(epics.id, id)).run();
+    writer.update(epics).set({ status: 'needs_human', needsHumanKind: kind, needsHumanReason: reason, finishedAt: clock.now(), labelPending: true, retryAt: null }).where(eq(epics.id, id)).run();
 
   // What the database says when it cannot be read or written: about the whole engine, never about one epic.
   const isDatabaseError = (e: unknown) => [e, (e as Error | undefined)?.cause].some((x) => typeof (x as NodeJS.ErrnoException | undefined)?.code === 'string' && (x as NodeJS.ErrnoException).code!.startsWith('SQLITE_'));
@@ -664,7 +664,12 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
           // Retrying the same option only burns the retries.
           await onUsageLimit(epic.id, db.select().from(executions).where(eq(executions.executionId, executionId)).get()!);
         }
-        else if (exit === 'failed' || exit === 'session_unavailable') await retry(epic.id);
+        else if (exit === 'failed' || exit === 'session_unavailable') {
+          // The wait is a due time saved with the epic, never a sleep: `retry` starts it once due, from its timer or from the poll after a restart.
+          const wait = retryWait(failureStreak(db, fresh(epic.id)));
+          db.update(epics).set({ retryAt: wait > 0 ? clock.now() + wait : null }).where(eq(epics.id, epic.id)).run();
+          await retry(epic.id);
+        }
         else if (exit === 'auth_failed') {
           if (profileDeclared(task.profile)) await stopProfile(task.profile);
           else {
@@ -698,6 +703,8 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
 
   // Relaunches the stage whose last execution failed technically, until the retries run out.
   const retrying = new Set<number>();
+  // The timers of the retries that wait for their due time; the engine's stop cancels them, and the poll finds what a restart lost.
+  const retryTimers = new Map<number, () => void>();
   async function retry(epicId: number) {
     if (stopping || suspended || retrying.has(epicId)) return;
     retrying.add(epicId);
@@ -710,11 +717,24 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
         toNeedsHuman(db, epicId, 'retries_exhausted', `ran out of ${last.stage} retries (${earlier.length + 1} attempts): ${last.error}`);
         return await freeSlot();
       }
+      const waiting = epic.retryAt === null ? 0 : epic.retryAt - clock.now();
+      if (waiting > 0) {
+        if (!retryTimers.has(epicId)) {
+          retryTimers.set(epicId, clock.after(waiting, async () => {
+            retryTimers.delete(epicId);
+            track(isolating(epicId, epic.repo, () => retry(epicId)));
+          }));
+        }
+        return;
+      }
       // Read only: what the failed execution may have left on GitHub. A failed query is not an attempt, the poll tries again.
       const pr = await github.findPullRequest(epic.repo, epic.issue);
       if (!unchanged(epicId, epoch)) return; // parked while GitHub was asked: no event, no launch; the next check retries it if it is back
       // A lost session is rebuilt, not resumed: new session, same profile, context from SQLite and GitHub.
       const lost = last.failureKind === 'session_lost';
+      db.update(epics).set({ retryAt: null }).where(eq(epics.id, epicId)).run();
+      retryTimers.get(epicId)?.();
+      retryTimers.delete(epicId);
       db.insert(epicEvents)
         .values({ epicId, at: clock.now(), type: lost ? 'session_rebuilt' : 'execution_retried', data: { stage: last.stage, failed: last.executionId, attempt: earlier.length + 2, error: last.error, pr } })
         .run();
@@ -1467,6 +1487,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     stop() {
       cancel?.();
       stopSliceReads();
+      for (const cancelRetry of retryTimers.values()) cancelRetry();
       stopRetention?.();
     },
     /**
@@ -1478,6 +1499,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       stopping = true;
       cancel?.();
       stopSliceReads();
+      for (const cancelRetry of retryTimers.values()) cancelRetry();
       stopRetention?.();
       await Promise.all([...active.values()].map((run) => run.stop()));
       while (inflight.size > 0) await Promise.all([...inflight]);

@@ -150,6 +150,13 @@ test('a stopped epic that resumes by itself says in how long, and at the next ch
   expect(out()).not.toContain('resumes');
 });
 
+test('a running card waiting to retry says in how long, and at the next check once the time has passed', () => {
+  const out = (retryAt?: number) => plain(snap({ epics: [epic({ issue: 29, ...(retryAt !== undefined && { retryAt }) })] }));
+  expect(out(now + 600_000)).toContain('retrying in 10m');
+  expect(out(now - 1)).toContain('retrying at the next check');
+  expect(out()).not.toContain('retrying');
+});
+
 test('a review or fix card lists up to three blocker titles and counts the rest; with none it adds nothing', () => {
   const titles = ['one', 'two', 'three', 'four', 'five'];
   const card = (stage: PanelEpic['stage'], n: number) => plain(snap({ epics: [epic({ stage, blockers: n, blockerTitles: titles.slice(0, n) })] }));

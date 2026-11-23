@@ -140,6 +140,7 @@ export function renderDashboard(s: PanelSnapshot, { columns = 80, color = true, 
     const slices = e.slices && e.slices.total > 0 ? ` · slices ${e.slices.done}/${e.slices.total}` : '';
     add(` ${bar} ${formatDuration(s.now - e.stageSince)} in stage · ${e.lastActivityAt === null ? 'no activity yet' : `active ${ago(e.lastActivityAt)}`}${blockers}${slices}`);
     add(` ${bar} ${paint(e.prUrl ?? e.issueUrl, 'dim')}`);
+    if (e.retryAt !== undefined) add(` ${bar} ${e.retryAt > s.now ? `retrying in ${formatDuration(e.retryAt - s.now)}` : 'retrying at the next check'}`);
     if (e.lastError) add(` ${bar} ${paint(`error: ${printable(e.lastError)}`, 'red')}`);
     // What the agent is doing: three lines for the selected card, one for the others.
     const now = e.executionId && activity ? activity(e.executionId, chosen ? 3 : 1) : [];

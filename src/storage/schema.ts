@@ -3,6 +3,7 @@ import type { PullRequestBlock } from '../orchestration/github.ts';
 import { integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
 
 export const needsHumanKinds = ['review_limit', 'agent_needs_human', 'retries_exhausted', 'timeout', 'auth', 'workspace', 'pr_invalid', 'usage_limit', 'engine_error'] as const;
+export const unansweredReasons = ['already_taken', 'last_round'] as const;
 export const epicStates = ['queued', 'running', 'ready_for_test', 'needs_human', 'cancelled', 'merged', 'repo_removed'] as const;
 
 export const epics = sqliteTable(
@@ -58,6 +59,9 @@ export const epics = sqliteTable(
     autoResumes: integer().notNull().default(0),
     // Reviews made again in a row because the pull request's head moved while one ran (ADR 0047): back to 0 when a review completes on its own head or the epic starts a new attempt; a third move stops it in `pr_invalid`.
     headRepeats: integer().notNull().default(0),
+    // The observations left unanswered when the epic went to ready for test, and why (glossary: Unanswered observations); both null when none were left, set together.
+    unansweredObservations: integer(),
+    unansweredReason: text({ enum: unansweredReasons }),
   },
   (table) => [uniqueIndex('epics_repo_issue').on(table.repo, table.issue)],
 );

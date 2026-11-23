@@ -1,5 +1,8 @@
 import type { Labels } from '../orchestration/github.ts';
-import type { needsHumanKinds } from '../storage/schema.ts';
+import type { needsHumanKinds, unansweredReasons } from '../storage/schema.ts';
+
+/** The observations an epic went to ready for test with because no pass would answer them (glossary: Unanswered observations). */
+export type UnansweredObservations = { count: number; reason: (typeof unansweredReasons)[number] };
 
 /** The agent options of an epic: the accounts it can restart on, the option each role runs on. */
 export type EpicOptions = { names: string[]; author: string | null; reviewer: string | null };
@@ -57,7 +60,7 @@ export type PanelSnapshot = {
   /** Each watched repo's last check; absent from an engine that does not send it (the control snapshot always has it). */
   watched?: { repo: string; ok: boolean; error: string | null }[];
   /** The epics that ended ready for test, most recent first. */
-  done: { repo: string; issue: number; title: string | null; labels: string[]; prNumber: number | null; finishedAt: number | null; executionId: string | null }[];
+  done: { repo: string; issue: number; title: string | null; labels: string[]; prNumber: number | null; finishedAt: number | null; executionId: string | null; unansweredObservations?: UnansweredObservations }[];
   /** The merged and cancelled epics inside the finished window, newest first; absent from an engine that does not send it (the control snapshot always has it). */
   finished?: PanelFinished[];
 };

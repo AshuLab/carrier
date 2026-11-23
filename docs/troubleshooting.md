@@ -107,6 +107,15 @@ Resuming it yourself before the time clears `resumeAt`, and the wake-up does not
 A stage wake-up (review or fix) whose pull request is not open any more, or whose head is not the one Carrier saved, does not go on: the epic stops waiting, the reason says why it will not resume by itself, and you resume it yourself.
 Turn it on in the `limits` of the configuration ([configuration](configuration.md)).
 
+## An epic is ready for test with observations nobody answered
+
+When a review approves with observations, the author answers them in one pass before the epic is ready for test.
+That pass happens once per epic, and only when the round is not the last one the epic's cap allows.
+An epic that reaches ready for test with observations left says how many and why, in the panel, in `carrier status` and in the app's epic reply (`unansweredObservations`: `count` and `reason`).
+`already_taken`: the one pass was already used, so the observations of a later review (for example after the pass moved the head) are left.
+`last_round`: the review was the last round the epic's cap allows (`maxReviews`, or what a resume granted), so no pass could run.
+Nothing is stopped and Carrier does nothing more about them: read the observations in the epic's last round and decide whether they matter before you merge.
+
 ## An epic ends in `solve:epic:needs-human`
 
 The reason is in the panel and the logs. Carrier stops the epic and leaves everything as it was (sessions, worktrees, uncommitted work); the others keep going. Common reasons:

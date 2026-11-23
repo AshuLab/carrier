@@ -183,6 +183,12 @@ test('an epic and a ready-for-test epic carry the id of their latest execution, 
   expect(buildSnapshot(db, { now: 1, maxConcurrentEpics: 3, maxReviews: 5, finishedWindowDays: 15, startedAt: 0, repos: 1, nextCheckAt: null, problem: null, paused: true, slices, version: '0.1.0', pollIntervalMs: 300_000, labels: defaultLabels }).paused).toBe(true);
 });
 
+test('a ready-for-test epic carries its unanswered observations only when it has them', () => {
+  add(1, 'ready_for_test', { finishedAt: 5000, unansweredObservations: 3, unansweredReason: 'last_round' });
+  add(2, 'ready_for_test', { finishedAt: 4000 });
+  expect(snapshot().done.map((d) => [d.issue, d.unansweredObservations])).toEqual([[1, { count: 3, reason: 'last_round' }], [2, undefined]]);
+});
+
 test('an epic carries its slices once they are known and null before', () => {
   add(12, 'running');
   add(13, 'running');

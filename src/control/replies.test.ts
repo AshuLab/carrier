@@ -158,6 +158,7 @@ test('the epic reply equals reply-epic.json', () => {
       { kind: 'lane', lane: 1, path: '/work/acme/web-epic--lane-1' },
     ],
     branch: 'feat/issue-12/epic',
+    unansweredObservations: { count: 2, reason: 'already_taken' },
     pr: { number: 50, url: 'https://github.com/acme/web/pull/50', draft: false, mergeState: 'CLEAN', reviewDecision: null, checks: { passing: 3, failing: 1, pending: 0 } },
   };
   golden('epic', epic);

@@ -209,6 +209,8 @@ public struct EpicReply: Codable, Equatable {
     public var threadsTruncated: Bool? = nil
     public var worktrees: [Worktree]
     public var branch: String?
+    /// Absent when the epic left none unanswered, and from an engine that predates the field.
+    public var unansweredObservations: PanelSnapshot.UnansweredObservations? = nil
     /// nil during ship.
     public var pr: PullRequest?
 }

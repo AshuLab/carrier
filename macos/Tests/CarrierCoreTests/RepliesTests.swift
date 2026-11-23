@@ -151,6 +151,13 @@ private func decode<T: Decodable>(_ json: String, as type: T.Type = T.self) thro
     #expect(present.slices[0].activity == "Bash pnpm test")
 }
 
+@Test func theEpicReplyCarriesUnansweredObservationsOnlyWhenTheEngineSendsThem() throws {
+    let reply: EpicReply = try golden("epic")
+    #expect(reply.unansweredObservations == .init(count: 2, reason: "already_taken"))
+    let old: EpicReply = try decode(#"{"stages":[],"rounds":[],"slices":[],"worktrees":[]}"#)
+    #expect(old.unansweredObservations == nil)
+}
+
 @Test func aReplyWithoutThreadsIsNotTheSameAsOneWithNone() throws {
     let absent: EpicReply = try decode(#"{"stages":[],"rounds":[],"slices":[],"worktrees":[]}"#)
     #expect(absent.threads == nil)

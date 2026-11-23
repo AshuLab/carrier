@@ -126,6 +126,6 @@ export const realDeps: InitDeps = {
   forgeAdd: () => spawnSync('agent-forge', ['add'], { stdio: 'inherit' }).status === 0,
   readyEpics: async (config, folder) => {
     const github = new GhGitHub({ profile: () => config.profiles[config.orchestratorProfile]!, cwd: forgeCwd(enginePlacesOf(folder)), timeoutMs: () => config.limits.githubCallTimeoutSeconds * 1000 });
-    return Object.fromEntries(await Promise.all(config.repos.map(async (repo) => [repo.name, await github.listReadyEpics(repo.name).then((epics) => epics.length, () => undefined)] as const)));
+    return Object.fromEntries(await Promise.all(config.repos.map(async (repo) => [repo.name, await github.listReadyEpics(repo.name, config.labels.ready).then((epics) => epics.length, () => undefined)] as const)));
   },
 };

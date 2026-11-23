@@ -1,3 +1,4 @@
+import { defaultLabels } from '../orchestration/github.ts';
 import { configDirVariable } from '../harnesses/names.ts';
 import type { GitHubProfile } from '../integrations/github.ts';
 
@@ -24,6 +25,7 @@ export const fixes = {
     return undefined;
   },
   solve: 'run solve:setup in the repo, it creates them',
+  ownLabels: (labels: string[]) => `create ${labels.map((label) => `"${label}"`).join(', ')} in the repo (you named ${labels.length === 1 ? 'it' : 'them'} in labels): Solve creates only ${defaultLabels.epic} and ${defaultLabels.ready}`,
   login: (harness: 'claude' | 'codex' | 'agy', configDir: string | undefined) => (harness === 'agy' ? 'log in with: agy' : `log in with: ${configDir ? `${configDirVariable[harness]}=${configDir} ` : ''}${harness === 'claude' ? 'claude /login' : 'codex login'}`),
   command: (provider: string) => `fix "command" of the account ${provider} in providers.json: an absolute path to the CLI that runs`,
   socketPath: 'move the Carrier folder to a shorter path (CARRIER_HOME, at most 77 bytes)',

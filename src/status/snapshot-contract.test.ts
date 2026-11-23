@@ -9,6 +9,7 @@ import { openDatabase, type Db } from '../storage/db.ts';
 import { executions } from '../storage/executions.ts';
 import { epics, type epicStates } from '../storage/schema.ts';
 import { buildSnapshot } from './snapshot.ts';
+import { defaultLabels } from '../orchestration/github.ts';
 
 // The contract with the macOS app: its tests decode this file (macos/Tests/CarrierCoreTests/SnapshotTests.swift).
 const fixture = fileURLToPath(new URL('../../macos/Tests/Fixtures/snapshot.json', import.meta.url));
@@ -61,7 +62,7 @@ test('the snapshot JSON equals macos/Tests/Fixtures/snapshot.json (UPDATE_FIXTUR
   const snapshot = buildSnapshot(db, {
     now: 100_000, maxConcurrentEpics: 3, maxReviews: 5, finishedWindowDays: 15, startedAt: 40_000, repos: 2, nextCheckAt: 160_000, problem: 'GitHub is not answering', paused: true,
     slices: (repo, issue) => (repo === 'acme/web' && issue === 12 ? { done: 3, total: 5 } : null),
-    version: '0.1.0', pollIntervalMs: 300_000,
+    version: '0.1.0', pollIntervalMs: 300_000, labels: defaultLabels,
     rateLimit: { remaining: 4_812, limit: 5_000, resetAt: 130_000, profile: 'orchestrator' },
     watched: [
       { repo: 'acme/web', lastCheckedAt: 98_000, ok: true, error: null, agents: { author: { harness: 'claude', model: 'claude-sonnet-5-5', provider: null }, reviewer: { harness: 'codex', model: 'gpt-5', provider: 'ollama' } } },

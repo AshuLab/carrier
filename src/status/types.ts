@@ -1,3 +1,4 @@
+import type { Labels } from '../orchestration/github.ts';
 import type { needsHumanKinds } from '../storage/schema.ts';
 
 /** The agent options of an epic: the accounts it can restart on, the option each role runs on. */
@@ -49,6 +50,8 @@ export type PanelSnapshot = {
   problem: string | null;
   /** Intake is paused by the person at the terminal. */
   paused: boolean;
+  /** The labels by role as the engine runs on them now; absent from an engine that does not send it (then they are the defaults). */
+  labels?: Labels;
   /** Each watched repo's last check; absent from an engine that does not send it (the control snapshot always has it). */
   watched?: { repo: string; ok: boolean; error: string | null }[];
   /** The epics that ended ready for test, most recent first. */
@@ -104,6 +107,7 @@ export type PanelSession = {
 
 export type ControlSnapshot = Omit<PanelSnapshot, 'queue' | 'epics'> & {
   queue: (PanelSnapshot['queue'][number] & { title: string | null; queuedAt: number })[];
+  labels: Labels;
   epics: (PanelEpic & EpicAdditions)[];
   engine: {
     version: string;

@@ -136,13 +136,13 @@ describe('rate limit', () => {
 describe('responses', () => {
   test('a malformed response throws, it is never an empty list', async () => {
     const { github } = setup([{ match: 'issues', ...ok({ not: 'a list' }) }]);
-    await expect(github.listReadyEpics(repo)).rejects.toThrow();
+    await expect(github.listReadyEpics(repo, 'solve:epic:ready')).rejects.toThrow();
     const wrongShape = setup([{ match: 'issues', ...ok([{ number: 'x', title: 1 }]) }]);
-    await expect(wrongShape.github.listReadyEpics(repo)).rejects.toThrow();
+    await expect(wrongShape.github.listReadyEpics(repo, 'solve:epic:ready')).rejects.toThrow();
     const notJson = setup([{ match: 'issues', stdout: 'HTTP/2.0 200 OK\r\n\r\n<html>' }]);
-    await expect(notJson.github.listReadyEpics(repo)).rejects.toThrow();
+    await expect(notJson.github.listReadyEpics(repo, 'solve:epic:ready')).rejects.toThrow();
     const garbage = setup([{ match: 'issues', stdout: 'hello' }]);
-    await expect(garbage.github.listReadyEpics(repo)).rejects.toThrow();
+    await expect(garbage.github.listReadyEpics(repo, 'solve:epic:ready')).rejects.toThrow();
   });
 
   test('listReadyEpics returns every page and skips pull requests', async () => {
@@ -155,7 +155,7 @@ describe('responses', () => {
       { match: '&page=2', ...ok(page2) },
       { match: '&page=3', ...ok(page3) },
     ]);
-    const epics = await github.listReadyEpics(repo);
+    const epics = await github.listReadyEpics(repo, 'solve:epic:ready');
     expect(epics).toHaveLength(200);
     expect(epics.map((e) => e.issue)).not.toContain(999);
     expect(epics[0]).toEqual({ issue: 1, title: 'epic 1', labels: ['solve:epic', 'bug'] });
@@ -175,7 +175,7 @@ describe('responses', () => {
         ]),
       },
     ]);
-    expect(await github.listOpenEpics(repo)).toEqual([
+    expect(await github.listOpenEpics(repo, 'solve:epic')).toEqual([
       { issue: 31, title: 'done epic', labels: ['solve:epic'], slices: { done: 31, total: 31 } },
       { issue: 32, title: 'half', labels: [], slices: { done: 1, total: 4 } },
       { issue: 33, title: 'no summary', labels: [], slices: null },
@@ -183,7 +183,7 @@ describe('responses', () => {
     expect(calls()).toHaveLength(1);
     expect(calls()[0]?.args.at(-1)).toContain('state=open');
     const wrong = setup([{ match: 'issues', ...ok([{ number: 1, title: 't', labels: [], sub_issues_summary: { total: 'x' } }]) }]);
-    await expect(wrong.github.listOpenEpics(repo)).rejects.toThrow();
+    await expect(wrong.github.listOpenEpics(repo, 'solve:epic')).rejects.toThrow();
   });
 
   test('getIssue, getPullRequest and findPullRequest map the API shape', async () => {

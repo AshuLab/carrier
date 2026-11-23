@@ -10,6 +10,7 @@ import { executions } from '../storage/executions.ts';
 import { epics, epicStates } from '../storage/schema.ts';
 import { renderPanel } from '../terminal/dashboard/plain.ts';
 import { buildSnapshot, optionsOf, watchedOf } from './snapshot.ts';
+import { defaultLabels } from '../orchestration/github.ts';
 
 let dir: string;
 let db: Db;
@@ -25,7 +26,7 @@ afterEach(() => {
 const add = (issue: number, status: (typeof epicStates)[number], extra: Partial<typeof epics.$inferInsert> = {}) =>
   db.insert(epics).values({ repo: 'acme/web', issue, status, ...extra }).returning().get();
 let slices: Parameters<typeof buildSnapshot>[1]['slices'] = () => null;
-const snapshot = (now = 100_000) => buildSnapshot(db, { now, maxConcurrentEpics: 3, maxReviews: 5, finishedWindowDays: 15, startedAt: 40_000, repos: 2, nextCheckAt: 160_000, problem: null, paused: false, slices, version: '0.1.0', pollIntervalMs: 300_000 });
+const snapshot = (now = 100_000) => buildSnapshot(db, { now, maxConcurrentEpics: 3, maxReviews: 5, finishedWindowDays: 15, startedAt: 40_000, repos: 2, nextCheckAt: 160_000, problem: null, paused: false, slices, version: '0.1.0', pollIntervalMs: 300_000, labels: defaultLabels });
 
 test('slots count the running epics, the queue lists the queued ones oldest first, and finished ones do not show', () => {
   add(5, 'queued');
@@ -81,7 +82,7 @@ test('watched lists every repo with the agents it resolves to and its last check
     { repo: 'acme/web', lastCheckedAt: null, ok: true, error: null, agents },
     { repo: 'acme/api', lastCheckedAt: 90_000, ok: false, error: 'GitHub unavailable (rate_limited: HTTP 403)', agents },
   ]);
-  expect(buildSnapshot(db, { now: 1, maxConcurrentEpics: 3, maxReviews: 5, finishedWindowDays: 15, startedAt: 0, repos: 2, nextCheckAt: null, problem: null, paused: false, slices, version: '0.1.0', pollIntervalMs: 1, watched }).watched).toBe(watched);
+  expect(buildSnapshot(db, { now: 1, maxConcurrentEpics: 3, maxReviews: 5, finishedWindowDays: 15, startedAt: 0, repos: 2, nextCheckAt: null, problem: null, paused: false, slices, version: '0.1.0', pollIntervalMs: 1, labels: defaultLabels, watched }).watched).toBe(watched);
 });
 
 test('a running epic with a frozen config lists its running execution as a session, without the profile; blocker titles are capped', () => {
@@ -144,7 +145,7 @@ test('finished lists the merged and cancelled epics inside the window, newest fi
 
 test('a longer window lets older finished epics in', () => {
   add(1, 'merged', { finishedAt: 0 });
-  const build = (finishedWindowDays: number) => buildSnapshot(db, { now: 20 * 86_400_000, maxConcurrentEpics: 3, maxReviews: 5, finishedWindowDays, startedAt: 0, repos: 1, nextCheckAt: null, problem: null, paused: false, slices, version: '0.1.0', pollIntervalMs: 300_000 });
+  const build = (finishedWindowDays: number) => buildSnapshot(db, { now: 20 * 86_400_000, maxConcurrentEpics: 3, maxReviews: 5, finishedWindowDays, startedAt: 0, repos: 1, nextCheckAt: null, problem: null, paused: false, slices, version: '0.1.0', pollIntervalMs: 300_000, labels: defaultLabels });
   expect(build(15).finished).toEqual([]);
   expect(build(20).finished.map((f) => f.issue)).toEqual([1]);
 });
@@ -159,7 +160,7 @@ test('an epic and a ready-for-test epic carry the id of their latest execution, 
   const s = snapshot();
   expect(s.epics[0]?.executionId).toBe('new');
   expect(s.done[0]?.executionId).toBe('done-1');
-  expect(buildSnapshot(db, { now: 1, maxConcurrentEpics: 3, maxReviews: 5, finishedWindowDays: 15, startedAt: 0, repos: 1, nextCheckAt: null, problem: null, paused: true, slices, version: '0.1.0', pollIntervalMs: 300_000 }).paused).toBe(true);
+  expect(buildSnapshot(db, { now: 1, maxConcurrentEpics: 3, maxReviews: 5, finishedWindowDays: 15, startedAt: 0, repos: 1, nextCheckAt: null, problem: null, paused: true, slices, version: '0.1.0', pollIntervalMs: 300_000, labels: defaultLabels }).paused).toBe(true);
 });
 
 test('an epic carries its slices once they are known and null before', () => {
@@ -186,7 +187,7 @@ test('the snapshot reads the executions of an epic by index and never walks the 
   }
   const statements: string[] = [];
   const traced = drizzle(new Database(join(dir, 'carrier.db'), { readonly: true, verbose: (sql) => statements.push(String(sql)) }));
-  buildSnapshot(traced, { now: 100_000, maxConcurrentEpics: 3, maxReviews: 5, finishedWindowDays: 15, startedAt: 40_000, repos: 2, nextCheckAt: 160_000, problem: null, paused: false, slices, version: '0.1.0', pollIntervalMs: 300_000 });
+  buildSnapshot(traced, { now: 100_000, maxConcurrentEpics: 3, maxReviews: 5, finishedWindowDays: 15, startedAt: 40_000, repos: 2, nextCheckAt: 160_000, problem: null, paused: false, slices, version: '0.1.0', pollIntervalMs: 300_000, labels: defaultLabels });
   const reads = statements.filter((sql) => /^\s*select\b/i.test(sql) && /\bexecutions\b|\bexecution_events\b/.test(sql));
   expect(reads.length).toBeGreaterThan(30);
   // without `ANALYZE` the planner does not look at how many rows a table has, so the plan is the same on any machine and any size

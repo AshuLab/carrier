@@ -1,6 +1,13 @@
 {
   "defaults": {
     "pollIntervalMinutes": 5,
+    "labels": {
+      "epic": "solve:epic",
+      "ready": "solve:epic:ready",
+      "running": "solve:epic:running",
+      "readyForTest": "solve:epic:ready-for-test",
+      "needsHuman": "solve:epic:needs-human"
+    },
     "finishedWindowDays": 15,
     "logLevel": "info",
     "limits": {

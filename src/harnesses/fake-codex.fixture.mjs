@@ -24,6 +24,11 @@ if (mode === 'auth') {
   out({ type: 'error', message: 'Reconnecting... 2/5 (unexpected status 401 Unauthorized: Missing bearer or basic authentication in header)' });
   out({ type: 'turn.failed', error: { message: 'unexpected status 401 Unauthorized: Missing bearer or basic authentication in header' } });
   process.exit(1);
+} else if (mode === 'usage_not_included' || mode === 'api_error_exit0') {
+  // A failed turn and still exit 0.
+  const message = mode === 'usage_not_included' ? 'usage_not_included: To use Codex with your ChatGPT plan, upgrade to Plus.' : 'stream disconnected before completion';
+  out({ type: 'turn.failed', error: { message } });
+  process.exit(0);
 } else if (mode === 'retry') {
   // A 401 that is only a retry and then recovers is not a login failure.
   out({ type: 'error', message: 'Reconnecting... 1/5 (unexpected status 401 Unauthorized)' });

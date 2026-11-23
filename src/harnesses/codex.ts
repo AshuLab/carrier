@@ -39,7 +39,9 @@ export function buildCodexCommand(task: AgentTask, ctx: CommandContext): AgentCo
 
 const str = (value: unknown) => (typeof value === 'string' ? value : undefined);
 
-const usageLimitStarts = ["You've hit your usage limit", 'You hit your spend cap', 'Your workspace is out of credits', 'Quota exceeded.'];
+// `usage_not_included`: an account with no Codex access at all, so no reset time (docs/research/agent-usage-limit-signals.md).
+// A message that starts with none of these is an api_error: no pattern guesses at quota texts.
+const usageLimitStarts = ['usage_not_included', "You've hit your usage limit", 'You hit your spend cap', 'Your workspace is out of credits', 'Quota exceeded.'];
 
 // Shapes observed with codex 0.153.4: thread.started carries the session; a missing login ends with
 // turn.failed "unexpected status 401 Unauthorized" (the "Reconnecting... n/5 (... 401" error events before it

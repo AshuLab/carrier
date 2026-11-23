@@ -123,9 +123,15 @@ test('parseCodexLine reads every usage-limit and credit message as usage_limit',
     'You hit your spend cap set in your workspace. Increase your spend cap to continue.',
     'Your workspace is out of credits. Add credits to continue.',
     'Quota exceeded. Check your plan and billing details.',
+    'usage_not_included: To use Codex with your ChatGPT plan, upgrade to Plus.',
   ]) {
     expect(parseCodexLine(failed(message))).toEqual({ failure: { kind: 'usage_limit', detail: message } });
   }
+});
+
+test('a message that does not start with a known prefix is an api_error, usage_not_included in the middle included', () => {
+  const message = 'error type usage_not_included, upgrade to Plus';
+  expect(parseCodexLine(failed(message))).toEqual({ failure: { kind: 'api_error', detail: message } });
 });
 
 test('a retried 429, and a usage-limit error event with no turn.failed, are not usage_limit', () => {

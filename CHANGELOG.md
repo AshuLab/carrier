@@ -38,6 +38,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - `skills` in `engine.json`, globally, per repo and per role (`agents.author.skills`, `agents.reviewer.skills`), names the skill of each stage (`ship`, `review` with `publish`, `fix`).
   The defaults are Solve's (`ship`, `code-review` with `code-post`, `code-resolve`), a name is checked when the config loads, and the resolved skills are saved with an epic when it starts.
 - The prompts of ship, review and fix invoke the skills an epic was saved with, spelled `/name` (`$name` for Codex).
+- A new kind of stop, `skill_missing` (`labels.reasons.skill_missing` names its label): an epic stops in needs-human, with no agent run spent and no retry, when a skill you named is absent for the harness and account of the role that invokes it, checked before it starts, resumes or changes the option of a role.
+  A skill that is Solve's default, or an answer of cannot tell, never stops an epic.
   A review whose `publish` is `null` no longer tells the agent to publish with a second skill, and the sentences about Solve's `solve.md` and the design artifacts on the remote are said only with Solve's `ship`.
   With the defaults the prompts are unchanged.
 

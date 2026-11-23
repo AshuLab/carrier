@@ -947,6 +947,78 @@ test('an error that leaves a launched execution running ends it as failed and do
   expect(rows(engine.db)[1]).toMatchObject({ issue: 2, status: 'running' });
 });
 
+// Two epics whose finished executions wait for the poll: GitHub was down when their results arrived.
+async function startWithResultsPending() {
+  github.ready = { 'AshuLab/a': ready(1, 2) };
+  pull(50);
+  pull(51, {}, 2);
+  runner.behavior = (task) => (task.stage === 'ship' ? { write: completed(task, { number: 50 + task.epic - 1, headSha: SHA }) } : { exit: 'hang' });
+  const engine = await start(2);
+  const getPullRequest = github.getPullRequest.bind(github);
+  github.getPullRequest = async () => {
+    throw new GitHubUnavailable('network', 'down');
+  };
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(executionsOf(engine.db).map((e) => e.status)).toEqual(['finished', 'finished']);
+  return { engine, getPullRequest };
+}
+
+test('an error settling the first of two pending results stops that epic with engine_error, the second is settled and launched, and the poll finishes', async () => {
+  const { engine, getPullRequest } = await startWithResultsPending();
+  github.getPullRequest = async (repo, number) => {
+    if (number === 50) throw new Error('could not read the pull request');
+    return getPullRequest(repo, number);
+  };
+  await clock.advance(5 * MIN);
+
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'engine_error', needsHumanReason: 'could not read the pull request' });
+  expect(rows(engine.db)[1]).toMatchObject({ issue: 2, status: 'running', stage: 'review', round: 1 });
+  expect(runner.tasks.filter((t) => t.epic === 2).map((t) => t.stage)).toEqual(['ship', 'review']);
+  expect(engine.nextPollAt).toBe(15 * MIN);
+});
+
+test('an error retrying the first of two epics with a retry pending stops that epic with engine_error, the second is retried, and the poll finishes', async () => {
+  github.ready = { 'AshuLab/a': ready(1, 2) };
+  const launched = new Set<number>();
+  runner.behavior = (task) => (launched.has(task.epic) ? { exit: 'hang' } : (launched.add(task.epic), { exit: 'failed' })); // each epic's first run fails, its retry hangs
+  const engine = await start(2);
+  const findPullRequest = github.findPullRequest.bind(github);
+  github.findPullRequest = async () => {
+    throw new GitHubUnavailable('network', 'down');
+  };
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(runner.tasks).toHaveLength(2); // nothing was retried: GitHub was down
+
+  github.findPullRequest = async (repo, issue) => {
+    if (issue === 1) throw new Error('could not look for the pull request');
+    return findPullRequest(repo, issue);
+  };
+  await clock.advance(5 * MIN);
+
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'engine_error', needsHumanReason: 'could not look for the pull request' });
+  expect(rows(engine.db)[1]).toMatchObject({ issue: 2, status: 'running' });
+  expect(runner.tasks.filter((t) => t.epic === 2)).toHaveLength(2);
+  expect(engine.nextPollAt).toBe(15 * MIN);
+});
+
+test('an error about the whole engine while settling stops the poll with its message and parks no epic', async () => {
+  const { engine } = await startWithResultsPending();
+  const fail = Object.assign(new Error('attempt to write a readonly database'), { code: 'SQLITE_READONLY' });
+  github.getPullRequest = async () => {
+    throw fail;
+  };
+  const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+  try {
+    await clock.advance(5 * MIN);
+    expect(logged.mock.calls.flat().join(' ')).toContain('attempt to write a readonly database');
+  } finally {
+    logged.mockRestore();
+  }
+  expect(rows(engine.db).map((e) => e.status)).toEqual(['running', 'running']);
+});
+
 // Failover: three options, the author on `claude` and the reviewer on `codex`; `spare` is the one only the list can name.
 type Steps = { provider: string; model?: string; effort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max' }[];
 const failoverRepos = (roles?: { author?: Steps; reviewer?: Steps }): EffectiveRepoConfig[] =>

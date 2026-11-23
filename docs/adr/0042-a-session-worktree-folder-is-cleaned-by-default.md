@@ -1,6 +1,6 @@
 # 0042 - A session's worktree folder is cleaned by default
 
-- Status: accepted; amends [0035](0035-a-worktree-folder-goes-when-its-work-is-done-and-its-branch-stays.md) (the defaults of `worktreeCleanup`)
+- Status: accepted; amends [0035](0035-a-worktree-folder-goes-when-its-work-is-done-and-its-branch-stays.md) (the defaults of `worktreeCleanup`) and [0006](0006-agent-events-stored-in-sqlite-with-bounded-output.md) (the raw log is capped)
 - Date: 2026-11-22
 
 ## Context
@@ -19,6 +19,10 @@ The rules, the checks and what goes are those of 0035: only the folder, never a 
 The check is `git status --porcelain`, which does not list ignored files, so the whole folder goes with every file git ignores: build output and dependencies, and also a local `.env` or config kept inside the worktree.
 Untracked files that are not ignored count as uncommitted work and keep the folder.
 The folder is kept too when its HEAD is detached (also mid-rebase) or on another branch than the session's, because a commit made there is held by no branch the cleanup keeps.
+It is kept as well when git cannot show everything it holds: a submodule (its repository lives in the worktree's own git dir, which goes with the folder), a file marked `--assume-unchanged` or `--skip-worktree` that is there (edited with no line in `status`), and a commit made on a detached HEAD and then left by switching back to the branch, which only the worktree's reflog holds.
+`status` is asked for untracked files whatever `status.showUntrackedFiles` says.
+A commit of the branch itself that was amended or rebased away does not keep it: its new version is the branch's.
+Git is given three minutes to remove a folder, and a folder left with no `.git` (what a stopped removal leaves, since `git worktree remove` deletes `.git` first) counts as gone: the next pass or resume prunes its registration, removes its files and goes on.
 The session, its recorded path, its branch (with any commit not pushed) and its pull request stay, and the next message brings the folder back on its branch.
 14 days count from the last activity, like `archiveAfterDays`, and need the session archived.
 A session the clock archives after 15 days is therefore cleaned in the pass that archives it.
@@ -45,5 +49,13 @@ The disk of a parked or merged session is freed within one hourly pass of the ch
 A cleaned session opens again after a `git worktree add` and without its dependencies or builds, so the first build or install pays again.
 A gitignored file that exists only in that folder (a local `.env`, a config) is lost with it and does not come back; the project's actions can recreate one, but Carrier does not copy ignored files itself.
 No allowlist of files to spare was built: it would need each repository to say which ignored files matter, which belongs to how projects are set up.
-The person who keeps such files in a worktree turns the cleanup off.
+The person who keeps such files in a worktree turns the cleanup off, or has the project's `newWorktree` actions copy them back: those run again on every restore, so `cp "$CARRIER_PROJECT/.env" .` brings a file back.
+An action with no `onFail` only warns when it fails, and the session goes on without the file; with `"onFail": "stop"` the open is refused, the folder stays and the next open goes on from the failed action.
+The raw output log of an agent run is capped at 50 MiB per stream, which amends [0006](0006-agent-events-stored-in-sqlite-with-bounded-output.md): `stdout.log` was there the complete output and the replay source, and now holds the newest part (with `stdout.log.1`), so `pnpm replay:events` sees only that tail; the events in SQLite stay the record of the run.
 A session archived by hand and untouched for 14 days loses its folder though its pull request is open; its branch and commits stay in the clone.
+
+Known limits.
+A marked file that is there keeps the folder even when it is unchanged, since telling would mean hashing each one.
+A commit made detached and later cherry-picked onto the branch keeps the folder, as only the reflog and not the patch is compared, and the reflog is read only for `commit`, `cherry-pick` and `revert` entries (a commit made by a rebase that was then aborted is not looked for).
+Reflogs expire (90 days by default for reachable entries, 30 for unreachable ones), and a worktree kept for that long has lost the trace of a dangling commit, so the check is a guard and not a guarantee.
+A folder with no `.git` is removed with whatever files it holds: if something other than a stopped removal deleted the `.git`, the files there go.

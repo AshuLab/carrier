@@ -131,7 +131,10 @@ The chat host removes the folder of a session's worktree once its pull request i
 The branch and the session stay, and resuming the session brings the folder back without its dependencies.
 The whole folder is removed, including every file git ignores: build output and dependencies, but also a local `.env` or config kept inside the worktree, which is not in the branch and does not come back.
 Copy such a file out of the worktree, or turn the cleanup off with `"afterPrMerged": false` and `"afterInactiveDays": "never"` (see [The session clock](configuration.md#the-session-clock)).
-A folder with uncommitted or untracked files, or whose HEAD is detached or on another branch, is kept; `<folder>/chat/logs/chat-host.log` says which and why.
+To get one back on its own, give the project a `newWorktree` action: those run again every time the folder comes back, so an action like `cp "$CARRIER_PROJECT/.env" .` puts the file in again.
+An action with no `onFail` only warns when it fails and the session goes on without the file; with `"onFail": "stop"` the open is refused, the folder stays, and the next open goes on from the action that failed.
+A folder is kept when it has uncommitted or untracked files, files git is told not to show (`--assume-unchanged`, `--skip-worktree`), a submodule, a detached HEAD or one on another branch, or a commit that only the worktree's own reflog holds; `<folder>/chat/logs/chat-host.log` says which and why.
+A folder that a stopped removal left without its `.git` is removed on the next pass, or when the session is resumed.
 
 ## Start-up errors
 
@@ -162,4 +165,5 @@ A folder with uncommitted or untracked files, or whose HEAD is detached or on an
 Logs and sessions of a merged or cancelled epic are deleted 30 days after the merge or the close.
 An epic still waiting in ready-for-test keeps them.
 SQLite (`<folder>/engine/state/carrier.db`) is never deleted by Carrier.
+A chat session's worktree folder is removed by the cleanup above, and an epic's worktrees when the epic is merged or cancelled ([ADR 0035](adr/0035-a-worktree-folder-goes-when-its-work-is-done-and-its-branch-stays.md)).
 Each agent run's `stdout.log` and `stderr.log` hold at most 50 MB: past that the file becomes `stdout.log.1` and a new one starts, so the older output of a very long run is the part that is dropped.

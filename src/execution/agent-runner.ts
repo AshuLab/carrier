@@ -20,6 +20,7 @@ export interface AgentTask extends AccountRuntime {
   workspace: string; // checkout where the agent runs
   resultPath: string; // where the caller writes its JSON
   timeoutMs: number | null; // null = unlimited
+  idleMs?: number; // a process that writes nothing for this long is killed (a technical failure); absent: no watchdog
   resumeSession?: string;
   context: {
     pr?: { number: number; headSha: string };

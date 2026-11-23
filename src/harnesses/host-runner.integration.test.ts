@@ -196,6 +196,26 @@ describe('host runner with a fake claude binary', () => {
     expect(Date.now() - started).toBeLessThan(5000);
   });
 
+  test('idleMs kills a process that writes nothing for that long, as a technical failure with its session', async () => {
+    const run = runner.run(taskIn('idle', { model: 'hang', idleMs: 500 }));
+    const seen = observe(run);
+    const started = Date.now();
+    const done = await run.done;
+    expect(done).toMatchObject({ exit: 'failed', failure: { kind: 'killed', detail: 'no output for 0.5 seconds' }, sessionId: seen.sessions[0] });
+    expect(Date.now() - started).toBeLessThan(5000);
+    expect(() => process.kill(Number(seen.sessions[0]!.replace('session-', '')), 0)).toThrow();
+  });
+
+  test('a process that keeps writing is not idle, and one with no idleMs is never touched', async () => {
+    expect((await runner.run(taskIn('chatty', { model: 'chatty', idleMs: 600 })).done).exit).toBe('ok');
+    const silent = runner.run(taskIn('silent', { model: 'hang' }));
+    const seen = observe(silent);
+    await expect.poll(() => seen.sessions.length).toBe(1);
+    await new Promise((r) => setTimeout(r, 1500));
+    expect(await runner.listActive()).toContain(idOf('silent'));
+    await silent.stop();
+  });
+
   test('a login error shaped like the real one is auth_failed', async () => {
     expect((await runner.run(taskIn('auth', { model: 'auth' })).done).exit).toBe('auth_failed');
   });

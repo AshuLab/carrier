@@ -3459,6 +3459,30 @@ test('a run already launched keeps its timeout, and the next one launched has th
   expect(engine.db.select().from(executions).all().map((e) => e.status)).toEqual(['running', 'running']); // epic 1's run was not touched
 });
 
+test('idleMinutes reaches the run as milliseconds; a reload applies it to the next run only, and absent it no run has one', async () => {
+  github.ready = { 'AshuLab/a': ready(1, 2, 3) };
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  reload(engine, { idleMinutes: 45, maxConcurrentEpics: 2 });
+  await vi.waitFor(() => expect(runner.tasks).toHaveLength(2));
+  reload(engine, { idleMinutes: undefined, maxConcurrentEpics: 3 });
+  await vi.waitFor(() => expect(runner.tasks).toHaveLength(3));
+  expect(runner.tasks.map((t) => [t.epic, t.idleMs])).toEqual([[1, undefined], [2, 45 * MIN], [3, undefined]]);
+});
+
+test('a process the watchdog killed is retried as a technical failure, resuming its session', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  const idleKill = { kind: 'killed' as const, detail: 'no output for 2700 seconds', exitCode: null, signal: 'SIGTERM', hostFreeMemMb: 1, hostLoad: 1 };
+  runner.behavior = (task) => (task.resumeSession ? { exit: 'hang' } : { sessionId: 's-1', exit: 'failed', failure: idleKill });
+  const engine = await start(1);
+  reload(engine, { idleMinutes: 45 });
+  await clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(runner.tasks).toHaveLength(2));
+  expect(runner.tasks[0]!.idleMs).toBe(45 * MIN);
+  expect(runner.tasks[1]).toMatchObject({ resumeSession: 's-1', idleMs: 45 * MIN });
+  expect(executionsOf(engine.db)[0]).toMatchObject({ status: 'failed', failureKind: 'killed', failureDetail: 'no output for 2700 seconds' });
+});
+
 test('a timeout names the limit the run started with, not the one in force when it ended', async () => {
   github.ready = { 'AshuLab/a': ready(1) };
   let end!: () => void;

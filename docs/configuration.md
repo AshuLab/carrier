@@ -104,6 +104,7 @@ The accounts the roles name (`claude` and `codex` here) are declared in `provide
 | `limits.maxExecutionRetries` | no | `3` | Retries after a technical failure of an agent execution. |
 | `limits.maxExecutionHours` | no | `4` | Time limit of one agent execution, or `"unlimited"`. `0` does not mean infinite. |
 | `limits.githubCallTimeoutSeconds` | no | `30` | Limit for each short call to GitHub or Forge. |
+| `limits.idleMinutes` | no | none | A whole number of minutes. An agent process that writes nothing to stdout or stderr for that long is killed, and the execution is retried with its session as a technical failure (kind `killed`, detail `no output for N seconds`). Without it a silent process is never touched. A reload applies it to the next execution; one already running keeps what it started with. Zero, negatives and fractions are refused. |
 
 ## Labels
 

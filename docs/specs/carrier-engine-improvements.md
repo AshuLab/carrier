@@ -6,7 +6,8 @@ This was one epic of eight parts; it is cut in four epics that go one after anot
 The first, [the engine never leaves an epic stuck](engine-never-stuck.md), took the parts on never being stuck, on recovering and resuming from a stage, and on the wake-up on quota, which were stories 1 to 19 and 67 to 74 here; they are no longer in this file.
 The numbers of the stories below are the ones of the original.
 The Decisions and the testing seams below are the original's and are written again for each epic when its turn comes.
-The order of the rest: a review to trust and intake in order; the labels' new defaults and the skills; several reviewers and a lead.
+The second, [a review to trust, and an intake in order](review-to-trust-and-intake.md), took stories 20 to 40; they are no longer in this file either.
+The order of the rest: the labels' new defaults and the skills; several reviewers and a lead.
 
 ## Problem
 
@@ -37,23 +38,6 @@ It hurts whoever runs Carrier on real epics, today Diego, and we know because it
 The parts still to do, each useful without the next.
 The parts on never being stuck come first, because the review round with several reviewers and the automatic recovery both depend on retries and recovery working per execution and per attempt; the labels and the stage skills are independent of the rest and can go at any point, and the wake-up on quota needs the resume from a stage and the attempt rule of the first two.
 The order of work: never stuck first, because the attempt rule is under the rest; the labels' first part, which commits what is already in the working tree and changes the defaults, can go beside it; then recover and resume from a stage; then a review to trust, intake and the skills, which do not depend on each other; then the wake-up on quota, which needs the resume from a stage; and the reviewers and the lead last, because they touch the most of the engine and need the attempt rule, the head rule and a state per role.
-
-### A review to trust
-
-A review is tied to the head it was given and a moved head is reviewed again, at most twice in a row and without counting a round ([ADR 0047](../adr/0047-a-review-is-tied-to-the-head-it-was-given-and-a-moved-head-is-reviewed-again.md)).
-An authentication failure of an agent does not stop every epic of its profile on one signal: the engine first tries to get a token for that profile, treats the signal as a technical failure of that epic when the token comes, and stops them all only when it does not.
-On `agy` the authentication signal counts only on stderr, because its text can appear in a tool's output.
-The retries of an `api_error` wait 30 seconds, 2 minutes and 10 minutes, and those of a process that died do not wait; the Codex prefix `usage_not_included` is recognized as a usage limit; and an exit 0 with an error the tool printed is a failure and no longer a success.
-No regular expression guesses at quotas, because a false positive would stop an epic as `usage_limit` over a passing error.
-The epic records how many observations were left unanswered and why (the pass already taken, or the last round), and the panel and the replies the app reads carry it, with no change to what the engine does.
-Smaller, with no decision needed: the blockers handed to a review are none when the latest review completed, the workspace of a fix is checked to exist before launching and its absence stops the epic with the kind `workspace`, the reviewer's checkout is reset and cleaned before each round, the ship prompt takes the head from `gh pr view` and says nothing that only holds for Solve's skills, and an error of `git worktree list` is retried and does not stop the epic.
-
-### Intake in order
-
-The queue is first in, first out: by `queuedAt` and then by `id`, asking GitHub for the oldest first, and an epic a person resumed goes to the end of the line (it starts at once when a slot is free, and waits only when there is competition).
-An epic cancelled before it started, because its `ready` was taken off or its issue was closed, goes back to the queue when `ready` comes back, since no work was lost; one cancelled because its pull request was closed without a merge does not, and a person decides with a command.
-A repo that fails with `GitHubUnavailable` is skipped for that cycle and shown with its reason, the others go on, and the longest wait GitHub asked for is kept for the next cycle.
-Smaller, with no decision needed: `ready` comes off the issue in every status except queued, so a failed label write cannot make a stopped epic restart by itself; the labels already read from the issue decide which ones are removed, instead of one removal for each label the issue lacks; a rate limit ends the poll and waits what GitHub asked for; label writes for a repo that left the config are not made; the reasons of a timeout and of retries exhausted say the limit and the detail, the real message of an authentication error is kept with the epic and not only in `stderr.log`; and an epic whose cleanup kept something is marked as cleaned, with what was kept as an event so it shows.
 
 ### Labels the person names
 
@@ -105,7 +89,6 @@ Reviewers one after another lost, because the person wants them in parallel, tho
 A `reviewers` list in place of `reviewer` lost, because it breaks every config and the app.
 Repeating the whole round after the lead asks for changes lost, because the lead is the final reviewer and an exchange with the author alone is cheaper.
 Stopping the epic when a reviewer fails lost, because an extra reviewer that is down would block reviews that worked.
-A guess at quota texts by pattern lost, because a false positive would stop an epic over a passing error.
 A timer from the text of the error lost, because Codex gives its time as a local-time string, Claude and `agy` give none, and the probe gives it exactly.
 Resuming without looking at the probe again lost, because a reset that moved would spend the retries of the epic and stop it again.
 A new status for the epic that waits lost, because it keeps no slot, the reason label already exists and the app needs one line more.
@@ -113,27 +96,6 @@ On by default lost, because it spends credits unattended and the person should c
 
 ## Scope
 
-20. As the person, a review whose result carries a head other than the one the reviewer was given is an invalid result and is retried.
-21. As the person, when the head of the pull request moves while a review runs, the review is made again on the new head without counting a round, at most twice in a row, and then the epic stops in needs-human with `pr_invalid`.
-22. As the person, one authentication signal from an agent makes the engine try to get a token for that profile first: if it gets one the epic has a technical failure and the profile's other epics go on, and if not every epic of the profile stops as today.
-23. As the person, on `agy` the authentication signal counts only when it comes on stderr.
-24. As the person, an `api_error` is retried after 30 seconds, then 2 minutes, then 10 minutes, and a process that died is retried at once.
-25. As the person, the Codex message that starts with `usage_not_included` is a usage limit, and an exit 0 with an error the tool printed is a failure and not a success.
-26. As the person, an epic that goes to ready for test with observations left unanswered says how many and why, in the panel and in the replies the app reads.
-27. As the person, a review never receives the blockers of an earlier round when the latest review completed.
-28. As the person, a fix whose saved workspace does not exist stops the epic in needs-human with the kind `workspace` and a clear reason, and does not burn its retries.
-29. As the person, the reviewer's checkout is reset and cleaned before each round, so nothing from the last round is in it.
-30. As the person, the ship prompt takes the head of the pull request from `gh pr view`, and says nothing that only holds for Solve's skills when another skill is configured.
-31. As the person, an error of `git worktree list` after ship is retried and does not stop the epic.
-32. As the person, queued epics start in the order they entered, and an epic I resumed goes to the end of the line.
-33. As the person, an epic cancelled before it started because its `ready` was removed or its issue closed goes back to the queue when `ready` comes back, and one cancelled because its pull request was closed without a merge does not.
-34. As the person, a repo that GitHub answers slowly or with an outage is skipped for that cycle with its reason, and the other repos are read, queued and launched as usual.
-35. As the person, `ready` is taken off the issue in every status except queued, so a failed label write cannot restart a stopped epic by itself.
-36. As the person, a status change writes only the labels that are present on the issue and not one removal per label that is missing.
-37. As the person, a rate limit ends the poll and Carrier waits what GitHub asked for, instead of going on asking.
-38. As the person, Carrier writes no label to a repo that left the config.
-39. As the person, a timeout stop says the limit and what to do next, a retries-exhausted stop says the detail of the last failure, and the real message of an authentication error is kept with the epic.
-40. As the person, an epic whose cleanup kept a worktree or a branch is marked as cleaned, and what was kept shows as an event.
 41. As the person, I name each label of the five roles in `labels`, and a config where two roles, stages or kinds of stop share a label, whatever the case, is refused naming the second.
 42. As the person, the defaults are `solve:epic` and `solve:epic:ready` for what Solve writes and `carrier:status:*` for what Carrier writes, and the stage and reason labels are off until I name them.
 43. As the person, a reload applies the label names to the next check, `carrier doctor` reports a repo missing a label Carrier reads, and tells me to create it myself when its name is not a default.
@@ -236,11 +198,9 @@ The engine's rule that an epic never has two active executions becomes: never tw
 
 Testing seams, per story, preferring the seams the repo has:
 
-- Stories 1 to 10, 21, 32 to 40, 49 to 60, 62 and 64: the engine through its public interface in `src/orchestration/engine.test.ts`, with the fake `GitHub`, the fake `AgentRunner` that writes, fails, hangs or is cut, an injected clock and a real temporary SQLite; a restart of the engine on the same database covers recovery. The fake runner learns to run several reviewers at once.
+- Stories 49 to 60, 62 and 64: the engine through its public interface in `src/orchestration/engine.test.ts`, with the fake `GitHub`, the fake `AgentRunner` that writes, fails, hangs or is cut, an injected clock and a real temporary SQLite; a restart of the engine on the same database covers recovery. The fake runner learns to run several reviewers at once.
 - Stories 11 and 12: the process hygiene in `src/harnesses/host-runner.integration.test.ts`, gated as the others are, and the idle rule as a pure function of the clock and the time of the last output, in its own unit test.
 - Stories 13 to 19 and 61: the request and its refusals in `src/control/server.test.ts`, the capabilities in `src/control/capabilities-contract.test.ts`, the replies as goldens in `src/control/replies.test.ts`, the commands in `src/terminal/cli/commands/restart.test.ts` and a new one for `recover`, and the engine side in `engine.test.ts`.
-- Stories 20 and 22 to 25: the failure kinds and the exit rules in `src/harnesses/claude.test.ts`, `codex.test.ts` and `agy.test.ts`, and the retry waits, the token probe and the review head rule in `engine.test.ts`.
-- Stories 26 to 31: `engine.test.ts` for the unanswered observations, the blockers, the workspace check and the `git worktree list` retry, `src/prompts/build-prompt.test.ts` for the ship prompt, and `src/execution/git-workspaces.integration.test.ts`, gated, for the reviewer's checkout.
 - Stories 67 to 74: `engine.test.ts` with the injected clock and a fake quota port the engine reads (the probe's `QuotaSnapshot`, with `resetsAt` and a fresh read that can fail or be rate limited), plus the pure rule that takes the exhausted windows and the failover options to a `resumeAt` in its own unit test.
 - Stories 41 to 48, 63 and 65 (the snapshot, with its contract test): the config in `src/config/load.test.ts`, the label check and the skill check in `src/doctor/doctor.test.ts`, the snapshot in `src/status/snapshot.test.ts` and `snapshot-contract.test.ts`, the prompts in `build-prompt.test.ts`, and the contract with the app in `src/config/engine-config-contract.test.ts`.
 - Story 66 has no test: the documentation is checked in review.
@@ -266,10 +226,6 @@ Skipping the observations pass on resume, any command that sets a state, a migra
 The review of how Carrier treats text written by third parties that the agents read, and of updating the engine while epics are running.
 
 ## Open questions
-
-Which quota messages the recognizers miss.
-Each harness decides `usage_limit` from a short fixed list of texts (Claude only the 429 `usage_limit_reached`, Codex four starts plus the one now added, `agy` three), and anything else is an `api_error`.
-It needs real error outputs from each CLI to see which variants fall through, since no pattern will guess them.
 
 How to tell that a skill exists, for each harness.
 Claude, Codex and Antigravity look in different places (the account's folder, the user's, the repo's), and the check has to read those for the account a role runs on.

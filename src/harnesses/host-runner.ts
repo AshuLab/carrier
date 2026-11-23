@@ -1,9 +1,10 @@
 import { execFile, spawn } from 'node:child_process';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { freemem, loadavg } from 'node:os';
 import { promisify } from 'node:util';
 import type { AgentDone, AgentFailure, AgentRun, AgentRunner, AgentTask } from '../execution/agent-runner.ts';
+import { parseCallerResult } from '../execution/caller-result.ts';
 import { failureDetail } from '../execution/failure.ts';
 import { addUsage } from '../execution/usage.ts';
 import type { ExecutionUsage } from '../storage/executions.ts';
@@ -70,6 +71,17 @@ function processFailure(code: number | null, signal: NodeJS.Signals | null, adap
   const kind = signal ? 'killed' : code ? 'crashed' : 'unknown';
   const detail = signal ?? (code ? `exit code ${code}` : 'the process ended without an exit code');
   return { kind, detail, exitCode: code, signal, hostFreeMemMb: Math.round(freemem() / 1048576), hostLoad: loadavg()[0]! };
+}
+
+// A process that exits 0 after printing an error the adapter recognizes is a failure, unless it left a valid result: then the error was one it recovered from.
+function leftValidResult(task: AgentTask) {
+  let raw: string | null = null;
+  try {
+    raw = readFileSync(task.resultPath, 'utf8');
+  } catch {
+    // no file: the result is missing, which is what parseCallerResult reports
+  }
+  return parseCallerResult(raw, task).ok;
 }
 
 const alive = (pid: number) => {
@@ -140,7 +152,7 @@ export class HostAgentRunner implements AgentRunner {
       const child = spawn(command.bin, command.args, { cwd: command.cwd, env: command.env, stdio: ['ignore', 'pipe', 'pipe'], detached: true });
       pid = child.pid;
 
-      let authFailed = false;
+      let authFailed: LineSignal['authFailed'];
       let sessionLost = false;
       let adapterFailure: LineSignal['failure'];
       let usage: ExecutionUsage | undefined;
@@ -149,12 +161,12 @@ export class HostAgentRunner implements AgentRunner {
       let batch: AgentEvent[] = [];
       const readLine = (line: string, stream: 'stdout' | 'stderr') => {
         if (stream === 'stdout') batch.push(...(adapter.parseEvents?.(line, eventState) ?? []));
-        const signalOfLine = adapter.parseLine(line);
+        const signalOfLine = adapter.parseLine(line, stream);
         if (signalOfLine?.session && !sessionId) {
           sessionId = signalOfLine.session;
           sessions.forEach((cb) => cb(sessionId!));
         }
-        authFailed ||= signalOfLine?.authFailed === true;
+        authFailed ??= signalOfLine?.authFailed;
         sessionLost ||= signalOfLine?.sessionUnavailable === true;
         adapterFailure ??= signalOfLine?.failure;
         usage = addUsage(usage, signalOfLine?.usage);
@@ -228,10 +240,13 @@ export class HostAgentRunner implements AgentRunner {
       if (reason) return { exit: reason, sessionId, usage };
       // Killed by the watchdog: a technical failure like any other, so it is retried with its session.
       if (idle) return { exit: 'failed', sessionId, usage, failure: { ...processFailure(code, killedBy, undefined), detail: `no output for ${task.idleMs! / 1000} seconds` } };
-      if (authFailed) return { exit: 'auth_failed', sessionId, usage };
+      if (authFailed) {
+        // The message the tool printed is the reason the epic stops with, so it is kept on the end and not only in stderr.log.
+        return { exit: 'auth_failed', sessionId, usage, failure: { kind: 'auth', detail: failureDetail(authFailed.detail), exitCode: code, signal: killedBy, hostFreeMemMb: null, hostLoad: null } };
+      }
       if (sessionLost) return { exit: 'session_unavailable', sessionId, usage };
       if (startError !== undefined) return { ...spawnError(`cannot start ${command.bin}: ${startError}`), sessionId };
-      if (code === 0) return { exit: 'ok', sessionId, usage };
+      if (code === 0 && (adapterFailure === undefined || leftValidResult(task))) return { exit: 'ok', sessionId, usage };
       return { exit: 'failed', sessionId, usage, failure: processFailure(code, killedBy, adapterFailure) };
     };
 

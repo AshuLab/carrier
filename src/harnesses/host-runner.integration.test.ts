@@ -1,5 +1,5 @@
 import { execFileSync, spawn } from 'node:child_process';
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { asc } from 'drizzle-orm';
@@ -17,13 +17,14 @@ import { HostAgentRunner } from './host-runner.ts';
 
 const fakeBinary = join(import.meta.dirname, 'fake-claude.fixture.mjs');
 const fakeCodex = join(import.meta.dirname, 'fake-codex.fixture.mjs');
+const fakeAgy = join(import.meta.dirname, 'fake-agy.fixture.mjs');
 const holder = join(import.meta.dirname, 'orphan-holder.fixture.ts');
 let dir: string;
 // Ids carry this process's pid, so a second run of this file (another worktree, another agent) never shares them.
 const idOf = (name: string) => `it-${process.pid}-${name}`;
 const tokens: Record<string, string> = { 'author-bot': 'ghs_AUTHOR_TOKEN', 'reviewer-bot': 'ghs_REVIEWER_TOKEN' };
 const runner = new HostAgentRunner({
-  binaries: { claude: fakeBinary, codex: fakeCodex },
+  binaries: { claude: fakeBinary, codex: fakeCodex, agy: fakeAgy },
   graceMs: 1000,
   credentials: async (task) => ({
     githubToken: tokens[task.profile] ?? '',
@@ -50,6 +51,13 @@ const taskIn = (name: string, over: Partial<AgentTask> = {}): AgentTask => {
   };
 };
 
+// The result the caller leaves when it finished its job, whatever the tool printed on the way.
+const writeResult = (task: AgentTask) => {
+  mkdirSync(join(task.resultPath, '..'), { recursive: true });
+  const { executionId, repo, epic, stage } = task;
+  writeFileSync(task.resultPath, JSON.stringify({ executionId, repo, epic, stage, outcome: 'needs_human', summary: 'done', reason: 'a person decides' }));
+};
+
 // Collects what a run reports, the way the engine does.
 const observe = (run: AgentRun) => {
   const seen = { sessions: [] as string[], output: '' };
@@ -62,6 +70,7 @@ beforeAll(() => {
   dir = mkdtempSync(join(tmpdir(), 'carrier-runner-'));
   chmodSync(fakeBinary, 0o755);
   chmodSync(fakeCodex, 0o755);
+  chmodSync(fakeAgy, 0o755);
 });
 afterAll(async () => {
   // Only the agents this run started: `listActive` reads every `carrier-exec-` process of the machine, the one running this test included.
@@ -217,7 +226,7 @@ describe('host runner with a fake claude binary', () => {
   });
 
   test('a login error shaped like the real one is auth_failed', async () => {
-    expect((await runner.run(taskIn('auth', { model: 'auth' })).done).exit).toBe('auth_failed');
+    expect(await runner.run(taskIn('auth', { model: 'auth' })).done).toMatchObject({ exit: 'auth_failed', failure: { kind: 'auth', detail: 'Not logged in · Please run /login' } });
   });
 
   const childPid = (task: AgentTask) => Number(readFileSync(join(task.workspace, 'child.pid'), 'utf8'));
@@ -283,6 +292,34 @@ describe('host runner with a fake claude binary', () => {
     expect(await runner.listActive()).toContain(id);
     await runner.stop(id);
     expect(await runner.listActive()).not.toContain(id);
+  });
+});
+
+// An exit 0 after an error the adapter recognizes is a failure of that error's kind, unless the caller left a valid result.
+describe('a process that exits 0 after printing an error', () => {
+  const printed = [
+    { harness: 'claude', model: 'usage_limit_exit0', kind: 'usage_limit' },
+    { harness: 'codex', model: 'usage_not_included', kind: 'usage_limit' },
+    { harness: 'codex', model: 'api_error_exit0', kind: 'api_error' },
+    { harness: 'agy', model: 'any', kind: 'usage_limit' },
+  ] as const;
+
+  test.each(printed)('$harness $model with no result file is a failure of kind $kind', async ({ harness, model, kind }) => {
+    const done = await runner.run(taskIn(`exit0-${harness}-${model}`, { harness, model })).done;
+    expect(done).toMatchObject({ exit: 'failed', failure: { kind, exitCode: 0, signal: null } });
+  });
+
+  test.each(printed)('$harness $model with an invalid result file is still a failure', async ({ harness, model, kind }) => {
+    const task = taskIn(`exit0-invalid-${harness}-${model}`, { harness, model });
+    mkdirSync(join(task.resultPath, '..'), { recursive: true });
+    writeFileSync(task.resultPath, '{"outcome":"completed"}');
+    expect(await runner.run(task).done).toMatchObject({ exit: 'failed', failure: { kind } });
+  });
+
+  test.each(printed)('$harness $model with a valid result file is a success', async ({ harness, model }) => {
+    const task = taskIn(`exit0-recovered-${harness}-${model}`, { harness, model });
+    writeResult(task);
+    expect(await runner.run(task).done).toMatchObject({ exit: 'ok' });
   });
 });
 
@@ -352,7 +389,7 @@ describe('host runner with a fake codex binary', () => {
   });
 
   test('a login error shaped like the real one is auth_failed, a 401 retry that recovers is not', async () => {
-    expect((await runner.run(codexTask('codex-auth', { model: 'auth' })).done).exit).toBe('auth_failed');
+    expect(await runner.run(codexTask('codex-auth', { model: 'auth' })).done).toMatchObject({ exit: 'auth_failed', failure: { kind: 'auth', detail: expect.stringContaining('401 Unauthorized') } });
     expect((await runner.run(codexTask('codex-retry', { model: 'retry' })).done).exit).toBe('ok');
   });
 

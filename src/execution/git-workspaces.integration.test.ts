@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
@@ -63,16 +63,17 @@ describe('GitWorkspaces against a local bare remote', () => {
     git(work, 'push', '-q', 'origin', 'HEAD:refs/heads/feat/x/epic');
     openPr(7, first);
 
-    const path = await ws.prepareReviewer(repo, 3, 7);
+    const { path, commit: firstCommit } = await ws.prepareReviewer(repo, 3, 7);
     expect(path).toBe(join(root, 'engine', 'reviews', 'demo', '3'));
+    expect(firstCommit).toBe(first);
     expect(git(path, 'rev-parse', 'HEAD')).toBe(first);
     expect(git(path, 'branch', '--show-current')).toBe('');
 
-    expect(await ws.prepareReviewer(repo, 3, 7)).toBe(path);
+    expect((await ws.prepareReviewer(repo, 3, 7)).path).toBe(path);
 
     const second = commit('fix');
     openPr(7, second);
-    expect(await ws.prepareReviewer(repo, 3, 7)).toBe(path);
+    expect(await ws.prepareReviewer(repo, 3, 7)).toEqual({ path, commit: second });
     expect(git(path, 'rev-parse', 'HEAD')).toBe(second);
     expect(existsSync(join(path, 'fix'))).toBe(true);
 
@@ -83,12 +84,33 @@ describe('GitWorkspaces against a local bare remote', () => {
     expect(git(clone, 'status', '--porcelain')).toBe('');
   });
 
+  test('each round resets the reviewer checkout to its head and cleans untracked files, keeping ignored ones', async () => {
+    const ws = workspaces();
+    writeFileSync(join(work, '.gitignore'), 'cache/\n');
+    const head = commit('feature');
+    openPr(7, head);
+    const { path } = await ws.prepareReviewer(repo, 3, 7);
+    mkdirSync(join(path, 'cache'));
+    writeFileSync(join(path, 'cache', 'dep'), 'ignored');
+    writeFileSync(join(path, 'untracked'), 'left by the last round');
+    mkdirSync(join(path, 'scratch'));
+    writeFileSync(join(path, 'scratch', 'note'), 'untracked too');
+    writeFileSync(join(path, 'feature'), 'changed by the last round');
+
+    expect(await ws.prepareReviewer(repo, 3, 7)).toEqual({ path, commit: head });
+    expect(existsSync(join(path, 'untracked'))).toBe(false);
+    expect(existsSync(join(path, 'scratch'))).toBe(false);
+    expect(readFileSync(join(path, 'feature'), 'utf8')).toBe('feature');
+    expect(git(path, 'status', '--porcelain')).toBe('');
+    expect(readFileSync(join(path, 'cache', 'dep'), 'utf8')).toBe('ignored');
+  });
+
   test('a reviewer checkout deleted by hand is recreated', async () => {
     const ws = workspaces();
     openPr(7, git(work, 'rev-parse', 'HEAD'));
-    const path = await ws.prepareReviewer(repo, 3, 7);
+    const { path } = await ws.prepareReviewer(repo, 3, 7);
     rmSync(path, { recursive: true });
-    expect(await ws.prepareReviewer(repo, 3, 7)).toBe(path);
+    expect((await ws.prepareReviewer(repo, 3, 7)).path).toBe(path);
     expect(existsSync(join(path, 'one'))).toBe(true);
   });
 
@@ -100,8 +122,8 @@ describe('GitWorkspaces against a local bare remote', () => {
     const [a, b, r1, r2] = await Promise.all([
       ws.prepareAuthor(repo, 1),
       ws.prepareAuthor(repo, 2),
-      ws.prepareReviewer(repo, 1, 7),
-      ws.prepareReviewer(repo, 2, 8),
+      ws.prepareReviewer(repo, 1, 7).then((r) => r.path),
+      ws.prepareReviewer(repo, 2, 8).then((r) => r.path),
     ]);
     expect(a).toBe(b);
     expect(new Set([r1, r2, a]).size).toBe(3);
@@ -129,7 +151,7 @@ describe('GitWorkspaces against a local bare remote', () => {
     const ws = workspaces();
     openPr(7, git(work, 'rev-parse', 'HEAD'));
     const clone = await ws.prepareAuthor(repo, 3);
-    const review = await ws.prepareReviewer(repo, 3, 7);
+    const { path: review } = await ws.prepareReviewer(repo, 3, 7);
     const epicPath = join(root, 'worktrees', 'demo', 'feature');
     git(clone, 'worktree', 'add', '-q', '-b', 'feat/feature/epic', epicPath, 'origin/main');
     git(clone, 'worktree', 'add', '-q', '--detach', `${epicPath}--lane-1`, 'origin/main');
@@ -176,7 +198,7 @@ describe('GitWorkspaces against a local bare remote', () => {
     const ws = workspaces(async () => 'SECRET-TOKEN-123');
     openPr(7, git(work, 'rev-parse', 'HEAD'));
     const clone = await ws.prepareAuthor(repo, 3);
-    const review = await ws.prepareReviewer(repo, 3, 7);
+    const { path: review } = await ws.prepareReviewer(repo, 3, 7);
     const configs = [join(clone, '.git', 'config'), ...readdirSync(join(clone, '.git', 'worktrees')).map((d) => join(clone, '.git', 'worktrees', d, 'config.worktree'))];
     for (const file of configs.filter(existsSync)) expect(readFileSync(file, 'utf8')).not.toContain('SECRET');
     expect(readFileSync(join(review, '.git'), 'utf8')).not.toContain('SECRET');
@@ -218,7 +240,7 @@ describe.skipIf(!enabled)('GitWorkspaces against GitHub through Forge', () => {
         sha = git(clone, 'rev-parse', 'origin/HEAD');
         expect(await ws.prepareAuthor(realRepo!, 1)).toBe(clone);
 
-        const review = await ws.prepareReviewer(realRepo!, 1, 1);
+        const { path: review } = await ws.prepareReviewer(realRepo!, 1, 1);
         expect(git(review, 'rev-parse', 'HEAD')).toBe(sha);
         expect(git(clone, 'remote', 'get-url', 'origin')).toBe(`https://github.com/${realRepo}.git`);
         expect(readFileSync(join(clone, '.git', 'config'), 'utf8')).not.toMatch(/extraheader|x-access-token|ghs_/i);

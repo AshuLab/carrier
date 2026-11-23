@@ -12,6 +12,7 @@ import { cliLoggedIn, runDoctor } from '../../doctor/doctor.ts';
 import { listAvailableRepos } from '../../integrations/available-repos.ts';
 import { forgeCwd } from '../../integrations/forge-cwd.ts';
 import { GhGitHub } from '../../integrations/github.ts';
+import { hasLabel } from '../../orchestration/github.ts';
 import type { Option } from '../prompts/types.ts';
 import { readForgeAgents, type ForgeAgent } from './forge-registry.ts';
 
@@ -126,6 +127,6 @@ export const realDeps: InitDeps = {
   forgeAdd: () => spawnSync('agent-forge', ['add'], { stdio: 'inherit' }).status === 0,
   readyEpics: async (config, folder) => {
     const github = new GhGitHub({ profile: () => config.profiles[config.orchestratorProfile]!, cwd: forgeCwd(enginePlacesOf(folder)), timeoutMs: () => config.limits.githubCallTimeoutSeconds * 1000 });
-    return Object.fromEntries(await Promise.all(config.repos.map(async (repo) => [repo.name, await github.listReadyEpics(repo.name, config.labels.ready).then((epics) => epics.length, () => undefined)] as const)));
+    return Object.fromEntries(await Promise.all(config.repos.map(async (repo) => [repo.name, await github.listOpenEpics(repo.name, config.labels.epic).then((epics) => epics.filter(({ labels }) => hasLabel(labels, config.labels.ready)).length, () => undefined)] as const)));
   },
 };

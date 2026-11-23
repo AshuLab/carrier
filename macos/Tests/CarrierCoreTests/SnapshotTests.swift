@@ -37,7 +37,7 @@ private func firstEpic(_ json: inout [String: Any], _ change: (inout [String: An
     ])
     #expect(s.done == [
         .init(repo: "acme/web", issue: 30, prNumber: 77, finishedAt: 95_000, executionId: "exec-ship-30", title: "Issue 30 of acme/web"),
-        .init(repo: "acme/api", issue: 31, prNumber: nil, finishedAt: 80_000, executionId: nil, title: "Issue 31 of acme/api"),
+        .init(repo: "acme/api", issue: 31, prNumber: nil, finishedAt: 80_000, executionId: nil, title: "Issue 31 of acme/api", unansweredObservations: .init(count: 2, reason: "already_taken")),
     ])
 
     #expect(s.epics.count == 11)
@@ -52,7 +52,7 @@ private func firstEpic(_ json: inout [String: Any], _ change: (inout [String: An
         lastActivityAt: nil, issueUrl: "https://github.com/acme/web/issues/13", prUrl: nil,
         lastError: nil, needsHumanReason: nil, slices: nil, executionId: "exec-ship-13",
         title: "Issue 13 of acme/web", labels: ["solve:epic"], queuedAt: 600, startedAt: 7_000, finishedAt: nil,
-        branch: "feat/issue-13/epic", workspace: "/work/acme/web-13", needsHumanKind: nil, blockerTitles: [], agents: agents))
+        branch: "feat/issue-13/epic", workspace: "/work/acme/web-13", needsHumanKind: nil, blockerTitles: [], agents: agents, retryAt: 100_030_000))
     #expect(s.epics[2].status == .needsHuman)
     #expect(s.epics[2].stage == .fix)
     #expect(s.epics[2].needsHumanReason == "review limit")
@@ -80,6 +80,7 @@ private let agents = PanelSnapshot.Agents(
               startedAt: 7_000, last: .init(kind: "say", text: "Writing the migration", at: 99_500)),
     ])
     #expect(s.epics.map(\.resumeAt) == [nil, nil, nil, nil, nil, nil, nil, nil, nil, 90_000_000, nil])
+    #expect(s.epics.map(\.retryAt) == [nil, 100_030_000, nil, nil, nil, nil, nil, nil, nil, nil, nil])
     #expect(s.epics.map(\.needsHumanKind) == [nil, nil, "review_limit", "agent_needs_human", "retries_exhausted", "timeout", "auth", "workspace", "pr_invalid", "usage_limit", "engine_error"])
     #expect(s.epics[2].finishedAt == 60_000)
 }

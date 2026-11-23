@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createScopedLogger } from '@ashulab/universal-logger';
-import { and, asc, desc, eq, inArray, isNotNull, isNull, lte, notInArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull, isNull, lte, ne, notInArray, sql } from 'drizzle-orm';
 import type { EnginePlaces } from '../config/places.ts';
 import { runtimeOf } from '../config/providers.ts';
 import { failoverStepsFor, type Agent, type EffectiveRepoConfig } from '../config/resolve.ts';
@@ -15,12 +15,12 @@ import { importResult } from '../execution/import-result.ts';
 import type { Workspaces } from '../execution/workspaces.ts';
 import { epicReviewThreads } from '../storage/epic-review-threads.ts';
 import { epicSlices } from '../storage/epic-slices.ts';
-import { callerResults } from '../storage/caller-results.ts';
+import { callerResults, supersededOutcome } from '../storage/caller-results.ts';
 import type { Db } from '../storage/db.ts';
-import { epicEvents, recordEvents } from '../storage/events.ts';
+import { epicEvents, executionEvents, recordEvents } from '../storage/events.ts';
 import { executions, type executionStates } from '../storage/executions.ts';
 import { executionOutput, taskContext } from '../logging/logger.ts';
-import { epics, type needsHumanKinds } from '../storage/schema.ts';
+import { epics, type cancelKinds, type needsHumanKinds } from '../storage/schema.ts';
 import type { Clock } from './clock.ts';
 import { latestBlockers, latestObservations } from './blockers.ts';
 import { changesSlices } from './changes-slices.ts';
@@ -28,9 +28,9 @@ import { RecoverRefused } from './recover-refused.ts';
 import { ResumeRefused } from './resume-refused.ts';
 import { endOf } from './final-pr.ts';
 import { AuthError, GitHubRejected, GitHubUnavailable, hasLabel, isNotFound, labelStyles, type GitHub, type LabelStyle, type Labels, type PullRequestState, type Slices } from './github.ts';
-import { reserve } from './reserve.ts';
+import { queueOrder, queuePosition, reserve } from './reserve.ts';
 import { startRetention, type SessionDirs } from './retention.ts';
-import { failureStreak, isOfAttempt } from './retry.ts';
+import { failureStreak, isOfAttempt, retryWait } from './retry.ts';
 import type { QuotaReader } from './quota.ts';
 import { isBack, resumeAtOf } from './resume-at.ts';
 
@@ -86,6 +86,7 @@ type SeenThisPoll = { prState: Map<number, { number: number; state: PullRequestS
 export type RepoCheck = { at: number; ok: boolean; error: string | null };
 
 type Epic = typeof epics.$inferSelect;
+type CancelKind = (typeof cancelKinds)[number];
 type Execution = typeof executions.$inferSelect;
 
 // Technical end of the process; whether the epic moves on depends on its result (retries and timeouts: later slices).
@@ -167,28 +168,38 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
   const restart = (queuedAt: number) => ({
     status: 'queued' as const, queuedAt, startedAt: null, config: null, labelPending: false, stage: null, stageStartedAt: null, workspace: null,
     lastActivityAt: null, lastError: null, round: null, prNumber: null, prHeadSha: null, pr: null, reviewedSha: null, verification: null, observationsPassAt: null,
-    needsHumanReason: null, needsHumanKind: null, finishedAt: null, authorOption: null, reviewerOption: null, recoveries: 0, autoResumes: 0, resumeStage: null, roundLimit: null, resumeAt: null,
+    needsHumanReason: null, needsHumanKind: null, finishedAt: null, authorOption: null, reviewerOption: null, recoveries: 0, autoResumes: 0, headRepeats: 0, unansweredObservations: null, unansweredReason: null, retryAt: null, resumeStage: null, roundLimit: null, resumeAt: null,
   });
   // The rounds an epic may have: what a resume granted it, else the live setting (a changed `maxReviews` applies at the epic's next review).
+  // The cancels that lost no work: `ready` coming back before the epic had an execution puts it in the queue again.
+  const requeueable: (CancelKind | null)[] = ['ready_removed', 'issue_closed'];
   const roundCap = (epic: Epic) => epic.roundLimit ?? settings().maxReviews;
   // An epic a person resumed at `review` or `fix` (resume from a stage): it takes the same way through the queue, but keeps its round, pull request,
   // worktree and the rest of where it stood; `resumeStage` tells `begin` where to start.
   const requeueKeeping = (queuedAt: number) => ({
     status: 'queued' as const, queuedAt, startedAt: null, config: null, labelPending: false, stage: null, stageStartedAt: null,
-    lastActivityAt: null, lastError: null, needsHumanReason: null, needsHumanKind: null, finishedAt: null, authorOption: null, reviewerOption: null, recoveries: 0, autoResumes: 0, resumeAt: null,
+    lastActivityAt: null, lastError: null, needsHumanReason: null, needsHumanKind: null, finishedAt: null, authorOption: null, reviewerOption: null, recoveries: 0, autoResumes: 0, headRepeats: 0, unansweredObservations: null, unansweredReason: null, retryAt: null, resumeAt: null,
   });
 
-  // Mirrors the epic's status on its issue: its labels, none of the other owned ones, and no `ready` while running.
+  // The labels a poll read of each issue (`repo#issue`), kept up to date by Carrier's own writes and emptied when the poll ends:
+  // a status change removes only what the issue has, and outside a poll (a request) it reads the issue once.
+  const polledLabels = new Map<string, string[]>();
+  const configured = (repo: string) => repos().some((r) => r.name === repo);
+
+  // Mirrors the epic's status on its issue: its labels, none of the other owned ones, and no `ready` in any status (a queued epic is not written here).
+  // Only the labels the issue has are removed, one request each.
   const applyLabels = async (epic: Epic) => {
     const { id, repo, issue, status } = epic;
-    if (stopping || suspended || parked(id)) return; // labelPending stays true: the next run reflects it
+    if (stopping || suspended || parked(id) || !configured(repo)) return; // labelPending stays true: the next run reflects it
     await ensureLabels(repo);
-    if (parked(id)) return; // the repo left the configuration while its labels were read: GitHub is not touched for it
+    if (parked(id) || !configured(repo)) return; // the repo left the configuration while its labels were read: GitHub is not touched for it
     const wanted = wantedLabels(epic);
-    await github.setLabels(repo, issue, {
-      add: wanted,
-      remove: [...ownedLabels().filter((l) => !wanted.includes(l)), ...(status === 'running' ? [settings().labels.ready] : [])],
-    });
+    const key = `${repo}#${issue}`;
+    const present = polledLabels.get(key) ?? (await github.getIssue(repo, issue)).labels;
+    if (parked(id) || !configured(repo)) return;
+    const remove = [...ownedLabels().filter((l) => !wanted.includes(l)), settings().labels.ready].filter((l) => hasLabel(present, l));
+    await github.setLabels(repo, issue, { add: wanted, remove });
+    if (polledLabels.has(key)) polledLabels.set(key, [...present.filter((l) => !hasLabel(remove, l)), ...wanted.filter((l) => !hasLabel(present, l))]);
     // A stage or a stop that changed while the labels were written still has its own to write: only the state just written clears the mark.
     const now = fresh(id);
     if (now.status === status && now.stage === epic.stage && now.needsHumanKind === epic.needsHumanKind) db.update(epics).set({ labelPending: false }).where(eq(epics.id, id)).run();
@@ -216,7 +227,20 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     rejected.add(repo);
     checks.set(repo, { at: clock.now(), ok: false, error: e.message });
   }
+  // GitHub unavailable for one repo (a timeout, a 5xx, a network error) when the poll reads it is the same: the repo is skipped for the cycle with its reason,
+  // the others go on, and the longest wait GitHub asked for among those failures is the wait before the next cycle. Only a poll fills this: it is empty outside one.
+  // A rate limit is the account's, not a repo's: it is never skipped, it ends the poll (`endsPoll`).
+  const skipped = new Set<string>();
+  let longestWait = 0;
+  const endsPoll = (e: unknown) => e instanceof AuthError || (e instanceof GitHubUnavailable && e.kind === 'rate_limited');
+  function skip(repo: string, e: GitHubUnavailable) {
+    log.warn('GitHub unavailable for a repo, skipping it this cycle', { repo, error: e.message });
+    skipped.add(repo);
+    longestWait = Math.max(longestWait, e.retryAfterMs ?? 0);
+    checks.set(repo, { at: clock.now(), ok: false, error: e.message });
+  }
   async function forRepo(repo: string, step: () => Promise<unknown>) {
+    if (skipped.has(repo)) return false;
     try {
       await step();
       return true;
@@ -236,7 +260,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
 
   // The epic leaves `running` for `needs_human`; the label follows (labelPending) and the slot is free.
   const toNeedsHuman = (writer: Pick<Db, 'update'>, id: number, kind: (typeof needsHumanKinds)[number], reason: string) =>
-    writer.update(epics).set({ status: 'needs_human', needsHumanKind: kind, needsHumanReason: reason, finishedAt: clock.now(), labelPending: true }).where(eq(epics.id, id)).run();
+    writer.update(epics).set({ status: 'needs_human', needsHumanKind: kind, needsHumanReason: reason, finishedAt: clock.now(), labelPending: true, retryAt: null }).where(eq(epics.id, id)).run();
 
   // What the database says when it cannot be read or written: about the whole engine, never about one epic.
   const isDatabaseError = (e: unknown) => [e, (e as Error | undefined)?.cause].some((x) => typeof (x as NodeJS.ErrnoException | undefined)?.code === 'string' && (x as NodeJS.ErrnoException).code!.startsWith('SQLITE_'));
@@ -400,11 +424,14 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
   }
 
   // A resume that keeps the epic's stage needs its pull request open and its head to be the stored one.
-  async function pullRequestRefusal(epic: Epic): Promise<'no pull request' | 'pull request not open' | 'pull request head changed' | undefined> {
+  // A resume at review looks at whatever the head is (ADR 0047): it passes `onMoved`, which is told the head found instead of refusing.
+  async function pullRequestRefusal(epic: Epic, onMoved?: (headSha: string) => void): Promise<'no pull request' | 'pull request not open' | 'pull request head changed' | undefined> {
     if (epic.prNumber === null) return 'no pull request';
     const found = await github.getPullRequest(epic.repo, epic.prNumber);
     if (found?.state !== 'open') return 'pull request not open';
-    if (found.headSha !== epic.prHeadSha) return 'pull request head changed';
+    if (found.headSha === epic.prHeadSha) return;
+    if (!onMoved) return 'pull request head changed';
+    onMoved(found.headSha);
   }
 
   // What the probe of each option's account says now: the option of this execution and the ones that ran out earlier in this attempt.
@@ -458,8 +485,8 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     const role = epic.stage === 'review' ? 'reviewer' : 'author';
     // What a person's resume puts: a queued epic whose issue lost `ready` is cancelled when it is reserved.
     await github.setLabels(epic.repo, epic.issue, { add: [settings().labels.ready], remove: [] });
-    const queuedAt = clock.now();
     const woke = db.transaction((tx) => {
+      const queuedAt = queuePosition(tx, clock.now()); // after the epics already waiting, and in this write so none enters between
       const moved = tx.update(epics)
         .set({ ...(stage ? { ...requeueKeeping(queuedAt), resumeStage: stage } : restart(queuedAt)), autoResumes: epic.autoResumes + 1 })
         .where(and(eq(epics.id, epic.id), eq(epics.status, 'needs_human'), eq(epics.resumeAt, epic.resumeAt!))) // a person resumed it, or it ended, while the probe answered
@@ -479,20 +506,26 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     if (moved.relaunched || !stillRunning(epicId)) return;
     const { autoResume, autoResumeMaxHours } = settings(); // read once: a reload applies to the next stop
     const spent = fresh(epicId).autoResumes >= maxAutoResumes;
-    const back = autoResume && !spent ? resumeAtOf(await probeRanOut(fresh(epicId), execution)) : undefined;
+    // A server error says nothing about the quota: no window to probe, no promise to resume by itself.
+    const serverError = execution.failureKind === 'api_error' && /\bHTTP 5\d\d\b/.test(execution.failureDetail ?? '');
+    const back = autoResume && !spent && !serverError ? resumeAtOf(await probeRanOut(fresh(epicId), execution)) : undefined;
     if (!stillRunning(epicId)) return; // the probe took time: the epic may have ended or been parked meanwhile
     const { repo, issue } = fresh(epicId);
     const role = execution.stage === 'review' ? 'reviewer' : 'author';
     const detail = execution.failureDetail ? ` · ${execution.failureDetail}` : '';
     const scheduled = back !== undefined && back - clock.now() <= autoResumeMaxHours * 3_600_000;
     const when = back === undefined ? '' : new Date(back).toISOString();
-    const wake = !autoResume ? ''
+    const wake = !autoResume || serverError ? ''
       : spent ? ` · it already resumed by itself ${maxAutoResumes} times in a row: it will not again`
       : back === undefined ? ' · it will not resume by itself: the provider did not say when the window comes back'
       : scheduled ? ` · resumes by itself at ${when}`
       : ` · the window comes back at ${when}, more than ${autoResumeMaxHours} h away: it will not resume by itself`;
     db.transaction((tx) => {
-      toNeedsHuman(tx, epicId, 'usage_limit', `the ${execution.stage} execution ran out of usage on option ${execution.option ?? execution.harness} · carrier restart ${repo}#${issue} --${role} <option>${wake}${detail}${moved.why}`);
+      const option = execution.option ?? execution.harness;
+      const what = serverError
+        ? `the provider answered the ${execution.stage} execution on option ${option} with a server error, not a usage limit · wait and resume the epic, or carrier restart ${repo}#${issue} --${role} <option>`
+        : `the ${execution.stage} execution ran out of usage on option ${option} · carrier restart ${repo}#${issue} --${role} <option>`;
+      toNeedsHuman(tx, epicId, 'usage_limit', `${what}${wake}${detail}${moved.why}`);
       if (scheduled) {
         tx.update(epics).set({ resumeAt: back }).where(eq(epics.id, epicId)).run();
         tx.insert(epicEvents).values({ epicId, at: clock.now(), type: 'auto_resume_scheduled', data: { resumeAt: back } }).run();
@@ -540,14 +573,21 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     const switched = before !== undefined && (before.option ?? null) !== optionNow;
     if (switched) rebuild = { pr: null };
     const resumeSession = rebuild ? undefined : (retryOf?.sessionId ?? (stage === 'fix' ? authorSession(epic.id) : stage === 'ship' && !retryOf ? sameOptionSession(epic) : undefined));
-    const pr = rebuild?.pr ?? (epic.prNumber ? { number: epic.prNumber, headSha: epic.prHeadSha! } : undefined);
+    let pr = rebuild?.pr ?? (epic.prNumber ? { number: epic.prNumber, headSha: epic.prHeadSha! } : undefined);
     let workspace: string;
+    let reviewedCommit: string | undefined; // the commit the reviewer's checkout is at: the head it is given
     try {
       if (stage === 'fix') {
         // Where `ship` left the epic's worktree: a session resumed anywhere else would act in another cwd.
         if (!epic.workspace) throw new Error('the epic has no saved worktree');
+        if (!(await workspaces.exists(epic.workspace))) throw new Error(`the saved workspace ${epic.workspace} does not exist`);
         workspace = epic.workspace;
-      } else workspace = reviewing ? await workspaces.prepareReviewer(epic.repo, epic.issue, epic.prNumber!) : await workspaces.prepareAuthor(epic.repo, epic.issue);
+      } else if (reviewing) {
+        const checkout = await workspaces.prepareReviewer(epic.repo, epic.issue, epic.prNumber!);
+        workspace = checkout.path;
+        reviewedCommit = checkout.commit;
+        pr = { number: epic.prNumber!, headSha: reviewedCommit };
+      } else workspace = await workspaces.prepareAuthor(epic.repo, epic.issue);
     } catch (e) {
       log.error('could not prepare the workspace', e, { repo: epic.repo, epic: epic.issue, stage });
       if (!unchanged(epic.id, epoch)) return; // parked while the workspace was prepared: it keeps where it was
@@ -582,7 +622,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     if (stopping || !unchanged(epic.id, epoch)) return; // the repo may have left the configuration (and come back) while the workspace was prepared
     if (switched) db.insert(epicEvents).values({ epicId: epic.id, at: clock.now(), type: 'session_rebuilt', data: { stage, from: before!.option, to: optionNow, pr: pr ?? null } }).run();
     db.insert(executions)
-      .values({ executionId, epicId: epic.id, stage, harness: task.harness, model: task.model, provider: task.provider ?? null, option: task.option ?? null, configDir: task.configDir ?? null, workspace, round: epic.round, resultPath, startedAt: clock.now() })
+      .values({ executionId, epicId: epic.id, stage, harness: task.harness, model: task.model, provider: task.provider ?? null, option: task.option ?? null, configDir: task.configDir ?? null, workspace, round: epic.round, headSha: reviewedCommit ?? null, resultPath, startedAt: clock.now() })
       .run();
     const context = taskContext({ repo: epic.repo, epic: epic.issue, executionId, stage, round: epic.round });
     log.info('execution started', context);
@@ -619,11 +659,16 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
         active.delete(executionId);
         output.flush();
         (exit === 'ok' ? log.info : log.warn)('execution ended', { ...context, exit });
+        // ADR 0050: an execution of the profile that ends with no authentication signal clears the memory of a first one (a run we stopped says nothing).
+        if (exit !== 'auth_failed' && exit !== 'stopped') authSignals.delete(task.profile);
+        // The first signal of a profile is a technical failure like any other; the second stops the profile. A profile a reload removed is neither.
+        const firstSignal = exit === 'auth_failed' && profileDeclared(task.profile) && !authSignals.has(task.profile);
+        if (firstSignal) authSignals.add(task.profile);
         const triggers = failoverTriggersOf(epic.config?.failover, stage === 'review' ? 'reviewer' : 'author');
         const isFailoverFailure = exit === 'failed' && processFailure?.kind !== undefined && matchesFailoverTrigger(triggers, processFailure.kind, processFailure.detail);
         const outOfCredits = exit === 'failed' && processFailure?.kind === 'usage_limit';
         // Like a timeout, failover leaves no error on the execution: it is not a retryable failure and ends the streak.
-        const failure = (outOfCredits || isFailoverFailure) ? undefined : { failed: `the agent process ended with an error (${processFailure?.kind ?? 'unknown'}${processFailure?.detail ? `: ${processFailure.detail}` : ''})`, auth_failed: `authentication error for profile ${task.profile}`, session_unavailable: sessionLost }[exit as 'failed'];
+        const failure = (outOfCredits || isFailoverFailure) ? undefined : { failed: `the agent process ended with an error (${processFailure?.kind ?? 'unknown'}${processFailure?.detail ? `: ${processFailure.detail}` : ''})`, auth_failed: authError(task.profile, processFailure?.detail), session_unavailable: sessionLost }[exit as 'failed'];
         // The ends with their own handling carry no failure from the runner: their kind follows from the exit.
         const endFailure: Partial<Record<AgentExit, Pick<AgentFailure, 'kind' | 'detail'>>> = {
           failed: { kind: 'unknown', detail: '' },
@@ -641,9 +686,14 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
           // Retrying the same option only burns the retries.
           await onUsageLimit(epic.id, db.select().from(executions).where(eq(executions.executionId, executionId)).get()!);
         }
-        else if (exit === 'failed' || exit === 'session_unavailable') await retry(epic.id);
+        else if (exit === 'failed' || exit === 'session_unavailable' || firstSignal) {
+          // The wait is a due time saved with the epic, never a sleep: `retry` starts it once due, from its timer or from the poll after a restart.
+          const wait = retryWait(failureStreak(db, fresh(epic.id)));
+          db.update(epics).set({ retryAt: wait > 0 ? clock.now() + wait : null }).where(eq(epics.id, epic.id)).run();
+          await retry(epic.id);
+        }
         else if (exit === 'auth_failed') {
-          if (profileDeclared(task.profile)) await stopProfile(task.profile);
+          if (profileDeclared(task.profile)) await stopProfile(task.profile, processFailure?.detail);
           else {
             // A reload removed the profile: every run that names it fails the same way and says nothing about the others, so only this epic
             // stops, naming it. The runs already going keep the token they started with.
@@ -652,7 +702,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
           }
         } else if (exit === 'timed_out') {
           // Session and workspace stay as they are; a person decides how to go on.
-          if (stillRunning(epic.id)) toNeedsHuman(db, epic.id, 'timeout', `the ${stage} execution exceeded the time limit`);
+          if (stillRunning(epic.id)) toNeedsHuman(db, epic.id, 'timeout', timeoutReason(stage, endFailure.timed_out!.detail));
           await freeSlot();
         }
       }),
@@ -660,21 +710,33 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     );
   }
 
-  // Forge rejected a profile: the running epics that use it stop for a person, with their runs; the others go on.
-  // The profile is never swapped for another one.
-  async function stopProfile(profile: string) {
+  // `detail` is what the execution stored, `exceeded N h`: the limit as it was when the run started.
+  const timeoutReason = (stage: string, detail: string | null) =>
+    `the ${stage} execution exceeded the time limit${detail?.startsWith('exceeded ') ? ` of ${detail.slice('exceeded '.length)}` : ''} (limits.maxExecutionHours) · session and worktree are kept: raise the limit or set it to "unlimited", then resume the epic`;
+
+  // The profiles that sent one authentication signal and have had no execution end without one since. Not saved: a restart forgets it and costs one more signal.
+  const authSignals = new Set<string>();
+  const authError = (profile: string, detail?: string) => `authentication error for profile ${profile}${detail ? `: ${failureDetail(detail)}` : ''}`;
+
+  // The profile's authentication signal repeated: the running epics that use it stop for a person, with their runs, and the others go on.
+  // `detail` is the message of the error, redacted like any other reason. The profile is never swapped for another one.
+  async function stopProfile(profile: string, detail?: string) {
     for (const epic of db.select().from(epics).where(eq(epics.status, 'running')).orderBy(asc(epics.id)).all()) {
       const { author, reviewer } = epic.config!.agents;
       if (author.profile !== profile && reviewer.profile !== profile) continue;
-      toNeedsHuman(db, epic.id, 'auth', `authentication error for profile ${profile}`);
+      toNeedsHuman(db, epic.id, 'auth', authError(profile, detail));
       const running = db.select().from(executions).where(and(eq(executions.epicId, epic.id), eq(executions.status, 'running'))).all();
       await Promise.all(running.map(({ executionId }) => active.get(executionId)?.stop()));
     }
+    // Only now, with every run of the profile stopped: a signal that ends one while it is stopped would otherwise count as a first one and be remembered again.
+    authSignals.delete(profile); // the person's fix is a new start: the next signal is a first one again
     await freeSlot();
   }
 
   // Relaunches the stage whose last execution failed technically, until the retries run out.
   const retrying = new Set<number>();
+  // The timers of the retries that wait for their due time; the engine's stop cancels them, and the poll finds what a restart lost.
+  const retryTimers = new Map<number, () => void>();
   async function retry(epicId: number) {
     if (stopping || suspended || retrying.has(epicId)) return;
     retrying.add(epicId);
@@ -684,14 +746,30 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       const [last, ...earlier] = failureStreak(db, epic);
       if (epic.status !== 'running' || !last) return;
       if (earlier.length >= settings().maxExecutionRetries) {
-        toNeedsHuman(db, epicId, 'retries_exhausted', `ran out of ${last.stage} retries (${earlier.length + 1} attempts): ${last.error}`);
+        const idle = last.failureDetail?.startsWith('no output for ') ? ' · limits.idleMinutes ended it: raise it or remove it' : '';
+        // A process failure's error already names its kind; an invalid result's is only the message, so it gets the same shape.
+        const failure = last.failureKind === 'invalid_result' ? `the agent ended with an invalid result (invalid_result: ${last.error})` : last.error;
+        toNeedsHuman(db, epicId, 'retries_exhausted', `ran out of ${last.stage} retries (${earlier.length + 1} attempts): ${failure}${idle}`);
         return await freeSlot();
+      }
+      const waiting = epic.retryAt === null ? 0 : epic.retryAt - clock.now();
+      if (waiting > 0) {
+        if (!retryTimers.has(epicId)) {
+          retryTimers.set(epicId, clock.after(waiting, async () => {
+            retryTimers.delete(epicId);
+            track(isolating(epicId, epic.repo, () => retry(epicId)));
+          }));
+        }
+        return;
       }
       // Read only: what the failed execution may have left on GitHub. A failed query is not an attempt, the poll tries again.
       const pr = await github.findPullRequest(epic.repo, epic.issue);
       if (!unchanged(epicId, epoch)) return; // parked while GitHub was asked: no event, no launch; the next check retries it if it is back
       // A lost session is rebuilt, not resumed: new session, same profile, context from SQLite and GitHub.
       const lost = last.failureKind === 'session_lost';
+      db.update(epics).set({ retryAt: null }).where(eq(epics.id, epicId)).run();
+      retryTimers.get(epicId)?.();
+      retryTimers.delete(epicId);
       db.insert(epicEvents)
         .values({ epicId, at: clock.now(), type: lost ? 'session_rebuilt' : 'execution_retried', data: { stage: last.stage, failed: last.executionId, attempt: earlier.length + 2, error: last.error, pr } })
         .run();
@@ -712,7 +790,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       .select({ result: callerResults.result })
       .from(callerResults)
       .innerJoin(executions, eq(executions.executionId, callerResults.executionId))
-      .where(and(eq(executions.epicId, epicId), inArray(executions.stage, ['review', 'fix'])))
+      .where(and(eq(executions.epicId, epicId), inArray(executions.stage, ['review', 'fix']), ne(callerResults.outcome, supersededOutcome)))
       .orderBy(asc(executions.startedAt))
       .all()
       .map(({ result }) => (JSON.parse(result) as { summary: string }).summary);
@@ -757,9 +835,8 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     if (!found) return `PR #${pr.number} does not exist`;
     if (found.state !== 'open') return `PR #${pr.number} is not open`;
     if (!new RegExp(`\\bcloses #${issue}(?!\\d)`, 'i').test(found.body)) return `PR #${pr.number} does not reference the epic (missing "Closes #${issue}")`;
-    if (found.headSha !== pr.headSha) {
-      return stage === 'review' ? 'the head changed during the review' : `the head of PR #${pr.number} is ${found.headSha}, not ${pr.headSha}`;
-    }
+    // A review's moved head is not a problem of the pull request: it is reviewed again (ADR 0047), `settle` decides.
+    if (stage !== 'review' && found.headSha !== pr.headSha) return `the head of PR #${pr.number} is ${found.headSha}, not ${pr.headSha}`;
     return null;
   }
 
@@ -775,23 +852,40 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     }
   }
 
+  // A review of a head that moved is made again at most this many times in a row; the next move stops the epic.
+  const maxHeadRepeats = 2;
+
+  // Errors of `git worktree list` per ship execution whose result was left to be settled again; the count is lost on a restart, which only gives it three more.
+  const maxWorktreeListRetries = 3;
+  const worktreeListFailures = new Map<string, number>();
+
   // Imports the result of a finished execution and moves the epic. Safe to repeat: the import is idempotent.
   async function settle(execution: Execution) {
     if (stopping || suspended) return; // stays `finished` without a result: the next run imports it
     const epic = fresh(execution.epicId);
-    if (outside(epic.id)) return; // ended from outside or stopped: nothing new moves
+    if (outside(epic.id)) {
+      worktreeListFailures.delete(execution.executionId); // cancelled or parked between two tries of `git worktree list`: its count goes
+      return; // ended from outside or stopped: nothing new moves
+    }
     const epoch = epochOf(epic.id);
     const expected = expectedOf(epic, execution);
     const raw = readResult(execution);
     const parsed = parseCallerResult(raw, expected);
     const context = taskContext({ repo: epic.repo, epic: epic.issue, executionId: execution.executionId, stage: execution.stage, round: epic.round });
-    if (!parsed.ok) {
-      log.warn('invalid caller result', { ...context, reason: parsed.message });
-      db.update(executions).set({ status: 'invalid_result', error: parsed.message, ...failureColumns({ ...noExit, kind: 'invalid_result', detail: failureDetail(parsed.message) }) }).where(eq(executions.executionId, execution.executionId)).run();
-      db.update(epics).set({ lastError: parsed.message }).where(eq(epics.id, epic.id)).run();
+    // A review's result carries the commit its checkout was made at (ADR 0047), else it judged something the reviewer was not given.
+    const wrongHead = parsed.ok && parsed.result.outcome !== 'needs_human' && execution.headSha !== null && parsed.result.pr.headSha !== execution.headSha
+      ? `the review reports head ${parsed.result.pr.headSha}, not ${execution.headSha}, the commit its checkout was made at`
+      : null;
+    if (!parsed.ok || wrongHead) {
+      const message = parsed.ok ? wrongHead! : raw === null ? 'no result file was written' : parsed.message;
+      log.warn('invalid caller result', { ...context, reason: message });
+      db.update(executions).set({ status: 'invalid_result', error: message, ...failureColumns({ ...noExit, kind: 'invalid_result', detail: failureDetail(message) }) }).where(eq(executions.executionId, execution.executionId)).run();
+      db.update(epics).set({ lastError: message }).where(eq(epics.id, epic.id)).run();
       return retry(epic.id);
     }
     let problem: { kind: 'workspace' | 'pr_invalid'; text: string } | null = null;
+    let movedTo: string | null = null; // a review whose head moved while it ran: the head GitHub has now, which the next review is made on
+    let superseded = false; // that review judged a head that is not the pull request's any more, whether the epic reviews again or stops at the repeat cap
     let workspace: string | undefined;
     let branch: string | undefined; // the final PR's branch
     if (parsed.result.outcome !== 'needs_human') {
@@ -799,23 +893,49 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       const found = await github.getPullRequest(epic.repo, pr.number);
       const invalid = prProblem(epic, found, pr, execution.stage);
       if (invalid) problem = { kind: 'pr_invalid', text: invalid };
+      else if (execution.stage === 'review' && found!.headSha !== pr.headSha) {
+        superseded = true;
+        if (epic.headRepeats >= maxHeadRepeats) problem = { kind: 'pr_invalid', text: `the head of PR #${pr.number} changed during the review ${epic.headRepeats + 1} times in a row` };
+        else movedTo = found!.headSha;
+      }
       if (!problem && execution.stage === 'ship') {
         // Solve put the epic's worktree where its solve.md says: read it back from git, keep the real path for the fix turns.
         branch = found!.headRef;
+        let listError: unknown;
         try {
           workspace = (await workspaces.findWorktree(epic.repo, branch)) ?? undefined;
+          worktreeListFailures.delete(execution.executionId);
         } catch (e) {
+          listError = e;
           log.error('could not list the worktrees', e, context);
         }
-        if (!workspace) problem = { kind: 'workspace', text: `could not find the worktree for branch ${branch} in the clone of ${epic.repo}` };
+        if (listError !== undefined) {
+          // An error of git is not a missing worktree: the execution stays `finished` without a result and the next poll settles it again, up to three times.
+          const failures = (worktreeListFailures.get(execution.executionId) ?? 0) + 1;
+          if (failures <= maxWorktreeListRetries) {
+            worktreeListFailures.set(execution.executionId, failures);
+            return;
+          }
+          worktreeListFailures.delete(execution.executionId);
+          problem = { kind: 'workspace', text: `could not list the worktrees of the clone of ${epic.repo} after ${failures} attempts: ${listError instanceof Error ? listError.message : String(listError)}` };
+        } else if (!workspace) problem = { kind: 'workspace', text: `could not find the worktree for branch ${branch} in the clone of ${epic.repo}` };
       }
     }
     if (outside(epic.id) || epochOf(epic.id) !== epoch) return; // it ended, or was parked (and maybe restored) while GitHub was asked: stays `finished` without a result, the next run imports it
     const imported = importResult(db, raw, expected, (tx, result) => {
       // A stage change reaches the issue when a stage has a label: the label follows (labelPending) like a status change does.
       const update = (set: Partial<Epic>) => tx.update(epics).set({ ...set, ...(set.stage !== undefined && { recoveries: 0, autoResumes: 0, ...(stageLabelled() && { labelPending: true }) }) }).where(eq(epics.id, epic.id)).run();
+      if (execution.stage === 'review' && !problem && !movedTo) tx.update(epics).set({ headRepeats: 0 }).where(eq(epics.id, epic.id)).run(); // a review completed on its own head
+      // The verdict judged a head that is not the pull request's any more: kept as the execution it is, never read by a later round (a resume at review included).
+      if (superseded) tx.update(callerResults).set({ outcome: supersededOutcome }).where(eq(callerResults.executionId, execution.executionId)).run();
       if (result.outcome === 'needs_human') toNeedsHuman(tx, epic.id, 'agent_needs_human', result.reason);
       else if (problem) toNeedsHuman(tx, epic.id, problem.kind, problem.text);
+      else if (movedTo) {
+        // The stage and round stay: the same stage reviews the new head.
+        tx.update(epics).set({ prHeadSha: movedTo, headRepeats: epic.headRepeats + 1 }).where(eq(epics.id, epic.id)).run();
+        tx.insert(epicEvents).values({ epicId: epic.id, at: clock.now(), type: 'review_repeated', data: { executionId: execution.executionId, round: epic.round, from: result.pr.headSha, to: movedTo, repeats: epic.headRepeats + 1 } }).run();
+        tx.insert(executionEvents).values({ executionId: execution.executionId, at: clock.now(), kind: 'note', payload: { text: `The head of PR #${result.pr.number} moved from ${result.pr.headSha} to ${movedTo} while this review ran: its verdict is set aside and the new head is reviewed again.` } }).run(); // what the events reply of this execution shows
+      }
       else if (execution.stage === 'ship') update({ stage: 'review', stageStartedAt: clock.now(), round: 1, prNumber: result.pr.number, prHeadSha: result.pr.headSha, workspace, branch });
       // The pass ended with the head that was reviewed: nothing to review again, the reviewer's verification stands.
       else if (execution.stage === 'fix' && latestObservations(db, epic.id) && result.pr.headSha === epic.reviewedSha) update({ status: 'ready_for_test', finishedAt: clock.now(), labelPending: true });
@@ -829,7 +949,14 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       else if (result.outcome === 'completed' && result.observations?.length && epic.observationsPassAt === null && (epic.round ?? 0) < roundCap(epic)) {
         update({ stage: 'fix', stageStartedAt: clock.now(), observationsPassAt: clock.now(), reviewedSha: result.pr.headSha, verification: result.verification });
       }
-      else update({ status: 'ready_for_test', reviewedSha: result.pr.headSha, verification: result.verification, finishedAt: clock.now(), labelPending: true });
+      else {
+        // Observations a review listed that no pass will answer: how many, and whether the pass was taken or the round was the last its cap allows.
+        const left = result.outcome === 'completed' ? (result.observations?.length ?? 0) : 0;
+        update({
+          status: 'ready_for_test', reviewedSha: result.pr.headSha, verification: result.verification, finishedAt: clock.now(), labelPending: true,
+          ...(left > 0 && { unansweredObservations: left, unansweredReason: epic.observationsPassAt === null ? 'last_round' : 'already_taken' }),
+        });
+      }
     });
     if (!('duplicate' in imported)) db.update(epics).set({ lastError: null }).where(eq(epics.id, epic.id)).run();
     log.info('result imported', { ...context, outcome: parsed.result.outcome, duplicate: 'duplicate' in imported });
@@ -859,9 +986,9 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
   }
 
   // The epic ended outside Carrier: its status and event are written, its runs stopped. `labelPending` is false when the issue cannot be written to.
-  async function finish(epic: Epic, end: { status: 'merged' | 'cancelled'; reason: string }, labelPending = true) {
+  async function finish(epic: Epic, end: { status: 'merged' | 'cancelled'; reason: string; cancelKind?: CancelKind }, labelPending = true) {
     const ended = db.update(epics)
-      .set({ status: end.status, ...(end.status === 'cancelled' && { cancelReason: end.reason }), finishedAt: clock.now(), labelPending, resumeAt: null })
+      .set({ status: end.status, ...(end.status === 'cancelled' && { cancelReason: end.reason, cancelKind: end.cancelKind ?? null }), finishedAt: clock.now(), labelPending, resumeAt: null })
       .where(and(eq(epics.id, epic.id), inArray(epics.status, ['running', 'needs_human', 'ready_for_test']))) // parked while GitHub was asked: `repo_removed` stays
       .returning()
       .get();
@@ -886,7 +1013,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     } catch (e) {
       const epic = fresh(id);
       if (!(await ifGone(epic.repo, e))) throw e;
-      await finish(epic, { status: 'cancelled', reason: goneReason }, false);
+      await finish(epic, { status: 'cancelled', reason: goneReason, cancelKind: 'issue_gone' }, false);
     }
   }
 
@@ -901,7 +1028,15 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       try {
         const { kept } = await workspaces.cleanUp(epic.repo, epic.issue, epic.branch);
         if (kept.length > 0) log.warn('kept worktrees with unsaved work and local branches that are not on the remote', { repo: epic.repo, issue: epic.issue, kept });
-        db.update(epics).set({ cleanedAt: clock.now() }).where(eq(epics.id, epic.id)).run();
+        // Marked as cleaned even with something kept: the cleanup would keep it again at every poll. The event is where it shows.
+        db.transaction((tx) => {
+          tx.update(epics).set({ cleanedAt: clock.now() }).where(eq(epics.id, epic.id)).run();
+          if (kept.length === 0) return;
+          tx.insert(epicEvents).values({ epicId: epic.id, at: clock.now(), type: 'cleanup_kept', data: { kept } }).run();
+          // What the events reply of the epic's last execution shows: the app reads no epic event.
+          const last = tx.select({ executionId: executions.executionId }).from(executions).where(eq(executions.epicId, epic.id)).orderBy(desc(sql`rowid`)).limit(1).get();
+          if (last) tx.insert(executionEvents).values({ executionId: last.executionId, at: clock.now(), kind: 'note', payload: { text: `The clean-up of this ended epic kept what has unsaved work or is not on the remote: ${kept.join(', ')}. Delete it by hand when it is no longer needed.` } }).run();
+        });
       } catch (e) {
         log.warn('could not clean up an ended epic, trying again at the next poll', { repo: epic.repo, issue: epic.issue, error: (e as Error).message });
       }
@@ -936,11 +1071,11 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
   async function fillSlots() {
     for (;;) {
       if (stopping || suspended || paused) return;
-      const epic = reserve(db, { maxConcurrent: settings().maxConcurrentEpics, now: clock.now(), repos: repos().filter((r) => !rejected.has(r.name)) });
+      const epic = reserve(db, { maxConcurrent: settings().maxConcurrentEpics, now: clock.now(), repos: repos().filter((r) => !rejected.has(r.name) && !skipped.has(r.name)) });
       if (!epic) return;
       const epoch = epochOf(epic.id);
-      const cancelWith = (cancelReason: string) =>
-        db.update(epics).set({ status: 'cancelled', cancelReason, finishedAt: clock.now(), labelPending: false }).where(and(eq(epics.id, epic.id), eq(epics.status, 'running'))).run();
+      const cancelWith = (cancelReason: string, cancelKind: CancelKind) =>
+        db.update(epics).set({ status: 'cancelled', cancelReason, cancelKind, finishedAt: clock.now(), labelPending: false }).where(and(eq(epics.id, epic.id), eq(epics.status, 'running'))).run();
       let issue;
       try {
         issue = await github.getIssue(epic.repo, epic.issue);
@@ -952,7 +1087,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
           e = probe; // the repo does not answer normally: its refusal below
         }
         if (gone) {
-          cancelWith(goneReason);
+          cancelWith(goneReason, 'issue_gone');
           continue;
         }
         // Could not check it: give the slot back, the epic keeps its place in the queue.
@@ -964,8 +1099,9 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
         throw e;
       }
       if (!stillRunning(epic.id)) continue; // parked while GitHub was asked: it keeps where it was
-      if (issue.state === 'closed') cancelWith('closed before it started');
-      else if (!hasLabel(issue.labels, settings().labels.ready)) cancelWith('ready label removed');
+      polledLabels.set(`${epic.repo}#${epic.issue}`, issue.labels); // the freshest read: the label write that follows removes only what is there
+      if (issue.state === 'closed') cancelWith('closed before it started', 'issue_closed');
+      else if (!hasLabel(issue.labels, settings().labels.ready)) cancelWith('ready label removed', 'ready_removed');
       else {
         // Its slices exist before it is ready: read them now so the app has the list from the first second, not after the next poll.
         // Not `forRepo`: the extra turns it adds to this await change when a run that just ended gets its result imported, which tests depend on.
@@ -1039,7 +1175,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       await launch(fresh(id), 'ship');
     } else if (last.status === 'timed_out') {
       // The run ended while the epic was parked, so its end handler did not stop it for a person: it does now, as that handler does.
-      toNeedsHuman(db, id, 'timeout', `the ${last.stage} execution exceeded the time limit`);
+      toNeedsHuman(db, id, 'timeout', timeoutReason(last.stage, last.failureDetail));
       await freeSlot();
     } else if (last.status === 'interrupted') {
       if (epic.stage !== last.stage) return false; // the epic moved on (or has no stage yet): this cut execution is not where it stands
@@ -1167,17 +1303,13 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     return recovering;
   };
 
-  // A failed read keeps the last known values and the poll goes on: progress is only for show. A rejected profile is not "only for show".
-  async function refreshProgress(repo: string, seen: SeenThisPoll) {
-    try {
-      const open = await github.listOpenEpics(repo, settings().labels.epic);
-      seen.openIssues.set(repo, new Set(open.map(({ issue }) => issue)));
-      progress.set(repo, new Map(open.map(({ issue, slices }) => [issue, slices])));
-      // The same read carries the title and labels of the epics Carrier already holds, whatever their status.
-      for (const { issue, title, labels } of open) db.update(epics).set({ title, labels }).where(and(eq(epics.repo, repo), eq(epics.issue, issue))).run();
-    } catch (e) {
-      if (e instanceof AuthError) throw e;
-      log.error('slice progress read failed, keeping the last values', e);
+  // What the repo's one listing says: the progress of each epic, the title and labels of those Carrier already holds (whatever their status), and which issues are open.
+  function takeOpen(repo: string, open: { issue: number; title: string; labels: string[]; slices: Slices | null }[], seen: SeenThisPoll) {
+    seen.openIssues.set(repo, new Set(open.map(({ issue }) => issue)));
+    progress.set(repo, new Map(open.map(({ issue, slices }) => [issue, slices])));
+    for (const { issue, title, labels } of open) {
+      polledLabels.set(`${repo}#${issue}`, labels);
+      db.update(epics).set({ title, labels }).where(and(eq(epics.repo, repo), eq(epics.issue, issue))).run();
     }
   }
 
@@ -1211,7 +1343,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
         if (slices.length > 0) tx.insert(epicSlices).values(slices.map((slice) => ({ ...slice, epicId: id, readAt, truncated }))).run();
       });
     } catch (e) {
-      if (e instanceof AuthError) throw e;
+      if (endsPoll(e)) throw e;
       log.error('slices read failed, keeping the last rows', e);
     }
   }
@@ -1229,7 +1361,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       try {
         await readEpicSlices(repo, id, issue);
       } catch (e) {
-        failed(e); // only a rejected profile gets here: it suspends the engine like in a poll
+        failed(e); // only a rejected profile or a rate limit gets here: it suspends the engine or records the error like in a poll
       }
     };
     const wait = (sliceReadAt.get(id) ?? -sliceWindowMs) + sliceWindowMs - clock.now();
@@ -1274,7 +1406,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
           if (threads.length > 0) tx.insert(epicReviewThreads).values(threads.map((thread, position) => ({ ...thread, epicId: id, position, readAt, truncated }))).run();
         });
       } catch (e) {
-        if (e instanceof AuthError) throw e;
+        if (endsPoll(e)) throw e;
         log.error('pull request read failed, keeping the last block and threads', e);
       }
     }
@@ -1287,34 +1419,56 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     // What this poll read about the epics, so `stopEnded` does not ask again for it (never what the caches hold: ADR 0008).
     const seen: SeenThisPoll = { prState: new Map(), openIssues: new Map() };
     rejected.clear();
+    skipped.clear();
+    longestWait = 0;
     try {
-      // Fetch every repo before writing: a failure on any of them leaves the queue untouched.
+      // Fetch every repo before writing: a rate limit or a failing profile on any of them leaves the queue untouched.
       const found: { repo: string; issue: number; title: string; labels: string[] }[] = [];
       await recoverOnce();
       for (const { name: repo } of repos()) {
         // GitHub answering for this one repo that it cannot be read (not found, no access) is that repo's check; the others go on.
         // What is about the whole cycle (the profile, GitHub down) stops it below.
+        // GitHub unavailable for it (not a rate limit) skips it for the cycle the same way, and nothing of it is queued.
         const ok = await forRepo(repo, async () => {
-          const listed = await github.listReadyEpics(repo, settings().labels.ready);
-          await refreshProgress(repo, seen);
-          await refreshSlices(repo);
-          await refreshPullRequests(repo, seen);
-          found.push(...listed.map(({ issue, title, labels }) => ({ repo, issue, title, labels })));
+          try {
+            // The one listing of the repo this cycle: the epics that carry the epic label, oldest first, and `ready` is read from their labels.
+            const open = await github.listOpenEpics(repo, settings().labels.epic);
+            takeOpen(repo, open, seen);
+            const listed = open.filter(({ labels }) => hasLabel(labels, settings().labels.ready));
+            await refreshSlices(repo);
+            await refreshPullRequests(repo, seen);
+            found.push(...listed.map(({ issue, title, labels }) => ({ repo, issue, title, labels })));
+          } catch (e) {
+            if (!(e instanceof GitHubUnavailable) || endsPoll(e)) throw e;
+            skip(repo, e);
+          }
         });
-        if (ok) checks.set(repo, { at: clock.now(), ok: true, error: null });
+        if (ok && !skipped.has(repo)) checks.set(repo, { at: clock.now(), ok: true, error: null });
         read.add(repo); // a repo that failed has its own error: the one below is not written over it
       }
-      suspended = null; // listing worked: the orchestrator's profile is back, the cycle goes on
-      const queuedAt = clock.now();
+      if (skipped.size < repos().length || repos().length === 0) suspended = null; // a listing worked: the orchestrator's profile is back, the cycle goes on
       db.transaction((tx) => {
         // A reload may have removed a repo while the lists were read: nothing is queued for a repo that is not configured now.
         const configured = new Set(repos().map((r) => r.name));
         for (const epic of found.filter(({ repo }) => configured.has(repo))) {
-          tx.insert(epics).values({ ...epic, queuedAt }).onConflictDoUpdate({ target: [epics.repo, epics.issue], set: { title: epic.title, labels: epic.labels } }).run();
+          const known = tx.select().from(epics).where(and(eq(epics.repo, epic.repo), eq(epics.issue, epic.issue))).get();
+          if (!known) {
+            tx.insert(epics).values({ ...epic, queuedAt: queuePosition(tx, clock.now()) }).run();
+            continue;
+          }
+          tx.update(epics).set({ title: epic.title, labels: epic.labels }).where(eq(epics.id, known.id)).run();
           // Carrier never leaves `ready` on a stopped epic, so finding it on a `needs_human` one is a person saying "go on":
           // it starts again from ship, which reuses the epic's worktree and PR, or from the stage the person asked for, which keeps where it stood.
-          const stopped = tx.select({ resumeStage: epics.resumeStage }).from(epics).where(and(eq(epics.repo, epic.repo), eq(epics.issue, epic.issue), eq(epics.status, 'needs_human'))).get();
-          if (stopped) tx.update(epics).set(stopped.resumeStage ? requeueKeeping(queuedAt) : restart(queuedAt)).where(and(eq(epics.repo, epic.repo), eq(epics.issue, epic.issue))).run();
+          // Not while Carrier's own write is pending: a removal of `ready` that failed while the epic ran left it there, and it is not a person's.
+          if (known.status === 'needs_human' && !known.labelPending) {
+            const queuedAt = queuePosition(tx, clock.now());
+            tx.update(epics).set(known.resumeStage ? requeueKeeping(queuedAt) : restart(queuedAt)).where(eq(epics.id, known.id)).run();
+          } else if (known.status === 'cancelled' && requeueable.includes(known.cancelKind as CancelKind) && !tx.select({ id: executions.executionId }).from(executions).where(eq(executions.epicId, known.id)).get()) {
+            // Cancelled before it started (no execution yet) and `ready` is back: no work was lost, so it goes back in the line with nothing of the cancel left on it.
+            const queuedAt = queuePosition(tx, clock.now());
+            tx.update(epics).set({ ...restart(queuedAt), cancelReason: null, cancelKind: null, cleanedAt: null }).where(eq(epics.id, known.id)).run();
+            tx.insert(epicEvents).values({ epicId: known.id, at: queuedAt, type: 'requeued', data: { kind: known.cancelKind, reason: known.cancelReason } }).run();
+          }
         }
       });
       await stopEnded(seen);
@@ -1331,14 +1485,17 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       const ended = endedToClean();
       if (ended.length > 0) await cleanUpEnded(ended);
       error = null;
-      return settings().pollIntervalMs;
+      return Math.max(settings().pollIntervalMs, longestWait);
     } catch (e) {
       log.error('poll failed', e);
       failed(e);
       // Only an expected failure gets here (`failed` rethrows the rest): the repos not read this cycle share it.
       const reason = e instanceof AuthError ? `authentication error for profile ${e.profile}` : (e as Error).message;
       for (const { name } of repos()) if (!read.has(name)) checks.set(name, { at: clock.now(), ok: false, error: reason });
-      return Math.max(settings().pollIntervalMs, (e instanceof GitHubUnavailable && e.retryAfterMs) || 0);
+      return Math.max(settings().pollIntervalMs, longestWait, (e instanceof GitHubUnavailable && e.retryAfterMs) || 0);
+    } finally {
+      skipped.clear();
+      polledLabels.clear();
     }
   }
 
@@ -1388,6 +1545,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     stop() {
       cancel?.();
       stopSliceReads();
+      for (const cancelRetry of retryTimers.values()) cancelRetry();
       stopRetention?.();
     },
     /**
@@ -1399,6 +1557,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       stopping = true;
       cancel?.();
       stopSliceReads();
+      for (const cancelRetry of retryTimers.values()) cancelRetry();
       stopRetention?.();
       await Promise.all([...active.values()].map((run) => run.stop()));
       while (inflight.size > 0) await Promise.all([...inflight]);
@@ -1435,7 +1594,8 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     /**
      * Puts `ready` on a stopped epic's issue, as a person does, and checks now; resolves once the epic is no longer in
      * needs_human. It restarts on the option named for each role and on the one it has for a role left out.
-     * With `from` `review` or `fix` the epic keeps its round, pull request and worktree and starts at that stage, when its pull request is open with the head it has stored.
+     * With `from` `review` or `fix` the epic keeps its round, pull request and worktree and starts at that stage, when its pull request is open with the head it has stored;
+     * at `review` an open pull request whose head moved is accepted and the epic stores the new head, which the `resumed` event reports.
      * One that stopped on the review limit then gets `extraRounds` more rounds from the current one, `maxReviews` when none is named.
      * Rejects with ResumeRefused: nothing was changed unless it is `did not restart`, which leaves the label for the next check.
      */
@@ -1461,10 +1621,11 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       const keeping = chosen.from === 'review' || chosen.from === 'fix' ? chosen.from : null;
       if (chosen.extraRounds !== undefined && !keeping) throw new ResumeRefused('extra rounds need a stage');
       if (chosen.extraRounds !== undefined && epic.needsHumanKind !== 'review_limit') throw new ResumeRefused('extra rounds need a review limit');
+      let adopted: string | undefined;
       if (keeping) {
         let refusal;
         try {
-          refusal = await pullRequestRefusal(epic);
+          refusal = await pullRequestRefusal(epic, keeping === 'review' ? (headSha) => (adopted = headSha) : undefined);
         } catch (e) {
           if (e instanceof GitHubUnavailable || e instanceof AuthError) throw new ResumeRefused('github unavailable');
           throw e;
@@ -1479,14 +1640,15 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       // It also takes the wake-up's time away now: a poll that probes while the label is put must not resume the epic itself over what was asked here.
       // The epic was read before GitHub was asked, so the write holds only while it is still stopped (a wake-up may have moved it meanwhile).
       const grant = chosen.extraRounds ?? (epic.needsHumanKind === 'review_limit' ? settings().maxReviews : undefined);
-      const saved = db.update(epics).set({ resumeStage: keeping, resumeAt: null, roundLimit: keeping && grant !== undefined ? (epic.round ?? 0) + grant : epic.roundLimit }).where(and(eq(epics.id, epic.id), eq(epics.status, 'needs_human'))).returning().get();
+      // `labelPending` goes too: the poll takes the `ready` of a stopped epic with a write still pending for Carrier's own, and this one is a person's.
+      const saved = db.update(epics).set({ labelPending: false, resumeStage: keeping, resumeAt: null, prHeadSha: adopted ?? epic.prHeadSha, roundLimit: keeping && grant !== undefined ? (epic.round ?? 0) + grant : epic.roundLimit }).where(and(eq(epics.id, epic.id), eq(epics.status, 'needs_human'))).returning().get();
       if (!saved) throw new ResumeRefused('not stopped');
       restarts.set(epic.id, { ...(author && { author }), ...(reviewer && { reviewer }) });
       try {
         await github.setLabels(repo, issue, { add: [settings().labels.ready], remove: [] });
       } catch (e) {
         restarts.delete(epic.id);
-        db.update(epics).set({ resumeStage: null, resumeAt: epic.resumeAt, roundLimit: epic.roundLimit }).where(and(eq(epics.id, epic.id), eq(epics.status, 'needs_human'))).run();
+        db.update(epics).set({ labelPending: epic.labelPending, resumeStage: null, resumeAt: epic.resumeAt, prHeadSha: epic.prHeadSha, roundLimit: epic.roundLimit }).where(and(eq(epics.id, epic.id), eq(epics.status, 'needs_human'))).run();
         if (e instanceof GitHubUnavailable || e instanceof AuthError) throw new ResumeRefused('github unavailable');
         throw e;
       }
@@ -1509,7 +1671,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
         await new Promise<void>((resolve) => clock.after(resumeTickMs, async () => resolve()));
       }
       // Every resume says what asked for it, as `recover` does; a plain one is from ship.
-      db.insert(epicEvents).values({ epicId: epic.id, at: clock.now(), type: 'resumed', data: { from: chosen.from ?? 'ship', by: 'command' } }).run();
+      db.insert(epicEvents).values({ epicId: epic.id, at: clock.now(), type: 'resumed', data: { from: chosen.from ?? 'ship', by: 'command', ...(adopted && { headAdopted: { from: epic.prHeadSha, to: adopted } }) } }).run();
     },
     /**
      * Continues one running epic whose agent is not alive, from its real state, through the code of the poll's recovery (ADR 0044); resolves once it was continued.
@@ -1561,6 +1723,6 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     /** The last poll of a repo; undefined until the first one after a start. */
     lastCheck: (repo: string) => checks.get(repo),
     /** Queued epics, oldest first. */
-    queue: () => db.select().from(epics).where(eq(epics.status, 'queued')).orderBy(asc(epics.id)).all(),
+    queue: () => db.select().from(epics).where(eq(epics.status, 'queued')).orderBy(...queueOrder).all(),
   };
 }

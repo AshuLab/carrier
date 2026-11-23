@@ -54,7 +54,11 @@ The engine combines the stage with the caller result:
 
 An observation is a finding of a `completed` review that does not stop approval. The pass runs once per epic and never at the last round, and the engine tells it from a fix for blockers by the epic's latest stored review result (`completed` or `changes_requested`). See [ADR 0009](../adr/0009-observations-trigger-one-resolve-pass-before-ready-for-test.md) and [the observations spec](review-observations-pass.md).
 
-A review that is inconclusive for lack of context is `needs_human` from the reviewer. A new commit invalidates the previous verdict: a commit that was not reviewed is never declared ready. Each imported result is validated against GitHub: the PR exists, is open, references the epic and its head matches the reported SHA. If the reference does not match, or the head changed during a review, the epic goes to `needs_human` with that reason; repeating the execution does not fix it.
+A review that is inconclusive for lack of context is `needs_human` from the reviewer.
+A new commit invalidates the previous verdict: a commit that was not reviewed is never declared ready.
+Each imported result is validated against GitHub: the PR exists, is open, references the epic and its head matches the reported SHA.
+If the reference does not match, the epic goes to `needs_human` with that reason; repeating the execution does not fix it.
+A head that changed during a review is not that: the result is set aside, never read for the next round, and the review runs again on the new head without counting a round, at most twice in a row, and a third move stops the epic with `pr_invalid` ([ADR 0047](../adr/0047-a-review-is-tied-to-the-head-it-was-given-and-a-moved-head-is-reviewed-again.md)).
 
 Author and reviewer apply the repo's rules to choose and evaluate tests, CI and blockers; the engine does not ([ADR 0001](../adr/0001-separate-coordination-from-repo-evaluation.md)). Test/CI fixes and reruns are the agent's internal work and the engine does not count them. In a repo without CI, the review and the test evidence reported by the skills are enough, and the absence of CI is recorded. Diego tests the PR and decides the merge.
 
@@ -66,7 +70,10 @@ Technical failures (the agent process ends badly, missing or invalid JSON, trans
 
 If the final PR is merged while there is active work, its executions are stopped, sessions and history are kept and no new turns are launched. If the epic's issue or its final PR is closed without merge, the epic is cancelled: its agents are stopped, what was done is kept and the reason is shown in the terminal. Neither merges nor closures of slices done by `ship` trigger these rules. The PR state check is technical coordination, not code evaluation.
 
-An authentication error reported by Forge for a profile stops the epics that use it, with the reason in the terminal; the others continue. If the orchestrator's profile fails, its GitHub operations are suspended. The profile is never switched automatically.
+An authentication signal of a profile (an agent that says it is not logged in, or no token for the profile) is a technical failure of that execution, retried like any other; a second signal of the same profile, in the retry or in another epic, stops the epics that use it, with the message of the error as the reason in the terminal, and the others continue ([ADR 0050](../adr/0050-one-authentication-signal-is-a-technical-failure-of-its-epic-and-a-profile-stops-when-it-repeats.md)).
+An execution of the profile that ends with no signal forgets the first one.
+If the orchestrator's profile fails, its GitHub operations are suspended.
+The profile is never switched automatically.
 
 ### Agents on the host
 
@@ -110,12 +117,12 @@ An informational panel drawn with ANSI sequences without dependencies, in the sa
 10. The reviewer, with another identity and a separate checkout, reviews the final PR and its `completed` result leaves the epic in `ready-for-test` only if the reviewed SHA is the PR's current head.
 11. If the reviewer requests changes and rounds remain, the author gets a fix turn and the reviewer reviews again; with the last round exhausted the epic goes to `needs-human`. If the review is `completed` but lists observations, the author goes over them once in a pass before the epic is ready for test (a pass that changes nothing ends in `ready-for-test`, one that commits is reviewed again); see [ADR 0009](../adr/0009-observations-trigger-one-resolve-pass-before-ready-for-test.md).
 12. A `needs_human` result from the author or the reviewer, including an inconclusive review, stops the epic with the reason while the others continue.
-13. A reference that does not match (PR of another epic, closed PR, SHA that is not the head, head that changed during the review) stops the epic in `needs-human` with that reason.
+13. A reference that does not match (PR of another epic, closed PR, SHA that is not the head) stops the epic in `needs-human` with that reason; a head that changed during a review is reviewed again, at most twice in a row, and a third change stops the epic the same way.
 14. A technical failure is retried up to the configured limit with an execution that verifies the real state before continuing, without consuming rounds and without duplicating PRs, comments or commits; when exhausted, the epic goes to `needs-human`.
 15. A missing, incomplete or invalid JSON result does not advance the stage and is treated as a technical failure; importing the same result twice does not duplicate the transition.
 16. An execution that exceeds the time limit (or none with `unlimited`) is stopped, keeps its session and workspace and leaves the epic in `needs-human`, without retry.
 17. If the final PR is merged with active work the epic is stopped without launching new turns, and if the issue or that PR is closed without merge the epic is cancelled with the reason in the terminal; merges and closures of slices have no effect.
-18. A Forge authentication error stops only the epics of the affected profile; if it is the orchestrator's, its GitHub operations are suspended, and the profile is not switched.
+18. A second authentication signal of a profile stops only the epics of the affected profile (the first one is retried); if it is the orchestrator's, its GitHub operations are suspended, and the profile is not switched.
 19. With `Ctrl+C` the active executions and their processes are stopped without waiting and sessions, workspaces and uncommitted work are kept.
 20. On restart, interrupted stages are reconciled with GitHub and the existing processes and are resumed with the session, or with a rebuilt context if it cannot be recovered, without duplicating agents or actions; epics in `needs-human` are not reactivated unless `solve:epic:ready` is back on the issue.
 21. If I remove a repo from the configuration, on restart its pending epics are stopped with the reason and are recovered when it is configured again, except those that required intervention.

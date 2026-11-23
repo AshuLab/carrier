@@ -39,7 +39,9 @@ export function buildCodexCommand(task: AgentTask, ctx: CommandContext): AgentCo
 
 const str = (value: unknown) => (typeof value === 'string' ? value : undefined);
 
-const usageLimitStarts = ["You've hit your usage limit", 'You hit your spend cap', 'Your workspace is out of credits', 'Quota exceeded.'];
+// `usage_not_included`: an account with no Codex access at all, so no reset time (docs/research/agent-usage-limit-signals.md).
+// A message that starts with none of these is an api_error: no pattern guesses at quota texts.
+const usageLimitStarts = ['usage_not_included', "You've hit your usage limit", 'You hit your spend cap', 'Your workspace is out of credits', 'Quota exceeded.'];
 
 // Shapes observed with codex 0.153.4: thread.started carries the session; a missing login ends with
 // turn.failed "unexpected status 401 Unauthorized" (the "Reconnecting... n/5 (... 401" error events before it
@@ -59,7 +61,7 @@ export function parseCodexLine(line: string): LineSignal | undefined {
   }
   if (event.type === 'turn.failed') {
     const message = str(event.error?.message) ?? 'the turn failed';
-    if (message.includes('401 Unauthorized')) return { authFailed: true };
+    if (message.includes('401 Unauthorized')) return { authFailed: { detail: message } };
     // Text only (docs/research/agent-usage-limit-signals.md); the reset time stays in the detail, nothing computes on it.
     return { failure: { kind: usageLimitStarts.some((start) => message.startsWith(start)) ? 'usage_limit' : 'api_error', detail: message } };
   }

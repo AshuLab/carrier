@@ -136,16 +136,16 @@ describe('rate limit', () => {
 describe('responses', () => {
   test('a malformed response throws, it is never an empty list', async () => {
     const { github } = setup([{ match: 'issues', ...ok({ not: 'a list' }) }]);
-    await expect(github.listReadyEpics(repo, 'solve:epic:ready')).rejects.toThrow();
+    await expect(github.listOpenEpics(repo, 'solve:epic')).rejects.toThrow();
     const wrongShape = setup([{ match: 'issues', ...ok([{ number: 'x', title: 1 }]) }]);
-    await expect(wrongShape.github.listReadyEpics(repo, 'solve:epic:ready')).rejects.toThrow();
+    await expect(wrongShape.github.listOpenEpics(repo, 'solve:epic')).rejects.toThrow();
     const notJson = setup([{ match: 'issues', stdout: 'HTTP/2.0 200 OK\r\n\r\n<html>' }]);
-    await expect(notJson.github.listReadyEpics(repo, 'solve:epic:ready')).rejects.toThrow();
+    await expect(notJson.github.listOpenEpics(repo, 'solve:epic')).rejects.toThrow();
     const garbage = setup([{ match: 'issues', stdout: 'hello' }]);
-    await expect(garbage.github.listReadyEpics(repo, 'solve:epic:ready')).rejects.toThrow();
+    await expect(garbage.github.listOpenEpics(repo, 'solve:epic')).rejects.toThrow();
   });
 
-  test('listReadyEpics returns every page and skips pull requests', async () => {
+  test('listOpenEpics returns every page, oldest first, and skips pull requests', async () => {
     const row = (number: number) => ({ number, title: `epic ${number}`, labels: [{ name: 'solve:epic', color: 'ededed' }, { name: 'bug' }] });
     const page1 = Array.from({ length: 100 }, (_, i) => row(i + 1));
     const page2 = [...Array.from({ length: 99 }, (_, i) => row(i + 101)), { ...row(999), pull_request: {} }];
@@ -155,12 +155,13 @@ describe('responses', () => {
       { match: '&page=2', ...ok(page2) },
       { match: '&page=3', ...ok(page3) },
     ]);
-    const epics = await github.listReadyEpics(repo, 'solve:epic:ready');
+    const epics = await github.listOpenEpics(repo, 'solve:epic');
     expect(epics).toHaveLength(200);
     expect(epics.map((e) => e.issue)).not.toContain(999);
-    expect(epics[0]).toEqual({ issue: 1, title: 'epic 1', labels: ['solve:epic', 'bug'] });
+    expect(epics[0]).toEqual({ issue: 1, title: 'epic 1', labels: ['solve:epic', 'bug'], slices: null });
     expect(calls()).toHaveLength(3);
-    expect(calls()[0]?.args.at(-1)).toContain('labels=solve%3Aepic%3Aready');
+    expect(calls()[0]?.args.at(-1)).toContain('labels=solve%3Aepic&');
+    expect(calls()[0]?.args.at(-1)).toContain('sort=created&direction=asc'); // the oldest first: the queue is first in, first out
   });
 
   test('listOpenEpics reads sub_issues_summary when GitHub sends it, null when it does not, and skips pull requests', async () => {
@@ -211,6 +212,18 @@ describe('responses', () => {
     await github.setLabels(repo, 1, { add: [], remove: ['gone'] });
     await github.createLabel(repo, 'taken', { color: 'd93f0b', description: 'x' });
     expect(calls().at(-1)?.args.slice(-7)).toEqual(['repos/AshuLab/demo/labels', '-f', 'name=taken', '-f', 'color=d93f0b', '-f', 'description=x']);
+  });
+
+  test('setLabels sends one addition and one removal for each label it is given, and none when it is given none', async () => {
+    const { github, calls } = setup([
+      { match: 'POST', stdout: http(200, []) },
+      { match: 'DELETE', stdout: 'HTTP/2.0 204 No Content\r\nX-A: b\r\n\r\n' },
+    ]);
+    await github.setLabels(repo, 3, { add: ['running'], remove: ['ready', 'stage'] });
+    expect(calls().filter((call) => call.args.includes('POST'))).toHaveLength(1);
+    expect(calls().filter((call) => call.args.includes('DELETE'))).toHaveLength(2);
+    await github.setLabels(repo, 3, { add: [], remove: [] });
+    expect(calls()).toHaveLength(3);
   });
 
   test('other HTTP errors (404 on an issue, 422) throw a plain error, not Unavailable', async () => {

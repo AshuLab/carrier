@@ -3,7 +3,10 @@ import type { PullRequestBlock } from '../orchestration/github.ts';
 import { integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
 
 export const needsHumanKinds = ['review_limit', 'agent_needs_human', 'retries_exhausted', 'timeout', 'auth', 'workspace', 'pr_invalid', 'usage_limit', 'engine_error'] as const;
-export const epicStates = ['queued', 'running', 'ready_for_test', 'needs_human', 'cancelled', 'merged', 'repo_removed'] as const;
+export const unansweredReasons = ['already_taken', 'last_round'] as const;
+// Why an epic was cancelled; the poll decides by it. `ready_removed` and `issue_closed` before any execution go back to the queue when `ready` returns. A cancel with no kind is never requeued.
+export const cancelKinds = ['ready_removed', 'issue_closed', 'pr_closed', 'issue_gone'] as const;
+export const epicStates =['queued', 'running', 'ready_for_test', 'needs_human', 'cancelled', 'merged', 'repo_removed'] as const;
 
 export const epics = sqliteTable(
   'epics',
@@ -13,11 +16,12 @@ export const epics = sqliteTable(
     repo: text().notNull(),
     issue: integer().notNull(),
     status: text({ enum: epicStates }).notNull().default('queued'),
-    queuedAt: integer().notNull().default(0), // ms since epoch, when the poll registered it
+    queuedAt: integer().notNull().default(0), // ms since epoch, when the epic entered the queue (new, resumed or requeued); the queue is ordered by it, then by id. Never equal for two queued epics: see `queuePosition`
     startedAt: integer(), // ms since epoch, when the scheduler reserved it
     // Effective repo config frozen at reservation: later config changes do not touch a running epic.
     config: text({ mode: 'json' }).$type<EffectiveRepoConfig>(),
     cancelReason: text(),
+    cancelKind: text({ enum: cancelKinds }), // set together with cancelReason; null on an epic cancelled before kinds existed
     // The running label is a reflection of SQLite: true while it has not reached GitHub yet.
     labelPending: integer({ mode: 'boolean' }).notNull().default(false),
     stage: text({ enum: ['ship', 'review', 'fix'] }), // null until the author is launched
@@ -56,6 +60,13 @@ export const epics = sqliteTable(
     resumeAt: integer(),
     // Automatic resumes in a row (ADR 0049): back to 0 when one of the epic's executions ends with anything but `usage_limit`; the stop after the third stays in needs-human.
     autoResumes: integer().notNull().default(0),
+    // Reviews made again in a row because the pull request's head moved while one ran (ADR 0047): back to 0 when a review completes on its own head or the epic starts a new attempt; a third move stops it in `pr_invalid`.
+    headRepeats: integer().notNull().default(0),
+    // The observations left unanswered when the epic went to ready for test, and why (glossary: Unanswered observations); both null when none were left, set together.
+    unansweredObservations: integer(),
+    unansweredReason: text({ enum: unansweredReasons }),
+    // When the retry of an `api_error` may start (ms since epoch); null when none waits. A due time and not a sleep: a restart of the engine finds it.
+    retryAt: integer(),
   },
   (table) => [uniqueIndex('epics_repo_issue').on(table.repo, table.issue)],
 );

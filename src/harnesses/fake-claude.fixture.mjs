@@ -35,6 +35,10 @@ if (mode === 'auth') {
   // The real 429 result of epic #302's failed executions, then the exit the claude CLI makes on an error result.
   console.log(readFileSync(new URL('./claude-usage-limit.fixture.jsonl', import.meta.url), 'utf8').trimEnd());
   process.exit(1);
+} else if (mode === 'usage_limit_exit0') {
+  // The same 429 result, but the process ends 0 (a wrapper, or a CLI that recovers its exit code).
+  console.log(readFileSync(new URL('./claude-usage-limit.fixture.jsonl', import.meta.url), 'utf8').trimEnd());
+  process.exit(0);
 } else if (mode === 'child' || mode === 'child-escaped' || mode === 'child-term') {
   // A child that ignores SIGTERM and keeps this process's stdout open. 'child-escaped' leaves the process group.
   const child = spawn(process.execPath, ['-e', "process.on('SIGTERM', () => {}); setInterval(() => {}, 1000)"], {

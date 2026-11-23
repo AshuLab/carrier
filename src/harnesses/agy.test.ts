@@ -47,21 +47,35 @@ test('skills are invoked with a slash, like Claude Code (Codex uses $)', () => {
 });
 
 test('the conversation id comes from the first line, before the model is called', () => {
-  expect(parseAgyLine('{"event":"init","conversation_id":"59371104-e7a2","init":{"model":"m"}}')).toEqual({ session: '59371104-e7a2' });
-  expect(parseAgyLine('{"event":"step_update","step_update":{"conversation_id":"x"}}')).toBeUndefined();
-  expect(parseAgyLine('not json')).toBeUndefined();
+  expect(parseAgyLine('{"event":"init","conversation_id":"59371104-e7a2","init":{"model":"m"}}', 'stdout')).toEqual({ session: '59371104-e7a2' });
+  expect(parseAgyLine('{"event":"step_update","step_update":{"conversation_id":"x"}}', 'stdout')).toBeUndefined();
+  expect(parseAgyLine('not json', 'stdout')).toBeUndefined();
 });
 
-test('a lost conversation is only a stderr warning, and a missing login shows on both streams', () => {
-  expect(parseAgyLine('warning: conversation "00000000-0000" not found')).toEqual({ sessionUnavailable: true });
-  expect(parseAgyLine('Authentication required. Please visit the URL to log in:')).toEqual({ authFailed: true });
-  expect(parseAgyLine('{"event":"result","result":{"status":"ERROR","error":"authentication failed or timed out"}}')).toEqual({ authFailed: true });
-  expect(parseAgyLine('{"event":"result","result":{"status":"ERROR","error":"interrupted"}}')).toEqual({ failure: { kind: 'api_error', detail: 'interrupted' } });
+test('a lost conversation is only a stderr warning', () => {
+  expect(parseAgyLine('warning: conversation "00000000-0000" not found', 'stdout')).toEqual({ sessionUnavailable: true });
+  expect(parseAgyLine('{"event":"result","result":{"status":"ERROR","error":"interrupted"}}', 'stdout')).toEqual({ failure: { kind: 'api_error', detail: 'interrupted' } });
+});
+
+const login = 'Authentication required. Please visit the URL to log in:';
+const timedOut = '{"event":"result","result":{"status":"ERROR","error":"authentication failed or timed out"}}';
+
+test('the plain text "Authentication required" is not a signal on stdout, where a tool or the model can print it', () => {
+  expect(parseAgyLine(login, 'stdout')).toBeUndefined();
+  expect(parseAgyLine('{"event":"step_update","step_update":{"step_type":"tool","tool_info":{"output":"Authentication required"}}}', 'stdout')).toBeUndefined();
+});
+
+test('the plain text "Authentication required" on stderr is a signal that carries the line', () => {
+  expect(parseAgyLine(`${login}  `, 'stderr')).toEqual({ authFailed: { detail: login } });
+});
+
+test('the structured result that says authentication failed or timed out is a signal on either stream, with its error as the detail', () => {
+  for (const stream of ['stdout', 'stderr'] as const) expect(parseAgyLine(timedOut, stream)).toEqual({ authFailed: { detail: 'authentication failed or timed out' } });
 });
 
 test('a real recorded stream: only the init line is a signal and every line is JSON', () => {
   const lines = readFileSync(new URL('./agy-stream.fixture.jsonl', import.meta.url), 'utf8').trim().split('\n');
-  const signals = lines.map(parseAgyLine).filter((signal) => signal !== undefined);
+  const signals = lines.map((line) => parseAgyLine(line, 'stdout')).filter((signal) => signal !== undefined);
   expect(signals).toEqual([
     { session: '00000000-0000-4000-8000-000000000001' },
     { usage: { inputTokens: 53094, cachedInputTokens: 7013, cacheWriteTokens: 0, outputTokens: 797, reasoningTokens: 548, costUsd: null } },
@@ -84,9 +98,9 @@ test('the prompt carries the 401 rule only when the context has a forgeAgent', (
 
 test('agy usage: tolerates a malformed, negative or non-finite result.usage and a result without one', () => {
   const result = (usage: unknown) => JSON.stringify({ event: 'result', result: { status: 'SUCCESS', usage } });
-  expect(parseAgyLine(result({ input_tokens: -5, output_tokens: 'x', thinking_tokens: null, cache_read_tokens: 3 }))?.usage).toMatchObject({ inputTokens: 0, outputTokens: 0, reasoningTokens: 0, cachedInputTokens: 3 });
-  expect(parseAgyLine(result('nope'))).toBeUndefined();
-  expect(parseAgyLine(result(undefined))).toBeUndefined();
+  expect(parseAgyLine(result({ input_tokens: -5, output_tokens: 'x', thinking_tokens: null, cache_read_tokens: 3 }), 'stdout')?.usage).toMatchObject({ inputTokens: 0, outputTokens: 0, reasoningTokens: 0, cachedInputTokens: 3 });
+  expect(parseAgyLine(result('nope'), 'stdout')).toBeUndefined();
+  expect(parseAgyLine(result(undefined), 'stdout')).toBeUndefined();
 });
 
 const errorResult = (error: string) => JSON.stringify({ event: 'result', result: { status: 'ERROR', error } });
@@ -94,18 +108,18 @@ const errorResult = (error: string) => JSON.stringify({ event: 'result', result:
 // Inferred from the changelog and the binary, not captured: replace it with a real capture (docs/research/agent-usage-limit-signals.md).
 test('parseAgyLine reads the ERROR result of the usage-limit fixture as usage_limit, with the error text as detail', () => {
   const lines = readFileSync(new URL('./agy-usage-limit.fixture.jsonl', import.meta.url), 'utf8').trim().split('\n');
-  const signals = lines.map(parseAgyLine).filter((signal) => signal !== undefined);
+  const signals = lines.map((line) => parseAgyLine(line, 'stdout')).filter((signal) => signal !== undefined);
   const zero = { inputTokens: 0, cachedInputTokens: 0, cacheWriteTokens: 0, outputTokens: 0, reasoningTokens: 0, costUsd: null };
   expect(signals).toEqual([{ session: '00000000-0000-4000-8000-000000000001' }, { failure: { kind: 'usage_limit', detail: 'Your AI credits balance is too low to continue.' }, usage: zero }]);
 });
 
 test('parseAgyLine reads each quota text as usage_limit and any other ERROR result as api_error', () => {
   for (const error of ['Your AI credits balance is too low to continue.', 'individual quota reached', 'You have exhausted your quota for this model']) {
-    expect(parseAgyLine(errorResult(error))).toEqual({ failure: { kind: 'usage_limit', detail: error } });
+    expect(parseAgyLine(errorResult(error), 'stdout')).toEqual({ failure: { kind: 'usage_limit', detail: error } });
   }
-  expect(parseAgyLine(errorResult('model overloaded'))).toEqual({ failure: { kind: 'api_error', detail: 'model overloaded' } });
-  expect(parseAgyLine('{"event":"result","result":{"status":"ERROR"}}')).toEqual({ failure: { kind: 'api_error', detail: 'the run ended: ERROR' } });
-  expect(parseAgyLine('{"event":"result","result":{"status":"SUCCESS","error":"AI credits balance is too low"}}')).toBeUndefined();
+  expect(parseAgyLine(errorResult('model overloaded'), 'stdout')).toEqual({ failure: { kind: 'api_error', detail: 'model overloaded' } });
+  expect(parseAgyLine('{"event":"result","result":{"status":"ERROR"}}', 'stdout')).toEqual({ failure: { kind: 'api_error', detail: 'the run ended: ERROR' } });
+  expect(parseAgyLine('{"event":"result","result":{"status":"SUCCESS","error":"AI credits balance is too low"}}', 'stdout')).toBeUndefined();
 });
 
 test('an effort is passed as --effort, and without one nothing is added', () => {

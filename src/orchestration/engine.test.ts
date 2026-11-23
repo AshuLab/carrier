@@ -7,6 +7,7 @@ import type { EffectiveRepoConfig } from '../config/resolve.ts';
 import { openDatabase, type Db } from '../storage/db.ts';
 import { eq } from 'drizzle-orm';
 import { epics } from '../storage/schema.ts';
+import type { QuotaSnapshot } from '../usage/types.ts';
 import { createEngine, type EngineSettings } from './engine.ts';
 import { ReloadRefused } from './reload-refused.ts';
 import type { ResumeRefused } from './resume-refused.ts';
@@ -20,7 +21,7 @@ import { epicEvents, executionEvents } from '../storage/events.ts';
 import { executions } from '../storage/executions.ts';
 import { failureStreak } from './retry.ts';
 import { callerResults } from '../storage/caller-results.ts';
-import { FakeClock, FakeGitHub } from './fake.ts';
+import { FakeClock, FakeGitHub, FakeQuota } from './fake.ts';
 import { AuthError, GitHubRejected, GitHubUnavailable, type EpicSlice, type PullRequestBlock, type ReviewThread } from './github.ts';
 import { epicReviewThreads } from '../storage/epic-review-threads.ts';
 import { epicSlices } from '../storage/epic-slices.ts';
@@ -39,12 +40,14 @@ let dbs: Db[];
 let github: FakeGitHub;
 let clock: FakeClock;
 let runner: FakeAgentRunner;
+let fakeQuota: FakeQuota;
 let workspaces: FakeWorkspaces;
 let settings: EngineSettings; // what the engine reads: a test changes it the way a reload does
 let watched: EffectiveRepoConfig[]; // the repos the engine reads, changed the same way
 let declaredProfile: (name: string) => boolean; // whether the configuration declares a profile, changed the same way
 beforeEach(() => {
   runner = new FakeAgentRunner();
+  fakeQuota = new FakeQuota();
   workspaces = new FakeWorkspaces();
   dir = mkdtempSync(join(tmpdir(), 'carrier-'));
   dbs = [];
@@ -65,9 +68,9 @@ function open() {
 }
 async function start(maxConcurrentEpics = 0, config = repos, maxExecutionHours: number | 'unlimited' = 4, maxExecutionRetries = 3, maxReviews = 5) {
   const db = open();
-  settings = { pollIntervalMs: 5 * MIN, labels: defaultLabels, maxConcurrentEpics, maxExecutionHours, maxExecutionRetries, maxReviews };
+  settings = { pollIntervalMs: 5 * MIN, labels: defaultLabels, maxConcurrentEpics, maxExecutionHours, maxExecutionRetries, maxReviews, autoResume: false, autoResumeMaxHours: 12 };
   watched = config;
-  const engine = createEngine({ db, github, clock, repos: () => watched, settings: () => settings, profileDeclared: (name) => declaredProfile(name), runner, workspaces, places: enginePlacesOf(dir) });
+  const engine = createEngine({ db, github, clock, repos: () => watched, settings: () => settings, profileDeclared: (name) => declaredProfile(name), runner, workspaces, quota: fakeQuota.read, places: enginePlacesOf(dir) });
   await engine.start();
   return Object.assign(engine, { db });
 }
@@ -1209,6 +1212,110 @@ test.each([['an empty list', { author: [], reviewer: [] }], ['absent', undefined
   expect(rows(engine.db)[0]?.needsHumanReason).toBe(`the ship execution ran out of usage on option claude · carrier restart AshuLab/a#1 --author <option> · ${outOfCredits.detail}`);
 });
 
+// Auto-resume: the epic keeps the time its window comes back, read from the quota of the account of each option that ran out.
+const HOUR = 60 * MIN;
+const claudeAccount = { harness: 'claude' as const, model: 'opus', configDir: '/cfg/claude' };
+const spareAccount = { harness: 'codex' as const, model: 'gpt', configDir: '/cfg/spare' };
+const quotaRepos = (failover?: boolean): EffectiveRepoConfig[] => [{
+  name: 'AshuLab/a',
+  providers: { claude: claudeAccount, spare: spareAccount } as any,
+  ...(failover && { failover: { roles: { author: [{ provider: 'spare' }], reviewer: [] } } }),
+  agents: { author: { profile: 'a', option: 'claude', ...claudeAccount }, reviewer: { profile: 'b', option: 'spare', ...spareAccount } },
+}];
+const full = (provider: 'claude' | 'codex', resetsAt: number): QuotaSnapshot => ({ provider, status: 'ok', checkedAt: 0, windows: [{ id: 'w', label: 'w', usedPercent: 100, resetsAt }] });
+// The author runs out on `claude` (and on `spare` with failover) and the epic stops; `on` is auto-resume.
+async function stopOnQuota(over: { autoResume?: boolean; failover?: boolean; autoResumeMaxHours?: number } = {}) {
+  github.ready = { 'AshuLab/a': ready(1) };
+  runner.behavior = (task) => outOf('claude', 'spare')(task, { exit: 'hang' });
+  const engine = await start(1, quotaRepos(over.failover));
+  settings = { ...settings, autoResume: over.autoResume ?? true, ...(over.autoResumeMaxHours && { autoResumeMaxHours: over.autoResumeMaxHours }) }; // a reload before the stop
+  await clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'usage_limit' }));
+  return engine;
+}
+
+test('with auto-resume on and a time within the maximum the epic keeps resumeAt, writes auto_resume_scheduled, and the reason says when', async () => {
+  fakeQuota.snapshots['/cfg/claude'] = full('claude', 5 * MIN + 3 * HOUR);
+  const engine = await stopOnQuota();
+
+  expect(fakeQuota.asked).toEqual([{ provider: 'claude', configDir: '/cfg/claude' }]);
+  expect(rows(engine.db)[0]).toMatchObject({ resumeAt: 5 * MIN + 3 * HOUR });
+  expect(rows(engine.db)[0]?.needsHumanReason).toBe(`the ship execution ran out of usage on option claude · carrier restart AshuLab/a#1 --author <option> · resumes by itself at 1970-01-01T03:05:00.000Z · ${outOfCredits.detail}`);
+  expect(eventsOf(engine.db)).toMatchObject([{ epicId: 1, at: 5 * MIN, type: 'auto_resume_scheduled', data: { resumeAt: 5 * MIN + 3 * HOUR } }]);
+  expect(buildSnapshot(engine.db, { now: clock.now(), maxConcurrentEpics: 1, maxReviews: 5, finishedWindowDays: 15, startedAt: 0, repos: 1, nextCheckAt: null, problem: null, paused: false, slices: engine.slices, version: 'x', pollIntervalMs: 1, labels: defaultLabels }).epics[0]).toMatchObject({ status: 'needs_human', resumeAt: 5 * MIN + 3 * HOUR });
+});
+
+test('with failover the time is the earliest over the options the epic ran out of', async () => {
+  fakeQuota.snapshots['/cfg/claude'] = full('claude', 5 * MIN + 5 * HOUR);
+  fakeQuota.snapshots['/cfg/spare'] = full('codex', 5 * MIN + 2 * HOUR);
+  const engine = await stopOnQuota({ failover: true });
+
+  expect(fakeQuota.asked.map((t) => t.configDir).sort()).toEqual(['/cfg/claude', '/cfg/spare']);
+  expect(rows(engine.db)[0]).toMatchObject({ resumeAt: 5 * MIN + 2 * HOUR });
+});
+
+test('with auto-resume off the quota is not asked, resumeAt is not set and the reason is the usual one', async () => {
+  fakeQuota.snapshots['/cfg/claude'] = full('claude', 5 * MIN + 3 * HOUR);
+  const engine = await stopOnQuota({ autoResume: false });
+
+  expect(fakeQuota.asked).toEqual([]);
+  expect(rows(engine.db)[0]).toMatchObject({ resumeAt: null });
+  expect(rows(engine.db)[0]?.needsHumanReason).toBe(`the ship execution ran out of usage on option claude · carrier restart AshuLab/a#1 --author <option> · ${outOfCredits.detail}`);
+  expect(eventTypes(engine.db)).toEqual([]);
+});
+
+test.each([
+  ['the probe says no window is full', () => {}],
+  ['the probe is rate limited', () => { fakeQuota.snapshots['/cfg/claude'] = { provider: 'claude', status: 'rate_limited', checkedAt: 0, windows: [], message: 'x' }; }],
+  ['the probe throws', () => { fakeQuota.failing = true; }],
+])('with no known time (%s) resumeAt is not set and the reason says why', async (_, setUp) => {
+  fakeQuota.snapshots['/cfg/claude'] = { provider: 'claude', status: 'ok', checkedAt: 0, windows: [{ id: 'w', label: 'w', usedPercent: 40 }] };
+  setUp();
+  const engine = await stopOnQuota();
+
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'usage_limit', resumeAt: null });
+  expect(rows(engine.db)[0]?.needsHumanReason).toContain('it will not resume by itself: the provider did not say when the window comes back');
+  expect(eventTypes(engine.db)).toEqual([]);
+});
+
+test('a wait longer than autoResumeMaxHours is not scheduled and the reason says when the window comes back', async () => {
+  fakeQuota.snapshots['/cfg/claude'] = full('claude', 5 * MIN + 13 * HOUR);
+  const engine = await stopOnQuota();
+
+  expect(rows(engine.db)[0]).toMatchObject({ resumeAt: null });
+  expect(rows(engine.db)[0]?.needsHumanReason).toContain('the window comes back at 1970-01-01T13:05:00.000Z, more than 12 h away: it will not resume by itself');
+  expect(eventTypes(engine.db)).toEqual([]);
+});
+
+test('the maximum is the live setting: a wait of 13 hours is within 24', async () => {
+  fakeQuota.snapshots['/cfg/claude'] = full('claude', 5 * MIN + 13 * HOUR);
+  const engine = await stopOnQuota({ autoResumeMaxHours: 24 });
+
+  expect(rows(engine.db)[0]).toMatchObject({ resumeAt: 5 * MIN + 13 * HOUR });
+});
+
+test('a resume by a person clears resumeAt', async () => {
+  fakeQuota.snapshots['/cfg/claude'] = full('claude', 5 * MIN + 3 * HOUR);
+  const engine = await stopOnQuota();
+  expect(rows(engine.db)[0]?.resumeAt).toBe(5 * MIN + 3 * HOUR);
+
+  runner.behavior = () => ({ exit: 'hang' });
+  const resumed = engine.resumeEpic('AshuLab/a', 1);
+  await flush();
+  await clock.advance(1000);
+  await resumed;
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', resumeAt: null });
+});
+
+test('any other change of the epic\'s status clears resumeAt: ended from outside', async () => {
+  fakeQuota.snapshots['/cfg/claude'] = full('claude', 5 * MIN + 3 * HOUR);
+  const engine = await stopOnQuota();
+
+  github.issue('AshuLab/a', 1).state = 'closed';
+  await clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(rows(engine.db)[0]).toMatchObject({ status: 'cancelled', resumeAt: null }));
+});
+
 test('a later epic starts on its own role, whatever ran out in an earlier one', async () => {
   github.ready = { 'AshuLab/a': ready(1, 2) };
   runner.behavior = (task) => (task.epic === 1 ? outOf('claude')(task, { exit: 'hang' }) : { exit: 'hang' });
@@ -2221,9 +2328,9 @@ async function startWhileRecovering() {
   const gate = new Promise<void>((resolve) => (open1 = resolve));
   workspaces.prepareAuthor = async (repo, epic) => (await gate, `/work/${repo}/${epic}/author`);
   runner.behavior = () => ({ exit: 'hang' });
-  settings = { pollIntervalMs: 5 * MIN, labels: defaultLabels, maxConcurrentEpics: 1, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews: 5 };
+  settings = { pollIntervalMs: 5 * MIN, labels: defaultLabels, maxConcurrentEpics: 1, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews: 5, autoResume: false, autoResumeMaxHours: 12 };
   watched = repos;
-  const engine = createEngine({ db, github, clock, repos: () => watched, settings: () => settings, profileDeclared: () => true, runner, workspaces, places: enginePlacesOf(dir) });
+  const engine = createEngine({ db, github, clock, repos: () => watched, settings: () => settings, profileDeclared: () => true, runner, workspaces, quota: fakeQuota.read, places: enginePlacesOf(dir) });
   const started = engine.start();
   const checked = engine.pollNow();
   await settle();
@@ -2628,7 +2735,7 @@ test('purges expired logs and sessions when the engine starts and every 24 hours
   db.insert(executions).values({ executionId: 'x-old', epicId: old.id, stage: 'ship', sessionId: 's-old', resultPath: 'r', startedAt: 0 }).run();
   const logs = join(dir, 'engine', 'logs', 'executions', 'x-old');
   mkdirSync(logs, { recursive: true });
-  const engine = createEngine({ db, github, clock, profileDeclared: () => true, repos: () => repos, settings: () => ({ pollIntervalMs: 5 * MIN, labels: defaultLabels, maxConcurrentEpics: 0, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews: 5 }), runner, workspaces, places: enginePlacesOf(dir) });
+  const engine = createEngine({ db, github, clock, profileDeclared: () => true, repos: () => repos, settings: () => ({ pollIntervalMs: 5 * MIN, labels: defaultLabels, maxConcurrentEpics: 0, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews: 5, autoResume: false, autoResumeMaxHours: 12 }), runner, workspaces, quota: fakeQuota.read, places: enginePlacesOf(dir) });
   await engine.start();
   expect(existsSync(logs)).toBe(false);
   mkdirSync(logs, { recursive: true });
@@ -3130,9 +3237,9 @@ test('a resume asked while the start recovers waits for it up to thirty seconds,
   workspaces.prepareAuthor = async (repo, epic) => (await gate, `/work/${repo}/${epic}/author`);
   runner.behavior = () => ({ exit: 'hang' });
   github.ready = { 'AshuLab/a': ready(2) };
-  settings = { pollIntervalMs: 5 * MIN, labels: defaultLabels, maxConcurrentEpics: 2, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews: 5 };
+  settings = { pollIntervalMs: 5 * MIN, labels: defaultLabels, maxConcurrentEpics: 2, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews: 5, autoResume: false, autoResumeMaxHours: 12 };
   watched = repos;
-  const engine = createEngine({ db, github, clock, repos: () => watched, settings: () => settings, profileDeclared: () => true, runner, workspaces, places: enginePlacesOf(dir) });
+  const engine = createEngine({ db, github, clock, repos: () => watched, settings: () => settings, profileDeclared: () => true, runner, workspaces, quota: fakeQuota.read, places: enginePlacesOf(dir) });
   const setLabels = vi.spyOn(github, 'setLabels');
   const started = engine.start();
   const refused = refusal(engine.resumeEpic('AshuLab/a', 2));

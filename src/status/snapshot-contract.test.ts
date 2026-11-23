@@ -42,7 +42,7 @@ test('the snapshot JSON equals macos/Tests/Fixtures/snapshot.json (UPDATE_FIXTUR
   const inShip = add('acme/web', 13, 'running', { config, stage: 'ship', queuedAt: 600, startedAt: 7_000, stageStartedAt: 7_000, workspace: '/work/acme/web-13' });
   const waiting = add('acme/api', 4, 'needs_human', { config, stage: 'fix', round: 5, prNumber: 9, queuedAt: 700, startedAt: 2_000, stageStartedAt: 8_000, finishedAt: 60_000, needsHumanKind: 'review_limit', needsHumanReason: 'review limit' });
   for (const [i, kind] of (['agent_needs_human', 'retries_exhausted', 'timeout', 'auth', 'workspace', 'pr_invalid', 'usage_limit', 'engine_error'] as const).entries()) {
-    add('acme/api', 5 + i, 'needs_human', { config, stage: 'ship', queuedAt: 800 + i, startedAt: 3_000 + i, finishedAt: 61_000 + i, needsHumanKind: kind, needsHumanReason: kind.replace('_', ' ') });
+    add('acme/api', 5 + i, 'needs_human', { config, stage: 'ship', queuedAt: 800 + i, startedAt: 3_000 + i, finishedAt: 61_000 + i, needsHumanKind: kind, needsHumanReason: kind.replace('_', ' '), ...(kind === 'usage_limit' && { resumeAt: 90_000_000 }) });
   }
   add('acme/web', 20, 'queued', { queuedAt: 20_000 });
   add('acme/api', 21, 'queued', { queuedAt: 21_000 });

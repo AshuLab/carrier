@@ -111,6 +111,7 @@ export function buildSnapshot(
         blockerTitles: blockers.slice(0, maxBlockerTitles).map((b) => b.title.slice(0, maxBlockerTitleLength)),
         agents: epicAgents(e),
         options: optionsOf(e),
+        ...(e.resumeAt !== null && { resumeAt: e.resumeAt }),
       };
     }),
   };

@@ -19,6 +19,7 @@ export function renderPanel(s: PanelSnapshot): string[] {
     ];
     lines.push(parts.join('  '), `  issue ${e.issueUrl}${e.prUrl ? `  PR ${e.prUrl}` : ''}`);
     if (e.needsHumanReason) lines.push(`  reason: ${printable(e.needsHumanReason)}`);
+    if (e.resumeAt !== undefined) lines.push(`  resumes: ${e.resumeAt > now ? `in ${formatDuration(e.resumeAt - now)}` : 'at the next check'}`);
     if (e.lastError) lines.push(`  error: ${printable(e.lastError)}`);
   }
   for (const { status, rows, more } of finishedSections(s)) {

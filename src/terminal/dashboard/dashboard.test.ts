@@ -136,6 +136,13 @@ test('a stopped epic shows why it needs a person, and just the row when it has n
   expect(out).not.toContain('needs_human');
 });
 
+test('a stopped epic that resumes by itself says in how long, and at the next check once the time has passed', () => {
+  const out = (resumeAt?: number) => plain(snap({ epics: [epic({ issue: 29, status: 'needs_human', needsHumanReason: 'ran out of usage', ...(resumeAt !== undefined && { resumeAt }) })] }));
+  expect(out(now + 5 * 3_600_000 + 12 * 60_000)).toContain('   ran out of usage\n   resumes by itself in 5h 12m\n   https://');
+  expect(out(now - 1)).toContain('   resumes by itself at the next check');
+  expect(out()).not.toContain('resumes');
+});
+
 test('a review or fix card lists up to three blocker titles and counts the rest; with none it adds nothing', () => {
   const titles = ['one', 'two', 'three', 'four', 'five'];
   const card = (stage: PanelEpic['stage'], n: number) => plain(snap({ epics: [epic({ stage, blockers: n, blockerTitles: titles.slice(0, n) })] }));

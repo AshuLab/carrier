@@ -105,6 +105,8 @@ The accounts the roles name (`claude` and `codex` here) are declared in `provide
 | `limits.maxExecutionHours` | no | `4` | Time limit of one agent execution, or `"unlimited"`. `0` does not mean infinite. |
 | `limits.githubCallTimeoutSeconds` | no | `30` | Limit for each short call to GitHub or Forge. |
 | `limits.idleMinutes` | no | none | A whole number of minutes. An agent process that writes nothing to stdout or stderr for that long is killed, and the execution is retried with its session as a technical failure (kind `killed`, detail `no output for N seconds`). Without it a silent process is never touched. A reload applies it to the next execution; one already running keeps what it started with. Zero, negatives and fractions are refused. |
+| `limits.autoResume` | no | `false` | `true` or `false`. When an epic stops in `usage_limit` and the provider's quota check says when the exhausted window comes back, the epic keeps that time as `resumeAt`, shown in the panel, `carrier status` and the control snapshot, and records an `auto_resume_scheduled` event. It is off because resuming later spends credits with nobody watching. This only schedules: nothing resumes by itself yet. A reload applies it to the next stop. |
+| `limits.autoResumeMaxHours` | no | `12` | A positive number of hours. A window that comes back later than this is not scheduled: the epic stays stopped and its reason says when the window comes back (12 covers a 5-hour window and not a weekly one). Zero and negatives are refused. A reload applies it to the next stop. |
 
 ## Labels
 

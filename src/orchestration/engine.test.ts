@@ -4441,25 +4441,18 @@ test('an epic a reload parked and restored while the poll recovered another is l
   expect(recovered(engine.db).map((e) => e.epicId)).toEqual([1]);
 });
 
-test('the count of recoveries is saved: after three in a row, also across an engine restart, the next failure parks the epic in engine_error', async () => {
+test('the count of recoveries is saved with the epic: after three in a row, also across an engine restart, the next poll stops it in engine_error', async () => {
   const first = await start(1);
-  seedEpic(first.db, 1, { stage: 'review', round: 1, prNumber: 50, prHeadSha: SHA });
-  seedExecution(first.db, 'e0', 1, { stage: 'ship', status: 'interrupted' }); // of a stage the epic left: nothing in the recovery moves it, it would stay stuck
-  await clock.advance(5 * MIN);
-  await clock.advance(5 * MIN);
-  expect(rows(first.db)[0]).toMatchObject({ status: 'running', recoveries: 2 });
+  seedEpic(first.db, 1, { stage: 'review', round: 1, prNumber: 50, prHeadSha: SHA, recoveries: 3 });
+  seedExecution(first.db, 'e0', 1, { stage: 'ship', status: 'interrupted' }); // of a stage the epic left: nothing a recovery moves, so it stays stuck
   first.stop();
   dbs.pop()!.$client.close();
 
   const second = await start(1); // the same database: the count survives the restart
-  expect(rows(second.db)[0]).toMatchObject({ status: 'running', recoveries: 2 });
-  await clock.advance(5 * MIN);
   expect(rows(second.db)[0]).toMatchObject({ status: 'running', recoveries: 3 });
-  expect(recovered(second.db).map((e) => e.data)).toEqual([1, 2, 3].map((attempt) => ({ stage: 'review', attempt })));
-
   await clock.advance(5 * MIN);
   expect(rows(second.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'engine_error', needsHumanReason: 'the poll recovered this epic 3 times in a row and it is still stuck at review' });
-  expect(recovered(second.db)).toHaveLength(3);
+  expect(recovered(second.db)).toEqual([]);
 });
 
 test('the poll launches a stage a resume left claimed with no execution, once, though an execution of the previous attempt finished', async () => {
@@ -4978,6 +4971,25 @@ test('a resume at fix that switches the author to another option starts a rebuil
   expect(eventsOf(engine.db).filter((e) => e.type === 'session_rebuilt').map((e) => e.data)).toMatchObject([{ stage: 'fix', from: 'claude', to: 'spare' }]);
 });
 
+test('a fix on another author option that failed before it had a session is retried as a rebuilt session, never with the first option\'s', async () => {
+  const engine = await start(1, quotaRepos());
+  seedEpic(engine.db, 1, { status: 'needs_human', stage: 'fix', round: 2, prNumber: 50, prHeadSha: SHA, workspace: '/w/epic', needsHumanKind: 'agent_needs_human', needsHumanReason: 'x', config: quotaRepos()[0] });
+  seedExecution(engine.db, 's1', 1, { status: 'finished', stage: 'ship', option: 'claude', harness: 'claude', model: 'opus' });
+  seedExecution(engine.db, 'r1', 1, { status: 'finished', stage: 'review', round: 1 });
+  engine.db.insert(callerResults).values({ executionId: 'r1', outcome: 'changes_requested', result: JSON.stringify({ summary: 'why', blockers: [{ title: 'fix it' }] }) }).run();
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50);
+  runner.behavior = () => (runner.tasks.length === 1 ? { exit: 'failed' } : { exit: 'hang' }); // the first run on the other option ends before it writes a session id
+  const resumed = engine.resumeEpic('AshuLab/a', 1, { author: 'spare', from: 'fix' });
+  await flush();
+  await clock.advance(1000);
+  await resumed;
+  await vi.waitFor(() => expect(runner.tasks).toHaveLength(2)); // the first run and its retry
+
+  expect(runner.tasks.map((t) => [t.stage, t.option, t.resumeSession])).toEqual([['fix', 'spare', undefined], ['fix', 'spare', undefined]]);
+  expect(runner.tasks[1]!.context.previousSummaries).toEqual(['why']);
+});
+
 test('a wake-up on the option the epic already holds goes on that option, not on the repo default the queue resets it to', async () => {
   // claude (the default) ran out, the failover moved the epic to spare, spare ran out too, and spare is the one that comes back first.
   fakeQuota.snapshots['/cfg/spare'] = full('codex', WAKE + HOUR);
@@ -5072,6 +5084,18 @@ test('the poll leaves no recovered event for an epic its recovery parked', async
 
   expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'timeout', recoveries: 0 });
   expect(recovered(engine.db)).toEqual([]);
+});
+
+test('the poll counts no recovery for an epic its recovery did not move, and never stops it in engine_error for that', async () => {
+  const engine = await start(1);
+  seedEpic(engine.db, 1, { stage: 'review', round: 1, prNumber: 50, prHeadSha: SHA });
+  seedExecution(engine.db, 'e0', 1, { stage: 'ship', status: 'interrupted' }); // the cut execution is of a stage the epic has left: nothing to continue
+  runner.behavior = () => ({ exit: 'hang' });
+  for (let i = 0; i < 5; i++) await clock.advance(5 * MIN);
+
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', recoveries: 0 });
+  expect(recovered(engine.db)).toEqual([]);
+  expect(runner.tasks).toEqual([]);
 });
 
 test('recoverEpic refuses an epic with nothing a recovery continues, and records no recovered event', async () => {

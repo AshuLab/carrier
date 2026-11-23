@@ -535,7 +535,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     const epoch = epochOf(epic.id);
     // A fix on another option than the one that wrote the author's session cannot continue it (the wake-up went on the option that came back, a resume switched
     // `--author`): a new session, rebuilt like a lost one, on the pull request the epic stored.
-    const before = stage === 'fix' && !retryOf && !rebuild ? lastAuthor(epic.id) : undefined;
+    const before = stage === 'fix' && !retryOf?.sessionId && !rebuild ? lastAuthor(epic.id) : undefined; // a retry that has a session of its own continues it
     const optionNow = epic.config!.agents.author.option ?? null;
     const switched = before !== undefined && (before.option ?? null) !== optionNow;
     if (switched) rebuild = { pr: null };
@@ -1080,15 +1080,16 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
         await stopEpic(id, new Error(`the poll recovered this epic ${maxRecoveries} times in a row and it is still stuck at ${stage}`));
         continue;
       }
+      let acted = false;
       try {
-        if (!(await forRepo(repo, () => recoverEpic(id)))) continue; // a refusal of the repo is no recovery: tried again at the next check
+        if (!(await forRepo(repo, async () => (acted = await recoverEpic(id))))) continue; // a refusal of the repo is no recovery: tried again at the next check
       } catch (e) {
         if (e instanceof AuthError || e instanceof GitHubUnavailable || isDatabaseError(e)) throw e;
         log.error('recovering an epic failed', e, { repo, epicId: id });
         await stopEpic(id, e);
         continue;
       }
-      if (!stillRunning(id)) continue; // the recovery parked it (a timeout): that is a stop, not a recovery
+      if (!acted || !stillRunning(id)) continue; // it moved nothing (a retry owns the epic, or it left that stage), or it parked the epic (a timeout): neither is a recovery
       db.transaction((tx) => {
         tx.update(epics).set({ recoveries: sql`${epics.recoveries} + 1` }).where(eq(epics.id, id)).run();
         tx.insert(epicEvents).values({ epicId: id, at: clock.now(), type: 'recovered', data: { stage, attempt: recoveries + 1 } }).run();

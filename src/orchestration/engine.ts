@@ -8,6 +8,7 @@ import { runtimeOf } from '../config/providers.ts';
 import { failoverStepsFor, type Agent, type EffectiveRepoConfig } from '../config/resolve.ts';
 import { failoverTriggers, matchesFailoverTrigger } from '../config/schema.ts';
 import type { HarnessName } from '../harnesses/names.ts';
+import type { Skills } from '../harnesses/skills.ts';
 import type { AgentExit, AgentFailure, AgentRun, AgentRunner, AgentTask } from '../execution/agent-runner.ts';
 import { failureDetail } from '../execution/failure.ts';
 import { parseCallerResult } from '../execution/caller-result.ts';
@@ -70,6 +71,8 @@ export type EngineOptions = {
   sessionDirs?: SessionDirs;
   /** Whether the configuration declares the profile now. */
   profileDeclared: (name: string) => boolean;
+  /** Whether the harness of a role finds a skill, asked before a role starts. */
+  skills: Skills;
 };
 
 const log = createScopedLogger('engine');

@@ -31,6 +31,7 @@ import { startPanel, type PanelOutput } from '../dashboard/panel.ts';
 import { buildSnapshot, watchedOf } from '../../status/snapshot.ts';
 import { declaredProfile, profileCredentials, type CredentialsOptions } from '../../harnesses/credentials.ts';
 import { HostAgentRunner, type HostRunnerOptions } from '../../harnesses/host-runner.ts';
+import { createSkills, type Skills } from '../../harnesses/skills.ts';
 import { openDatabase } from '../../storage/db.ts';
 import { acquireLock } from '../../storage/lock.ts';
 import { CliError } from './cli-error.ts';
@@ -53,6 +54,8 @@ export interface CarrierDeps {
   makeRunner: (options: HostRunnerOptions) => AgentRunner;
   /** Reads the quota of an account from its provider now, for the wake-up of an epic stopped on its quota. */
   makeQuota: () => QuotaReader;
+  /** Whether the harness of a role finds a skill. */
+  skills: Skills;
   mint: NonNullable<CredentialsOptions['mint']>;
   botId?: CredentialsOptions['botId'];
   sessionDirs: SessionDirs;
@@ -82,6 +85,7 @@ const realDeps = (): CarrierDeps => ({
     const quotas = createQuotas(realUsagePorts);
     return (target) => quotas(target, { refresh: true });
   },
+  skills: createSkills(),
   mint: (profile, repo) => profileToken(profile)(repo),
   sessionDirs: sessionDirsFrom(),
   listRepos: listAvailableRepos,
@@ -132,6 +136,7 @@ export async function startCarrier(started: Config, folder: string, loadConfig: 
     // async: a profile or repo that is gone throws inside authorProfile, and the caller must get a rejection, not a synchronous throw
     workspaces: deps.makeWorkspaces({ places, token: async (repo) => deps.mint(authorProfile(repo), repo) }),
     quota: deps.makeQuota(),
+    skills: deps.skills,
     runner: deps.makeRunner({ credentials: profileCredentials({ profiles: () => config.profiles, mint: deps.mint, botId: deps.botId }) }),
     repos: () => repos,
     profileDeclared: (name) => Object.hasOwn(config.profiles, name),

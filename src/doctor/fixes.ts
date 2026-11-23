@@ -28,6 +28,7 @@ export const fixes = {
   ownLabels: (labels: string[]) => `create ${labels.map((label) => `"${label}"`).join(', ')} in the repo (you named ${labels.length === 1 ? 'it' : 'them'} in labels): Solve creates only ${defaultLabels.epic} and ${defaultLabels.ready}`,
   login: (harness: 'claude' | 'codex' | 'agy', configDir: string | undefined) => (harness === 'agy' ? 'log in with: agy' : `log in with: ${configDir ? `${configDirVariable[harness]}=${configDir} ` : ''}${harness === 'claude' ? 'claude /login' : 'codex login'}`),
   command: (provider: string) => `fix "command" of the account ${provider} in providers.json: an absolute path to the CLI that runs`,
+  skill: (name: string) => `install the skill ${name} where that account finds it, or name another one in "skills" of engine.json`,
   socketPath: 'move the Carrier folder to a shorter path (CARRIER_HOME, at most 77 bytes)',
   serverDown: 'start the server (LM Studio: lms server start, Ollama: ollama serve) and download the model',
   modelMissing: (model: string) => `download it in LM Studio / ollama pull ${model}`,

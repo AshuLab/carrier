@@ -29,7 +29,7 @@ import { endOf } from './final-pr.ts';
 import { AuthError, GitHubRejected, GitHubUnavailable, hasLabel, labelStyles, type GitHub, type LabelStyle, type Labels, type PullRequestState, type Slices } from './github.ts';
 import { reserve } from './reserve.ts';
 import { startRetention, type SessionDirs } from './retention.ts';
-import { failureStreak } from './retry.ts';
+import { failureStreak, isOfAttempt } from './retry.ts';
 
 export type EngineSettings = {
   pollIntervalMs: number;
@@ -315,7 +315,8 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       ...((triggers.includes('service_down') || triggers.includes('rate_limit')) ? (['api_error', 'spawn_error'] as const) : []),
     ];
     // A step is tried by the provider and the model it ran on: the role's own and every step that failed.
-    const ranOut = db.select({ option: executions.option, model: executions.model }).from(executions).where(and(eq(executions.epicId, epicId), inArray(executions.failureKind, failoverKinds))).orderBy(asc(sql`rowid`)).all();
+    // Only this attempt's: a resume gives back the options that ran out in the one before.
+    const ranOut = db.select({ option: executions.option, model: executions.model, startedAt: executions.startedAt }).from(executions).where(and(eq(executions.epicId, epicId), inArray(executions.failureKind, failoverKinds))).orderBy(asc(sql`rowid`)).all().filter((run) => isOfAttempt(run, epic));
     const modelOf = ({ provider, model }: { provider: string; model?: string }) => {
       const account = (config.providers ?? config.options)?.[provider];
       return model ?? account?.model ?? (account && defaultHarnessModels[account.harness]);
@@ -518,7 +519,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     try {
       const epic = fresh(epicId);
       const epoch = epochOf(epicId);
-      const [last, ...earlier] = failureStreak(db, epicId);
+      const [last, ...earlier] = failureStreak(db, epic);
       if (epic.status !== 'running' || !last) return;
       if (earlier.length >= settings().maxExecutionRetries) {
         toNeedsHuman(db, epicId, 'retries_exhausted', `ran out of ${last.stage} retries (${earlier.length + 1} attempts): ${last.error}`);
@@ -813,7 +814,8 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
   // Continues one running epic from where it was: what the restart or a repo coming back found it in.
   async function recoverEpic(id: number) {
     const epic = fresh(id);
-    const last = db.select().from(executions).where(eq(executions.epicId, id)).orderBy(desc(sql`rowid`)).get();
+    const newest = db.select().from(executions).where(eq(executions.epicId, id)).orderBy(desc(sql`rowid`)).get();
+    const last = newest && isOfAttempt(newest, epic) ? newest : undefined; // an earlier attempt's last execution is not this stop
     log.info('recovering epic', { repo: epic.repo, epic: epic.issue, stage: epic.stage, lastStatus: last?.status });
     if (!last) {
       // A launch of this engine that claimed the stage and is still preparing its workspace is not a cut one: it makes the execution itself.

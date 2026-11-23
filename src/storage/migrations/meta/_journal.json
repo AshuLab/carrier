@@ -176,6 +176,13 @@
       "when": 1795441468668,
       "tag": "0024_lethal_nightmare",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1795442861155,
+      "tag": "0025_wet_cloak",
+      "breakpoints": true
     }
   ]
 }

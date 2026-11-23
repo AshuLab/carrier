@@ -2,7 +2,7 @@
 
 The control socket (`<folder>/engine/state/control.sock`), newline-delimited JSON for a local client: the macOS app and the CLI (`status`, `watch`, ...).
 `server.ts` holds the request schema and the server.
-The hello's `capabilities` list the optional requests an engine answers (`sessions`, `events`, `epic`, `files`, `fileDiff`, `availableRepos`, `availableReposPaged`, `resumeEpic`, `recoverEpic` and `reload`); a client checks it before asking, so an older engine still works.
+The hello's `capabilities` list the optional requests an engine answers (`sessions`, `events`, `epic`, `files`, `fileDiff`, `availableRepos`, `availableReposPaged`, `resumeEpic`, `resumeFromStage` (`resumeEpic` takes `from`), `recoverEpic` and `reload`); a client checks it before asking, so an older engine still works.
 `reload` makes the engine read `engine.json` and `providers.json` again and run on them, or answer the problem and keep its settings ([ADR 0023](../../docs/adr/0023-the-engine-reloads-its-configuration-on-request-and-running-work-keeps-what-it-started-with.md)).
 The app sends it after each save, and `carrier reload` is the same request.
 `terminal/cli/compose.ts` starts the server before the engine recovers its running epics: until the first check is armed the snapshot has no `nextCheckAt` (the app and the panel show it as starting), and a check asked meanwhile waits for that recovery.

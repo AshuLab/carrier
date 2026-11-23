@@ -61,7 +61,7 @@ test('connect returns the hello and a request resolves with the data of its repl
   await realServer();
   const client = await connectControl(path());
   closers.push(client.close);
-  expect(client.hello).toMatchObject({ event: 'hello', protocol: 1, pid: process.pid, capabilities: ['sessions', 'events', 'epic', 'files', 'fileDiff', 'availableRepos', 'availableReposPaged', 'resumeEpic', 'recoverEpic', 'reload'] });
+  expect(client.hello).toMatchObject({ event: 'hello', protocol: 1, pid: process.pid, capabilities: ['sessions', 'events', 'epic', 'files', 'fileDiff', 'availableRepos', 'availableReposPaged', 'resumeEpic', 'resumeFromStage', 'recoverEpic', 'reload'] });
   expect(typeof client.hello.version).toBe('string');
   expect(await client.request('snapshot')).toEqual(snapshotData);
   expect(await client.request('pause')).toBeUndefined();

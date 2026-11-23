@@ -820,6 +820,52 @@ test('with maxExecutionRetries 3 there are four attempts, then the epic needs a 
   expect(runner.tasks.filter((t) => t.epic === 1)).toHaveLength(4);
 });
 
+// An epic that ran out of retries, resumed a minute later: the executions it had before the resume are another attempt's.
+async function exhaustedThenResumed(config = repos) {
+  github.ready = { 'AshuLab/a': ready(1) };
+  runner.behavior = () => ({ sessionId: 's', exit: 'failed' });
+  const engine = await start(1, config);
+  await clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'retries_exhausted' }));
+  expect(runner.tasks).toHaveLength(4);
+  await clock.advance(MIN);
+  return engine;
+}
+
+test('a resumed epic that stopped in retries_exhausted has the full retries for its first technical failure', async () => {
+  const engine = await exhaustedThenResumed();
+  let fail!: () => void;
+  const gate = new Promise<void>((resolve) => (fail = resolve)); // the epic is seen running again before its first failure
+  runner.behavior = () => ({ sessionId: 's', exit: 'failed', ...(runner.tasks.length === 5 && { when: gate }) });
+  const resumed = engine.resumeEpic('AshuLab/a', 1);
+  await flush();
+  await clock.advance(1000);
+  await resumed;
+  fail();
+  await vi.waitFor(() => expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'retries_exhausted' }));
+
+  expect(runner.tasks).toHaveLength(8); // four more tries, not the one that the old attempt's failures left
+  expect(eventsOf(engine.db).map((e) => e.data.attempt)).toEqual([2, 3, 4, 2, 3, 4]);
+  expect(rows(engine.db)[0]?.needsHumanReason).toContain('(4 attempts)');
+});
+
+test('a resumed epic gets back the failover options that ran out in its previous attempt', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  runner.behavior = (task) => outOf('claude', 'spare')(task, { exit: 'hang' });
+  const engine = await startFailover(['spare']);
+  await vi.waitFor(() => expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'usage_limit' }));
+  expect(runner.tasks.map((t) => t.option)).toEqual(['claude', 'spare']);
+
+  await clock.advance(MIN);
+  runner.behavior = (task) => outOf('claude')(task, { exit: 'hang' }); // `spare` is back
+  const resumed = engine.resumeEpic('AshuLab/a', 1, { author: 'claude' });
+  await flush();
+  await clock.advance(1000);
+  await resumed;
+  await vi.waitFor(() => expect(runner.tasks.map((t) => t.option)).toEqual(['claude', 'spare', 'claude', 'spare']));
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', needsHumanKind: null });
+});
+
 const killedBy: AgentFailure = { kind: 'killed', detail: 'SIGKILL', exitCode: null, signal: 'SIGKILL', hostFreeMemMb: 1234, hostLoad: 2.5 };
 
 test('a killed execution stores its failure, names the kind in the epic error, and the exhausted reason quotes it', async () => {
@@ -861,7 +907,7 @@ test('a usage limit does not count in the retry streak', async () => {
   seedExecution(db, 'e0', 1, { status: 'failed', error: 'boom', failureKind: 'crashed' });
   seedExecution(db, 'e1', 1, { status: 'failed', failureKind: 'usage_limit', failureDetail: 'resets 12:40pm' });
   seedExecution(db, 'e2', 1, { status: 'failed', error: 'boom', failureKind: 'crashed' });
-  expect(failureStreak(db, 1).map((e) => e.executionId)).toEqual(['e2']);
+  expect(failureStreak(db, { id: 1, startedAt: 0 }).map((e) => e.executionId)).toEqual(['e2']);
 });
 
 // Failover: three options, the author on `claude` and the reviewer on `codex`; `spare` is the one only the list can name.
@@ -1117,7 +1163,7 @@ test('a timed-out execution does not count in the retry streak', async () => {
   const db = open();
   seedEpic(db, 1);
   seedExecution(db, 'e0', 1, { status: 'timed_out', failureKind: 'timeout', failureDetail: 'exceeded 4 h' });
-  expect(failureStreak(db, 1)).toEqual([]);
+  expect(failureStreak(db, { id: 1, startedAt: 0 })).toEqual([]);
 });
 
 test('a lost session is rebuilt because of its kind, whatever the error text says', async () => {
@@ -1170,7 +1216,7 @@ test('an execution that did not fail resets the failure streak', async () => {
   github.ready = { 'AshuLab/a': ready(1) };
   const engine = await start(1, repos, 4, 1);
   await clock.advance(5 * MIN);
-  const base = { epicId: 1, stage: 'ship' as const, resultPath: '/r', startedAt: 0 };
+  const base = { epicId: 1, stage: 'ship' as const, resultPath: '/r', startedAt: 5 * MIN };
   engine.db.update(executions).set({ status: 'interrupted' }).run();
   engine.db.insert(executions).values([
     { ...base, executionId: 'f1', status: 'failed', error: 'x' },
@@ -2104,6 +2150,17 @@ test('a Ctrl+C then a restart resumes each interrupted execution as a new one wi
   ]);
   expect(executionsOf(second.db).map((e) => e.status)).toEqual(['interrupted', 'interrupted', 'running', 'running']);
   expect(byStatus(second.db, 'running')).toEqual([1, 2]);
+});
+
+test('the recovery at start ignores the executions of an earlier attempt: its last one is not this stop', async () => {
+  const db = open();
+  seedEpic(db, 1, { stage: 'ship', startedAt: 10 * MIN }); // restarted: the stage was claimed and no execution inserted before the cut
+  seedExecution(db, 'old', 1, { stage: 'ship', status: 'interrupted', startedAt: 5 * MIN });
+  await start(1);
+  expect(runner.tasks).toHaveLength(1);
+  expect(runner.tasks[0]!.resumeSession).toBeUndefined(); // not the old execution continued
+  expect(runner.tasks[0]!.context?.verifyStateFirst).toBeFalsy();
+  expect(executionsOf(db).find((e) => e.executionId === 'old')!.status).toBe('interrupted');
 });
 
 test('a running execution a dead process left behind counts as interrupted and is resumed', async () => {

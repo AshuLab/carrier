@@ -4003,3 +4003,84 @@ test('a reload whose parking of the removed repos fails still answers: its setti
   expect(settings.maxConcurrentEpics).toBe(3);
   await settle();
 });
+
+// --- An issue that is gone, and a repo that does not answer ---
+
+const goneReason = 'the epic issue no longer exists';
+
+test('an epic whose issue answers 404 while its repo answers is cancelled at the start, the engine starts and the other epics of the repo go on', async () => {
+  const db = open();
+  seedEpic(db, 1, { labelPending: true });
+  seedEpic(db, 2);
+  github.missingIssues.add('AshuLab/a#1');
+  runner.behavior = () => ({ exit: 'hang' });
+  const engine = await start(2);
+  await vi.waitFor(() => expect(runner.tasks.map((t) => t.epic)).toEqual([2])); // epic 2 was launched, epic 1 got no agent
+
+  expect(rows(engine.db).map((e) => [e.issue, e.status, e.cancelReason, e.labelPending])).toEqual([[1, 'cancelled', goneReason, false], [2, 'running', null, false]]);
+  expect(eventTypes(engine.db)).toContain('epic_cancelled');
+  await clock.advance(5 * MIN);
+  expect(engine.lastCheck('AshuLab/a')).toEqual({ at: 5 * MIN, ok: true, error: null }); // the repo is not refused
+});
+
+test('the poll cancels an epic whose issue turned 404, 410 too, in any state it waits in, and goes on with the others of its repo', async () => {
+  const db = open();
+  seedEpic(db, 1, { status: 'needs_human', needsHumanKind: 'agent_needs_human', needsHumanReason: 'x' });
+  seedEpic(db, 2, { status: 'ready_for_test' });
+  seedEpic(db, 3, { status: 'needs_human', needsHumanKind: 'agent_needs_human', needsHumanReason: 'x' });
+  github.ready = { 'AshuLab/a': ready(4) };
+  runner.behavior = () => ({ exit: 'hang' });
+  const engine = await start(1);
+  github.missingIssues.add('AshuLab/a#1');
+  github.missingIssues.add('AshuLab/a#2');
+  await clock.advance(5 * MIN);
+
+  expect(rows(engine.db).map((e) => [e.issue, e.status, e.cancelReason])).toEqual([[1, 'cancelled', goneReason], [2, 'cancelled', goneReason], [3, 'needs_human', null], [4, 'running', null]]);
+  expect(engine.lastCheck('AshuLab/a')).toEqual({ at: 5 * MIN, ok: true, error: null });
+});
+
+test('a queued epic whose issue is 404 when its slot comes is cancelled and does not block the queue of its repo', async () => {
+  github.ready = { 'AshuLab/a': ready(1, 2) };
+  github.missingIssues.add('AshuLab/a#1');
+  runner.behavior = () => ({ exit: 'hang' });
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+
+  expect(rows(engine.db).map((e) => [e.issue, e.status, e.cancelReason])).toEqual([[1, 'cancelled', goneReason], [2, 'running', null]]);
+  expect(engine.lastCheck('AshuLab/a')).toMatchObject({ ok: true });
+});
+
+test('a repo that answers 404 is its own refusal at the start and at the poll: no epic of it is cancelled, the others are untouched, and it is tried again', async () => {
+  const db = open();
+  seedEpic(db, 1, { repo: 'AshuLab/b', config: repos[1], labelPending: true });
+  seedEpic(db, 2, { repo: 'AshuLab/b', config: repos[1], status: 'needs_human', needsHumanKind: 'agent_needs_human', needsHumanReason: 'x' });
+  seedEpic(db, 3);
+  github.ready = { 'AshuLab/a': ready(4) };
+  github.missingRepos.add('AshuLab/b');
+  runner.behavior = () => ({ exit: 'hang' });
+  const engine = await start(3);
+  await clock.advance(5 * MIN);
+
+  expect(rows(engine.db).map((e) => [e.repo.slice(-1), e.issue, e.status])).toEqual([['b', 1, 'running'], ['b', 2, 'needs_human'], ['a', 3, 'running'], ['a', 4, 'running']]);
+  expect(rows(engine.db).every((e) => e.cancelReason === null)).toBe(true);
+  expect(engine.lastCheck('AshuLab/b')).toEqual({ at: 5 * MIN, ok: false, error: 'GitHub answered HTTP 404: Not Found' });
+  expect(engine.lastCheck('AshuLab/a')).toEqual({ at: 5 * MIN, ok: true, error: null });
+
+  await clock.advance(5 * MIN);
+  expect(engine.lastCheck('AshuLab/b')).toMatchObject({ at: 10 * MIN, ok: false }); // tried again at the next check
+
+  github.missingRepos.clear();
+  await clock.advance(5 * MIN);
+  expect(engine.lastCheck('AshuLab/b')).toEqual({ at: 15 * MIN, ok: true, error: null });
+  expect(byStatus(engine.db, 'cancelled')).toEqual([]);
+});
+
+test('a missing issue in a repo that does not answer is the repo\'s refusal at the poll too: the epic stays', async () => {
+  const db = open();
+  seedEpic(db, 1, { status: 'needs_human', needsHumanKind: 'agent_needs_human', needsHumanReason: 'x' });
+  const engine = await start(0);
+  github.missingRepos.add('AshuLab/a'); // GitHub answers 404 for the repo and so for its issues
+  await clock.advance(5 * MIN);
+  expect(byStatus(engine.db, 'cancelled')).toEqual([]);
+  expect(engine.lastCheck('AshuLab/a')).toMatchObject({ ok: false });
+});

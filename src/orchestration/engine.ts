@@ -26,7 +26,7 @@ import { latestBlockers, latestObservations } from './blockers.ts';
 import { changesSlices } from './changes-slices.ts';
 import { ResumeRefused } from './resume-refused.ts';
 import { endOf } from './final-pr.ts';
-import { AuthError, GitHubRejected, GitHubUnavailable, hasLabel, labelStyles, type GitHub, type LabelStyle, type Labels, type PullRequestState, type Slices } from './github.ts';
+import { AuthError, GitHubRejected, GitHubUnavailable, hasLabel, isNotFound, labelStyles, type GitHub, type LabelStyle, type Labels, type PullRequestState, type Slices } from './github.ts';
 import { reserve } from './reserve.ts';
 import { startRetention, type SessionDirs } from './retention.ts';
 import { failureStreak, isOfAttempt } from './retry.ts';
@@ -713,18 +713,41 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     for (const epic of db.select().from(epics).where(and(inArray(epics.status, ['running', 'needs_human', 'ready_for_test']), inArray(epics.repo, repos().map((r) => r.name)))).orderBy(asc(epics.id)).all()) {
       await forRepo(epic.repo, async () => {
         const read = seen.prState.get(epic.id);
-        const end = await endOf(github, epic, { prState: read?.number === epic.prNumber ? read?.state : undefined, issueOpen: seen.openIssues.get(epic.repo)?.has(epic.issue) === true });
-        if (!end) return;
-        const ended = db.update(epics)
-          .set({ status: end.status, ...(end.status === 'cancelled' && { cancelReason: end.reason }), finishedAt: clock.now(), labelPending: true })
-          .where(and(eq(epics.id, epic.id), inArray(epics.status, ['running', 'needs_human', 'ready_for_test']))) // parked while GitHub was asked: `repo_removed` stays
-          .returning()
-          .get();
-        if (!ended) return;
-        db.insert(epicEvents).values({ epicId: epic.id, at: clock.now(), type: `epic_${end.status}`, data: { reason: end.reason } }).run();
-        const running = db.select().from(executions).where(and(eq(executions.epicId, epic.id), eq(executions.status, 'running'))).all();
-        await Promise.all(running.map(({ executionId }) => active.get(executionId)?.stop()));
+        const end = await unlessGone(epic.id, () => endOf(github, epic, { prState: read?.number === epic.prNumber ? read?.state : undefined, issueOpen: seen.openIssues.get(epic.repo)?.has(epic.issue) === true }));
+        if (end) await finish(epic, end);
       });
+    }
+  }
+
+  // The epic ended outside Carrier: its status and event are written, its runs stopped. `labelPending` is false when the issue cannot be written to.
+  async function finish(epic: Epic, end: { status: 'merged' | 'cancelled'; reason: string }, labelPending = true) {
+    const ended = db.update(epics)
+      .set({ status: end.status, ...(end.status === 'cancelled' && { cancelReason: end.reason }), finishedAt: clock.now(), labelPending })
+      .where(and(eq(epics.id, epic.id), inArray(epics.status, ['running', 'needs_human', 'ready_for_test']))) // parked while GitHub was asked: `repo_removed` stays
+      .returning()
+      .get();
+    if (!ended) return;
+    db.insert(epicEvents).values({ epicId: epic.id, at: clock.now(), type: `epic_${end.status}`, data: { reason: end.reason } }).run();
+    const running = db.select().from(executions).where(and(eq(executions.epicId, epic.id), eq(executions.status, 'running'))).all();
+    await Promise.all(running.map(({ executionId }) => active.get(executionId)?.stop()));
+  }
+
+  // An epic's issue answering 404 or 410 while its repo answers normally is gone: the epic is cancelled and its repo's other epics go on.
+  // GitHub also answers 404 for a repo the token lost access to, so the repo is asked first: one that does not answer normally rejects there,
+  // which is the repo's refusal for the caller's `forRepo`, and no epic of it is cancelled.
+  async function ifGone(repo: string, e: unknown) {
+    if (!isNotFound(e)) return false;
+    await github.listLabels(repo);
+    return true;
+  }
+  const goneReason = 'the epic issue no longer exists';
+  async function unlessGone<T>(id: number, step: () => Promise<T>) {
+    try {
+      return await step();
+    } catch (e) {
+      const epic = fresh(id);
+      if (!(await ifGone(epic.repo, e))) throw e;
+      await finish(epic, { status: 'cancelled', reason: goneReason }, false);
     }
   }
 
@@ -783,6 +806,16 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       try {
         issue = await github.getIssue(epic.repo, epic.issue);
       } catch (e) {
+        let gone = false;
+        try {
+          gone = await ifGone(epic.repo, e);
+        } catch (probe) {
+          e = probe; // the repo does not answer normally: its refusal below
+        }
+        if (gone) {
+          cancelWith(goneReason);
+          continue;
+        }
         // Could not check it: give the slot back, the epic keeps its place in the queue.
         db.update(epics).set({ status: 'queued', startedAt: null, config: null, labelPending: false, authorOption: null, reviewerOption: null }).where(and(eq(epics.id, epic.id), eq(epics.status, 'running'))).run();
         if (e instanceof GitHubRejected) {
@@ -884,7 +917,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
         const repo = fresh(id).repo;
         if (rejected.has(repo)) continue; // GitHub refused the repo this cycle: it waits in `restoring` for the next
         // A refusal is that repo's, as anywhere else in the cycle: the entry stays (the recovery did not happen) and the others go on.
-        if (!(await forRepo(repo, () => recoverEpic(id)))) continue;
+        if (!(await forRepo(repo, () => unlessGone(id, () => recoverEpic(id))))) continue;
       }
       restoring.delete(id);
     }
@@ -910,14 +943,20 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     for (const { id } of running) {
       // A reload parked it, and maybe restored it, since the list was read: restore() takes it from where it is, not this loop.
       if (epochOf(id) !== epochsRead.get(id)) continue;
-      await recoverEpic(id);
+      const { repo, issue } = fresh(id);
+      await forRepo(repo, () => unlessGone(id, async () => {
+        await github.getIssue(repo, issue); // a deleted issue ends its epic here, before an agent is launched for it
+        await recoverEpic(id);
+      }));
       if (epochOf(id) === epochsRead.get(id)) restoring.delete(id);
     }
     // SQLite is the authority: labels that differ on GitHub are put back.
     for (const epic of db.select().from(epics).where(and(inArray(epics.status, ['running', 'needs_human', 'ready_for_test']), inArray(epics.repo, repos().map((r) => r.name)))).orderBy(asc(epics.id)).all()) {
-      const { labels } = await github.getIssue(epic.repo, epic.issue);
-      const wanted = wantedLabels(epic);
-      if (ownedLabels().some((l) => hasLabel(labels, l) !== hasLabel(wanted, l)) || (epic.status === 'running' && hasLabel(labels, settings().labels.ready))) await applyLabels(epic);
+      await forRepo(epic.repo, () => unlessGone(epic.id, async () => {
+        const { labels } = await github.getIssue(epic.repo, epic.issue);
+        const wanted = wantedLabels(epic);
+        if (ownedLabels().some((l) => hasLabel(labels, l) !== hasLabel(wanted, l)) || (epic.status === 'running' && hasLabel(labels, settings().labels.ready))) await applyLabels(epic);
+      }));
     }
   }
   // One recovery at a time: a check asked while the start recovers waits for that one, never a second recoverEpic on the same epic. A failed one is

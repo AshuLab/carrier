@@ -16,8 +16,9 @@ private struct ChatSurfaceModifier<S: InsettableShape>: ViewModifier {
             content.glassEffect(glass, in: shape)
         case .flat:
             content
-                .background(shape.fill(Color.themeWindow))
+                // a later `background` is drawn behind the earlier one: the fill first, so the window's solid color goes behind it and the fill shows over it
                 .background(shape.fill(flat))
+                .background(shape.fill(Color.themeWindow))
                 .overlay(shape.strokeBorder(Color.primary.opacity(0.1), lineWidth: 1))
         }
     }

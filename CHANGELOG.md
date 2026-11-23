@@ -35,6 +35,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- With flat surfaces (Settings > Chat > Surfaces), the fill of every surface of the chat (bubbles, code blocks, cards, notices, the message box) shows over the window's color: it was drawn behind it and never seen, so flat looked flat. The message box is also a notch darker than the window in the dark scheme.
 - A dictation of the History is a row with one quiet line of data under its text (outcome, destination, words and length) in place of five chips, and its detail has no box and no longer repeats the text, the destination or the length.
 - In Statistics, the Overview's cards sit with no container behind them, and the Records are four cards in a row (two by two when narrow) in place of a list of rows.
 - On the Keep awake page, the "Keep awake" button of the Now row is a switch, like the other on/off settings, and the On, Off or Paused chip is gone: the switch and the sentence already say it.

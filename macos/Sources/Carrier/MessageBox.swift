@@ -6,6 +6,7 @@ import UniformTypeIdentifiers
 /// agent answers, and beside it at the left the button of what the session runs with. The key chosen in Settings sends (Return or ⌘Return), the other
 /// and Shift+Return add a line.
 struct MessageBox<Selects: View>: View {
+    @Environment(\.colorScheme) private var scheme
     @Binding var text: String
     var placeholder: String
     var minLines = 3
@@ -155,7 +156,8 @@ struct MessageBox<Selects: View>: View {
             }
             .animation(.smooth(duration: 0.2), value: dictationEdgeShown(dictationPresentation, dropping: dropping))
             // glass: the conversation that scrolls under the box is blurred, not seen through it
-            .chatSurface(flat: Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 16))
+            // flat: a notch darker than the window (a lighter fill read as flat against it), so the box is where the eye goes
+            .chatSurface(flat: scheme == .dark ? Color.black.opacity(0.22) : Color.primary.opacity(0.07), in: RoundedRectangle(cornerRadius: 16))
             .overlay { if dropping { dropVeil } }
             .offset(y: dropping ? -3 : 0)
             .animation(.smooth(duration: 0.2), value: dropping)

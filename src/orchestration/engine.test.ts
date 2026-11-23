@@ -1463,6 +1463,14 @@ test('the count starts again when an execution of the epic ends with anything bu
   expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'review', autoResumes: 0 });
 });
 
+test.each([['review'], ['fix'], [undefined]] as const)('the count starts again when a person resumes the epic at another stage (from %s)', async (from) => {
+  const engine = await start(1);
+  stoppedAt(engine.db, 'review', { autoResumes: 2 });
+  await resumeFrom(engine, from);
+
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', autoResumes: 0 });
+});
+
 test('with the engine paused nothing resumes, and it resumes once the engine is not paused', async () => {
   const engine = await stoppedForQuota();
   fakeQuota.snapshots['/cfg/claude'] = back();

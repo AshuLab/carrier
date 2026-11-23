@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import Database from 'better-sqlite3';
 import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
-import type { ChatAgent } from './config.ts';
+import { type ChatAgent, loadChatConfig } from './config.ts';
 import { FakeClock } from '../orchestration/fake.ts';
 import { openChatDatabase } from './db.ts';
 import { FakeChatRunner, FakeGit, FakeTextGenerator, fakeProjects, type FakeConversation, type FakeRepo } from './fake.ts';
@@ -1828,6 +1828,11 @@ test('a git that fails on one session leaves it alone, logs the failure and does
 });
 
 const cleanup = (worktreeCleanup: { afterPrMerged: boolean; afterInactiveDays: number | 'never' }) => ({ archiveAfterDays: 'never' as const, deleteAfterDays: 'never' as const, worktreeCleanup });
+const loadChatConfigDefaults = () => {
+  const loaded = loadChatConfig({});
+  if (loaded.ok === false) throw new Error('the defaults of chat.json must load');
+  return loaded.settings;
+};
 const prMerged = (s: { db: ReturnType<typeof setup>['db'] }, id: string) => s.db.update(schemaSessions).set({ prState: 'merged' }).where(eq(schemaSessions.id, id)).run();
 
 test('worktree cleanup is off by default: a merged, long-archived session keeps its worktree folder', async () => {
@@ -1865,6 +1870,26 @@ test('afterInactiveDays removes the folder of a session archived and left alone 
   s.clock.time = 3 * DAY;
   await s.sessions.applyClock(cleanup({ afterPrMerged: false, afterInactiveDays: 3 }));
   expect([due, active, short].map((w) => existsSync(w.path))).toEqual([false, true, true]);
+});
+
+test('with the default settings the folder goes with a merged PR or after 14 idle days archived, and stays for 13 days, a live session, uncommitted work or one not archived', async () => {
+  const s = worktreeSetup();
+  const merged = await s.inWorktree('merged');
+  const stale = await s.inWorktree('stale'); // open PR, archived by hand, idle 14 days
+  const dirty = await s.inWorktree('dirty', { status: ['?? notes.md'] });
+  const unarchived = await s.inWorktree('unarchived');
+  const live = await s.inWorktree('live');
+  prMerged(s, merged.id);
+  prMerged(s, live.id);
+  await s.sessions.resume({ sessionId: live.id });
+  s.clock.time = 1 * DAY;
+  const recent = await s.inWorktree('recent'); // archived, idle 13 days at the pass
+  for (const sessionId of [stale.id, dirty.id, recent.id]) await s.sessions.archive({ sessionId, archived: true });
+  s.clock.time = 14 * DAY; // under archiveAfterDays (15): the pass archives nothing itself
+  await s.sessions.applyClock(loadChatConfigDefaults());
+  expect([merged, stale, dirty, unarchived, live, recent].map((w) => existsSync(w.path))).toEqual([false, false, true, true, true, true]);
+  expect(s.base.branches).toContain(stale.branch);
+  expect(sessionIds(s)).toContain(stale.id);
 });
 
 test('a live session is never cleaned up, and resuming one whose folder was cleaned brings it back on its branch', async () => {

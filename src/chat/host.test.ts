@@ -894,6 +894,7 @@ test('list says the delete date from the ages in chat.json, read at each request
 });
 
 test('stopping the host while a pass waits in git lets the pass finish without deleting anything, and no pass runs an hour later', async () => {
+  writeFileSync(join(root, 'chat.json'), '{"worktreeCleanup":{"afterPrMerged":false,"afterInactiveDays":"never"}}'); // the cleanup would reach git at day 15, before the delete this test waits on
   const clock = new FakeClock();
   const h = await worktreeHost(clock);
   const first = await inWorktree(h, 'first');

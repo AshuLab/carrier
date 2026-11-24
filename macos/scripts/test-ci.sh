@@ -4,7 +4,7 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."
 LIMIT="${1:-420}"
-swift test &
+swift test --build-system swiftbuild &
 PID=$!
 for ((i = 0; i < LIMIT; i++)); do
   kill -0 "$PID" 2>/dev/null || { wait "$PID"; exit $?; }

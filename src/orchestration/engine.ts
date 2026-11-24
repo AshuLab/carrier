@@ -586,7 +586,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
   // A review round starts every reviewer of the epic on the same head, each in its own checkout: the mandatory reviewer's checkout is at the pull request's head,
   // and the others are made at that commit. A round already started (a recovery) gets only the slots that have no execution on its head: a head a result set aside is no head.
   // Resolves to whether it launched any. One round is launched at a time per epic.
-  async function launchRound(epic: Epic) {
+  async function launchRound(epic: Epic): Promise<boolean> {
     const slots = roundSlots(epic.config);
     if (slots.length === 1) {
       await execute(epic, 'review');

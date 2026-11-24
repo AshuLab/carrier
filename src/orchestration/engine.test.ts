@@ -6385,15 +6385,21 @@ const lateOpen = () => {
   return { when, open };
 };
 // ship -> a round of every slot of `config` answered by `review` -> a fix answered by `fix`.
-async function roundOf(review: (task: AgentTask) => Behavior, { fix = (() => ({ exit: 'stopped' })) as (task: AgentTask) => Behavior, maxReviews = 5, config = twoReviewers() } = {}) {
+// `late` holds the reviewers' answers until every slot of the first round is launched, then lets them end together.
+async function roundOf(review: (task: AgentTask) => Behavior, { fix = (() => ({ exit: 'stopped' })) as (task: AgentTask) => Behavior, maxReviews = 5, config = twoReviewers(), late = undefined as ReturnType<typeof lateOpen> | undefined } = {}) {
   github.ready = { 'AshuLab/a': ready(1) };
   pull(50);
   runner.behavior = (task) => (task.stage === 'ship' ? { sessionId: 's-ship', write: completed(task) } : task.stage === 'review' ? review(task) : fix(task));
   const engine = await start(1, [config], 4, 3, maxReviews);
   await clock.advance(5 * MIN);
+  if (late) {
+    await vi.waitFor(() => expect(runner.tasks.filter((t) => t.stage === 'review')).toHaveLength(roundSlotsOf(config)));
+    late.open();
+  }
   await engine.idle();
   return engine;
 }
+const roundSlotsOf = (config: EffectiveRepoConfig) => 1 + (config.agents.extraReviewers?.length ?? 0);
 const fourReviewers = () => twoReviewers({ agents: { ...agents, extraReviewers: [extraReviewer, { ...extraReviewer, profile: 'd' }, { ...extraReviewer, profile: 'e' }] } as EffectiveRepoConfig['agents'] });
 
 test('the author\'s ship launches every reviewer of the epic at once, each with its slot, its agent and its own checkout of the same commit', async () => {
@@ -6419,7 +6425,7 @@ test('each reviewer is launched with the skills of its own entry and with the sh
   const [first, second] = runner.tasks.filter((t) => t.stage === 'review');
   expect(first).toMatchObject({ reviewer: 'reviewer', sharedIdentity: false });
   expect(second).toMatchObject({ reviewer: 'reviewer-2', sharedIdentity: true, skills: { review: own } });
-  expect(first!.skills.review).not.toEqual(own);
+  expect(first!.skills!.review).not.toEqual(own);
   expect(first!.context.severalReviewers).toBe(true);
   expect(second!.context.severalReviewers).toBe(true);
 });
@@ -6542,9 +6548,7 @@ test('the first result that finds the head moved stops the other runs of the rou
       return verdictBy({ reviewer: ok }, late.when)(task);
     }
     return task.context.pr!.headSha === SHA ? { exit: 'hang' } : verdictBy({ reviewer: ok, 'reviewer-2': ok })(task);
-  });
-  late.open();
-  await engine.idle();
+  }, { late });
 
   expect(reviewsOf()).toEqual([[1, 'reviewer', SHA], [1, 'reviewer-2', SHA], [1, 'reviewer', HEAD2], [1, 'reviewer-2', HEAD2]]);
   const stale = executionsOf(engine.db).find((e) => e.reviewer === 'reviewer-2' && e.headSha === SHA)!;
@@ -6566,9 +6570,7 @@ test('four reviewers that find the same moved head are one repeat, and two repea
       return verdictBy(Object.fromEntries(['reviewer', 'reviewer-2', 'reviewer-3', 'reviewer-4'].map((slot) => [slot, ok])), settled.when)(task);
     }
     return { exit: 'hang' };
-  }, { config: fourReviewers() });
-  settled.open();
-  await engine.idle();
+  }, { config: fourReviewers(), late: settled });
 
   const repeats = eventsOf(engine.db).filter((e) => e.type === 'review_repeated').map((e) => e.data);
   expect(repeats).toMatchObject([{ from: SHA, to: HEAD2, repeats: 1 }, { from: HEAD2, to: HEAD3, repeats: 2 }]); // four reviewers each, three rounds: two repeats and a stop

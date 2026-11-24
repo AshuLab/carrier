@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import CarrierCore
 
-// `setWatchedRepos` and `editBehavior` and the engine's `config` capability (docs/specs/macos-app-as-the-base-for-a-web-front-end.md, section 6): each request is what its golden file says
+// `setWatchedRepos`, `editBehavior`, the role requests and the engine's `config` capability (docs/specs/macos-app-as-the-base-for-a-web-front-end.md, section 6): each request is what its golden file says
 // (written by `UPDATE_FIXTURES=1 pnpm test`, where Node's schema accepts it), it goes to the socket when the hello lists `config` and to `carrier config` (through a `ProcessRunner`) otherwise.
 
 private let fixtures = testPaths().fixtures
@@ -26,6 +26,23 @@ private func goldenBehavior() -> EngineConfig {
     config.maxReviews = 8
     config.maxExecutionHours = nil
     return config
+}
+
+/// What the Agents page builds for the goldens of the role requests.
+private let goldenRoleChanges: [(String, EngineConfigChange)] = [
+    ("engine-edit-role.json", .role(.reviewer, [.bot("nova"), .provider("codex"), .model("gpt-5"), .effort(nil)])),
+    ("engine-edit-repo-role.json", .repoRole(repo: "acme/web", role: .reviewer, fields: RoleFields(profile: "author-bot", model: "qwen3-coder", effort: "high", persona: RolePersona(name: "Rex")))),
+    ("engine-edit-persona.json", .persona(role: .author, name: "Ada", prompt: nil)),
+    ("engine-edit-failover.json", .failover(role: .author, first: FailoverStep(provider: "codex", model: "gpt-5", effort: "high"), second: FailoverStep(provider: "agy"))),
+    ("engine-set-lead-reviewer.json", .leadReviewer(goldenLead())),
+    ("engine-set-lead-reviewer-off.json", .leadReviewer(nil)),
+    ("engine-set-orchestrator-profile.json", .orchestratorProfile("author-bot")),
+]
+
+private func goldenLead() -> LeadReviewerDraft {
+    var draft = LeadReviewerDraft()
+    [RoleChange.gh, .provider("claude"), .model("opus"), .effort("max")].forEach { draft.apply($0) }
+    return draft
 }
 
 private let goldenRepos = EngineConfigChange.watchedRepos(["acme/web", "AshuLab/carrier", "new/one"])
@@ -55,7 +72,7 @@ private let launched = ProcessCommand(program: "/usr/local/bin/carrier", argumen
 private func launcher(_ runner: FakeRunner) -> CarrierConfigLauncher { CarrierConfigLauncher(runner: runner) { launched } }
 
 @Test func eachRequestTheAppBuildsEncodesAsItsGoldenSaysWithoutItsId() throws {
-    for (name, change) in [("engine-set-watched-repos.json", goldenRepos), ("engine-edit-behavior.json", EngineConfigChange.behavior(goldenBehavior()))] {
+    for (name, change) in [("engine-set-watched-repos.json", goldenRepos), ("engine-edit-behavior.json", EngineConfigChange.behavior(goldenBehavior()))] + goldenRoleChanges {
         let (request, _) = try golden(name)
         #expect(try object(change.request) == request as NSDictionary, Comment(rawValue: name))
         // one line, which is what `carrier config` reads
@@ -64,7 +81,7 @@ private func launcher(_ runner: FakeRunner) -> CarrierConfigLauncher { CarrierCo
 }
 
 @Test func theGoldenRepliesDecodeIntoWhatTheEngineDid() throws {
-    for name in ["engine-set-watched-repos.json", "engine-edit-behavior.json"] {
+    for name in ["engine-set-watched-repos.json", "engine-edit-behavior.json"] + goldenRoleChanges.map(\.0) {
         let data = try #require(try golden(name).reply["data"])
         let reply = try JSONDecoder().decode(EngineConfigReply.self, from: JSONSerialization.data(withJSONObject: data))
         #expect(reply.engine == .applied && reply.outcome == .applied && reply.reason == nil)
@@ -84,6 +101,52 @@ private func launcher(_ runner: FakeRunner) -> CarrierConfigLauncher { CarrierCo
     var config = EngineConfig()
     config.pollIntervalMinutes = .nan
     #expect(EngineConfigChange.behavior(config).fields == "")
+}
+
+@Test func aPickOfTheAgentsPageIsOneRoleRequestWithTheIdentityAsTheProfileMeansItAndNullForNoEffort() throws {
+    let changes = try #require(try object(EngineConfigChange.role(.author, [.gh, .provider("codex"), .model(" gpt-5 "), .effort("low"), .effort(nil)]).request)["changes"] as? NSDictionary)
+    #expect(changes == ["identity": ["kind": "gh"], "provider": "codex", "model": " gpt-5 ", "effort": NSNull()] as NSDictionary)
+    #expect(try object(EngineConfigChange.role(.leadReviewer, [.bot("nova")]).request) == ["cmd": "editRole", "role": "leadReviewer", "changes": ["identity": ["kind": "forge", "agent": "nova"]]] as NSDictionary)
+}
+
+@Test func aRepoRoleSendsOnlyTheFieldsItSetsAndResetSendsNull() throws {
+    let set = try object(EngineConfigChange.repoRole(repo: "a/b", role: .author, fields: RoleFields(model: "m", persona: RolePersona(prompt: "p"))).request)
+    #expect(set == ["cmd": "editRepoRole", "repo": "a/b", "role": "author", "fields": ["model": "m", "persona": ["prompt": "p"]]] as NSDictionary)
+    #expect(try object(EngineConfigChange.repoRole(repo: "a/b", role: .reviewer, fields: nil).request) == ["cmd": "editRepoRole", "repo": "a/b", "role": "reviewer", "fields": NSNull()] as NSDictionary)
+}
+
+@Test func aPersonaAndAFailoverSendNullForWhatIsTakenOutAndLeaveTheEffortOfAStepOutWhenItHasNone() throws {
+    #expect(try object(EngineConfigChange.persona(role: .author, name: nil, prompt: nil).request) == ["cmd": "editPersona", "role": "author", "name": NSNull(), "prompt": NSNull()] as NSDictionary)
+    #expect(try object(EngineConfigChange.failover(role: .reviewer, first: FailoverStep(provider: "codex"), second: nil).request) == ["cmd": "editFailover", "role": "reviewer", "first": ["provider": "codex"], "second": NSNull()] as NSDictionary)
+}
+
+@Test func theLeadReviewerDraftIsSentAsItStandsAndAnIncompleteOneIsLeftToTheEngineToRefuse() throws {
+    var draft = LeadReviewerDraft()
+    draft.apply(.provider("codex"))
+    #expect(try object(EngineConfigChange.leadReviewer(draft).request) == ["cmd": "setLeadReviewer", "draft": ["provider": "codex", "model": ""]] as NSDictionary)
+    #expect(try object(EngineConfigChange.orchestratorProfile(nil).request) == ["cmd": "setOrchestratorProfile", "name": NSNull()] as NSDictionary)
+}
+
+@MainActor @Test func theQueueSendsOneChangeAtATimeInTheOrderItWasAskedEvenWhenAnEarlierOneAnswersLast() async {
+    final class Slow: @unchecked Sendable {
+        let lock = NSLock()
+        var order: [String] = []
+        func send(_ change: EngineConfigChange) async throws -> EngineConfigReply {
+            lock.withLock { order.append("start \(change.command)") }
+            if case .persona = change { try? await Task.sleep(for: .milliseconds(60)) }
+            lock.withLock { order.append("end \(change.command)") }
+            return EngineConfigReply(engine: .applied)
+        }
+    }
+    let engine = Slow()
+    let queue = EngineConfigQueue()
+    let status = ReloadStatus(reload: { .nobody })
+    // asked one after the other on the main actor, so the first is queued before the second
+    let first = Task { @MainActor in await queue.save(.persona(role: .author, name: "Ada", prompt: nil), send: engine.send, status: status) }
+    let second = Task { @MainActor in await queue.save(.orchestratorProfile(nil), send: engine.send, status: status) }
+    let saved = await [first.value, second.value]
+    #expect(saved == [.saved, .saved])
+    #expect(engine.order == ["start editPersona", "end editPersona", "start setOrchestratorProfile", "end setOrchestratorProfile"])
 }
 
 @Test func theSocketGetsTheGoldenRequestWithAnIdWhenTheHelloListsConfig() async throws {
@@ -165,4 +228,40 @@ private func launcher(_ runner: FakeRunner) -> CarrierConfigLauncher { CarrierCo
     engine.failure = ControlError.timeout
     #expect(await saveEngineConfig(.behavior(EngineConfig()), send: engine.send, status: status).problem != nil)
     #expect(status.outcome == .nobody)
+}
+
+@Test func aRoleRequestGoesToTheSocketAsItsGoldenSaysAndToCarrierConfigWithoutAnIdWhenTheEngineIsOlder() async throws {
+    let (request, reply) = try golden("engine-edit-role.json")
+    let change = try #require(goldenRoleChanges.first { $0.0 == "engine-edit-role.json" }?.1)
+    let asked = Asked()
+    let server = TestServer { connection in
+        connection.send(hello("\"reload\",\"config\""))
+        guard let line = connection.readLine(), let id = (try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any])?["id"] as? Int else { return }
+        asked.add(line)
+        var answer = reply
+        answer["id"] = id
+        connection.send(String(decoding: (try? JSONSerialization.data(withJSONObject: answer)) ?? Data(), as: UTF8.self) + "\n")
+    }
+    defer { server.stop() }
+    let runner = FakeRunner(.success(ProcessResult(output: "", status: 0)))
+    #expect(try await EngineConfigSender(socketPath: { server.path }, launcher: launcher(runner)).send(change).outcome == .applied && runner.ran.isEmpty)
+    let line = try #require(asked.all.first)
+    var sent = try #require(JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any])
+    #expect(sent.removeValue(forKey: "id") != nil && sent as NSDictionary == request as NSDictionary)
+
+    let older = TestServer { $0.send(hello("\"reload\"")) }
+    defer { older.stop() }
+    let output = String(decoding: try JSONSerialization.data(withJSONObject: reply), as: UTF8.self) + "\n"
+    let runner2 = FakeRunner(.success(ProcessResult(output: output, status: 0)))
+    #expect(try await EngineConfigSender(socketPath: { older.path }, launcher: launcher(runner2)).send(change).outcome == .applied)
+    let input = try #require(runner2.ran.first?.input)
+    #expect(try object(input) == request as NSDictionary)
+}
+
+@MainActor @Test func aRoleRefusalOfTheEngineIsItsWordsAndTheFileWasNotChanged() async {
+    let status = ReloadStatus(reload: { .nobody })
+    let engine = FakeEngineConfig()
+    engine.failure = ControlError.remote(Refusal(code: "config.problem", params: ["path": "agents.author.model", "problem": "empty"], text: "The model cannot be empty."))
+    #expect(await saveEngineConfig(.role(.author, [.model(" ")]), send: engine.send, status: status) == .refused("The model cannot be empty."))
+    #expect(status.outcome == nil && engine.sent == [.role(.author, [.model(" ")])])
 }

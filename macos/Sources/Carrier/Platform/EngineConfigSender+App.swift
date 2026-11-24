@@ -13,3 +13,11 @@ extension EngineConfigSender {
         _ = try? shortRun(command.program, command.arguments, environment: command.environment, input: command.input, limit: command.limit)
     }
 }
+
+/// The role edits of the Agents page, a repo's role screens and the Engine page, one at a time and in the order they were made.
+@MainActor private let roleEdits = EngineConfigQueue()
+
+/// Sends a change of `engine.json` the pages make a field at a time and shows what the engine answered like a reload (`ReloadNote`): `.saved`, or why it was refused.
+@MainActor func saveToEngine(_ change: EngineConfigChange) async -> RoleSave {
+    await roleEdits.save(change, send: EngineConfigSender.app.send)
+}

@@ -57,71 +57,13 @@ private func object(_ data: Data?) -> [String: Any] {
     #expect(EngineConfig(json: Data(#"{"limits":{"maxExecutionHours":8}}"#.utf8)).maxExecutionHours == 8)
 }
 
-private let profiled = Data(#"{"zeta":1,"profiles":{"bot":{}},"repos":[{"name":"a/b"}],"orchestratorProfile":"old","limits":{"maxReviews":7}}"#.utf8)
-
-@Test func aProfileIsWrittenAndEveryOtherKeyIsKept() throws {
-    let written = object(applyingOrchestratorProfile("bot", to: profiled))
-    #expect(written["orchestratorProfile"] as? String == "bot")
-    var expected = object(profiled)
-    expected["orchestratorProfile"] = "bot"
-    #expect(NSDictionary(dictionary: written).isEqual(to: expected))
-    #expect(EngineIdentity(config: try #require(applyingOrchestratorProfile("bot", to: profiled)))?.current == "bot")
-}
-
-@Test func theDefaultTakesTheKeyOutInsteadOfWritingTheAuthorsName() throws {
-    let written = object(applyingOrchestratorProfile(nil, to: profiled))
-    #expect(written["orchestratorProfile"] == nil && written.count == object(profiled).count - 1)
-    #expect(written["zeta"] as? Int == 1 && (written["repos"] as? [Any])?.count == 1)
-}
-
-@Test func anUndeclaredProfileIsKeptUntilAnotherIsPicked() throws {
+@Test func anUndeclaredOrchestratorProfileStaysOnTheListUntilAnotherIsPicked() throws {
     let file = Data(#"{"profiles":{"bot":{}},"orchestratorProfile":"gone"}"#.utf8)
-    #expect(EngineIdentity(config: file)?.undeclared == "gone")
-    #expect(object(applyingOrchestratorProfile("bot", to: file))["orchestratorProfile"] as? String == "bot")
+    let identity = try #require(EngineIdentity(config: file))
+    #expect(identity.undeclared == "gone" && identity.choices == ["bot", "gone"] && identity.current == "gone")
 }
 
-/// Like every writer of `engine.json`, the identity writes the keys sorted: their values stay, their order does not.
-@Test func theIdentityWritesTheKeysSortedLikeEveryWriter() throws {
-    let unsorted = Data(#"{"z":2,"orchestratorProfile":"x","a":1}"#.utf8)
-    let text = String(decoding: try #require(applyingOrchestratorProfile("y", to: unsorted)), as: UTF8.self)
-    #expect(text.contains("\"a\" : 1,\n  \"orchestratorProfile\" : \"y\",\n  \"z\" : 2"))
-}
-
-@Test func aFileThatIsNotAnObjectIsRefusedForTheIdentity() {
-    #expect(applyingOrchestratorProfile("bot", to: Data("[]".utf8)) == nil)
-    #expect(applyingOrchestratorProfile(nil, to: Data("not json".utf8)) == nil)
-    #expect(applyingOrchestratorProfile("bot", to: Data()) == nil)
-}
-
-@Test func aChosenProfileIsWrittenAndThenTheEngineIsAskedToReload() throws {
-    let path = NSTemporaryDirectory() + "carrier-identity-\(UUID().uuidString).json"
-    try profiled.write(to: URL(fileURLWithPath: path))
-    let engine = FakeReload(file: path)
-    #expect(saveOrchestratorProfile("bot", path: path, reload: engine.reload) == .saved)
-    #expect(engine.calls == 1 && EngineIdentity(config: engine.seen[0] ?? Data())?.current == "bot")
-    #expect(saveOrchestratorProfile(nil, path: path, reload: engine.reload) == .saved)
-    #expect(engine.calls == 2 && EngineIdentity(config: engine.seen[1] ?? Data())?.current == nil)
-}
-
-@Test func aProfileThatCouldNotBeWrittenAsksTheEngineNothing() throws {
-    let path = NSTemporaryDirectory() + "carrier-identity-\(UUID().uuidString).json"
-    let engine = FakeReload(file: path)
-    #expect(saveOrchestratorProfile("bot", path: path, reload: engine.reload) == .failed("The config file could not be read."))
-    try Data("[]".utf8).write(to: URL(fileURLWithPath: path))
-    #expect(saveOrchestratorProfile("bot", path: path, reload: engine.reload) == .failed("The config file could not be read."))
-    #expect(engine.calls == 0)
-    #expect(try Data(contentsOf: URL(fileURLWithPath: path)) == Data("[]".utf8))
-    let folder = NSTemporaryDirectory() + "carrier-identity-\(UUID().uuidString)"
-    try FileManager.default.createDirectory(atPath: folder, withIntermediateDirectories: true)
-    try profiled.write(to: URL(fileURLWithPath: folder + "/engine.json"))
-    try FileManager.default.setAttributes([.posixPermissions: 0o500], ofItemAtPath: folder)
-    defer {
-        try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: folder)
-        try? FileManager.default.removeItem(atPath: folder)
-    }
-    guard case .failed = saveOrchestratorProfile("bot", path: folder + "/engine.json", reload: engine.reload) else {
-        Issue.record("expected the write to fail")
-        return
-    }
-    #expect(engine.calls == 0)
+@Test func theOrchestratorChoiceListsTheDefaultFirstAndAFileThatIsNotAnObjectHasNoIdentity() {
+    #expect(EngineIdentity.options(nil).map(\.title) == [EngineIdentity.defaultTitle])
+    #expect(EngineIdentity(config: Data("[]".utf8)) == nil)
 }

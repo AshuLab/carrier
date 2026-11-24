@@ -218,7 +218,7 @@ struct WatchingTabView: View {
         if let mine = configData.flatMap({ repoRoles(json: $0, repo: repo.name) })?.rows.first(where: { $0.role == row.role }), let roles = configData.flatMap({ repoRoles(json: $0, repo: repo.name) }) {
             RepoRoleScreen(
                 row: row, mine: mine, page: page, profiles: roles.profiles, accounts: declaredAccounts(providersJSON: providersData), icons: accountIcons(providersJSON: providersData),
-                save: { saveRole($0, role: row.role, repo: repo.name) }, open: { go(SettingsPlace(.watching, path: [repo.name, $0.rawValue])) }
+                save: { await saveRole($0, role: row.role, repo: repo.name) }, open: { go(SettingsPlace(.watching, path: [repo.name, $0.rawValue])) }
             )
             .id("\(repo.name)/\(row.role.rawValue)")
         }
@@ -234,9 +234,9 @@ struct WatchingTabView: View {
         return nil
     }
 
-    /// Writes the role, then reads the file back and asks the doctor, whose reason is shown when the engine refuses what was written.
-    private func saveRole(_ fields: RoleFields?, role: AgentRole, repo: String) -> RoleSave {
-        let result = saveRepoRole(fields, role: role, repo: repo, path: path, accounts: declaredAccounts(providersJSON: readProviders()))
+    /// Sends the role (`editRepoRole`), then reads the file back and asks the doctor, whose reason is shown when the engine refuses what was written.
+    private func saveRole(_ fields: RoleFields?, role: AgentRole, repo: String) async -> RoleSave {
+        let result = await saveToEngine(.repoRole(repo: repo, role: role, fields: fields))
         if result == .saved {
             failure = nil
             load()

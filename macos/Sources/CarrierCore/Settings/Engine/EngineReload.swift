@@ -33,8 +33,8 @@ public typealias Reload = () -> ReloadOutcome
 /// (nil), the answer being `ReloadStatus`'s. A `Reload` is one too.
 public typealias AfterWrite = () -> ReloadOutcome?
 
-/// `Reload` for the engine at `socketPath`. Blocks until the engine has answered (3 s to connect, 3 s to reply at most): a page runs it
-/// through `reloadInBackground`, a model that already waits (`await reloadOffMain`) runs it on its own.
+/// `Reload` for the engine at `socketPath`. Blocks until the engine has answered (3 s to connect, 3 s to reply at most): a model runs it
+/// with `await reloadOffMain`.
 public func reloadEngine(socketPath: String = controlSocketPath()) -> ReloadOutcome {
     guard let client = ControlClient.connect(path: socketPath, timeout: 3) else { return .nobody }
     defer { client.close() }
@@ -124,17 +124,6 @@ public func reloadOffMain(_ reload: @escaping Reload) async -> ReloadOutcome {
     }
 }
 
-/// The `AfterWrite` of the pages: hands the ask to `ReloadStatus.shared`, so a save never waits for the engine. The pages save on the main
-/// thread and the ask is made at once; from any other thread it is made as soon as the main actor is free.
-public func reloadInBackground() -> ReloadOutcome? {
-    if Thread.isMainThread {
-        MainActor.assumeIsolated { _ = ReloadStatus.shared.ask() }
-    } else {
-        Task { @MainActor in ReloadStatus.shared.ask() }
-    }
-    return nil
-}
-
 /// What the page says when the file is saved and the engine did not apply it: nil when it did, there was no one to ask, or the answer is on its way.
 public func reloadWords(_ outcome: ReloadOutcome) -> String? {
     switch outcome {
@@ -142,19 +131,5 @@ public func reloadWords(_ outcome: ReloadOutcome) -> String? {
     case .applied, .nobody, .unsupported: nil
     case .refused(let problem): "Saved, but Carrier kept its settings: \(problem.text)"
     case .noAnswer: "Saved, but Carrier did not answer: it may not have applied it."
-    }
-}
-
-/// What the Behavior and Watching tabs save with: `edit` rewrites the file at `path`, read just now so a save of another tab in between is not
-/// lost; `unusable` is what to say when it cannot be read or `edit` gives nothing. A written file is followed by `reload`.
-public func saveConfig(path: String, unusable: String, edit: (Data) -> Data?, reload: AfterWrite = reloadInBackground) -> RoleSave {
-    let url = URL(fileURLWithPath: path)
-    guard let current = try? Data(contentsOf: url), let updated = edit(current) else { return .failed(unusable) }
-    do {
-        try updated.write(to: url, options: .atomic)
-        return written(reload)
-    } catch {
-        FileHandle.standardError.write(Data("carrier: saving \(path) failed: \(error)\n".utf8))
-        return .failed("Could not save the config file: \(error.localizedDescription)")
     }
 }

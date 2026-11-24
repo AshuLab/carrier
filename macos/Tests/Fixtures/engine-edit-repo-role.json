@@ -1,0 +1,41 @@
+{
+  "request": {
+    "cmd": "editRepoRole",
+    "repo": "acme/web",
+    "role": "reviewer",
+    "fields": {
+      "profile": "author-bot",
+      "model": "qwen3-coder",
+      "effort": "high",
+      "persona": {
+        "name": "Rex"
+      }
+    }
+  },
+  "reply": {
+    "ok": true,
+    "data": {
+      "saved": {
+        "repos": [
+          {
+            "name": "acme/web",
+            "agents": {
+              "author": {
+                "model": "opus"
+              },
+              "reviewer": {
+                "profile": "author-bot",
+                "model": "qwen3-coder",
+                "effort": "high",
+                "persona": {
+                  "name": "Rex"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "engine": "applied"
+    }
+  }
+}

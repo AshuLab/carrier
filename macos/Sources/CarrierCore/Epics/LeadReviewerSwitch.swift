@@ -1,11 +1,12 @@
 import Foundation
 
 // The Use a lead reviewer switch of the Agents page (docs/specs/agents-in-settings.md). Off removes `agents.leadReviewer` and its failover steps
-// from `engine.json` and keeps every other key. On writes nothing until identity, provider and model are chosen (`LeadReviewerDraft`), then the
-// whole role goes in one write through `saveGlobalRole`, so the file never holds a half role.
+// from `engine.json` and keeps every other key. On sends nothing until identity, provider and model are chosen (`LeadReviewerDraft`), then the
+// whole role goes in one request (`EngineConfigChange.leadReviewer`), so the file never holds a half role. `turnLeadReviewerOn` and `Off` are the fixture engine's copy of what
+// the engine does (src/config/role-edit.ts, `setLeadReviewer`).
 
 /// What the person has chosen for the Lead reviewer while the switch is on in the page and the file has no role yet.
-public struct LeadReviewerDraft: Equatable {
+public struct LeadReviewerDraft: Equatable, Sendable {
     /// `.bot` or `.gh`
     public var identity: RoleChange?
     public var provider: String?
@@ -72,14 +73,14 @@ extension RoleRow {
 }
 
 /// Turns the Lead reviewer on with a complete `draft`; an incomplete one is refused before the file is read.
-public func turnLeadReviewerOn(_ draft: LeadReviewerDraft, path: String, accounts: [String], bots: [String], reload: AfterWrite = reloadInBackground) -> RoleSave {
+func turnLeadReviewerOn(_ draft: LeadReviewerDraft, path: String, accounts: [String], bots: [String], reload: AfterWrite) -> RoleSave {
     guard draft.isComplete else { return .refused("The lead reviewer needs \(draft.missing.joined(separator: ", ")).") }
     return saveGlobalRole(draft.changes, role: .leadReviewer, path: path, accounts: accounts, bots: bots, creating: true, reload: reload)
 }
 
 /// Turns the Lead reviewer off: removes `agents.leadReviewer` and `failover.roles.leadReviewer` from the file at `path`, read just now, and keeps
 /// every other key. A file that already has neither is left as it is.
-public func turnLeadReviewerOff(path: String, reload: AfterWrite = reloadInBackground) -> RoleSave {
+func turnLeadReviewerOff(path: String, reload: AfterWrite) -> RoleSave {
     let url = URL(fileURLWithPath: path)
     guard let current = try? Data(contentsOf: url), var file = (try? JSONSerialization.jsonObject(with: current)) as? [String: Any] else {
         return .failed("The config file could not be read.")

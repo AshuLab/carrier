@@ -3,7 +3,7 @@ import Foundation
 // "Who works here" on a repo's page, as plain values: what each role of the repo resolves to, from the global `agents` and the repo's
 // own `agents` in `engine.json`. This only reads; writing is RepoRoleSave.swift.
 
-public enum AgentRole: String, CaseIterable, Equatable {
+public enum AgentRole: String, CaseIterable, Equatable, Sendable {
     case author, reviewer, leadReviewer
 
     public var title: String {
@@ -16,7 +16,7 @@ public enum AgentRole: String, CaseIterable, Equatable {
 }
 
 /// The persona of a role: a name, a prompt, or both. A repo's persona replaces the global one whole.
-public struct RolePersona: Equatable {
+public struct RolePersona: Equatable, Sendable {
     public var name: String?
     public var prompt: String?
 
@@ -27,7 +27,7 @@ public struct RolePersona: Equatable {
 }
 
 /// The fields of a role, each one optional because a repo sets only some of them.
-public struct RoleFields: Equatable {
+public struct RoleFields: Equatable, Sendable {
     public var profile: String?
     public var provider: String?
     public var model: String?

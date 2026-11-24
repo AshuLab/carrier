@@ -1,7 +1,7 @@
 import Foundation
 
-// Changing and resetting a repo's role from its page: writes `repos[].agents.<role>` of `engine.json` and nothing else. The file is read
-// again inside the save, so a change made by another writer since the page read it is not lost, and every key the app does not know stays.
+// Changing and resetting a repo's role: writes `repos[].agents.<role>` of `engine.json` and nothing else. The app sends `EngineConfigChange.repoRole` and the engine (src/config/role-edit.ts)
+// writes it; `saveRepoRole` is the fixture engine's copy of that (FixtureServer+EngineConfig.swift). What the page checks while the person types (`RoleFields.problems`) stays.
 
 public let roleEfforts = ["low", "medium", "high", "xhigh", "max"]
 
@@ -100,7 +100,7 @@ func applyingRepoRole(_ fields: RoleFields?, role: AgentRole, repo: String, to j
 
 /// Saves `fields` as the repo's own `role` (nil resets it) in the file at `path`, read just now. A profile or account that is not declared
 /// is refused before anything is written.
-public func saveRepoRole(_ fields: RoleFields?, role: AgentRole, repo: String, path: String, accounts: [String], reload: AfterWrite = reloadInBackground) -> RoleSave {
+func saveRepoRole(_ fields: RoleFields?, role: AgentRole, repo: String, path: String, accounts: [String], reload: AfterWrite) -> RoleSave {
     let url = URL(fileURLWithPath: path)
     guard let current = try? Data(contentsOf: url), let roles = repoRoles(json: current, repo: repo) else {
         return .failed("The config file could not be read.")

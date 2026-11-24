@@ -8,7 +8,7 @@ import { resolveRepoConfig } from '../../config/resolve.ts';
 import type { AgentRunner } from '../../execution/agent-runner.ts';
 import { GitWorkspaces, profileToken, type GitWorkspacesOptions } from '../../execution/git-workspaces.ts';
 import type { Workspaces } from '../../execution/workspaces.ts';
-import { withEngine } from '../../control/config.ts';
+import { withEngine, writeEngineConfig } from '../../control/config.ts';
 import { epicOf } from '../../control/epic.ts';
 import { eventsOf, lastEventOf } from '../../control/events.ts';
 import { cardsMemo, fileDiff, filesOf } from '../../control/files.ts';
@@ -73,7 +73,7 @@ export interface CarrierDeps {
   stdin?: Parameters<typeof startInteractivePanel>[0]['stdin'];
   /** Opens a GitHub page in the browser. */
   openUrl: (url: string) => void;
-  /** The file the engine runs on, which `setWatchedRepos` and `editBehavior` write; the Carrier folder's `engine.json` unless `--config` chose another. */
+  /** The file the engine runs on, which the `config` requests (`setWatchedRepos`, `editBehavior`, the role requests) write; the Carrier folder's `engine.json` unless `--config` chose another. */
   configPath?: string;
   /** The `q` key: ends the process the same way Ctrl+C would. */
   quit: () => void;
@@ -228,6 +228,7 @@ export async function startCarrier(started: Config, folder: string, loadConfig: 
     reload: reloadNow,
     setWatchedRepos: (names: string[]) => withEngine(setWatchedRepos(names, configPath, folder), reloadNow),
     editBehavior: (changes: BehaviorChanges) => withEngine(editBehavior(changes, configPath, folder), reloadNow),
+    editEngineFile: (command: Parameters<Controls['editEngineFile']>[0]) => withEngine(writeEngineConfig(command, configPath, folder), reloadNow),
   };
   // Before the recovery: the snapshot and the read requests only read SQLite, and a check or a resume asked meanwhile shares the start's recovery.
   // Until then the snapshot has no next check, which the app and the panel show as starting.

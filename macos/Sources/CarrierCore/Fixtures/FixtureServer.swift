@@ -129,6 +129,8 @@ public final class FixtureServer {
     {"name":"acme/api","private":true,"pushedAt":"2026-10-15T09:00:00Z"}],"hasMore":false}
     """
 
+    /// The requests that change the roles, personas, failover, lead reviewer or orchestrator profile in `engine.json`: `engineRolesReply` writes them.
+    static let roleRequests: Set<String> = ["editRole", "editRepoRole", "editPersona", "editFailover", "setLeadReviewer", "setOrchestratorProfile"]
     /// Accepted and answered with nothing, as the real engine would; the fixture has no one to pause or stop.
     private static let controls: Set<String> = ["pause", "resume", "checkNow", "stop", "resumeEpic", "recoverEpic", "reload"]
 
@@ -370,6 +372,7 @@ public final class FixtureServer {
         if let body = data[cmd] { return Self.line("{\"id\":\(id),\"ok\":true,\"data\":" + String(decoding: body, as: UTF8.self) + "}") }
         if Self.controls.contains(cmd) { return Self.line("{\"id\":\(id),\"ok\":true}") }
         if cmd == "setWatchedRepos" || cmd == "editBehavior", let answer = engineConfigReply(id, request ?? [:]) { return answer }
+        if Self.roleRequests.contains(cmd), let answer = engineRolesReply(id, request ?? [:]) { return answer }
         return Self.refused(id, "request.invalid", "unknown request")
     }
 

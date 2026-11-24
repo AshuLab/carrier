@@ -1,0 +1,39 @@
+{
+  "request": {
+    "cmd": "editFailover",
+    "role": "author",
+    "first": {
+      "provider": "codex",
+      "model": "gpt-5",
+      "effort": "high"
+    },
+    "second": {
+      "provider": "agy"
+    }
+  },
+  "reply": {
+    "ok": true,
+    "data": {
+      "saved": {
+        "failover": {
+          "triggers": [
+            "usage_limit"
+          ],
+          "roles": {
+            "author": [
+              {
+                "provider": "codex",
+                "model": "gpt-5",
+                "effort": "high"
+              },
+              {
+                "provider": "agy"
+              }
+            ]
+          }
+        }
+      },
+      "engine": "applied"
+    }
+  }
+}

@@ -1,8 +1,8 @@
 import Foundation
 
 // The Details and "When it runs out of tokens" cards of the Agents page (docs/specs/agents-in-settings.md): the persona of `agents.<role>` and the
-// steps of `failover.roles.<role>` in `engine.json`, and nothing else. The file is read again inside the save and every key the app does not know
-// stays. The persona's limits are the ones of a repo's role (`RoleFields.problems`, RepoRoleSave.swift).
+// steps of `failover.roles.<role>` in `engine.json`, and nothing else. The app sends `EngineConfigChange.persona` and `.failover` and the engine (src/config/role-edit.ts) writes them;
+// these are the fixture engine's copy of that (FixtureServer+EngineConfig.swift). The persona's limits are the ones of a repo's role (`RoleFields.problems`, RepoRoleSave.swift).
 
 /// Reads the file, lets `edit` change it (a returned value stops the save, nothing is written) and writes it back.
 private func updateConfig(path: String, reload: AfterWrite, _ edit: (inout [String: Any]) -> RoleSave?) -> RoleSave {
@@ -22,7 +22,7 @@ private func updateConfig(path: String, reload: AfterWrite, _ edit: (inout [Stri
 
 /// Sets the global `role`'s persona to `name` and `prompt`, either one alone or both; nil for both removes it. A text given but empty, a name over
 /// 40 characters or with a line break, or a prompt over 4000 characters is refused before writing.
-public func saveGlobalPersona(name: String?, prompt: String?, role: AgentRole, path: String, reload: AfterWrite = reloadInBackground) -> RoleSave {
+func saveGlobalPersona(name: String?, prompt: String?, role: AgentRole, path: String, reload: AfterWrite) -> RoleSave {
     for (label, text) in [("name", name), ("prompt", prompt)] where text?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == true {
         return .refused("The persona’s \(label) cannot be empty. Leave it out instead.")
     }
@@ -43,7 +43,7 @@ public func saveGlobalPersona(name: String?, prompt: String?, role: AgentRole, p
 /// Sets the first two steps of the global `role`'s failover to `first` and `second`, and keeps the steps after them that the file has. Both nil
 /// is Switch automatically off: the role's list is removed. Each step needs a declared provider; a step equal to another of the list or to the
 /// role's own provider and model is refused (the engine's rule, `failover.roles.<role>.<n>`), with its position.
-public func saveGlobalFailover(first: FailoverStep?, second: FailoverStep?, role: AgentRole, path: String, accounts: [String], reload: AfterWrite = reloadInBackground) -> RoleSave {
+func saveGlobalFailover(first: FailoverStep?, second: FailoverStep?, role: AgentRole, path: String, accounts: [String], reload: AfterWrite) -> RoleSave {
     if first == nil, second != nil { return .refused("Then needs a First step.") }
     func clean(_ step: FailoverStep) -> FailoverStep {
         let model = step.model?.trimmingCharacters(in: .whitespacesAndNewlines)

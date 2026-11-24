@@ -4,8 +4,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-import { chatConfigPathOf } from '../config/places.ts';
+import { chatConfigPathOf, engineConfigPathOf, providersPathOf } from '../config/places.ts';
 import { editChatSettings } from './config.ts';
+import { fakeEngine } from './fake-engine.ts';
+import { providersRequests } from './providers-requests.ts';
 import { ChatRefused, textCode } from './runner.ts';
 import { startChatServer, type ChatControls } from './server.ts';
 
@@ -103,6 +105,7 @@ const controls = (): ChatControls => ({
   },
   // the real writing code, over a scratch Carrier folder
   editChatSettings: ({ changes }) => editChatSettings(changes, home()),
+  ...providersRequests(home()),
 });
 const seen: AbortSignal[] = [];
 let refuseBulkTitles = false;
@@ -656,4 +659,131 @@ test('editChatSettings takes only the four settings, and its request and reply a
   if (process.env.UPDATE_FIXTURES === '1') writeFileSync(file, json);
   expect(json).toBe(readFileSync(file, 'utf8'));
   expect(id).toBe(3);
+});
+
+// providers.json (ADR 0053): the five requests of the `config` capability that write it
+const providersFile = () => providersPathOf(home());
+const seedProviders = (value: unknown) => (mkdirSync(home(), { recursive: true }), writeFileSync(providersFile(), typeof value === 'string' ? value : JSON.stringify(value)));
+const providersAfter = () => JSON.parse(readFileSync(providersFile(), 'utf8'));
+const written = { providers: { claude: { harness: 'claude', model: 'mine', launchArgs: ['--chrome'] }, codex: { harness: 'codex' } }, textGenerators: { hand: { kind: 'ollama', model: 'x' } } };
+const ask = async (request: object) => {
+  await open();
+  return (await client()).ask(JSON.stringify({ id: 1, ...request }));
+};
+
+test('setAccounts, addAccount and editAccount change the file, keep every key the person wrote, and answer the saved part with what the engine did', async () => {
+  seedProviders(written);
+  expect(await ask({ cmd: 'setAccounts', accounts: [{ name: 'agy', harness: 'agy' }] })).toEqual({ id: 1, ok: true, data: { saved: { providers: { agy: { harness: 'agy' } } }, engine: 'notRunning' } });
+  expect(await ask({ cmd: 'addAccount', account: { name: 'claude-work', harness: 'claude', configDir: 'work' } })).toMatchObject({ ok: true, data: { saved: { providers: { 'claude-work': { harness: 'claude', configDir: '~/work' } } } } });
+  expect(await ask({ cmd: 'editAccount', name: 'claude', changes: { displayName: 'Mine', launchArgs: null } })).toMatchObject({ ok: true, data: { saved: { providers: { claude: { harness: 'claude', model: 'mine', displayName: 'Mine' } } } } });
+  expect(providersAfter()).toEqual({
+    providers: { claude: { harness: 'claude', model: 'mine', displayName: 'Mine' }, codex: { harness: 'codex' }, agy: { harness: 'agy' }, 'claude-work': { harness: 'claude', configDir: '~/work' } },
+    textGenerators: written.textGenerators,
+  });
+});
+
+test('removeAccount and setTextGenerator change the file and keep the rest', async () => {
+  seedProviders(written);
+  expect(await ask({ cmd: 'setTextGenerator', choice: { server: 'ollama', model: 'qwen3:8b' } })).toMatchObject({ ok: true, data: { saved: { textGenerator: 'ollama' }, engine: 'notRunning' } });
+  expect(providersAfter()).toEqual({ ...written, textGenerators: { hand: written.textGenerators.hand, ollama: { kind: 'ollama', model: 'qwen3:8b' } }, textGenerator: 'ollama' });
+  writeFileSync(chatConfigPathOf(home()), '{"agents":{}}');
+  expect(await ask({ cmd: 'removeAccount', name: 'codex' })).toEqual({ id: 1, ok: true, data: { saved: { providers: {} }, engine: 'notRunning' } });
+  expect(Object.keys(providersAfter().providers)).toEqual(['claude']);
+  expect(await ask({ cmd: 'setTextGenerator', choice: null })).toMatchObject({ ok: true, data: { saved: { textGenerators: written.textGenerators } } });
+});
+
+test.each([
+  [{ cmd: 'setAccounts', accounts: [{ name: 'codex', harness: 'codex' }] }, 'account.taken', { name: 'codex' }],
+  [{ cmd: 'addAccount', account: { name: 'claude', harness: 'claude' } }, 'account.taken', { name: 'claude' }],
+  [{ cmd: 'addAccount', account: { name: 'x', harness: 'agy' } }, 'account.harnessTakesOne', { harness: 'agy' }],
+  [{ cmd: 'addAccount', account: { name: 'Bad Name', harness: 'claude' } }, 'config.problem', { path: 'providers.Bad Name', problem: 'custom' }],
+  [{ cmd: 'editAccount', name: 'ghost', changes: { label: 'x' } }, 'account.missing', { name: 'ghost' }],
+  [{ cmd: 'editAccount', name: 'claude', changes: { autoCompact: 10 } }, 'config.problem', { path: 'providers.claude.autoCompact', problem: 'custom' }],
+  [{ cmd: 'editAccount', name: 'codex', changes: { icon: 'nope' } }, 'config.problem', { path: 'providers.codex.icon', problem: 'invalid_value' }],
+  [{ cmd: 'removeAccount', name: 'ghost' }, 'account.missing', { name: 'ghost' }],
+  [{ cmd: 'removeAccount', name: 'claude' }, 'account.inUse', { name: 'claude', uses: 'Chat agent claude' }],
+  [{ cmd: 'setTextGenerator', choice: { server: 'openai', model: 'm' } }, 'config.problem', { path: 'textGenerators.openai', problem: 'invalid_value' }],
+])('%o is refused with code %s and its params, and the file is left as it was', async (request, code, params) => {
+  const text = `${JSON.stringify(written, null, 1)}\n`;
+  seedProviders(text);
+  const reply = await ask(request);
+  expect(reply).toMatchObject({ id: 1, ok: false, code, params });
+  expect(reply.error).toEqual(expect.any(String));
+  expect(readFileSync(providersFile(), 'utf8')).toBe(text);
+  expect(readdirSync(home()).filter((name) => name.endsWith('.tmp'))).toEqual([]);
+});
+
+test.each([['[1, 2]', 'notAnObject'], ['{ not json', 'notJson']])('a providers.json that holds %s is refused by every request and left as it was', async (text, problem) => {
+  seedProviders(text);
+  await open();
+  const c = await client();
+  for (const request of [{ cmd: 'setAccounts', accounts: [{ name: 'a', harness: 'agy' }] }, { cmd: 'addAccount', account: { name: 'a', harness: 'claude' } }, { cmd: 'editAccount', name: 'a', changes: {} }, { cmd: 'removeAccount', name: 'a' }, { cmd: 'setTextGenerator', choice: null }]) {
+    expect(await c.ask(JSON.stringify({ id: 1, ...request }))).toMatchObject({ ok: false, code: 'config.problem', params: { path: '(file)', problem } });
+  }
+  expect(readFileSync(providersFile(), 'utf8')).toBe(text);
+});
+
+test('a removal names who uses the account in engine.json, and a chat.json that cannot be read stops it', async () => {
+  seedProviders(written);
+  writeFileSync(engineConfigPathOf(home()), JSON.stringify({ agents: { author: { provider: 'codex' } }, failover: { enabled: false, roles: { reviewer: [{ provider: 'codex' }] } } }));
+  writeFileSync(chatConfigPathOf(home()), '{"agents":{}}');
+  expect(await ask({ cmd: 'removeAccount', name: 'codex' })).toMatchObject({ ok: false, code: 'account.inUse', params: { name: 'codex', uses: 'Author, Failover of Reviewer' } });
+  writeFileSync(chatConfigPathOf(home()), '{ not json');
+  expect(await ask({ cmd: 'removeAccount', name: 'claude' })).toMatchObject({ ok: false, code: 'config.problem', params: { path: 'chat.json', problem: 'notJson' } });
+  expect(providersAfter()).toEqual(written);
+});
+
+test('a request with a field of another shape is invalid, and nothing is written', async () => {
+  seedProviders(written);
+  await open();
+  const c = await client();
+  for (const request of [{ cmd: 'setAccounts', accounts: [] }, { cmd: 'setAccounts', accounts: [{ name: 'a', harness: 'gemini' }] }, { cmd: 'addAccount', account: { name: 'a', harness: 'claude', extra: 1 } }, { cmd: 'editAccount', name: 'a', changes: { model: 'x' } }, { cmd: 'editAccount', name: 'a' }, { cmd: 'removeAccount' }, { cmd: 'setTextGenerator' }, { cmd: 'setTextGenerator', choice: { server: 'ollama' } }]) {
+    expect(await c.ask(JSON.stringify({ id: 1, ...request }))).toMatchObject({ ok: false, code: 'request.invalid' });
+  }
+  expect(providersAfter()).toEqual(written);
+});
+
+test('engine says applied when a running engine reloaded the file, refused with its reason when it kept its settings, and notRunning when none answers', async () => {
+  seedProviders(written);
+  const applied = await fakeEngine(home(), 'applied');
+  closers.push(applied.close);
+  expect(await ask({ cmd: 'addAccount', account: { name: 'one', harness: 'codex' } })).toMatchObject({ ok: true, data: { engine: 'applied' } });
+  expect(applied.reloads).toBe(1);
+  applied.close();
+  rmSync(join(home(), 'engine'), { recursive: true });
+  const kept = await fakeEngine(home(), { error: 'repos.0: not a repository', code: 'config.problem', params: { path: 'repos.0', problem: 'notARepo' } });
+  closers.push(kept.close);
+  const reply = await ask({ cmd: 'removeAccount', name: 'one' });
+  expect(reply).toEqual({ id: 1, ok: true, data: { saved: { providers: {} }, engine: 'refused', engineReason: { error: 'repos.0: not a repository', code: 'config.problem', params: { path: 'repos.0', problem: 'notARepo' } } } });
+  // the file is written whatever the engine says
+  expect(Object.keys(providersAfter().providers)).toEqual(['claude', 'codex']);
+  kept.close();
+  rmSync(join(home(), 'engine'), { recursive: true });
+  expect(await ask({ cmd: 'setTextGenerator', choice: null })).toMatchObject({ ok: true, data: { engine: 'notRunning' } });
+});
+
+test('the five requests and their replies are the golden files', async () => {
+  const goldenFile = (name: string) => fileURLToPath(new URL(`../../macos/Tests/Fixtures/${name}.json`, import.meta.url));
+  const check = async (name: string, request: object) => {
+    const { id, ...reply } = await ask(request);
+    const json = `${JSON.stringify({ request, reply }, null, 2)}\n`;
+    // what the app sends and the host answers (macos/Tests/CarrierCoreTests/Connection/ProvidersRequestsTests.swift); UPDATE_FIXTURES=1 rewrites it
+    if (process.env.UPDATE_FIXTURES === '1') writeFileSync(goldenFile(name), json);
+    expect(json).toBe(readFileSync(goldenFile(name), 'utf8'));
+  };
+  seedProviders({ providers: { claude: { harness: 'claude' }, codex: { harness: 'codex' }, spare: { harness: 'codex' } } });
+  writeFileSync(chatConfigPathOf(home()), '{"agents":{"claude":{"account":"claude"}}}');
+  await check('chat-set-accounts', { cmd: 'setAccounts', accounts: [{ name: 'agy', harness: 'agy' }] });
+  const engine = await fakeEngine(home(), 'applied');
+  closers.push(engine.close);
+  await check('chat-add-account', { cmd: 'addAccount', account: { name: 'claude-work', harness: 'claude', configDir: '~/.claude-work' } });
+  await check('chat-edit-account', { cmd: 'editAccount', name: 'claude-work', changes: { displayName: 'Work', label: null, icon: 'bolt', color: null, command: null, configDir: '~/.claude-work', autoCompact: 250000, launchArgs: ['--chrome'], idleCompaction: null } });
+  engine.close();
+  rmSync(join(home(), 'engine'), { recursive: true });
+  const kept = await fakeEngine(home(), { error: 'agents.author.provider: the account "spare" is not declared', code: 'config.problem', params: { path: 'agents.author.provider', problem: 'providerNotDeclared' } });
+  closers.push(kept.close);
+  await check('chat-remove-account', { cmd: 'removeAccount', name: 'spare' });
+  kept.close();
+  rmSync(join(home(), 'engine'), { recursive: true });
+  await check('chat-set-text-generator', { cmd: 'setTextGenerator', choice: { server: 'ollama', model: 'qwen3:8b' } });
 });

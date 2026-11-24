@@ -1,0 +1,23 @@
+{
+  "request": {
+    "cmd": "removeAccount",
+    "name": "spare"
+  },
+  "reply": {
+    "ok": true,
+    "data": {
+      "saved": {
+        "providers": {}
+      },
+      "engine": "refused",
+      "engineReason": {
+        "error": "agents.author.provider: the account \"spare\" is not declared",
+        "code": "config.problem",
+        "params": {
+          "path": "agents.author.provider",
+          "problem": "providerNotDeclared"
+        }
+      }
+    }
+  }
+}

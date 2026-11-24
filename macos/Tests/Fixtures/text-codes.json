@@ -1,4 +1,25 @@
 {
+  "account.harnessTakesOne": {
+    "params": {
+      "harness": "example"
+    }
+  },
+  "account.inUse": {
+    "params": {
+      "name": "example",
+      "uses": "example"
+    }
+  },
+  "account.missing": {
+    "params": {
+      "name": "example"
+    }
+  },
+  "account.taken": {
+    "params": {
+      "name": "example"
+    }
+  },
   "agent.approval.answersNeeded": {
     "params": {}
   },
@@ -556,6 +577,9 @@
       "account": "example",
       "agent": "example"
     }
+  },
+  "providers.engineNoAnswer": {
+    "params": {}
   },
   "providers.invalid": {
     "params": {

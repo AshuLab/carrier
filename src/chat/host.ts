@@ -15,6 +15,7 @@ import { realShell, type Shell } from './shell.ts';
 import { createProjects, ghBranches, ghLogin, ghRepos, ghToken, type GithubRepos } from './projects.ts';
 import { ghPullRequests, type PullRequests } from './pull-requests.ts';
 import { openChatDatabase } from './db.ts';
+import { providersRequests } from './providers-requests.ts';
 import { idleExit } from './idle.ts';
 import { capabilities } from './mcp/capabilities.ts';
 import { agents } from './mcp/agents.ts';
@@ -176,7 +177,7 @@ export async function startChatHost(overrides: Partial<ChatHostDeps> = {}) {
       joined: () => void idle?.joined(),
       left: () => void idle?.left(),
     };
-    closeServer = (await startChatServer({ stateDir, startedAt: deps.clock.now(), controls: { ...sessions, ...usage, projectDisk: disk.projectDisk, cloneRepo: projects.cloneRepo, cloneProject: projects.cloneProject, projectClones: projects.projectClones, dismissClone: projects.dismissClone, newProject: projects.newProject, createProject: projects.createProject, githubRepos: projects.githubRepos, repoBranches: projects.repoBranches, editChatSettings: ({ changes }) => editChatSettings(changes) }, stop, clients })).close;
+    closeServer = (await startChatServer({ stateDir, startedAt: deps.clock.now(), controls: { ...sessions, ...usage, projectDisk: disk.projectDisk, cloneRepo: projects.cloneRepo, cloneProject: projects.cloneProject, projectClones: projects.projectClones, dismissClone: projects.dismissClone, newProject: projects.newProject, createProject: projects.createProject, githubRepos: projects.githubRepos, repoBranches: projects.repoBranches, editChatSettings: ({ changes }) => editChatSettings(changes), ...providersRequests() }, stop, clients })).close;
   } catch (error) {
     close();
     throw error;

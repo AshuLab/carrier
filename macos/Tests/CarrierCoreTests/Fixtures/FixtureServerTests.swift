@@ -261,3 +261,62 @@ private func sameJSON(_ a: Data, _ b: Data) throws -> Bool {
     }
     #expect(try Data(contentsOf: URL(fileURLWithPath: file)) == Data("[1]".utf8))
 }
+
+@Test func theFixtureChatHostAnswersTheFiveProvidersRequestsLikeTheRealOneWithTheEnginesAnswer() async throws {
+    let server = try FixtureServer(fixtures: testPaths().fixtures.path)
+    defer { server.stop() }
+    let host = SocketChatHost(socketPath: { server.chatSocketPath })
+    let file = ProvidersFile(folder: server.home)
+    func accounts() throws -> [String] {
+        let data = try #require(try file.read())
+        let json = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        return (json["providers"] as? [String: Any] ?? [:]).keys.sorted()
+    }
+    func refusal(_ request: ProvidersRequest) async throws -> Refusal {
+        do { _ = try await host.changeProviders(request) } catch ControlError.remote(let refusal) { return refusal }
+        throw FixtureError.socket("\(request) was not refused")
+    }
+
+    // set the detected accounts, add, edit: written to the scratch folder, with the engine's answer
+    #expect(try await host.changeProviders(.setAccounts([DetectedAccount(name: "agy", harness: "agy")])).outcome == .applied)
+    #expect(try await host.changeProviders(.addAccount(name: "spare", harness: "codex", configDir: "")).outcome == .applied)
+    var draft = AccountDraft()
+    draft.displayName = "Spare"
+    #expect(try await host.changeProviders(.editAccount(name: "spare", draft: draft)).outcome == .applied)
+    #expect(try accounts() == ["agy", "claude", "claude-work", "codex", "spare"])
+    #expect(try accountDraft(named: "spare", in: file.read())?.displayName == "Spare")
+    // and the page sees them
+    #expect(try await host.providers().accounts.first { $0.name == "spare" }?.displayName == "Spare")
+
+    // the refusals of the real host, with their codes
+    #expect(try await refusal(.addAccount(name: "spare", harness: "codex", configDir: "")).has("account.taken"))
+    #expect(try await refusal(.editAccount(name: "ghost", draft: draft)).has("account.missing"))
+    #expect(try await refusal(.removeAccount(name: "ghost")).has("account.missing"))
+    let inUse = try await refusal(.removeAccount(name: "claude-work"))
+    #expect(inUse.has("account.inUse") && inUse.text.hasPrefix("claude-work is used by ") && inUse.text.contains("Chat agent work") && inUse.text.hasSuffix(", so it stays. Point those at another account first."))
+    #expect(try await host.changeProviders(.removeAccount(name: "spare")).outcome == .applied)
+    #expect(try accounts() == ["agy", "claude", "claude-work", "codex"])
+
+    // the text generator: chosen, then cleared, and a server that is not one is refused
+    #expect(try await host.changeProviders(.setTextGenerator(TextGeneratorChoice(server: "ollama", model: "qwen3:8b"))).outcome == .applied)
+    #expect(try await host.providers().textGenerator == HostProviders.TextGenerator(name: "ollama", kind: "ollama", model: "qwen3:8b"))
+    #expect(try await host.changeProviders(.setTextGenerator(nil)).outcome == .applied)
+    #expect(try await host.providers().textGenerator == nil)
+    #expect(try await refusal(.setTextGenerator(TextGeneratorChoice(server: "openai", model: "m"))).has("config.problem"))
+}
+
+@MainActor @Test func theProvidersStoreChangesTheFixtureFolderThroughTheHostAndShowsWhyItWasRefused() async throws {
+    let server = try FixtureServer(fixtures: testPaths().fixtures.path)
+    defer { server.stop() }
+    let file = ProvidersFile(folder: server.home)
+    let store = ProvidersStore(host: SocketChatHost(socketPath: { server.chatSocketPath }), file: { file }, log: { _ in }, status: ReloadStatus())
+    await store.load()
+    #expect(await store.addAccount(name: "claude-two", harness: "claude", configDir: "~/.claude-two"))
+    await store.settled()
+    #expect(store.editProblem == nil && store.editNote == nil)
+    #expect(try accountDraft(named: "claude-two", in: file.read())?.configDir == "~/.claude-two")
+    #expect(await store.remove(name: "claude") == false)
+    #expect(store.editProblem?.hasPrefix("claude is used by ") == true && store.editProblem?.contains("Chat agent claude") == true)
+    #expect(await store.remove(name: "claude-two"))
+    #expect(try accountDraft(named: "claude-two", in: file.read()) == nil)
+}

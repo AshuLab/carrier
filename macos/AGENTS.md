@@ -53,7 +53,7 @@ The window is `Carrier/SettingsWindow.swift`, a page's shared pieces `SettingsTa
 
 What the person sees: [settings-app](../docs/macos/settings-app.md#providers).
 
-The rows are `providersPage(_:config:chat:)` and `providersDirectory` (`ProvidersPage.swift`, `ProvidersDirectory.swift`; `Providers{Page,Directory}Tests`); views untested; `providers.json` is in `ProvidersFileTests` and `FixtureServerTests`.
+The rows are `providersPage(_:config:chat:)` and `providersDirectory` (`ProvidersPage.swift`, `ProvidersDirectory.swift`; `Providers{Page,Directory}Tests`); views untested; what the page asks of `providers.json` (`ProvidersRequests.swift`, the five requests) is in `ProvidersFileTests`, `ProvidersRequestsTests` and `FixtureServerTests`.
 
 ### Projects file
 

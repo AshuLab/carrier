@@ -5,6 +5,11 @@ The control socket (`<folder>/engine/state/control.sock`), newline-delimited JSO
 The hello's `capabilities` list the optional requests an engine answers (`sessions`, `events`, `epic`, `files`, `fileDiff`, `availableRepos`, `availableReposPaged`, `resumeEpic`, `resumeFromStage` (`resumeEpic` takes `from` and `extraRounds`), `resumeReviewerOptions` (`resumeEpic` takes `reviewer2`, `reviewer3`, `reviewer4` and `lead`), `recoverEpic` and `reload`); a client checks it before asking, so an older engine still works.
 `reload` makes the engine read `engine.json` and `providers.json` again and run on them, or answer the problem and keep its settings ([ADR 0023](../../docs/adr/0023-the-engine-reloads-its-configuration-on-request-and-running-work-keeps-what-it-started-with.md)).
 The app sends it after each save, and `carrier reload` is the same request.
+A refused reply is `{ id, ok: false, error, code, params }` on both sockets ([ADR 0055](../../docs/adr/0055-a-refusal-carries-a-code-and-its-parameters-and-its-english-words-are-the-fallback.md)): the words stay in `error`, and `refused(...)` in `server.ts` builds it.
+The fixed errors are `request.invalidJson`, `request.invalid`, `request.extraRounds` (an invalid `extraRounds` of `resumeEpic`), `request.tooLong`, `request.internal`, `epic.unknown`, `file.unknown`, `execution.unknown` and `github.unavailable`.
+`ResumeRefused`, `RecoverRefused` and `ReloadRefused` take their code first, so `pnpm typecheck` refuses one without it.
+A reload refused for a config problem of a known kind answers `config.problem` with `path` and `problem` (`src/config/problems.ts`: `notARepo`, `stepRepeated`, `stepOwnRole`, `providerNotDeclared`), any other `config.invalid`.
+Every code is in `macos/Tests/Fixtures/text-codes.json` (`UPDATE_FIXTURES=1 pnpm test` rewrites it, `src/chat/text-codes.test.ts` checks it against the sources).
 `terminal/cli/compose.ts` starts the server before the engine recovers its running epics: until the first check is armed the snapshot has no `nextCheckAt` (the app and the panel show it as starting), and a check asked meanwhile waits for that recovery.
 
 ## Adding a request to a socket

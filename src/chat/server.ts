@@ -4,7 +4,7 @@ import { createScopedLogger } from '@ashulab/universal-logger';
 import { z } from 'zod';
 import { chatSocketIn } from '../config/places.ts';
 import { repoNamePattern } from '../config/schema.ts';
-import { socketPathFits, version, type Hello, type Reply } from '../control/server.ts';
+import { refused, socketPathFits, version, type Hello, type Reply } from '../control/server.ts';
 import { plan } from './plan.ts';
 import { projectNamePattern } from './projects.ts';
 import { ChatRefused } from './runner.ts';
@@ -247,13 +247,13 @@ async function answer(line: string, controls: ChatControls, gone: AbortSignal, s
   try {
     value = JSON.parse(line);
   } catch {
-    return { id: null, ok: false, error: 'invalid JSON' };
+    return refused(null, 'request.invalidJson', 'invalid JSON');
   }
   const parsed = chatRequest.safeParse(value);
   if (parsed.success === false) {
     // the id is echoed only when it is a valid one, so the client can match the error
     const given = typeof value === 'object' && value !== null ? id.safeParse((value as { id?: unknown }).id) : null;
-    return { id: given?.success ? given.data : null, ok: false, error: 'invalid request' };
+    return refused(given?.success ? given.data : null, 'request.invalid', 'invalid request');
   }
   if (parsed.data.cmd === 'stop') {
     stopAfterReply();
@@ -262,9 +262,9 @@ async function answer(line: string, controls: ChatControls, gone: AbortSignal, s
   try {
     return { id: parsed.data.id, ok: true, data: await run(parsed.data, controls, gone) };
   } catch (error) {
-    if (error instanceof ChatRefused) return { id: parsed.data.id, ok: false, error: error.message, code: error.code, params: error.params };
+    if (error instanceof ChatRefused) return refused(parsed.data.id, error.code, error.message, error.params);
     log.error(`${parsed.data.cmd} failed`, error);
-    return { id: parsed.data.id, ok: false, error: 'internal error' };
+    return refused(parsed.data.id, 'request.internal', 'internal error');
   }
 }
 
@@ -315,7 +315,7 @@ export async function startChatServer({ stateDir, startedAt, controls, stop, cli
   });
   const tooLong = (socket: Socket) => {
     socket.removeAllListeners('data'); // nothing more is read from this client
-    socket.end(`${JSON.stringify({ id: null, ok: false, error: 'line too long' })}\n`);
+    socket.end(`${JSON.stringify(refused(null, 'request.tooLong', 'line too long'))}\n`);
   };
   server.on('error', (error) => log.error('chat socket error', error));
 

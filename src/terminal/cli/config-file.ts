@@ -4,7 +4,7 @@ import { carrierHome, engineConfigPathOf } from '../../config/places.ts';
 import { defaults, loadConfig } from '../../config/load.ts';
 import { providersProblem, readProvidersFile } from '../../config/providers.ts';
 import type { Config } from '../../config/schema.ts';
-import { CliError } from './cli-error.ts';
+import { CliError, InvalidConfig } from './cli-error.ts';
 
 /** The explicit `--config` wins; otherwise the global file `carrier init` writes, if it is there. */
 export const configPathFor = (explicit: unknown) => (typeof explicit === 'string' ? explicit : existsSync(engineConfigPathOf()) ? engineConfigPathOf() : undefined);
@@ -24,6 +24,6 @@ export function loadConfigFile(path: string, folder = carrierHome()): Config {
   const accounts = readProvidersFile(folder);
   if (!accounts.ok) throw new CliError(1, ...providersProblem(folder, accounts.errors).split('\n'));
   const result = loadConfig(defaults, user, accounts.providers);
-  if (!result.ok) throw new CliError(1, `Invalid config ${file}:`, ...result.errors.map((e) => `  ${e.path}: ${e.message}`));
+  if (!result.ok) throw new InvalidConfig(result.errors, `Invalid config ${file}:`, ...result.errors.map((e) => `  ${e.path}: ${e.message}`));
   return result.config;
 }

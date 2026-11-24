@@ -1,4 +1,5 @@
 import type { Account } from '../config/providers.ts';
+import type { TextParams } from '../orchestration/text-params.ts';
 
 // The chat runner: the port through which the host drives one provider (docs/specs/chat-host.md, Decisions). It speaks
 // Carrier's own chat events whatever the provider speaks, and it is not the engine's `AgentRunner`: nothing in it is
@@ -106,8 +107,7 @@ export interface ChatRunner {
   open(args: { folder: string; resume?: string; options?: Record<string, string>; /** The agent's `command` from the config: the binary to run, else the one on the path. */ command?: string; /** The account's compaction and launch arguments; none when it sets none. */ launch?: ChatLaunch; env: NodeJS.ProcessEnv; /** The chat MCP of this one conversation, by the key it is registered under, its URL and its bearer token (never logged, never in `argv`); none for a probe. */ mcp?: { serverName: string; url: string; token: string; /** Every tool of the chat MCP, by name: the adapter lets them run without asking. */ tools?: string[] }; /** What the conversation opens with as its instructions (the handoff of a switched session, ADR 0032): Claude's appended system prompt, Codex's developer instructions. Never in front of a message. */ instructions?: string; /** Set for a child session (ADR 0033): its approvals offer Allow and Deny and none of the provider's suggestions, which would raise what it may do. */ child?: boolean }): Promise<ChatConversation>;
 }
 
-/** The values a text code takes: plain strings and numbers, never a sentence, an object or a boolean. */
-export type TextParams = Record<string, string | number>;
+export type { TextParams };
 
 /** A code is `<area>.<what>`, named by what happened ([ADR 0055](../../docs/adr/0055-a-refusal-carries-a-code-and-its-parameters-and-its-english-words-are-the-fallback.md)). */
 export const textCode = /^[a-z][a-zA-Z]*(\.[a-z][a-zA-Z]*)+$/;

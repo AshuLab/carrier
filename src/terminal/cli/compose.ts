@@ -22,6 +22,7 @@ import { AuthError, type GitHub } from '../../orchestration/github.ts';
 import type { QuotaReader } from '../../orchestration/quota.ts';
 import { createQuotas } from '../../usage/quotas.ts';
 import { realUsagePorts } from '../../usage/real.ts';
+import { configProblem } from '../../config/problems.ts';
 import { ReloadRefused } from '../../orchestration/reload-refused.ts';
 import { sessionDirsFrom, type SessionDirs } from '../../orchestration/retention.ts';
 import { renderDashboard } from '../dashboard/dashboard.ts';
@@ -34,7 +35,7 @@ import { HostAgentRunner, type HostRunnerOptions } from '../../harnesses/host-ru
 import { createSkills, type Skills } from '../../harnesses/skills.ts';
 import { openDatabase } from '../../storage/db.ts';
 import { acquireLock } from '../../storage/lock.ts';
-import { CliError } from './cli-error.ts';
+import { CliError, InvalidConfig } from './cli-error.ts';
 import { stopOnSigint } from './interrupt.ts';
 import { openUrl } from './open-url.ts';
 
@@ -211,7 +212,11 @@ export async function startCarrier(started: Config, folder: string, loadConfig: 
           repos = nextRepos;
           config = next;
         } catch (error) {
-          if (error instanceof CliError) throw new ReloadRefused(error.lines.join('\n')); // what a start prints for the file
+          if (error instanceof CliError) {
+            const words = error.lines.join('\n'); // what a start prints for the file
+            const problem = error instanceof InvalidConfig ? error.errors.map(configProblem).find((found) => found !== null) : undefined;
+            throw problem ? new ReloadRefused(problem.code, words, problem.params) : new ReloadRefused('config.invalid', words);
+          }
           throw error;
         }
       }),

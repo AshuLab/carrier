@@ -86,7 +86,25 @@
       "agent": "example"
     }
   },
+  "config.invalid": {
+    "params": {}
+  },
+  "config.problem": {
+    "params": {
+      "path": "example",
+      "problem": "example"
+    }
+  },
+  "epic.unknown": {
+    "params": {}
+  },
+  "execution.unknown": {
+    "params": {}
+  },
   "fake.refused": {
+    "params": {}
+  },
+  "file.unknown": {
     "params": {}
   },
   "folder.insideCarrier": {
@@ -135,6 +153,9 @@
     }
   },
   "github.timedOut": {
+    "params": {}
+  },
+  "github.unavailable": {
     "params": {}
   },
   "github.unreachable": {
@@ -234,6 +255,63 @@
     "params": {
       "path": "example"
     }
+  },
+  "recover.agentAlive": {
+    "params": {}
+  },
+  "recover.engineUnavailable": {
+    "params": {}
+  },
+  "recover.notRunning": {
+    "params": {}
+  },
+  "recover.notStarted": {
+    "params": {}
+  },
+  "recover.nothingToRecover": {
+    "params": {}
+  },
+  "request.extraRounds": {
+    "params": {}
+  },
+  "request.internal": {
+    "params": {}
+  },
+  "request.invalid": {
+    "params": {}
+  },
+  "request.invalidJson": {
+    "params": {}
+  },
+  "request.tooLong": {
+    "params": {}
+  },
+  "resume.didNotRestart": {
+    "params": {}
+  },
+  "resume.extraRoundsNeedReviewLimit": {
+    "params": {}
+  },
+  "resume.extraRoundsNeedStage": {
+    "params": {}
+  },
+  "resume.noPullRequest": {
+    "params": {}
+  },
+  "resume.notStopped": {
+    "params": {}
+  },
+  "resume.optionUnknown": {
+    "params": {}
+  },
+  "resume.pullRequestHeadChanged": {
+    "params": {}
+  },
+  "resume.pullRequestNotOpen": {
+    "params": {}
+  },
+  "resume.roleUnknown": {
+    "params": {}
   },
   "session.agentRemoved": {
     "params": {

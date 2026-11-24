@@ -6,6 +6,7 @@ import type { ChatCapability } from '../chat/server.ts';
 import type { AvailableRepo } from '../integrations/available-repos.ts';
 import { controlSocketIn } from '../config/places.ts';
 import { optionNamePattern } from '../config/providers.ts';
+import type { TextParams } from '../orchestration/text-params.ts';
 import { RecoverRefused } from '../orchestration/recover-refused.ts';
 import { ReloadRefused } from '../orchestration/reload-refused.ts';
 import { ResumeRefused } from '../orchestration/resume-refused.ts';
@@ -54,7 +55,10 @@ export type Capability = 'sessions' | 'events' | 'epic' | 'files' | 'fileDiff' |
 /** What the hello announces. */
 export const capabilities: Capability[] = ['sessions', 'events', 'epic', 'files', 'fileDiff', 'availableRepos', 'availableReposPaged', 'resumeEpic', 'resumeFromStage', 'resumeReviewerOptions', 'recoverEpic', 'reload'];
 export type Hello = { event: 'hello'; protocol: 1; pid: number; startedAt: number; version: string; capabilities: (Capability | ChatCapability)[] };
-export type Reply = { id: number; ok: true; data?: unknown } | { id: number | null; ok: false; error: string; code?: string; params?: Record<string, string | number> };
+export type Reply = { id: number; ok: true; data?: unknown } | { id: number | null; ok: false; error: string; code?: string; params?: TextParams };
+
+/** A refused reply: the words in `error` as always, the code and its parameters beside them ([ADR 0055](../../docs/adr/0055-a-refusal-carries-a-code-and-its-parameters-and-its-english-words-are-the-fallback.md)). Also what the chat socket answers for its fixed errors. */
+export const refused = (id: number | null, code: string, error: string, params: TextParams = {}): Reply => ({ id, ok: false, error, code, params });
 
 /** What the socket does for the client: the same controls the interactive panel's keys use. */
 export type Controls = {
@@ -90,7 +94,7 @@ function control(command: Exclude<z.infer<typeof request>, { cmd: 'snapshot' | '
     return { id: command.id, ok: true };
   } catch (error) {
     log.error(`${command.cmd} failed`, error);
-    return { id: command.id, ok: false, error: 'internal error' };
+    return refused(command.id, 'request.internal', 'internal error');
   }
 }
 
@@ -100,7 +104,7 @@ function answer(line: string, snapshot: () => unknown, controls: Controls, stopA
   try {
     value = JSON.parse(line);
   } catch {
-    return { id: null, ok: false, error: 'invalid JSON' };
+    return refused(null, 'request.invalidJson', 'invalid JSON');
   }
   const parsed = request.safeParse(value);
   if (parsed.success === false) {
@@ -108,25 +112,26 @@ function answer(line: string, snapshot: () => unknown, controls: Controls, stopA
     const given = typeof value === 'object' && value !== null ? id.safeParse((value as { id?: unknown }).id) : null;
     // a refused extraRounds names its field, so `restart --extra-rounds` can say what to fix; other fields stay the generic refusal
     const asked = typeof value === 'object' && value !== null ? (value as { cmd?: unknown; extraRounds?: unknown }) : {};
-    const error = asked.cmd === 'resumeEpic' && 'extraRounds' in asked && extraRounds.safeParse(asked.extraRounds).success === false ? 'invalid request: extraRounds takes a positive whole number' : 'invalid request';
-    return { id: given?.success ? given.data : null, ok: false, error };
+    const at = given?.success ? given.data : null;
+    if (asked.cmd === 'resumeEpic' && 'extraRounds' in asked && extraRounds.safeParse(asked.extraRounds).success === false) return refused(at, 'request.extraRounds', 'invalid request: extraRounds takes a positive whole number');
+    return refused(at, 'request.invalid', 'invalid request');
   }
   if (parsed.data.cmd === 'snapshot') {
     try {
       return { id: parsed.data.id, ok: true, data: snapshot() };
     } catch (error) {
       log.error('snapshot failed', error);
-      return { id: parsed.data.id, ok: false, error: 'internal error' };
+      return refused(parsed.data.id, 'request.internal', 'internal error');
     }
   }
   if (parsed.data.cmd === 'sessions') {
     const { id: replyId, repo, issue } = parsed.data;
     try {
       const reply = controls.sessions(repo, issue);
-      return reply === null ? { id: replyId, ok: false, error: 'unknown epic' } : { id: replyId, ok: true, data: reply };
+      return reply === null ? refused(replyId, 'epic.unknown', 'unknown epic') : { id: replyId, ok: true, data: reply };
     } catch (error) {
       log.error('sessions failed', error);
-      return { id: replyId, ok: false, error: 'internal error' };
+      return refused(replyId, 'request.internal', 'internal error');
     }
   }
   // what waits on git answers later: the engine keeps running meanwhile, and this connection's replies keep their order
@@ -135,10 +140,10 @@ function answer(line: string, snapshot: () => unknown, controls: Controls, stopA
     return Promise.resolve()
       .then(() => controls.epic(repo, issue))
       .then(
-        (reply): Reply => (reply === null ? { id: replyId, ok: false, error: 'unknown epic' } : { id: replyId, ok: true, data: reply }),
+        (reply): Reply => (reply === null ? refused(replyId, 'epic.unknown', 'unknown epic') : { id: replyId, ok: true, data: reply }),
         (error): Reply => {
           log.error('epic failed', error);
-          return { id: replyId, ok: false, error: 'internal error' };
+          return refused(replyId, 'request.internal', 'internal error');
         },
       );
   }
@@ -147,10 +152,10 @@ function answer(line: string, snapshot: () => unknown, controls: Controls, stopA
     return Promise.resolve()
       .then(() => controls.files(repo, issue, executionId))
       .then(
-        (reply): Reply => (reply === null ? { id: replyId, ok: false, error: 'unknown epic' } : { id: replyId, ok: true, data: reply }),
+        (reply): Reply => (reply === null ? refused(replyId, 'epic.unknown', 'unknown epic') : { id: replyId, ok: true, data: reply }),
         (error): Reply => {
           log.error('files failed', error);
-          return { id: replyId, ok: false, error: 'internal error' };
+          return refused(replyId, 'request.internal', 'internal error');
         },
       );
   }
@@ -160,10 +165,10 @@ function answer(line: string, snapshot: () => unknown, controls: Controls, stopA
       .then(() => controls.fileDiff(repo, issue, section, path))
       .then(
         // never git's own message: it can name more of the machine than the client should see
-        (reply): Reply => (reply === null ? { id: replyId, ok: false, error: 'unknown file' } : { id: replyId, ok: true, data: reply }),
+        (reply): Reply => (reply === null ? refused(replyId, 'file.unknown', 'unknown file') : { id: replyId, ok: true, data: reply }),
         (error): Reply => {
           log.error('fileDiff failed', error);
-          return { id: replyId, ok: false, error: 'internal error' };
+          return refused(replyId, 'request.internal', 'internal error');
         },
       );
   }
@@ -176,7 +181,7 @@ function answer(line: string, snapshot: () => unknown, controls: Controls, stopA
         (data): Reply => ({ id: replyId, ok: true, data }),
         (error): Reply => {
           log.error('availableRepos failed', error);
-          return { id: replyId, ok: false, error: 'github unavailable' };
+          return refused(replyId, 'github.unavailable', 'github unavailable');
         },
       );
   }
@@ -187,9 +192,9 @@ function answer(line: string, snapshot: () => unknown, controls: Controls, stopA
       .then(
         (): Reply => ({ id: replyId, ok: true }),
         (error): Reply => {
-          if (error instanceof ResumeRefused) return { id: replyId, ok: false, error: error.reason };
+          if (error instanceof ResumeRefused) return refused(replyId, error.code, error.reason, error.params);
           log.error('resumeEpic failed', error);
-          return { id: replyId, ok: false, error: 'internal error' };
+          return refused(replyId, 'request.internal', 'internal error');
         },
       );
   }
@@ -200,9 +205,9 @@ function answer(line: string, snapshot: () => unknown, controls: Controls, stopA
       .then(
         (): Reply => ({ id: replyId, ok: true }),
         (error): Reply => {
-          if (error instanceof RecoverRefused) return { id: replyId, ok: false, error: error.reason };
+          if (error instanceof RecoverRefused) return refused(replyId, error.code, error.reason, error.params);
           log.error('recoverEpic failed', error);
-          return { id: replyId, ok: false, error: 'internal error' };
+          return refused(replyId, 'request.internal', 'internal error');
         },
       );
   }
@@ -211,19 +216,19 @@ function answer(line: string, snapshot: () => unknown, controls: Controls, stopA
       controls.reload();
       return { id: parsed.data.id, ok: true };
     } catch (error) {
-      if (error instanceof ReloadRefused) return { id: parsed.data.id, ok: false, error: error.problem };
+      if (error instanceof ReloadRefused) return refused(parsed.data.id, error.code, error.problem, error.params);
       log.error('reload failed', error);
-      return { id: parsed.data.id, ok: false, error: 'internal error' };
+      return refused(parsed.data.id, 'request.internal', 'internal error');
     }
   }
   if (parsed.data.cmd === 'events') {
     const { id: replyId, executionId, after, limit } = parsed.data;
     try {
       const reply = controls.events(executionId, after ?? 0, limit);
-      return reply === null ? { id: replyId, ok: false, error: 'unknown execution' } : { id: replyId, ok: true, data: reply };
+      return reply === null ? refused(replyId, 'execution.unknown', 'unknown execution') : { id: replyId, ok: true, data: reply };
     } catch (error) {
       log.error('events failed', error);
-      return { id: replyId, ok: false, error: 'internal error' };
+      return refused(replyId, 'request.internal', 'internal error');
     }
   }
   if (parsed.data.cmd !== 'stop') return control(parsed.data, controls);
@@ -277,7 +282,7 @@ export async function startControlServer({ stateDir, snapshot, startedAt, contro
   });
   const tooLong = (socket: Socket) => {
     socket.removeAllListeners('data'); // nothing more is read from this client
-    socket.end(`${JSON.stringify({ id: null, ok: false, error: 'line too long' })}\n`);
+    socket.end(`${JSON.stringify(refused(null, 'request.tooLong', 'line too long'))}\n`);
   };
   server.on('error', (error) => log.error('control socket error', error));
 

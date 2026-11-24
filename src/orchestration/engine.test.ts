@@ -6607,29 +6607,213 @@ test('a restart of the engine in the middle of a round finds from the rows which
   expect(executionsOf(engine.db).filter((e) => e.stage === 'review').map((e) => [e.reviewer, e.status])).toEqual([['reviewer', 'finished'], ['reviewer-2', 'interrupted'], ['reviewer-2', 'running'], ['reviewer-3', 'running'], ['reviewer-4', 'running']]);
 });
 
-// What follows says what happens today to a reviewer that gives no verdict: it stops the epic as a single reviewer does.
-// The slice that gives such a reviewer no verdict changes these tests knowingly.
+// --- a reviewer with no verdict does not stop a round of several; with none the epic stops in reviewers_failed (ADR 0048) ---
 
-test('a reviewer that fails past its retries stops the epic with retries_exhausted for now, until the slice that gives it no verdict, and ends the other run of the round', async () => {
-  const engine = await roundOf((task) => (task.reviewer === 'reviewer-2' ? { exit: 'failed' } : { exit: 'hang' }));
-  await clock.advance(10 * MIN);
-  await clock.advance(10 * MIN);
-  await clock.advance(10 * MIN);
+const gives = (verdict: object) => (task: AgentTask): Behavior => ({ write: result(task, { ...verdict, pr: { number: 50, headSha: task.context.pr!.headSha } }) });
+const cannotConclude = (task: AgentTask): Behavior => gives({ outcome: 'needs_human', reason: 'cannot verify' })(task);
+const ranOut = (task: AgentTask): Behavior => ({ sessionId: `s-${task.reviewer}`, exit: 'failed', failure: outOfCredits });
+const crashes = (): Behavior => ({ exit: 'failed' });
+// Each slot answers as `by` says; a slot not named hangs.
+const bySlot = (by: Record<string, (task: AgentTask) => Behavior>) => (task: AgentTask): Behavior => by[task.reviewer!]?.(task) ?? { exit: 'hang' };
+const mine = { review: { name: 'mine', named: true }, publish: null };
+const withExtras = (extras: object[]) => twoReviewers({ agents: { ...agents, extraReviewers: extras } as EffectiveRepoConfig['agents'] });
+const absentSkill = () => { skills.answers = { mine: 'absent' }; };
+// The retries of a technical failure are out once the waits between them have passed.
+const outlast = async (engine: { idle(): Promise<void> }) => {
+  for (let i = 0; i < 3; i++) await clock.advance(10 * MIN);
+  await engine.idle();
+};
+const noVerdictOf = (db: Db) => eventsOf(db).filter((e) => e.type === 'reviewer_no_verdict').map((e) => (e.data as { none: { slot: string; kind: string; why: string } }).none);
+
+// The four ways a reviewer settles with no verdict: what it does, the stop an epic with one reviewer has for it, and what the extra reviewer needs to have it.
+const noVerdictCases = [
+  { name: 'it answers needs_human', kind: 'agent_needs_human', behavior: cannotConclude, setUp: () => {}, slow: false, extra: {} },
+  { name: 'it fails technically and its retries are out', kind: 'retries_exhausted', behavior: crashes, setUp: () => {}, slow: true, extra: {} },
+  { name: 'it runs out of quota with no failover step left', kind: 'usage_limit', behavior: ranOut, setUp: () => {}, slow: false, extra: {} },
+  { name: 'a skill the person named is absent', kind: 'skill_missing', behavior: () => ({ exit: 'hang' }) as Behavior, setUp: absentSkill, slow: false, extra: { skills: mine } },
+] as const;
+
+test.each(noVerdictCases)('with several reviewers, $name: the round goes on without it and the other reviewer\'s verdict decides', async ({ behavior, setUp, slow, extra }) => {
+  setUp();
+  const engine = await roundOf(bySlot({ reviewer: gives(ok), 'reviewer-2': behavior }), { config: withExtras([{ ...extraReviewer, ...extra }]) });
+  if (slow) await outlast(engine);
+
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'ready_for_test', needsHumanKind: null, round: 1, reviewedSha: SHA, verification: ok.verification, lastError: null });
+  expect(noVerdictOf(engine.db).map((n) => n.slot)).toEqual(['reviewer-2']);
+  expect(labelsOf(1)).toEqual(['carrier:status:ready-for-test']);
+});
+
+test.each(noVerdictCases)('with one reviewer, $name: the epic stops with $kind, as it did', async ({ kind, behavior, setUp, slow }) => {
+  setUp();
+  const own = { ...repos[0]!, agents, ...(kind === 'skill_missing' && { skills: resolveSkills(solveSkills, { review: { review: 'mine' } }) }) } as EffectiveRepoConfig;
+  const engine = await roundOf(bySlot({ reviewer: behavior }), { config: own });
+  if (slow) await outlast(engine);
+
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: kind });
+  expect(noVerdictOf(engine.db)).toEqual([]);
+});
+
+test('a named skill that is absent for the mandatory reviewer stops the epic with skill_missing before any reviewer of the round is launched', async () => {
+  skills.answers = { mine: 'absent' };
+  const engine = await roundOf(() => ({ exit: 'hang' }), { config: twoReviewers({ skills: resolveSkills(solveSkills, { review: { review: 'mine' } }) }) });
+
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'skill_missing' });
+  expect(rows(engine.db)[0]!.needsHumanReason).toContain('the skill mine (skills.review.review) is not installed for the reviewer');
+  expect(runner.tasks.map((t) => t.stage)).toEqual(['ship']); // no run was spent on any slot
+  expect(executionsOf(engine.db).filter((e) => e.stage === 'review')).toEqual([]);
+  expect(noVerdictOf(engine.db)).toEqual([]);
+});
+
+test.each([
+  ['a default skill that is absent', { review: { name: 'mine', named: false }, publish: null }, 'absent'],
+  ['a named skill the check cannot tell', mine, 'cannot-tell'],
+] as const)('%s never takes an extra reviewer out of the round', async (_, own, answer) => {
+  skills.answers = { mine: answer };
+  const engine = await roundOf(verdictBy({ reviewer: ok, 'reviewer-2': ok }), { config: withExtras([{ ...extraReviewer, skills: own }]) });
+
+  expect(runner.tasks.filter((t) => t.stage === 'review').map((t) => t.reviewer)).toEqual(['reviewer', 'reviewer-2']);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'ready_for_test' });
+  expect(noVerdictOf(engine.db)).toEqual([]);
+});
+
+test('a slot that settled without an execution is stored: a restart of the engine reaches the same decision, spends no run on it and does not look for the skill again', async () => {
+  absentSkill();
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50);
+  runner.behavior = (task) => (task.stage === 'ship' ? { write: completed(task) } : { exit: 'hang' });
+  const first = await start(1, [withExtras([{ ...extraReviewer, skills: mine }])]);
+  await clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(noVerdictOf(first.db)).toHaveLength(1));
+  expect(rows(first.db)[0]).toMatchObject({ status: 'running', stage: 'review' }); // the mandatory reviewer's verdict is still to come
+  expect(noVerdictOf(first.db)[0]).toMatchObject({ slot: 'reviewer-2', kind: 'skill_missing' });
+  expect(noVerdictOf(first.db)[0]!.why).toContain('the skill mine (skills.review.review)');
+  first.stop();
+  dbs.pop()!.$client.close();
+
+  skills.asked = [];
+  runner.tasks = [];
+  runner.behavior = bySlot({ reviewer: gives(ok) });
+  const second = await start(1, [withExtras([{ ...extraReviewer, skills: mine }])]);
+  await second.idle();
+
+  expect(runner.tasks.map((t) => t.reviewer)).toEqual(['reviewer']); // the slot with no verdict is not launched, nor looked at
+  expect(skills.asked.filter((a) => a.name === 'mine')).toEqual([]);
+  expect(executionsOf(second.db).filter((e) => e.reviewer === 'reviewer-2')).toEqual([]);
+  expect(noVerdictOf(second.db)).toHaveLength(1); // stored once
+  expect(rows(second.db)[0]).toMatchObject({ status: 'ready_for_test', reviewedSha: SHA });
+});
+
+test('one verdict out of two is enough: the round counts it, and a sole verdict that asks for changes sends the author its blockers only', async () => {
+  const engine = await roundOf(bySlot({ reviewer: gives(asks('use the helper', 'B1')), 'reviewer-2': cannotConclude }));
+
+  expect(runner.tasks.map((t) => t.stage)).toEqual(['ship', 'review', 'review', 'fix']);
+  expect(runner.tasks.find((t) => t.stage === 'fix')!.context.blockers).toEqual([{ id: 'B1', title: 'use the helper', reviewer: 'reviewer' }]);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'fix', round: 1 });
+});
+
+test('one verdict out of four is enough, whichever way the other three gave none', async () => {
+  absentSkill();
+  const config = withExtras([extraReviewer, { ...extraReviewer, profile: 'd' }, { ...extraReviewer, profile: 'e', skills: mine }]);
+  const engine = await roundOf(bySlot({ reviewer: gives(ok), 'reviewer-2': cannotConclude, 'reviewer-3': ranOut }), { config });
+
+  expect(noVerdictOf(engine.db).map((n) => [n.slot, n.kind])).toEqual(expect.arrayContaining([['reviewer-2', 'agent_needs_human'], ['reviewer-3', 'usage_limit'], ['reviewer-4', 'skill_missing']]));
+  expect(noVerdictOf(engine.db)).toHaveLength(3);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'ready_for_test', reviewedSha: SHA });
+});
+
+test('with no verdict at all the epic stops in needs-human with reviewers_failed, its reason naming each reviewer and why, and it does not wake by itself', async () => {
+  absentSkill();
+  fakeQuota.snapshots['/cfg/claude'] = full('claude', 5 * MIN + HOUR);
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50);
+  runner.behavior = (task) => (task.stage === 'ship' ? { write: completed(task) } : bySlot({ reviewer: cannotConclude, 'reviewer-3': ranOut })(task)); // reviewer-2 has no run: its skill is absent
+  const engine = await start(1, [withExtras([{ ...extraReviewer, skills: mine }, { ...extraReviewer, profile: 'd' }])]);
+  settings = { ...settings, autoResume: true };
+  await clock.advance(5 * MIN);
   await engine.idle();
 
-  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'retries_exhausted' });
-  expect(executionsOf(engine.db).filter((e) => e.reviewer === 'reviewer').every((e) => e.status !== 'running')).toBe(true);
+  const row = rows(engine.db)[0]!;
+  expect(row).toMatchObject({ status: 'needs_human', needsHumanKind: 'reviewers_failed', resumeAt: null });
+  expect(row.needsHumanReason).toContain('no reviewer gave a verdict in round 1');
+  expect(row.needsHumanReason).toContain('reviewer: cannot verify');
+  expect(row.needsHumanReason).toContain('reviewer-2: the skill mine (skills.review.review) is not installed for the reviewer-2');
+  expect(row.needsHumanReason).toContain('reviewer-3: ran out of usage on option o');
+  expect(labelsOf(1)).toEqual(['carrier:status:needs-human']);
+  expect(fakeQuota.asked).toEqual([]);
+  await clock.advance(24 * HOUR);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'reviewers_failed', autoResumes: 0 });
+  expect(eventTypes(engine.db)).not.toContain('auto_resume_scheduled');
 });
 
-test('a reviewer that answers that it cannot conclude stops the epic with agent_needs_human for now, until the slice that gives it no verdict', async () => {
-  const engine = await roundOf((task) => (task.reviewer === 'reviewer-2' ? { write: result(task, { outcome: 'needs_human', reason: 'cannot verify', pr: { number: 50, headSha: SHA } }) } : { exit: 'hang' }));
-  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'agent_needs_human', needsHumanReason: 'cannot verify' });
-  expect(runner.stopped).toContain(executionsOf(engine.db).find((e) => e.reviewer === 'reviewer')!.executionId);
+// Two reviewers on two accounts: the mandatory one on `spare`, the extra one on `claude`.
+const claudeEagerAccount = { harness: 'claude' as const, model: 'opus', configDir: '/cfg/claude' };
+const spareLazyAccount = { harness: 'codex' as const, model: 'gpt', configDir: '/cfg/spare' };
+const onTwoAccounts = (over: Partial<EffectiveRepoConfig> = {}, extra: object = {}) => twoReviewers({
+  providers: { claude: claudeEagerAccount, spare: spareLazyAccount } as any,
+  agents: { author: { profile: 'a', option: 'claude', ...claudeEagerAccount }, reviewer: { profile: 'b', option: 'spare', ...spareLazyAccount }, extraReviewers: [{ ...extraReviewer, option: 'claude', ...claudeEagerAccount, ...extra }] } as EffectiveRepoConfig['agents'],
+  ...over,
 });
 
-test('a reviewer that lacks a skill the person named stops the epic with skill_missing for now, until the slice that gives it no verdict', async () => {
-  skills.answers = { mine: 'absent' };
-  const own = { review: { name: 'mine', named: true }, publish: null };
-  const engine = await roundOf(() => ({ exit: 'stopped' }), { config: twoReviewers({ agents: { ...agents, extraReviewers: [{ ...extraReviewer, skills: own }] } as EffectiveRepoConfig['agents'] }) });
-  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'skill_missing' });
+test('with no verdict and every failure a quota one the epic stops with usage_limit, not reviewers_failed, wakes when the last window comes back, and auto-resume resumes it', async () => {
+  fakeQuota.snapshots['/cfg/spare'] = full('codex', 5 * MIN + 2 * HOUR);
+  fakeQuota.snapshots['/cfg/claude'] = full('claude', 5 * MIN + 3 * HOUR);
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50);
+  runner.behavior = (task) => (task.stage === 'ship' ? { write: completed(task) } : ranOut(task));
+  const engine = await start(1, [onTwoAccounts()]);
+  settings = { ...settings, autoResume: true };
+  await clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human' }));
+
+  const WAKE_LAST = 5 * MIN + 3 * HOUR; // the window of the last of them to come back
+  expect(rows(engine.db)[0]).toMatchObject({ needsHumanKind: 'usage_limit', resumeAt: WAKE_LAST });
+  expect(rows(engine.db)[0]!.needsHumanReason).toContain('no reviewer gave a verdict, every one ran out of usage');
+  expect(rows(engine.db)[0]!.needsHumanReason).toContain('--reviewer <option>');
+  expect(rows(engine.db)[0]!.needsHumanReason).toContain('--reviewer-2 <option>');
+  expect(fakeQuota.asked.map((t) => t.configDir).sort()).toEqual(['/cfg/claude', '/cfg/spare']);
+  expect(eventsOf(engine.db).filter((e) => e.type === 'auto_resume_scheduled').map((e) => e.data)).toEqual([{ resumeAt: WAKE_LAST }]);
+
+  // Both windows are back at the poll after the last one: the epic reviews again, every slot.
+  fakeQuota.snapshots['/cfg/spare'] = back('codex');
+  fakeQuota.snapshots['/cfg/claude'] = back();
+  runner.behavior = () => ({ exit: 'hang' });
+  await clock.advance(3 * HOUR);
+  await vi.waitFor(() => expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'review', autoResumes: 1, resumeAt: null }));
+  expect(eventTypes(engine.db)).toContain('auto_resumed');
+});
+
+test('a quota failure with another failure is no quota stop: the epic stops with reviewers_failed', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50);
+  runner.behavior = (task) => (task.stage === 'ship' ? { write: completed(task) } : bySlot({ reviewer: ranOut, 'reviewer-2': cannotConclude })(task));
+  const engine = await start(1, [onTwoAccounts()]);
+  await clock.advance(5 * MIN);
+  await engine.idle();
+
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'reviewers_failed' });
+});
+
+test('each extra reviewer keeps its own failover and retry state: a usage limit moves only that slot, on its own steps or the reviewer role\'s, and what one slot spends does not count against the other', async () => {
+  const codex = { harness: 'codex' as const, model: 'gpt', configDir: '/cfg/codex' };
+  const spare = { harness: 'agy' as const, model: 'flash' };
+  const config = twoReviewers({
+    providers: { claude: claudeEagerAccount, codex, spare } as any,
+    failover: { roles: { reviewer: [{ provider: 'claude' }] } },
+    agents: { author: { profile: 'a', option: 'claude', ...claudeEagerAccount }, reviewer: { profile: 'b', option: 'codex', ...codex }, extraReviewers: [{ ...extraReviewer, option: 'claude', ...claudeEagerAccount, failover: [{ provider: 'spare' }] }] } as EffectiveRepoConfig['agents'],
+  });
+  let extraRuns = 0;
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50);
+  runner.behavior = (task) => {
+    if (task.stage === 'ship') return { write: completed(task) };
+    if (task.reviewer === 'reviewer') return task.option === 'codex' ? ranOut(task) : { exit: 'hang' }; // runs out at once, moves on to claude
+    if (task.option === 'claude') return ++extraRuns === 1 ? crashes() : ranOut(task); // crashes, is retried on its own, then runs out and moves to its own step
+    return { exit: 'hang' };
+  };
+  const engine = await start(1, [config]);
+  await clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(runner.tasks.filter((t) => t.reviewer === 'reviewer-2').map((t) => t.option)).toEqual(['claude', 'claude', 'spare']));
+  expect(eventsOf(engine.db).filter((e) => e.type === 'option_switched').map((e) => e.data)).toMatchObject([{ role: 'reviewer', from: 'codex', to: 'claude' }, { role: 'reviewer-2', from: 'claude', to: 'spare' }]);
+  expect(runner.tasks.filter((t) => t.reviewer === 'reviewer').map((t) => t.option)).toEqual(['codex', 'claude']); // never delayed or moved by the other's
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'review' });
 });

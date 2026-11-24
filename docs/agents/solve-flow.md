@@ -35,7 +35,7 @@ Suggested loop: repeat until a review pass has no blockers, then the PR is ready
 - `to-tickets`, `code-post`, `file-issue` - the text is approved before it's published (`file-issue` publishes without waiting when `code-resolve` invokes it)
 - `diagnose` - the diagnosis is shown and a person picks a fix before any code changes
 - `land` - a person read the integration PR and accepts it
-- `ship` - an epic drain runs unattended and stops at the draft integration PR; it also stops on a dirty tree, a failed slice or a merge conflict
+- `ship` - an epic drain runs unattended and stops at the draft integration PR; it also stops on a dirty tree, a failed slice, or a merge conflict that can't be resolved cleanly on the slice branch
 - `setup` - a few questions, optional
 
 When nobody can answer: `code-post`, `file-issue`, `land` and `diagnose` stop and hand over (or show) what they prepared instead of acting; `sharpen`, `to-spec` and `to-tickets` wait for the answer. An agent running unattended stops at those points - it doesn't answer for the person.
@@ -52,8 +52,7 @@ When nobody can answer: `code-post`, `file-issue`, `land` and `diagnose` stop an
 
 ## Where things live
 - PRDs / specs -> `docs/specs/`
-- Glossary + ADRs -> `docs/glossary.md`, `docs/adr/` (always files)
+- Glossary -> `docs/glossary.md` (index) and `docs/glossary/<topic>.md`; ADRs -> `docs/adr/README.md` (index) and `docs/adr/<topic>/` - topics are chosen by `vocab`, always files
 - Tickets -> GitHub Issues
 
 What each step leaves for the next: `sharpen` a brief in `docs/specs/` -> `to-spec` the PRD, published as the epic issue -> `to-tickets` one sub-issue per slice -> `ship` a PR per slice, then one draft integration PR -> `land` the merge.
-

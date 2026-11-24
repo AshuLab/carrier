@@ -831,8 +831,8 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
   // `detail` is the message of the error, redacted like any other reason. The profile is never swapped for another one.
   async function stopProfile(profile: string, detail?: string) {
     for (const epic of db.select().from(epics).where(eq(epics.status, 'running')).orderBy(asc(epics.id)).all()) {
-      const { author, reviewer } = epic.config!.agents;
-      if (author.profile !== profile && reviewer.profile !== profile) continue;
+      const { author, reviewer, leadReviewer, extraReviewers } = epic.config!.agents;
+      if (![author, reviewer, leadReviewer, ...(extraReviewers ?? [])].some((agent) => agent?.profile === profile)) continue; // any role, the extra reviewers and the lead included
       toNeedsHuman(db, epic.id, 'auth', authError(profile, detail));
       const running = db.select().from(executions).where(and(eq(executions.epicId, epic.id), eq(executions.status, 'running'))).all();
       await Promise.all(running.map(({ executionId }) => active.get(executionId)?.stop()));

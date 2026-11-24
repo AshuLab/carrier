@@ -3885,6 +3885,92 @@ test('after the profile stopped, a single signal of a person-restarted epic is a
   expect(rows(engine.db)[0]).toMatchObject({ status: 'running' });
 });
 
+// The profile `x` in the roles that are not the author's, to see the rule across roles (ADR 0050, ADR 0048).
+const asX = (agent: object) => ({ ...agent, profile: 'x' });
+const reviewVerdict = (task: AgentTask, extra: object = ok): Behavior => ({ write: result(task, { ...extra, pr: { number: 50, headSha: task.context.pr!.headSha } }) });
+
+test('the first signal of an extra reviewer is a failure of that execution retried like any other, and an execution of the profile in another role that ends with no signal clears the memory of a first one', async () => {
+  const config = twoReviewers({ agents: { author: asX(agents.author), reviewer: agents.reviewer, extraReviewers: [asX(extraReviewer)] } as EffectiveRepoConfig['agents'] });
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50);
+  const extraRuns = () => runner.tasks.filter((t) => t.reviewer === 'reviewer-2');
+  runner.behavior = (task) => {
+    if (task.stage === 'ship') return runsOf(1).filter((t) => t.stage === 'ship').length === 1 ? { exit: 'auth_failed', failure: authFailure(notLoggedIn) } : { write: completed(task) }; // a first signal of x, then the author's end with none
+    return task.reviewer === 'reviewer-2' && extraRuns().length === 1 ? { exit: 'auth_failed', failure: authFailure(notLoggedIn) } : reviewVerdict(task); // a first signal again, not a second
+  };
+  const engine = await start(1, [config]);
+  await clock.advance(5 * MIN);
+  await engine.idle();
+
+  expect(extraRuns()).toHaveLength(2);
+  expect(executionsOf(engine.db).find((e) => e.reviewer === 'reviewer-2')).toMatchObject({ status: 'failed', failureKind: 'auth', error: `authentication error for profile x: ${notLoggedIn}` });
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'ready_for_test' });
+  expect(runner.stopped).toEqual([]);
+});
+
+test('a second signal of a profile stops, with the kind auth, the running epics that use it in an extra reviewer or in the lead and their runs, and leaves the others alone', async () => {
+  const configs = [
+    { name: 'AshuLab/a', agents: { ...agents, extraReviewers: [asX(extraReviewer)] } },
+    { name: 'AshuLab/b', agents: { ...agents, leadReviewer: asX({ option: 'o', harness: 'claude', model: 'm' }) } },
+    { name: 'AshuLab/c', agents },
+  ] as EffectiveRepoConfig[];
+  github.ready = { 'AshuLab/a': ready(1), 'AshuLab/b': ready(2), 'AshuLab/c': ready(3) };
+  pull(50);
+  runner.behavior = (task) => {
+    if (task.epic === 1 && task.stage === 'ship') return { write: completed(task) };
+    if (task.reviewer === 'reviewer-2') return { exit: 'auth_failed', failure: authFailure(notLoggedIn) }; // the first signal retries, the second stops
+    return { exit: 'hang' };
+  };
+  const engine = await start(3, configs);
+  await clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(rows(engine.db).map((e) => e.status)).toEqual(['needs_human', 'needs_human', 'running']));
+  await vi.waitFor(() => expect(rows(engine.db).map((e) => e.labelPending)).toEqual([false, false, false]));
+  await vi.waitFor(() => expect(runner.stopped).toHaveLength(2));
+
+  const reason = `authentication error for profile x: ${notLoggedIn}`;
+  expect(rows(engine.db)).toMatchObject([
+    { status: 'needs_human', needsHumanKind: 'auth', needsHumanReason: reason, labelPending: false },
+    { status: 'needs_human', needsHumanKind: 'auth', needsHumanReason: reason, labelPending: false },
+    { status: 'running' },
+  ]);
+  expect(runsOf(1).map((t) => t.reviewer)).toEqual([undefined, 'reviewer', 'reviewer-2', 'reviewer-2']);
+  const running = (epic: number) => runsOf(epic).filter((t) => t.reviewer !== 'reviewer-2').map((t) => t.executionId);
+  expect(new Set(runner.stopped)).toEqual(new Set([...running(1).slice(1), ...running(2)])); // the epic that has the profile only in the lead stops its author, the third epic's run goes on
+  expect(runsOf(3)).toHaveLength(1);
+});
+
+test('the stop of a profile that several slots of one epic use leaves the epic in needs-human once with one reason, and the memory of the signal goes only with all its runs', async () => {
+  const config = twoReviewers({ agents: { author: agents.author, reviewer: asX(agents.reviewer), extraReviewers: [asX(extraReviewer)] } as EffectiveRepoConfig['agents'] });
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50);
+  const { when, open } = lateOpen();
+  let stopped = false;
+  runner.behavior = (task) => {
+    if (task.stage === 'ship') return { write: completed(task) };
+    if (stopped) return task.reviewer === 'reviewer' && runsOf(1).filter((t) => t.reviewer === 'reviewer').length === 3 ? { exit: 'auth_failed', failure: authFailure(notLoggedIn) } : { exit: 'hang' };
+    return { exit: 'auth_failed', failure: authFailure(notLoggedIn), when }; // both slots signal in the same turn: a first one and a second one
+  };
+  const engine = await start(1, [config]);
+  await clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(runner.tasks.filter((t) => t.stage === 'review')).toHaveLength(2));
+  open();
+  await vi.waitFor(() => expect(byStatus(engine.db, 'needs_human')).toEqual([1]));
+  await engine.idle();
+
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'auth', needsHumanReason: `authentication error for profile x: ${notLoggedIn}` });
+  expect(labelsOf(1)).toEqual(['carrier:status:needs-human']);
+  expect(executionsOf(engine.db).filter((e) => e.status === 'running')).toEqual([]);
+
+  // Forgotten with every run stopped: another epic of the profile gets the retry of a first signal.
+  const other = { name: 'AshuLab/b', agents: { ...agents, author: asX(agents.author) } } as EffectiveRepoConfig;
+  watched = [config, other];
+  github.ready = { 'AshuLab/b': ready(2) };
+  runner.behavior = (task) => (task.epic === 2 && runsOf(2).length === 1 ? { exit: 'auth_failed', failure: authFailure(notLoggedIn) } : { exit: 'hang' });
+  await clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(runsOf(2)).toHaveLength(2));
+  expect(rows(engine.db).map((e) => e.status)).toEqual(['needs_human', 'running']);
+});
+
 test('the reason an authentication stop keeps is redacted like the other reasons', async () => {
   github.ready = { 'AshuLab/a': ready(1) };
   runner.behavior = () => ({ exit: 'auth_failed', failure: authFailure('rejected token ghp_abcDEF123456 for the account') });

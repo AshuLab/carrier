@@ -1,0 +1,24 @@
+{
+  "request": {
+    "cmd": "setAccounts",
+    "accounts": [
+      {
+        "name": "agy",
+        "harness": "agy"
+      }
+    ]
+  },
+  "reply": {
+    "ok": true,
+    "data": {
+      "saved": {
+        "providers": {
+          "agy": {
+            "harness": "agy"
+          }
+        }
+      },
+      "engine": "notRunning"
+    }
+  }
+}

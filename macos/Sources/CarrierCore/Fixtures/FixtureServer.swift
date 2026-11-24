@@ -638,6 +638,11 @@ public final class FixtureServer {
         case "editChatSettings":
             guard let changes = request?["changes"] as? [String: Any] else { break }
             return editChatSettings(id, changes)
+        case "setAccounts", "addAccount", "editAccount", "removeAccount", "setTextGenerator":
+            switch fixtureProvidersChange(request ?? [:], home: home) {
+            case .data(let data): return Self.answer(id, data)
+            case .refused(let reason): return Self.refused(id, reason.code ?? "request.invalid", reason.text, reason.params)
+            }
         case "addProject", "removeProject", "editProject", "moveProject", "editProjectIcon", "editProjectDefaults", "editProjectTags", "setProjectActions", "setProjectsFolder":
             guard let cmd = request?["cmd"] as? String, let request, let change = ProjectsChange(cmd: cmd, request: request) else { break }
             let (data, refusal) = applyProjectsChange(change, home: home)

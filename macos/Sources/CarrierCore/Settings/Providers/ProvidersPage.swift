@@ -2,7 +2,7 @@ import Foundation
 import Observation
 
 // The Providers page of Settings (docs/specs/providers-in-settings.md): what the chat host says of the AI tools on this Mac (`providers`),
-// joined with who uses each account, read from `engine.json` (roles, repo overrides, failover) and `chat.json` (chat agents). The page reads; it writes `providers.json` for the Add of a harness found with no account and for an account's Add, edit and Remove (`ProvidersStore`, `ProvidersFile`, `ProvidersEdit`).
+// joined with who uses each account, read from `engine.json` (roles, repo overrides, failover) and `chat.json` (chat agents). The page reads; it asks Carrier's own code to change `providers.json` for the Add of a harness found with no account and for an account's Add, edit and Remove (`ProvidersStore`, `ProvidersRequest`).
 
 /// The reply of `providers`: the accounts of `providers.json` with their state, the harnesses found that no account has, and the local servers.
 public struct HostProviders: Decodable, Equatable {
@@ -308,45 +308,40 @@ public enum RetitleOutcome: Equatable {
 
     @ObservationIgnored private let host: ChatHost
     @ObservationIgnored private let file: () -> ProvidersFile
-    @ObservationIgnored private let uses: () throws -> [String: [AccountUse]]
     @ObservationIgnored private let log: (String) -> Void
-    @ObservationIgnored private let reload: Reload
     @ObservationIgnored private let status: ReloadStatus
-    /// The engine's answer to the last write and the look at the host after it; `changes` counts the writes, so an answer to an older one is not said.
+    /// The look at the host after a write.
     @ObservationIgnored private var follow: Task<Void, Never>?
-    @ObservationIgnored private var changes = 0
 
-    /// `file` is looked up at each use, so the Carrier folder is the one the app has then. `uses` is who names each account, read from
-    /// `engine.json` and `chat.json` when an account is removed; a `chat.json` that is there and cannot be read stops the removal.
+    /// `file` is looked up at each use, so the Carrier folder is the one the app has then; the app only reads it (a change is a request to `host`, ADR 0053).
     public init(
         host: ChatHost, file: @escaping () -> ProvidersFile = ProvidersFile.current,
-        uses: @escaping () throws -> [String: [AccountUse]] = { accountUses(config: currentConfig(), chat: try currentChatConfig()) },
         log: @escaping (String) -> Void = { FileHandle.standardError.write(Data("carrier: \($0)\n".utf8)) },
-        reload: @escaping Reload = { reloadEngine() },
         status: ReloadStatus? = nil
     ) {
         self.host = host
         self.file = file
-        self.uses = uses
         self.log = log
-        self.reload = reload
         self.status = status ?? .shared
     }
 
-    /// When the app opens: with no `providers.json`, writes one account per harness the host found, named after it. With a file there it writes nothing, so an account that was removed stays removed; with nothing found
-    /// it writes nothing either (an empty file would leave the roles' default accounts undeclared), and a host that cannot answer is not guessed at.
+    /// When the app opens: with no `providers.json`, asks for one account per harness the host found, named after it. With a file there it asks for nothing, so an account that was removed stays removed; with nothing found
+    /// it asks for nothing either (an empty file would leave the roles' default accounts undeclared), and a host that cannot answer is not guessed at.
     public func createFileIfMissing() async {
         guard file().exists == false else { return }
         await load()
         guard case .reply(let reply) = outcome, reply.problem == nil else { return }
-        let found = reply.accounts.filter(\.found).map { (name: $0.name, harness: $0.harness) }
+        let found = reply.accounts.filter(\.found).map { DetectedAccount(name: $0.name, harness: $0.harness) }
         guard found.isEmpty == false, file().exists == false else { return }
-        do { try file().write(applyingAccounts(found, to: nil)) } catch {
+        do {
+            let saved = try await host.changeProviders(.setAccounts(found))
+            status.record(saved.outcome)
+            // no page is asking for this file, so the engine's refusal goes to the log
+            if let problem = reloadWords(saved.outcome) { log("providers: the engine did not apply the new providers.json: \(problem)") }
+        } catch {
             log("providers: could not create providers.json: \(error)")
             return
         }
-        // no page is asking for this file, so the engine's refusal goes to the log
-        if let problem = reloadWords(await status.answer(reload)) { log("providers: the engine did not apply the new providers.json: \(problem)") }
         await load()
     }
 
@@ -357,21 +352,11 @@ public enum RetitleOutcome: Equatable {
         addProblem = nil
         dismissProblem()
         do {
-            let current = try file().read()
-            try file().write(applyingAccounts([(name: harness, harness: harness)], to: current))
-            // a write of its own, so an answer to an earlier one is not said after it (`change` counts the same way)
-            changes += 1
-            let mine = changes
+            let saved = try await host.changeProviders(.setAccounts([DetectedAccount(name: harness, harness: harness)]))
             // the row leaves "Found, not added" once the host is asked again, so the engine's words go where the accounts show them
-            let outcome = await status.answer(reload)
-            if mine == changes { engineSaid(outcome) }
-        } catch ProvidersFileError.notAnObject {
-            addProblem = "providers.json is not a JSON object with a providers map, so Carrier left it as it is."
-        } catch ProvidersFileError.taken(let name) {
-            addProblem = "There is already an account named \(name)."
+            engineSaid(saved.outcome)
         } catch {
-            log("providers: could not add \(harness): \(error)")
-            addProblem = "providers.json could not be written; the file stays as it was."
+            addProblem = problem(error, "add \(harness)")
         }
         busy = false
         await load()
@@ -384,11 +369,19 @@ public enum RetitleOutcome: Equatable {
         retitleOutcome = nil
     }
 
-    /// What the engine answered to a write: a problem is `editProblem`, a plain fact `editNote`.
+    /// What the engine answered to a write: a problem is `editProblem`, a plain fact `editNote`. The answer is also the shared one, which other pages show.
     private func engineSaid(_ outcome: ReloadOutcome) {
+        status.record(outcome)
         let words = reloadWords(outcome)
         editProblem = outcome.isProblem ? words : nil
         editNote = outcome.isProblem ? nil : words
+    }
+
+    /// What a failed request says: Carrier's own words for a refusal, a fixed sentence (the error goes to the log) for anything else.
+    private func problem(_ error: Error, _ what: String) -> String {
+        if case ControlError.remote(let refusal) = error { return refusal.text }
+        log("providers: could not \(what): \(error)")
+        return "providers.json could not be written; the file stays as it was."
     }
 
     /// A quiet line when another account of `harness` already has this config folder, which makes it the same login and not a new one; nil otherwise.
@@ -399,17 +392,17 @@ public enum RetitleOutcome: Equatable {
 
     /// The Add account of a tool: a new account with a name and, when given, a config folder.
     @discardableResult public func addAccount(name: String, harness: String, configDir: String) async -> Bool {
-        await change("add \(name)") { try applyingNewAccount(name: name, harness: harness, configDir: configDir, to: $0) }
+        await change("add \(name)", .addAccount(name: name, harness: harness, configDir: configDir))
     }
 
     /// The editor's Save: the fields written to the account, an emptied one removing its key.
     @discardableResult public func save(name: String, draft: AccountDraft) async -> Bool {
-        await change("save \(name)") { try applyingEdit(name: name, draft: draft, to: $0) }
+        await change("save \(name)", .editAccount(name: name, draft: draft))
     }
 
     /// Remove: refused, naming who, while a role, a repo override, a failover list or a chat agent names the account.
     @discardableResult public func remove(name: String) async -> Bool {
-        await change("remove \(name)") { try applyingRemoval(name: name, uses: try self.uses()[name] ?? [], to: $0) }
+        await change("remove \(name)", .removeAccount(name: name))
     }
 
     /// Choose the text generator (a model of a local server), or clear the choice with nil; written only while the host lists `textGenerators`.
@@ -419,8 +412,7 @@ public enum RetitleOutcome: Equatable {
             return false
         }
         retitleOutcome = nil
-        // the host reads the file at each use, so the page can show the choice before the engine's reload answers (up to 6 seconds)
-        return await change("choose a text generator", showAtOnce: true) { try applyingTextGenerator(choice, to: $0) }
+        return await change("choose a text generator", .setTextGenerator(choice.map { TextGeneratorChoice(server: $0.server, model: $0.model) }), showAtOnce: true)
     }
 
     /// Asks the host to title earlier sessions whose title is still their first line, in the background. Only sent while the host lists `regenerateTitles`.
@@ -436,53 +428,22 @@ public enum RetitleOutcome: Equatable {
         }
     }
 
-    /// Reads the file and writes what `make` returns; a refusal writes nothing. It gives back as soon as the file is written, so the editor closes
-    /// at once: the engine is asked, and the host looked at again, in the background, and a `problem` it answers is what the page shows (`settled`).
-    private func change(_ what: String, showAtOnce: Bool = false, _ make: (Data?) throws -> Data) async -> Bool {
+    /// Asks for the change and says what the engine did with the file; a refusal wrote nothing and says why. The editor closes when it gives back, and the host is looked at again after it
+    /// (`settled`), in the background unless the page shows the result at once; a `problem` the host answers is what the page shows.
+    private func change(_ what: String, _ request: ProvidersRequest, showAtOnce: Bool = false) async -> Bool {
         dismissProblem()
-        do {
-            let file = file()
-            try file.write(make(try file.read()))
-        } catch ProvidersFileError.notAnObject {
-            editProblem = "providers.json is not a JSON object with a providers map, so Carrier left it as it is."
-            return false
-        } catch ProvidersFileError.taken(let name) {
-            editProblem = "There is already an account named \(name)."
-            return false
-        } catch ProvidersFileError.missing(let name) {
-            editProblem = "There is no account named \(name) in providers.json."
-            return false
-        } catch ProvidersFileError.inUse(let name, let uses) {
-            editProblem = "\(name) is used by \(uses.map(\.text).joined(separator: ", ")), so it stays. Point those at another account first."
-            return false
-        } catch ProvidersFileError.invalid(let reason) {
-            editProblem = reason
-            return false
-        } catch {
-            log("providers: could not \(what): \(error)")
-            editProblem = "providers.json could not be written; the file stays as it was."
+        let saved: ProvidersSaved
+        do { saved = try await host.changeProviders(request) } catch {
+            editProblem = problem(error, what)
             return false
         }
-        // counted once the file is written: a change that wrote nothing has no answer coming and must not silence the one of an earlier write
-        changes += 1
-        let mine = changes
-        // the older answer is still asked for (the engine reads the file anyway), but its look at the host would land after the newer one's
-        follow?.cancel()
-        follow = Task {
-            if showAtOnce { await load() }
-            let outcome = await status.answer(reload)
-            if mine == changes {
-                engineSaid(outcome)
-            } else if let words = reloadWords(outcome), outcome.isProblem {
-                // a newer write has its own answer coming, so this one's words are not shown; the log keeps them
-                log("providers: the engine did not apply \(what), which a newer write replaced: \(words)")
-            }
-            if Task.isCancelled == false { await load() }
-        }
+        engineSaid(saved.outcome)
+        // the host reads the file at each use, so the page can show the choice the moment it is written
+        if showAtOnce { await load() } else { follow = Task { await load() } }
         return true
     }
 
-    /// Waits for the engine's answer to the last write and the look at the host that follows it.
+    /// Waits for the look at the host that follows the last write.
     public func settled() async { await follow?.value }
 
     public func load() async {

@@ -23,7 +23,7 @@ Its Swift twin is `macos/Sources/CarrierCore/CarrierPlaces.swift`, which also ha
 1. `src/config/providers.ts`: the `account` schema, plus `AccountRuntime` and `runtimeOf` if the field reaches the agent's process.
 2. Engine argv: `src/harnesses/claude.ts`, `src/harnesses/codex.ts`; a flag Carrier sets itself goes in `src/config/launch-args.ts`.
 3. Chat: the `ChatLaunch` `Pick` in `src/chat/runner.ts` (a second hand-written list), filled in `src/chat/account.ts`; argv in `src/chat/claude.ts` and `src/chat/codex.ts`.
-4. Swift: `macos/Sources/CarrierCore/ProvidersEdit.swift`, the `AccountDraft` property, `init(account:)`, `fields`, `draftProblems` and `applyingEdit`.
+4. Swift: `macos/Sources/CarrierCore/ProvidersEdit.swift`, the `AccountDraft` property, `init(account:)`, `fields`, `draftProblems` and the `changes` of `ProvidersRequest.editAccount` (`ProvidersRequests.swift`); `providers-edit.ts` writes the key, and `chat/server.ts` has it in the `editAccount` request.
 
 `projects.json`:
 
@@ -38,4 +38,6 @@ Its Swift twin is `macos/Sources/CarrierCore/CarrierPlaces.swift`, which also ha
 2. Swift: `macos/Sources/CarrierCore/SessionAges.swift` for the ages it edits, `WorktreeStart.swift` for `worktreeStart` and `IdleClose.swift` for `idleCloseMinutes`; the row is also listed in `SettingsIndex.swift`, or the Settings search cannot find it.
 
 All four: `docs/configuration.md`, the Settings pages in `docs/macos/` if Settings shows it, and `CHANGELOG.md`.
-The app's writers keep keys they do not know, and send `reload` after saving `engine.json` or `providers.json`.
+The app's writers of `engine.json` keep keys they do not know and send `reload` after saving.
+`providers.json` is written by `providers-edit.ts` only ([ADR 0053](../../docs/adr/0053-a-carrier-config-file-has-one-owner-process-and-a-front-end-writes-it-through-that-process.md)): the chat host answers `setAccounts`, `addAccount`, `editAccount`, `removeAccount` and `setTextGenerator` and `carrier config` runs the same code, each reading the raw file again, keeping every key it does not touch, validating the whole result with `providersFileSchema` and renaming a temporary file over it; the one that wrote then asks the engine to reload (`chat/engine-reload.ts`) and the reply says what it did.
+`removeAccount` reads `engine.json` and `chat.json` for who uses the account (`accountUses`) and stops when one of them is there and cannot be read.

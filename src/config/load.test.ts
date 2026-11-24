@@ -196,6 +196,13 @@ describe('labels', () => {
     expect(errorsOf({ labels: { stages: { ship: 'same' }, reasons: { auth: 'SAME' } } })).toEqual([{ path: 'labels.reasons.auth', message: 'is the same label as labels.stages.ship: each role needs its own' }]);
   });
 
+  test('the lead is a stage a label can name, with the distinctness rule of the others', () => {
+    expect(load({ labels: { stages: { review: 'c:reviewing', lead: 'carrier:stage:lead-reviewing' } } })).toMatchObject({ ok: true, config: { labels: { stages: { lead: 'carrier:stage:lead-reviewing' } } } });
+    expect(errorsOf({ labels: { stages: { lead: 'Carrier:Status:Running' } } })).toEqual([{ path: 'labels.stages.lead', message: 'is the same label as labels.running: each role needs its own' }]);
+    expect(errorsOf({ labels: { stages: { review: 'same', lead: 'SAME' } } })).toEqual([{ path: 'labels.stages.lead', message: 'is the same label as labels.stages.review: each role needs its own' }]);
+    expect(errorsOf({ labels: { stages: { lead: 'x' }, reasons: { lead_limit: 'X' } } }).map((e) => e.path)).toEqual(['labels.reasons.lead_limit']);
+  });
+
   test('refuses an unknown role', () => {
     expect(errorsOf({ labels: { queued: 'x' } }).map((e) => e.path)).toContain('labels');
   });

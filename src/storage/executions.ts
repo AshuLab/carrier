@@ -21,7 +21,7 @@ export type ExecutionUsage = ModelUsage & { byModel?: Record<string, ModelUsage>
 export const executions = sqliteTable('executions', {
   executionId: text().primaryKey(),
   epicId: integer().notNull().references(() => epics.id),
-  stage: text({ enum: ['ship', 'review', 'fix'] }).notNull(),
+  stage: text({ enum: ['ship', 'review', 'fix', 'lead'] }).notNull(),
   reviewer: text({ enum: reviewerSlots }), // a review's slot; null for ship and fix, and on rows from before it was recorded (read as `reviewer`: see `slotOf`)
   status: text({ enum: executionStates }).notNull().default('running'),
   sessionId: text(), // saved as soon as the runner reports it, not when it ends

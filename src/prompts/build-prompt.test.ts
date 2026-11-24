@@ -394,3 +394,137 @@ test('the review of an epic with several reviewers tells the reviewer to judge o
   expect(one).not.toContain('leave alone the review threads');
   expect(one).not.toContain('Other reviewers');
 });
+
+// --- the lead reviewer's prompt ---
+
+const leadTask = (context: Partial<AgentTask['context']> = {}, over: Partial<AgentTask> = {}): AgentTask => ({ ...task('lead', context), reviewer: 'lead', ...over });
+const summaries = [{ reviewer: 'reviewer' as const, summary: 'All the tickets are covered.' }, { reviewer: 'reviewer-2' as const, summary: 'The migration is reversible.' }];
+
+test('lead prompt', () => {
+  expect(buildPrompt(leadTask({ round: 2, reviewerSummaries: summaries }))).toMatchInlineSnapshot(`
+    "You are the lead reviewer of the final integration PR of epic #3 in AshuLab/carrier. Execution exec-1, stage lead.
+    Nobody answers questions during this run: decide, and use needs_human when you cannot.
+    Apply the repo's own rules (its docs, agent instructions and conventions) to choose and evaluate tests, CI and blockers. Do not assume commands from other repos.
+    Review PR #7 as the final reviewer: the reviewers of this epic agreed on it, and nobody reviews after you. First confirm the PR head is aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa; if it is not, return needs_human.
+    What the reviewers concluded, by reviewer:
+    - reviewer: All the tickets are covered.
+    - reviewer-2: The migration is reversible.
+    Invoke /code-review against the epic's spec and tickets, taking what the reviewers concluded into account and checking that nothing regressed, then publish the findings with /code-post.
+    When you find no blocker, give the pull request its formal approval with your own identity (gh pr review 7 --approve), and say in "approval" of the result whether you submitted it, with the link of the review when you have one.
+    The approval is not required: when you cannot give it, return "approval" with "submitted" false and the epic goes on all the same.
+    Give every blocker you return a short stable id (for example "token-expiry").
+    Findings that do not stop approval (what you would post as a nitpick or a suggestion) are observations: list them in "observations" of a completed result, each with a title, a link when you have one and a short stable id. Leave the field out when there are none.
+    Return changes_requested with the blockers if there are any. Return completed only if the review is conclusive, there are no blockers and the repo's verifications are confirmed on that same commit. If the review is inconclusive (missing context, cannot verify), return needs_human.
+    Before finishing, write exactly one JSON object to /r/exec-1.json. That path is also in the environment variable CARRIER_RESULT_PATH: write to "$CARRIER_RESULT_PATH" instead of retyping it, because a path with one segment missing is a result nobody reads. Repeat executionId, repo, epic and stage as given. Allowed outputs:
+    \`\`\`json
+    {
+      "executionId": "exec-1",
+      "repo": "AshuLab/carrier",
+      "epic": 3,
+      "stage": "lead",
+      "summary": "<one or two sentences for the next agent of this epic: what you did and concluded>",
+      "outcome": "completed",
+      "pr": {
+        "number": 7,
+        "headSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "verification": {
+        "ci": "passed",
+        "evidence": "<one line: which verifications you confirmed on this commit>"
+      },
+      "observations": [
+        {
+          "id": "<stable-id>",
+          "title": "<non-blocking finding>",
+          "url": "https://github.com/AshuLab/carrier/pull/7#discussion_r456"
+        }
+      ],
+      "approval": {
+        "submitted": true,
+        "url": "https://github.com/AshuLab/carrier/pull/7#pullrequestreview-789"
+      }
+    }
+    \`\`\`
+    \`\`\`json
+    {
+      "executionId": "exec-1",
+      "repo": "AshuLab/carrier",
+      "epic": 3,
+      "stage": "lead",
+      "summary": "<one or two sentences for the next agent of this epic: what you did and concluded>",
+      "outcome": "changes_requested",
+      "pr": {
+        "number": 7,
+        "headSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "blockers": [
+        {
+          "id": "<stable-id>",
+          "title": "<blocker>",
+          "url": "https://github.com/AshuLab/carrier/pull/7#discussion_r123"
+        }
+      ],
+      "resolved": [
+        "<id of an earlier blocker that is now fixed>"
+      ]
+    }
+    \`\`\`
+    \`\`\`json
+    {
+      "executionId": "exec-1",
+      "repo": "AshuLab/carrier",
+      "epic": 3,
+      "stage": "lead",
+      "summary": "<one or two sentences for the next agent of this epic: what you did and concluded>",
+      "outcome": "needs_human",
+      "reason": "<why a person has to step in>"
+    }
+    \`\`\`
+    verification.ci is "absent" when the repo has no CI; say so in evidence."
+  `);
+});
+
+test('the lead is told it is the final reviewer, is given the summaries of the reviewers and is asked for the formal approval and to say in the result whether it submitted it', () => {
+  const lines = stageLines(leadTask({ round: 2, reviewerSummaries: summaries }));
+  expect(lines[0]).toContain('as the final reviewer');
+  expect(lines).toContain('What the reviewers concluded, by reviewer:');
+  expect(lines).toContain('- reviewer: All the tickets are covered.');
+  expect(lines).toContain('- reviewer-2: The migration is reversible.');
+  expect(lines.join('\n')).toContain('formal approval with your own identity');
+  expect(lines.join('\n')).toContain('"approval"');
+  expect(stageLines(leadTask()).join('\n')).not.toContain('What the reviewers concluded');
+  expect(buildPrompt(leadTask()).split('\n')[0]).toContain('You are the lead reviewer of the final integration PR');
+});
+
+test('the lead\'s examples pass the contract for the lead stage, and the completed one shows the approval; a review\'s does not', () => {
+  const t = leadTask();
+  const examples = [...buildPrompt(t).matchAll(/```json\n([\s\S]*?)\n```/g)].map((m) => m[1]!);
+  expect(examples).toHaveLength(3);
+  for (const raw of examples) expect(parseCallerResult(raw, { executionId: t.executionId, repo: t.repo, epic: t.epic, stage: 'lead' })).toMatchObject({ ok: true });
+  expect(examples[0]).toContain('"approval"');
+  expect(examples[1]).toContain('"stage": "lead"');
+  expect(buildPrompt(task('review'))).not.toContain('"approval"');
+});
+
+test('a lead whose profile is the author\'s is told GitHub refuses that approval, and signs what it publishes as the lead; one with its own profile is told the approval is not required', () => {
+  const shared = buildPrompt(leadTask({}, { sharedIdentity: true, persona: { name: 'Atlas' } }));
+  expect(shared).toContain('does not let an account approve its own pull request');
+  expect(shared).toContain('🤖 Lead reviewer [Atlas] via Carrier');
+  const own = buildPrompt(leadTask({}, { sharedIdentity: false }));
+  expect(own).not.toContain('does not let an account approve');
+  expect(own).toContain('The approval is not required');
+  expect(own).not.toContain('via Carrier');
+});
+
+test('the lead invokes the skill resolved for it, with / or $ by harness, and what no level names for it comes from the review skill', () => {
+  const skills = { ...resolveSkills(solveSkills), lead: { review: { name: 'my-lead', named: true }, publish: { name: 'my-lead-post', named: true } } };
+  expect(stageLines(withSkills(leadTask(), skills))[1]).toBe('Invoke /my-lead against the epic\'s spec and tickets, taking what the reviewers concluded into account and checking that nothing regressed, then publish the findings with /my-lead-post.');
+  expect(stageLines(withSkills(leadTask({}, { harness: 'codex' }), skills))[1]).toContain('Invoke $my-lead against');
+  expect(stageLines(withSkills(leadTask(), { ...skills, lead: { review: { name: 'my-lead', named: true }, publish: null } })).join('\n')).not.toContain('then publish');
+  expect(stageLines(leadTask()).join('\n')).toContain('Invoke /code-review against'); // no skills saved: Solve's defaults, the review's
+  expect(stageLines(withSkills(leadTask(), named)).join('\n')).toContain('Invoke /my-review against');
+});
+
+test('the lead prompt names no repo-specific command', () => {
+  expect(buildPrompt(leadTask({ reviewerSummaries: summaries }))).not.toMatch(/\b(pnpm|npm|yarn|vitest|jest|pytest|make)\b/);
+});

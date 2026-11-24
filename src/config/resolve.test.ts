@@ -167,4 +167,10 @@ describe('resolveRepoConfig skills', () => {
     });
     expect(resolved.agents.extraReviewers!.map((e) => e.sharedIdentity)).toEqual([undefined, true]);
   });
+  test('the lead is saved as sharing the author\'s identity only when its profile is the same account', () => {
+    const profiles = { ...base.profiles, bot: { kind: 'forge', agent: 'reviewer-bot' } };
+    const lead = (profile: string) => resolveFirst({ profiles, agents: { ...base.agents, leadReviewer: { profile, provider: 'claude', model: 'm3' } } }).agents.leadReviewer;
+    expect(lead('bot')).not.toHaveProperty('sharedIdentity');
+    expect(lead('a')).toMatchObject({ profile: 'a', sharedIdentity: true });
+  });
 });

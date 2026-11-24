@@ -59,9 +59,10 @@ export type SessionsReply = {
   /** Newest first. */
   sessions: {
     executionId: string;
-    stage: 'ship' | 'review' | 'fix';
+    /** `lead` is the lead reviewer's: unlike the snapshot, the replies name it. */
+    stage: 'ship' | 'review' | 'fix' | 'lead';
     role: 'author' | 'reviewer';
-    /** The reviewer's slot (`reviewer`, `reviewer-2`...) as a string, on a review session. */
+    /** The reviewer's slot (`reviewer`, `reviewer-2`...; `lead` for the lead) as a string, on a review session. */
     reviewer?: string;
     round: number | null;
     agent: PanelAgent;
@@ -103,7 +104,7 @@ export type Observation = { id: string | null; title: string; url: string | null
 
 export type EpicReply = {
   /** `reviewers` (the slots as strings, `reviewer-2`...) is only on a review stage in which several reviewers ran. */
-  stages: { stage: 'queued' | 'ship' | 'review' | 'fix' | 'ready'; startedAt: number; endedAt: number | null; reviewers?: string[] }[];
+  stages: { stage: 'queued' | 'ship' | 'review' | 'fix' | 'lead' | 'ready'; startedAt: number; endedAt: number | null; reviewers?: string[] }[];
   /** One per round, however many reviewers it has; a round repeated on a new head is one, for the head it was decided on. */
   rounds: {
     round: number;
@@ -124,6 +125,14 @@ export type EpicReply = {
   }[];
   /** Only an epic that went to ready for test with observations nobody answered has it. */
   unansweredObservations?: UnansweredObservations;
+  /** The head the reviewers agreed on; absent until a round agreed. */
+  reviewedSha?: string;
+  /** The head the lead reviewer approved; only an epic whose lead completed has it, and it may differ from `reviewedSha` when the head moved while the lead reviewed. */
+  approvedSha?: string;
+  /** Whether the lead's result says it submitted the pull request's formal approval; only an epic whose lead completed has it, and nothing is read from GitHub for it. */
+  leadApproval?: boolean;
+  /** The agent of the lead reviewer; only an epic that has one. */
+  lead?: PanelAgent;
   /** A cache of GitHub, never read to decide anything (ADR 0008). */
   slices: {
     number: number;

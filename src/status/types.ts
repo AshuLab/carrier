@@ -22,6 +22,8 @@ export type PanelEpic = {
   /** The issue's title, when the snapshot carries it (the control snapshot does; null until the engine reads it). */
   title?: string | null;
   stage: 'ship' | 'review' | 'fix' | null;
+  /** The epic is in the stage `lead`, which `stage` reports as `review` because the app's stage is a strict enum; absent otherwise. */
+  lead?: true;
   /** Review round, null until the final PR is validated. */
   round: number | null;
   maxReviews: number;
@@ -71,7 +73,7 @@ export type PanelSnapshot = {
   /** Each watched repo's last check; absent from an engine that does not send it (the control snapshot always has it). */
   watched?: { repo: string; ok: boolean; error: string | null }[];
   /** The epics that ended ready for test, most recent first. */
-  done: { repo: string; issue: number; title: string | null; labels: string[]; prNumber: number | null; finishedAt: number | null; executionId: string | null; unansweredObservations?: UnansweredObservations; reviewers?: PanelReviewers }[];
+  done: { repo: string; issue: number; title: string | null; labels: string[]; prNumber: number | null; finishedAt: number | null; executionId: string | null; unansweredObservations?: UnansweredObservations; reviewers?: PanelReviewers; reviewedSha?: string; approvedSha?: string; leadApproval?: boolean }[];
   /** The merged and cancelled epics inside the finished window, newest first; absent from an engine that does not send it (the control snapshot always has it). */
   finished?: PanelFinished[];
 };
@@ -88,8 +90,8 @@ export type PanelFinished = {
 // What the control socket serves: the panel's snapshot plus what the macOS app draws. Everything here is additive (protocol 1),
 // and the terminal panel keeps reading `PanelSnapshot`, of which this is a superset.
 export type PanelAgent = { harness: 'claude' | 'codex' | 'agy'; model: string; provider: string | null };
-/** The agents of an epic; `extraReviewers` (`reviewer-2` first) is there only when it has them. */
-export type PanelAgents = { author: PanelAgent; reviewer: PanelAgent; extraReviewers?: PanelAgent[] };
+/** The agents of an epic; `extraReviewers` (`reviewer-2` first) and `lead` are there only when it has them. */
+export type PanelAgents = { author: PanelAgent; reviewer: PanelAgent; extraReviewers?: PanelAgent[]; lead?: PanelAgent };
 export type NeedsHumanKind = (typeof needsHumanKinds)[number];
 
 export type EpicAdditions = {
@@ -109,6 +111,10 @@ export type EpicAdditions = {
   agents: PanelAgents | null;
   /** The head the reviewers agreed on (the head of the decision that sent the epic to its observations pass or to ready for test); absent until a round agreed. */
   reviewedSha?: string;
+  /** The head the lead reviewer approved, set when it completes; may differ from `reviewedSha` when the head moved while the lead reviewed. Absent without a completed lead. */
+  approvedSha?: string;
+  /** Whether the lead's result says it submitted the pull request's formal approval; absent until the lead completes. */
+  leadApproval?: boolean;
 };
 
 export type PanelSession = {
@@ -116,6 +122,8 @@ export type PanelSession = {
   repo: string;
   issue: number;
   stage: 'ship' | 'review' | 'fix';
+  /** The lead reviewer's session: `stage` says `review` for it, and this flag, the lead. */
+  lead?: true;
   round: number | null;
   /** The harness and the model the execution ran with, from its own record. */
   harness: PanelAgent['harness'];

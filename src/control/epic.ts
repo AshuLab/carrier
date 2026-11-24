@@ -15,6 +15,7 @@ import { epics } from '../storage/schema.ts';
 import type { Blocker, EpicReply } from './replies.ts';
 import { optionsOf } from '../status/snapshot.ts';
 import { agentOf } from './sessions.ts';
+import { leadApproval } from '../orchestration/round.ts';
 
 const log = createScopedLogger('control');
 const execFileAsync = promisify(execFile);
@@ -192,6 +193,7 @@ export async function epicOf(db: Db, repo: string, issue: number): Promise<EpicR
       continue;
     }
     worked = true;
+    if (run.stage === 'lead') continue; // the lead's exchange is no round: the round's verdicts are the reviewers'
     const last = entries.at(-1);
     if (run.stage === 'fix') {
       if (last === undefined || last.attempt !== attempt) continue;
@@ -271,7 +273,7 @@ export async function epicOf(db: Db, repo: string, issue: number): Promise<EpicR
   const stages: EpicReply['stages'] = [{ stage: 'queued', startedAt: epic.queuedAt, endedAt: epic.startedAt }];
   if (epic.startedAt !== null) {
     const startedAt = epic.startedAt;
-    const segments: { stage: 'ship' | 'review' | 'fix'; startedAt: number; slots: Slot[] }[] = [];
+    const segments: { stage: 'ship' | 'review' | 'fix' | 'lead'; startedAt: number; slots: Slot[] }[] = [];
     for (const { run } of runs) {
       if (run.startedAt < startedAt) continue;
       if (segments.at(-1)?.stage !== run.stage) segments.push({ stage: run.stage, startedAt: segments.length === 0 ? startedAt : run.startedAt, slots: [] });
@@ -286,6 +288,8 @@ export async function epicOf(db: Db, repo: string, issue: number): Promise<EpicR
   }
 
   const reviewer = runs.findLast(({ run }) => run.stage === 'review' && run.workspace !== null)?.run.workspace ?? null;
+  const lead = epic.config?.agents.leadReviewer;
+  const approved = leadApproval(db, epic);
   const worktrees: EpicReply['worktrees'] = [
     ...(epic.workspace === null ? [] : [{ kind: 'epic' as const, lane: null, path: epic.workspace }]),
     ...(reviewer === null ? [] : [{ kind: 'reviewer' as const, lane: null, path: reviewer }]),
@@ -293,5 +297,5 @@ export async function epicOf(db: Db, repo: string, issue: number): Promise<EpicR
   // the row records the branch once ship is validated; before that the worktree's HEAD is the only place it is
   const branch = epic.branch ?? (epic.workspace === null ? null : ((await git(epic.workspace, ['symbolic-ref', '--short', 'HEAD']))?.trim() || null));
 
-  return { stages, rounds, slices: slices.map(({ number, title, state, blockedBy, prNumber, prState, prMergedAt, closedAt, readAt }) => ({ number, title, state, blockedBy, prNumber, prState, prMergedAt, closedAt, readAt, lane: null, activity: null, ...(state === 'in_progress' && hints.get(number)) })), slicesTruncated: slices.some((s) => s.truncated), threads: threads.map(({ epicId, position, readAt, truncated, ...thread }) => thread), threadsTruncated: threads.some((t) => t.truncated), worktrees, branch, options: optionsOf(epic), ...(epic.unansweredObservations !== null && epic.unansweredReason !== null && { unansweredObservations: { count: epic.unansweredObservations, reason: epic.unansweredReason } }), pr: epic.pr };
+  return { stages, rounds, slices: slices.map(({ number, title, state, blockedBy, prNumber, prState, prMergedAt, closedAt, readAt }) => ({ number, title, state, blockedBy, prNumber, prState, prMergedAt, closedAt, readAt, lane: null, activity: null, ...(state === 'in_progress' && hints.get(number)) })), slicesTruncated: slices.some((s) => s.truncated), threads: threads.map(({ epicId, position, readAt, truncated, ...thread }) => thread), threadsTruncated: threads.some((t) => t.truncated), worktrees, branch, options: optionsOf(epic), ...(epic.unansweredObservations !== null && epic.unansweredReason !== null && { unansweredObservations: { count: epic.unansweredObservations, reason: epic.unansweredReason } }), pr: epic.pr, ...(epic.reviewedSha !== null && { reviewedSha: epic.reviewedSha }), ...(epic.approvedSha !== null && { approvedSha: epic.approvedSha, ...(approved !== undefined && { leadApproval: approved }) }), ...(lead && { lead: { harness: lead.harness, model: lead.model, provider: lead.provider ?? null } }) };
 }

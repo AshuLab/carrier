@@ -3,7 +3,7 @@ import type { EffectiveRepoConfig } from '../config/resolve.ts';
 import { latestBlockers } from '../orchestration/blockers.ts';
 import { agentOfSlot, roundSlots } from '../orchestration/slots.ts';
 import type { Labels } from '../orchestration/github.ts';
-import { latestRoundTally } from '../orchestration/round.ts';
+import { latestRoundTally, leadApproval } from '../orchestration/round.ts';
 import { lastBySlot } from '../orchestration/retry.ts';
 import { queueOrder } from '../orchestration/reserve.ts';
 import type { Db } from '../storage/db.ts';
@@ -13,7 +13,7 @@ import { epics } from '../storage/schema.ts';
 import type { ControlSnapshot, EpicOptions, PanelAgent, PanelAgents, PanelEpic, PanelReviewers, PanelSession } from './types.ts';
 
 const agentOf = ({ harness, model, provider }: EffectiveRepoConfig['agents']['author']): PanelAgent => ({ harness, model, provider: provider ?? null });
-const agentsOf = (config: EffectiveRepoConfig): PanelAgents => ({ author: agentOf(config.agents.author), reviewer: agentOf(config.agents.reviewer) });
+const agentsOf = (config: EffectiveRepoConfig): PanelAgents => ({ author: agentOf(config.agents.author), reviewer: agentOf(config.agents.reviewer), ...(config.agents.leadReviewer && { lead: agentOf(config.agents.leadReviewer) }) });
 
 /** The options of an epic as the panel and the epic's reply list them; undefined for one saved before options existed. */
 export const optionsOf = ({ config, authorOption, reviewerOption }: { config: EffectiveRepoConfig | null; authorOption: string | null; reviewerOption: string | null }): EpicOptions | undefined => {
@@ -72,8 +72,8 @@ export function buildSnapshot(
   const shown = db.select().from(epics).where(inArray(epics.status, ['running', 'needs_human'])).orderBy(asc(epics.id)).all();
   // The execution an epic names is the newest of the author or of the mandatory reviewer: which other reviewer ended last does not move it.
   const lastExecution = (epicId: number) => db.select({ id: executions.executionId }).from(executions).where(and(eq(executions.epicId, epicId), or(isNull(executions.reviewer), eq(executions.reviewer, 'reviewer')))).orderBy(desc(executions.startedAt), sql`rowid desc`).limit(1).get()?.id ?? null;
-  const done = db.select({ id: epics.id, repo: epics.repo, issue: epics.issue, title: epics.title, labels: epics.labels, prNumber: epics.prNumber, finishedAt: epics.finishedAt, unansweredObservations: epics.unansweredObservations, unansweredReason: epics.unansweredReason, startedAt: epics.startedAt, config: epics.config }).from(epics).where(eq(epics.status, 'ready_for_test')).orderBy(desc(epics.finishedAt)).limit(5).all()
-    .map(({ id, labels, unansweredObservations, unansweredReason, startedAt, config, ...rest }) => ({ ...rest, labels: labels ?? [], executionId: lastExecution(id), ...(unansweredObservations !== null && unansweredReason !== null && { unansweredObservations: { count: unansweredObservations, reason: unansweredReason } }), ...spread('reviewers', reviewersOf(db, { id, startedAt, config })) }));
+  const done = db.select({ id: epics.id, repo: epics.repo, issue: epics.issue, title: epics.title, labels: epics.labels, prNumber: epics.prNumber, finishedAt: epics.finishedAt, unansweredObservations: epics.unansweredObservations, unansweredReason: epics.unansweredReason, startedAt: epics.startedAt, config: epics.config, reviewedSha: epics.reviewedSha, approvedSha: epics.approvedSha }).from(epics).where(eq(epics.status, 'ready_for_test')).orderBy(desc(epics.finishedAt)).limit(5).all()
+    .map(({ id, labels, unansweredObservations, unansweredReason, startedAt, config, reviewedSha, approvedSha, ...rest }) => ({ ...rest, labels: labels ?? [], executionId: lastExecution(id), ...(reviewedSha !== null && { reviewedSha }), ...(approvedSha !== null && { approvedSha, ...spread('leadApproval', leadApproval(db, { id, startedAt })) }), ...(unansweredObservations !== null && unansweredReason !== null && { unansweredObservations: { count: unansweredObservations, reason: unansweredReason } }), ...spread('reviewers', reviewersOf(db, { id, startedAt, config })) }));
   const finished = db.select({ id: epics.id, repo: epics.repo, issue: epics.issue, title: epics.title, labels: epics.labels, prNumber: epics.prNumber, finishedAt: epics.finishedAt, status: epics.status, cancelReason: epics.cancelReason }).from(epics)
     .where(and(inArray(epics.status, ['merged', 'cancelled']), gte(epics.finishedAt, now - finishedWindowDays * 86_400_000))).orderBy(desc(epics.finishedAt)).all()
     .map(({ id, labels, finishedAt, status, cancelReason, ...rest }) => ({ ...rest, labels: labels ?? [], finishedAt: finishedAt!, status: status as 'merged' | 'cancelled', cancelReason: status === 'cancelled' ? cancelReason : null, executionId: lastExecution(id) }));
@@ -100,7 +100,8 @@ export function buildSnapshot(
       const saved = e.config && agentOfSlot(e.config, slot);
       const harness = (run.harness ?? saved?.harness) as PanelAgent['harness'] | undefined;
       if (harness === undefined) return [];
-      return [{ executionId: run.executionId, repo: e.repo, issue: e.issue, stage: run.stage, round: e.round, harness, model: run.model ?? saved?.model ?? '', ...(slot !== null && { reviewer: slot }), startedAt: run.startedAt, last: lastEvent(run.executionId) }];
+      // The app's stage is a strict enum without `lead`: the lead's session is a review, flagged.
+      return [{ executionId: run.executionId, repo: e.repo, issue: e.issue, stage: run.stage === 'lead' ? 'review' as const : run.stage, ...(run.stage === 'lead' && { lead: true as const }), round: e.round, harness, model: run.model ?? saved?.model ?? '', ...(slot !== null && { reviewer: slot }), startedAt: run.startedAt, last: lastEvent(run.executionId) }];
     });
   });
   return {
@@ -124,7 +125,8 @@ export function buildSnapshot(
         repo: e.repo,
         issue: e.issue,
         status: e.status as 'running' | 'needs_human',
-        stage: e.stage,
+        stage: e.stage === 'lead' ? 'review' : e.stage, // the app's stage has no `lead`: it is a review, flagged
+        ...(e.stage === 'lead' && { lead: true as const }),
         round: e.round,
         maxReviews: e.roundLimit ?? maxReviews,
         blockers: blockers.length,
@@ -149,6 +151,7 @@ export function buildSnapshot(
         options: optionsWithFailed(e),
         ...spread('reviewers', reviewersOf(db, e)),
         ...(e.reviewedSha !== null && { reviewedSha: e.reviewedSha }),
+        ...(e.approvedSha !== null && { approvedSha: e.approvedSha, ...spread('leadApproval', leadApproval(db, e)) }),
         ...(e.resumeAt !== null && { resumeAt: e.resumeAt }),
         ...(e.status === 'running' && e.retryAt !== null && { retryAt: e.retryAt }),
       };

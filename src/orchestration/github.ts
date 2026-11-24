@@ -39,7 +39,7 @@ export class AuthError extends Error {
 }
 
 /** The stages an epic runs in; a label can name each one while the epic is `running`. */
-export const stageNames = ['ship', 'review', 'fix'] as const;
+export const stageNames = ['ship', 'review', 'fix', 'lead'] as const;
 export type StageName = (typeof stageNames)[number];
 
 /**

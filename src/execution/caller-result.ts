@@ -7,11 +7,14 @@ const MAX_LIST = 50; // the same cap the `epic` reply puts on a round's blockers
 const Resolved = z.array(Id).max(MAX_LIST).optional();
 const Finding = z.object({ id: Id.optional(), title: z.string().min(1), url: z.string().url().optional() });
 const distinct = (ids: string[]) => new Set(ids).size === ids.length;
+/** What only a completed result of the lead reviewer carries: whether it submitted the pull request's formal approval, and where. */
+const Approval = z.strictObject({ submitted: z.boolean(), url: z.string().url().optional() });
+const noApproval = z.never({ error: 'approval is only for a completed result of the lead' }).optional();
 const Common = {
   executionId: z.string().min(1),
   repo: z.string().regex(/^[\w.-]+\/[\w.-]+$/),
   epic: z.number().int().positive(),
-  stage: z.enum(['ship', 'review', 'fix']),
+  stage: z.enum(['ship', 'review', 'fix', 'lead']),
   summary: z.string().min(1),
 };
 
@@ -25,19 +28,23 @@ export const CallerResult = z.discriminatedUnion('outcome', [
     resolved: Resolved,
     /** Reviewer only: findings that do not stop approval (nitpicks, suggestions). Same shape as a blocker; optional. */
     observations: z.array(Finding).max(MAX_LIST).optional(),
-  }).refine((r) => distinct(r.resolved ?? []), { message: 'resolved has a duplicate id' })
+    /** Lead only: whether it gave the pull request its formal approval. Optional: the engine does not require it. */
+    approval: Approval.optional(),
+  }).refine((r) => r.approval === undefined || r.stage === 'lead', { message: 'approval is only for a completed result of the lead' })
+    .refine((r) => distinct(r.resolved ?? []), { message: 'resolved has a duplicate id' })
     .refine((r) => distinct((r.observations ?? []).flatMap(({ id }) => id ?? [])), { message: 'two observations share an id' }),
   z.object({
     ...Common,
     outcome: z.literal('changes_requested'),
-    stage: z.literal('review'),
+    stage: z.enum(['review', 'lead']),
+    approval: noApproval,
     pr: Pr,
     // `id` is stable across rounds: the reviewer reuses it when a finding persists. Optional, like `resolved`.
     blockers: z.array(Finding).min(1).max(MAX_LIST),
     resolved: Resolved,
   }).refine((r) => distinct(r.blockers.flatMap(({ id }) => id ?? [])), { message: 'two blockers share an id' })
     .refine((r) => distinct([...r.blockers.flatMap(({ id }) => id ?? []), ...(r.resolved ?? [])]), { message: 'resolved has a duplicate id or one that is still a blocker' }),
-  z.object({ ...Common, outcome: z.literal('needs_human'), reason: z.string().min(1) }),
+  z.object({ ...Common, outcome: z.literal('needs_human'), reason: z.string().min(1), approval: noApproval }),
 ]);
 export type CallerResult = z.infer<typeof CallerResult>;
 

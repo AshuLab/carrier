@@ -246,6 +246,13 @@
       "when": 1795488816122,
       "tag": "0034_quick_shocker",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "6",
+      "when": 1795493550684,
+      "tag": "0035_sloppy_titania",
+      "breakpoints": true
     }
   ]
 }

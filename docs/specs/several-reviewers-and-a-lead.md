@@ -208,7 +208,8 @@ Documentation is part of each slice, so it never says what the code does not do:
 
 Testing seams, per story, preferring the seams the repo has:
 
-- Stories 4 to 11, 14 to 17 and 20: the engine through its public interface in `src/orchestration/engine.test.ts`, with the fake `GitHub`, the fake `AgentRunner` that writes, fails, hangs or is cut, an injected clock and a real temporary SQLite; a restart of the engine on the same database covers recovery. The fake runner already runs executions together and tells them apart by the task, which now carries the slot.
+- Stories 4 to 11, 14 to 17 and 20: the engine through its public interface in `src/orchestration/engine.test.ts`, with the fake `GitHub`, the fake `AgentRunner` that writes, fails, hangs or is cut, an injected clock and a real temporary SQLite; a restart of the engine on the same database covers recovery.
+  The fake runner already runs executions together and tells them apart by the task, which now carries the slot.
 - The decision of a round and the retry streak per slot as pure functions in their own unit tests, because they are where the cases multiply.
 - Story 12: `engine.test.ts` with the profiles of an extra reviewer and the lead and the signals of ADR 0050.
 - Stories 1 to 3: `src/config/load.test.ts`, the resolution of skills in its own test, and `src/config/engine-config-contract.test.ts`.

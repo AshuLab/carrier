@@ -269,6 +269,8 @@ The engine runs the extra reviewers: when the author's `ship` is validated it la
 The author's `fix` gets the open blockers of every reviewer, shown as `reviewer-2:B1` when the epic has several reviewers; a round counts once toward `limits.maxReviews` however many reviewers it has.
 A reviewer that gives no verdict does not stop the round: it answers `needs_human`, fails technically with its retries and failover steps out, runs out of usage with no failover step left, or, for an extra reviewer, lacks a skill you named for it.
 One verdict is enough for the round to count, and the mandatory reviewer's own missing skill still stops the epic with `skill_missing` before any reviewer is launched.
+A slow reviewer holds the round for as long as an execution may last, and the epic has no limit of its own for a round.
+Set `limits.idleMinutes` to bound it: a reviewer whose process writes nothing for that long is killed and retried, and when its retries are out the round goes on without it.
 
 Once the reviewers agree (right after the round, or after the observations pass with the head unchanged) and a lead reviewer is configured, the epic goes to the stage `lead` instead of ready for test, and the engine launches one execution of the lead, in its own checkout, on the head the reviewers agreed on.
 The lead is the final reviewer: it runs the skill resolved for it (`skills.lead`, with the values of the review skill when none names it), invoked `/name` or `$name` by harness, it is given the summaries of the reviewers' results, and its prompt tells it to give the pull request its formal approval with its own identity when it finds no blocker.
@@ -331,7 +333,7 @@ The lead moves through `failover.roles.leadReviewer` when its quota runs out, or
 
 An epic starts at once on its roles: nothing waits for a provider to be chosen, however many accounts are declared. The account each role ran on is recorded, because resuming its session and moving the role on failover need it.
 
-`carrier restart <owner/name>#<issue>` of a stopped epic is the one place a provider is chosen: it offers every declared account to each role, with no timer, and `--author` and `--reviewer` name one without asking.
+`carrier restart <owner/name>#<issue>` of a stopped epic is the one place a provider is chosen: it offers every declared account to each role, with no timer, and `--author`, `--reviewer`, `--reviewer-2` to `--reviewer-4` and `--lead` name one without asking (each for a role the epic has).
 
 A config with `limits.optionChoiceSeconds`, or a `providers.json` account with `enabled`, is refused naming the key: an epic starts at once on its roles, so there is no choice to wait for or to hold back accounts from. Delete the key.
 
@@ -423,7 +425,7 @@ The extra reviewers and the resolved skills of each and of the lead are saved wi
 An epic saved before this version has none saved and reads Solve's, with no extra reviewers and no lead.
 Carrier remembers which skills you named at any level (a global one that is Solve's own name counts as not named) and which are Solve's defaults.
 
-Before an epic starts, resumes or changes the option of a role (a failover, or `carrier restart --author` or `--reviewer`), Carrier asks whether the harness and account of that role find each skill the role invokes.
+Before an epic starts, resumes or changes the option of a role (a failover, or `carrier restart` with an option for a role: `--author`, `--reviewer`, `--reviewer-2` to `--reviewer-4` or `--lead`), Carrier asks whether the harness and account of that role find each skill the role invokes.
 Only a skill you named stops an epic, and only when the answer is that it is absent: the epic stops in needs-human with the kind `skill_missing`, naming the skill, the role and where it looked, before any agent run is spent.
 A skill that is Solve's default never stops an epic, and neither does an answer of "cannot tell" (a place Carrier cannot read might hold the skill), so a role that runs today keeps running.
 Carrier reads the places of Claude Code, Codex and Antigravity (`agy`) for this; [troubleshooting](troubleshooting.md) lists where each harness is read.

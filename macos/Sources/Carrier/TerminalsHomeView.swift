@@ -31,11 +31,13 @@ struct TerminalsHomeView: View {
                 actionIcon: .plus,
                 actionStyle: .accentGlass
             )
+            .inPageScroll()
         } else if shown.isEmpty {
             EmptyStateView(
                 state: .noResults,
                 action: ("Clear search", { query = nil })
             )
+            .inPageScroll()
         } else {
             let ids = shown.map(\.id)
             ScrollViewReader { proxy in

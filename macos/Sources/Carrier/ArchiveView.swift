@@ -20,7 +20,7 @@ struct ArchiveView: View {
         let searched = (query ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
         VStack(alignment: .leading, spacing: 0) {
             if let empty = page.emptyState {
-                EmptyStateView(state: empty, action: empty == .noSessionsMatch ? ("Clear search", { query = nil }) : nil)
+                EmptyStateView(state: empty, action: empty == .noSessionsMatch ? ("Clear search", { query = nil }) : nil).inPageScroll()
             } else {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 2) {

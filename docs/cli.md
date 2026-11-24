@@ -119,7 +119,9 @@ It exits 0 on success and 1 on a refusal, with no Carrier running, or when the r
 
 `carrier config` reads one request on standard input as one line of JSON, the request of the chat host's socket without its `id`, and prints the reply the socket would give, without its `id`, as one line of JSON.
 For now it takes `editChatSettings` (`{"cmd":"editChatSettings","changes":{"archiveAfterDays":7,"idleCloseMinutes":null}}`): the two ages of the session clock, `worktreeStart` and `idleCloseMinutes` of `chat.json`, where `null` removes a key.
-It sends the request to the chat host when one answers and otherwise writes `chat.json` itself with the same code, which edits the file as it is, checks the whole result and renames a temporary file over it, so a refused change leaves the file as it was.
+It also takes the nine requests that change `projects.json` and `projectsFolder` of `chat.json`: `addProject { folder }`, `removeProject { path }`, `editProject { path, key, value }` (`key` is `name`, `pinned` or `hidden`), `moveProject { path, folder }`, `editProjectIcon { path, changes }`, `editProjectDefaults { path, changes }`, `editProjectTags { path, add, remove }`, `setProjectActions { path, actions }` and `setProjectsFolder { folder }`.
+Each answers the saved part of the file (`addProject` also says `added`, `removeProject` answers `removed`) and is refused with `config.problem` (the key path and kind), `project.missing` or a folder code.
+It sends the request to the chat host when one answers and otherwise writes the file itself with the same code, which edits the file as it is, checks the whole result and renames a temporary file over it, so a refused change leaves the file as it was.
 It exits 0 when it saved, 1 when it refused (the reply has the `code` and the key path and kind as `params`) and 2 when standard input is not a request.
 
 ## What the engine does

@@ -109,7 +109,7 @@ struct NewSessionView: View {
             if model.offersAddAsProject {
                 // a folder chosen with Open a folder stays a plain workspace until the person adds it
                 HStack(spacing: 8) {
-                    Button { model.addAsProject() } label: { Label("Add as project", icon: .folderPlus).labelStyle(.titleAndIcon) }
+                    Button { Task { await model.addAsProject() } } label: { Label("Add as project", icon: .folderPlus).labelStyle(.titleAndIcon) }
                         .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
                         .help("Keep this folder in your projects")
                     if let problem = model.addProjectProblem { ProblemLine(text: problem, font: .scaled(12)) }

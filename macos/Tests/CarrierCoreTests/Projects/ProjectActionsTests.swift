@@ -133,7 +133,7 @@ private func temporaryFolder() throws -> String {
     #expect(try file.read()[0].actions == saved)
 }
 
-@MainActor @Test func modelSavesActionsAndUpdatesRows() throws {
+@MainActor @Test func modelSavesActionsAndUpdatesRows() async throws {
     let home = try temporaryFolder()
     let repo = try temporaryFolder()
     defer {
@@ -142,18 +142,18 @@ private func temporaryFolder() throws -> String {
     }
 
     let file = ProjectsFile(folder: home)
-    let model = ProjectsModel(file: file) { _ in nil }
-    #expect(model.add(folder: repo) == .added(repo))
+    let model = ProjectsModel(host: CloneHost(writing: file.folder), file: file) { _ in nil }
+    #expect(await model.add(folder: repo) == .added(repo))
     #expect(model.rows.first?.actions == [])
 
     let actions = [
         ProjectAction(name: "Install", command: "pnpm i", when: .newWorktree),
         ProjectAction(name: "Setup", command: "make", when: .afterClone, on: false, onFail: .stop),
     ]
-    #expect(model.saveActions(path: repo, actions: actions) == true)
+    #expect(await model.saveActions(path: repo, actions: actions) == true)
     #expect(model.rows.first?.actions == actions)
 
     // blank action is not written and keeps previous actions
-    #expect(model.saveActions(path: repo, actions: [ProjectAction(name: " ", command: "make", when: .afterClone)]) == false)
+    #expect(await model.saveActions(path: repo, actions: [ProjectAction(name: " ", command: "make", when: .afterClone)]) == false)
     #expect(model.rows.first?.actions == actions)
 }

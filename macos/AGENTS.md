@@ -57,7 +57,7 @@ The rows are `providersPage(_:config:chat:)` and `providersDirectory` (`Provider
 
 ### Projects file
 
-`projects.json` is read, checked, edited and added to by `CarrierCore/ProjectsFile.swift` (`ProjectsFileTests`, `ProjectsListTests`); the same rules as `src/config/projects.ts` are run over `Tests/Fixtures/projects.json` by `ContractTests`.
+`projects.json` is read and checked by `CarrierCore/ProjectsFile.swift` (`ProjectsFileTests`, `ProjectsListTests`) and written by Node: `ProjectsModel` sends each change as a request of `Connection/ProjectsRequests.swift` (`ProjectsRequestsTests`) and waits for the answer; the same rules as `src/config/projects.ts` are run over `Tests/Fixtures/projects.json` by `ContractTests`.
 
 ### Projects page
 

@@ -261,3 +261,74 @@ private func sameJSON(_ a: Data, _ b: Data) throws -> Bool {
     }
     #expect(try Data(contentsOf: URL(fileURLWithPath: file)) == Data("[1]".utf8))
 }
+
+@Test func theFixtureChatHostAnswersTheNineProjectRequestsLikeTheRealOneAndWritesItsScratchFolder() async throws {
+    let server = try FixtureServer(fixtures: testPaths().fixtures.path)
+    defer { server.stop() }
+    let host = SocketChatHost(socketPath: { server.chatSocketPath })
+    let file = ProjectsFile(folder: server.home)
+    let first = try #require(try file.read().first)
+    let folder = server.home + "/elsewhere"
+    try FileManager.default.createDirectory(atPath: folder, withIntermediateDirectories: true)
+    func entry(_ path: String) throws -> ProjectEntry { try #require(try file.read().first { $0.path == path }) }
+
+    // added, then already one however the folder is written
+    let added = try await host.changeProjects(.add(folder: folder))
+    let made = try entry(folder)
+    #expect(added.added == true && added.saved?.path == folder && made.origin == "added" && made.name == "elsewhere")
+    let again = try await host.changeProjects(.add(folder: folder))
+    #expect(again.added == false)
+
+    // the keys of the entry the person wrote stay, a null takes one out
+    _ = try await host.changeProjects(.edit(path: folder, key: "name", value: .text("Else")))
+    _ = try await host.changeProjects(.edit(path: folder, key: "pinned", value: .flag(true)))
+    _ = try await host.changeProjects(.editTags(path: folder, add: ["B", " a "], remove: []))
+    _ = try await host.changeProjects(.editIcon(path: folder, changes: ["color": .text("teal"), "mark": .text("bolt")]))
+    _ = try await host.changeProjects(.editDefaults(path: folder, changes: ["agent": .text("claude"), "access": .map(["mode": "plan"])]))
+    _ = try await host.changeProjects(.setActions(path: folder, actions: [ProjectAction(name: "Setup", command: "make", when: .afterClone)]))
+    var written = try entry(folder)
+    #expect(written.name == "Else" && written.pinned && written.tags == ["b", "a"] && written.iconColor == "teal" && written.iconMark == "bolt")
+    #expect(written.defaults.agent == "claude" && written.defaults.access == ["mode": "plan"] && written.actions.map(\.name) == ["Setup"])
+    _ = try await host.changeProjects(.edit(path: folder, key: "pinned", value: .remove))
+    _ = try await host.changeProjects(.editTags(path: folder, add: [], remove: ["a", "B"]))
+    _ = try await host.changeProjects(.editIcon(path: folder, changes: ["color": .remove, "mark": .remove]))
+    _ = try await host.changeProjects(.setActions(path: folder, actions: []))
+    written = try entry(folder)
+    #expect(written.pinned == false && written.tags.isEmpty && written.json["icon"] == nil && written.json["actions"] == nil && written.defaults.agent == "claude")
+
+    // moved, then removed
+    let moved = folder + "-moved"
+    let movedTo = try await host.changeProjects(.move(path: folder, folder: moved))
+    #expect(movedTo.saved?.path == moved)
+    let removed = try await host.changeProjects(.remove(path: moved))
+    #expect(removed.removed == moved)
+    let left = try file.read().map(\.path)
+    #expect(left.first == first.path && left.contains(moved) == false && left.contains(folder) == false)
+
+    // refused with a code and the file left as it was
+    let before = try Data(contentsOf: file.url)
+    for (change, code) in [(ProjectsChange.remove(path: "/nowhere"), "project.missing"), (.edit(path: "/nowhere", key: "name", value: .text("x")), "project.missing"), (.move(path: first.path, folder: "relative"), "config.problem")] {
+        do {
+            _ = try await host.changeProjects(change)
+            Issue.record("\(change.cmd) was saved")
+        } catch ControlError.remote(let refusal) {
+            #expect(refusal.code == code, Comment(rawValue: change.cmd))
+        }
+    }
+    #expect(try Data(contentsOf: file.url) == before)
+
+    // the projects folder goes to chat.json, and Carrier's own folders are refused with the old one left
+    let chat = URL(fileURLWithPath: CarrierPlaces(folder: server.home).chatConfig)
+    let chatBefore = try Data(contentsOf: chat)
+    let set = try await host.changeProjects(.setFolder("/Users/demo/code"))
+    #expect(set.saved?.projectsFolder == "/Users/demo/code")
+    let after = try #require(JSONSerialization.jsonObject(with: Data(contentsOf: chat)) as? [String: Any])
+    let kept = try #require(JSONSerialization.jsonObject(with: chatBefore) as? [String: Any])
+    #expect(after["projectsFolder"] as? String == "/Users/demo/code" && after.count == kept.count + (kept["projectsFolder"] == nil ? 1 : 0))
+    do {
+        _ = try await host.changeProjects(.setFolder(server.home + "/engine/x"))
+        Issue.record("a folder inside engine was saved")
+    } catch ControlError.remote(let refusal) {
+        #expect(refusal.code == "folder.insideCarrier")
+    }
+}

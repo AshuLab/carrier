@@ -4,8 +4,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-import { chatConfigPathOf } from '../config/places.ts';
+import { chatConfigPathOf, projectsPathOf } from '../config/places.ts';
 import { editChatSettings } from './config.ts';
+import { projectEdits } from './project-edits.ts';
 import { ChatRefused, textCode } from './runner.ts';
 import { startChatServer, type ChatControls } from './server.ts';
 
@@ -103,6 +104,15 @@ const controls = (): ChatControls => ({
   },
   // the real writing code, over a scratch Carrier folder
   editChatSettings: ({ changes }) => editChatSettings(changes, home()),
+  addProject: (args) => projectEdits.addProject(args, home()),
+  removeProject: (args) => projectEdits.removeProject(args, home()),
+  editProject: (args) => projectEdits.editProject(args, home()),
+  moveProject: (args) => projectEdits.moveProject(args, home()),
+  editProjectIcon: (args) => projectEdits.editProjectIcon(args, home()),
+  editProjectDefaults: (args) => projectEdits.editProjectDefaults(args, home()),
+  editProjectTags: (args) => projectEdits.editProjectTags(args, home()),
+  setProjectActions: (args) => projectEdits.setProjectActions(args, home()),
+  setProjectsFolder: (args) => projectEdits.setProjectsFolder(args, home()),
 });
 const seen: AbortSignal[] = [];
 let refuseBulkTitles = false;
@@ -656,4 +666,72 @@ test('editChatSettings takes only the four settings, and its request and reply a
   if (process.env.UPDATE_FIXTURES === '1') writeFileSync(file, json);
   expect(json).toBe(readFileSync(file, 'utf8'));
   expect(id).toBe(3);
+});
+
+// The nine requests that change projects.json and projectsFolder: the writing code is tested in project-edits.test.ts; here the wire (what a client may send) and the golden file.
+const projectsFile = () => projectsPathOf(home());
+const seedProjects = (projects: unknown[]) => (mkdirSync(home(), { recursive: true }), writeFileSync(projectsFile(), `${JSON.stringify({ projects }, null, 2)}\n`));
+const ask = async (request: object) => {
+  await open();
+  return (await client()).ask(JSON.stringify({ id: 1, ...request }));
+};
+
+test.each([
+  [{ cmd: 'addProject' }],
+  [{ cmd: 'addProject', folder: '' }],
+  [{ cmd: 'addProject', folder: '/w/a', extra: 1 }],
+  [{ cmd: 'removeProject', path: 3 }],
+  [{ cmd: 'editProject', path: '/w/a', key: 'origin', value: 'cloned' }],
+  [{ cmd: 'editProject', path: '/w/a', key: 'name', value: 3 }],
+  [{ cmd: 'moveProject', path: '/w/a' }],
+  [{ cmd: 'editProjectIcon', path: '/w/a', changes: { size: 3 } }],
+  [{ cmd: 'editProjectDefaults', path: '/w/a', changes: { access: 'plan' } }],
+  [{ cmd: 'editProjectTags', path: '/w/a', add: 'x', remove: [] }],
+  [{ cmd: 'setProjectActions', path: '/w/a', actions: [{ name: 'a', command: 'b', when: 'afterClone', timeout: 3 }] }],
+  [{ cmd: 'setProjectsFolder', folder: 4 }],
+])('%o is refused as an invalid request', async (request) => {
+  seedProjects([{ path: '/w/a', origin: 'added' }]);
+  expect(await ask(request)).toMatchObject({ ok: false, code: 'request.invalid' });
+});
+
+test('a refused change of a project answers its code and the key path and kind, and leaves the file as it was', async () => {
+  const text = `${JSON.stringify({ projects: [{ path: '/w/a', origin: 'added' }] }, null, 2)}\n`;
+  seedProjects([{ path: '/w/a', origin: 'added' }]);
+  expect(await ask({ cmd: 'editProject', path: '/w/a', key: 'name', value: true })).toMatchObject({ ok: false, code: 'config.problem', params: { path: 'projects.0.name', problem: 'invalid_type' } });
+  expect(await ask({ cmd: 'editProject', path: '/w/none', key: 'name', value: 'x' })).toMatchObject({ ok: false, code: 'project.missing', params: { path: '/w/none' } });
+  expect(readFileSync(projectsFile(), 'utf8')).toBe(text);
+});
+
+test('the nine project requests and their replies are the golden file', async () => {
+  const alpha = { path: '/Users/example/work/alpha', name: 'alpha', origin: 'cloned', tags: ['a', 'b'], icon: { color: 'blue', image: 'alpha.png' }, defaults: { agent: 'claude', model: 'opus' } };
+  seedProjects([alpha, { path: '/Users/example/work/beta', origin: 'added' }]);
+  mkdirSync(home(), { recursive: true });
+  writeFileSync(settingsFile(), '{ "archiveAfterDays": 20 }');
+  const steps: [string, object][] = [
+    ['addProject', { cmd: 'addProject', folder: '/Users/example/work/gamma' }],
+    ['addProjectExisting', { cmd: 'addProject', folder: '/Users/example/work/gamma/' }],
+    ['removeProject', { cmd: 'removeProject', path: '/Users/example/work/beta' }],
+    ['editProject', { cmd: 'editProject', path: alpha.path, key: 'name', value: 'Alpha' }],
+    ['moveProject', { cmd: 'moveProject', path: alpha.path, folder: '/Users/example/work/alpha-2' }],
+    ['editProjectIcon', { cmd: 'editProjectIcon', path: '/Users/example/work/alpha-2', changes: { color: null, mark: 'bolt' } }],
+    ['editProjectDefaults', { cmd: 'editProjectDefaults', path: '/Users/example/work/alpha-2', changes: { model: null, workIn: 'worktree' } }],
+    ['editProjectTags', { cmd: 'editProjectTags', path: '/Users/example/work/alpha-2', add: ['C', ' d '], remove: ['a'] }],
+    ['setProjectActions', { cmd: 'setProjectActions', path: '/Users/example/work/alpha-2', actions: [{ name: 'Install', command: 'pnpm i', when: 'newWorktree', onFail: 'stop' }] }],
+    ['setProjectsFolder', { cmd: 'setProjectsFolder', folder: '/Users/example/projects' }],
+    ['missing', { cmd: 'removeProject', path: '/Users/example/work/none' }],
+    ['refused', { cmd: 'editProject', path: '/Users/example/work/gamma', key: 'name', value: true }],
+  ];
+  await open();
+  const c = await client();
+  const golden: Record<string, unknown> = {};
+  for (const [name, request] of steps) {
+    const { id, ...reply } = await c.ask(JSON.stringify({ id: 1, ...request }));
+    golden[name] = { request, reply };
+  }
+  // what the app sends and the host answers (macos/Tests/CarrierCoreTests/Connection/ProjectsRequestsTests.swift); UPDATE_FIXTURES=1 rewrites it
+  const json = `${JSON.stringify(golden, null, 2)}\n`;
+  const path = fileURLToPath(new URL('../../macos/Tests/Fixtures/chat-edit-projects.json', import.meta.url));
+  if (process.env.UPDATE_FIXTURES === '1') writeFileSync(path, json);
+  expect(json).toBe(readFileSync(path, 'utf8'));
+  expect(JSON.parse(readFileSync(chatConfigPathOf(home()), 'utf8'))).toEqual({ archiveAfterDays: 20, projectsFolder: '/Users/example/projects' });
 });

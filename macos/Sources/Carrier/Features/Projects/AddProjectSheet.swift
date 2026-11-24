@@ -568,12 +568,14 @@ struct AddProjectSheet: View {
             Task { await newSession.choose(folder: path) }
             return
         }
-        switch model.add(folder: path) {
-        case .added(let addedPath), .existing(let addedPath):
-            dismiss()
-            openProject(addedPath)
-        case nil:
-            problem = model.failure ?? model.problems.first?.text ?? "That folder cannot be added"
+        Task {
+            switch await model.add(folder: path) {
+            case .added(let addedPath), .existing(let addedPath):
+                dismiss()
+                openProject(addedPath)
+            case nil:
+                problem = model.failure ?? model.problems.first?.text ?? "That folder cannot be added"
+            }
         }
     }
 
@@ -618,18 +620,20 @@ struct AddProjectSheet: View {
             addFolder(first)
             return
         }
-        let outcome = applyDroppedProjectPaths(paths) { path in
-            let result = model.add(folder: path)
-            return (result, model.failure ?? model.problems.first?.text)
-        }
-        switch outcome {
-        case .open(let path):
-            dismiss()
-            openProject(path)
-        case .addedMultiple:
-            dismiss()
-        case .refused(let message):
-            problem = message
+        Task {
+            let outcome = await applyDroppedProjectPaths(paths) { path in
+                let result = await model.add(folder: path)
+                return (result, model.failure ?? model.problems.first?.text)
+            }
+            switch outcome {
+            case .open(let path):
+                dismiss()
+                openProject(path)
+            case .addedMultiple:
+                dismiss()
+            case .refused(let message):
+                problem = message
+            }
         }
     }
 }

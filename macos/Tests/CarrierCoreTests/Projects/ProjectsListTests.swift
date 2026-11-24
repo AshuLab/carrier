@@ -76,24 +76,24 @@ private func temporaryFolder() throws -> String {
     #expect(try Data(contentsOf: file.url) == bad)
 }
 
-@MainActor @Test func theModelListsTheFileAndAddsWithoutReopening() throws {
+@MainActor @Test func theModelListsTheFileAndAddsWithoutReopening() async throws {
     let folder = try temporaryFolder()
     let project = try temporaryFolder()
     defer {
         try? FileManager.default.removeItem(atPath: folder)
         try? FileManager.default.removeItem(atPath: project)
     }
-    let model = ProjectsModel(file: ProjectsFile(folder: folder)) { _ in nil }
+    let model = ProjectsModel(host: CloneHost(writing: folder), file: ProjectsFile(folder: folder)) { _ in nil }
     model.reload()
     #expect(model.rows.isEmpty && model.problems.isEmpty)
-    #expect(model.add(folder: project) == .added(project))
+    #expect(await model.add(folder: project) == .added(project))
     #expect(model.rows.map(\.name) == [(project as NSString).lastPathComponent])
     let written = try Data(contentsOf: ProjectsFile(folder: folder).url)
-    #expect(model.add(folder: project) == .existing(project))
+    #expect(await model.add(folder: project) == .existing(project))
     #expect(try Data(contentsOf: ProjectsFile(folder: folder).url) == written)
 }
 
-@MainActor @Test func addRefusesAFolderWhoseWorktreeDirectoryIsAnotherProjectsAndNamesIt() throws {
+@MainActor @Test func addRefusesAFolderWhoseWorktreeDirectoryIsAnotherProjectsAndNamesIt() async throws {
     let carrier = try temporaryFolder()
     let work = try temporaryFolder()
     defer {
@@ -102,19 +102,19 @@ private func temporaryFolder() throws -> String {
     }
     for name in ["first", "second", "third"] { try FileManager.default.createDirectory(atPath: work + "/" + name, withIntermediateDirectories: true) }
     let repos = [work + "/first": "acme/app", work + "/second": "acme/app", work + "/third": "other/app"]
-    let model = ProjectsModel(file: ProjectsFile(folder: carrier)) { repos[$0] }
+    let model = ProjectsModel(host: CloneHost(writing: carrier), file: ProjectsFile(folder: carrier)) { repos[$0] }
     model.reload()
-    #expect(model.add(folder: work + "/first") == .added(work + "/first"))
-    #expect(model.add(folder: work + "/second") == nil)
+    #expect(await model.add(folder: work + "/first") == .added(work + "/first"))
+    #expect(await model.add(folder: work + "/second") == nil)
     #expect(model.failure == "The worktrees of first already use the folder acme/app; two projects cannot share it")
     #expect(model.rows.map(\.name) == ["first"])
-    #expect(model.add(folder: work + "/third") == .added(work + "/third"))
+    #expect(await model.add(folder: work + "/third") == .added(work + "/third"))
     // Locate…: the project being moved does not clash with itself
     #expect(model.addRefusal(folder: work + "/second", replacing: work + "/first") == nil)
     #expect(model.addRefusal(folder: work + "/second", replacing: nil) != nil)
 }
 
-@MainActor @Test func locateRefusesAFolderWhoseWorktreeDirectoryIsAnotherProjectsAndNamesIt() throws {
+@MainActor @Test func locateRefusesAFolderWhoseWorktreeDirectoryIsAnotherProjectsAndNamesIt() async throws {
     let carrier = try temporaryFolder()
     let work = try temporaryFolder()
     defer {
@@ -126,16 +126,16 @@ private func temporaryFolder() throws -> String {
     let repos = [gone: "acme/app", kept: "acme/app", clash: "acme/app", free: "other/app"]
     let file = ProjectsFile(folder: carrier)
     try Data(#"{"projects":[{"path":"\#(gone)","origin":"cloned"},{"path":"\#(kept)","name":"Kept","origin":"added"}]}"#.utf8).write(to: file.url)
-    let model = ProjectsModel(file: file) { repos[$0] }
+    let model = ProjectsModel(host: CloneHost(writing: file.folder), file: file) { repos[$0] }
     model.reload()
-    #expect(model.locate(path: gone, to: clash) == false)
+    #expect(await model.locate(path: gone, to: clash) == false)
     #expect(model.failure == "The worktrees of Kept already use the folder acme/app; two projects cannot share it")
     #expect(model.rows.map(\.path) == [gone, kept])
-    #expect(model.locate(path: gone, to: free))
+    #expect(await model.locate(path: gone, to: free))
     #expect(model.rows.map(\.path) == [free, kept])
 }
 
-@MainActor @Test func addRefusesFoldersThatCannotBeProjectsWithTheirReasonAndWritesNothing() throws {
+@MainActor @Test func addRefusesFoldersThatCannotBeProjectsWithTheirReasonAndWritesNothing() async throws {
     let carrier = try temporaryFolder()
     let work = try temporaryFolder()
     let unreadable = work + "/unreadable"
@@ -159,7 +159,7 @@ private func temporaryFolder() throws -> String {
     try fm.createDirectory(atPath: ordinary, withIntermediateDirectories: true)
 
     let projectsFile = ProjectsFile(folder: carrier)
-    let model = ProjectsModel(file: projectsFile) { _ in nil }
+    let model = ProjectsModel(host: CloneHost(writing: projectsFile.folder), file: projectsFile) { _ in nil }
     model.reload()
 
     for (bad, expected) in [
@@ -169,15 +169,15 @@ private func temporaryFolder() throws -> String {
         (unreadable, "cannot be read"),
         (work + "/linked-wt", "worktree linked to another project"),
     ] {
-        #expect(model.add(folder: bad) == nil, Comment(rawValue: bad))
+        #expect(await model.add(folder: bad) == nil, Comment(rawValue: bad))
         #expect(model.failure?.contains(expected) == true, Comment(rawValue: "\(bad): \(String(describing: model.failure))"))
         #expect(fm.fileExists(atPath: projectsFile.url.path) == false)
     }
 
-    #expect(model.add(folder: ordinary) == .added(ordinary))
+    #expect(await model.add(folder: ordinary) == .added(ordinary))
     #expect(model.failure == nil)
     let before = try Data(contentsOf: projectsFile.url)
-    #expect(model.add(folder: work + "/linked-wt") == nil)
+    #expect(await model.add(folder: work + "/linked-wt") == nil)
     #expect(model.failure?.contains("worktree linked to another project") == true)
     #expect(try Data(contentsOf: projectsFile.url) == before)
 }
@@ -205,7 +205,7 @@ private func temporaryFolder() throws -> String {
     #expect(model.rows.isEmpty && model.problems.isEmpty)
 }
 
-@MainActor @Test func aFileThatDoesNotMatchBlocksAddAndTheModelWritesNothing() throws {
+@MainActor @Test func aFileThatDoesNotMatchBlocksAddAndTheModelWritesNothing() async throws {
     let folder = try temporaryFolder()
     let project = try temporaryFolder()
     defer {
@@ -215,10 +215,10 @@ private func temporaryFolder() throws -> String {
     let file = ProjectsFile(folder: folder)
     let bad = Data("{".utf8)
     try bad.write(to: file.url)
-    let model = ProjectsModel(file: file) { _ in nil }
+    let model = ProjectsModel(host: CloneHost(writing: file.folder), file: file) { _ in nil }
     model.reload()
     #expect(model.problems.map(\.message) == ["is not valid JSON"])
-    #expect(model.add(folder: project) == nil)
+    #expect(await model.add(folder: project) == nil)
     #expect(try Data(contentsOf: file.url) == bad)
 }
 
@@ -263,29 +263,29 @@ private func temporaryFolder() throws -> String {
     ]}
     """#
     try Data(initial.utf8).write(to: file.url)
-    let model = ProjectsModel(file: file) { _ in nil }
+    let model = ProjectsModel(host: CloneHost(writing: file.folder), file: file) { _ in nil }
     model.reload()
 
     // blank name is not written and emptying goes back to the folder's name
-    #expect(model.setName("   ", path: "/a/carrier"))
+    #expect(await model.setName("   ", path: "/a/carrier"))
     #expect(model.rows[0].customName == nil && model.rows[0].name == "carrier")
     #expect(try file.read()[0].name == nil)
 
-    #expect(model.setName("  My Carrier  ", path: "/a/carrier"))
+    #expect(await model.setName("  My Carrier  ", path: "/a/carrier"))
     #expect(model.rows[0].name == "My Carrier" && model.rows[0].customName == "My Carrier")
 
     // pin, tags, and icon colour/mark (setting colour or mark clears any image)
-    #expect(model.setPinned(true, path: "/a/carrier"))
+    #expect(await model.setPinned(true, path: "/a/carrier"))
     // hiding writes `hidden` and only that; showing again takes the key out
-    #expect(model.setHidden(true, path: "/a/carrier") && model.rows[0].hidden)
+    #expect(await model.setHidden(true, path: "/a/carrier") && model.rows[0].hidden)
     #expect(try file.read()[0].json["hidden"] as? Bool == true && file.read()[0].pinned)
-    #expect(model.setHidden(false, path: "/a/carrier") && model.rows[0].hidden == false)
+    #expect(await model.setHidden(false, path: "/a/carrier") && model.rows[0].hidden == false)
     #expect(try file.read()[0].json["hidden"] == nil)
-    #expect(model.addTag("  Swift ", path: "/a/carrier"))
-    #expect(model.addTag("SWIFT", path: "/a/carrier"))
-    #expect(model.addTag("macOS", path: "/a/carrier"))
-    #expect(model.setIconColor(.teal, path: "/a/carrier"))
-    #expect(model.setIconMark(.terminal, path: "/a/carrier"))
+    #expect(await model.addTag("  Swift ", path: "/a/carrier"))
+    #expect(await model.addTag("SWIFT", path: "/a/carrier"))
+    #expect(await model.addTag("macOS", path: "/a/carrier"))
+    #expect(await model.setIconColor(.teal, path: "/a/carrier"))
+    #expect(await model.setIconMark(.terminal, path: "/a/carrier"))
     #expect(model.rows[0].pinned && model.rows[0].tags == ["swift", "macos"])
     #expect(model.rows[0].tile == ProjectTile(name: "My Carrier", color: .named(.teal), content: .mark(.terminal), image: nil))
 
@@ -295,8 +295,8 @@ private func temporaryFolder() throws -> String {
     #expect(entry.json["defaults"] != nil && entry.json["actions"] != nil)
 
     // removing a tag and resetting icon
-    #expect(model.removeTag("swift", path: "/a/carrier"))
-    #expect(model.resetIcon(path: "/a/carrier"))
+    #expect(await model.removeTag("swift", path: "/a/carrier"))
+    #expect(await model.resetIcon(path: "/a/carrier"))
     #expect(model.rows[0].tags == ["macos"])
     #expect(model.rows[0].iconColor == nil && model.rows[0].iconMark == nil && model.rows[0].iconImage == nil)
 
@@ -311,7 +311,7 @@ private func temporaryFolder() throws -> String {
     #expect(model.rows[0].tile == ProjectTile(name: "From Disk", color: .named(.purple), content: .mark(.star)))
 }
 
-@MainActor @Test func choosingAnImageCopiesItAndChoosingColorOrMarkAfterwardsClearsAndDeletesIt() throws {
+@MainActor @Test func choosingAnImageCopiesItAndChoosingColorOrMarkAfterwardsClearsAndDeletesIt() async throws {
     let folder = try temporaryFolder()
     let sourceDir = try temporaryFolder()
     defer {
@@ -321,7 +321,7 @@ private func temporaryFolder() throws -> String {
     let file = ProjectsFile(folder: folder)
     let store = ProjectIconStore(folder: folder)
     try Data(#"{"projects":[{"path":"/a/carrier","origin":"cloned","icon":{"color":"teal","mark":"bolt"}}]}"#.utf8).write(to: file.url)
-    let model = ProjectsModel(file: file) { _ in nil }
+    let model = ProjectsModel(host: CloneHost(writing: file.folder), file: file) { _ in nil }
     model.reload()
 
     func writePNG(_ name: String) throws -> URL {
@@ -338,7 +338,7 @@ private func temporaryFolder() throws -> String {
     }
 
     let firstSource = try writePNG("one.png")
-    #expect(model.setIconImage(from: firstSource, path: "/a/carrier"))
+    #expect(await model.setIconImage(from: firstSource, path: "/a/carrier"))
     let firstImage = try #require(model.rows[0].iconImage)
     #expect(store.existingURL(for: firstImage) != nil)
     // color and mark remain on the entry so a missing file falls back to them
@@ -349,31 +349,31 @@ private func temporaryFolder() throws -> String {
     #expect(store.existingURL(for: firstImage) != nil)
 
     // choosing a colour afterwards clears the image and deletes its copy
-    #expect(model.setIconColor(.orange, path: "/a/carrier"))
+    #expect(await model.setIconColor(.orange, path: "/a/carrier"))
     #expect(model.rows[0].iconImage == nil)
     #expect(model.rows[0].iconColor == .orange)
     #expect(store.existingURL(for: firstImage) == nil)
 
     // choosing an image then a mark afterwards clears the image and deletes its copy
     let secondSource = try writePNG("two.png")
-    #expect(model.setIconImage(from: secondSource, path: "/a/carrier"))
+    #expect(await model.setIconImage(from: secondSource, path: "/a/carrier"))
     let secondImage = try #require(model.rows[0].iconImage)
     #expect(store.existingURL(for: secondImage) != nil)
-    #expect(model.setIconMark(.star, path: "/a/carrier"))
+    #expect(await model.setIconMark(.star, path: "/a/carrier"))
     #expect(model.rows[0].iconImage == nil && model.rows[0].iconMark == .star)
     #expect(store.existingURL(for: secondImage) == nil)
 
     // choosing an image then resetting clears color, mark and image and deletes the copy
-    #expect(model.setIconImage(from: secondSource, path: "/a/carrier"))
+    #expect(await model.setIconImage(from: secondSource, path: "/a/carrier"))
     let thirdImage = try #require(model.rows[0].iconImage)
-    #expect(model.resetIcon(path: "/a/carrier"))
+    #expect(await model.resetIcon(path: "/a/carrier"))
     #expect(model.rows[0].iconColor == nil && model.rows[0].iconMark == nil && model.rows[0].iconImage == nil)
     #expect(store.existingURL(for: thirdImage) == nil)
 
     // an invalid image file records a failure and does not write
     let badFile = URL(fileURLWithPath: sourceDir + "/bad.png")
     try Data("not an image".utf8).write(to: badFile)
-    #expect(model.setIconImage(from: badFile, path: "/a/carrier") == false)
+    #expect(await model.setIconImage(from: badFile, path: "/a/carrier") == false)
     #expect(model.failure != nil)
     #expect(model.rows[0].iconImage == nil)
 }
@@ -449,33 +449,34 @@ private func temporaryFolder() throws -> String {
     #expect(ProjectGrouping.allCases.map(\.title) == ["None", "Tag", "Carrier"])
 }
 
-@MainActor @Test func changingTheDefaultCloneFolderWritesChatJsonAndRefusesCarrierFolders() throws {
+@MainActor @Test func changingTheDefaultCloneFolderWritesChatJsonAndRefusesCarrierFolders() async throws {
     let carrier = try temporaryFolder()
     let target = try temporaryFolder()
     defer {
         try? FileManager.default.removeItem(atPath: carrier)
         try? FileManager.default.removeItem(atPath: target)
     }
-    var chatJSON: Data? = Data(#"{"logLevel":"debug"}"#.utf8)
+    let chatFile = URL(fileURLWithPath: CarrierPlaces(folder: carrier).chatConfig)
+    try Data(#"{"logLevel":"debug"}"#.utf8).write(to: chatFile)
     let model = ProjectsModel(
+        host: CloneHost(writing: carrier),
         file: ProjectsFile(folder: carrier),
         remote: { _ in nil },
-        readChatConfig: { chatJSON },
-        writeChatConfig: { chatJSON = $0 },
+        readChatConfig: { try? Data(contentsOf: chatFile) },
         home: "/Users/ana"
     )
     #expect(model.projectsPath == carrier + "/chat/projects")
 
     // Refuses Carrier's own folder and leaves the current path unchanged.
-    model.changeProjectsFolder(to: carrier + "/engine")
+    await model.changeProjectsFolder(to: carrier + "/engine")
     #expect(model.projectsFolderProblem?.contains("Carrier's own engine folder") == true)
     #expect(model.projectsPath == carrier + "/chat/projects")
 
     // Valid folder writes projectsFolder while preserving other keys.
-    model.changeProjectsFolder(to: target)
+    await model.changeProjectsFolder(to: target)
     #expect(model.projectsFolderProblem == nil)
     #expect(model.projectsPath == target)
-    let saved = try #require(chatJSON.flatMap { try JSONSerialization.jsonObject(with: $0) as? [String: Any] })
+    let saved = try #require(JSONSerialization.jsonObject(with: Data(contentsOf: chatFile)) as? [String: Any])
     #expect(saved["projectsFolder"] as? String == target && saved["logLevel"] as? String == "debug")
 }
 
@@ -538,7 +539,7 @@ private func session(_ base: String, _ ago: TimeInterval, now: Date) -> SessionR
     #expect(order.clicked(.name) == ProjectOrder(key: .name, ascending: false))
 }
 
-@MainActor @Test func removingAProjectTakesOnlyItsEntryAndItsImageAndLeavesTheEngineConfigFolderAndWorktreesAlone() throws {
+@MainActor @Test func removingAProjectTakesOnlyItsEntryAndItsImageAndLeavesTheEngineConfigFolderAndWorktreesAlone() async throws {
     let carrier = try temporaryFolder()
     defer { try? FileManager.default.removeItem(atPath: carrier) }
     let project = carrier + "/work/app", worktree = carrier + "/chat/worktrees/acme/app/one"
@@ -559,18 +560,74 @@ private func session(_ base: String, _ ago: TimeInterval, now: Date) -> SessionR
     ]}
     """#
     try Data(initial.utf8).write(to: file.url)
-    let model = ProjectsModel(file: file) { _ in "acme/app" }
+    let model = ProjectsModel(host: CloneHost(writing: file.folder), file: file) { _ in "acme/app" }
     model.reload()
 
-    #expect(model.remove(path: project))
+    #expect(await model.remove(path: project))
     #expect(model.rows.map(\.path) == ["/b/other"])
     #expect(try file.read()[0].tags == ["x"])
     #expect(store.existingURL(for: "gone.png") == nil && store.existingURL(for: "shared.png") != nil)
     #expect(try Data(contentsOf: URL(fileURLWithPath: places.engineConfig)) == engine)
     #expect(FileManager.default.fileExists(atPath: project) && FileManager.default.fileExists(atPath: worktree + "/file.txt"))
     // gone already: nothing to remove, nothing written
-    #expect(model.remove(path: project) == false)
+    #expect(await model.remove(path: project) == false)
     #expect(try file.read().count == 1)
+}
+
+@MainActor @Test func aRemovalTheHostRefusesLeavesTheEntryAndTheIconCopyAndSaysWhy() async throws {
+    let carrier = try temporaryFolder()
+    defer { try? FileManager.default.removeItem(atPath: carrier) }
+    let file = ProjectsFile(folder: carrier)
+    let store = ProjectIconStore(folder: carrier)
+    try FileManager.default.createDirectory(at: store.directory, withIntermediateDirectories: true)
+    try Data("x".utf8).write(to: store.directory.appendingPathComponent("kept.png"))
+    try Data(#"{"projects":[{"path":"/a/app","origin":"added","icon":{"image":"kept.png"}}]}"#.utf8).write(to: file.url)
+    let host = CloneHost(writing: carrier)
+    host.failure = ControlError.remote(Refusal(code: "project.missing", params: ["path": "/a/app"], text: "No project has the path /a/app"))
+    let model = ProjectsModel(host: host, file: file) { _ in nil }
+    model.reload()
+
+    #expect(await model.remove(path: "/a/app") == false)
+    #expect(host.changes == [.remove(path: "/a/app")])
+    #expect(model.failure == "No project has the path /a/app" && model.rows.map(\.path) == ["/a/app"])
+    #expect(store.existingURL(for: "kept.png") != nil)
+    // the same removal once the host takes it: the entry and the copy go
+    host.failure = nil
+    #expect(await model.remove(path: "/a/app") && model.rows.isEmpty && store.existingURL(for: "kept.png") == nil)
+}
+
+@MainActor @Test func eachChangeOfTheModelIsTheRequestThatAsksForIt() async throws {
+    let carrier = try temporaryFolder()
+    defer { try? FileManager.default.removeItem(atPath: carrier) }
+    let file = ProjectsFile(folder: carrier)
+    try Data(#"{"projects":[{"path":"/a/app","origin":"added","tags":["x"]}]}"#.utf8).write(to: file.url)
+    let host = CloneHost(writing: carrier)
+    let model = ProjectsModel(host: host, file: file) { _ in nil }
+    model.reload()
+    _ = await model.setName("  Mine ", path: "/a/app")
+    _ = await model.setName(" ", path: "/a/app")
+    _ = await model.setPinned(true, path: "/a/app")
+    _ = await model.setPinned(false, path: "/a/app")
+    _ = await model.setHidden(true, path: "/a/app")
+    _ = await model.addTag(" Swift ", path: "/a/app")
+    _ = await model.removeTag("x", path: "/a/app")
+    _ = await model.setDefault(.agent, "claude", path: "/a/app")
+    _ = await model.setStart(NewSessionStart(agent: "claude", model: "", effort: "high", access: ["mode": "plan"]), path: "/a/app")
+    _ = await model.setIconColor(.teal, path: "/a/app")
+    _ = await model.resetIcon(path: "/a/app")
+    _ = await model.saveActions(path: "/a/app", actions: [ProjectAction(name: "Setup", command: "make", when: .afterClone)])
+    #expect(await model.saveActions(path: "/a/app", actions: [ProjectAction(name: " ", command: "make", when: .afterClone)]) == false)
+    #expect(host.changes == [
+        .edit(path: "/a/app", key: "name", value: .text("Mine")), .edit(path: "/a/app", key: "name", value: .remove),
+        .edit(path: "/a/app", key: "pinned", value: .flag(true)), .edit(path: "/a/app", key: "pinned", value: .remove),
+        .edit(path: "/a/app", key: "hidden", value: .flag(true)),
+        .editTags(path: "/a/app", add: [" Swift "], remove: []), .editTags(path: "/a/app", add: [], remove: ["x"]),
+        .editDefaults(path: "/a/app", changes: ["agent": .text("claude")]),
+        .editDefaults(path: "/a/app", changes: ["agent": .text("claude"), "model": .remove, "effort": .text("high"), "access": .map(["mode": "plan"])]),
+        .editIcon(path: "/a/app", changes: ["color": .text("teal"), "image": .remove]),
+        .editIcon(path: "/a/app", changes: ["color": .remove, "mark": .remove, "image": .remove]),
+        .setActions(path: "/a/app", actions: [ProjectAction(name: "Setup", command: "make", when: .afterClone)]),
+    ])
 }
 
 @Test func aProjectWhoseFolderIsGoneIsNotFoundAndOneThatIsThereIsReady() throws {
@@ -602,7 +659,7 @@ private func session(_ base: String, _ ago: TimeInterval, now: Date) -> SessionR
     #expect(throws: ProjectsFileError.missing("/nope")) { try applyingProjectLocation(path: "/nope", to: "/new/app", in: json) }
 }
 
-@MainActor @Test func locateChecksTheFolderThenPointsTheProjectAtItAndKeepsTheRest() throws {
+@MainActor @Test func locateChecksTheFolderThenPointsTheProjectAtItAndKeepsTheRest() async throws {
     let carrier = try temporaryFolder()
     defer { try? FileManager.default.removeItem(atPath: carrier) }
     let moved = carrier + "/moved/app", taken = carrier + "/taken"
@@ -610,18 +667,18 @@ private func session(_ base: String, _ ago: TimeInterval, now: Date) -> SessionR
     let file = ProjectsFile(folder: carrier)
     let gone = carrier + "/gone/app"
     try Data(#"{"projects":[{"path":"\#(gone)","name":"App","origin":"cloned","tags":["x"]},{"path":"\#(taken)","origin":"added"}]}"#.utf8).write(to: file.url)
-    let model = ProjectsModel(file: file) { _ in nil }
+    let model = ProjectsModel(host: CloneHost(writing: file.folder), file: file) { _ in nil }
     model.reload()
     #expect(model.rows.first?.status == .notFound)
 
     // a folder that does not exist, a file and another project's folder write nothing
-    #expect(model.locate(path: gone, to: carrier + "/still/gone") == false)
+    #expect(await model.locate(path: gone, to: carrier + "/still/gone") == false)
     #expect(model.failure == "That folder does not exist")
-    #expect(model.locate(path: gone, to: taken) == false)
+    #expect(await model.locate(path: gone, to: taken) == false)
     #expect(model.failure == "That folder is already a project")
     #expect(model.rows.map(\.path) == [gone, taken])
 
-    #expect(model.locate(path: gone, to: moved))
+    #expect(await model.locate(path: gone, to: moved))
     #expect(model.failure == nil)
     #expect(model.rows.map(\.path) == [moved, taken])
     #expect(model.rows[0].name == "App" && model.rows[0].tags == ["x"] && model.rows[0].status == .ready)

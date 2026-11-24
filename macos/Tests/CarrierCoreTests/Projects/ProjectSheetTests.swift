@@ -107,7 +107,7 @@ private func makeRow(_ path: String, name: String? = nil, repo: String? = nil) -
     ])
 }
 
-@MainActor @Test func droppingFoldersAndFilesAddsValidOnesAndRefusesInvalidWithReason() throws {
+@MainActor @Test func droppingFoldersAndFilesAddsValidOnesAndRefusesInvalidWithReason() async throws {
     let root = NSTemporaryDirectory() + "sheet-drop-\(UUID().uuidString)"
     let carrier = root + "/carrier"
     let folderA = root + "/a"
@@ -121,19 +121,19 @@ private func makeRow(_ path: String, name: String? = nil, repo: String? = nil) -
     try fm.createDirectory(atPath: folderB, withIntermediateDirectories: true)
     try Data("hi".utf8).write(to: URL(fileURLWithPath: filePath))
 
-    let model = ProjectsModel(file: ProjectsFile(folder: carrier)) { _ in nil }
+    let model = ProjectsModel(host: CloneHost(writing: carrier), file: ProjectsFile(folder: carrier)) { _ in nil }
     model.reload()
 
     // Single dropped file is refused with its reason and writes nothing.
-    let fileDrop = applyDroppedProjectPaths([filePath]) { path in
-        (model.add(folder: path), model.failure)
+    let fileDrop = await applyDroppedProjectPaths([filePath]) { path in
+        (await model.add(folder: path), model.failure)
     }
     #expect(fileDrop == .refused("That path is not a folder"))
     #expect(model.rows.isEmpty)
 
     // Single dropped folder inside Carrier's own folder is refused with its reason.
-    let ownDrop = applyDroppedProjectPaths([carrier + "/engine"]) { path in
-        (model.add(folder: path), model.failure)
+    let ownDrop = await applyDroppedProjectPaths([carrier + "/engine"]) { path in
+        (await model.add(folder: path), model.failure)
     }
     if case .refused(let reason) = ownDrop {
         #expect(reason.contains("Carrier's own engine folder"))
@@ -143,30 +143,30 @@ private func makeRow(_ path: String, name: String? = nil, repo: String? = nil) -
     #expect(model.rows.isEmpty)
 
     // Single valid folder adds with origin added and opens it.
-    let singleValid = applyDroppedProjectPaths([folderA]) { path in
-        (model.add(folder: path), model.failure)
+    let singleValid = await applyDroppedProjectPaths([folderA]) { path in
+        (await model.add(folder: path), model.failure)
     }
     #expect(singleValid == .open(folderA))
     #expect(model.rows.map(\.path) == [folderA])
     #expect(try ProjectsFile(folder: carrier).read().first?.origin == "added")
 
     // Dropping an existing project opens it without duplicating.
-    let duplicateDrop = applyDroppedProjectPaths([folderA]) { path in
-        (model.add(folder: path), model.failure)
+    let duplicateDrop = await applyDroppedProjectPaths([folderA]) { path in
+        (await model.add(folder: path), model.failure)
     }
     #expect(duplicateDrop == .open(folderA))
     #expect(model.rows.count == 1)
 
     // Dropping multiple folders adds all and returns addedMultiple.
-    let multiValid = applyDroppedProjectPaths([folderA, folderB]) { path in
-        (model.add(folder: path), model.failure)
+    let multiValid = await applyDroppedProjectPaths([folderA, folderB]) { path in
+        (await model.add(folder: path), model.failure)
     }
     #expect(multiValid == .addedMultiple)
     #expect(model.rows.map(\.path) == [folderA, folderB])
 
     // Dropping a mix including a file refuses with the reason naming the file.
-    let mixed = applyDroppedProjectPaths([folderA, filePath]) { path in
-        (model.add(folder: path), model.failure)
+    let mixed = await applyDroppedProjectPaths([folderA, filePath]) { path in
+        (await model.add(folder: path), model.failure)
     }
     if case .refused(let message) = mixed {
         #expect(message.contains("notes.txt") && message.contains("not a folder"))

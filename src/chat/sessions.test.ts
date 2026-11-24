@@ -828,6 +828,32 @@ test('resume opens a closed session again from its native id, folder and options
   expect(sessions.events({ sessionId: id, limit: 50 }).events.map((e) => e.kind)).toEqual(['user', 'assistant', 'turn_end', 'user']); // the transcript goes on from where it was
 });
 
+test('a session made from a plan wakes with the options chosen for it, and the agent\'s own defaults under them', async () => {
+  const s = setup({ agents: { claude: { account: 'claude', model: 'haiku' } } });
+  const offer = offering(['model', ['haiku', 'sonnet'], 'haiku'], ['mode', ['default', 'plan'], 'default']);
+  s.claude.setup = (conversation) => {
+    offer(conversation);
+    conversation.reply = () => conversation.emit({ kind: 'assistant', text: 'ok' }, { kind: 'turn_end', outcome: 'ok' });
+  };
+  const { session } = await s.sessions.openPlan({ plan: planFor({ options: { model: 'sonnet', mode: 'plan' } }) });
+  await vi.waitFor(() => expect(stepsOf(s, session.id)).toContain('message:done'));
+  // what was chosen is kept with the session, not only handed to the first conversation
+  expect(s.db.select().from(schemaSessions).where(eq(schemaSessions.id, session.id)).get()!.options).toEqual({ model: 'sonnet', mode: 'plan' });
+  await s.sessions.close({ sessionId: session.id });
+  await s.sessions.resume({ sessionId: session.id });
+  expect(s.claude.opened[1]).toMatchObject({ options: { model: 'sonnet', mode: 'plan' } });
+});
+
+test('a session that kept no options (made before they were stored) wakes with its agent\'s defaults', async () => {
+  const s = setup({ agents: { claude: { account: 'claude', model: 'haiku' } } });
+  s.claude.setup = offering(['model', ['haiku'], 'haiku']);
+  const { sessions, claude, id } = await openOne(s);
+  s.db.update(schemaSessions).set({ options: null }).where(eq(schemaSessions.id, id)).run();
+  await sessions.close({ sessionId: id });
+  await sessions.resume({ sessionId: id });
+  expect(claude.opened[1]).toMatchObject({ options: { model: 'haiku' } });
+});
+
 test('a resume that began a new conversation says so once, in a notice that keeps the lost id, and the session drops it', async () => {
   const s = setup({ agents: { claude: { account: 'claude', model: 'haiku' } } });
   s.claude.setup = offering(['model', ['haiku'], 'haiku']);
@@ -3953,7 +3979,7 @@ test('a switch answers the session and the options of the new agent, and the nex
   expect(s.codex.opened[0]!.resume).toBeUndefined();
 
   // the notice says it, and carries the agents as the config names them
-  expect(s.notices(id)).toEqual([expect.objectContaining({ switched: { from: 'a', to: 'b' }, text: expect.stringContaining('from a to b') })]);
+  expect(s.notices(id)).toEqual([expect.objectContaining({ switched: { from: 'a', to: 'b', fromModel: 'haiku', toModel: 'gpt-5' }, text: expect.stringContaining('from a to b') })]);
   // the old conversation ended and its token is gone; the new one holds one
   expect(old.closed).toBe(true);
   expect(s.registry.lookup(tokenOfOld)).toBeUndefined();
@@ -3972,6 +3998,17 @@ test('a switch answers the session and the options of the new agent, and the nex
   const turns = rows('chat_turns');
   expect(turns[0]).toMatchObject({ harness: 'claude', agent: 'a', nativeId: 'claude-1' });
   expect(turns[1]).toMatchObject({ harness: 'codex', agent: 'b', nativeId: 'codex-1', model: 'gpt-5' });
+
+  // the list says every harness the session ran a turn on, in the order it first used them
+  expect(s.sessions.list({}).sessions.find((listed) => listed.id === id)).toMatchObject({ providers: ['claude', 'codex'] });
+});
+
+test('the list gives a session the harness it works on now, also before it has run a turn there, and one only once', async () => {
+  const s = switching();
+  const { id } = await s.talked();
+  expect(s.sessions.list({}).sessions.find((listed) => listed.id === id)?.providers).toEqual(['claude']);
+  await s.sessions.switchAgent({ sessionId: id, agent: 'b' });
+  expect(s.sessions.list({}).sessions.find((listed) => listed.id === id)?.providers).toEqual(['claude', 'codex']);
 });
 
 test('a switch can go to another account of the same harness, and the agent takes its configured model', async () => {
@@ -4036,7 +4073,7 @@ test('a second switch hands over what was said since, the new agent gets the han
   s.codex.conversations[0]!.emit({ kind: 'assistant', text: 'Building.' }, { kind: 'turn_end', outcome: 'ok' });
   await s.sessions.switchAgent({ sessionId: id, agent: 'other' });
   expect(s.claude.opened.at(-1)!.instructions).toContain('Building.');
-  expect(s.notices(id).map((notice) => notice.switched)).toEqual([{ from: 'a', to: 'b' }, { from: 'b', to: 'other' }]);
+  expect(s.notices(id).map((notice) => notice.switched)).toEqual([{ from: 'a', to: 'b', fromModel: 'haiku', toModel: 'gpt-5' }, { from: 'b', to: 'other', fromModel: 'gpt-5', toModel: 'haiku' }]); // b ran no turn: its option, not the model of a
 });
 
 /** Runs a switch that has to be refused and shows the session as it was: the old conversation live and open, nothing stored, the next message going to it. */

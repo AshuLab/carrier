@@ -20,7 +20,7 @@ public func sessionRows(_ sessions: [ChatSession]) -> [SessionRow] {
         return SessionRow(
             id: session.id, title: session.title ?? "Untitled session", workspace: titles[base(session)] ?? "", agent: session.agent, state: state,
             updatedAt: Date(timeIntervalSince1970: Double(session.lastActiveAt) / 1000), archived: session.archived,
-            branch: session.workspace?.branch, folder: session.folder, base: base(session), providers: [session.harness], titled: session.title != nil,
+            branch: session.workspace?.branch, branchFrom: session.workspace?.from, folder: session.folder, base: base(session), providers: session.providers, titled: session.title != nil,
             kept: session.kept, deleteAt: session.deleteAt.map { Date(timeIntervalSince1970: Double($0) / 1000) },
             lastMessage: session.lastMessage, turns: session.turns, model: session.model, reportsActivity: session.reportsActivity,
             asleep: session.live == false && session.state != .preparing,
@@ -44,7 +44,12 @@ public struct OpenItem: Equatable {
 public func conversationTitle(_ row: SessionRow) -> String { row.titled ? row.title : "New session" }
 
 /// The line under the title: the workspace. Where the session works (a worktree or the folder itself) is the pill in the toolbar.
-public func conversationSubtitle(_ row: SessionRow) -> String { row.workspace }
+public func conversationSubtitle(_ row: SessionRow) -> String {
+    row.branch == nil ? row.workspace : "\(row.workspace) · \(worktreeFolderName(row))"
+}
+
+/// The name of a session's folder: for a worktree what tells it from the project's other worktrees.
+public func worktreeFolderName(_ row: SessionRow) -> String { (row.folder as NSString).lastPathComponent }
 
 /// The Open menu: reveal the session's folder, copy its path and, for a worktree, copy its branch name.
 public func openMenuItems(_ row: SessionRow) -> [OpenItem] {

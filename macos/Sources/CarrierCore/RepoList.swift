@@ -1,6 +1,6 @@
 import Foundation
 
-// The Repos tab as plain values: the `repos` of `engine.json` the app lets the person change (which repos are watched), their
+// The Watching page as plain values: the `repos` of `engine.json` the app lets the person change (which repos are watched), their
 // rows and the text of the confirmation to stop watching one. Nothing here reads or shows a repo's own settings: a repo's other
 // fields in the file are kept exactly as they are.
 
@@ -81,10 +81,10 @@ public func repoEpics(_ repo: String, snapshot: PanelSnapshot?) -> RepoEpics? {
 public func removalText(_ epics: RepoEpics?, appliesNow: Bool) -> String {
     let when = appliesNow ? " It takes effect right away." : " Carrier reads the list when it starts."
     guard let epics else {
-        return "Its epics, if it has any, stop where they are, untouched, and continue if you add the repo again. Nothing is deleted." + when
+        return "Its epics, if it has any, stop where they are, untouched, and continue if you add the repository again. Nothing is deleted." + when
     }
     if epics.isNone { return "It has no epics. You can add it again whenever you want." + when }
-    return "It has epics (\(epics.line(separator: ", "))). They stop where they are, untouched, and continue if you add the repo again. Nothing is deleted." + when
+    return "It has epics (\(epics.line(separator: ", "))). They stop where they are, untouched, and continue if you add the repository again. Nothing is deleted." + when
 }
 
 public struct RepoRow: Equatable, Identifiable {

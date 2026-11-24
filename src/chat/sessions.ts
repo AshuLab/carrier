@@ -2,7 +2,7 @@ import { accessSync, constants, existsSync, realpathSync, rmSync, statSync } fro
 import { basename, sep } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createHash, randomUUID } from 'node:crypto';
-import { and, asc, count, desc, eq, gt, inArray, isNotNull, isNull, lt, ne, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gt, inArray, isNotNull, isNull, lt, min, ne, sql } from 'drizzle-orm';
 import { createScopedLogger } from '@ashulab/universal-logger';
 import { carrierHome, expandHome } from '../config/places.ts';
 import { updateProjectsFile, readProjectsFile } from '../config/projects.ts';
@@ -984,6 +984,8 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
         return void (await conversation.close().catch((closing) => log.error('closing the agent of a cancelled preparation failed', closing)));
       }
       stepEvent(sessionId, 'agent', 'done');
+      // what was chosen for the session is the session's: the row holds it, so a wake opens the agent as it was and not on its defaults
+      db.update(sessions).set({ options }).where(eq(sessions.id, sessionId)).run();
       const live = attach(sessionId, conversation, issued.invocationId, 'preparing');
       stepEvent(sessionId, 'message', 'running');
       live.awaitingAnswer = true;
@@ -1264,6 +1266,8 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
       const options = { ...(chosen.model && { model: chosen.model }), ...chosen.options };
       if (options.model !== undefined) await checkModel(agent, options.model);
 
+      // the model the old agent ran, read before the new conversation takes its place: its own last turn's, which is what a turn's footer says, else its option
+      const fromModel = db.select({ model: chatTurns.model }).from(chatTurns).where(and(eq(chatTurns.sessionId, sessionId), eq(chatTurns.agent, current.agent), isNotNull(chatTurns.model))).orderBy(desc(chatTurns.id)).limit(1).get()?.model ?? optionsOf(sessionId, current.options).model;
       const handoff = handoffOf(sessionId);
       const issued = issueMcp(sessionId);
       let conversation: ChatConversation | undefined;
@@ -1287,7 +1291,8 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
       }
       db.update(sessions).set({ harness: launch.harness, agent: chosen.name, options, nativeId: conversation.nativeId ?? null, lastActiveAt: clock.now() }).where(eq(sessions.id, sessionId)).run();
       attach(sessionId, conversation, issued.invocationId, 'idle', { record: old === undefined });
-      store(sessionId, { kind: 'notice', text: `The agent changed from ${current.agent} to ${chosen.name}. ${chosen.name} goes on from a selection of the messages above and can read the rest; reasoning and tool results did not carry over.`, switched: { from: current.agent, to: chosen.name } });
+      const toModel = conversation.options.find((option) => option.id === 'model')?.current;
+      store(sessionId, { kind: 'notice', text: `The agent changed from ${current.agent} to ${chosen.name}. ${chosen.name} goes on from a selection of the messages above and can read the rest; reasoning and tool results did not carry over.`, switched: { from: current.agent, to: chosen.name, ...(fromModel != null && { fromModel }), ...(toModel !== undefined && { toModel }) } });
       if (old !== undefined) {
         revoke(old.invocationId);
         await old.conversation.close().catch((closing) => log.error('closing the conversation of the agent that was switched away from failed', closing));
@@ -1347,11 +1352,24 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
       const { archiveAfterDays, deleteAfterDays } = ages();
       const found = db.select().from(sessions).where(and(eq(sessions.archived, archived), isNull(sessions.parentSessionId))).orderBy(desc(sessions.lastActiveAt)).all();
       if (archived === false) data.kick(found);
+      // The harnesses each session has run a turn on, in the order it first used them: a session that changed agent has more than one.
+      // ponytail: one grouped read of every turn per list (a few hundred rows); a column kept on the session if the table grows.
+      const used = new Map<string, string[]>();
+      for (const { sessionId, harness } of db.select({ sessionId: chatTurns.sessionId, harness: chatTurns.harness }).from(chatTurns).where(isNotNull(chatTurns.harness)).groupBy(chatTurns.sessionId, chatTurns.harness).orderBy(asc(min(chatTurns.id))).all()) {
+        used.set(sessionId, [...(used.get(sessionId) ?? []), harness!]);
+      }
       return {
         sessions: found.map((found) => {
+          // the one it works on now goes last when it has not run a turn yet (a session that was just switched)
+          const providers = used.get(found.id) ?? [];
+          if (providers.includes(found.harness) === false) providers.push(found.harness);
           const dueAt = found.archived && archiveAfterDays !== 'never' && deleteAfterDays !== 'never' ? familyClock(found).lastActiveAt + deleteAfterDays * DAY : null;
           const kept = found.keptAt !== null && dueAt !== null && clock.now() >= dueAt; // a session the clock no longer considers (ages raised or never) is not kept
-          return { ...summary(found), live: lives.has(found.id), kept, deleteAt: kept ? null : dueAt, ...activity(found.id), ...data.view(found), background: lives.get(found.id)?.background ?? [] };
+          const { branch, ...view } = data.view(found);
+          const row = summary(found);
+          // a worktree shows the branch checked out in it now: the agent may have moved it off the one it was cut with
+          const workspace = row.workspace.kind === 'worktree' && branch !== null ? { ...row.workspace, branch } : row.workspace;
+          return { ...row, workspace, providers, live: lives.has(found.id), kept, deleteAt: kept ? null : dueAt, ...activity(found.id), ...view, background: lives.get(found.id)?.background ?? [] };
         }),
       };
     },
@@ -1475,7 +1493,8 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
       let conversation: ChatConversation;
       try {
         const instructions = instructionsOf(sessionId);
-        conversation = await openConversation(launch, { folder, options: current.options ?? {}, mcp: issued.args, ...(current.nativeId !== null && { resume: current.nativeId }), ...(instructions !== undefined && { instructions }) });
+        // the agent's own defaults under what the session kept: a row from before options were stored (a plan's) wakes on them, not on the provider's
+        conversation = await openConversation(launch, { folder, options: { ...(chosen.model && { model: chosen.model }), ...chosen.options, ...current.options }, mcp: issued.args, ...(current.nativeId !== null && { resume: current.nativeId }), ...(instructions !== undefined && { instructions }) });
       } catch (error) {
         revoke(issued.invocationId);
         throw error;

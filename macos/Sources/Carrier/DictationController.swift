@@ -9,7 +9,11 @@ import SwiftUI
 @MainActor @Observable final class DictationController {
     static let shared: DictationController = {
         // a fixture build hears nothing and asks macOS for nothing: its recognizer is a canned phrase
-        guard CommandLine.arguments.contains("--fixture") == false else { return DictationController(registry: .shared) }
+        guard CommandLine.arguments.contains("--fixture") == false else {
+            let controller = DictationController(registry: .shared)
+            controller.seedFixtureDictations()
+            return controller
+        }
         let capture = MicrophoneCapture()
         let controller = DictationController(
             registry: .shared, capture: capture, microphone: .system, log: DictationLog(carrierFolder: currentCarrierFolder()),

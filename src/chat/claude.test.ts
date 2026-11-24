@@ -337,6 +337,25 @@ test('the background tasks the SDK reports are the whole set each time, without 
   ]);
 });
 
+test('a compaction is one event with the context before and after it, from either spelling of the numbers, and a failed one says why', async () => {
+  const lines: Line[] = [
+    { type: 'system', subtype: 'compact_boundary', compact_metadata: { trigger: 'manual', pre_tokens: 142_300, post_tokens: 18_400, duration_ms: 14_000 } },
+    { type: 'system', subtype: 'compact_boundary', compactMetadata: { trigger: 'auto', preTokens: 181_000, postTokens: 22_000, durationMs: 9_000, preservedSegment: {} } },
+    // what the provider does not say is left out, and a trigger it does not know is not repeated
+    { type: 'system', subtype: 'compact_boundary', compact_metadata: { trigger: 'weekly', pre_tokens: 'many' } },
+    { type: 'system', subtype: 'status', status: null, compact_result: 'success' },
+    { type: 'system', subtype: 'status', status: null, compact_result: 'failed', compact_error: 'Not enough room to summarize' },
+    { type: 'result', subtype: 'success', is_error: false, usage: {} },
+  ];
+  const { conversation, events } = await openWith([{ text: '/compact', lines }]);
+  expect((await turn(conversation, events, '/compact')).filter((e) => e.kind === 'compact')).toEqual([
+    { kind: 'compact', trigger: 'manual', before: 142_300, after: 18_400, ms: 14_000 },
+    { kind: 'compact', trigger: 'auto', before: 181_000, after: 22_000, ms: 9_000 },
+    { kind: 'compact' },
+    { kind: 'compact', error: 'Not enough room to summarize' },
+  ]);
+});
+
 const limitText = "You've hit your session limit · resets 12:40pm (America/Montevideo)";
 // The CLI's own message about a limit, as its stream-json wraps it (`api_error*` are internal to the CLI and not in the SDK's types)
 const synthetic = (extra: Line = {}): Line => ({ type: 'assistant', error: 'rate_limit', message: { model: '<synthetic>', content: [{ type: 'text', text: limitText }] }, ...extra });

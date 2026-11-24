@@ -76,6 +76,7 @@ public func saveGlobalRole(_ changes: [RoleChange], role: AgentRole, path: Strin
     agents[role.rawValue] = entry
     file["agents"] = agents
     file["profiles"] = profiles
+    dropFailoverSteps(equalTo: entry, role: role, in: &file)
     do {
         let updated = try JSONSerialization.data(withJSONObject: file, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
         try updated.write(to: url, options: .atomic)
@@ -84,4 +85,18 @@ public func saveGlobalRole(_ changes: [RoleChange], role: AgentRole, path: Strin
         FileHandle.standardError.write(Data("carrier: saving \(path) failed: \(error)\n".utf8))
         return .failed("Could not save the config file: \(error.localizedDescription)")
     }
+}
+
+/// A role that now runs on the provider and model one of its failover steps names has no use for that step: moving to what it already runs on would move
+/// nowhere (the engine refuses the file, `failover.roles.<role>.<n>`), and falling back to the account that ran out is no fallback. The step goes and the
+/// others stay, in their order; a list left empty goes too, and `failover` with it, which is Switch automatically off. A step with no model is another
+/// model's, so it stays.
+func dropFailoverSteps(equalTo entry: [String: Any], role: AgentRole, in file: inout [String: Any]) {
+    guard var failover = file["failover"] as? [String: Any], var roles = failover["roles"] as? [String: Any],
+        let steps = roles[role.rawValue] as? [[String: Any]], let provider = entry["provider"] as? String, let model = entry["model"] as? String else { return }
+    let kept = steps.filter { ($0["provider"] as? String) != provider || ($0["model"] as? String) != model }
+    guard kept.count != steps.count else { return }
+    roles[role.rawValue] = kept.isEmpty ? nil : kept
+    failover["roles"] = roles.isEmpty ? nil : roles
+    file["failover"] = failover.isEmpty ? nil : failover
 }

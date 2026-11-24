@@ -17,7 +17,7 @@ import Testing
 
 @Test func theCarrierGroupHoldsAgentsReposAndBehavior() {
     #expect(SettingsPage.Group.carrier.heading == "Carrier")
-    #expect(SettingsPage.pages(in: .carrier) == [.agents, .repos, .behavior])
+    #expect(SettingsPage.pages(in: .carrier) == [.agents, .watching, .behavior])
     #expect(SettingsPage.behavior.detail == "How Carrier runs epics")
 }
 
@@ -41,9 +41,9 @@ import Testing
 }
 
 @Test func thePagesOfSettingsThatAreSettingsFormsAreTheOnesMadeOfSimpleRows() {
-    #expect(SettingsPage.allCases.filter(\.usesForm) == [.general, .providers, .appearance, .notifications, .keybindings, .dictation, .keepAwake, .chat, .sessions, .sidebar, .terminal, .agents, .behavior, .engine, .about])
+    #expect(SettingsPage.allCases.filter(\.usesForm) == [.general, .providers, .appearance, .notifications, .keybindings, .dictation, .keepAwake, .chat, .sessions, .sidebar, .terminal, .agents, .watching, .behavior, .engine, .about])
 }
 
 @Test func theLongPagesAreAColumnAndTheListsAndTablesTakeTheWidth() {
-    #expect(SettingsPage.allCases.filter { !$0.isColumn } == [.projects, .repos, .health])
+    #expect(SettingsPage.allCases.filter { !$0.isColumn } == [.projects, .health])
 }

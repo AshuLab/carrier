@@ -351,6 +351,8 @@ class ClaudeConversation implements ChatConversation {
           return [{ kind: 'turn_start' }];
         }
         if (m.subtype === 'init' && Array.isArray(m.terminal_slash_commands)) this.terminalOnly = new Set(m.terminal_slash_commands as string[]);
+        if (m.subtype === 'compact_boundary') return [compactOf(m)];
+        if (m.subtype === 'status' && m.compact_result === 'failed') return [{ kind: 'compact', error: typeof m.compact_error === 'string' && m.compact_error !== '' ? m.compact_error : 'The conversation could not be summarized' }];
         if (m.subtype === 'status' && typeof m.permissionMode === 'string' && m.permissionMode !== this.mode) {
           this.mode = m.permissionMode;
           return [{ kind: 'option', id: 'permissionMode', value: this.mode }];
@@ -466,6 +468,14 @@ class ClaudeConversation implements ChatConversation {
 
 /** The call that launched the subagent a message was made in: the SDK's `parent_tool_use_id` when it is a non-empty string, else none (the main agent's own). */
 const parentOf = (m: Record<string, unknown>): string | undefined => (typeof m.parent_tool_use_id === 'string' && m.parent_tool_use_id !== '' ? m.parent_tool_use_id : undefined);
+
+/** The `compact` event of a `compact_boundary`: the SDK's stream names its numbers in snake_case, Claude Code's own transcript in camelCase, and any of them can be missing. */
+function compactOf(m: Record<string, any>): ChatEvent {
+  const meta: Record<string, unknown> = m.compact_metadata ?? m.compactMetadata ?? {};
+  const count = (snake: string, camel: string) => [meta[snake], meta[camel]].find((n): n is number => typeof n === 'number' && n >= 0);
+  const [before, after, ms] = [count('pre_tokens', 'preTokens'), count('post_tokens', 'postTokens'), count('duration_ms', 'durationMs')];
+  return { kind: 'compact', ...((meta.trigger === 'manual' || meta.trigger === 'auto') && { trigger: meta.trigger }), ...(before !== undefined && { before }), ...(after !== undefined && { after }), ...(ms !== undefined && { ms }) };
+}
 
 /**
  * Whether a failure is the account's usage limit and not a rate limit that Claude retries. The CLI's own `api_error` says so and is the key (internal to the CLI, so not in the SDK's types);

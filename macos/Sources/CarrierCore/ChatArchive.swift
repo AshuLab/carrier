@@ -114,6 +114,11 @@ public let archivedSessionNotice = (title: "This session is archived", detail: "
 
 public enum SessionMenuAction: Equatable {
     case stop, pin, unpin, rename, regenerateTitle, openInTerminal(path: String), filterWorkspace(String), archive, restore, delete
+    case markUnread, markRead
+    /// A new session in the project at `base`, cut from `branch` in a worktree when it is given.
+    case newSession(base: String, branch: String?)
+    /// The project's page in Settings; `base` is the project's folder.
+    case openProject(base: String)
     case copy(String)
 }
 
@@ -143,11 +148,47 @@ public func archiveBlock(_ row: SessionRow) -> String? {
     }
 }
 
+/// Why a session cannot be deleted now, nil when it can: the host refuses one that works or waits, as it does an archive, and its worktree cannot be
+/// removed under a running agent.
+public func deleteBlock(_ row: SessionRow) -> String? {
+    switch row.state {
+    case .working: "Stop the session to delete it"
+    case .waiting: "Answer or stop the session to delete it"
+    case .idle, .done: row.background.isEmpty ? nil : row.background.count == 1 ? "Stop the background task to delete it" : "Stop the background tasks to delete it"
+    }
+}
+
+/// What the menu of a session can offer that depends on where it is drawn: the sidebar and the home have each of these, the Archive has few.
+public struct SessionMenuContext: Equatable {
+    /// Mark as unread or as read. Not for an archived session, and off for the one that is open (opening it marks it read).
+    public var marksUnread = false
+    /// The session is the one open on screen.
+    public var viewing = false
+    /// New session on its branch (or in its project), which opens the draft.
+    public var startsSessions = false
+    /// Its project is in Carrier's list, so Project settings has a page to open.
+    public var projectKnown = false
+
+    public init(marksUnread: Bool = false, viewing: Bool = false, startsSessions: Bool = false, projectKnown: Bool = false) {
+        (self.marksUnread, self.viewing, self.startsSessions, self.projectKnown) = (marksUnread, viewing, startsSessions, projectKnown)
+    }
+}
+
+/// The title of New session for a row: its branch (shortened in the middle when long), or the project when it works in the folder itself.
+public func newSessionTitle(_ row: SessionRow) -> String {
+    guard let branch = row.branch else { return "New session in this project" }
+    let limit = 34
+    guard branch.count > limit else { return "New session on \(branch)" }
+    let head = branch.prefix(limit / 2 - 1), tail = branch.suffix(limit / 2)
+    return "New session on \(head)\u{2026}\(tail)"
+}
+
 /// The context menu of a session row in the sidebar, on the Sessions home and in the Archive, as sections the view separates with a
 /// divider: Stop (while it works) and Pin; Rename and, while the host lists `regenerateTitle` (`canRegenerateTitle`), Regenerate title; Open in Terminal, Copy (path, branch name, session id) and, where the
-/// view can filter (`canFilter`, the home), Filter by the workspace; Archive (Restore for an archived one) and, for an archived one, Delete.
+/// view can filter (`canFilter`, the home), Filter by the workspace; Archive (Restore for an archived one) and Delete (off while it works or waits).
+/// `context` adds what only some views can do: Mark as unread, New session on its branch and Project settings.
 /// An archived session is not listed in the groups, so it has no Pin.
-public func sessionMenu(_ row: SessionRow, pinned: Bool = false, canFilter: Bool = false, canRegenerateTitle: Bool = false) -> [[SessionMenuItem]] {
+public func sessionMenu(_ row: SessionRow, pinned: Bool = false, canFilter: Bool = false, canRegenerateTitle: Bool = false, context: SessionMenuContext = SessionMenuContext()) -> [[SessionMenuItem]] {
     var copies = [SessionMenuItem("Path", "folder", .copy(row.folder))]
     if let branch = row.branch { copies.append(SessionMenuItem("Branch name", "arrow.triangle.branch", .copy(branch))) }
     copies.append(SessionMenuItem("Session id", "number", .copy(row.id)))
@@ -155,10 +196,19 @@ public func sessionMenu(_ row: SessionRow, pinned: Bool = false, canFilter: Bool
     var control: [SessionMenuItem] = []
     if row.isWorking { control.append(SessionMenuItem("Stop", "stop.circle", .stop)) }
     if row.archived == false { control.append(pinned ? SessionMenuItem("Unpin", "pin.slash", .unpin) : SessionMenuItem("Pin", "pin", .pin)) }
-    var open = [SessionMenuItem("Open in Terminal", "terminal", .openInTerminal(path: row.folder)), SessionMenuItem("Copy", "doc.on.doc", nil, children: copies)]
+    if context.marksUnread, row.archived == false {
+        let reason = context.viewing ? "It is open: opening a session marks it as read" : nil
+        control.append(row.unread ? SessionMenuItem("Mark as read", "circle", .markRead, disabledReason: reason) : SessionMenuItem("Mark as unread", "circle.fill", .markUnread, disabledReason: reason))
+    }
+    var open: [SessionMenuItem] = []
+    if context.startsSessions, row.archived == false { open.append(SessionMenuItem(newSessionTitle(row), row.branch == nil ? "plus" : "arrow.triangle.branch", .newSession(base: row.base, branch: row.branch))) }
+    if context.projectKnown { open.append(SessionMenuItem("Project settings\u{2026}", "gearshape", .openProject(base: row.base))) }
+    open += [SessionMenuItem("Open in Terminal", "terminal", .openInTerminal(path: row.folder)), SessionMenuItem("Copy", "doc.on.doc", nil, children: copies)]
     if canFilter { open.append(SessionMenuItem("Filter by \u{201C}\(row.workspace)\u{201D}", "line.3.horizontal.decrease", .filterWorkspace(row.workspace))) }
-    var end = [row.archived ? SessionMenuItem("Restore", "arrow.uturn.backward", .restore) : SessionMenuItem("Archive", "archivebox", .archive, disabledReason: archiveBlock(row))]
-    if row.archived { end.append(SessionMenuItem("Delete\u{2026}", "trash", .delete, destructive: true)) }
+    let end = [
+        row.archived ? SessionMenuItem("Restore", "arrow.uturn.backward", .restore) : SessionMenuItem("Archive", "archivebox", .archive, disabledReason: archiveBlock(row)),
+        SessionMenuItem("Delete\u{2026}", "trash", .delete, destructive: true, disabledReason: deleteBlock(row)),
+    ]
     var title = [SessionMenuItem("Rename\u{2026}", "pencil", .rename)]
     if canRegenerateTitle { title.append(SessionMenuItem("Regenerate title", "sparkles", .regenerateTitle)) }
     return [
@@ -251,6 +301,14 @@ public enum SessionRemovalKind: Sendable {
 
     public func regenerateTitle(_ id: String) async -> String? { await run("regenerate the title", id) { _ = try await $0.regenerateTitle(id) } }
 
+    /// Writes the session's title again and answers the new one, or what the host refused in words.
+    public func regeneratedTitle(_ id: String) async -> (title: String?, refusal: String?) {
+        switch await attempt("regenerate the title", id, { try await $0.regenerateTitle(id) }) {
+        case .success(let title): (title, nil)
+        case .failure(let refusal): (nil, refusal.words)
+        }
+    }
+
     /// What an alert before a delete is: the question to ask, or what the host refused when it was asked what the deletion would discard.
     public enum Confirmation: Equatable {
         case ask(Question)
@@ -318,15 +376,21 @@ public enum SessionRemovalKind: Sendable {
     }
 
     private func run(_ doing: String, _ id: String, _ call: (ChatHost) async throws -> Void) async -> String? {
+        if case .failure(let refusal) = await attempt(doing, id, { try await call($0) }) { return refusal.words }
+        return nil
+    }
+
+    /// `run` that keeps what the call answers.
+    private func attempt<Answer>(_ doing: String, _ id: String, _ call: (ChatHost) async throws -> Answer) async -> Result<Answer, Refusal> {
         do {
-            try await call(host)
+            let answer = try await call(host)
+            changed()
+            return .success(answer)
         } catch {
             let words = ConversationModel.words(error)
             // a refusal is the host answering as it should; anything else is a failure to talk to it
             if case ControlError.remote = error {} else { log("session \(id): could not \(doing): \(words)") }
-            return words
+            return .failure(Refusal(words: words))
         }
-        changed()
-        return nil
     }
 }

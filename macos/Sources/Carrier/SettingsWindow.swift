@@ -107,6 +107,7 @@ struct SettingsRoot: View {
     @State private var resetter = SettingsReset()
     @State private var saver = SettingsSave()
     @State private var headerAction = SettingsHeaderAction()
+    @State private var headerButtons = SettingsHeaderButtons()
     @State private var title: SettingsTitle?
     @State private var confirmingReset = false
 
@@ -143,6 +144,19 @@ struct SettingsRoot: View {
                         }
                         .sharedBackgroundVisibility(.hidden)
                     }
+                    // the actions of a screen that has several (Watching): one glass capsule with a pill for each
+                    if headerButtons.buttons.isEmpty == false {
+                        ToolbarItem(placement: .primaryAction) {
+                            HStack(spacing: 0) {
+                                ForEach(headerButtons.buttons, id: \.title) { button in
+                                    ToolbarPillButton(title: button.title, icon: button.icon, spinning: button.spinning) { headerButtons.run(button.title) }
+                                        .disabled(button.enabled == false).help(button.help.isEmpty ? button.title : button.help)
+                                }
+                            }
+                            .glassEffect(.regular, in: .capsule)
+                        }
+                        .sharedBackgroundVisibility(.hidden)
+                    }
                     // the save of a screen that edits something (an account): on its own glass pill, as the window's other actions
                     if let saveTitle = saver.title {
                         ToolbarItem(placement: .primaryAction) {
@@ -166,6 +180,7 @@ struct SettingsRoot: View {
         .environment(\.settingsReset, resetter)
         .environment(\.settingsSave, saver)
         .environment(\.settingsHeaderAction, headerAction)
+        .environment(\.settingsHeaderButtons, headerButtons)
         // the session rows of the Sidebar page's preview read what the main window gives its own
         .environment(model.actions)
         .alert("Reset \(navigator.page.rawValue)?", isPresented: $confirmingReset) {
@@ -303,7 +318,7 @@ extension SettingsPage {
         case .sidebar: .cyan
         case .terminal: Color(white: 0.25)
         case .agents: .orange
-        case .repos, .health: .green
+        case .watching, .health: .green
         case .behavior: .brown
         }
     }
@@ -419,7 +434,7 @@ struct SettingsPages: View {
                     versions = await ProgramVersions.read(setup)
                 }
         case .behavior: BehaviorTabView()
-        case .repos: ReposTabView(state: state, canReload: canReload, openAgents: { navigator.go(.agents) })
+        case .watching: WatchingTabView(place: navigator.place, go: navigator.go, state: state, canReload: canReload, openAgents: { navigator.go(.agents) })
         case .agents: AgentsTabView(place: navigator.place, go: navigator.go)
         case .sessions: SessionsTabView()
         case .projects: ProjectsTabView(place: navigator.place, go: navigator.go, sessions: sessions, state: state, canReload: canReload)

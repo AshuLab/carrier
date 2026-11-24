@@ -56,6 +56,11 @@ public func forgeAvatarURL(appId: String, pixels: Int) -> URL? {
     return URL(string: "https://avatars.githubusercontent.com/in/\(appId)?s=\(pixels)")
 }
 
+/// A GitHub login: up to 39 letters, digits and hyphens, not starting with a hyphen. Nothing else goes into the address of a picture.
+public func isGithubLogin(_ text: String) -> Bool {
+    text.isEmpty == false && text.count <= 39 && text.first != "-" && text.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-") }
+}
+
 /// What a role's profile is, by `profiles` and the registry.
 public enum RoleIdentity: Equatable {
     /// a bot of Agent Forge that the registry has

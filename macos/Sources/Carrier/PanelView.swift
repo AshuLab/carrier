@@ -354,13 +354,6 @@ struct PanelView: View {
                         .disabled(shell.history.canGoForward == false).help("Forward")
                 }
             }
-            if isDevBuild {
-                ToolbarItem(placement: .navigation) {
-                    Text("DEV BUILD").font(.caption.weight(.bold)).foregroundStyle(.orange)
-                        .help("A development build of Carrier, not the installed one")
-                }
-                .sharedBackgroundVisibility(.hidden)
-            }
             if let epic {
                 if let open = shell.subagentHeader {
                     // a slice card's subagent view wears the same header as a conversation's, with the epic in its subtitle and no Stop

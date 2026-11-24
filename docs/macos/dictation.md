@@ -144,7 +144,9 @@ The list is grouped by day, newest first (Today, Yesterday, then the weekday and
 It draws the first 100 entries that match (`dictationHistoryPage`) and, under them, a Show 100 more button; the line at the bottom says how many match of how many there are.
 A new search or filter goes back to the first 100; a new or a deleted dictation leaves the list at the page it was.
 The list is worked out when one of those changes and kept, not at each redraw (`dictationHistory`).
-A row shows the time, the text (two lines) and chips with the outcome, the destination, the model, the transcription time, the words and the length; a click opens its detail (the text as recognized and as cleaned, the model, the transcription time for the audio length, the cleanup and where it went).
+A row shows the time, the text (two lines) and, under it, one quiet line: a dot in the outcome's color and its name, where it went, the words and the length of the audio, and "cleaned" when cleanup ran; there are no chips.
+A click opens its detail with no box of its own, under a dashed rule: the text as recognized when cleanup changed it (the row already shows the text that counts), the speech model, how long the transcription took for the audio length ("Instant" under 0.05 s), the cleanup and the audio; what the line already says is not repeated.
+Copy and delete are quiet until the pointer is on the row or it is open (they stay in the keyboard's and VoiceOver's reach).
 Copy puts the text on the clipboard (the cleaned text when there is one) and says Copied for a moment, and the trash asks Delete this dictation? first (its text and its audio go, the statistics stay), with the switch on or off; an empty list says No dictations yet, and a search or filter with no match says Nothing matches.
 
 ### Audio
@@ -165,13 +167,13 @@ Deleting entries and turning the history off leave the counters as they were, an
 A day is the person's calendar day (`dictationDayKey`), so a change of time zone does not move what was counted.
 Under `--fixture` and in the tests the counters are in a temporary folder.
 
-The screen starts with Overview, with a range, 7 days, 30 days (the one it opens on), 90 days or All time, over four cards: Dictations, Words, Speaking time and Time saved, each with the change against the period just before it ("▲ 12% vs previous", nothing for All time, which has no period before it, or when the period before had none).
+The screen starts with Overview, with a range, 7 days, 30 days (the one it opens on), 90 days or All time, over four cards with no container behind them (the form's row has no background and no inset): Dictations, Words, Speaking time and Time saved, each with the change against the period just before it ("▲ 12% vs previous", nothing for All time, which has no period before it, or when the period before had none).
 Under them is a chart of words or dictations by day, with the busiest day in the full accent.
 Then, one under the other, By hour of the day and This week.
 By hour of the day is a strip of 24 cells, one per hour, as strong as the dictations in that hour of the days of the chosen range, with a line that says the hour the person dictates most ("You dictate most around 15:00."; the earliest on a tie; "Nothing dictated in this range yet." with none).
 This week always compares the last 7 days (today included) with the 7 before, whatever the range: a sentence with the words, the dictations, the change in percent of the words, the busiest day and the time saved, and a small chart of words by day with the busiest in the full accent.
 It says what it can: a previous week with no words says there is nothing to compare with instead of a percent, a week with no dictations says so (and what the week before had), and a time saved of zero is left out.
-Records, over all the counters and not the range, has the most dictations in a day, the most words in a day, the longest dictation and the longest streak of days in a row with a dictation; on a tie a record keeps the earliest day, which is when it was reached, and a day with no dictation ends a streak.
+Records, over all the counters and not the range, is four cards of the same kind and layout as the Overview's (four in a row, two by two when narrow): Most dictations and Most words, each with the day it was in, Longest dictation and Longest streak (days in a row with a dictation); on a tie a record keeps the earliest day, which is when it was reached, and a day with no dictation ends a streak.
 With no counters (nothing dictated yet, or after Reset) it says No statistics yet and what it needs: a dictation that ends with the text pasted or copied.
 The figures are pure functions of the counters (`dictationFigures`, `dictationHours`, `weeklySummary`, `statisticsRecords`, `statisticsChange` and `statisticsDuration` in `CarrierCore/DictationStatistics.swift`, tested in `DictationStatisticsTests`).
 The time saved is `timeSaved(words:speaking:wpm:)` as the [spec](../specs/global-dictation.md) writes it: the words over the typing speed, minus the time spent speaking, never negative.

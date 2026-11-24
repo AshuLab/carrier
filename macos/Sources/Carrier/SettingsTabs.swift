@@ -85,6 +85,41 @@ extension EnvironmentValues {
     @Entry var settingsSave: SettingsSave?
     /// Where a screen puts a toggle or action button in the toolbar (`SettingsHeaderAction`), such as Pin on a project's page.
     @Entry var settingsHeaderAction: SettingsHeaderAction?
+    /// Where a screen puts several action buttons in the toolbar, on one glass capsule (`SettingsHeaderButtons`), such as Check now and Watch a project on Watching.
+    @Entry var settingsHeaderButtons: SettingsHeaderButtons?
+}
+
+/// An action pill of the toolbar: what a screen with several of them (Watching's list, a repo's screen) puts there.
+struct SettingsHeaderButton: Equatable {
+    let title: String
+    let icon: AppIcon
+    var enabled = true
+    var spinning = false
+    var help = ""
+}
+
+/// The action pills a screen puts in the Settings window's toolbar, side by side on one glass capsule: set while the screen is open, cleared when it goes.
+/// Only what is shown is kept (`SettingsHeaderButton`); each one's action is looked up by its title when it is pressed.
+@MainActor @Observable final class SettingsHeaderButtons {
+    private(set) var buttons: [SettingsHeaderButton] = []
+    @ObservationIgnored private var runs: [String: () -> Void] = [:]
+    @ObservationIgnored private var owner: UUID?
+
+    func set(_ owner: UUID, _ buttons: [(button: SettingsHeaderButton, run: () -> Void)]) {
+        self.owner = owner
+        runs = Dictionary(buttons.map { ($0.button.title, $0.run) }, uniquingKeysWith: { first, _ in first })
+        if self.buttons != buttons.map(\.button) { self.buttons = buttons.map(\.button) }
+    }
+
+    func run(_ title: String) { runs[title]?() }
+
+    /// Only the screen that set them clears them: the next screen may have set its own before this one has gone.
+    func clear(_ owner: UUID) {
+        guard self.owner == owner else { return }
+        self.owner = nil
+        runs = [:]
+        buttons = []
+    }
 }
 
 /// A toggle or action pill a screen puts in the Settings window's toolbar (Pin on a project's page): set while the screen is open, cleared when it goes.
@@ -237,14 +272,19 @@ extension View {
     }
 }
 
-/// A filter as a small capsule that is on or off: a quiet fill when off, the theme's accent when on. A row of them narrows a list; the first of
-/// a set that excludes each other is "All".
+/// The accent as text on its own tinted piece (the chosen filter, the chosen segment): a little lifted in the dark and deepened in the light, so it keeps its contrast.
+@MainActor func accentInk(_ scheme: ColorScheme) -> Color { Color.themeAccent.mix(with: scheme == .dark ? .white : .black, by: scheme == .dark ? 0.3 : 0.2) }
+
+/// A filter as a small capsule that is on or off: a quiet fill and a fine edge when off, the person's accent when on (the piece of `SegmentedChoice`, in its own
+/// capsule). For a set that grows with the data (the tags of the projects) or filters that are not one list of choices; a few fixed choices are a `SegmentedChoice`.
+/// A row of them narrows a list; the first of a set that excludes each other is "All".
 struct FilterChip: View {
     let title: String
     var icon: AppIcon?
     let on: Bool
     let action: () -> Void
     @State private var hovered = false
+    @Environment(\.colorScheme) private var scheme
 
     var body: some View {
         Button(action: action) {
@@ -252,9 +292,10 @@ struct FilterChip: View {
                 if let icon { Glyph(icon, size: 11) }
                 Text(title).font(.scaled(12, weight: .medium))
             }
-            .foregroundStyle(on ? Color.themeAccent : hovered ? Color.primary : Color.secondary)
-            .padding(.horizontal, 10).padding(.vertical, 4)
-            .background(Capsule().fill(on ? Color.themeAccent.opacity(0.18) : Color.primary.opacity(hovered ? 0.12 : 0.07)))
+            .foregroundStyle(on ? accentInk(scheme) : hovered ? Color.primary : Color.secondary)
+            .padding(.horizontal, 11).padding(.vertical, 4)
+            .background(Capsule().fill(on ? Color.themeAccent.opacity(0.24) : Color.primary.opacity(hovered ? 0.1 : 0.06)))
+            .overlay(Capsule().strokeBorder(on ? Color.themeAccent.opacity(0.45) : Color.primary.opacity(0.06), lineWidth: 1))
             .contentShape(Capsule())
         }
         .buttonStyle(.plain).onHover { hovered = $0 }
@@ -263,19 +304,24 @@ struct FilterChip: View {
     }
 }
 
-/// A few choices that exclude each other, in one grey capsule: the chosen one is a lighter capsule inside it, never the accent. Every choice
-/// has the same type and padding whether chosen or not, so nothing changes size when the choice moves (Usage's metric and range).
+/// A few choices that exclude each other, in one quiet capsule: the chosen one is a piece tinted with the person's accent (`themeAccent`: the one they picked,
+/// else the theme's, else the Mac's) that slides to the next choice. The choices are as wide as the widest one, so the piece does not change size as it moves,
+/// and every one has the same type and padding whether chosen or not (Usage's metric and range).
 struct SegmentedChoice<Value: Hashable>: View {
     let options: [(value: Value, title: String, icon: AppIcon?)]
     @Binding var selection: Value
+    @Namespace private var thumb
 
     var body: some View {
-        HStack(spacing: 4) {
+        EqualWidthRow {
             ForEach(Array(options.enumerated()), id: \.offset) { _, option in
-                Segment(title: option.title, icon: option.icon, on: selection == option.value) { selection = option.value }
+                Segment(title: option.title, icon: option.icon, on: selection == option.value, thumb: thumb) { selection = option.value }
             }
         }
-        .padding(3).background(Capsule().fill(Color.primary.opacity(0.07)))
+        .padding(2)
+        .background(Capsule().fill(Color.primary.opacity(0.06)))
+        .overlay(Capsule().strokeBorder(Color.primary.opacity(0.06), lineWidth: 1))
+        .animation(.smooth(duration: 0.25), value: selection)
         .accessibilityElement(children: .contain)
     }
 
@@ -283,8 +329,10 @@ struct SegmentedChoice<Value: Hashable>: View {
         let title: String
         let icon: AppIcon?
         let on: Bool
+        let thumb: Namespace.ID
         let action: () -> Void
         @State private var hovered = false
+        @Environment(\.colorScheme) private var scheme
 
         var body: some View {
             Button(action: action) {
@@ -292,14 +340,41 @@ struct SegmentedChoice<Value: Hashable>: View {
                     if let icon { Glyph(icon, size: 11) }
                     Text(title).font(.scaled(12, weight: .medium))
                 }
-                .foregroundStyle(on ? Color.primary : Color.secondary)
-                .padding(.horizontal, 12).padding(.vertical, 4)
-                .background(Capsule().fill(Color.primary.opacity(on ? 0.16 : hovered ? 0.07 : 0)))
+                // the chosen one reads in the accent, a little lifted in the dark and deepened in the light so it keeps its contrast on the tinted piece
+                .foregroundStyle(on ? accentInk(scheme) : hovered ? Color.primary : Color.secondary)
+                .padding(.horizontal, 14).padding(.vertical, 4)
+                // the whole of the slot the row gives it, so the tinted piece (its background) is as wide as the widest choice and not as the words
+                .frame(maxWidth: .infinity)
+                .background {
+                    if on {
+                        Capsule().fill(Color.themeAccent.opacity(0.24))
+                            .overlay(Capsule().strokeBorder(Color.themeAccent.opacity(0.45), lineWidth: 1))
+                            .matchedGeometryEffect(id: "thumb", in: thumb)
+                    } else if hovered {
+                        Capsule().fill(Color.primary.opacity(0.07))
+                    }
+                }
                 .contentShape(Capsule())
             }
             .buttonStyle(.plain).onHover { hovered = $0 }
             .animation(.easeOut(duration: 0.12), value: hovered)
             .accessibilityAddTraits(on ? .isSelected : [])
+        }
+    }
+}
+
+/// Lays its children side by side, each as wide as the widest, none apart.
+private struct EqualWidthRow: Layout {
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let sizes = subviews.map { $0.sizeThatFits(.unspecified) }
+        return CGSize(width: (sizes.map(\.width).max() ?? 0) * CGFloat(subviews.count), height: sizes.map(\.height).max() ?? 0)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        guard subviews.isEmpty == false else { return }
+        let width = bounds.width / CGFloat(subviews.count)
+        for (index, subview) in subviews.enumerated() {
+            subview.place(at: CGPoint(x: bounds.minX + width * CGFloat(index), y: bounds.minY), proposal: ProposedViewSize(width: width, height: bounds.height))
         }
     }
 }

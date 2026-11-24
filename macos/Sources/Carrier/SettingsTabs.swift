@@ -85,6 +85,41 @@ extension EnvironmentValues {
     @Entry var settingsSave: SettingsSave?
     /// Where a screen puts a toggle or action button in the toolbar (`SettingsHeaderAction`), such as Pin on a project's page.
     @Entry var settingsHeaderAction: SettingsHeaderAction?
+    /// Where a screen puts several action buttons in the toolbar, on one glass capsule (`SettingsHeaderButtons`), such as Check now and Watch a project on Watching.
+    @Entry var settingsHeaderButtons: SettingsHeaderButtons?
+}
+
+/// An action pill of the toolbar: what a screen with several of them (Watching's list, a repo's screen) puts there.
+struct SettingsHeaderButton: Equatable {
+    let title: String
+    let icon: AppIcon
+    var enabled = true
+    var spinning = false
+    var help = ""
+}
+
+/// The action pills a screen puts in the Settings window's toolbar, side by side on one glass capsule: set while the screen is open, cleared when it goes.
+/// Only what is shown is kept (`SettingsHeaderButton`); each one's action is looked up by its title when it is pressed.
+@MainActor @Observable final class SettingsHeaderButtons {
+    private(set) var buttons: [SettingsHeaderButton] = []
+    @ObservationIgnored private var runs: [String: () -> Void] = [:]
+    @ObservationIgnored private var owner: UUID?
+
+    func set(_ owner: UUID, _ buttons: [(button: SettingsHeaderButton, run: () -> Void)]) {
+        self.owner = owner
+        runs = Dictionary(buttons.map { ($0.button.title, $0.run) }, uniquingKeysWith: { first, _ in first })
+        if self.buttons != buttons.map(\.button) { self.buttons = buttons.map(\.button) }
+    }
+
+    func run(_ title: String) { runs[title]?() }
+
+    /// Only the screen that set them clears them: the next screen may have set its own before this one has gone.
+    func clear(_ owner: UUID) {
+        guard self.owner == owner else { return }
+        self.owner = nil
+        runs = [:]
+        buttons = []
+    }
 }
 
 /// A toggle or action pill a screen puts in the Settings window's toolbar (Pin on a project's page): set while the screen is open, cleared when it goes.

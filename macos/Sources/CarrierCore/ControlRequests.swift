@@ -33,15 +33,6 @@ extension ControlClient {
         return try ask(.fileDiff, "fileDiff", keepOnRefusal: true, try epicFields(repo, issue) + ",\"section\":\(try quoted(section)),\"path\":\(try quoted(path))")
     }
 
-    /// One page of the repos the engine's gh login can push to, for the Repos tab's picker. nil when this engine cannot list them.
-    /// An engine without `availableReposPaged` refuses `page`: it is asked for none, answers its one list, and has no more.
-    public func availableRepos(page: Int = 1) throws -> (repos: [AvailableRepo], hasMore: Bool)? {
-        let paged = capabilities.contains(.availableReposPaged)
-        guard paged || page == 1 else { return nil }
-        guard let reply = try ask(.availableRepos, "availableRepos", paged ? ",\"page\":\(page)" : "") as AvailableReposReply? else { return nil }
-        return (reply.repos, paged && reply.hasMore == true)
-    }
-
     /// Asks the engine to put a stopped epic back in the queue; it answers when the epic has started again. false, with nothing sent,
     /// when this engine cannot be asked. A refusal throws `.remote(reason)` and leaves the capability alone: it says nothing about the engine.
     public func resumeEpic(repo: String, issue: Int) throws -> Bool {

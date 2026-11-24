@@ -104,3 +104,21 @@ func roleFields(_ value: Any?) -> RoleFields {
     let persona = (role["persona"] as? [String: Any]).map { RolePersona(name: $0["name"] as? String, prompt: $0["prompt"] as? String) }
     return RoleFields(profile: text("profile"), provider: text("provider"), model: text("model"), effort: text("effort"), persona: persona)
 }
+
+/// The Agents page as it is for `repo`: each role's fields are the global ones with the repo's own over them (a persona replaces the global one whole), so the
+/// rail, the pictures and the readiness of Agents read a repo's roles as they read the global ones. The Lead reviewer is in it only while the global config
+/// has it; one the repo names alone is not a role of the repo. nil when `config` is not a JSON object.
+public func repoAgentsPage(config: Data, providers: Data?, bots: ForgeBots, repo: String) -> AgentsPage? {
+    guard var file = (try? JSONSerialization.jsonObject(with: config)) as? [String: Any] else { return nil }
+    var agents = file["agents"] as? [String: Any] ?? [:]
+    let own = ((file["repos"] as? [[String: Any]])?.first { $0["name"] as? String == repo })?["agents"] as? [String: Any] ?? [:]
+    for (role, fields) in own {
+        guard var merged = agents[role] as? [String: Any], let mine = fields as? [String: Any] else { continue }
+        for (key, value) in mine { merged[key] = value }
+        agents[role] = merged
+    }
+    file["agents"] = agents
+    guard let merged = try? JSONSerialization.data(withJSONObject: file), var page = agentsPage(config: merged, providers: providers, bots: bots) else { return nil }
+    page.rows.removeAll { $0.off }
+    return page
+}

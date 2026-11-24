@@ -210,9 +210,15 @@ private func settingsRows(_ settingsPage: SettingsPage) -> [SettingsEntry] {
         }
         entries += page(.agents, "When it runs out of tokens", [("Switch automatically", "Usage limit, rate limit or service down")], path: role)
         return entries
-    case .repos:
-        return page(.repos, "Status", [("Status", "What Carrier watches in each repo")])
-            + page(.repos, "Who works here", [("Defaults", "Every repo follows the roles of Agents unless it has its own")])
+    case .watching:
+        return page(.watching, "Repositories", [("Repositories", "The repositories Carrier takes epics from")])
+            + page(.watching, "Status", [("Epics", "What the repository has in flight"), ("Last check", "When Carrier last looked at the repository, or why GitHub refused it")])
+            + page(.watching, "Ready for Carrier", [("Ready for Carrier", "Whether Carrier can read the repository, sign for it and has the Solve labels")])
+            + page(.watching, "Who works here", [("Who works here", "Each role of the repository, and what it sets of its own")])
+            + page(.watching, "Repository", [
+                ("Project", "The project that has this repository as its origin"), ("Clone", "Where Carrier keeps its own clone of the repository"), ("On GitHub", "The repository's address"),
+            ])
+            + page(.watching, "Stop watching", [("Stop watching", "Its epics stop where they are; nothing is deleted")])
     case .behavior:
         return behaviorGroups.flatMap { group in page(.behavior, group.title, group.rows.map { ($0.title, $0.detail) }) }
     case .engine:

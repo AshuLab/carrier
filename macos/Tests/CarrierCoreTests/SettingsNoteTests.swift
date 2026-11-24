@@ -8,17 +8,17 @@ private func running() throws -> ConnectionState {
 }
 
 @Test func anEngineThatListsReloadAppliesTheSettingsToTheNextEpic() throws {
-    #expect(settingsNote(state: try running(), canReload: true, outcome: nil) == "Carrier applies this repo to the next epic")
+    #expect(settingsNote(state: try running(), canReload: true, outcome: nil) == "Carrier applies this repository to the next epic")
     #expect(settingsNote(state: try running(), canReload: true, outcome: .applied, repo: "a/b") == "Carrier applies a/b to the next epic")
 }
 
 @Test func anEngineThatDoesNotListReloadKeepsTheOldText() throws {
-    #expect(settingsNote(state: try running(), canReload: false, outcome: .unsupported) == "Carrier reads this repo when it starts")
+    #expect(settingsNote(state: try running(), canReload: false, outcome: .unsupported) == "Carrier reads this repository when it starts")
 }
 
 @Test func withNoEngineTheOldTextStaysWhateverTheLastHelloListed() {
     for state in [ConnectionState.stopped, .incompatible(update: nil), nil] {
-        #expect(settingsNote(state: state, canReload: true, outcome: .nobody) == "Carrier reads this repo when it starts")
+        #expect(settingsNote(state: state, canReload: true, outcome: .nobody) == "Carrier reads this repository when it starts")
     }
 }
 
@@ -26,11 +26,11 @@ private func running() throws -> ConnectionState {
     let words = "Not in use: Carrier kept its previous settings"
     #expect(settingsNote(state: try running(), canReload: true, outcome: .refused("repos.1.name: bad")) == words)
     // what an engine once said is not said of a Carrier that is stopped: it reads the file when it starts
-    #expect(settingsNote(state: .stopped, canReload: false, outcome: .refused("x")) == "Carrier reads this repo when it starts")
+    #expect(settingsNote(state: .stopped, canReload: false, outcome: .refused("x")) == "Carrier reads this repository when it starts")
 }
 
 @Test func anEngineThatDidNotAnswerMayHaveAppliedItSoTheRepoIsNotSaidToBeKept() throws {
-    let words = "Carrier did not answer: it may not have applied this repo"
+    let words = "Carrier did not answer: it may not have applied this repository"
     #expect(settingsNote(state: try running(), canReload: true, outcome: .noAnswer) == words)
 }
 

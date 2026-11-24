@@ -30,7 +30,7 @@ Settings is a window of its own with a native sidebar (`List` in `.sidebar` styl
 | `SettingsPreview` | A sample of what the rows around it change, inside their group (the terminal's, the time format's, Dictation's widget style). |
 
 Spacing: **14 between blocks, 4 inside a block** (a name and its version), 12 between a tile and its text. A row's line is one line: what does not fit goes to the group's `footer`.
-A page of full-width lists (Repos, Health, the Projects list) has `isColumn` false, and a screen of its own that such a page opens (a project's) is a column all the same: `SettingsPlace.isColumn` says which, so the list takes the window and the screen is read as a line.
+A page of full-width lists (Health, the Projects list) has `isColumn` false, and a screen of its own that such a page opens (a project's) is a column all the same: `SettingsPlace.isColumn` says which, so the list takes the window and the screen is read as a line.
 A list of things that open a screen (the projects) is a card of `NavigationRow`s, the first with `first: true` so no line is above it, each with its tile before the name; the empty list is an `EmptyStateView` in the same card with its one action as an `accentGlass` pill, and Add project over a list that has rows is a small Secondary button at the right above the card.
 A row that stands for work that is not a place yet (a clone) is the same row with no chevron and cannot be clicked: its name with a `StatusChip` (Cloning in the accent, Failed in orange), the progress line or the reason under it (orange when failed) and, for a failure, a small Secondary Dismiss button at the end.
 A page that is a column (`SettingsPage.isColumn`, `settingsColumnWidth`) is centered by `.contentMargins(.horizontal, _, for: .scrollContent)` on its scroll view and never by narrowing the view: the scroll bar stays at the window's edge and what scrolls under the toolbar reaches both sides of it.
@@ -97,6 +97,7 @@ A feed that is a column of the window (the Agent output of an epic) is not made 
 - **A problem the person is told of in a session or in a new one is `ProblemNotice`** (orange for what is theirs to solve: a refusal of the host, a name that cannot be used, no provider ready, a host older than the app; red for what failed: a session that could not be read, a dictation, a folder), or `BannerView` for a refused send or a failed turn (it adds Try again and the line that says where to sign in); never a plain coloured line under the box. Every message of the conversation that is not a message is one `NoticeCard`. `splitNotice` breaks a sentence into title and detail. `--fixture` has the session "Notices" (`NoticesGalleryView`) with all of them at once, to look at a change to one beside the rest. What is left as a line on purpose: Settings' `ProblemLine`, the dictation widget's own notices, the sidebar's blocks (a narrow column) and the text inside a row of a list.
 - **The actions of a `NoticeCard` are `NoticeActionStyle`, never the accent**: the accent the person chose does not read on the card's glass (violet on grey was 2.7:1). The main action is the card's own colour (lighter on dark, deeper on light) on a pill of that colour; the quiet one (Copy details, the cross that drops a queued message) is near-primary words with a pill under the pointer. The card hands its colour down in `noticeTint`. Its detail and hint are `primary` at 78 %, not `secondary`.
 - **Links in a toolbar are `ToolbarPillButton`s on one glass capsule**; the item hides the toolbar's own glass (`sharedBackgroundVisibility(.hidden)`).
+- **A screen with several actions puts them in the toolbar through `SettingsHeaderButtons`** (`settingsHeaderButtons` in the environment: `set(owner, [(button, run)])` when it appears and whenever a button's state changes, `clear(owner)` when it goes), which draws one glass capsule with a `ToolbarPillButton` for each (Watching's Check now and Watch a project…); a single toggle is `SettingsHeaderAction` (Pin). Not buttons in the page's first row.
 
 ## Lines
 
@@ -168,7 +169,7 @@ A row that opens an editor or a form shows **a chevron `.chevronRight` at its ri
 
 - The chevron is a `Button` in `HoverTextButtonStyle(tint: nil)` with `.accessibilityLabel("Edit …")` and a `.help`; it is dimmed (`.disabled`) while that row is the one open.
 - The row has `.contentShape(Rectangle()).onTapGesture { … }` (guard it so a second click on the open row does nothing). A button inside the row (Sign in, Reset, Use in an agent…) keeps its own click: a `Button` takes the click before the row's gesture.
-- When the row opens a form below it, the chevron **sits in a fixed 26 × 26 slot and turns 90°** (`rotationEffect`); it must not move or resize. (`ReposTab.swift`, `roleRow`.)
+- When the row opens a form below it, the chevron **sits in a fixed 26 × 26 slot and turns 90°** (`rotationEffect`); it must not move or resize. (`RoleRailRow` in `AgentsParts.swift`; Watching's list rows are drawn the same.)
 
 ## Fields and selects
 
@@ -212,7 +213,7 @@ A row that opens an editor or a form shows **a chevron `.chevronRight` at its ri
   A new search or filter goes back to the first page; a new or a deleted entry leaves the list where it was.
   Rows that the engine already caps (the files of a section at 500, a diff at 1000 rows) may be a `LazyVStack` instead, since their cost is bounded by that cap.
 - **A menu's items have an icon, and a `Label` in a `Menu` or a `contextMenu` needs `.labelStyle(.titleAndIcon)` to show it**; this SwiftUI draws a menu's labels title only otherwise.
-- Small facts of a status card (`fact` in `ReposTab.swift`): a label of 84 pt in `secondary` and the value; **every row is at least 40 pt**, taller than any chip, so a row with a badge and one without are the same height.
+- Small facts of a status card are `SettingsTabRow`s: the label as the title, the value as its line under it (monospaced for a path), the action at the right; none draws its own divider. A page of this kind is a `Form` (`SettingsPage.usesForm`), so Agents' pieces (`EpicRail`, `RoleHero`) and the kit's rows keep their own margins.
 - A state is shown by a green, orange or grey dot, or by `StatusMark` (`SettingsTabs.swift`, a 16 pt round mark: `.check` green, `.exclamation` yellow, `.close` orange), at the right of a row that has no button or before one. While something runs, **each row turns its own `ProgressView` and says "Checking…"**; the page does not say it once in a corner.
 
 ## A value that is not valid
@@ -256,7 +257,7 @@ The widget of the global dictation (`DictationWidget.swift`) is a floating panel
 - A `Spacer` inside a view that sits in `safeAreaBar` (the page header) takes all the height the bar offers: the header filled the window. Size such a view by what it holds.
 - `frame` before `padding` and `background` lets a `TextEditor` spill over the row above it. Size last.
 - A page-wide `.buttonStyle(…)` reaches inside menus and forms; a control that must differ sets its own style.
-- A switch is the size a native `Form` gives it (what `.controlSize(.mini)` draws, 36 pt wide) on every settings page. The pages that are not a `Form` (Projects, Repos, Health) draw it at 54 pt unless the switch says `.controlSize(.mini)`.
+- A switch is the size a native `Form` gives it (what `.controlSize(.mini)` draws, 36 pt wide) on every settings page. The pages that are not a `Form` (Projects, Watching, Health) draw it at 54 pt unless the switch says `.controlSize(.mini)`.
 - The system's switches and sliders take the `tint` of the window (`.themed()`), not `Color.themeAccent`; `.themed()` reads the theme while the view draws, so it must stay a modifier and not read it once when it is applied: the Settings window is built once and a color picked later has to reach it.
 - A `contentShape` row with a gesture and a button inside is fine; two gestures on the same view are not.
 - A row that opens on `.onTapGesture` alone is invisible to the keyboard and to Full Keyboard Access: make it a `Button` (`.buttonStyle(.plain)`).

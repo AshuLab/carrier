@@ -47,6 +47,8 @@ struct EpicRail: View {
     let page: AgentsPage
     let readiness: AgentsReadiness
     let icons: [String: String]
+    /// On a repo's screen: the roles the repo has its own settings for; every row then says whether it is one of them or follows Agents. nil on Agents itself.
+    var own: Set<AgentRole>?
     let open: (AgentRole) -> Void
 
     /// The title of the group the rows are in, which the search finds them by.
@@ -57,7 +59,7 @@ struct EpicRail: View {
             ForEach(Array(page.rows.enumerated()), id: \.element.id) { index, row in
                 if index > 0 { link(into: row) }
                 RoleRailRow(
-                    row: row, needsAttention: readiness.problems.contains { $0.role == row.role },
+                    row: row, needsAttention: readiness.problems.contains { $0.role == row.role }, own: own.map { $0.contains(row.role) },
                     avatar: roleAvatar(row, page: page, icons: icons, size: 38), action: { open(row.role) }
                 )
             }
@@ -83,6 +85,8 @@ struct EpicRail: View {
 private struct RoleRailRow: View {
     let row: RoleRow
     let needsAttention: Bool
+    /// Whether the repo has settings of its own for the role (a repo's screen), nil on Agents.
+    var own: Bool?
     let avatar: RoleAvatar
     let action: () -> Void
     @State private var hovering = false
@@ -97,6 +101,7 @@ private struct RoleRailRow: View {
                 }
                 Spacer(minLength: 8)
                 trailing
+                if let own { StatusChip(text: own ? "Own" : "Same as everywhere", tint: own ? Color.themeAccent : .secondary) }
                 Glyph(.chevronRight, size: 13, bold: true).foregroundStyle(.tertiary)
             }
             .padding(.horizontal, 8).frame(minHeight: 54)

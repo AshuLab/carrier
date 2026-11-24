@@ -92,7 +92,7 @@ The accounts the roles name (`claude` and `codex` here) are declared in `provide
 | `orchestratorProfile` | no | the author's profile | Profile used to read issues and PRs and to change labels. Left out, it is `agents.author.profile`; set it only when the author's profile cannot read a repo, for instance a repo of another owner where the author's bot is not installed. `carrier init` asks for it, before the author and the reviewer. You can also choose it in the Mac app, under GitHub identity in Settings > Engine (the default takes the key out of the file). When a repo's read check fails with a 404, the doctor's fix names this key as the second way out, besides installing the App. |
 | `agents.author` / `agents.reviewer` | yes | | `{ profile, provider, model, persona? }` for each role: the GitHub identity it acts as, the AI provider it connects through, and the model it uses. |
 | `agents.leadReviewer` | no | none | Optional lead reviewer `{ profile, provider, model, effort?, persona?, skills? }`; its `skills` takes only `lead`. The engine does not run it yet: it is accepted, checked by `carrier doctor` and saved with the epic. See [Extra reviewers and the lead reviewer](#extra-reviewers-and-the-lead-reviewer). |
-| `agents.extraReviewers` | no | none | Zero to three more reviewers beside `agents.reviewer`, each `{ profile, provider, model, effort?, persona?, skills?, failover? }`. The engine does not run them yet: they are accepted, checked by `carrier doctor` and saved with the epic. See [Extra reviewers and the lead reviewer](#extra-reviewers-and-the-lead-reviewer). |
+| `agents.extraReviewers` | no | none | Zero to three more reviewers beside `agents.reviewer`, each `{ profile, provider, model, effort?, persona?, skills?, failover? }`. The engine runs them with the mandatory reviewer in every review round, in parallel; they are checked by `carrier doctor` and saved with the epic. See [Extra reviewers and the lead reviewer](#extra-reviewers-and-the-lead-reviewer). |
 | `agents.<role>.effort` | no | none | How hard the model thinks: one of `low`, `medium`, `high`, `xhigh` or `max`, in the global role and in a repo's override of it. Passed as `--effort` to Claude and Antigravity and as `-c model_reasoning_effort=<level>` to Codex, in every run and resume. Without it nothing is passed and the CLI uses its own. Anything else is refused naming the key. |
 | `agents.<role>.persona` | no | none | `{ name?, prompt? }`: who the agent of that role is. `name` is one line of at most 40 characters; `prompt` is text of at most 4000 characters, given to the agent as you wrote it. See [Personas](#personas). |
 | `skills` | no | Solve's: `ship`, `code-review` with `code-post`, `code-resolve` | The skill each stage runs: `{ ship, review: { review, publish }, fix, lead: { review, publish } }`, also in a repo and in a role. `lead` is the lead reviewer's and has no default of its own: left out, it takes `review`. See [Skills](#skills). |
@@ -263,7 +263,10 @@ Each role in `agents` (`author`, `reviewer`, and optional `leadReviewer`) specif
 ### Extra reviewers and the lead reviewer
 
 `agents.extraReviewers` adds up to three reviewers beside `agents.reviewer`, and `agents.leadReviewer` is a final reviewer that runs after them.
-Today the keys are read, checked and saved with each epic, and `carrier doctor` checks them; the engine does not run them yet, so an epic still has the one reviewer.
+The keys are read, checked and saved with each epic, and `carrier doctor` checks them.
+The engine runs the extra reviewers: when the author's `ship` is validated it launches every reviewer at once on the same commit, each in its own checkout, and the round is settled when all of them have a verdict.
+The author's `fix` gets the open blockers of every reviewer, shown as `reviewer-2:B1` when the epic has several reviewers; a round counts once toward `limits.maxReviews` however many reviewers it has.
+The lead reviewer is not run yet, and a reviewer that gives no verdict still stops the epic as a single reviewer does.
 
 ```json
 {
@@ -387,7 +390,7 @@ A role names only the stages it runs: the author `ship` and `fix`, the reviewer 
 The lead's skills are the lead's own, then the repo's `skills.lead`, then the global `skills.lead`; what none of them names is taken from the repo's or the global `skills.review` (never from another role's own `skills`) and then from Solve's defaults.
 An extra reviewer's `review` skills are its own entry's, then the repo's `skills.review`, the global one and Solve's defaults.
 A value taken from a `skills.review` you named counts as named, so it stops an epic when it is absent.
-Carrier does not run the lead or the extra reviewers yet, so these skills are saved and checked by `carrier doctor`, and no epic invokes them.
+Each extra reviewer invokes its own `review` skills; Carrier does not run the lead yet, so the lead's skills are saved and checked by `carrier doctor`, and no epic invokes them.
 
 The resolved skills are saved with an epic's configuration when it starts, so a reload changes nothing for a running epic, and an epic restarted from ship takes the skills of that moment.
 The extra reviewers and the resolved skills of each and of the lead are saved with it too.

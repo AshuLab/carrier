@@ -394,7 +394,7 @@ See [ADR 0049](adr/0049-a-quota-stop-wakes-up-by-itself-when-the-provider-says-t
 _Avoid_: auto-retry (a retry is the automatic new execution after a technical failure), auto-restart, resume by timer.
 
 **Review round** - One pass of every reviewer of the epic over the same head, in parallel, each in its own checkout.
-Planned, not built yet: today a review round is the single review defined above, and several reviewers in parallel belong to a later epic of [the spec of several reviewers and a lead](specs/several-reviewers-and-a-lead.md).
+It is settled when every reviewer has given a verdict on the round's head, one that a moved head set aside not counting; an epic with one reviewer has the single review defined above.
 It ends when every reviewer has settled, and it counts once toward `maxReviews` however many reviewers it has.
 It is not a lead round.
 See [ADR 0048](adr/0048-a-review-round-has-several-reviewers-in-parallel-and-a-lead-reviewer-closes-it.md).

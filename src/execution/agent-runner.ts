@@ -30,10 +30,12 @@ export interface AgentTask extends AccountRuntime {
     round?: number;
     previousSummaries: string[];
     verifyStateFirst?: boolean;
-    /** Fix turn: what the last review asked to change. Review turn after the first: the previous round's blockers, to reuse their ids. */
-    blockers?: { id?: string; title: string; url?: string }[];
-    /** Fix turn after a review that completed with non-blocking findings: the threads to answer and leave open. Takes the place of `blockers`. */
-    observations?: { id?: string; title: string; url?: string }[];
+    /** Fix turn: what the last review asked to change, with the reviewer of each when the epic has several. Review turn after the first: the reviewer's own blockers of the round before, to reuse their ids. */
+    blockers?: { id?: string; title: string; url?: string; reviewer?: Slot }[];
+    /** Fix turn after reviews that completed with non-blocking findings: the threads to answer and leave open, with the reviewer of each when the epic has several. Takes the place of `blockers`. */
+    observations?: { id?: string; title: string; url?: string; reviewer?: Slot }[];
+    /** Review turn of an epic with several reviewers: other reviewers publish on the same pull request. */
+    severalReviewers?: true;
   };
 }
 

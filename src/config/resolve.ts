@@ -16,8 +16,8 @@ export type Agent = {
   providerName?: string;
 } & AccountRuntime;
 
-/** A reviewer beyond the mandatory one, with the review skills it resolved and the failover steps it declared (none: the reviewer role's). */
-export type ExtraReviewer = Agent & { skills: ReviewSkills; failover?: NonNullable<NonNullable<Config['failover']>['roles']>['reviewer'] };
+/** A reviewer beyond the mandatory one, with the review skills it resolved, the failover steps it declared (none: the reviewer role's) and whether its profile is the author's (`sharedIdentity`, saved only when it is). */
+export type ExtraReviewer = Agent & { skills: ReviewSkills; failover?: NonNullable<NonNullable<Config['failover']>['roles']>['reviewer']; sharedIdentity?: true };
 
 // Only profile names, never credentials: Agent Forge resolves those from the profile at run time.
 // `sharedIdentity` is saved with the epic so a later config change does not move it; absent on epics saved before it existed.
@@ -65,14 +65,17 @@ export function resolveRepoConfig(config: Config, repo: Config['repos'][number])
     return base || repoAgent ? agentOf({ ...(base ?? {}), ...(repoAgent ?? {}) }) : undefined;
   };
   const leadReviewer = roleOf('leadReviewer');
+  const authorAgent = roleOf('author')!;
+  const authorProfile = config.profiles[authorAgent?.profile];
   // A repo's list replaces the global one whole, an empty one included.
   const extraReviewers = (repo.agents?.extraReviewers ?? config.agents.extraReviewers ?? []).map((extra): ExtraReviewer => ({
     ...agentOf(extra)!,
     skills: resolveReviewSkills('review', config.skills, repo.skills, extra.skills?.review),
     ...(extra.failover && { failover: extra.failover }),
+    ...(authorProfile && config.profiles[extra.profile] && sameAccount(authorProfile, config.profiles[extra.profile]!) && { sharedIdentity: true as const }),
   }));
-  const agents = { author: roleOf('author')!, reviewer: roleOf('reviewer')!, ...(leadReviewer ? { leadReviewer } : {}), ...(extraReviewers.length > 0 ? { extraReviewers } : {}) };
-  const [author, reviewer] = [config.profiles[agents.author?.profile], config.profiles[agents.reviewer?.profile]];
+  const agents = { author: authorAgent, reviewer: roleOf('reviewer')!, ...(leadReviewer ? { leadReviewer } : {}), ...(extraReviewers.length > 0 ? { extraReviewers } : {}) };
+  const [author, reviewer] = [authorProfile, config.profiles[agents.reviewer?.profile]];
   return {
     name: repo.name,
     sharedIdentity: author !== undefined && reviewer !== undefined && sameAccount(author, reviewer),

@@ -350,3 +350,14 @@ test('the Solve-only sentences of ship are said only with the default ship skill
   }
   expect(other).toContain('Closes #3');
 });
+
+test('with several reviewers the fix prompt shows each finding under its reviewer and the review prompt names its slot and says others publish too', () => {
+  const fix = buildPrompt(task('fix', { round: 1, blockers: [{ id: 'B1', title: 'one', reviewer: 'reviewer' }, { id: 'B1', title: 'two', reviewer: 'reviewer-2' }, { title: 'three', reviewer: 'reviewer-3' }] }));
+  expect(fix).toContain('- reviewer:B1: one\n- reviewer-2:B1: two\n- reviewer-3: three');
+  expect(fix).toContain('contradict');
+  expect(buildPrompt(task('fix', { round: 1, blockers: [{ id: 'B1', title: 'one' }] }))).not.toContain('contradict');
+  const review = buildPrompt({ ...task('review', { round: 1, severalReviewers: true }), reviewer: 'reviewer-2' });
+  expect(review).toContain('You are the reviewer-2 of the final integration PR');
+  expect(review).toContain('Other reviewers publish on this pull request too');
+  expect(buildPrompt(task('review', { round: 1 }))).not.toContain('Other reviewers publish');
+});

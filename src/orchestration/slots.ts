@@ -1,4 +1,5 @@
-import type { Agent, EffectiveRepoConfig } from '../config/resolve.ts';
+import type { Agent, EffectiveRepoConfig, ExtraReviewer } from '../config/resolve.ts';
+import { savedSkills, type ResolvedSkills } from '../config/skills.ts';
 import type { Slot } from '../storage/executions.ts';
 
 // The extra reviewers live in the epic's saved configuration (`agents.extraReviewers`, as the config's schema names them), which an epic saved before them lacks.
@@ -31,3 +32,12 @@ export function withAgentOfSlot(config: EffectiveRepoConfig, slot: Slot | null, 
 
 /** The role whose failover steps a slot takes: the extra reviewers take the reviewer's. */
 export const failoverRoleOf = (slot: Slot | null): 'author' | 'reviewer' | 'leadReviewer' => (slot === null ? 'author' : slot === 'lead' ? 'leadReviewer' : 'reviewer');
+
+/** The slots that review a round, the mandatory reviewer first: an epic saved before the extra reviewers has one. */
+export const roundSlots = (config: EffectiveRepoConfig | null): Slot[] => ['reviewer', ...(config?.agents.extraReviewers ?? []).map((_, i) => `reviewer-${i + 2}` as Slot)];
+
+/** The skills a slot invokes: an extra reviewer's own review skills replace the epic's. */
+export function skillsOfSlot(config: EffectiveRepoConfig, slot: Slot | null): ResolvedSkills {
+  const own = slot === null ? undefined : (agentOfSlot(config, slot) as Partial<ExtraReviewer> | undefined)?.skills;
+  return own ? { ...savedSkills(config), review: own } : savedSkills(config);
+}

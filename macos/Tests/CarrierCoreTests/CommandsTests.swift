@@ -2,8 +2,7 @@ import Foundation
 import Testing
 @testable import CarrierCore
 
-private let fixtureURL = URL(fileURLWithPath: #filePath)
-    .deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures/snapshot.json")
+private let fixtureURL = testPaths().fixtures.appendingPathComponent("snapshot.json")
 
 /// The fixture (two running epics, one needing a person, two queued) with `change` applied.
 private func snapshot(_ change: (inout PanelSnapshot) -> Void = { _ in }) throws -> PanelSnapshot {

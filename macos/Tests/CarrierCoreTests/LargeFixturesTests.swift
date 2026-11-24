@@ -37,7 +37,7 @@ func writesTheLargeFixturesForAMeasurementByHand() async throws {
     let path = try #require(ProcessInfo.processInfo.environment["CARRIER_PERF_FIXTURES"])
     try #require(path.isEmpty == false)
     let root = URL(fileURLWithPath: path)
-    let golden = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures")
+    let golden = testPaths().fixtures
     let fixtures = root.appendingPathComponent("fixtures")
     let fileManager = FileManager.default
     try fileManager.createDirectory(at: root, withIntermediateDirectories: true)

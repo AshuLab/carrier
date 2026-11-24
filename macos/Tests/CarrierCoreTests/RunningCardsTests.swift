@@ -2,8 +2,7 @@ import Foundation
 import Testing
 @testable import CarrierCore
 
-private let fixtures = URL(fileURLWithPath: #filePath)
-    .deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures")
+private let fixtures = testPaths().fixtures
 
 /// The fixture: web #12 in review (round 2/5, 3 of 5 slices) and web #13 in ship, 2 of 3 slots busy, two epics queued.
 private func load(_ change: (inout PanelSnapshot) -> Void = { _ in }) throws -> PanelSnapshot {

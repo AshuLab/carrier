@@ -5,7 +5,7 @@ import Testing
 // The first screen of the Providers page: which accounts need someone, what a provider says of its accounts, the usage of each account and the
 // filter, from the golden `providers` and `usage` replies and a clock inside the fixture's day.
 
-private let fixtures = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures")
+private let fixtures = testPaths().fixtures
 private let now = 1_794_700_800_000
 
 private func page() throws -> ProvidersPage {

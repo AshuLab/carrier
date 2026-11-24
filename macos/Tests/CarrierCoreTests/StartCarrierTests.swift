@@ -119,7 +119,7 @@ private let homebrew = "/opt/homebrew/bin/carrier"
 }
 
 @Test func openingTheAppStartsCarrierOnlyWhenEveryConditionHolds() throws {
-    let running = ConnectionState.running(try decodeSnapshot(Data(contentsOf: URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures/snapshot.json"))))
+    let running = ConnectionState.running(try decodeSnapshot(Data(contentsOf: testPaths().fixtures.appendingPathComponent("snapshot.json"))))
     func decide(enabled: Bool = true, first: ConnectionState = .stopped, ready: Bool = true, fixture: Bool = false, tried: Bool = false) -> Bool {
         shouldStartOnOpen(enabled: enabled, firstState: first, startReady: ready, fixture: fixture, alreadyTried: tried)
     }

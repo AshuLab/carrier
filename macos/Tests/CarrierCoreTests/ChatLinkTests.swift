@@ -2,8 +2,7 @@ import Foundation
 import Testing
 @testable import CarrierCore
 
-private let fixtures = URL(fileURLWithPath: #filePath)
-    .deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures").path
+private let fixtures = testPaths().fixtures.path
 
 private func hello(_ capabilities: String = "\"agents\",\"list\",\"events\"") -> String {
     "{\"event\":\"hello\",\"protocol\":1,\"pid\":42,\"startedAt\":1000,\"version\":\"x\",\"capabilities\":[\(capabilities)]}\n"

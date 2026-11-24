@@ -4,8 +4,7 @@ import Testing
 
 // The pooled quota list of the Usage page: meter geometry, the rows of every drawer, the provider filter, the limit detection and the refresh triggers.
 
-private let golden = URL(fileURLWithPath: #filePath)
-    .deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures/chat-usage.json")
+private let golden = testPaths().fixtures.appendingPathComponent("chat-usage.json")
 private func snapshot() throws -> UsageSnapshot { try JSONDecoder().decode(UsageSnapshot.self, from: Data(contentsOf: golden)) }
 
 /// Inside the fixture's day: the Claude 5h resets 10 800 s later.
@@ -163,7 +162,7 @@ private func window(_ used: Double, resetsAt: Int? = nil, label: String = "5h", 
 // MARK: limit detection
 
 private func state(_ kind: String?, status: String = "needs_human", issue: Int = 7) throws -> ConnectionState {
-    let json = try String(contentsOf: URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures/snapshot.json"), encoding: .utf8)
+    let json = try String(contentsOf: testPaths().fixtures.appendingPathComponent("snapshot.json"), encoding: .utf8)
     var snapshot = try decodeSnapshot(Data(json.utf8))
     snapshot.epics = Array(snapshot.epics.prefix(1))
     snapshot.epics[0].issue = issue

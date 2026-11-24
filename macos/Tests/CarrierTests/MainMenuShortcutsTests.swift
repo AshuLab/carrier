@@ -4,8 +4,7 @@ import Testing
 @testable import CarrierCore
 @testable import Carrier
 
-private let fixtures = URL(fileURLWithPath: #filePath)
-    .deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures")
+private let fixtures = testPaths().fixtures
 
 /// The main menu is built from the shortcut table: its items carry the table's keys, and another table gives other keys.
 @MainActor @Suite struct MainMenuShortcutsTests {

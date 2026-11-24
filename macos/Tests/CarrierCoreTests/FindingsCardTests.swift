@@ -91,7 +91,7 @@ private let suggestion = EpicReply.Observation(id: "s1", title: "Rename it", url
 }
 
 @Test func theFixtureReplyGivesTheReviewerAndTheFixerTheirRounds() throws {
-    let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures/reply-epic.json")
+    let url = testPaths().fixtures.appendingPathComponent("reply-epic.json")
     let epic = try JSONDecoder().decode(EpicReply.self, from: Data(contentsOf: url))
     let first = try #require(findingsCard(epic, stage: "review", round: 1))
     #expect(first.rows.map(\.mark) == [.new, .new, nil] && first.summary == "2 blockers · 1 suggestion")

@@ -5,8 +5,7 @@ import Testing
 // The consumption section of the Usage page: filter combinations, the KPI cards, the stacked chart and its tooltip, the tables and the checks
 // of the price override form before `usageOverride` is called.
 
-private let goldenFile = URL(fileURLWithPath: #filePath)
-    .deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures/chat-usage.json")
+private let goldenFile = testPaths().fixtures.appendingPathComponent("chat-usage.json")
 private func golden() throws -> UsageSnapshot { try JSONDecoder().decode(UsageSnapshot.self, from: Data(contentsOf: goldenFile)) }
 
 // MARK: filters

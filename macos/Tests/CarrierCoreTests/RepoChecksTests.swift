@@ -90,7 +90,7 @@ private func summary(_ checks: RepoChecks) -> [String] {
 }
 
 @Test func theGoldenDoctorOutputOfTheFixtureShowsEachKindOfRowOnTheFixtureRepos() throws {
-    let path = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures/doctor.json")
+    let path = testPaths().fixtures.appendingPathComponent("doctor.json")
     let doctor = doctorState(from: ProcessOutcome(exitCode: 1, stdout: String(decoding: try Data(contentsOf: path), as: UTF8.self)))
     let fixture = Data(fixtureConfig.utf8)
     func found(_ repo: String) -> [RepoCheckRow.Status] {

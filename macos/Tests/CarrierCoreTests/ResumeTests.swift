@@ -143,14 +143,14 @@ private func connect(_ engine: FixtureEngine) throws -> ControlClient {
 // MARK: the fixture
 
 @Test func theFixtureServerListsAndAnswersResumeEpic() throws {
-    let fixtures = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures").path
+    let fixtures = testPaths().fixtures.path
     let server = try FixtureServer(fixtures: fixtures)
     defer { server.stop() }
     #expect(resumeEpic(socketPath: server.socketPath, repo: "acme/api", issue: 6) == .resumed)
 }
 
 @Test func theGoldenSnapshotHasAStoppedEpicOfEachKindAndOthersThatAreNotStopped() throws {
-    let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures/snapshot.json")
+    let url = testPaths().fixtures.appendingPathComponent("snapshot.json")
     let epics = try decodeSnapshot(Data(contentsOf: url)).epics
     // usage_limit (an option ran out of credits), engine_error (the engine hit an unexpected error) and skill_missing (a skill the person named is not installed) are not kinds the app words: they are drawn by the generic card for kinds it does not know.
     #expect(Set(epics.filter { $0.status == .needsHuman }.compactMap(\.needsHumanKind)) == Set(allKinds + ["usage_limit", "engine_error", "skill_missing", "reviewers_failed", "lead_limit"]))
@@ -161,7 +161,7 @@ private func connect(_ engine: FixtureEngine) throws -> ControlClient {
 // MARK: a Resume in flight
 
 private func snapshot(_ epics: [PanelEpic]) throws -> PanelSnapshot {
-    let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures/snapshot.json")
+    let url = testPaths().fixtures.appendingPathComponent("snapshot.json")
     var snapshot = try decodeSnapshot(Data(contentsOf: url))
     snapshot.epics = epics
     return snapshot

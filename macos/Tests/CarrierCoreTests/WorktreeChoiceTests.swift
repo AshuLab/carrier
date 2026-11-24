@@ -5,8 +5,7 @@ import Testing
 // The worktree half of the new-session sentence as pure values over the `workspace` reply: golden replies of the fixture host
 // (`Tests/Fixtures/chat-workspace.json`, `chat-fetch.json`, `chat-names.json`), decoded as the app decodes the host's answer.
 
-private let fixtures = URL(fileURLWithPath: #filePath)
-    .deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures")
+private let fixtures = testPaths().fixtures
 
 private func golden(_ file: String) throws -> [String: Any] {
     try #require(JSONSerialization.jsonObject(with: Data(contentsOf: fixtures.appendingPathComponent(file))) as? [String: Any])

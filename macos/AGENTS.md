@@ -11,6 +11,8 @@ A SwiftPM package for macOS 26+: `CarrierCore` (library), `Carrier` (AppKit shel
 
 The gated recognizer tests (`{Apple,FluidAudio,WhisperKit}RecognizerTests`) run only with `CARRIER_IT_DICTATION` naming a folder laid out as the app keeps its models ([layout](../docs/macos/dictation.md#speech-models)).
 The live shell test (`CarrierTerminalStoreTests`) spawns a real Ghostty surface offscreen, only with `CARRIER_IT_TERMINAL=1`.
+A test finds `Tests/Fixtures`, `Sources` and the repository root with `testPaths()` (`TestPaths.swift` in each test target), never by climbing from `#filePath`, so a file can move to any depth.
+A test that scans the sources reads every subfolder and fails when it scans fewer files than a minimum (`swiftFiles(under:minimum:)`), and finds a source file by its name, not its path.
 
 ## Starting Carrier and the chat host
 

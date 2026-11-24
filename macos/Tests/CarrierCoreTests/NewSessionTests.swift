@@ -615,7 +615,7 @@ private func cleanRepo(_ folder: String) -> WorkspaceInfo {
 // MARK: the client
 
 @Test func theFixtureHostAnswersTheWorktreeRequestsFromTheGoldenFiles() async throws {
-    let server = try FixtureServer(fixtures: URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures").path)
+    let server = try FixtureServer(fixtures: testPaths().fixtures.path)
     defer { server.stop() }
     let host = SocketChatHost(socketPath: { server.chatSocketPath })
     let git = try await host.workspace("/Users/dev/carrier")
@@ -634,7 +634,7 @@ private func cleanRepo(_ folder: String) -> WorkspaceInfo {
 }
 
 @Test func openingInAWorktreeThroughTheFixtureHostMakesASessionThatIsListedWithItsBranch() async throws {
-    let server = try FixtureServer(fixtures: URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures").path)
+    let server = try FixtureServer(fixtures: testPaths().fixtures.path)
     defer { server.stop() }
     let host = SocketChatHost(socketPath: { server.chatSocketPath })
     func plan(_ folder: String, _ worktree: WorktreeRequest?) -> SessionPlan { SessionPlan(agent: "claude", folder: folder, worktree: worktree, text: "hello") }

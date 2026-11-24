@@ -4,8 +4,7 @@ import Testing
 
 /// Apple's recognizer has no download and nothing to name; every other model of the catalog is downloaded by the person and has its notice.
 @Test func theNoticesNameEveryModelOfTheCatalog() throws {
-    let file = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        .deletingLastPathComponent().appending(path: "THIRD-PARTY-NOTICES.md")
+    let file = testPaths().root.appending(path: "THIRD-PARTY-NOTICES.md")
     let notices = try String(contentsOf: file, encoding: .utf8)
     let models = FluidAudioRecognizer.entries.map(\.model) + WhisperKitRecognizer.entries.map(\.model)
     #expect(models.count == 10)
@@ -15,7 +14,7 @@ import Testing
 /// FluidAudio is linked with `text-processing-rs` and fastcluster, which ask for their notices in a binary distribution, and the app carries the
 /// licence texts of what it links: the file names them, and `build-app.sh` and `check-app.sh` put the texts in the bundle.
 @Test func theNoticesNameWhatFluidAudioCarriesAndTheLicencesTheAppShips() throws {
-    let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+    let root = testPaths().root
     let notices = try String(contentsOf: root.appending(path: "THIRD-PARTY-NOTICES.md"), encoding: .utf8)
     #expect(["text-processing-rs", "fastcluster", "swift-transformers", "Apache License 2.0", "Mitchell Hashimoto", "Ryan Caloras", "Contents/Resources/Licenses"].filter { notices.contains($0) == false } == [])
     let build = try String(contentsOf: root.appending(path: "macos/build-app.sh"), encoding: .utf8)

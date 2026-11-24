@@ -2,8 +2,7 @@ import Foundation
 import Testing
 @testable import CarrierCore
 
-private let fixtureURL = URL(fileURLWithPath: #filePath)
-    .deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures/snapshot.json")
+private let fixtureURL = testPaths().fixtures.appendingPathComponent("snapshot.json")
 
 private let oldFixtureURL = fixtureURL.deletingLastPathComponent().appendingPathComponent("snapshot-old-engine.json")
 

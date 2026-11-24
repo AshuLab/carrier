@@ -97,8 +97,7 @@ private func readiness(_ json: String, providers: String? = nil) throws -> Agent
 
 @Test func theStagesAreWhatTheEngineInvokesNotMore() throws {
     // The prompts take the skill names from the config (`src/prompts` hard-codes none); the defaults are the ones the engine's contract test pins in the fixture.
-    let tests = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-    let fixture = try JSONSerialization.jsonObject(with: Data(contentsOf: tests.appendingPathComponent("Fixtures/engine-config.json"))) as? [String: Any]
+    let fixture = try JSONSerialization.jsonObject(with: Data(contentsOf: testPaths().fixtures.appendingPathComponent("engine-config.json"))) as? [String: Any]
     let skills = try #require((fixture?["defaults"] as? [String: Any])?["skills"] as? [String: Any])
     let review = try #require(skills["review"] as? [String: String])
     let invoked = Set([skills["ship"] as? String, skills["fix"] as? String, review["review"], review["publish"]].compactMap { $0 })

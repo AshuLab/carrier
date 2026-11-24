@@ -7234,14 +7234,186 @@ test('without a stage label for the lead the epic in the stage lead shows only r
   expect(labelsOf(1)).toEqual(['carrier:status:running']);
 });
 
-// Until the slices that follow, a lead that asks for changes, cannot conclude, fails or lacks a skill stops the epic.
+// --- the lead asks for changes: the author fixes with the lead's blockers and only the lead reviews again, up to limits.maxLeadRounds ---
 
-test('a lead that asks for changes stops the epic for a person with the kind lead_limit and its blockers in the reason, and no author fix is launched', async () => {
-  const engine = await leadFlow(bothAgree, leadSays({ outcome: 'changes_requested', blockers: [{ id: 'L1', title: 'the rollback is untested' }] }));
+const leadAsks = (title: string, extra: object = {}) => leadSays({ outcome: 'changes_requested', blockers: [{ id: 'L1', title }], ...extra });
+// The author's fix commits: the pull request has `head` and the fix says so.
+const fixTo = (head: string) => (task: AgentTask): Behavior => {
+  pull(50, { headSha: head });
+  return { write: completed(task, { number: 50, headSha: head }) };
+};
+// The lead asks `asks` times, then completes; each fix commits the next head of `heads`.
+const leadAfter = (asks: number, heads = [HEAD2, HEAD3, HEAD4]) => {
+  let given = 0;
+  return {
+    lead: (task: AgentTask) => (++given <= asks ? leadAsks(`blocker ${given}`)(task) : leadSays(ok)(task)),
+    fix: (task: AgentTask) => fixTo(heads.shift()!)(task),
+  };
+};
 
-  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'lead_limit', approvedSha: null, round: 1 });
-  expect(rows(engine.db)[0]!.needsHumanReason).toContain('the rollback is untested');
-  expect(runner.tasks.map((t) => t.stage)).toEqual(['ship', 'review', 'review', 'lead']);
+test('a lead that asks for changes below its limit sends the epic to the author fix with the lead\'s blockers only, and the lead reviews again on the head after the fix: the reviewers do not run again and the round stays', async () => {
+  const { lead, fix } = leadAfter(1);
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50);
+  runner.behavior = (task) => (task.stage === 'ship' ? { sessionId: 's-ship', write: completed(task) } : task.stage === 'review' ? bothAgree(task) : task.stage === 'lead' ? lead(task) : fix(task));
+  const engine = await start(1, [withLead(twoReviewers())], 4, 3, 1); // maxReviews 1: a lead exchange that counted as a round would hit it
+  await clock.advance(5 * MIN);
+  await engine.idle();
+
+  expect(runner.tasks.map((t) => t.stage)).toEqual(['ship', 'review', 'review', 'lead', 'fix', 'lead']);
+  const [fixTask] = runner.tasks.filter((t) => t.stage === 'fix');
+  expect(fixTask).toMatchObject({ resumeSession: 's-ship', context: { round: 1, pr: { number: 50, headSha: SHA }, blockers: [{ id: 'L1', title: 'blocker 1' }] } });
+  expect(fixTask!.context.observations).toBeUndefined();
+  expect(buildPrompt(fixTask!)).toContain('- blocker 1');
+  expect(leadTasks().map((t) => [t.context.round, t.context.pr!.headSha, t.workspace])).toEqual([[1, SHA, '/work/AshuLab/a/1/lead-50'], [1, HEAD2, '/work/AshuLab/a/1/lead-50']]);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'ready_for_test', round: 1, leadRound: 2, prHeadSha: HEAD2, reviewedSha: SHA, approvedSha: HEAD2 });
+});
+
+test('between the lead\'s request and its next review the epic is in the stage fix with the lead round kept, then back in the stage lead with one more', async () => {
+  const { lead, fix } = leadAfter(1);
+  let during: object | undefined;
+  const engine = await leadFlow(bothAgree, lead, {
+    fix: (task) => {
+      during = rows(dbs.at(-1)!)[0];
+      return fix(task);
+    },
+  });
+
+  expect(during).toMatchObject({ status: 'running', stage: 'fix', round: 1, leadRound: 1, reviewedSha: SHA });
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'ready_for_test', stage: 'lead', leadRound: 2 });
+});
+
+test('a lead that asks for changes in each of its rounds stops the epic in lead_limit at maxLeadRounds, naming the lead and the limit, and launches no fix after the last', async () => {
+  const { fix } = leadAfter(0);
+  const engine = await leadFlow(bothAgree, (task) => leadAsks(`blocker ${leadTasks().length}`)(task), { fix });
+
+  expect(runner.tasks.map((t) => t.stage)).toEqual(['ship', 'review', 'review', 'lead', 'fix', 'lead', 'fix', 'lead']);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'lead_limit', stage: 'lead', leadRound: 3, round: 1, approvedSha: null });
+  const reason = rows(engine.db)[0]!.needsHumanReason!;
+  expect(reason).toContain('lead reviewer');
+  expect(reason).toContain('3 rounds');
+  expect(reason).toContain('limits.maxLeadRounds');
+  expect(reason).toContain('blocker 3');
+});
+
+test('maxLeadRounds is read when the lead\'s answer is decided: raising it lets the epic go on, lowering it stops the epic at once', async () => {
+  const raise = leadAfter(3, [HEAD2, HEAD3, HEAD4]);
+  let raised = false;
+  const engine = await leadFlow(bothAgree, (task) => {
+    if (!raised && leadTasks().length === 3) {
+      raised = true;
+      settings.maxLeadRounds = 4; // the reload happens while the third review runs
+    }
+    return raise.lead(task);
+  }, { fix: raise.fix });
+  expect(leadTasks()).toHaveLength(4);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'ready_for_test', leadRound: 4 });
+});
+
+test('a lowered maxLeadRounds stops the epic at the next decision', async () => {
+  const lower = leadAfter(5);
+  const engine = await leadFlow(bothAgree, (task) => {
+    if (leadTasks().length === 2) settings.maxLeadRounds = 2;
+    return lower.lead(task);
+  }, { fix: lower.fix });
+  expect(leadTasks()).toHaveLength(2);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'lead_limit', leadRound: 2 });
+  expect(rows(engine.db)[0]!.needsHumanReason).toContain('2 rounds');
+});
+
+test('the lead\'s exchange does not count toward maxReviews: with maxReviews 1 the epic still ends up ready for test after the lead\'s fixes, and no round is added', async () => {
+  const { lead, fix } = leadAfter(2);
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50);
+  runner.behavior = (task) => (task.stage === 'ship' ? { write: completed(task) } : task.stage === 'review' ? bothAgree(task) : task.stage === 'lead' ? lead(task) : fix(task));
+  const engine = await start(1, [withLead(twoReviewers())], 4, 3, 1);
+  await clock.advance(5 * MIN);
+  await engine.idle();
+
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'ready_for_test', round: 1, leadRound: 3 });
+  expect(runner.tasks.filter((t) => t.stage === 'review')).toHaveLength(2);
+  expect(eventsOf(engine.db).filter((e) => e.type === 'round_decided')).toHaveLength(1);
+});
+
+test('the lead\'s observations are kept with its result and are not sent to the author, and are not counted as left unanswered', async () => {
+  const observations = [{ id: 'O1', title: 'a name could be clearer' }];
+  const { fix } = leadAfter(1);
+  let given = 0;
+  const engine = await leadFlow(bothAgree, (task) => (++given === 1 ? leadAsks('blocker 1')(task) : leadSays({ ...ok, observations })(task)), { fix });
+
+  const fixTask = runner.tasks.find((t) => t.stage === 'fix')!;
+  expect(fixTask.context.blockers).toEqual([{ id: 'L1', title: 'blocker 1' }]);
+  expect(fixTask.context.observations).toBeUndefined();
+  expect(buildPrompt(fixTask)).not.toContain('a name could be clearer');
+  const stored = engine.db.select().from(callerResults).all().filter((r) => leadTasks().some((t) => t.executionId === r.executionId));
+  expect(stored.map((r) => (JSON.parse(r.result) as { observations: unknown }).observations)).toEqual([undefined, observations]);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'ready_for_test', unansweredObservations: null, unansweredReason: null });
+  expect(eventsOf(engine.db).filter((e) => e.type === 'lead_completed').map((e) => e.data.observations)).toEqual([observations]); // shown with the event the lead's completion leaves
+});
+
+test('the reviewers\' own observations pass is still the observations pass: a lead after it that asks for changes gets only its blockers, never the reviewers\' observations', async () => {
+  const observations = [{ id: 'O1', title: 'from a reviewer' }];
+  let given = 0;
+  const heads = [HEAD2, HEAD3];
+  const engine = await leadFlow(
+    verdictBy({ reviewer: { ...ok, observations }, 'reviewer-2': ok }),
+    (task) => (++given === 1 ? leadAsks('blocker 1')(task) : leadSays(ok)(task)),
+    { fix: (task) => fixTo(heads.shift()!)(task) },
+  );
+
+  const fixes = runner.tasks.filter((t) => t.stage === 'fix');
+  expect(fixes.map((t) => [t.context.observations?.map((o) => o.title), t.context.blockers?.map((b) => b.title)])).toEqual([[['from a reviewer'], undefined], [undefined, ['blocker 1']]]);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'ready_for_test', leadRound: 2 });
+});
+
+// A resume after the lead stopped the epic in lead_limit: the exchange starts over.
+const lead3 = () => {
+  const { fix } = leadAfter(0);
+  return leadFlow(bothAgree, (task) => leadAsks(`blocker ${leadTasks().length}`)(task), { fix });
+};
+// The person puts `ready` back and resumes from `from`; what ran before is forgotten.
+const resumeLead = async (engine: Awaited<ReturnType<typeof start>>, from: 'review' | 'fix') => {
+  runner.tasks.length = 0;
+  await clock.advance(MIN); // the person comes back later: the new attempt starts after the executions of the old one
+  github.ready = { 'AshuLab/a': ready(1) };
+  await resumeFrom(engine, from);
+};
+
+test('a resume at fix of an epic that stopped in lead_limit clears the lead round and the approved head, gives the fix the lead\'s latest blockers, and the fix goes back to the reviewers\' round, not to the lead', async () => {
+  const engine = await lead3();
+  expect(rows(engine.db)[0]).toMatchObject({ needsHumanKind: 'lead_limit', leadRound: 3 });
+  const fixes: AgentTask[] = [];
+  runner.behavior = (task) => (task.stage === 'fix' ? (fixes.push(task), fixTo(HEAD4)(task)) : { exit: 'stopped' });
+  await resumeLead(engine, 'fix');
+  await engine.idle();
+
+  expect(fixes).toHaveLength(1);
+  expect(fixes[0]!.context.blockers).toEqual([{ id: 'L1', title: 'blocker 3' }]);
+  expect(fixes[0]!.context.observations).toBeUndefined();
+  expect(runner.tasks.map((t) => t.stage)).toEqual(['fix', 'review', 'review']);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'review', round: 2, leadRound: null, approvedSha: null });
+});
+
+test('after such a resume the lead gets its maxLeadRounds again once the reviewers agree', async () => {
+  const engine = await lead3();
+  const late = lateOpen(); // the reviewers answer once the resume is done
+  runner.behavior = (task) => (task.stage === 'fix' ? fixTo(HEAD4)(task) : task.stage === 'review' ? verdictBy({ reviewer: ok, 'reviewer-2': ok }, late.when)(task) : leadAsks(`again ${leadTasks().length}`)(task));
+  await resumeLead(engine, 'fix');
+  late.open();
+  await engine.idle();
+
+  expect(runner.tasks.map((t) => t.stage)).toEqual(['fix', 'review', 'review', 'lead', 'fix', 'lead', 'fix', 'lead']);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'lead_limit', leadRound: 3 });
+});
+
+test('a resume at review of an epic that stopped in lead_limit starts the reviewers\' round again on the head the pull request has, and the lead\'s exchange over once they agree', async () => {
+  const engine = await lead3();
+  runner.behavior = (task) => (task.stage === 'review' ? bothAgree(task) : { exit: 'stopped' });
+  await resumeLead(engine, 'review');
+  await engine.idle();
+
+  expect(runner.tasks.map((t) => [t.stage, t.reviewer])).toEqual([['review', 'reviewer'], ['review', 'reviewer-2'], ['lead', 'lead']]);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'lead', leadRound: 1, approvedSha: null });
 });
 
 test('a lead that cannot conclude stops the epic with agent_needs_human', async () => {

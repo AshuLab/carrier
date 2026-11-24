@@ -361,3 +361,36 @@ test('with several reviewers the fix prompt shows each finding under its reviewe
   expect(review).toContain('Other reviewers publish on this pull request too');
   expect(buildPrompt(task('review', { round: 1 }))).not.toContain('Other reviewers publish');
 });
+
+test('the fix of an epic with several reviewers tells the author that it decides when two reviewers contradict each other, and says so in its summary', () => {
+  expect(stageLines(task('fix', { round: 1, blockers: [{ id: 'B1', title: 'use a map', reviewer: 'reviewer' }, { id: 'B1', title: 'use a list', reviewer: 'reviewer-2' }, { title: 'no id', reviewer: 'reviewer-2' }] }))).toMatchInlineSnapshot(`
+    [
+      "Invoke /code-resolve on PR #7, answering every finding of the last review and fixing what applies.",
+      "Never merge the final PR. Leave the blockers open: the reviewer verifies them, you do not resolve them.",
+      "Blockers of the last review:",
+      "- reviewer:B1: use a map",
+      "- reviewer-2:B1: use a list",
+      "- reviewer-2: no id",
+      "When the blockers of two reviewers contradict each other, you decide: say in your summary which one you did not follow and why, because the reviewers read your summary in their next round.",
+    ]
+  `);
+});
+
+test('the review of an epic with several reviewers tells the reviewer to judge only the blockers it is given by id and to leave the threads it did not open; one reviewer is told nothing of it', () => {
+  expect(stageLines({ ...task('review', { round: 2, severalReviewers: true, blockers: [{ id: 'B1', title: 'use a map' }, { title: 'no id' }] }), reviewer: 'reviewer-2' })).toMatchInlineSnapshot(`
+    [
+      "Review PR #7, round 2. First confirm the PR head is aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa; if it is not, return needs_human.",
+      "Invoke /code-review against the epic's spec and tickets, checking that earlier findings were fixed and nothing regressed, then publish the findings with /code-post.",
+      "Blockers of the previous round (id and title):",
+      "- B1: use a map",
+      "- (no id): no id",
+      "Give every blocker you return a short stable id. When a finding above persists, reuse its id; never reuse an id for a different finding. List in "resolved" the ids of the blockers above that are now fixed.",
+      "Other reviewers publish on this pull request too, and two of you may share one account: judge only the blockers you are given above, by id (by title when one has no id), and leave alone the review threads you did not open.",
+      "Findings that do not stop approval (what you would post as a nitpick or a suggestion) are observations: list them in "observations" of a completed result, each with a title, a link when you have one, and a short stable id by the same rule as blockers (reuse it when the finding persists; never reuse an id for a different finding). Leave the field out when there are none.",
+      "Return changes_requested with the blockers if there are any. Return completed only if the review is conclusive, there are no blockers and the repo's verifications are confirmed on that same commit. If the review is inconclusive (missing context, cannot verify), return needs_human.",
+    ]
+  `);
+  const one = buildPrompt(task('review', { round: 2, blockers: [{ id: 'B1', title: 'use a map' }, { title: 'no id' }] }));
+  expect(one).not.toContain('leave alone the review threads');
+  expect(one).not.toContain('Other reviewers');
+});

@@ -23,7 +23,7 @@ import { executions, slotOf, type executionStates, type Slot } from '../storage/
 import { executionOutput, taskContext } from '../logging/logger.ts';
 import { epics, type cancelKinds, type needsHumanKinds } from '../storage/schema.ts';
 import type { Clock } from './clock.ts';
-import { latestBlockers, latestObservations } from './blockers.ts';
+import { latestBlockers, latestObservations, openBlockerSlots } from './blockers.ts';
 import { changesSlices } from './changes-slices.ts';
 import { RecoverRefused } from './recover-refused.ts';
 import { ResumeRefused } from './resume-refused.ts';
@@ -585,7 +585,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     let decided = false;
     db.transaction((tx) => {
       recordNoVerdict(tx, epic, on, { ...none, slot: none.slot! }, clock.now());
-      const round = decideRound(slots, roundVerdicts(tx, epic, { stage: 'review', ...on }, null, true), roundNones(tx, epic, on));
+      const round = decideRound(slots, roundVerdicts(tx, epic, { stage: 'review', ...on }, null, true), roundNones(tx, epic, on), openBlockerSlots(tx, epic));
       if (round.kind === 'waiting') return;
       decided = true;
       quotaStop = applyRound(tx, epic, round, on.headSha);
@@ -1040,6 +1040,10 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       if (round.none.every(({ kind }) => kind === 'usage_limit')) return round.none;
       toNeedsHuman(tx, now.id, 'reviewers_failed', `no reviewer gave a verdict in round ${now.round} · ${round.none.map(({ slot, why }) => `${slot}: ${why}`).join(' · ')} · fix what each says, then resume the epic`);
     }
+    // Every verdict completed, but a reviewer whose blockers are open gave none: not agreement, and nothing for the author to fix.
+    else if (round.kind === 'open_blockers') {
+      toNeedsHuman(tx, now.id, 'reviewers_failed', `round ${now.round} is not agreed: ${round.none.map(({ slot, why }) => `${slot} asked for changes before, its blockers are still open, and it gave no verdict (${why})`).join(' · ')} · fix what each says, then resume the epic`);
+    }
     // The round stays: the fix turn answers it, and the next review numbers the following one.
     else if (round.kind === 'changes_requested') {
       if ((now.round ?? 0) >= roundCap(now)) toNeedsHuman(tx, now.id, 'review_limit', `review limit: round ${now.round} of ${roundCap(now)} still has requested changes`);
@@ -1141,7 +1145,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     const imported = importResult(db, raw, expected, (tx, result) => {
       if (asNone && result.outcome === 'needs_human' && !alreadyRepeated) recordNoVerdict(tx, now, { round: now.round, headSha: head }, { slot: slotOf(execution)!, kind: 'agent_needs_human', why: result.reason, executionId: execution.executionId }, clock.now());
       // What the round comes to, from the verdicts it has on its head: decided here, in the write that imports the last of them, so reviewers that end together decide it once.
-      const round = execution.stage === 'review' && (result.outcome !== 'needs_human' || asNone) && !problem && !movedTo && !alreadyRepeated ? decideRound(slots, roundVerdicts(tx, now, execution, result.outcome === 'needs_human' ? null : result, slots.length > 1), slots.length > 1 ? roundNones(tx, now, { round: now.round, headSha: head }) : []) : null;
+      const round = execution.stage === 'review' && (result.outcome !== 'needs_human' || asNone) && !problem && !movedTo && !alreadyRepeated ? decideRound(slots, roundVerdicts(tx, now, execution, result.outcome === 'needs_human' ? null : result, slots.length > 1), slots.length > 1 ? roundNones(tx, now, { round: now.round, headSha: head }) : [], slots.length > 1 ? openBlockerSlots(tx, now) : []) : null;
       if (execution.stage === 'review' && !problem && !movedTo && !alreadyRepeated && round?.kind !== 'waiting') tx.update(epics).set({ headRepeats: 0 }).where(eq(epics.id, epic.id)).run(); // a round decided on its own head
       // The verdict judged a head that is not the pull request's any more: kept as the execution it is, never read by a later round (a resume at review included).
       if (superseded) tx.update(callerResults).set({ outcome: supersededOutcome }).where(eq(callerResults.executionId, execution.executionId)).run();

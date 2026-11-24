@@ -55,7 +55,7 @@ export const epics = sqliteTable(
     // Recoveries by the poll in a row (ADR 0046): back to 0 when an execution of the epic ends or its stage changes; the fourth failure parks it in `engine_error`.
     recoveries: integer().notNull().default(0),
     // The stage a resume asked for (`review` or `fix`): kept while the epic waits in the queue, so a restart of the engine in between keeps it. Null: start from ship.
-    resumeStage: text({ enum: ['review', 'fix'] }),
+    resumeStage: text({ enum: ['review', 'fix', 'lead'] }),
     // The cap of review rounds a resume granted this epic; null: the live `maxReviews`. A restart from ship clears it with the rounds.
     roundLimit: integer(),
     // ms since epoch: when the provider says the window an epic stopped on (`usage_limit`) comes back, with `limits.autoResume` on; cleared by any change of status. Null: no wake-up.

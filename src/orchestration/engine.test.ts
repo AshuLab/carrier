@@ -6716,6 +6716,60 @@ test('the first result that finds the head moved stops the other runs of the rou
   expect(eventsOf(engine.db).filter((e) => e.type === 'review_repeated').map((e) => e.data)).toMatchObject([{ round: 1, from: SHA, to: HEAD2, repeats: 1 }]);
 });
 
+test('a retry that waited for GitHub while another slot repeated the round on a new head does not run the old head again beside the new round', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50);
+  const late = lateOpen();
+  const gate = lateOpen();
+  const find = github.findPullRequest.bind(github);
+  github.findPullRequest = async (...args) => (await gate.when, find(...args)); // the retry of reviewer-2 reads GitHub before it launches
+  runner.behavior = (task) => {
+    if (task.stage === 'ship') return { write: completed(task) };
+    if (task.context.pr!.headSha !== SHA) return { exit: 'stopped' };
+    return task.reviewer === 'reviewer' ? verdictBy({ reviewer: ok }, late.when)(task) : { exit: 'failed' };
+  };
+  const engine = await start(1, [twoReviewers()]);
+  await clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(executionsOf(engine.db).filter((e) => e.reviewer === 'reviewer-2').map((e) => e.status)).toEqual(['failed']));
+
+  pull(50, { headSha: HEAD2 }); // the head moves while reviewer-2 waits for GitHub
+  late.open();
+  await vi.waitFor(() => expect(reviewsOf()).toHaveLength(4));
+  gate.open();
+  await engine.idle();
+
+  expect(reviewsOf()).toEqual([[1, 'reviewer', SHA], [1, 'reviewer-2', SHA], [1, 'reviewer', HEAD2], [1, 'reviewer-2', HEAD2]]);
+  expect(executionsOf(engine.db).filter((e) => e.reviewer === 'reviewer-2').map((e) => [e.headSha, e.status])).toEqual([[SHA, 'failed'], [HEAD2, 'interrupted']]); // the old head's failure is not retried: the repeat made the slot again
+});
+
+test('a slot whose checkout was being prepared while another slot repeated the round on a new head is not launched on the old one', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50);
+  const late = lateOpen();
+  const gate = lateOpen();
+  const prepare = workspaces.prepareReviewer.bind(workspaces);
+  let held = false;
+  workspaces.prepareReviewer = async (repo, epic, pr, options) => {
+    if (options?.slot === 'reviewer-2' && !held) {
+      held = true;
+      await gate.when; // the checkout of reviewer-2 on the old head is slow
+    }
+    return prepare(repo, epic, pr, options);
+  };
+  runner.behavior = (task) => (task.stage === 'ship' ? { write: completed(task) } : task.context.pr!.headSha === SHA && task.reviewer === 'reviewer' ? verdictBy({ reviewer: ok }, late.when)(task) : { exit: 'stopped' });
+  const engine = await start(1, [twoReviewers()]);
+  await clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(reviewsOf()).toHaveLength(1));
+
+  pull(50, { headSha: HEAD2 }); // reviewer finds the head moved while reviewer-2 is still being prepared
+  late.open();
+  await vi.waitFor(() => expect(rows(engine.db)[0]).toMatchObject({ prHeadSha: HEAD2, headRepeats: 1 }));
+  gate.open();
+  await engine.idle();
+
+  expect(reviewsOf()).toEqual([[1, 'reviewer', SHA], [1, 'reviewer', HEAD2], [1, 'reviewer-2', HEAD2]]);
+});
+
 test('four reviewers that find the same moved head are one repeat, and two repeats in a row count rounds: the third moved head stops the epic in pr_invalid', async () => {
   const heads = [HEAD2, HEAD3, HEAD4];
   const settled = lateOpen();

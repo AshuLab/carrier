@@ -432,7 +432,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     if (stopping || epic.status !== 'running') return { relaunched: true };
     // Read only; GitHub being down is not a reason to stop: the agent verifies the state first anyway.
     const found = await github.findPullRequest(epic.repo, epic.issue).catch((e) => (failed(e), null));
-    if (!unchanged(epicId, epoch)) return { relaunched: true }; // parked while GitHub was asked: nothing is written for it, a restore takes it from here
+    if (!unchanged(epicId, epoch) || setAside(epicId, stage, failedExecution.headSha)) return { relaunched: true }; // parked while GitHub was asked, or the round was repeated on another head: nothing is written for it, a restore or the repeat takes it from here
     db.transaction((tx) => {
       const from = agentOfSlot(config, slot)!;
       tx.update(epics).set({ config: withAgentOfSlot(config, slot, onOption(config, slot, next.provider, modelOf(next), next.effort)), ...(slot === null ? { authorOption: next.provider } : slot === 'reviewer' && { reviewerOption: next.provider }) }).where(eq(epics.id, epicId)).run();
@@ -665,6 +665,12 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
   // The heads of the epic's current round that a verdict was set aside on because the pull request moved: no execution on one of them is of the round any more.
   const deadHeads = (epic: Epic) =>
     new Set(db.select({ headSha: executions.headSha }).from(executions).innerJoin(callerResults, eq(callerResults.executionId, executions.executionId)).where(and(eq(executions.epicId, epic.id), eq(executions.round, epic.round!), eq(callerResults.outcome, supersededOutcome))).all().map((r) => r.headSha));
+  // Whether an execution about to start (a retry, a failover, a launch that prepared its workspace) is the round's no more: the epic moved on from its stage, or the round was repeated
+  // on another head while GitHub or the checkout was awaited (`movedTo` does not advance the epoch): the repeat makes the slot again, so this one would be a second run of it.
+  const setAside = (epicId: number, stage: AgentTask['stage'], headSha: string | null) => {
+    const now = fresh(epicId);
+    return now.stage !== stage || (headSha !== null && deadHeads(now).has(headSha));
+  };
   const launchStage = (epic: Epic, stage: 'review' | 'fix' | 'lead') => (stage === 'review' ? launchRound(epic) : execute(epic, stage));
 
   // The reason to stop for the first skill the person named and the role's harness does not find, none when every one is found, default or cannot be told.
@@ -778,7 +784,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
         ...(epic.round && { round: epic.round }),
       },
     };
-    if (stopping || !unchanged(epic.id, epoch)) return; // the repo may have left the configuration (and come back) while the workspace was prepared
+    if (stopping || !unchanged(epic.id, epoch) || setAside(epic.id, stage, reviewedCommit ?? null)) return; // the repo may have left the configuration (and come back) while the workspace was prepared, or the round was repeated on another head
     if (switched) db.insert(epicEvents).values({ epicId: epic.id, at: clock.now(), type: 'session_rebuilt', data: { stage, from: before!.option, to: optionNow, pr: pr ?? null } }).run();
     db.insert(executions)
       .values({ executionId, epicId: epic.id, stage, reviewer: slot, harness: task.harness, model: task.model, provider: task.provider ?? null, option: task.option ?? null, configDir: task.configDir ?? null, workspace, round: epic.round, headSha: reviewedCommit ?? null, resultPath, startedAt: clock.now() })
@@ -939,7 +945,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       }
       // Read only: what the failed execution may have left on GitHub. A failed query is not an attempt, the poll tries again.
       const pr = await github.findPullRequest(epic.repo, epic.issue);
-      if (!unchanged(epicId, epoch)) return; // parked while GitHub was asked: no event, no launch; the next check retries it if it is back
+      if (!unchanged(epicId, epoch) || setAside(epicId, last.stage, last.headSha)) return; // parked while GitHub was asked, or the round was repeated on another head: no event, no launch; the next check retries it if it is back
       // A lost session is rebuilt, not resumed: new session, same profile, context from SQLite and GitHub.
       const lost = last.failureKind === 'session_lost';
       showDue(epicId, slot);
@@ -948,7 +954,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       db.insert(epicEvents)
         .values({ epicId, at: clock.now(), type: lost ? 'session_rebuilt' : 'execution_retried', data: { stage: last.stage, failed: last.executionId, attempt: earlier.length + 2, error: last.error, pr } })
         .run();
-      await execute(epic, last.stage, last, lost ? { pr: pr && { number: pr.number, headSha: pr.headSha } } : undefined);
+      await execute(fresh(epicId), last.stage, last, lost ? { pr: pr && { number: pr.number, headSha: pr.headSha } } : undefined);
     } finally {
       retrying.delete(key);
     }

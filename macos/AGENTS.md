@@ -119,7 +119,7 @@ What the person sees: [dictation](../docs/macos/dictation.md).
 The logic: `CarrierCore/Dictation.swift`, `DictationSession.swift`, `TentativeText.swift`, `DictationPresentation.swift`, tested with `ScriptedDictation.swift`; `DictationController` holds the switch both boxes read; `LaunchPhases`: after the first frame.
 Readiness: `speechModelStep`, `ModelSlot`, run by `DictationController.warmUp`; `DictationSession.run` captures before `prepare`.
 Firm and tentative: `DictationEvent.partial`, `TentativeText.tentativeRange`, `GlobalDictation.split`.
-The page is `Carrier/DictationTab.swift` (`reset(.dictation)` restores `AppPreferences.keys(of:)`); views untested.
+The page is `Carrier/DictationTab.swift` (`reset(.dictation)` restores the keys the schema (`design/preferences.json`) gives the page); views untested.
 
 ### Global dictation
 

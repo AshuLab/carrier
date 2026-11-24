@@ -77,10 +77,7 @@ public struct CleanupRun: Sendable {
 public func cleanupCanBeOn(server: CleanupServer?, model: String?) -> Bool { server != nil && model?.isEmpty == false }
 
 /// What the prompt says until the person writes their own.
-public let defaultCleanupPrompt = """
-    Clean up this dictated text: remove filler words and false starts, fix the punctuation and capitalization, and keep the language that was spoken. \
-    Do not translate, add or explain anything. Reply with the cleaned text only.
-    """
+public let defaultCleanupPrompt = Preference.dictationCleanupPrompt.defaultValue
 
 /// What the Try it box sends: a dictation with fillers, a stutter, a false start and no punctuation or capitals.
 public let cleanupSample = "um so basically what i wanted to say is that the the endpoint should return the data uh per day and not per hour you know i mean per day"

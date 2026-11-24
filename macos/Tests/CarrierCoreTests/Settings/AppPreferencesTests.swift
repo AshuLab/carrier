@@ -754,3 +754,258 @@ private func speechModel(_ id: String, _ recognizer: RecognizerID) -> SpeechMode
     defaults.set("somewhere", forKey: AppPreferences.dictationWidgetSpotKey)
     #expect(store.dictationWidgetTheme == .accent && store.dictationWidgetSpot == nil)
 }
+
+// MARK: - The schema against the code it replaced
+
+/// One key as the code had it before `design/preferences.json`: its name, what it read as with nothing saved, and the page whose Reset cleared it
+/// (nil when no Reset did). The table below is copied from `AppPreferences.keys(of:)`, `terminalKeys` and the declarations of the other files.
+private struct KeyRow {
+    let name: String
+    let page: SettingsPage?
+    /// With nothing saved, the generated key has this name and reads as today's default.
+    let readsAsToday: (UserDefaults) -> Bool
+    /// A saved value that is not valid for the type reads as the default; nil for a key that has no such value.
+    let readsBadAsDefault: ((UserDefaults) -> Bool)?
+    /// An optional key reads as absent, takes a value and is removed by its accessor; nil for a key that is not optional.
+    let behavesAsOptional: ((UserDefaults) -> Bool)?
+}
+
+private func row<V: PreferenceValue & Equatable>(_ key: PreferenceKey<V>, _ name: String, _ expected: V, _ page: SettingsPage?) -> KeyRow {
+    let bad: Any = V.self == String.self ? ["not", "a", "string"] : "not valid"
+    return KeyRow(
+        name: name,
+        page: page,
+        readsAsToday: { defaults in key.name == name && key.defaultValue == expected && AppPreferences(defaults: defaults).value(key) == expected },
+        readsBadAsDefault: { defaults in
+            defaults.set(bad, forKey: name)
+            return AppPreferences(defaults: defaults).value(key) == expected
+        },
+        behavesAsOptional: nil
+    )
+}
+
+private func optionalRow<V: PreferenceValue & Equatable>(_ key: OptionalPreferenceKey<V>, _ name: String, _ page: SettingsPage?, sample: V) -> KeyRow {
+    KeyRow(
+        name: name,
+        page: page,
+        readsAsToday: { defaults in key.name == name && AppPreferences(defaults: defaults).value(key) == nil },
+        readsBadAsDefault: nil,
+        behavesAsOptional: { defaults in
+            let store = AppPreferences(defaults: defaults)
+            store.store(sample, for: key)
+            let kept = store.value(key) == sample && defaults.object(forKey: name) != nil
+            store.store(nil, for: key)
+            return kept && store.value(key) == nil && defaults.object(forKey: name) == nil
+        }
+    )
+}
+
+private func mapRow<V>(_ key: PreferenceKey<[String: V]>, _ name: String, _ page: SettingsPage?) -> KeyRow {
+    KeyRow(name: name, page: page, readsAsToday: { _ in key.name == name && key.defaultValue.isEmpty }, readsBadAsDefault: nil, behavesAsOptional: nil)
+}
+
+private let todaysKeys: [KeyRow] = [
+    row(Preference.menuIconStyle, "menu.iconStyle", IconStyle(rawValue: "countAndBar")!, .general),
+    row(Preference.menuAnimate, "menu.animate", true, .general),
+    row(Preference.menuShowEpics, "menu.showEpics", true, .general),
+    row(Preference.displayTimeStyle, "display.timeStyle", TimeStyle(rawValue: "relative")!, .general),
+    row(Preference.displayClock, "display.clock", ClockHours(rawValue: "system")!, .general),
+    row(Preference.stopConfirm, "stop.confirm", true, nil),
+    row(Preference.appearanceColorScheme, "appearance.colorScheme", ColorSchemeChoice(rawValue: "system")!, .appearance),
+    row(Preference.appearanceTextSize, "appearance.textSize", 100, .appearance),
+    row(Preference.appearanceIconWeight, "appearance.iconWeight", 1.5, .appearance),
+    row(Preference.appearanceIconSet, "appearance.iconSet", IconSet(rawValue: "tabler")!, .appearance),
+    row(Preference.appearanceDensity, "appearance.density", Density(rawValue: "comfortable")!, .appearance),
+    row(Preference.appearanceTheme, "appearance.theme", Theme(rawValue: "carrier")!, .appearance),
+    optionalRow(Preference.appearanceAccent, "appearance.accent", .appearance, sample: "sample"),
+    row(Preference.appearanceTint, "appearance.tint", Tint(rawValue: "off")!, .appearance),
+    optionalRow(Preference.appearanceTranslucent, "appearance.translucent", .appearance, sample: true),
+    row(Preference.appearanceStatesByShape, "appearance.statesByShape", false, .appearance),
+    row(Preference.appearanceMonoFamily, "appearance.mono.family", "System", .appearance),
+    row(Preference.appearanceMonoSize, "appearance.mono.size", 12, .appearance),
+    row(Preference.appearanceMonoLineHeight, "appearance.mono.lineHeight", LineHeight(rawValue: "normal")!, .appearance),
+    row(Preference.appearanceMonoLigatures, "appearance.mono.ligatures", true, .appearance),
+    row(Preference.appearanceMonoWrap, "appearance.mono.wrap", true, .appearance),
+    row(Preference.appearanceMonoLineNumbers, "appearance.mono.lineNumbers", false, .appearance),
+    row(Preference.appearanceMessageWidth, "appearance.messageWidth", MessageWidth(rawValue: "medium")!, .chat),
+    row(Preference.chatTextSize, "chat.textSize", 13, .chat),
+    row(Preference.chatLineSpacing, "chat.lineSpacing", ChatLineSpacing(rawValue: "normal")!, .chat),
+    row(Preference.chatMessageSpacing, "chat.messageSpacing", MessageSpacing(rawValue: "comfortable")!, .chat),
+    row(Preference.chatSurface, "chat.surface", ChatSurface(rawValue: "glass")!, .chat),
+    row(Preference.chatSendKey, "chat.sendKey", SendKey(rawValue: "return")!, .chat),
+    row(Preference.chatWhileWorking, "chat.whileWorking", WhileWorking(rawValue: "queue")!, .chat),
+    row(Preference.chatWritingTools, "chat.writingTools", false, .chat),
+    row(Preference.chatCheckSpelling, "chat.checkSpelling", true, .chat),
+    row(Preference.chatCorrectSpelling, "chat.correctSpelling", false, .chat),
+    row(Preference.chatShowsContextUsage, "chat.showsContextUsage", true, .chat),
+    row(Preference.chatFollowOutput, "chat.followOutput", true, .chat),
+    row(Preference.chatMessageTimes, "chat.messageTimes", MessageTimes(rawValue: "hover")!, .chat),
+    row(Preference.chatToolOutput, "chat.toolOutput", ToolOutputMode(rawValue: "collapsed")!, .chat),
+    row(Preference.chatOpensFailedCalls, "chat.opensFailedCalls", true, .chat),
+    row(Preference.chatDiffStyle, "chat.diffStyle", DiffStyle(rawValue: "unified")!, .chat),
+    row(Preference.chatOutputLength, "chat.outputLength", 20, .chat),
+    row(Preference.chatShowReasoning, "chat.showReasoning", true, .chat),
+    row(Preference.chatConfirmDelete, "chat.confirmDelete", true, .sessions),
+    row(Preference.chatNewSessionAgent, "chat.newSession.agent", "", .sessions),
+    row(Preference.chatNewSessionModel, "chat.newSession.model", "", .sessions),
+    row(Preference.chatNewSessionEffort, "chat.newSession.effort", "", .sessions),
+    row(Preference.chatNewSessionAccess, "chat.newSession.access", "", .sessions),
+    row(Preference.chatNewSessionWorkIn, "chat.newSession.workIn", WorkIn(rawValue: "baseFolder")!, .sessions),
+    row(Preference.notifyNeedsYou, "notify.needsYou", true, .notifications),
+    row(Preference.notifyReadyForTest, "notify.readyForTest", true, .notifications),
+    row(Preference.notifyProblem, "notify.problem", false, .notifications),
+    row(Preference.notifyChatNeedsAttention, "notify.chatNeedsAttention", true, .notifications),
+    row(Preference.notifyChatDone, "notify.chatDone", false, .notifications),
+    row(Preference.notifyOnlyWhenAway, "notify.onlyWhenAway", true, .notifications),
+    row(Preference.notifyDockBadge, "notify.dockBadge", true, .notifications),
+    row(Preference.notifySound, "notify.sound", true, .notifications),
+    row(Preference.notifyReminder, "notify.reminder", 0, .notifications),
+    row(Preference.notifyQuiet, "notify.quiet", false, .notifications),
+    row(Preference.notifyQuietStart, "notify.quietStart", 1320, .notifications),
+    row(Preference.notifyQuietEnd, "notify.quietEnd", 480, .notifications),
+    row(Preference.dictationEnabled, "dictation.enabled", true, .dictation),
+    row(Preference.dictationCleanupEnabled, "dictation.cleanup.enabled", false, .dictation),
+    optionalRow(Preference.dictationCleanupServer, "dictation.cleanup.server", .dictation, sample: CleanupServer(rawValue: "ollama")!),
+    optionalRow(Preference.dictationCleanupModel, "dictation.cleanup.model", .dictation, sample: "sample"),
+    row(Preference.dictationCleanupPrompt, "dictation.cleanup.prompt", "Clean up this dictated text: remove filler words and false starts, fix the punctuation and capitalization, and keep the language that was spoken. Do not translate, add or explain anything. Reply with the cleaned text only.", .dictation),
+    optionalRow(Preference.dictationModel, "dictation.model", .dictation, sample: "sample"),
+    optionalRow(Preference.dictationLanguage, "dictation.language", .dictation, sample: "sample"),
+    row(Preference.dictationModelKeepReady, "dictation.model.keepReady", true, .dictation),
+    row(Preference.dictationModelReleaseAfter, "dictation.model.releaseAfter", 15, .dictation),
+    row(Preference.dictationGlobal, "dictation.global", true, .dictation),
+    row(Preference.dictationHistoryKeepText, "dictation.history.keepText", true, .dictation),
+    row(Preference.dictationHistoryKeepAudio, "dictation.history.keepAudio", false, .dictation),
+    row(Preference.dictationHistoryDeleteAudioAfter, "dictation.history.deleteAudioAfter", 30, .dictation),
+    row(Preference.dictationStatisticsWpm, "dictation.statistics.wpm", 40, .dictation),
+    row(Preference.dictationShortcut, "dictation.shortcut", "6:49:Space", .dictation),
+    row(Preference.dictationActivation, "dictation.activation", DictationActivation(rawValue: "toggle")!, .dictation),
+    row(Preference.dictationWidgetStyle, "dictation.widget.style", DictationWidgetStyle(rawValue: "medium")!, .dictation),
+    row(Preference.dictationWidgetPosition, "dictation.widget.position", DictationWidgetPosition(rawValue: "bottom")!, .dictation),
+    row(Preference.dictationWidgetTheme, "dictation.widget.theme", DictationWidgetTheme(rawValue: "accent")!, .dictation),
+    row(Preference.dictationWidgetPreview, "dictation.widget.preview", true, .dictation),
+    optionalRow(Preference.dictationWidgetSpot, "dictation.widget.spot", .dictation, sample: "sample"),
+    row(Preference.dictationSoundStartOn, "dictation.sound.start.on", true, .dictation),
+    row(Preference.dictationSoundStart, "dictation.sound.start", "Tink", .dictation),
+    row(Preference.dictationSoundEndOn, "dictation.sound.end.on", true, .dictation),
+    row(Preference.dictationSoundEnd, "dictation.sound.end", "Pop", .dictation),
+    row(Preference.dictationSoundVolume, "dictation.sound.volume", 60, .dictation),
+    row(Preference.dictationAccessibilityExplained, "dictation.accessibilityExplained", false, nil),
+    mapRow(Preference.keybindings, "keybindings", .keybindings),
+    row(Preference.awakeScreen, "awake.screen", false, .keepAwake),
+    row(Preference.awakeMinutes, "awake.minutes", 60, .keepAwake),
+    row(Preference.awakeAgents, "awake.agents", false, .keepAwake),
+    row(Preference.awakeGrace, "awake.grace", 5, .keepAwake),
+    row(Preference.awakeBattery, "awake.battery", BatteryRule(rawValue: "below20")!, .keepAwake),
+    row(Preference.awakeNotify, "awake.notify", true, .keepAwake),
+    optionalRow(Preference.awakeShortcut, "awake.shortcut", .keepAwake, sample: "sample"),
+    row(Preference.updatesDelayDays, "updates.delayDays", 0, nil),
+    row(Preference.engineStartOnOpen, "engine.startOnOpen", false, nil),
+    row(Preference.engineCarrier, "engine.carrier", "", nil),
+    mapRow(Preference.shellSetup, "shellSetup", nil),
+    mapRow(Preference.carrierInstalledVersion, "carrier.installedVersion", nil),
+    optionalRow(Preference.terminalTheme, "terminal.theme", .terminal, sample: Theme(rawValue: "graphite")!),
+    optionalRow(Preference.terminalFontFamily, "terminal.font.family", .terminal, sample: "sample"),
+    optionalRow(Preference.terminalFontSize, "terminal.font.size", .terminal, sample: 14),
+    optionalRow(Preference.terminalFontLigatures, "terminal.font.ligatures", .terminal, sample: true),
+    row(Preference.terminalFontThicken, "terminal.font.thicken", false, .terminal),
+    row(Preference.terminalCursorStyle, "terminal.cursor.style", TerminalCursorStyleChoice(rawValue: "block")!, .terminal),
+    row(Preference.terminalCursorBlink, "terminal.cursor.blink", true, .terminal),
+    row(Preference.terminalPaddingX, "terminal.padding.x", 10, .terminal),
+    row(Preference.terminalPaddingY, "terminal.padding.y", 8, .terminal),
+    row(Preference.terminalMinimumContrast, "terminal.minimumContrast", 3, .terminal),
+    row(Preference.terminalPanesDimInactive, "terminal.panes.dimInactive", false, .terminal),
+    row(Preference.terminalPanesFocusFollowsMouse, "terminal.panes.focusFollowsMouse", false, .terminal),
+    row(Preference.terminalInputOptionAsAlt, "terminal.input.optionAsAlt", TerminalOptionAsAlt(rawValue: "false")!, .terminal),
+    row(Preference.terminalInputCopyOnSelect, "terminal.input.copyOnSelect", false, .terminal),
+    row(Preference.terminalScrollbackLimit, "terminal.scrollback.limit", 10000000, .terminal),
+    row(Preference.terminalConfirmCloseRunningProcess, "terminal.confirmCloseRunningProcess", true, .terminal),
+    row(Preference.terminalPinPromptToBottom, "terminal.pinPromptToBottom", false, .terminal),
+    row(Preference.terminalDrawerHeight, "terminal.drawerHeight", 260, .terminal),
+    row(Preference.sidebarGroupBy, "sidebar.groupBy", GroupBy(rawValue: "status")!, .sidebar),
+    row(Preference.sidebarSessionSort, "sidebar.sessionSort", SessionSort(rawValue: "workspace")!, .sidebar),
+    row(Preference.sidebarArchiveSort, "sidebar.archiveSort", ArchiveSort(rawValue: "dateArchived")!, .sidebar),
+    row(Preference.sidebarArchiveListSort, "sidebar.archiveListSort", SessionSort(rawValue: "age")!, .sidebar),
+    row(Preference.sidebarPinned, "sidebar.pinned", "", nil),
+    row(Preference.sidebarRowIcon, "sidebar.row.icon", true, .sidebar),
+    row(Preference.sidebarRowBranch, "sidebar.row.branch", true, .sidebar),
+    row(Preference.sidebarRowProviders, "sidebar.row.providers", true, .sidebar),
+    row(Preference.sidebarRowAge, "sidebar.row.age", true, .sidebar),
+    row(Preference.sidebarRowPullRequest, "sidebar.row.pullRequest", true, .sidebar),
+    row(Preference.sidebarRowDiff, "sidebar.row.diff", true, .sidebar),
+    row(Preference.sidebarOpen, "sidebar.open", "sessions", nil),
+    optionalRow(Preference.sidebarSlotsTotal, "sidebar.slotsTotal", nil, sample: 3),
+    row(Preference.sidebarWidth, "sidebar.width", 360, .sidebar),
+    mapRow(Preference.sessionsSeen, "sessions.seen", nil),
+    optionalRow(Preference.inspectorTab, "inspector.tab", nil, sample: InspectorTab(rawValue: "review")!),
+]
+
+private func scratchDefaults() -> UserDefaults { UserDefaults(suiteName: "preferences-\(UUID().uuidString)")! }
+
+@Test func everyKeyHasTheNameAndTheDefaultItHadBeforeTheSchema() {
+    #expect(todaysKeys.count == Set(todaysKeys.map(\.name)).count)
+    for key in todaysKeys { #expect(key.readsAsToday(scratchDefaults()), "\(key.name)") }
+}
+
+@Test func theCleanupSwitchIsOffInTheSchemaAndTheDefaultPromptIsTheOneTheAppHad() {
+    #expect(Preference.dictationCleanupEnabled.defaultValue == false)
+    #expect(AppPreferences(defaults: scratchDefaults()).value(Preference.dictationCleanupPrompt) == defaultCleanupPrompt)
+}
+
+@Test func aStoredValueIsReadBackThroughTheGeneratedKeys() {
+    let name = "preferences-\(UUID().uuidString)"
+    let store = AppPreferences(defaults: UserDefaults(suiteName: name)!)
+    store.store(false, for: Preference.menuAnimate)
+    store.store(130, for: Preference.appearanceTextSize)
+    store.store(14.5, for: Preference.appearanceMonoSize)
+    store.store(Theme(rawValue: "ocean")!, for: Preference.appearanceTheme)
+    store.store("Menlo", for: Preference.appearanceMonoFamily)
+    let relaunched = AppPreferences(defaults: UserDefaults(suiteName: name)!)
+    #expect(relaunched.value(Preference.menuAnimate) == false)
+    #expect(relaunched.value(Preference.appearanceTextSize) == 130)
+    #expect(relaunched.value(Preference.appearanceMonoSize) == 14.5)
+    #expect(relaunched.value(Preference.appearanceTheme) == Theme(rawValue: "ocean"))
+    #expect(relaunched.value(Preference.appearanceMonoFamily) == "Menlo")
+}
+
+@Test func aStoredValueThatIsNotValidReadsAsTheDefault() {
+    for key in todaysKeys {
+        guard let readsBad = key.readsBadAsDefault else { continue }
+        #expect(readsBad(scratchDefaults()), "\(key.name)")
+    }
+    let defaults = scratchDefaults()
+    defaults.set("a lot", forKey: Preference.chatOutputLength.name)
+    defaults.set("sparkles", forKey: Preference.menuIconStyle.name)
+    #expect(AppPreferences(defaults: defaults).value(Preference.chatOutputLength) == 20)
+    #expect(AppPreferences(defaults: defaults).value(Preference.menuIconStyle) == .countAndBar)
+}
+
+@Test func anOptionalPreferenceIsAbsentUntilSetAndRemovedByItsAccessor() {
+    let optionals = todaysKeys.compactMap(\.behavesAsOptional)
+    #expect(optionals.count == 14)
+    for behaves in optionals { #expect(behaves(scratchDefaults())) }
+    let store = AppPreferences(defaults: scratchDefaults())
+    #expect(store.value(Preference.terminalFontSize) == nil)
+    store.store(15.5, for: Preference.terminalFontSize)
+    #expect(store.value(Preference.terminalFontSize) == 15.5)
+    store.store(nil, for: Preference.terminalFontSize)
+    #expect(store.value(Preference.terminalFontSize) == nil)
+}
+
+@Test func resetOfAPageClearsExactlyTheKeysItClearedBeforeAndNoKeyOfAnotherPage() {
+    for page in SettingsPage.allCases {
+        let defaults = scratchDefaults()
+        for key in todaysKeys { defaults.set("saved", forKey: key.name) }
+        AppPreferences(defaults: defaults).reset(page)
+        for key in todaysKeys {
+            let cleared = defaults.object(forKey: key.name) == nil
+            #expect(cleared == (key.page == page), "\(key.name) on \(page)")
+        }
+    }
+}
+
+@Test func resettingTheTerminalTakesOutTheTerminalKeysOnly() {
+    let defaults = scratchDefaults()
+    for key in todaysKeys { defaults.set("saved", forKey: key.name) }
+    AppPreferences(defaults: defaults).resetTerminal()
+    for key in todaysKeys { #expect((defaults.object(forKey: key.name) == nil) == (key.page == .terminal), "\(key.name)") }
+}

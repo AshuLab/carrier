@@ -5,7 +5,7 @@ Building needs **Xcode** (see Toolchain).
 
 ## Install
 
-A person does not build the app: `brew install ashulab/tap/carrier` installs the `carrier` command and `brew install --cask ashulab/tap/carrier` this app in `/Applications` (an Apple Silicon Mac on macOS 26 or later), and the app finds that `carrier` by itself.
+A person does not build the app: `brew install ashulab/tap/carrier` installs the `carrier` command and `brew install --cask ashulab/tap/carrier` this app in `/Applications` (a Mac on macOS 26 or later, Apple Silicon or Intel: the cask installs the zip of the Mac's own architecture), and the app finds that `carrier` by itself.
 `brew upgrade carrier` moves the command and `brew upgrade --cask carrier` the app; the app says which one when their protocols differ.
 The app also updates itself: it embeds Sparkle, checks for a new release by itself and asks before it installs, and when it opens at the new version it upgrades `carrier` with Homebrew (log: `<folder>/engine/logs/app-upgrade.log`) and replaces the chat host and the engine that were running when they are free to replace (see the end of [Start Carrier](../docs/macos/lifecycle.md#start-carrier)).
 Whether it checks and whether it installs by itself are Sparkle's preferences and have no Settings page yet.

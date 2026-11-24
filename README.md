@@ -25,7 +25,7 @@ You need a Mac with [Homebrew](https://brew.sh).
 
 ```bash
 brew install ashulab/tap/carrier          # the `carrier` command
-brew install --cask ashulab/tap/carrier   # the Mac app (optional, Apple Silicon, macOS 26+)
+brew install --cask ashulab/tap/carrier   # the Mac app (optional, macOS 26+, Apple Silicon or Intel)
 ```
 
 Before you use it you also need:

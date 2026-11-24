@@ -58,3 +58,4 @@ A status that names a later record means that record changed part or all of this
 | 0048 | [A review round has several reviewers in parallel, and a lead reviewer closes it](0048-a-review-round-has-several-reviewers-in-parallel-and-a-lead-reviewer-closes-it.md) | accepted |
 | 0049 | [A quota stop wakes up by itself when the provider says the window is back](0049-a-quota-stop-wakes-up-by-itself-when-the-provider-says-the-window-is-back.md) | accepted |
 | 0050 | [One authentication signal is a technical failure of its epic, and a profile stops when it repeats](0050-one-authentication-signal-is-a-technical-failure-of-its-epic-and-a-profile-stops-when-it-repeats.md) | accepted |
+| 0051 | [The app also ships as an Intel build, with its own zip and feed](0051-the-app-also-ships-as-an-intel-build-with-its-own-zip-and-feed.md) | proposed |

@@ -68,7 +68,7 @@ private final class FakeBrew {
         Issue.record("expected a notice"); return
     }
     #expect(brew.ran.count == 1)
-    #expect(notice.line.contains("/opt/homebrew/bin/brew"))
+    #expect(notice.line.contains(homebrewBin + "/brew"))
 }
 
 @Test func onlyAFailedEngineUpdateCanBeTriedAgainAndItCarriesItsNotice() {

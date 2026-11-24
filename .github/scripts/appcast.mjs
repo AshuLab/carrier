@@ -2,13 +2,17 @@
 // The release's appcast, written and checked (docs/specs/carrier-updates-itself.md, "The release"). Node only, plus macOS's plutil and xmllint.
 //   write <app> <zip> <signature> <out>   the one-item appcast for the zip, versions read from the app that was zipped
 //   check <appcast> <app> <zip>           fails unless the appcast agrees with the app inside the zip and with the key
+// There is one appcast per architecture. The architecture is read from the app's binary, which must hold exactly one: arm64 is `Carrier-<version>.zip` (appcast.xml),
+// x86_64 is `Carrier-<version>-intel.zip` (appcast-intel.xml, its name is the workflow's).
 // `check` reads the private key from SPARKLE_PRIVATE_KEY (base64 of the 32-byte seed, what `sign_update --ed-key-file` takes). It is never printed.
 import { execFileSync } from 'node:child_process';
 import { createPrivateKey, createPublicKey, verify } from 'node:crypto';
 import { readFileSync, statSync, writeFileSync } from 'node:fs';
 
 const REPO = 'AshuLab/carrier';
-const ARCH = 'arm64';
+// what the binary says -> the zip's suffix and the hardwareRequirements of its item. Sparkle knows only the `arm64` requirement (an Intel Mac ignores it under Rosetta),
+// so the Intel item has none: its feed is a file of its own, which only the Intel app reads (SUFeedURL).
+const ARCHS = { arm64: { suffix: '', hardware: 'arm64' }, x86_64: { suffix: '-intel', hardware: '' } };
 const PKCS8_ED25519_SEED = Buffer.from('302e020100300506032b657004220420', 'hex');
 
 const fail = (message) => {
@@ -23,8 +27,19 @@ function plist(app, key) {
   return value;
 }
 
+// The one architecture of the app's binary: a universal one would be answered by both feeds, and neither appcast could say so.
+function arch(app) {
+  const found = execFileSync('lipo', ['-archs', `${app}/Contents/MacOS/Carrier`], { encoding: 'utf8' }).trim();
+  if (!Object.hasOwn(ARCHS, found)) fail(`${app}'s binary is '${found}', expected exactly one of ${Object.keys(ARCHS).join(', ')}`);
+  return found;
+}
+
+const zipName = (short, built) => `Carrier-${short}${ARCHS[built].suffix}.zip`;
+
 function write([app, zip, signature, out]) {
   const short = plist(app, 'CFBundleShortVersionString');
+  const built = arch(app);
+  const hardware = ARCHS[built].hardware === '' ? '' : `      <sparkle:hardwareRequirements>${ARCHS[built].hardware}</sparkle:hardwareRequirements>\n`;
   const xml = `<?xml version="1.0" encoding="utf-8"?>
 <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
   <channel>
@@ -34,8 +49,7 @@ function write([app, zip, signature, out]) {
       <sparkle:version>${plist(app, 'CFBundleVersion')}</sparkle:version>
       <sparkle:shortVersionString>${short}</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>${plist(app, 'LSMinimumSystemVersion')}</sparkle:minimumSystemVersion>
-      <sparkle:hardwareRequirements>${ARCH}</sparkle:hardwareRequirements>
-      <enclosure url="https://github.com/${REPO}/releases/download/v${short}/Carrier-${short}.zip" length="${statSync(zip).size}" type="application/octet-stream" sparkle:edSignature="${signature}"/>
+${hardware}      <enclosure url="https://github.com/${REPO}/releases/download/v${short}/${zipName(short, built)}" length="${statSync(zip).size}" type="application/octet-stream" sparkle:edSignature="${signature}"/>
     </item>
   </channel>
 </rss>
@@ -64,11 +78,12 @@ function check([appcast, app, zip]) {
     if (found !== expected) mismatches.push(`${what} is '${found}', expected '${expected}'`);
   };
   const short = plist(app, 'CFBundleShortVersionString');
+  const built = arch(app);
   expect('sparkle:version', xpath(named('version')), plist(app, 'CFBundleVersion'));
   expect('sparkle:shortVersionString', xpath(named('shortVersionString')), short);
   expect('sparkle:minimumSystemVersion', xpath(named('minimumSystemVersion')), plist(app, 'LSMinimumSystemVersion'));
-  expect('sparkle:hardwareRequirements', xpath(named('hardwareRequirements')), ARCH);
-  expect('enclosure url', xpath(enclosure('url')), `https://github.com/${REPO}/releases/download/v${short}/Carrier-${short}.zip`);
+  expect('sparkle:hardwareRequirements', xpath(named('hardwareRequirements')), ARCHS[built].hardware);
+  expect('enclosure url', xpath(enclosure('url')), `https://github.com/${REPO}/releases/download/v${short}/${zipName(short, built)}`);
   expect('enclosure length', xpath(enclosure('length')), String(statSync(zip).size));
 
   const secret = (process.env.SPARKLE_PRIVATE_KEY ?? '').trim();

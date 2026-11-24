@@ -125,7 +125,7 @@ private func programRows(_ programs: EnginePrograms) -> [EngineRow] { page(confi
 @Test func withNoPathYetTheRowSaysSoAndShowsTheSystemOneTheEngineStartsFrom() {
     let row = programRows(programs(node: "", path: "", nodeVersion: nil))[2]
     #expect(row.detail == "Not found yet, so the engine and the chat host start from the system's")
-    #expect(row.note == "/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin")
+    #expect(row.note == "/usr/bin:/bin:/usr/sbin:/sbin:" + homebrewBin)
 }
 
 @Test func whileTheVersionsAreReadBothRowsSaySoAndHaveNoProblem() {

@@ -45,4 +45,4 @@ The `postflight` step is a way around Gatekeeper that Homebrew discourages for i
 
 The Settings fields `node`, `carrier` and `PATH` go away: the formula installs a `carrier` with an absolute `node` in its first line, at a known place. One advanced setting, "use this carrier", stays for development from the repo.
 
-An Intel Mac gets the engine and the chat host but not the app.
+An Intel Mac gets the engine and the chat host but not the app (changed by [0051](0051-the-app-also-ships-as-an-intel-build-with-its-own-zip-and-feed.md)).

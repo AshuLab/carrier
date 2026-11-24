@@ -2,7 +2,7 @@ name: Carrier macOS app
 
 # The app (macos/): its tests and its bundle, in parallel on macOS, the expensive runner.
 # Reusable: ci.yml calls it once the engine and the cheap checks are green, release.yml calls it with `bundle: false` (the tests only: the release builds and checks the bundle itself); run by hand to try a branch.
-# The bundle (~18 min, a cold release build) runs only when the change can affect it: ci.yml decides. release.yml runs the same check before anything reaches the tap or the update feed.
+# The bundle (~18 min, a cold release build, once per architecture in parallel) runs only when the change can affect it: ci.yml decides. release.yml runs the same check before anything reaches the tap or the update feed.
 on:
   workflow_call:
     inputs:
@@ -36,12 +36,19 @@ jobs:
         working-directory: macos
         run: scripts/test-ci.sh
 
-  # build-app.sh and what the updater needs from the bundle.
+  # build-app.sh and what the updater needs from the bundle, for each architecture the release ships (ADR 0051): Intel is cross-compiled on this same runner.
   bundle:
-    name: Bundle
+    name: Bundle (${{ matrix.arch }})
     if: inputs.bundle
     runs-on: macos-26
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [arm64, x86_64]
+    env:
+      # check-app.sh: empty is this runner's own architecture (Apple Silicon)
+      CARRIER_ARCH: ${{ matrix.arch == 'x86_64' && 'x86_64' || '' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Bundle

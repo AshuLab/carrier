@@ -45,7 +45,7 @@ describe('release.yml', () => {
       'release: Tap',
       'release: GitHub Release as a draft',
       'release: Push the formula and the cask to the tap',
-      'release: Attach the appcast',
+      'release: Attach the appcasts',
       'release: Publish the release',
     ]);
   });
@@ -75,6 +75,42 @@ describe('release.yml', () => {
     expect(names.indexOf('Cask')).toBeGreaterThanOrEqual(0);
     expect(names.indexOf('Cask')).toBeLessThan(names.indexOf('GitHub Release as a draft'));
     expect(release?.steps[names.indexOf('Cask')]?.text).toContain('cask.mjs ensure cask/carrier.rb');
+  });
+});
+
+describe('release.yml, the two architectures', () => {
+  const app = jobs['app'];
+  const text = (name: string) => (app?.steps ?? []).find((step) => step.name === name)?.text ?? '';
+
+  it('builds the app once for Apple Silicon and once for Intel, each named by its suffix', () => {
+    expect(workflow).toMatch(/matrix:\n\s+include:\n\s+- arch: arm64\n\s+suffix: ""\n\s+- arch: x86_64\n\s+suffix: "-intel"/);
+    expect(workflow).toContain("CARRIER_ARCH: ${{ matrix.arch == 'x86_64' && 'x86_64' || '' }}");
+    expect(workflow).toContain('name: app-${{ matrix.arch }}');
+  });
+
+  it('checks that the zip holds the architecture it is named for, before it is signed', () => {
+    const names = (app?.steps ?? []).map((step) => step.name);
+    expect(text('Check the zip')).toContain('lipo -archs check/Carrier.app/Contents/MacOS/Carrier');
+    expect(names.indexOf('Check the zip')).toBeLessThan(names.indexOf('Sign the zip'));
+  });
+
+  it('puts both zips, their checksums, both dSYMs and both appcasts on the Release, and both shas in the cask', () => {
+    const steps = release?.steps ?? [];
+    const draft = steps.find((step) => step.name === 'GitHub Release as a draft')?.text ?? '';
+    for (const file of ['Carrier-$VERSION.zip', 'Carrier-$VERSION-intel.zip', 'Carrier-$VERSION.zip.sha256', 'Carrier-$VERSION-intel.zip.sha256', 'Carrier-$VERSION.dSYM.zip', 'Carrier-$VERSION-intel.dSYM.zip']) {
+      expect(draft).toContain(`"out/${file}"`);
+    }
+    expect(steps.find((step) => step.name === 'Attach the appcasts')?.text).toContain('out/appcast.xml out/appcast-intel.xml');
+    expect(steps.find((step) => step.name === 'Cask')?.text).toContain('cask.mjs release cask/carrier.rb "$VERSION" "$ARM_SHA256" "$INTEL_SHA256"');
+  });
+});
+
+describe('_macos.yml, the pull request check of the bundle', () => {
+  const macos = readFileSync(join(import.meta.dirname, '../../.github/workflows/_macos.yml'), 'utf8');
+
+  it('checks the bundle of both architectures, so a change that breaks the Intel one fails before a release', () => {
+    expect(macos).toMatch(/matrix:\n\s+arch: \[arm64, x86_64\]/);
+    expect(macos).toContain("CARRIER_ARCH: ${{ matrix.arch == 'x86_64' && 'x86_64' || '' }}");
   });
 });
 
@@ -156,6 +192,63 @@ end
 
   it('turns auto_updates false into true', () => {
     expect(ensure(old.replace('  depends_on', '  auto_updates false\n  depends_on'))).toContain('  auto_updates true\n');
+  });
+
+  describe('release', () => {
+    const arm = 'a'.repeat(64);
+    const intel = 'b'.repeat(64);
+    function release(text: string, version = '1.2.3', shas = [arm, intel]) {
+      const file = join(mkdtempSync(join(tmpdir(), 'cask-')), 'carrier.rb');
+      writeFileSync(file, text);
+      execFileSync(join(scripts, 'cask.mjs'), ['release', file, version, ...shas]);
+      return readFileSync(file, 'utf8');
+    }
+    const flat = `cask "carrier" do
+  version "1.0.0"
+  sha256 "${'0'.repeat(64)}"
+
+  url "https://github.com/AshuLab/carrier/releases/download/v#{version}/Carrier-#{version}.zip"
+  name "Carrier"
+
+  depends_on formula: "carrier"
+  depends_on arch: :arm64
+  depends_on macos: :tahoe
+
+  app "Carrier.app"
+end
+`;
+
+    it('gives each architecture its own zip and checksum', () => {
+      const out = release(flat);
+      expect(out).toContain('  version "1.2.3"\n\n  on_arm do\n    sha256 "' + arm + '"\n    url "https://github.com/AshuLab/carrier/releases/download/v#{version}/Carrier-#{version}.zip"\n  end\n');
+      expect(out).toContain('  on_intel do\n    sha256 "' + intel + '"\n    url "https://github.com/AshuLab/carrier/releases/download/v#{version}/Carrier-#{version}-intel.zip"\n  end\n\n  name "Carrier"');
+    });
+
+    it('drops the Apple Silicon only requirement and keeps the rest', () => {
+      const out = release(flat);
+      expect(out).not.toContain('depends_on arch');
+      expect(out).toContain('  depends_on formula: "carrier"\n  depends_on macos: :tahoe\n\n  app "Carrier.app"\nend\n');
+      expect(out, 'the flat sha256 and url are gone').not.toMatch(/^ {2}(sha256|url)\b/m);
+    });
+
+    it('rewrites the version and the checksums of a cask it already shaped, and nothing else', () => {
+      const first = release(flat);
+      expect(release(first)).toBe(first);
+      const next = release(first, '1.2.4', ['c'.repeat(64), intel]);
+      expect(next).toBe(first.replace('1.2.3', '1.2.4').replace(arm, 'c'.repeat(64)));
+    });
+
+    it('turns the seed into a cask that audits as it is written, and ensure leaves it alone', () => {
+      const seeded = release(readFileSync(seed, 'utf8'));
+      expect(once(seeded, 'on_arm do')).toBe(1);
+      expect(once(seeded, 'on_intel do')).toBe(1);
+      expect(ensure(seeded)).toBe(seeded);
+    });
+
+    it('refuses a version or a checksum that is not one', () => {
+      expect(() => release(flat, '1.2', [arm, intel])).toThrow();
+      expect(() => release(flat, '1.2.3', [arm, 'nope'])).toThrow();
+    });
   });
 
   it('keeps the quarantine postflight of the seed', () => {

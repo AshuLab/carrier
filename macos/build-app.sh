@@ -57,8 +57,9 @@ esac
 if [ "${CARRIER_REUSE_BUILD:-}" = 1 ]; then
   [ -x .build/release/Carrier ] || { echo "error: CARRIER_REUSE_BUILD=1 but .build/release/Carrier does not exist" >&2; exit 1; }
 else
+  # --build-system swiftbuild: Swift 6.3's default (native) build system copies Localizable.xcstrings instead of compiling it into en.lproj and es.lproj; 6.4 defaults to swiftbuild
   # (${ARCH_FLAGS[@]+...}: bash 3.2 of macOS, under set -u, takes an empty array as unset)
-  swift build -c release ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"}
+  swift build --build-system swiftbuild -c release ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"}
 fi
 # the Intel app must hold an x86_64 binary and nothing else, whatever .build/release was left holding
 if [ -n "${CARRIER_ARCH:-}" ]; then

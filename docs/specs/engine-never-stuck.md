@@ -19,7 +19,7 @@ Resume restarts an epic from ship with the review rounds reset, so an epic that 
 When an agent's quota runs out and no failover is left, the epic stays stopped until a person resumes it, even when the provider says the window comes back in minutes.
 
 It hurts whoever runs Carrier on real epics, today Diego, and we know because it happened and the recovery was manual.
-This is the first of four epics that come out of that review, and the other three start from `main` once this one is merged: [the rest, in order](carrier-engine-improvements.md).
+This is the first of four epics that come out of that review, and the other three were specced one after another, each from `main` once the one before was merged; the last is [several reviewers and a lead](several-reviewers-and-a-lead.md).
 
 ## Solution
 
@@ -141,7 +141,7 @@ Testing seams, per story, preferring the seams the repo has:
 ## Out of scope
 
 The other three epics, in this order: a review to trust and the intake in order; the labels' new defaults and the skills the person names; and several reviewers with a lead.
-They are in [the backlog](carrier-engine-improvements.md) and each is specced again from `main` when its turn comes.
+They were specced again from `main` when their turn came: see the other three epics of the review.
 
 Pausing one epic while the others run (`hold`), the label orders `carrier:restart*` and a `carrier enqueue` command, until someone needs to act from GitHub.
 

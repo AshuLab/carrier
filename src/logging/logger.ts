@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path';
 import { format } from 'node:util';
 import { configureUniversalLogger, createScopedLogger, LogLevel } from '@ashulab/universal-logger';
 import type { AgentTask } from '../execution/agent-runner.ts';
+import { slotOf, type Slot } from '../storage/executions.ts';
 import { redact } from './redact.ts';
 
 const log = createScopedLogger('logger');
@@ -50,11 +51,11 @@ export function rotatingFile(file: string, maxBytes = 10 * 1024 * 1024, keep = 1
 }
 
 /** Context every log of an execution carries when it applies. */
-export const taskContext = (c: { repo: string; epic: number; executionId: string; stage: AgentTask['stage']; round?: number | null }) => ({
+export const taskContext = (c: { repo: string; epic: number; executionId: string; stage: AgentTask['stage']; reviewer?: Slot | null; round?: number | null }) => ({
   repo: c.repo,
   epic: c.epic,
   executionId: c.executionId,
-  role: c.stage === 'review' ? 'reviewer' : 'author',
+  role: slotOf(c) ?? 'author',
   stage: c.stage,
   ...(c.round && { round: c.round }),
 });

@@ -55,10 +55,10 @@ What each part of `engine/` holds:
 | `state/` | `carrier.db` (SQLite, the authority, in WAL mode: `carrier.db-wal` and `carrier.db-shm` appear beside it while it is open and are part of it, so do not delete them or copy `carrier.db` alone while Carrier runs; `.backup` of `sqlite3` takes a consistent copy), `control.sock` (the control socket the CLI and the app use), `carrier.lock` (one engine per folder), the results of each execution (deleted with its logs), and `forge-cwd/<owner>/<name>` (the stub folder Forge runs in before a repo's first clone). |
 | `logs/` | `orchestrator.log`, `executions/<id>/` (each agent run's full output), and `start.log` (what a detached Carrier prints; the macOS app's start writes `app-start.log`). |
 | `repos/` | Carrier's clones, `<owner>/<repo>`. |
-| `reviews/` | The reviewer's separate checkouts, `<repo>/<epic>/`. |
+| `reviews/` | The reviewers' separate checkouts: `<repo>/<epic>/` for the mandatory reviewer, and `<repo>/<epic>--<slot>/` beside it for each other slot (`reviewer-2` to `reviewer-4`, `lead`). |
 | `worktrees/` | `<repo>/<feature>/`, Carrier's own place for an epic's worktree by default. Any other place works: Carrier finds an epic's worktree with `git worktree list`. |
 
-When an epic is merged or cancelled the engine removes, always, its reviewer checkout, the author's worktree and Solve's `<worktree>--lane-N` worktrees beside it, wherever they are, and the epic's local branches whose tip is already on the remote.
+When an epic is merged or cancelled the engine removes, always, the checkouts of its reviewers, the author's worktree and Solve's `<worktree>--lane-N` worktrees beside it, wherever they are, and the epic's local branches whose tip is already on the remote.
 An author or lane worktree with uncommitted files or commits on no branch is kept, and so is a branch that is not on the remote; the log says so.
 It does this at the next poll, also for epics that ended earlier; a failure is logged and tried again at the following one.
 
@@ -91,10 +91,11 @@ The accounts the roles name (`claude` and `codex` here) are declared in `provide
 | `profiles` | yes | | The GitHub identities you can use, by name (below). |
 | `orchestratorProfile` | no | the author's profile | Profile used to read issues and PRs and to change labels. Left out, it is `agents.author.profile`; set it only when the author's profile cannot read a repo, for instance a repo of another owner where the author's bot is not installed. `carrier init` asks for it, before the author and the reviewer. You can also choose it in the Mac app, under GitHub identity in Settings > Engine (the default takes the key out of the file). When a repo's read check fails with a 404, the doctor's fix names this key as the second way out, besides installing the App. |
 | `agents.author` / `agents.reviewer` | yes | | `{ profile, provider, model, persona? }` for each role: the GitHub identity it acts as, the AI provider it connects through, and the model it uses. |
-| `agents.leadReviewer` | no | none | Optional technical lead role `{ profile, provider, model, persona? }` (configuration setup; reserved for upcoming lead reviewer gating in the Carrier flow). |
+| `agents.leadReviewer` | no | none | Optional lead reviewer `{ profile, provider, model, effort?, persona?, skills? }`; its `skills` takes only `lead`. The engine runs it once after the reviewers agree and before the epic is ready for test, and `carrier doctor` checks it. See [Extra reviewers and the lead reviewer](#extra-reviewers-and-the-lead-reviewer). |
+| `agents.extraReviewers` | no | none | Zero to three more reviewers beside `agents.reviewer`, each `{ profile, provider, model, effort?, persona?, skills?, failover? }`. The engine runs them with the mandatory reviewer in every review round, in parallel; they are checked by `carrier doctor` and saved with the epic. See [Extra reviewers and the lead reviewer](#extra-reviewers-and-the-lead-reviewer). |
 | `agents.<role>.effort` | no | none | How hard the model thinks: one of `low`, `medium`, `high`, `xhigh` or `max`, in the global role and in a repo's override of it. Passed as `--effort` to Claude and Antigravity and as `-c model_reasoning_effort=<level>` to Codex, in every run and resume. Without it nothing is passed and the CLI uses its own. Anything else is refused naming the key. |
 | `agents.<role>.persona` | no | none | `{ name?, prompt? }`: who the agent of that role is. `name` is one line of at most 40 characters; `prompt` is text of at most 4000 characters, given to the agent as you wrote it. See [Personas](#personas). |
-| `skills` | no | Solve's: `ship`, `code-review` with `code-post`, `code-resolve` | The skill each stage runs: `{ ship, review: { review, publish }, fix }`, also in a repo and in a role. See [Skills](#skills). |
+| `skills` | no | Solve's: `ship`, `code-review` with `code-post`, `code-resolve` | The skill each stage runs: `{ ship, review: { review, publish }, fix, lead: { review, publish } }`, also in a repo and in a role. `lead` is the lead reviewer's and has no default of its own: left out, it takes `review`. See [Skills](#skills). |
 | `failover` | no | none | `{ triggers?, roles? }`: for each role, a list of steps it moves through when its credits run out or service fails. See [Failover](#failover). |
 | `pollIntervalMinutes` | no | `5` | How often it looks for ready epics. |
 | `labels` | no | the `solve:epic…` names below | The label of each role, the same in every repo: `{ epic, ready, running, readyForTest, needsHuman }`, each optional. A name is one line without commas, at most 50 characters, and no two roles, stages or kinds of stop may share one (GitHub ignores case, so `Solve:Epic` is `solve:epic`): a config that repeats one is refused naming the second. See [Labels](#labels). |
@@ -102,6 +103,7 @@ The accounts the roles name (`claude` and `codex` here) are declared in `provide
 | `logLevel` | no | `info` | `debug`, `info`, `warn` or `error`. |
 | `limits.maxConcurrentEpics` | no | `3` | Epics running at the same time. |
 | `limits.maxReviews` | no | `5` | Review rounds before the epic goes to `needs-human`. |
+| `limits.maxLeadRounds` | no | `3` | A positive whole number: the reviews of the lead reviewer's exchange with the author before the epic goes to `needs-human` with the kind `lead_limit`. Zero, negatives, fractions and strings are refused. It is read when the lead's answer is decided, so a change applies at the lead's next answer, and the lead's rounds do not count toward `maxReviews`. |
 | `limits.maxExecutionRetries` | no | `3` | Retries after a technical failure of an agent execution. |
 | `limits.maxExecutionHours` | no | `4` | Time limit of one agent execution, or `"unlimited"`. `0` does not mean infinite. |
 | `limits.githubCallTimeoutSeconds` | no | `30` | Limit for each short call to GitHub or Forge. |
@@ -127,9 +129,10 @@ A board or an automation keyed on an old name changes it, or you set the old nam
 
 Two more groups are off until you name them, so a Carrier that does not name them writes nothing more than the five above:
 
-- `labels.stages`: `{ ship, review, fix }`, each optional. While an epic runs, the issue carries the label of its stage beside `running`, and the next stage replaces it.
-- `labels.reasons`: one optional label per kind of stop, `review_limit`, `agent_needs_human`, `retries_exhausted`, `timeout`, `auth`, `workspace`, `pr_invalid`, `usage_limit`, `engine_error` and `skill_missing`.
+- `labels.stages`: `{ ship, review, fix, lead }`, each optional. While an epic runs, the issue carries the label of its stage beside `running`, and the next stage replaces it.
+- `labels.reasons`: one optional label per kind of stop, `review_limit`, `agent_needs_human`, `retries_exhausted`, `timeout`, `auth`, `workspace`, `pr_invalid`, `usage_limit`, `engine_error`, `skill_missing`, `reviewers_failed` and `lead_limit`.
   While an epic waits for a person, the issue carries the label of its kind beside `needsHuman`.
+  `reviewers_failed` and `lead_limit` are the two kinds of several reviewers and a lead, explained under [Extra reviewers and the lead reviewer](#extra-reviewers-and-the-lead-reviewer).
 
 The names below are proposals you may copy into `labels`; none is on until you name it:
 
@@ -138,6 +141,7 @@ The names below are proposals you may copy into `labels`; none is on until you n
 | `labels.stages.ship` | `carrier:stage:building` |
 | `labels.stages.review` | `carrier:stage:reviewing` |
 | `labels.stages.fix` | `carrier:stage:fixing-review` |
+| `labels.stages.lead` | `carrier:stage:lead-reviewing` |
 | `labels.reasons.<kind>` | `carrier:reason:<kind>`, for example `carrier:reason:review_limit` |
 
 A stage label costs one more write to GitHub at each stage change, which is why it is opt-in.
@@ -257,16 +261,85 @@ Each role in `agents` (`author`, `reviewer`, and optional `leadReviewer`) specif
 - Codex has no aliases: use an id from `codex`'s own list.
 - For Antigravity, use an id from `agy models` (`carrier init` offers all of them).
 
+### Extra reviewers and the lead reviewer
+
+`agents.extraReviewers` adds up to three reviewers beside `agents.reviewer`, and `agents.leadReviewer` is a final reviewer that runs after them.
+The keys are read, checked and saved with each epic, and `carrier doctor` checks them.
+The engine runs the extra reviewers: when the author's `ship` is validated it launches every reviewer at once on the same commit, each in its own checkout, and the round is settled when every reviewer has a verdict or has settled with none.
+The author's `fix` gets the open blockers of every reviewer, shown as `reviewer-2:B1` when the epic has several reviewers; a round counts once toward `limits.maxReviews` however many reviewers it has.
+A reviewer that gives no verdict does not stop the round: it answers `needs_human`, fails technically with its retries and failover steps out, runs out of usage with no failover step left, or, for an extra reviewer, lacks a skill you named for it.
+One verdict is enough for the round to count, and the mandatory reviewer's own missing skill still stops the epic with `skill_missing` before any reviewer is launched.
+A slow reviewer holds the round for as long as an execution may last, and the epic has no limit of its own for a round.
+Set `limits.idleMinutes` to bound it: a reviewer whose process writes nothing for that long is killed and retried, and when its retries are out the round goes on without it.
+
+Once the reviewers agree (right after the round, or after the observations pass with the head unchanged) and a lead reviewer is configured, the epic goes to the stage `lead` instead of ready for test, and the engine launches one execution of the lead, in its own checkout, on the head the reviewers agreed on.
+The lead is the final reviewer: it runs the skill resolved for it (`skills.lead`, with the values of the review skill when none names it), invoked `/name` or `$name` by harness, it is given the summaries of the reviewers' results, and its prompt tells it to give the pull request its formal approval with its own identity when it finds no blocker.
+It is told that GitHub does not let an account approve its own pull request when its profile is the author's.
+When it completes the epic is ready for test with the head it approved recorded beside the head the reviewers agreed on, which the epic keeps and shows when they differ.
+Its result may say whether it submitted the approval (`approval` with `submitted` and a `url`): Carrier records that and shows it, and does not require it, so a lead that cannot approve does not block the epic.
+A head that moves while the lead reviews sets its verdict aside and repeats the lead's review on the new head, without counting a round, with the same two repeats in a row as a round and the same stop in `pr_invalid`.
+`labels.stages.lead` (proposed: `carrier:stage:lead-reviewing`) is applied while the epic is in that stage.
+A lead that cannot conclude, fails technically past its retries or lacks a skill you named stops the epic like any other role; one that asks for changes starts an exchange between the author and the lead alone: the epic goes to the author's fix with the lead's blockers only, and when the fix completes the lead reviews again, on the head after the fix, up to `limits.maxLeadRounds` reviews in all.
+The other reviewers do not run again, the lead's rounds do not count toward `limits.maxReviews` and the epic's review round does not move.
+The lead's observations are kept with its result and with the event of its completion, are not sent to the author and are not counted as left unanswered.
+At the limit, if the lead still asks for changes, the epic stops in needs-human with the kind `lead_limit`.
+A resume at `review` or `fix` (`carrier restart --from`) of an epic that stopped there starts the lead's exchange over: the fix goes back to the reviewers' round, and the lead gets its `limits.maxLeadRounds` again once the reviewers agree; a resume at `fix` gives the author the lead's latest blockers.
+
+```json
+{
+  "skills": { "lead": { "review": "my-lead-review", "publish": null } },
+  "agents": {
+    "reviewer": { "profile": "reviewer-bot", "provider": "codex", "model": "<model>" },
+    "extraReviewers": [
+      { "profile": "second-reviewer-bot", "provider": "claude", "model": "<model>", "skills": { "review": { "review": "my-review" } }, "failover": [{ "provider": "claude", "model": "<model>" }] }
+    ],
+    "leadReviewer": { "profile": "lead-reviewer-bot", "provider": "claude", "model": "<model>", "skills": { "lead": { "review": "my-lead-review" } } }
+  },
+  "limits": { "maxLeadRounds": 3 }
+}
+```
+
+- An extra reviewer has the fields of any role (`profile`, `provider`, `model`, `effort`, `persona`), `skills` with only `review` (`review` and `publish`, as in [Skills](#skills)) and its own `failover`, a list of steps shaped like those of `failover.roles`.
+  Left out, its failover is that of `failover.roles.reviewer`.
+- A fourth entry is refused naming `agents.extraReviewers`.
+- A repo's `agents.extraReviewers` replaces the whole global list, an empty list included, so a repo can turn the extras off; each of its entries carries `profile`, `provider` and `model`, because nothing is merged.
+- The lead takes `skills` with only `lead`; a key for a stage the role does not run is refused naming it.
+- The profile and the provider of each extra reviewer must be declared, and the steps of its `failover` are checked like those of `failover.roles` (a provider that is not declared, a step repeated, a step equal to the reviewer's own provider and model), each refused naming its path.
+- Give each reviewer a profile of its own, a bot for each.
+  Every reviewer publishes its comments on the pull request with its own account, so with one bot per reviewer the pull request shows who said what, and a reviewer re-reviewing never takes another's open threads for its own.
+  Reviewers may share a profile, with each other or with the author: what tells their blockers apart is the reviewer's prefix on the blocker's id (`reviewer-2:B1`), never the account that wrote the comment, and a blocker with no `id` is told apart by its title and the same prefix.
+  The comments of reviewers that share a profile come from one login, so each is told to judge only the blockers it is given and to leave the review threads it did not open; a profile for each reviewer is still the advice, because then the pull request itself shows who said what.
+- When the blockers of two reviewers contradict each other the author decides and says in its summary which one it did not follow and why; the reviewers read the summaries of the earlier rounds in their next round, and the epic has no stop for a contradiction.
+
+Two kinds of stop belong to this, each with its optional label under `labels.reasons` (see [Labels](#labels)) and a line in `carrier status` and in the app:
+
+- `reviewers_failed`: a review round with several reviewers ended with no verdict at all.
+  The reason names each reviewer and why it failed.
+  A round whose every failure was a usage limit stops in `usage_limit` instead, so it wakes by itself when `limits.autoResume` is on; `reviewers_failed` never wakes by itself.
+  It also stops an epic whose round has only completed verdicts but a reviewer that asked for changes in an earlier round gave none in this one: its blockers are still open, so the round is not agreement, and the reason names that reviewer.
+  If another reviewer does ask for changes the fix goes ahead instead, with the blockers still open of the reviewer that gave none among its own.
+  An epic with one reviewer never stops in it.
+- `lead_limit`: the lead reviewer asked for changes in each of the `limits.maxLeadRounds` reviews of its exchange with the author.
+  The reason names the lead, the limit and the blockers of its last review.
+
+Resume the epic after reading the reason, as for the other kinds.
+For `lead_limit`, read the lead's blockers in the reason, fix them yourself or raise `limits.maxLeadRounds`, and resume the epic.
+
+The other stops that name the lead are the ordinary kinds of any role: `agent_needs_human` when it cannot conclude (the reason begins "the lead reviewer cannot conclude"), `retries_exhausted` when its retries are out (counted for the lead alone) and `usage_limit` when its failover is.
+The lead moves through `failover.roles.leadReviewer` when its quota runs out, or through `failover.roles.reviewer` when it declares none, and a `usage_limit` stop of the lead wakes up by itself (see `limits.autoResume`) at the lead's stage, with its lead round kept and no review round repeated.
+`skill_missing` names the skill, the role `lead` and where its harness looked.
+
 ### Starting an epic and restarting it
 
 An epic starts at once on its roles: nothing waits for a provider to be chosen, however many accounts are declared. The account each role ran on is recorded, because resuming its session and moving the role on failover need it.
 
-`carrier restart <owner/name>#<issue>` of a stopped epic is the one place a provider is chosen: it offers every declared account to each role, with no timer, and `--author` and `--reviewer` name one without asking.
+`carrier restart <owner/name>#<issue>` of a stopped epic is the one place a provider is chosen: it offers every declared account to each role, with no timer, and `--author`, `--reviewer`, `--reviewer-2` to `--reviewer-4` and `--lead` name one without asking (each for a role the epic has).
 
 A config with `limits.optionChoiceSeconds`, or a `providers.json` account with `enabled`, is refused naming the key: an epic starts at once on its roles, so there is no choice to wait for or to hold back accounts from. Delete the key.
 
 ### Failover
 
+The lead reviewer takes the steps of `failover.roles.reviewer` when `failover.roles.leadReviewer` is not declared (an empty list there is its own: no failover).
 A role has failover when its list of steps in `failover.roles` is not empty. There is no global switch and no default list: a missing or empty list (`[]`) means that role stops when its login runs out.
 
 A step is a provider, an account of `providers.json`, and optionally the model to run there and its `effort` (one of the five levels). Without a model the step uses the account's `model`, then the harness's default; without an `effort` it keeps the one the role was running with (the role's own for the first step).
@@ -328,7 +401,7 @@ By default they are Solve's: `ship` for the ship stage, `code-review` (and `code
     "review": { "review": "code-review", "publish": "code-post" },
     "fix": "code-resolve"
   },
-  "repos": [{ "name": "owner/repo", "skills": { "review": { "review": "my-review", "publish": null } } }],
+  "repos": [{ "name": "owner/repo", "skills": { "review": { "review": "my-review", "publish": null }, "lead": { "review": "my-lead-review" } } }],
   "agents": { "reviewer": { "profile": "reviewer-bot", "provider": "claude", "model": "<model>", "skills": { "review": { "review": "my-review" } } } }
 }
 ```
@@ -339,14 +412,20 @@ Every block is strict, so an unknown key is refused naming it.
 `publish` is a name, or `null` for a review skill that publishes by itself; left out, it is inherited.
 
 The order is the role's own `skills`, then the repo's, then the global, then Solve's, merged by key and one level inside `review`.
-A role names only the stages it runs: the author `ship` and `fix`, the reviewer `review`; another key is refused naming it.
-The `lead` stage and the skills of extra reviewers are not accepted yet.
+A role names only the stages it runs: the author `ship` and `fix`, the reviewer and each extra reviewer `review`, the lead reviewer `lead`; another key is refused naming it.
+`skills.lead` has the shape of `skills.review` (a name, and `publish` a name or `null`) and takes the same skill-name rule, at the global level, in a repo and in the lead's role.
+The lead's skills are the lead's own, then the repo's `skills.lead`, then the global `skills.lead`; what none of them names is taken from the repo's or the global `skills.review` (never from another role's own `skills`) and then from Solve's defaults.
+An extra reviewer's `review` skills are its own entry's, then the repo's `skills.review`, the global one and Solve's defaults.
+A value taken from a `skills.review` you named counts as named, so it stops an epic when it is absent.
+Each extra reviewer invokes its own `review` skills, and the lead reviewer invokes its `lead` skills.
+Of the lead's skills only one you named stops an epic when it is absent (`skills.lead`, or a `skills.review` you named that the lead takes), checked before the lead's first launch, a resume, a wake-up, a failover and a `carrier restart --lead` that changes its option; a default skill that is absent, or an answer that cannot tell, never stops it.
 
 The resolved skills are saved with an epic's configuration when it starts, so a reload changes nothing for a running epic, and an epic restarted from ship takes the skills of that moment.
-An epic saved before this version has none saved and reads Solve's.
+The extra reviewers and the resolved skills of each and of the lead are saved with it too.
+An epic saved before this version has none saved and reads Solve's, with no extra reviewers and no lead.
 Carrier remembers which skills you named at any level (a global one that is Solve's own name counts as not named) and which are Solve's defaults.
 
-Before an epic starts, resumes or changes the option of a role (a failover, or `carrier restart --author` or `--reviewer`), Carrier asks whether the harness and account of that role find each skill the role invokes.
+Before an epic starts, resumes or changes the option of a role (a failover, or `carrier restart` with an option for a role: `--author`, `--reviewer`, `--reviewer-2` to `--reviewer-4` or `--lead`), Carrier asks whether the harness and account of that role find each skill the role invokes.
 Only a skill you named stops an epic, and only when the answer is that it is absent: the epic stops in needs-human with the kind `skill_missing`, naming the skill, the role and where it looked, before any agent run is spent.
 A skill that is Solve's default never stops an epic, and neither does an answer of "cannot tell" (a place Carrier cannot read might hold the skill), so a role that runs today keeps running.
 Carrier reads the places of Claude Code, Codex and Antigravity (`agy`) for this; [troubleshooting](troubleshooting.md) lists where each harness is read.

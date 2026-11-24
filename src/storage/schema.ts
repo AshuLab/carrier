@@ -2,7 +2,7 @@ import type { EffectiveRepoConfig } from '../config/resolve.ts';
 import type { PullRequestBlock } from '../orchestration/github.ts';
 import { integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
 
-export const needsHumanKinds = ['review_limit', 'agent_needs_human', 'retries_exhausted', 'timeout', 'auth', 'workspace', 'pr_invalid', 'usage_limit', 'engine_error', 'skill_missing'] as const;
+export const needsHumanKinds = ['review_limit', 'agent_needs_human', 'retries_exhausted', 'timeout', 'auth', 'workspace', 'pr_invalid', 'usage_limit', 'engine_error', 'skill_missing', 'reviewers_failed', 'lead_limit'] as const;
 export const unansweredReasons = ['already_taken', 'last_round'] as const;
 // Why an epic was cancelled; the poll decides by it. `ready_removed` and `issue_closed` before any execution go back to the queue when `ready` returns. A cancel with no kind is never requeued.
 export const cancelKinds = ['ready_removed', 'issue_closed', 'pr_closed', 'issue_gone'] as const;
@@ -24,7 +24,7 @@ export const epics = sqliteTable(
     cancelKind: text({ enum: cancelKinds }), // set together with cancelReason; null on an epic cancelled before kinds existed
     // The running label is a reflection of SQLite: true while it has not reached GitHub yet.
     labelPending: integer({ mode: 'boolean' }).notNull().default(false),
-    stage: text({ enum: ['ship', 'review', 'fix'] }), // null until the author is launched
+    stage: text({ enum: ['ship', 'review', 'fix', 'lead'] }), // null until the author is launched; `lead` while the lead reviewer reviews after the reviewers agreed
     stageStartedAt: integer(), // ms since epoch, when the epic entered its current stage
     // Where the author's epic worktree really is (read back from `git worktree list` after ship); fix turns run there.
     workspace: text(),
@@ -34,7 +34,9 @@ export const epics = sqliteTable(
     prNumber: integer(),
     prHeadSha: text(),
     pr: text({ mode: 'json' }).$type<PullRequestBlock>(), // what GitHub said about the PR the last time the poll asked: a cache, never read to decide anything
-    reviewedSha: text(), // head the reviewer approved, set when the epic becomes ready_for_test
+    reviewedSha: text(), // head the reviewers agreed on, set when the epic goes to the lead reviewer or becomes ready_for_test
+    leadRound: integer(), // the number of the lead reviewer's review in this attempt; null until the lead runs
+    approvedSha: text(), // head the lead reviewer approved, set when it completes; null without a lead
     verification: text({ mode: 'json' }).$type<{ ci: 'passed' | 'absent'; evidence: string }>(), // what the reviewer reported about the checks
     observationsPassAt: integer(), // ms since epoch, when the observations pass started (once per epic); null until then
     needsHumanReason: text(),
@@ -53,7 +55,7 @@ export const epics = sqliteTable(
     // Recoveries by the poll in a row (ADR 0046): back to 0 when an execution of the epic ends or its stage changes; the fourth failure parks it in `engine_error`.
     recoveries: integer().notNull().default(0),
     // The stage a resume asked for (`review` or `fix`): kept while the epic waits in the queue, so a restart of the engine in between keeps it. Null: start from ship.
-    resumeStage: text({ enum: ['review', 'fix'] }),
+    resumeStage: text({ enum: ['review', 'fix', 'lead'] }),
     // The cap of review rounds a resume granted this epic; null: the live `maxReviews`. A restart from ship clears it with the rounds.
     roundLimit: integer(),
     // ms since epoch: when the provider says the window an epic stopped on (`usage_limit`) comes back, with `limits.autoResume` on; cleared by any change of status. Null: no wake-up.

@@ -22,7 +22,7 @@ Labels are written wrongly in four ways: `ready` is taken off only while the epi
 A cleanup that kept a worktree or a branch is marked as done, so what was kept is never seen again.
 
 It hurts whoever runs Carrier on real epics, today Diego, and we know because the review of the engine found each of these in the code and the first epic of this series ([the engine never leaves an epic stuck](engine-never-stuck.md)) left them untouched.
-This is the second of four epics that come out of that review, and the other two start from `main` once this one is merged: [the rest, in order](carrier-engine-improvements.md).
+This is the second of four epics that come out of that review, and the other two were specced one after another, each from `main` once the one before was merged; the last is [several reviewers and a lead](several-reviewers-and-a-lead.md).
 
 ## Solution
 
@@ -170,7 +170,7 @@ Testing seams, per story, preferring the seams the repo has:
 ## Out of scope
 
 The other two epics, in this order: the labels' new defaults and the skills the person names; and several reviewers with a lead.
-They are in [the backlog](carrier-engine-improvements.md) and each is specced again from `main` when its turn comes.
+They were specced again from `main` when their turn came: see the other three epics of the review.
 
 Anything in the ship prompt that holds only for Solve's skills, until the skills are configurable in the next epic.
 

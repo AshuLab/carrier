@@ -44,6 +44,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   With the defaults the prompts are unchanged.
 - A new kind of stop, `skill_missing` (`labels.reasons.skill_missing` names its label): an epic stops in needs-human, with no agent run spent and no retry, when a skill you named is absent for the harness and account of the role that invokes it, checked before it starts, resumes or changes the option of a role.
   A skill that is Solve's default, or an answer of cannot tell, never stops an epic.
+- Several reviewers and a lead: `agents.extraReviewers` (zero to three more reviewers) and `agents.leadReviewer` in `engine.json`, with `skills.lead` and `limits.maxLeadRounds` (3 by default).
+  Every review round runs the reviewers in parallel, each in its own checkout, and is decided by their verdicts: one verdict is enough, a reviewer with no verdict does not stop the round, and no verdict at all stops the epic with the new kind `reviewers_failed`.
+  Each reviewer keeps its own option, failover, retries and recovery, and an authentication stop covers the profile of every role.
+  The reviewers' open blockers, contradictions between them and each one's own blockers are carried into the fix and review prompts.
+- The lead reviewer runs once after the reviewers agree and completes the epic, which then goes to ready for test with the head it approved (`approvedSha`).
+  When it asks for changes the author fixes only its blockers and the lead looks again, up to `limits.maxLeadRounds`, then the epic stops with the new kind `lead_limit`; a resume at `review` or `fix` starts that exchange over.
+  Its failures (`needs_human`, retries, quota with a wake-up, `skill_missing`) are its own and name the lead.
+- `carrier restart` takes `--reviewer-2`, `--reviewer-3`, `--reviewer-4` and `--lead` to choose the option of each of those roles, keeping the others, and the control socket advertises it with the capability `resumeReviewerOptions`.
+- `carrier status`, `carrier watch`, the panel, the snapshot and the epic replies show a round of several reviewers (how many agreed, the reasons) and the lead, with an optional `reviewers` list and a `lead` stage, and a `round_decided` event.
 - The Mac app also ships for Intel Macs on macOS 26: `brew install --cask ashulab/tap/carrier` installs the zip of the Mac's own architecture, and the Intel app updates itself from its own feed (`appcast-intel.xml`).
   It is an x86_64-only build (`CARRIER_ARCH=x86_64 macos/build-app.sh`), not a universal one, and the release builds both on the same runner.
   The app runs the Homebrew of its own architecture's folder (`/usr/local` on Intel).

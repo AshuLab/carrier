@@ -77,7 +77,7 @@ async function client() {
 test('a client gets a hello, and the snapshot as JSON when it asks', async () => {
   await open();
   const c = await client();
-  expect(c.hello).toEqual({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, version: JSON.parse(readFileSync('package.json', 'utf8')).version, capabilities: ['sessions', 'events', 'epic', 'files', 'fileDiff', 'availableRepos', 'availableReposPaged', 'resumeEpic', 'resumeFromStage', 'recoverEpic', 'reload'] });
+  expect(c.hello).toEqual({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, version: JSON.parse(readFileSync('package.json', 'utf8')).version, capabilities: ['sessions', 'events', 'epic', 'files', 'fileDiff', 'availableRepos', 'availableReposPaged', 'resumeEpic', 'resumeFromStage', 'resumeReviewerOptions', 'recoverEpic', 'reload'] });
   expect(await c.ask('{"id":1,"cmd":"snapshot"}')).toEqual({ id: 1, ok: true, data: snapshotData });
   expect(await c.ask('{"id":7,"cmd":"snapshot"}')).toMatchObject({ id: 7, ok: true });
 });
@@ -477,7 +477,7 @@ test('no request takes a status, a stage or a round, and each accepts exactly th
     fileDiff: ['issue', 'path', 'repo', 'section'],
     availableRepos: ['page'],
     reload: [],
-    resumeEpic: ['author', 'extraRounds', 'from', 'issue', 'repo', 'reviewer'],
+    resumeEpic: ['author', 'extraRounds', 'from', 'issue', 'lead', 'repo', 'reviewer', 'reviewer2', 'reviewer3', 'reviewer4'],
     recoverEpic: ['issue', 'repo'],
   });
   expect(Object.values(accepted).flat().filter((field) => ['status', 'stage', 'round', 'rounds'].includes(field))).toEqual([]);

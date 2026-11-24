@@ -2,17 +2,16 @@ import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createScopedLogger } from '@ashulab/universal-logger';
-import { and, asc, desc, eq, inArray, isNotNull, isNull, lte, ne, notInArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lte, ne, notInArray, sql } from 'drizzle-orm';
 import type { EnginePlaces } from '../config/places.ts';
 import { runtimeOf } from '../config/providers.ts';
-import { failoverStepsFor, type Agent, type EffectiveRepoConfig } from '../config/resolve.ts';
+import type { Agent, EffectiveRepoConfig, ExtraReviewer } from '../config/resolve.ts';
 import { failoverTriggers, matchesFailoverTrigger } from '../config/schema.ts';
-import { savedSkills } from '../config/skills.ts';
 import type { HarnessName } from '../harnesses/names.ts';
 import type { Skills } from '../harnesses/skills.ts';
 import type { AgentExit, AgentFailure, AgentRun, AgentRunner, AgentTask } from '../execution/agent-runner.ts';
 import { failureDetail } from '../execution/failure.ts';
-import { parseCallerResult } from '../execution/caller-result.ts';
+import { parseCallerResult, type CallerResult } from '../execution/caller-result.ts';
 import { importResult } from '../execution/import-result.ts';
 import type { Workspaces } from '../execution/workspaces.ts';
 import { epicReviewThreads } from '../storage/epic-review-threads.ts';
@@ -20,11 +19,11 @@ import { epicSlices } from '../storage/epic-slices.ts';
 import { callerResults, supersededOutcome } from '../storage/caller-results.ts';
 import type { Db } from '../storage/db.ts';
 import { epicEvents, executionEvents, recordEvents } from '../storage/events.ts';
-import { executions, type executionStates } from '../storage/executions.ts';
+import { executions, slotOf, type executionStates, type Slot } from '../storage/executions.ts';
 import { executionOutput, taskContext } from '../logging/logger.ts';
 import { epics, type cancelKinds, type needsHumanKinds } from '../storage/schema.ts';
 import type { Clock } from './clock.ts';
-import { latestBlockers, latestObservations } from './blockers.ts';
+import { latestBlockers, latestLeadBlockers, latestObservations, openBlockerSlots } from './blockers.ts';
 import { changesSlices } from './changes-slices.ts';
 import { RecoverRefused } from './recover-refused.ts';
 import { ResumeRefused } from './resume-refused.ts';
@@ -32,7 +31,9 @@ import { endOf } from './final-pr.ts';
 import { AuthError, GitHubRejected, GitHubUnavailable, hasLabel, isNotFound, labelStyles, type GitHub, type LabelStyle, type Labels, type PullRequestState, type Slices } from './github.ts';
 import { queueOrder, queuePosition, reserve } from './reserve.ts';
 import { startRetention, type SessionDirs } from './retention.ts';
-import { failureStreak, isOfAttempt, retryWait } from './retry.ts';
+import { earliestRetryDue, failingBesides, failureStreak, isOfAttempt, lastBySlot, retryWait } from './retry.ts';
+import { agreedSummaries, decideRound, recordNoVerdict, roundNones, roundTally, roundVerdicts, type NoVerdict, type RoundDecision } from './round.ts';
+import { agentOfSlot, failoverStepsOfSlot, roundSlots, skillsOfSlot, withAgentOfSlot } from './slots.ts';
 import type { QuotaReader } from './quota.ts';
 import { isBack, resumeAtOf } from './resume-at.ts';
 
@@ -50,6 +51,8 @@ export type EngineSettings = {
   maxExecutionRetries: number;
   /** Reviews of the final PR before the epic goes to a person; fix turns do not count. */
   maxReviews: number;
+  /** Reviews of the lead reviewer's exchange with the author before the epic goes to a person (`lead_limit`); read when the lead's answer is decided. */
+  maxLeadRounds: number;
   /** The labels by role: `ready` queues an epic (Carrier takes it off when the epic starts and puts it back to restart a stopped one), `running`, `readyForTest` and `needsHuman` are the ones Carrier writes. */
   labels: Labels;
 };
@@ -171,7 +174,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
   // An epic a person sent back to the queue: nothing of the previous attempt is kept, the executions stay as history.
   const restart = (queuedAt: number) => ({
     status: 'queued' as const, queuedAt, startedAt: null, config: null, labelPending: false, stage: null, stageStartedAt: null, workspace: null,
-    lastActivityAt: null, lastError: null, round: null, prNumber: null, prHeadSha: null, pr: null, reviewedSha: null, verification: null, observationsPassAt: null,
+    lastActivityAt: null, lastError: null, round: null, prNumber: null, prHeadSha: null, pr: null, reviewedSha: null, leadRound: null, approvedSha: null, verification: null, observationsPassAt: null,
     needsHumanReason: null, needsHumanKind: null, finishedAt: null, authorOption: null, reviewerOption: null, recoveries: 0, autoResumes: 0, headRepeats: 0, unansweredObservations: null, unansweredReason: null, retryAt: null, resumeStage: null, roundLimit: null, resumeAt: null,
   });
   // The rounds an epic may have: what a resume granted it, else the live setting (a changed `maxReviews` applies at the epic's next review).
@@ -182,7 +185,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
   // worktree and the rest of where it stood; `resumeStage` tells `begin` where to start.
   const requeueKeeping = (queuedAt: number) => ({
     status: 'queued' as const, queuedAt, startedAt: null, config: null, labelPending: false, stage: null, stageStartedAt: null,
-    lastActivityAt: null, lastError: null, needsHumanReason: null, needsHumanKind: null, finishedAt: null, authorOption: null, reviewerOption: null, recoveries: 0, autoResumes: 0, headRepeats: 0, unansweredObservations: null, unansweredReason: null, retryAt: null, resumeAt: null,
+    lastActivityAt: null, lastError: null, leadRound: null, approvedSha: null, needsHumanReason: null, needsHumanKind: null, finishedAt: null, authorOption: null, reviewerOption: null, recoveries: 0, autoResumes: 0, headRepeats: 0, unansweredObservations: null, unansweredReason: null, retryAt: null, resumeAt: null,
   });
 
   // The labels a poll read of each issue (`repo#issue`), kept up to date by Carrier's own writes and emptied when the poll ends:
@@ -269,6 +272,12 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
   // What the database says when it cannot be read or written: about the whole engine, never about one epic.
   const isDatabaseError = (e: unknown) => [e, (e as Error | undefined)?.cause].some((x) => typeof (x as NodeJS.ErrnoException | undefined)?.code === 'string' && (x as NodeJS.ErrnoException).code!.startsWith('SQLITE_'));
 
+  // The runs an epic still has going, stopped: a review round has several, and what stops the epic (a reviewer's failure, a moved head) ends the others' work,
+  // which would be set aside. Each ends `interrupted` when it settles.
+  const stopRunsOf = async (epicId: number) => {
+    for (const { executionId } of db.select({ executionId: executions.executionId }).from(executions).where(and(eq(executions.epicId, epicId), eq(executions.status, 'running'))).all()) await active.get(executionId)?.stop();
+  };
+
   // An unexpected error on one epic's path (settling a result, a retry, a failover): the epic stops for a person with the error as one redacted line,
   // the execution it left `running` ends failed, and the others go on. Safe to repeat.
   async function stopEpic(epicId: number, e: unknown) {
@@ -309,13 +318,13 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
 
   // The stage a resume asked for, claimed like `launch` claims ship: the claim also clears the ask, and the stage runs with the epic's round, pull request,
   // worktree and session as they were. The new attempt (`startedAt`, set by the reserve) has its retries back.
-  async function launchResumed(epic: Epic, stage: 'review' | 'fix', epoch: number) {
+  async function launchResumed(epic: Epic, stage: 'review' | 'fix' | 'lead', epoch: number) {
     if (stopping || !unchanged(epic.id, epoch)) return;
     const claimed = db.update(epics).set({ stage, stageStartedAt: clock.now(), recoveries: 0, resumeStage: null, ...(stageLabelled() && { labelPending: true }) }).where(and(eq(epics.id, epic.id), isNull(epics.stage), eq(epics.status, 'running'))).returning().get();
     if (!claimed) return;
     launching.add(epic.id);
     try {
-      await execute(claimed, stage);
+      await launchStage(claimed, stage);
     } finally {
       launching.delete(epic.id);
     }
@@ -323,27 +332,31 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
 
   // The options a person picked when restarting a stopped epic, by epic id, until the poll that requeues it reserves it again.
   // ponytail: in memory, an engine restart in between falls back to the roles as saved; persist it if that bites.
-  const restarts = new Map<number, Partial<Record<'author' | 'reviewer', string>>>();
-  const declaredOnly = ({ id, config }: Epic, chosen: Partial<Record<'author' | 'reviewer', string>>) =>
+  type Chosen = Partial<Record<'author' | Slot, string>>;
+  const restarts = new Map<number, Chosen>();
+  const declaredOnly = ({ id, config }: Epic, chosen: Chosen) =>
     Object.fromEntries(
       Object.entries(chosen).filter(([role, name]) => {
         const declared = Object.hasOwn((config?.providers ?? config?.options) ?? {}, name);
         if (!declared) log.warn('the option chosen at the restart is not declared any more, the role starts on its default', { epicId: id, role, option: name });
-        return declared;
+        // the requeue froze the roles again: a slot the configuration has no more has nothing to put the option on
+        const has = config !== null && agentOfSlot(config, role === 'author' ? null : (role as Slot)) !== undefined;
+        if (!has) log.warn('the role the restart chose an option for is not configured any more, it is left out', { epicId: id, role });
+        return declared && has;
       }),
     );
 
-  // Puts each role on the option chosen at the restart (a role left out keeps its saved one), records them, and returns the epic as saved.
-  function onChosen(id: number, chosen: Partial<Record<'author' | 'reviewer', string>>) {
-    const { config } = fresh(id);
-    const roleOn = (role: 'author' | 'reviewer') => {
-      const name = chosen[role];
-      return name === undefined ? config!.agents[role] : onOption(config!, role, name);
-    };
-    const agents = { author: roleOn('author'), reviewer: roleOn('reviewer') };
+  // Puts each role on the option chosen at the restart (a role left out keeps its saved one, the extra reviewers and the lead included), and returns the epic as saved.
+  function onChosen(id: number, chosen: Chosen) {
+    let { config } = fresh(id);
+    for (const [role, name] of Object.entries(chosen)) {
+      const slot = role === 'author' ? null : (role as Slot);
+      config = withAgentOfSlot(config!, slot, onOption(config!, slot, name));
+    }
+    const { agents } = config!;
     return db
       .update(epics)
-      .set({ config: { ...config!, agents }, authorOption: agents.author.option ?? null, reviewerOption: agents.reviewer.option ?? null })
+      .set({ config, authorOption: agents.author.option ?? null, reviewerOption: agents.reviewer.option ?? null })
       .where(eq(epics.id, id))
       .returning()
       .get();
@@ -364,13 +377,14 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
   };
 
   // The triggers that move a role: none while it has no steps.
-  const failoverTriggersOf = (failover: EffectiveRepoConfig['failover'], role: 'author' | 'reviewer') => (failoverStepsFor(failover, role).length > 0 ? (failover?.triggers ?? failoverTriggers) : []);
+  const failoverTriggersOf = (config: Epic['config'], slot: Slot | null) => (failoverStepsOfSlot(config, slot).length > 0 ? (config?.failover?.triggers ?? failoverTriggers) : []);
 
   // The role of the epic's saved config pointed at another of its saved options or providers: same profile and persona.
   // `stepModel` is the model a failover step settled on; without it, the account's, then the role's own on the same harness, else the harness's default.
   // `stepEffort` is the step's own effort; without it the role's.
-  const onOption = (config: NonNullable<Epic['config']>, role: 'author' | 'reviewer', name: string, stepModel?: string, stepEffort?: Agent['effort']): Agent => {
-    const roleAgent = config.agents[role];
+  const onOption = (config: NonNullable<Epic['config']>, slot: Slot | null, name: string, stepModel?: string, stepEffort?: Agent['effort']): Agent => {
+    const roleAgent = agentOfSlot(config, slot);
+    if (!roleAgent) throw new Error(`the epic's saved configuration has no agent for ${slot ?? 'the author'}`);
     const { profile, persona, model } = roleAgent;
     const effort = stepEffort ?? roleAgent.effort;
     const provider = (config.providers ?? config.options)?.[name];
@@ -396,8 +410,8 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     const epic = fresh(epicId);
     const epoch = epochOf(epicId);
     const { config } = epic;
-    const role = stage === 'review' ? 'reviewer' : 'author';
-    const steps = failoverStepsFor(config?.failover, role);
+    const slot = slotOf(failedExecution);
+    const steps = failoverStepsOfSlot(config, slot);
     if (!config || steps.length === 0) return { relaunched: false, why: '' };
     const triggers = config.failover?.triggers ?? failoverTriggers;
     if (!matchesFailoverTrigger(triggers, failedExecution.failureKind, failedExecution.failureDetail)) return { relaunched: false, why: '' };
@@ -405,9 +419,9 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       ...(triggers.includes('usage_limit') ? (['usage_limit'] as const) : []),
       ...((triggers.includes('service_down') || triggers.includes('rate_limit')) ? (['api_error', 'spawn_error'] as const) : []),
     ];
-    // A step is tried by the provider and the model it ran on: the role's own and every step that failed.
-    // Only this attempt's: a resume gives back the options that ran out in the one before.
-    const ranOut = db.select({ option: executions.option, model: executions.model, startedAt: executions.startedAt }).from(executions).where(and(eq(executions.epicId, epicId), inArray(executions.failureKind, failoverKinds))).orderBy(asc(sql`rowid`)).all().filter((run) => isOfAttempt(run, epic));
+    // A step is tried by the provider and the model it ran on: the slot's own and every step that failed.
+    // Only this attempt's and this slot's: a resume gives back the options that ran out in the one before, and another reviewer's options are not this one's.
+    const ranOut = db.select({ option: executions.option, model: executions.model, startedAt: executions.startedAt, stage: executions.stage, reviewer: executions.reviewer }).from(executions).where(and(eq(executions.epicId, epicId), inArray(executions.failureKind, failoverKinds))).orderBy(asc(sql`rowid`)).all().filter((run) => isOfAttempt(run, epic) && slotOf(run) === slot);
     const modelOf = ({ provider, model }: { provider: string; model?: string }) => {
       const account = (config.providers ?? config.options)?.[provider];
       return model ?? account?.model ?? (account && defaultHarnessModels[account.harness]);
@@ -418,10 +432,11 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     if (stopping || epic.status !== 'running') return { relaunched: true };
     // Read only; GitHub being down is not a reason to stop: the agent verifies the state first anyway.
     const found = await github.findPullRequest(epic.repo, epic.issue).catch((e) => (failed(e), null));
-    if (!unchanged(epicId, epoch)) return { relaunched: true }; // parked while GitHub was asked: nothing is written for it, a restore takes it from here
+    if (!unchanged(epicId, epoch) || setAside(epicId, stage, failedExecution.headSha)) return { relaunched: true }; // parked while GitHub was asked, or the round was repeated on another head: nothing is written for it, a restore or the repeat takes it from here
     db.transaction((tx) => {
-      tx.update(epics).set({ config: { ...config, agents: { ...config.agents, [role]: onOption(config, role, next.provider, modelOf(next), next.effort) } }, ...(role === 'author' ? { authorOption: next.provider } : { reviewerOption: next.provider }) }).where(eq(epics.id, epicId)).run();
-      tx.insert(epicEvents).values({ epicId, at: clock.now(), type: 'option_switched', data: { role, from: config.agents[role].option ?? null, fromModel: config.agents[role].model, to: next.provider, toModel: modelOf(next), stage } }).run();
+      const from = agentOfSlot(config, slot)!;
+      tx.update(epics).set({ config: withAgentOfSlot(config, slot, onOption(config, slot, next.provider, modelOf(next), next.effort)), ...(slot === null ? { authorOption: next.provider } : slot === 'reviewer' && { reviewerOption: next.provider }) }).where(eq(epics.id, epicId)).run();
+      tx.insert(epicEvents).values({ epicId, at: clock.now(), type: 'option_switched', data: { role: slot ?? 'author', from: from.option ?? null, fromModel: from.model, to: next.provider, toModel: modelOf(next), stage } }).run();
     });
     await execute(fresh(epicId), stage, failedExecution, { pr: found && { number: found.number, headSha: found.headSha } });
     return { relaunched: true };
@@ -438,10 +453,10 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     onMoved(found.headSha);
   }
 
-  // What the probe of each option's account says now: the option of this execution and the ones that ran out earlier in this attempt.
+  // What the probe of each option's account says now: the option of this execution and the ones that ran out earlier in this attempt, in its slot.
   // An option that is a local server, or whose probe does not answer, says nothing.
   async function probeRanOut(epic: Epic, execution: Execution) {
-    const earlier = db.select().from(executions).where(and(eq(executions.epicId, epic.id), eq(executions.failureKind, 'usage_limit'))).all().filter((run) => isOfAttempt(run, epic));
+    const earlier = db.select().from(executions).where(and(eq(executions.epicId, epic.id), eq(executions.failureKind, 'usage_limit'))).all().filter((run) => isOfAttempt(run, epic) && slotOf(run) === slotOf(execution));
     const runs = new Map([execution, ...earlier].map((run) => [`${run.option}\n${run.model}`, run]));
     const ranOut = await Promise.all([...runs.values()].map(async (run) => {
       if (run.provider !== null || !(run.harness === 'claude' || run.harness === 'codex' || run.harness === 'agy')) return undefined;
@@ -470,7 +485,8 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
   }
 
   async function wakeOne(epic: Epic) {
-    const stage = epic.stage === 'review' || epic.stage === 'fix' ? epic.stage : null;
+    // A stop at the lead, or at the author's fix of its exchange, resumes at that stage with its lead round kept: only the wake-up sets `lead` (a person's resume starts the lead's exchange over).
+    const stage = epic.stage === 'review' || epic.stage === 'fix' || epic.stage === 'lead' ? epic.stage : null;
     if (epic.autoResumes >= maxAutoResumes) return;
     // Like a resume from a stage: the pull request must be open with the head the epic stored, or the stage would work on something else.
     if (stage) {
@@ -483,23 +499,29 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
         return;
       }
     }
-    const last = db.select().from(executions).where(eq(executions.epicId, epic.id)).orderBy(desc(sql`rowid`)).get();
-    const back = last && (await probeRanOut(epic, last)).find(isBack);
+    // Each slot is asked on its own last execution: the ones of the stage's slots that failed, else the epic's newest (a stop with no failure of its own to read).
+    const failed = lastBySlot(db, epic).filter((last) => (epic.stage === 'lead' ? slotOf(last) === 'lead' : (slotOf(last) !== null && slotOf(last) !== 'lead') === (epic.stage === 'review')) && last.failureKind !== null);
+    const newest = db.select().from(executions).where(eq(executions.epicId, epic.id)).orderBy(desc(sql`rowid`)).get();
+    let back: Awaited<ReturnType<typeof probeRanOut>>[number] | undefined;
+    for (const last of failed.length > 0 ? failed : newest ? [newest] : []) {
+      back = (await probeRanOut(epic, last)).find(isBack);
+      if (back) break;
+    }
     if (!back) return;
-    const role = epic.stage === 'review' ? 'reviewer' : 'author';
+    const woken = slotOf(back.run);
     // What a person's resume puts: a queued epic whose issue lost `ready` is cancelled when it is reserved.
     await github.setLabels(epic.repo, epic.issue, { add: [settings().labels.ready], remove: [] });
     const woke = db.transaction((tx) => {
       const queuedAt = queuePosition(tx, clock.now()); // after the epics already waiting, and in this write so none enters between
       const moved = tx.update(epics)
-        .set({ ...(stage ? { ...requeueKeeping(queuedAt), resumeStage: stage } : restart(queuedAt)), autoResumes: epic.autoResumes + 1 })
+        .set({ ...(stage ? { ...requeueKeeping(queuedAt), ...((stage === 'lead' || stage === 'fix') && epic.leadRound !== null && { leadRound: epic.leadRound }), resumeStage: stage } : restart(queuedAt)), autoResumes: epic.autoResumes + 1 })
         .where(and(eq(epics.id, epic.id), eq(epics.status, 'needs_human'), eq(epics.resumeAt, epic.resumeAt!))) // a person resumed it, or it ended, while the probe answered
         .returning().get();
       if (moved) tx.insert(epicEvents).values({ epicId: epic.id, at: queuedAt, type: 'auto_resumed', data: { stage: epic.stage, option: back.run.option ?? null, resumeAt: epic.resumeAt, count: epic.autoResumes + 1 } }).run();
       return moved;
     });
     // The option that came back, always: the requeue freezes the repo's default again, so the one the role holds now (where failover left it) is not kept by itself.
-    if (woke && back.run.option) restarts.set(epic.id, { [role]: back.run.option });
+    if (woke && back.run.option) restarts.set(epic.id, { [woken ?? 'author']: back.run.option }); // the role that ran out, the lead included, goes back on the option that came back
   }
 
   // A stage ended on its usage limit: another option of the failover list, or the epic stops for a person. The reason says how to go on
@@ -508,15 +530,24 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
   async function onUsageLimit(epicId: number, execution: Execution) {
     const moved = await failOver(epicId, execution.stage, execution);
     if (moved.relaunched || !stillRunning(epicId)) return;
+    // A reviewer of a round of several with no option left gives no verdict: the round goes on with the others.
+    const why = `ran out of usage on option ${execution.option ?? execution.harness}${execution.failureDetail ? ` · ${execution.failureDetail}` : ''}${moved.why}`;
+    if (await settleWithoutVerdict(epicId, { slot: slotOf(execution)!, kind: 'usage_limit', why, executionId: execution.executionId }, execution.headSha)) return;
+    await stopOnUsageLimit(epicId, [execution], moved.why);
+  }
+
+  // The epic stops on its usage limit, for the execution that ran out or, when a round of several reviewers had no verdict and every failure was a quota one, for all of them
+  // (reviewers that share a provider account run out together): it comes back when the last of their windows does.
+  async function stopOnUsageLimit(epicId: number, runs: Execution[], noFailover = '') {
     const { autoResume, autoResumeMaxHours } = settings(); // read once: a reload applies to the next stop
     const spent = fresh(epicId).autoResumes >= maxAutoResumes;
     // A server error says nothing about the quota: no window to probe, no promise to resume by itself.
-    const serverError = execution.failureKind === 'api_error' && /\bHTTP 5\d\d\b/.test(execution.failureDetail ?? '');
-    const back = autoResume && !spent && !serverError ? resumeAtOf(await probeRanOut(fresh(epicId), execution)) : undefined;
+    const serverError = runs.every((run) => run.failureKind === 'api_error' && /\bHTTP 5\d\d\b/.test(run.failureDetail ?? ''));
+    const times = autoResume && !spent && !serverError ? await Promise.all(runs.map(async (run) => resumeAtOf(await probeRanOut(fresh(epicId), run)))) : [];
+    const back = times.length > 0 && times.every((time) => time !== undefined) ? Math.max(...times) : undefined;
     if (!stillRunning(epicId)) return; // the probe took time: the epic may have ended or been parked meanwhile
     const { repo, issue } = fresh(epicId);
-    const role = execution.stage === 'review' ? 'reviewer' : 'author';
-    const detail = execution.failureDetail ? ` · ${execution.failureDetail}` : '';
+    const detail = runs.flatMap((run) => (run.failureDetail ? [` · ${run.failureDetail}`] : [])).join('');
     const scheduled = back !== undefined && back - clock.now() <= autoResumeMaxHours * 3_600_000;
     const when = back === undefined ? '' : new Date(back).toISOString();
     const wake = !autoResume || serverError ? ''
@@ -525,17 +556,48 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       : scheduled ? ` · resumes by itself at ${when}`
       : ` · the window comes back at ${when}, more than ${autoResumeMaxHours} h away: it will not resume by itself`;
     db.transaction((tx) => {
-      const option = execution.option ?? execution.harness;
-      const what = serverError
-        ? `the provider answered the ${execution.stage} execution on option ${option} with a server error, not a usage limit · wait and resume the epic, or carrier restart ${repo}#${issue} --${role} <option>`
-        : `the ${execution.stage} execution ran out of usage on option ${option} · carrier restart ${repo}#${issue} --${role} <option>`;
-      toNeedsHuman(tx, epicId, 'usage_limit', `${what}${wake}${detail}${moved.why}`);
+      const what = runs.map((run) => {
+        const role = slotOf(run) ?? 'author';
+        const option = run.option ?? run.harness;
+        return serverError
+          ? `the provider answered the ${run.stage} execution on option ${option} with a server error, not a usage limit · wait and resume the epic, or carrier restart ${repo}#${issue} --${role} <option>`
+          : `the ${run.stage} execution ran out of usage on option ${option} · carrier restart ${repo}#${issue} --${role} <option>`;
+      }).join(' · ');
+      toNeedsHuman(tx, epicId, 'usage_limit', `${runs.length > 1 ? 'no reviewer gave a verdict, every one ran out of usage · ' : ''}${what}${wake}${detail}${noFailover}`);
       if (scheduled) {
         tx.update(epics).set({ resumeAt: back }).where(eq(epics.id, epicId)).run();
         tx.insert(epicEvents).values({ epicId, at: clock.now(), type: 'auto_resume_scheduled', data: { resumeAt: back } }).run();
       }
     });
+    await stopRunsOf(epicId);
     await freeSlot();
+  }
+
+  // A reviewer of a round of several that settled with no verdict (it cannot conclude, ran out of retries or of usage, or lacks a skill the person named) does not stop the epic:
+  // it is stored and the round, if that settles it, is decided as it is by a verdict, from the rows. Resolves to whether it did; false is the stop an epic with one reviewer
+  // (or the author, the mandatory reviewer without its skill) has. `head` is the commit the slot was given.
+  async function settleWithoutVerdict(epicId: number, none: Omit<NoVerdict, 'slot'> & { slot: Slot | null }, head: string | null): Promise<boolean> {
+    const epic = fresh(epicId);
+    const slots = roundSlots(epic.config);
+    if (none.slot === null || slots.length === 1 || epic.stage !== 'review' || !slots.includes(none.slot) || (none.kind === 'skill_missing' && none.slot === 'reviewer')) return false;
+    if (!stillRunning(epicId) || deadHeads(epic).has(head)) return true; // the epic stopped, or the round was repeated on another head: set aside
+    const on = { round: epic.round, headSha: head ?? epic.prHeadSha! };
+    let quotaStop: NoVerdict[] | undefined;
+    let decided = false;
+    db.transaction((tx) => {
+      recordNoVerdict(tx, epic, on, { ...none, slot: none.slot! }, clock.now());
+      const round = decideRound(slots, roundVerdicts(tx, epic, { stage: 'review', ...on }, null, true), roundNones(tx, epic, on), openBlockerSlots(tx, epic));
+      if (round.kind === 'waiting') return;
+      decided = true;
+      quotaStop = applyRound(tx, epic, round, on.headSha);
+    });
+    if (!decided) return true;
+    const next = fresh(epicId);
+    if (quotaStop && next.status === 'running') await stopOnUsageLimit(epicId, quotaStop.map(({ executionId }) => db.select().from(executions).where(eq(executions.executionId, executionId!)).get()!));
+    else if (next.status !== 'running') await stopRunsOf(epicId);
+    else if (next.stage && next.stage !== 'review') await launch(next, next.stage);
+    await freeSlot();
+    return true;
   }
 
   // Launches the author (ship, fix) or the reviewer (review) for the epic's current stage.
@@ -559,17 +621,67 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       if (rebuild) db.insert(epicEvents).values({ epicId: epic.id, at: clock.now(), type: 'session_rebuilt', data: { stage, from: before!.option, to: optionNow, pr: rebuild.pr } }).run();
     }
     try {
-      await execute(epic, stage, undefined, rebuild);
+      await (stage === 'review' ? launchRound(epic) : execute(epic, stage, undefined, rebuild));
     } finally {
       launching.delete(epic.id);
     }
   }
 
+  // A review round starts every reviewer of the epic on the same head, each in its own checkout: the mandatory reviewer's checkout is at the pull request's head,
+  // and the others are made at that commit. A round already started (a recovery) gets only the slots that have no execution on its head: a head a result set aside is no head.
+  // Resolves to whether it launched any. One round is launched at a time per epic.
+  async function launchRound(epic: Epic): Promise<boolean> {
+    const slots = roundSlots(epic.config);
+    if (slots.length === 1) {
+      await execute(epic, 'review');
+      return true;
+    }
+    if (roundLaunches.has(epic.id)) {
+      relaunch.add(epic.id); // a result repeated the round while its slots were being launched: the launch in progress starts it over when it ends
+      return false;
+    }
+    roundLaunches.add(epic.id);
+    let launched = false;
+    try {
+      const epoch = epochOf(epic.id);
+      const dead = deadHeads(epic);
+      const given = db.select().from(executions).where(and(eq(executions.epicId, epic.id), eq(executions.stage, 'review'), eq(executions.round, epic.round!))).orderBy(desc(sql`rowid`)).all().filter((run) => slotOf(run) !== 'lead' && isOfAttempt(run, epic) && !dead.has(run.headSha));
+      let commit = given[0]?.headSha ?? undefined;
+      for (const slot of slots) {
+        if (given.some((run) => slotOf(run) === slot && run.headSha === commit)) continue;
+        if (commit && roundNones(db, epic, { round: epic.round, headSha: commit }).some((n) => n.slot === slot)) continue; // it settled with no verdict (a skill absent): a restart does not look again
+        if (!unchanged(epic.id, epoch) || relaunch.has(epic.id)) break; // a reviewer before it stopped the epic (a workspace, a skill) or it was parked, or the round was repeated
+        await execute(fresh(epic.id), 'review', undefined, undefined, { slot, commit });
+        launched = true;
+        commit ??= db.select({ headSha: executions.headSha }).from(executions).where(eq(executions.epicId, epic.id)).orderBy(desc(sql`rowid`)).get()?.headSha ?? undefined;
+      }
+    } finally {
+      roundLaunches.delete(epic.id);
+    }
+    return relaunch.delete(epic.id) && stillRunning(epic.id) ? launchRound(fresh(epic.id)) : launched;
+  }
+  const roundLaunches = new Set<number>();
+  const relaunch = new Set<number>();
+  // The heads of the epic's current round that a reviewers' verdict was set aside on because the pull request moved: no execution on one of them is of the round any more.
+  // Only the reviewers' own, in the epic's current attempt: the lead's superseded review is of its exchange and an earlier attempt's is another round's, even on the same round number and commit.
+  const deadHeads = (epic: Epic) =>
+    new Set(db.select({ headSha: executions.headSha }).from(executions).innerJoin(callerResults, eq(callerResults.executionId, executions.executionId)).where(and(eq(executions.epicId, epic.id), eq(executions.stage, 'review'), eq(executions.round, epic.round!), gte(executions.startedAt, epic.startedAt ?? Number.MAX_SAFE_INTEGER), eq(callerResults.outcome, supersededOutcome))).all().map((r) => r.headSha));
+  // Whether an execution about to start (a retry, a failover, a launch that prepared its workspace) is the round's no more: the epic moved on from its stage, or the round was repeated
+  // on another head while GitHub or the checkout was awaited (`movedTo` does not advance the epoch): the repeat makes the slot again, so this one would be a second run of it.
+  const setAside = (epicId: number, stage: AgentTask['stage'], headSha: string | null) => {
+    const now = fresh(epicId);
+    return now.stage !== stage || (headSha !== null && deadHeads(now).has(headSha));
+  };
+  const launchStage = (epic: Epic, stage: 'review' | 'fix' | 'lead') => (stage === 'review' ? launchRound(epic) : execute(epic, stage));
+
   // The reason to stop for the first skill the person named and the role's harness does not find, none when every one is found, default or cannot be told.
-  async function missingSkill(epic: Epic, role: 'author' | 'reviewer', folder: string): Promise<string | undefined> {
-    const { ship, review, fix } = savedSkills(epic.config);
-    const agent = epic.config!.agents[role];
-    const invoked = role === 'author' ? [['ship', ship], ['fix', fix]] as const : [['review.review', review.review], ['review.publish', review.publish]] as const;
+  async function missingSkill(epic: Epic, slot: Slot | null, folder: string): Promise<string | undefined> {
+    const { ship, review, fix, lead } = skillsOfSlot(epic.config!, slot);
+    const agent = agentOfSlot(epic.config!, slot)!;
+    const role = slot ?? 'author';
+    const invoked = slot === null ? [['ship', ship], ['fix', fix]] as const
+      : slot === 'lead' ? [['lead.review', (lead ?? review).review], ['lead.publish', (lead ?? review).publish]] as const
+      : [['review.review', review.review], ['review.publish', review.publish]] as const;
     for (const [key, skill] of invoked) {
       if (skill === null || !skill.named) continue;
       if ((await skills.has(agent.harness, agent.configDir, folder, skill.name)) !== 'absent') continue;
@@ -587,8 +699,13 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
 
   // Starts an execution of the stage; `retryOf` is the failed or interrupted one it replaces: same session, verify
   // the real state first. `rebuild` (the session is gone) starts a new session instead, with the PR as GitHub has it now.
-  async function execute(epic: Epic, stage: AgentTask['stage'], retryOf?: Execution, rebuild?: { pr: { number: number; headSha: string } | null }) {
+  // `review` is the slot a round launches and the commit its checkout is made at, which every slot of the round shares.
+  async function execute(epic: Epic, stage: AgentTask['stage'], retryOf?: Execution, rebuild?: { pr: { number: number; headSha: string } | null }, review?: { slot: Slot; commit?: string }) {
     const reviewing = stage === 'review';
+    const leading = stage === 'lead';
+    // A retry stays in the slot of the execution it replaces; a review no one gave a slot is the mandatory reviewer's, and the lead's is `lead`.
+    const slot: Slot | null = retryOf ? slotOf(retryOf) : leading ? 'lead' : reviewing ? (review?.slot ?? 'reviewer') : null;
+    const several = roundSlots(epic.config).length > 1;
     const epoch = epochOf(epic.id);
     // A fix on another option than the one that wrote the author's session cannot continue it (the wake-up went on the option that came back, a resume switched
     // `--author`): a new session, rebuilt like a lost one, on the pull request the epic stored.
@@ -606,8 +723,11 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
         if (!epic.workspace) throw new Error('the epic has no saved worktree');
         if (!(await workspaces.exists(epic.workspace))) throw new Error(`the saved workspace ${epic.workspace} does not exist`);
         workspace = epic.workspace;
-      } else if (reviewing) {
-        const checkout = await workspaces.prepareReviewer(epic.repo, epic.issue, epic.prNumber!);
+      } else if (reviewing || leading) {
+        // A reviewer alone is at the pull request's head as it is when its checkout is made; with several, a retry or a recovery stays on the head its round was given.
+        // The lead is always in its own checkout, at the head the reviewers agreed on (a retry stays on the head it was given, a head that moved is the one stored).
+        const commit = leading ? (retryOf?.headSha ?? epic.prHeadSha!) : (review?.commit ?? (retryOf?.headSha ?? undefined));
+        const checkout = await workspaces.prepareReviewer(epic.repo, epic.issue, epic.prNumber!, leading || several ? { slot: slot!, ...(commit && { commit }) } : undefined);
         workspace = checkout.path;
         reviewedCommit = checkout.commit;
         pr = { number: epic.prNumber!, headSha: reviewedCommit };
@@ -616,48 +736,61 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       log.error('could not prepare the workspace', e, { repo: epic.repo, epic: epic.issue, stage });
       if (!unchanged(epic.id, epoch)) return; // parked while the workspace was prepared: it keeps where it was
       toNeedsHuman(db, epic.id, 'workspace', `could not prepare the workspace: ${e instanceof Error ? e.message : String(e)}`);
+      await stopRunsOf(epic.id);
       return applyLabels(fresh(epic.id));
     }
     // A skill the person named that the role's harness does not find stops the epic here, before an execution exists or a run is spent. Every launch, resume,
     // wake-up, failover and `restart --author|--reviewer` comes through here; Solve's defaults and an answer that cannot tell never stop it.
-    const missing = await missingSkill(epic, reviewing ? 'reviewer' : 'author', workspace);
+    const missing = await missingSkill(epic, slot, workspace);
     if (missing) {
       if (!unchanged(epic.id, epoch)) return;
+      if (await settleWithoutVerdict(epic.id, { slot, kind: 'skill_missing', why: missing }, reviewedCommit ?? null)) return; // an extra reviewer's: no verdict, no run
       toNeedsHuman(db, epic.id, 'skill_missing', missing);
+      await stopRunsOf(epic.id);
       return applyLabels(fresh(epic.id));
     }
     const executionId = randomUUID();
     const resultPath = join(places.state, 'results', `${executionId}.json`);
     const { maxExecutionHours: hoursLimit, idleMinutes } = settings(); // read once: the run keeps the timeout and the idle limit it launches with
     // A fix right after a review that completed is the observations pass; after one that asked for changes, it answers the blockers.
-    const observations = stage === 'fix' ? latestObservations(db, epic.id) : null;
+    // The fix of the lead's exchange (or resumed after it) answers the lead's blockers alone: the lead's observations never go to the author, and the reviewers' are not asked again.
+    const leadBlockers = stage === 'fix' ? latestLeadBlockers(db, epic.id) : [];
+    const observations = stage === 'fix' && leadBlockers.length === 0 ? latestObservations(db, epic, { tagged: several }) : null;
+    const found = agentOfSlot(epic.config!, slot);
+    if (!found) throw new Error(`the epic's saved configuration has no agent for ${slot}`);
+    // What an extra reviewer keeps besides an agent (its review skills, its failover steps, whether it shares the author's account) is not part of the task's agent.
+    const { skills: _skills, failover: _failover, sharedIdentity: ownIdentity, ...agent } = found as Agent & Partial<ExtraReviewer>;
+    const ownIdentityRole = slot?.startsWith('reviewer-') === true || leading;
     const task: AgentTask = {
       executionId,
       repo: epic.repo,
       epic: epic.issue,
       stage,
-      ...(reviewing ? epic.config!.agents.reviewer : epic.config!.agents.author),
-      sharedIdentity: epic.config!.sharedIdentity === true,
-      skills: savedSkills(epic.config),
+      ...(slot !== null && { reviewer: slot }),
+      ...agent,
+      sharedIdentity: ownIdentityRole ? ownIdentity === true : epic.config!.sharedIdentity === true, // an extra reviewer's and the lead's own: whether their profile is the author's
+      skills: skillsOfSlot(epic.config!, slot),
       workspace,
       resultPath,
       timeoutMs: hoursLimit === 'unlimited' ? null : hoursLimit * 3_600_000,
       ...(idleMinutes !== undefined && { idleMs: idleMinutes * 60_000 }),
       ...(resumeSession && { resumeSession }),
       context: {
-        previousSummaries: reviewing || rebuild ? previousSummaries(epic.id) : [],
-        ...(observations ? { observations } : (stage === 'fix' || (reviewing && (epic.round ?? 0) > 1)) && { blockers: latestBlockers(db, epic.id) }),
+        previousSummaries: leading ? [] : reviewing || rebuild ? previousSummaries(epic.id) : [], // the lead is given what the reviewers said, by reviewer
+        ...(leading && { reviewerSummaries: agreedSummaries(db, epic) }),
+        ...(observations ? { observations } : leadBlockers.length > 0 ? { blockers: leadBlockers } : (stage === 'fix' || (reviewing && (epic.round ?? 0) > 1)) && { blockers: latestBlockers(db, epic, reviewing ? { slot: slot! } : { tagged: several }) }),
+        ...(reviewing && several && { severalReviewers: true as const }),
         ...(retryOf && { verifyStateFirst: true }),
         ...(pr && { pr }),
         ...(epic.round && { round: epic.round }),
       },
     };
-    if (stopping || !unchanged(epic.id, epoch)) return; // the repo may have left the configuration (and come back) while the workspace was prepared
+    if (stopping || !unchanged(epic.id, epoch) || setAside(epic.id, stage, reviewedCommit ?? null)) return; // the repo may have left the configuration (and come back) while the workspace was prepared, or the round was repeated on another head
     if (switched) db.insert(epicEvents).values({ epicId: epic.id, at: clock.now(), type: 'session_rebuilt', data: { stage, from: before!.option, to: optionNow, pr: pr ?? null } }).run();
     db.insert(executions)
-      .values({ executionId, epicId: epic.id, stage, harness: task.harness, model: task.model, provider: task.provider ?? null, option: task.option ?? null, configDir: task.configDir ?? null, workspace, round: epic.round, headSha: reviewedCommit ?? null, resultPath, startedAt: clock.now() })
+      .values({ executionId, epicId: epic.id, stage, reviewer: slot, harness: task.harness, model: task.model, provider: task.provider ?? null, option: task.option ?? null, configDir: task.configDir ?? null, workspace, round: epic.round, headSha: reviewedCommit ?? null, resultPath, startedAt: clock.now() })
       .run();
-    const context = taskContext({ repo: epic.repo, epic: epic.issue, executionId, stage, round: epic.round });
+    const context = taskContext({ repo: epic.repo, epic: epic.issue, executionId, stage, reviewer: slot, round: epic.round });
     log.info('execution started', context);
     const run = runner.run(task);
     active.set(executionId, run);
@@ -697,7 +830,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
         // The first signal of a profile is a technical failure like any other; the second stops the profile. A profile a reload removed is neither.
         const firstSignal = exit === 'auth_failed' && profileDeclared(task.profile) && !authSignals.has(task.profile);
         if (firstSignal) authSignals.add(task.profile);
-        const triggers = failoverTriggersOf(epic.config?.failover, stage === 'review' ? 'reviewer' : 'author');
+        const triggers = failoverTriggersOf(epic.config, slot);
         const isFailoverFailure = exit === 'failed' && processFailure?.kind !== undefined && matchesFailoverTrigger(triggers, processFailure.kind, processFailure.detail);
         const outOfCredits = exit === 'failed' && processFailure?.kind === 'usage_limit';
         // Like a timeout, failover leaves no error on the execution: it is not a retryable failure and ends the streak.
@@ -713,17 +846,19 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
           .set({ status: executionStatus[exit], finishedAt: clock.now(), ...(sessionId && { sessionId }), ...(usage && { usage }), ...(failure && { error: failure }), ...failureColumns(processFailure ?? (endFailure[exit] && { ...noExit, ...endFailure[exit] })) })
           .where(eq(executions.executionId, executionId))
           .run();
-        db.update(epics).set({ recoveries: 0, ...(!outOfCredits && { autoResumes: 0 }), ...(failure && { lastError: failure }) }).where(eq(epics.id, epic.id)).run();
+        // The counters go back to 0 when an execution ends, unless another slot's failure is still being recovered: that slot's count is not this one's to reset.
+        const reset = failingBesides(db, epic, slot) ? {} : { recoveries: 0, ...(!outOfCredits && { autoResumes: 0 }) };
+        if (failure || Object.keys(reset).length > 0) db.update(epics).set({ ...reset, ...(failure && { lastError: failure }) }).where(eq(epics.id, epic.id)).run();
         if (exit === 'ok') await settle(db.select().from(executions).where(eq(executions.executionId, executionId)).get()!);
         else if (isFailoverFailure || outOfCredits) {
           // Retrying the same option only burns the retries.
           await onUsageLimit(epic.id, db.select().from(executions).where(eq(executions.executionId, executionId)).get()!);
         }
         else if (exit === 'failed' || exit === 'session_unavailable' || firstSignal) {
-          // The wait is a due time saved with the epic, never a sleep: `retry` starts it once due, from its timer or from the poll after a restart.
-          const wait = retryWait(failureStreak(db, fresh(epic.id)));
-          db.update(epics).set({ retryAt: wait > 0 ? clock.now() + wait : null }).where(eq(epics.id, epic.id)).run();
-          await retry(epic.id);
+          // The wait is a due time read from the slot's rows, never a sleep: `retry` starts it once due, from its timer or from the poll after a restart.
+          // The epic shows the earliest due time of its slots.
+          showDue(epic.id);
+          await retry(epic.id, slot);
         }
         else if (exit === 'auth_failed') {
           if (profileDeclared(task.profile)) await stopProfile(task.profile, processFailure?.detail);
@@ -736,6 +871,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
         } else if (exit === 'timed_out') {
           // Session and workspace stay as they are; a person decides how to go on.
           if (stillRunning(epic.id)) toNeedsHuman(db, epic.id, 'timeout', timeoutReason(stage, endFailure.timed_out!.detail));
+          await stopRunsOf(epic.id);
           await freeSlot();
         }
       }),
@@ -755,8 +891,8 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
   // `detail` is the message of the error, redacted like any other reason. The profile is never swapped for another one.
   async function stopProfile(profile: string, detail?: string) {
     for (const epic of db.select().from(epics).where(eq(epics.status, 'running')).orderBy(asc(epics.id)).all()) {
-      const { author, reviewer } = epic.config!.agents;
-      if (author.profile !== profile && reviewer.profile !== profile) continue;
+      const { author, reviewer, leadReviewer, extraReviewers } = epic.config!.agents;
+      if (![author, reviewer, leadReviewer, ...(extraReviewers ?? [])].some((agent) => agent?.profile === profile)) continue; // any role, the extra reviewers and the lead included
       toNeedsHuman(db, epic.id, 'auth', authError(profile, detail));
       const running = db.select().from(executions).where(and(eq(executions.epicId, epic.id), eq(executions.status, 'running'))).all();
       await Promise.all(running.map(({ executionId }) => active.get(executionId)?.stop()));
@@ -766,55 +902,70 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     await freeSlot();
   }
 
-  // Relaunches the stage whose last execution failed technically, until the retries run out.
-  const retrying = new Set<number>();
+  // Relaunches the slot's stage whose last execution failed technically, until the retries run out. Each slot has its own retry in flight and its own timer.
+  const retrying = new Set<string>();
   // The timers of the retries that wait for their due time; the engine's stop cancels them, and the poll finds what a restart lost.
-  const retryTimers = new Map<number, () => void>();
-  async function retry(epicId: number) {
-    if (stopping || suspended || retrying.has(epicId)) return;
-    retrying.add(epicId);
+  const retryTimers = new Map<string, () => void>();
+  const retryKey = (epicId: number, slot: Slot | null) => `${epicId}:${slot ?? 'author'}`;
+  const retryingEpic = (epicId: number) => [...retrying].some((key) => key.startsWith(`${epicId}:`));
+  // The due time an epic shows is the earliest of the slots that wait for one, leaving out the one that is launching.
+  const showDue = (epicId: number, launching?: Slot | null) => {
+    const epic = fresh(epicId);
+    db.update(epics).set({ retryAt: earliestRetryDue(db, epic, launching === undefined ? [] : [launching]) }).where(eq(epics.id, epicId)).run();
+  };
+  async function retry(epicId: number, slot: Slot | null) {
+    const key = retryKey(epicId, slot);
+    if (stopping || suspended || retrying.has(key)) return;
+    retrying.add(key);
     try {
       const epic = fresh(epicId);
       const epoch = epochOf(epicId);
-      const [last, ...earlier] = failureStreak(db, epic);
+      const streak = failureStreak(db, epic, slot);
+      const [last, ...earlier] = streak;
       if (epic.status !== 'running' || !last) return;
       if (earlier.length >= settings().maxExecutionRetries) {
         const idle = last.failureDetail?.startsWith('no output for ') ? ' · limits.idleMinutes ended it: raise it or remove it' : '';
         // A process failure's error already names its kind; an invalid result's is only the message, so it gets the same shape.
         const failure = last.failureKind === 'invalid_result' ? `the agent ended with an invalid result (invalid_result: ${last.error})` : last.error;
-        toNeedsHuman(db, epicId, 'retries_exhausted', `ran out of ${last.stage} retries (${earlier.length + 1} attempts): ${failure}${idle}`);
+        const why = `ran out of ${last.stage} retries (${earlier.length + 1} attempts): ${failure}${idle}`;
+        if (await settleWithoutVerdict(epicId, { slot, kind: 'retries_exhausted', why, executionId: last.executionId }, last.headSha)) return; // a reviewer of a round of several gives no verdict
+        toNeedsHuman(db, epicId, 'retries_exhausted', why);
+        await stopRunsOf(epicId);
         return await freeSlot();
       }
-      const waiting = epic.retryAt === null ? 0 : epic.retryAt - clock.now();
+      const wait = retryWait(streak);
+      const waiting = wait > 0 ? (last.finishedAt ?? 0) + wait - clock.now() : 0;
       if (waiting > 0) {
-        if (!retryTimers.has(epicId)) {
-          retryTimers.set(epicId, clock.after(waiting, async () => {
-            retryTimers.delete(epicId);
-            track(isolating(epicId, epic.repo, () => retry(epicId)));
+        if (!retryTimers.has(key)) {
+          retryTimers.set(key, clock.after(waiting, async () => {
+            retryTimers.delete(key);
+            track(isolating(epicId, epic.repo, () => retry(epicId, slot)));
           }));
         }
         return;
       }
       // Read only: what the failed execution may have left on GitHub. A failed query is not an attempt, the poll tries again.
       const pr = await github.findPullRequest(epic.repo, epic.issue);
-      if (!unchanged(epicId, epoch)) return; // parked while GitHub was asked: no event, no launch; the next check retries it if it is back
+      if (!unchanged(epicId, epoch) || setAside(epicId, last.stage, last.headSha)) return; // parked while GitHub was asked, or the round was repeated on another head: no event, no launch; the next check retries it if it is back
       // A lost session is rebuilt, not resumed: new session, same profile, context from SQLite and GitHub.
       const lost = last.failureKind === 'session_lost';
-      db.update(epics).set({ retryAt: null }).where(eq(epics.id, epicId)).run();
-      retryTimers.get(epicId)?.();
-      retryTimers.delete(epicId);
+      showDue(epicId, slot);
+      retryTimers.get(key)?.();
+      retryTimers.delete(key);
       db.insert(epicEvents)
         .values({ epicId, at: clock.now(), type: lost ? 'session_rebuilt' : 'execution_retried', data: { stage: last.stage, failed: last.executionId, attempt: earlier.length + 2, error: last.error, pr } })
         .run();
-      await execute(epic, last.stage, last, lost ? { pr: pr && { number: pr.number, headSha: pr.headSha } } : undefined);
+      await execute(fresh(epicId), last.stage, last, lost ? { pr: pr && { number: pr.number, headSha: pr.headSha } } : undefined);
     } finally {
-      retrying.delete(epicId);
+      retrying.delete(key);
     }
   }
 
-  // Running epics whose last execution failed and was not relaunched yet (GitHub was down).
+  // Running epics with a slot whose last execution failed and was not relaunched yet (GitHub was down, or the engine restarted): each slot on its own.
   async function retryPending() {
-    for (const { id, repo } of db.select({ id: epics.id, repo: epics.repo }).from(epics).where(eq(epics.status, 'running')).orderBy(asc(epics.id)).all()) await isolating(id, repo, () => retry(id));
+    for (const epic of db.select().from(epics).where(eq(epics.status, 'running')).orderBy(asc(epics.id)).all()) {
+      for (const last of lastBySlot(db, epic)) await isolating(epic.id, epic.repo, () => retry(epic.id, slotOf(last)));
+    }
   }
 
   // Summaries the caller left in earlier review and fix turns, oldest first.
@@ -868,8 +1019,8 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     if (!found) return `PR #${pr.number} does not exist`;
     if (found.state !== 'open') return `PR #${pr.number} is not open`;
     if (!new RegExp(`\\bcloses #${issue}(?!\\d)`, 'i').test(found.body)) return `PR #${pr.number} does not reference the epic (missing "Closes #${issue}")`;
-    // A review's moved head is not a problem of the pull request: it is reviewed again (ADR 0047), `settle` decides.
-    if (stage !== 'review' && found.headSha !== pr.headSha) return `the head of PR #${pr.number} is ${found.headSha}, not ${pr.headSha}`;
+    // A review's moved head (the lead's too) is not a problem of the pull request: it is reviewed again (ADR 0047), `settle` decides.
+    if (stage !== 'review' && stage !== 'lead' && found.headSha !== pr.headSha) return `the head of PR #${pr.number} is ${found.headSha}, not ${pr.headSha}`;
     return null;
   }
 
@@ -892,6 +1043,64 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
   const maxWorktreeListRetries = 3;
   const worktreeListFailures = new Map<string, number>();
 
+  // A stage change reaches the issue when a stage has a label: the label follows (labelPending) like a status change does.
+  const updateOf = (tx: Pick<Db, 'update'>, id: number) => (set: Partial<Epic>) =>
+    tx.update(epics).set({ ...set, ...(set.stage !== undefined && { recoveries: 0, autoResumes: 0, ...(stageLabelled() && { labelPending: true }) }) }).where(eq(epics.id, id)).run();
+
+  // The reviewers agreed on a head: with a lead reviewer configured it reviews it next, once, in its own checkout (`leadRound` 1); without one the epic is ready for test.
+  function agreed(tx: Pick<Db, 'update'>, now: Epic, set: Partial<Epic>) {
+    const update = updateOf(tx, now.id);
+    if (now.config?.agents.leadReviewer) update({ stage: 'lead', stageStartedAt: clock.now(), leadRound: 1, ...set });
+    else update({ status: 'ready_for_test', finishedAt: clock.now(), labelPending: true, ...set });
+  }
+
+  // What the lead reviewer's result moves the epic to, for a head that was its own. Completed: ready for test with the head it approved, and what it said about its approval kept
+  // as an event of the epic (it does not require one). A lead that asks for changes sends the epic to the author's fix with its blockers alone, and only the lead reviews again, on the head
+  // after the fix; its rounds are its own (`leadRound`, up to `limits.maxLeadRounds`, read now) and neither the review round nor `maxReviews` moves. At the limit the epic stops for a person.
+  function settleLead(tx: Pick<Db, 'update' | 'insert'>, now: Epic, result: Exclude<CallerResult, { outcome: 'needs_human' }>) {
+    if (result.outcome === 'changes_requested') {
+      const limit = settings().maxLeadRounds;
+      if ((now.leadRound ?? 1) < limit) updateOf(tx, now.id)({ stage: 'fix', stageStartedAt: clock.now(), lastError: null });
+      else toNeedsHuman(tx, now.id, 'lead_limit', `the lead reviewer still asked for changes in each of its ${limit} rounds (limits.maxLeadRounds): ${result.blockers.map((b) => b.title).join(' · ')} · fix them yourself or raise limits.maxLeadRounds, then resume the epic`);
+      return;
+    }
+    updateOf(tx, now.id)({ status: 'ready_for_test', approvedSha: result.pr.headSha, finishedAt: clock.now(), labelPending: true, lastError: null });
+    tx.insert(epicEvents).values({ epicId: now.id, at: clock.now(), type: 'lead_completed', data: { headSha: result.pr.headSha, ...(result.approval && { approval: result.approval }), ...(result.observations && result.observations.length > 0 && { observations: result.observations }) } }).run();
+  }
+
+  // What a settled review round moves the epic to, on the head it was decided on. A round with no verdict stops in `reviewers_failed`, unless every failure was a quota one:
+  // that one is returned, to be stopped as `usage_limit` where the windows can be asked.
+  function applyRound(tx: Pick<Db, 'update' | 'insert' | 'select'>, now: Epic, round: Exclude<RoundDecision, { kind: 'waiting' }>, head: string): NoVerdict[] | undefined {
+    const update = updateOf(tx, now.id);
+    // A round of several says how many reviewers gave a verdict out of how many were configured, and why each other gave none; an epic with one reviewer has nothing new to say.
+    const slots = roundSlots(now.config);
+    if (slots.length > 1) tx.insert(epicEvents).values({ epicId: now.id, at: clock.now(), type: 'round_decided', data: { round: now.round, headSha: head, decision: round.kind, ...roundTally(tx, now, { round: now.round, headSha: head }, slots) } }).run();
+    if (round.kind === 'failed') {
+      if (round.none.every(({ kind }) => kind === 'usage_limit')) return round.none;
+      toNeedsHuman(tx, now.id, 'reviewers_failed', `no reviewer gave a verdict in round ${now.round} · ${round.none.map(({ slot, why }) => `${slot}: ${why}`).join(' · ')} · fix what each says, then resume the epic`);
+    }
+    // Every verdict completed, but a reviewer whose blockers are open gave none: not agreement, and nothing for the author to fix.
+    else if (round.kind === 'open_blockers') {
+      toNeedsHuman(tx, now.id, 'reviewers_failed', `round ${now.round} is not agreed: ${round.none.map(({ slot, why }) => `${slot} asked for changes before, its blockers are still open, and it gave no verdict (${why})`).join(' · ')} · fix what each says, then resume the epic`);
+    }
+    // The round stays: the fix turn answers it, and the next review numbers the following one.
+    else if (round.kind === 'changes_requested') {
+      if ((now.round ?? 0) >= roundCap(now)) toNeedsHuman(tx, now.id, 'review_limit', `review limit: round ${now.round} of ${roundCap(now)} still has requested changes`);
+      else update({ stage: 'fix', stageStartedAt: clock.now() });
+    }
+    // The one observations pass: the author answers them on the same round, and the reviewed head and verification wait for how it ends.
+    else if (round.observations.length > 0 && now.observationsPassAt === null && (now.round ?? 0) < roundCap(now)) {
+      update({ stage: 'fix', stageStartedAt: clock.now(), observationsPassAt: clock.now(), reviewedSha: head, verification: round.verification });
+    } else {
+      // Observations a review listed that no pass will answer: how many, and whether the pass was taken or the round was the last its cap allows.
+      const left = round.observations.length;
+      agreed(tx, now, {
+        reviewedSha: head, verification: round.verification, lastError: null, // the error of a reviewer that gave no verdict is not the epic's
+        ...(left > 0 && { unansweredObservations: left, unansweredReason: now.observationsPassAt === null ? 'last_round' : 'already_taken' }),
+      });
+    }
+  }
+
   // Imports the result of a finished execution and moves the epic. Safe to repeat: the import is idempotent.
   async function settle(execution: Execution) {
     if (stopping || suspended) return; // stays `finished` without a result: the next run imports it
@@ -900,11 +1109,16 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       worktreeListFailures.delete(execution.executionId); // cancelled or parked between two tries of `git worktree list`: its count goes
       return; // ended from outside or stopped: nothing new moves
     }
+    if (epic.status !== 'running') {
+      // The epic stopped while this run ended (another reviewer of its round did): the result is set aside, and no later attempt imports it.
+      db.update(executions).set({ status: 'interrupted' }).where(eq(executions.executionId, execution.executionId)).run();
+      return;
+    }
     const epoch = epochOf(epic.id);
     const expected = expectedOf(epic, execution);
     const raw = readResult(execution);
     const parsed = parseCallerResult(raw, expected);
-    const context = taskContext({ repo: epic.repo, epic: epic.issue, executionId: execution.executionId, stage: execution.stage, round: epic.round });
+    const context = taskContext({ repo: epic.repo, epic: epic.issue, executionId: execution.executionId, stage: execution.stage, reviewer: slotOf(execution), round: epic.round });
     // A review's result carries the commit its checkout was made at (ADR 0047), else it judged something the reviewer was not given.
     const wrongHead = parsed.ok && parsed.result.outcome !== 'needs_human' && execution.headSha !== null && parsed.result.pr.headSha !== execution.headSha
       ? `the review reports head ${parsed.result.pr.headSha}, not ${execution.headSha}, the commit its checkout was made at`
@@ -914,10 +1128,12 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       log.warn('invalid caller result', { ...context, reason: message });
       db.update(executions).set({ status: 'invalid_result', error: message, ...failureColumns({ ...noExit, kind: 'invalid_result', detail: failureDetail(message) }) }).where(eq(executions.executionId, execution.executionId)).run();
       db.update(epics).set({ lastError: message }).where(eq(epics.id, epic.id)).run();
-      return retry(epic.id);
+      return retry(epic.id, slotOf(execution));
     }
     let problem: { kind: 'workspace' | 'pr_invalid'; text: string } | null = null;
-    let movedTo: string | null = null; // a review whose head moved while it ran: the head GitHub has now, which the next review is made on
+    let movedTo: string | null = null; // a review whose head moved while it ran: the head GitHub has now, which the next round is made on
+    let moved: { head: string; pr: number } | null = null; // the head GitHub has now when a review's head is not it; whether this result is the one that repeats the round is decided where the epic is read, with no wait before the write
+    let alreadyRepeated = false; // another reviewer of the round found this move first and the round was repeated: this verdict is only set aside
     let superseded = false; // that review judged a head that is not the pull request's any more, whether the epic reviews again or stops at the repeat cap
     let workspace: string | undefined;
     let branch: string | undefined; // the final PR's branch
@@ -926,11 +1142,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       const found = await github.getPullRequest(epic.repo, pr.number);
       const invalid = prProblem(epic, found, pr, execution.stage);
       if (invalid) problem = { kind: 'pr_invalid', text: invalid };
-      else if (execution.stage === 'review' && found!.headSha !== pr.headSha) {
-        superseded = true;
-        if (epic.headRepeats >= maxHeadRepeats) problem = { kind: 'pr_invalid', text: `the head of PR #${pr.number} changed during the review ${epic.headRepeats + 1} times in a row` };
-        else movedTo = found!.headSha;
-      }
+      else if ((execution.stage === 'review' || execution.stage === 'lead') && found!.headSha !== pr.headSha) moved = { head: found!.headSha, pr: pr.number };
       if (!problem && execution.stage === 'ship') {
         // Solve put the epic's worktree where its solve.md says: read it back from git, keep the real path for the fix turns.
         branch = found!.headRef;
@@ -955,47 +1167,58 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       }
     }
     if (outside(epic.id) || epochOf(epic.id) !== epoch) return; // it ended, or was parked (and maybe restored) while GitHub was asked: stays `finished` without a result, the next run imports it
+    // From here to the write nothing waits, so what other reviewers of the round imported while GitHub was asked is what is read: the epic as it is now, not as it was.
+    const now = fresh(epic.id);
+    if (moved !== null) {
+      superseded = true;
+      if (now.prHeadSha === moved.head) alreadyRepeated = true;
+      else if (now.headRepeats >= maxHeadRepeats) problem = { kind: 'pr_invalid', text: `the head of PR #${moved.pr} changed during the review ${now.headRepeats + 1} times in a row` };
+      else movedTo = moved.head;
+    }
+    const slots = roundSlots(now.config);
+    // A reviewer of a round of several that cannot conclude gives no verdict and does not stop the epic: the round counts what the others give.
+    const asNone = slots.length > 1 && execution.stage === 'review' && parsed.result.outcome === 'needs_human' && slots.includes(slotOf(execution)!);
+    const head = parsed.result.outcome === 'needs_human' ? (execution.headSha ?? now.prHeadSha!) : parsed.result.pr.headSha;
+    if (asNone && deadHeads(now).has(head)) alreadyRepeated = true; // the round was repeated on another head: this answer is only set aside
+    let quotaStop: NoVerdict[] | undefined; // a round whose every failure was a quota one: stopped after, where the windows are asked
     const imported = importResult(db, raw, expected, (tx, result) => {
-      // A stage change reaches the issue when a stage has a label: the label follows (labelPending) like a status change does.
-      const update = (set: Partial<Epic>) => tx.update(epics).set({ ...set, ...(set.stage !== undefined && { recoveries: 0, autoResumes: 0, ...(stageLabelled() && { labelPending: true }) }) }).where(eq(epics.id, epic.id)).run();
-      if (execution.stage === 'review' && !problem && !movedTo) tx.update(epics).set({ headRepeats: 0 }).where(eq(epics.id, epic.id)).run(); // a review completed on its own head
+      if (asNone && result.outcome === 'needs_human' && !alreadyRepeated) recordNoVerdict(tx, now, { round: now.round, headSha: head }, { slot: slotOf(execution)!, kind: 'agent_needs_human', why: result.reason, executionId: execution.executionId }, clock.now());
+      // What the round comes to, from the verdicts it has on its head: decided here, in the write that imports the last of them, so reviewers that end together decide it once.
+      const round = execution.stage === 'review' && (result.outcome !== 'needs_human' || asNone) && !problem && !movedTo && !alreadyRepeated ? decideRound(slots, roundVerdicts(tx, now, execution, result.outcome === 'needs_human' ? null : result, slots.length > 1), slots.length > 1 ? roundNones(tx, now, { round: now.round, headSha: head }) : [], slots.length > 1 ? openBlockerSlots(tx, now) : []) : null;
+      if ((execution.stage === 'review' || execution.stage === 'lead') && !problem && !movedTo && !alreadyRepeated && round?.kind !== 'waiting') tx.update(epics).set({ headRepeats: 0 }).where(eq(epics.id, epic.id)).run(); // a round, or the lead's review, decided on its own head
       // The verdict judged a head that is not the pull request's any more: kept as the execution it is, never read by a later round (a resume at review included).
       if (superseded) tx.update(callerResults).set({ outcome: supersededOutcome }).where(eq(callerResults.executionId, execution.executionId)).run();
-      if (result.outcome === 'needs_human') toNeedsHuman(tx, epic.id, 'agent_needs_human', result.reason);
-      else if (problem) toNeedsHuman(tx, epic.id, problem.kind, problem.text);
+      if (result.outcome === 'needs_human') {
+        if (!asNone) toNeedsHuman(tx, epic.id, 'agent_needs_human', execution.stage === 'lead' ? `the lead reviewer cannot conclude: ${result.reason}` : result.reason);
+        else if (round && round.kind !== 'waiting') quotaStop = applyRound(tx, now, round, head);
+      } else if (problem) toNeedsHuman(tx, epic.id, problem.kind, problem.text);
       else if (movedTo) {
         // The stage and round stay: the same stage reviews the new head.
-        tx.update(epics).set({ prHeadSha: movedTo, headRepeats: epic.headRepeats + 1 }).where(eq(epics.id, epic.id)).run();
-        tx.insert(epicEvents).values({ epicId: epic.id, at: clock.now(), type: 'review_repeated', data: { executionId: execution.executionId, round: epic.round, from: result.pr.headSha, to: movedTo, repeats: epic.headRepeats + 1 } }).run();
+        tx.update(epics).set({ prHeadSha: movedTo, headRepeats: now.headRepeats + 1 }).where(eq(epics.id, epic.id)).run();
+        tx.insert(epicEvents).values({ epicId: epic.id, at: clock.now(), type: 'review_repeated', data: { executionId: execution.executionId, round: now.round, from: result.pr.headSha, to: movedTo, repeats: now.headRepeats + 1, ...(execution.stage === 'lead' && { stage: 'lead' }) } }).run();
         tx.insert(executionEvents).values({ executionId: execution.executionId, at: clock.now(), kind: 'note', payload: { text: `The head of PR #${result.pr.number} moved from ${result.pr.headSha} to ${movedTo} while this review ran: its verdict is set aside and the new head is reviewed again.` } }).run(); // what the events reply of this execution shows
       }
-      else if (execution.stage === 'ship') update({ stage: 'review', stageStartedAt: clock.now(), round: 1, prNumber: result.pr.number, prHeadSha: result.pr.headSha, workspace, branch });
-      // The pass ended with the head that was reviewed: nothing to review again, the reviewer's verification stands.
-      else if (execution.stage === 'fix' && latestObservations(db, epic.id) && result.pr.headSha === epic.reviewedSha) update({ status: 'ready_for_test', finishedAt: clock.now(), labelPending: true });
-      else if (execution.stage === 'fix') update({ stage: 'review', stageStartedAt: clock.now(), round: (epic.round ?? 0) + 1, prHeadSha: result.pr.headSha });
-      // The round stays: the fix turn answers it, and the next review numbers the following one.
-      else if (result.outcome === 'changes_requested') {
-        if ((epic.round ?? 0) >= roundCap(epic)) toNeedsHuman(tx, epic.id, 'review_limit', `review limit: round ${epic.round} of ${roundCap(epic)} still has requested changes`);
-        else update({ stage: 'fix', stageStartedAt: clock.now() });
-      }
-      // The one observations pass: the author answers them on the same round, and the reviewed head and verification wait for how it ends.
-      else if (result.outcome === 'completed' && result.observations?.length && epic.observationsPassAt === null && (epic.round ?? 0) < roundCap(epic)) {
-        update({ stage: 'fix', stageStartedAt: clock.now(), observationsPassAt: clock.now(), reviewedSha: result.pr.headSha, verification: result.verification });
-      }
-      else {
-        // Observations a review listed that no pass will answer: how many, and whether the pass was taken or the round was the last its cap allows.
-        const left = result.outcome === 'completed' ? (result.observations?.length ?? 0) : 0;
-        update({
-          status: 'ready_for_test', reviewedSha: result.pr.headSha, verification: result.verification, finishedAt: clock.now(), labelPending: true,
-          ...(left > 0 && { unansweredObservations: left, unansweredReason: epic.observationsPassAt === null ? 'last_round' : 'already_taken' }),
-        });
-      }
+      // Another reviewer repeated the round already, or this one's round waits for a verdict that is missing: nothing moves.
+      else if (alreadyRepeated || round?.kind === 'waiting') return;
+      else if (execution.stage === 'lead') settleLead(tx, now, result);
+      else if (round) quotaStop = applyRound(tx, now, round, head);
+      else if (execution.stage === 'ship') updateOf(tx, epic.id)({ stage: 'review', stageStartedAt: clock.now(), round: 1, prNumber: result.pr.number, prHeadSha: result.pr.headSha, workspace, branch });
+      // The fix of the lead's exchange: only the lead reviews again, on the head after the fix, with one more round of its own.
+      else if (execution.stage === 'fix' && now.leadRound !== null) updateOf(tx, epic.id)({ stage: 'lead', stageStartedAt: clock.now(), leadRound: now.leadRound + 1, prHeadSha: result.pr.headSha });
+      // The pass ended with the head that was reviewed: nothing to review again, the reviewer's verification stands (a fix of the lead's blockers resumed after it stopped is no pass).
+      else if (execution.stage === 'fix' && latestLeadBlockers(db, epic.id).length === 0 && latestObservations(db, now) && result.pr.headSha === now.reviewedSha) agreed(tx, now, {});
+      else updateOf(tx, epic.id)({ stage: 'review', stageStartedAt: clock.now(), round: (now.round ?? 0) + 1, prHeadSha: result.pr.headSha }); // a fix: the review numbers the following round
     });
-    if (!('duplicate' in imported)) db.update(epics).set({ lastError: null }).where(eq(epics.id, epic.id)).run();
+    // The last error is cleared by a result, unless another slot's failure is still being recovered: it is that error.
+    if (!('duplicate' in imported) && !failingBesides(db, epic, slotOf(execution))) db.update(epics).set({ lastError: null }).where(eq(epics.id, epic.id)).run();
     log.info('result imported', { ...context, outcome: parsed.result.outcome, duplicate: 'duplicate' in imported });
     const next = fresh(epic.id);
-    // ship and fix hand over to the reviewer, a review with changes hands over to the author.
-    if (!('duplicate' in imported) && next.status === 'running' && next.stage && next.stage !== 'ship') await launch(next, next.stage);
+    // What stopped the epic (a round with no verdict, a head that moved) ends the round's other runs: their verdicts would be set aside.
+    if (!('duplicate' in imported) && (next.status !== 'running' || movedTo)) await stopRunsOf(epic.id);
+    if (quotaStop && next.status === 'running') await stopOnUsageLimit(epic.id, quotaStop.map(({ executionId }) => db.select().from(executions).where(eq(executions.executionId, executionId!)).get()!));
+    // ship and fix hand over to the reviewer, a review with changes hands over to the author, a head that moved starts the round again;
+    // a review that left the stage where it was is a round still waiting for a reviewer, which nothing launches.
+    if (!('duplicate' in imported) && next.status === 'running' && next.stage && next.stage !== 'ship' && (next.stage !== execution.stage || movedTo)) await launch(next, next.stage);
     await freeSlot();
   }
 
@@ -1187,17 +1410,42 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
   // True when it did something (launched, settled or parked the epic), false when the epic's state is one a recovery does not move.
   async function recoverEpic(id: number): Promise<boolean> {
     const epic = fresh(id);
+    // A review stage goes on from the last execution of each reviewer's slot, so each is recovered on its own; any other stage, from the epic's newest
+    // (a review that has none yet is the stage the author's last execution handed over).
+    const reviewers = epic.stage === 'review' ? lastBySlot(db, epic).filter((last) => slotOf(last) !== null) : [];
     const newest = db.select().from(executions).where(eq(executions.epicId, id)).orderBy(desc(sql`rowid`)).get();
-    const last = newest && isOfAttempt(newest, epic) ? newest : undefined; // an earlier attempt's last execution is not this stop
+    let acted = false;
+    for (const last of reviewers.length > 0 ? reviewers : [newest && isOfAttempt(newest, epic) ? newest : undefined]) { // an earlier attempt's last execution is not this stop
+      if (acted && !stillRunning(id)) break; // an earlier slot stopped the epic
+      acted = (await recoverFrom(fresh(id), last)) || acted;
+    }
+    // A round of several reviewers also has the slots that were never launched (the engine stopped between two of them): each is launched on the round's head.
+    if (epic.stage === 'review' && stillRunning(id) && !launching.has(id)) acted = (roundSlots(epic.config).length > 1 && (await launchRound(fresh(id)))) || acted;
+    return acted;
+  }
+
+  // With several reviewers, a slot whose failure already settled it with no verdict on the round's head (`reviewer_no_verdict`), whose head the round moved past, or whose last run
+  // is of an earlier round, has nothing to recover: stopping or failing it over again would count a recovery at every poll until the epic stops in `engine_error`.
+  const settledWithoutVerdict = (epic: Epic, last: Execution) => {
+    const slot = slotOf(last);
+    if (epic.stage !== 'review' || epic.round === null || slot === null || roundSlots(epic.config).length < 2) return false;
+    if (last.round !== null && last.round !== epic.round) return true; // the slot's last run is of an earlier round: this round has none of it yet, `launchRound` makes it, and a stop is not recovered from that row
+    if (last.headSha === null) return false;
+    return deadHeads(epic).has(last.headSha) || roundNones(db, epic, { round: epic.round, headSha: last.headSha }).some((none) => none.slot === slot);
+  };
+
+  // Continues the epic from one execution, the last of the slot being recovered (none: the epic has not started one).
+  async function recoverFrom(epic: Epic, last: Execution | undefined): Promise<boolean> {
+    const id = epic.id;
     log.info('recovering epic', { repo: epic.repo, epic: epic.issue, stage: epic.stage, lastStatus: last?.status });
     if (!last) {
       // A launch of this engine that claimed the stage and is still preparing its workspace is not a cut one: it makes the execution itself.
       if (launching.has(id)) return false;
       // A resumed stage claimed and cut before its execution: it starts that stage again, never ship.
-      if (epic.stage === 'review' || epic.stage === 'fix') {
+      if (epic.stage === 'review' || epic.stage === 'fix' || epic.stage === 'lead') {
         launching.add(id);
         try {
-          await execute(epic, epic.stage);
+          await launchStage(epic, epic.stage);
         } finally {
           launching.delete(id);
         }
@@ -1212,6 +1460,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       await freeSlot();
     } else if (last.status === 'interrupted') {
       if (epic.stage !== last.stage) return false; // the epic moved on (or has no stage yet): this cut execution is not where it stands
+      if (roundSlots(epic.config).length > 1 && deadHeads(epic).has(last.headSha)) return false; // a round's reviewer cut after the head moved: the round is made again by the slot that found the move
       // The agent may have written its result just before the cut: import it once instead of launching again.
       if (parseCallerResult(readResult(last), expectedOf(epic, last)).ok) {
         db.update(executions).set({ status: 'finished' }).where(eq(executions.executionId, last.executionId)).run();
@@ -1220,13 +1469,20 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     } else if (
       epic.stage !== null &&
       last.status === 'failed' &&
+      !settledWithoutVerdict(epic, last) &&
       (last.failureKind === 'usage_limit' ||
-        matchesFailoverTrigger(failoverTriggersOf(epic.config?.failover, last.stage === 'review' ? 'reviewer' : 'author'), last.failureKind, last.failureDetail))
+        matchesFailoverTrigger(failoverTriggersOf(epic.config, slotOf(last)), last.failureKind, last.failureDetail))
     ) {
       // Stopped before the epic moved on: no agent is running and none would be launched. A requeued epic (no stage yet) keeps its old
       // executions: that history is not this stop, the restart's own launch (begin, resumeStarts) takes it from here.
       await onUsageLimit(id, last);
-    } else if (last.status === 'finished' && epic.stage && db.select().from(callerResults).where(eq(callerResults.executionId, last.executionId)).get()) {
+    } else if (last.status === 'finished' && epic.stage) {
+      const result = db.select().from(callerResults).where(eq(callerResults.executionId, last.executionId)).get();
+      if (!result) return false;
+      // With several reviewers, a slot whose result stands in the round the epic is at has nothing to launch: the round goes on with the slots that have none.
+      // With one, the import moves the stage (or supersedes the result), so that state is not reached; if it were, it relaunches the stage as it always did.
+      const several = epic.config !== null && agentOfSlot(epic.config, 'reviewer-2') !== undefined;
+      if (several && last.stage === epic.stage && last.round === epic.round && result.outcome !== supersededOutcome) return false;
       await launch(epic, epic.stage); // imported, but the next stage was never launched
     } else return false;
     return true;
@@ -1237,7 +1493,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
   const maxRecoveries = 3;
   // Epics a command is recovering: the poll's recovery leaves them alone, and a second command is refused.
   const asked = new Set<number>();
-  const busy = (id: number) => (handling.get(id) ?? 0) > 0 || launching.has(id) || retrying.has(id) || restoring.has(id) || asked.has(id);
+  const busy = (id: number) => (handling.get(id) ?? 0) > 0 || launching.has(id) || retryingEpic(id) || restoring.has(id) || asked.has(id);
   async function recoverStuck() {
     if (stopping || suspended) return;
     const stuck = db.select().from(epics).where(and(eq(epics.status, 'running'), isNotNull(epics.stage))).orderBy(asc(epics.id)).all();
@@ -1632,7 +1888,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
      * One that stopped on the review limit then gets `extraRounds` more rounds from the current one, `maxReviews` when none is named.
      * Rejects with ResumeRefused: nothing was changed unless it is `did not restart`, which leaves the label for the next check.
      */
-    async resumeEpic(repo: string, issue: number, chosen: { author?: string; reviewer?: string; from?: 'ship' | 'review' | 'fix'; extraRounds?: number } = {}) {
+    async resumeEpic(repo: string, issue: number, chosen: { author?: string; reviewer?: string; reviewer2?: string; reviewer3?: string; reviewer4?: string; lead?: string; from?: 'ship' | 'review' | 'fix'; extraRounds?: number } = {}) {
       // The socket answers while the start recovers, and the recovery is not the epic's wait: it is waited for on its own, up to the same 30 seconds, and
       // refused before anything is touched when it takes longer (the label is not put, the chosen options are not kept), so the client has not given up first.
       if (recovering) {
@@ -1650,7 +1906,11 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       // The requeue freezes the epic's options again from the configuration the engine runs with, so that is what the names are checked against.
       const repoConfig = repos().find((r) => r.name === repo);
       const declared = (repoConfig?.providers ?? repoConfig?.options) ?? {};
-      if ([chosen.author, chosen.reviewer].some((name) => name !== undefined && !Object.hasOwn(declared, name))) throw new ResumeRefused('unknown option');
+      const picked = Object.entries({ author: chosen.author, reviewer: chosen.reviewer, 'reviewer-2': chosen.reviewer2, 'reviewer-3': chosen.reviewer3, 'reviewer-4': chosen.reviewer4, lead: chosen.lead }).filter((pick): pick is [string, string] => pick[1] !== undefined);
+      if (picked.some(([, name]) => !Object.hasOwn(declared, name))) throw new ResumeRefused('unknown option');
+      // The roles the epic will run with are the ones the requeue freezes again, from the configuration the engine runs with.
+      const slots = roundSlots(repoConfig ?? null);
+      if (picked.some(([role]) => role === 'lead' ? !repoConfig?.agents.leadReviewer : role.startsWith('reviewer-') && !slots.includes(role as Slot))) throw new ResumeRefused('no such role');
       const keeping = chosen.from === 'review' || chosen.from === 'fix' ? chosen.from : null;
       if (chosen.extraRounds !== undefined && !keeping) throw new ResumeRefused('extra rounds need a stage');
       if (chosen.extraRounds !== undefined && epic.needsHumanKind !== 'review_limit') throw new ResumeRefused('extra rounds need a review limit');
@@ -1665,9 +1925,6 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
         }
         if (refusal) throw new ResumeRefused(refusal);
       }
-      // A role left out keeps the option it has: the epic is not asked again.
-      const author = chosen.author ?? epic.authorOption;
-      const reviewer = chosen.reviewer ?? epic.reviewerOption;
       // Saved with the epic before the label goes on: a restart of the engine, or a check that finds the label later, takes the same stage. Any resume sets it, so an old ask never lingers.
       // The rounds granted go with it, counted from the round the epic is at; a resume that grants none leaves the cap as it was.
       // It also takes the wake-up's time away now: a poll that probes while the label is put must not resume the epic itself over what was asked here.
@@ -1676,7 +1933,8 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       // `labelPending` goes too: the poll takes the `ready` of a stopped epic with a write still pending for Carrier's own, and this one is a person's.
       const saved = db.update(epics).set({ labelPending: false, resumeStage: keeping, resumeAt: null, prHeadSha: adopted ?? epic.prHeadSha, roundLimit: keeping && grant !== undefined ? (epic.round ?? 0) + grant : epic.roundLimit }).where(and(eq(epics.id, epic.id), eq(epics.status, 'needs_human'))).returning().get();
       if (!saved) throw new ResumeRefused('not stopped');
-      restarts.set(epic.id, { ...(author && { author }), ...(reviewer && { reviewer }) });
+      // A role left out keeps the option it has: the epic is not asked again. The extra reviewers and the lead are put back on theirs by the slices that run them.
+      restarts.set(epic.id, { ...(epic.authorOption && { author: epic.authorOption }), ...(epic.reviewerOption && { reviewer: epic.reviewerOption }), ...Object.fromEntries(picked) });
       try {
         await github.setLabels(repo, issue, { add: [settings().labels.ready], remove: [] });
       } catch (e) {
@@ -1704,7 +1962,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
         await new Promise<void>((resolve) => clock.after(resumeTickMs, async () => resolve()));
       }
       // Every resume says what asked for it, as `recover` does; a plain one is from ship.
-      db.insert(epicEvents).values({ epicId: epic.id, at: clock.now(), type: 'resumed', data: { from: chosen.from ?? 'ship', by: 'command', ...(adopted && { headAdopted: { from: epic.prHeadSha, to: adopted } }) } }).run();
+      db.insert(epicEvents).values({ epicId: epic.id, at: clock.now(), type: 'resumed', data: { from: chosen.from ?? 'ship', by: 'command', ...(picked.length > 0 && { options: Object.fromEntries(picked) }), ...(adopted && { headAdopted: { from: epic.prHeadSha, to: adopted } }) } }).run();
     },
     /**
      * Continues one running epic whose agent is not alive, from its real state, through the code of the poll's recovery (ADR 0044); resolves once it was continued.

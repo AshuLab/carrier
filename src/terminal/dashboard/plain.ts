@@ -1,6 +1,7 @@
 import { formatDuration } from '../../format/duration.ts';
 import { printable } from './printable.ts';
 import type { PanelSnapshot } from '../../status/types.ts';
+import { reviewersLine } from './dashboard.ts';
 import { finishedSections } from './ui-state.ts';
 
 // The one-line-per-change form for a pipe (a terminal gets the dashboard). Pure: no ANSI.
@@ -10,7 +11,7 @@ export function renderPanel(s: PanelSnapshot): string[] {
   for (const e of epics) {
     const parts = [
       `${e.repo}#${e.issue}`,
-      e.status === 'needs_human' ? 'NEEDS HUMAN' : (e.stage ?? 'starting'),
+      e.status === 'needs_human' ? 'NEEDS HUMAN' : e.lead ? 'lead' : (e.stage ?? 'starting'), // the stage lead is reported as `review` with `lead` set
       ...(e.round === null ? [] : [`round ${e.round}/${e.maxReviews}`]),
       ...(e.slices && e.slices.total > 0 ? [`slices ${e.slices.done}/${e.slices.total}`] : []),
       `blockers ${e.blockers}`,
@@ -18,6 +19,7 @@ export function renderPanel(s: PanelSnapshot): string[] {
       e.lastActivityAt === null ? 'no activity' : `activity ${formatDuration(now - e.lastActivityAt)} ago`,
     ];
     lines.push(parts.join('  '), `  issue ${e.issueUrl}${e.prUrl ? `  PR ${e.prUrl}` : ''}`);
+    if (e.reviewers) lines.push(`  reviewers: ${reviewersLine(e.reviewers)}`, ...e.reviewers.none.map((n) => `    ${n.slot}: ${printable(n.why)}`));
     if (e.needsHumanReason) lines.push(`  reason: ${printable(e.needsHumanReason)}`);
     if (e.resumeAt !== undefined) lines.push(`  resumes: ${e.resumeAt > now ? `in ${formatDuration(e.resumeAt - now)}` : 'at the next check'}`);
     if (e.retryAt !== undefined) lines.push(`  retries: ${e.retryAt > now ? `in ${formatDuration(e.retryAt - now)}` : 'at the next check'}`);

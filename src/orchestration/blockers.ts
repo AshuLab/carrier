@@ -1,29 +1,78 @@
-import { and, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, isNull, ne, or, sql } from 'drizzle-orm';
+import type { EffectiveRepoConfig } from '../config/resolve.ts';
 import type { CallerResult } from '../execution/caller-result.ts';
 import { callerResults } from '../storage/caller-results.ts';
 import type { Db } from '../storage/db.ts';
-import { executions } from '../storage/executions.ts';
+import { executions, slotOf, type Slot } from '../storage/executions.ts';
+import { roundSlots } from './slots.ts';
 
-/** The blockers of the epic's latest review that asked for changes, none when a review completed after it: what the fix turn and the next review have to answer. */
-export function latestBlockers(db: Db, epicId: number) {
-  const last = db
-    .select({ outcome: callerResults.outcome, result: callerResults.result })
+type Attempt = { id: number; startedAt: number | null };
+
+/**
+ * Where the epic's current attempt of reviews begins: its latest `ship`, which only a restart from `ship` runs again. A resume at `review` or `fix` keeps the attempt
+ * (and the blockers it left open) while the reserve gives the epic a new `startedAt`, so that one is read only for an epic with no `ship` yet.
+ */
+const attemptStart = (db: Pick<Db, 'select'>, epic: Attempt) =>
+  db.select({ startedAt: executions.startedAt }).from(executions).where(and(eq(executions.epicId, epic.id), eq(executions.stage, 'ship'))).orderBy(desc(sql`executions.rowid`)).get()?.startedAt ?? epic.startedAt ?? Number.MAX_SAFE_INTEGER;
+
+/**
+ * The newest review of each slot of the epic's current attempt, in the order they came: the ones that gave a verdict only, or (`any`) whatever its outcome but an answer that it cannot conclude
+ * (a reviewer with no verdict is absent), a review of a head that moved included. Only the slots the epic's configuration reviews with now, when it says (`config`).
+ */
+function lastReviews(db: Pick<Db, 'select'>, epic: Attempt & { config?: EffectiveRepoConfig | null }, any = false) {
+  const since = attemptStart(db, epic);
+  const slots = epic.config === undefined ? null : roundSlots(epic.config);
+  const last = new Map<Slot, { outcome: string; result: CallerResult }>(); // the outcome is the column's: a result of a head that moved keeps its own in the JSON
+  for (const row of db
+    .select({ reviewer: executions.reviewer, outcome: callerResults.outcome, result: callerResults.result })
     .from(callerResults)
     .innerJoin(executions, eq(executions.executionId, callerResults.executionId))
-    .where(and(eq(executions.epicId, epicId), eq(executions.stage, 'review'), inArray(callerResults.outcome, ['changes_requested', 'completed'])))
-    .orderBy(desc(sql`executions.rowid`))
-    .get();
-  return last?.outcome === 'changes_requested' ? (JSON.parse(last.result) as Extract<CallerResult, { outcome: 'changes_requested' }>).blockers : [];
+    .where(and(eq(executions.epicId, epic.id), eq(executions.stage, 'review'), gte(executions.startedAt, since), any ? ne(callerResults.outcome, 'needs_human') : inArray(callerResults.outcome, ['changes_requested', 'completed'])))
+    .orderBy(asc(sql`executions.rowid`))
+    .all()) {
+    const slot = slotOf({ stage: 'review', reviewer: row.reviewer })!;
+    if (slots === null || slots.includes(slot)) last.set(slot, { outcome: row.outcome, result: JSON.parse(row.result) as CallerResult });
+  }
+  return last;
 }
 
-/** The observations of the epic's latest review when it completed: a fix right after it is the observations pass, null otherwise (that fix is for blockers). */
-export function latestObservations(db: Db, epicId: number) {
-  const last = db
-    .select({ outcome: callerResults.outcome, result: callerResults.result })
-    .from(callerResults)
-    .innerJoin(executions, eq(executions.executionId, callerResults.executionId))
-    .where(and(eq(executions.epicId, epicId), eq(executions.stage, 'review')))
+/**
+ * The blockers still open: those of each reviewer's latest review that asked for changes, none for one whose latest review completed after it: what the fix turn
+ * and the next review have to answer. `slot` keeps one reviewer's own, which is what its next review is given; `tagged` says whose each one is (an epic with several reviewers).
+ */
+export function latestBlockers(db: Db, epic: Attempt & { config: EffectiveRepoConfig | null }, { slot, tagged = false }: { slot?: Slot; tagged?: boolean } = {}) {
+  return [...lastReviews(db, epic)]
+    .filter(([reviewer]) => slot === undefined || reviewer === slot)
+    .flatMap(([reviewer, { outcome, result }]) => (outcome === 'changes_requested' ? (result as Extract<CallerResult, { outcome: 'changes_requested' }>).blockers.map((blocker) => (tagged ? { ...blocker, reviewer } : blocker)) : []));
+}
+
+/** The slots whose latest review of the epic's current attempt asked for changes: the ones whose blockers are still open, whether or not they gave a verdict since. */
+export function openBlockerSlots(db: Pick<Db, 'select'>, epic: Attempt): Slot[] {
+  return [...lastReviews(db, epic)].flatMap(([slot, { outcome }]) => (outcome === 'changes_requested' ? [slot] : []));
+}
+
+/**
+ * The observations of the epic's latest reviews when every reviewer's completed (one that gave none, or whose head moved, is not): a fix right after them is the observations pass, null otherwise (that fix is for blockers).
+ * `tagged` says which reviewer each one is from (an epic with several reviewers).
+ */
+export function latestObservations(db: Db, epic: Attempt & { config: EffectiveRepoConfig | null }, { tagged = false }: { tagged?: boolean } = {}) {
+  const last = [...lastReviews(db, epic, true)];
+  if (last.length === 0 || !last.every(([, { outcome }]) => outcome === 'completed')) return null;
+  return last.flatMap(([reviewer, { result }]) => ((result as Extract<CallerResult, { outcome: 'completed' }>).observations ?? []).map((o) => (tagged ? { ...o, reviewer } : o)));
+}
+
+/**
+ * The blockers the lead reviewer's latest review left open: its newest result when it asked for changes and no review of the reviewers came after it. What the author's fix of the lead's
+ * exchange answers, and what a fix resumed after the lead stopped the epic is given. The lead's observations are never part of it.
+ */
+export function latestLeadBlockers(db: Pick<Db, 'select'>, epicId: number) {
+  const rows = db
+    .select({ stage: executions.stage, outcome: callerResults.outcome, result: callerResults.result })
+    .from(executions)
+    .leftJoin(callerResults, eq(callerResults.executionId, executions.executionId))
+    .where(and(eq(executions.epicId, epicId), inArray(executions.stage, ['review', 'lead']), or(isNull(callerResults.outcome), ne(callerResults.outcome, 'needs_human'))))
     .orderBy(desc(sql`executions.rowid`))
-    .get();
-  return last?.outcome === 'completed' ? ((JSON.parse(last.result) as Extract<CallerResult, { outcome: 'completed' }>).observations ?? []) : null;
+    .all();
+  const last = rows.find(({ stage, outcome }) => stage === 'review' || outcome !== null); // a review of the reviewers closes the lead's blockers; so does a lead result with none
+  return last?.stage === 'lead' && last.outcome === 'changes_requested' ? (JSON.parse(last.result!) as Extract<CallerResult, { outcome: 'changes_requested' }>).blockers : [];
 }

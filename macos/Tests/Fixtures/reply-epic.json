@@ -13,11 +13,20 @@
     {
       "stage": "review",
       "startedAt": 39000,
-      "endedAt": 60000
+      "endedAt": 60000,
+      "reviewers": [
+        "reviewer",
+        "reviewer-2"
+      ]
     },
     {
       "stage": "fix",
       "startedAt": 60000,
+      "endedAt": 70000
+    },
+    {
+      "stage": "lead",
+      "startedAt": 70000,
       "endedAt": null
     }
   ],
@@ -131,7 +140,34 @@
           "url": null
         }
       ],
-      "commits": []
+      "commits": [],
+      "otherReviewers": [
+        {
+          "slot": "reviewer-2",
+          "agent": {
+            "harness": "claude",
+            "model": "claude-sonnet-5-5",
+            "provider": null
+          },
+          "verdict": "changes_requested",
+          "blockers": [
+            {
+              "id": "B1",
+              "title": "Use the shared helper",
+              "url": "https://github.com/acme/web/pull/50#discussion_B1",
+              "mark": "new",
+              "approximate": false
+            }
+          ],
+          "observations": [
+            {
+              "id": null,
+              "title": "Prefer a const here",
+              "url": null
+            }
+          ]
+        }
+      ]
     },
     {
       "round": 5,
@@ -299,6 +335,24 @@
   "unansweredObservations": {
     "count": 2,
     "reason": "already_taken"
+  },
+  "reviewers": {
+    "given": 2,
+    "of": 3,
+    "none": [
+      {
+        "slot": "reviewer-3",
+        "why": "cannot verify the migration"
+      }
+    ]
+  },
+  "reviewedSha": "5555555eeeeeee",
+  "approvedSha": "7777777ggggggg",
+  "leadApproval": true,
+  "lead": {
+    "harness": "claude",
+    "model": "claude-sonnet-5-5",
+    "provider": null
   },
   "pr": {
     "number": 50,

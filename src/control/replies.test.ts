@@ -23,7 +23,7 @@ test('the sessions reply equals reply-sessions.json', () => {
     sessions: [
       { executionId: '3f2b8c1e-5a4d-4e8b-9c1a-0d2e4f6a8b1c', stage: 'fix', role: 'author', round: 2, agent: claude, profile: 'acme-author', status: 'running', startedAt: 90_000, finishedAt: null, resume: null, result: null, failure: null },
       {
-        executionId: '9a7d1c52-0b3e-4f6a-8d2c-1e5f7a9b3c4d', stage: 'review', role: 'reviewer', round: 2, agent: codex, profile: 'acme-reviewer', status: 'finished', startedAt: 60_000, finishedAt: 85_000,
+        executionId: '9a7d1c52-0b3e-4f6a-8d2c-1e5f7a9b3c4d', stage: 'review', role: 'reviewer', reviewer: 'reviewer', round: 2, agent: codex, profile: 'acme-reviewer', status: 'finished', startedAt: 60_000, finishedAt: 85_000,
         resume: { harness: 'codex', sessionId: 'a1b2c3d4-0001-4000-8000-000000000002', cwd: '/work/acme/web-epic' },
         result: {
           outcome: 'completed', summary: 'Round 2 review of PR #12: no blockers. Review posted at https://github.com/acme/web-epic/pull/12#pullrequestreview-1.',
@@ -44,7 +44,7 @@ test('the sessions reply equals reply-sessions.json', () => {
         failure: null,
       },
       {
-        executionId: '7e2a9d14-6b0c-4f83-9c5e-3a1d8b4f6c20', stage: 'review', role: 'reviewer', round: 1, agent: codex, profile: 'acme-reviewer', status: 'finished', startedAt: 39_000, finishedAt: 44_000,
+        executionId: '7e2a9d14-6b0c-4f83-9c5e-3a1d8b4f6c20', stage: 'review', role: 'reviewer', reviewer: 'reviewer', round: 1, agent: codex, profile: 'acme-reviewer', status: 'finished', startedAt: 39_000, finishedAt: 44_000,
         resume: { harness: 'codex', sessionId: 'a1b2c3d4-0001-4000-8000-000000000001', cwd: '/work/acme/web-epic' },
         result: { outcome: 'changes_requested', summary: 'Round 1 review of PR #12: two blockers.', verification: null, reason: null },
         failure: null,
@@ -55,6 +55,10 @@ test('the sessions reply equals reply-sessions.json', () => {
         result: { outcome: 'needs_human', summary: 'Stopped before opening a pull request.', verification: null, reason: 'The ticket asks for a migration the schema forbids; which of the two wins?' },
         failure: { kind: 'killed', detail: 'SIGKILL', exitCode: null, signal: 'SIGKILL', hostFreeMemMb: 812, hostLoad: 6.4 },
       },
+      // a second reviewer of round 1, which gave no verdict (the sample's sessions are not all in order)
+      // the lead reviewer's: the replies name its stage and its slot `lead` as strings, and its role is the reviewer's
+      { executionId: '4a8e2c60-9d1b-4f37-a5c3-8b0e6d2f4a19', stage: 'lead', role: 'reviewer', reviewer: 'lead', round: 3, agent: claude, profile: 'acme-lead', status: 'finished', startedAt: 86_000, finishedAt: 95_000, resume: null, result: { outcome: 'completed', summary: 'Final review of PR #12: no blockers, approval submitted.', verification: { ci: 'passed', evidence: 'CI run concluded success on the head commit.' }, reason: null }, failure: null },
+      { executionId: '6d3c7a21-8e4b-4c19-b0f2-5a9d1e3c7b84', stage: 'review', role: 'reviewer', reviewer: 'reviewer-2', round: 1, agent: claude, profile: 'acme-reviewer-2', status: 'finished', startedAt: 39_100, finishedAt: 44_000, resume: null, result: { outcome: 'needs_human', summary: 'Could not conclude.', verification: null, reason: 'cannot verify the migration' }, failure: null },
     ],
   };
   golden('sessions', sessions);
@@ -106,8 +110,9 @@ test('the epic reply equals reply-epic.json', () => {
     stages: [
       { stage: 'queued', startedAt: 500, endedAt: 1_000 },
       { stage: 'ship', startedAt: 1_000, endedAt: 39_000 },
-      { stage: 'review', startedAt: 39_000, endedAt: 60_000 },
-      { stage: 'fix', startedAt: 60_000, endedAt: null },
+      { stage: 'review', startedAt: 39_000, endedAt: 60_000, reviewers: ['reviewer', 'reviewer-2'] },
+      { stage: 'fix', startedAt: 60_000, endedAt: 70_000 },
+      { stage: 'lead', startedAt: 70_000, endedAt: null },
     ],
     rounds: [
       {
@@ -129,6 +134,8 @@ test('the epic reply equals reply-epic.json', () => {
         // one with its comment, one a reviewer gave no id or link
         observations: [{ id: 'o1', title: 'Rename the helper', url: 'https://github.com/acme/web/pull/50#discussion_o1' }, { id: null, title: 'Prefer a const here', url: null }],
         commits: [],
+        // a round of two reviewers: the mandatory one's above, the other's here with its slot
+        otherReviewers: [{ slot: 'reviewer-2', agent: claude, verdict: 'changes_requested', blockers: [blocker('B1', 'Use the shared helper', 'new')], observations: [{ id: null, title: 'Prefer a const here', url: null }] }],
       },
       {
         round: 5, reviewer: codex, verdict: 'limit_reached', reviewMs: 20_000, fixMs: null, reviewedSha: '6666666fffffff', fixedSha: null,
@@ -159,6 +166,13 @@ test('the epic reply equals reply-epic.json', () => {
     ],
     branch: 'feat/issue-12/epic',
     unansweredObservations: { count: 2, reason: 'already_taken' },
+    // two reviewers gave a verdict out of three; the third gave none
+    reviewers: { given: 2, of: 3, none: [{ slot: 'reviewer-3', why: 'cannot verify the migration' }] },
+    // the head the reviewers agreed on and the head the lead approved differ when the head moved while the lead reviewed
+    reviewedSha: '5555555eeeeeee',
+    approvedSha: '7777777ggggggg',
+    leadApproval: true,
+    lead: claude,
     pr: { number: 50, url: 'https://github.com/acme/web/pull/50', draft: false, mergeState: 'CLEAN', reviewDecision: null, checks: { passing: 3, failing: 1, pending: 0 } },
   };
   golden('epic', epic);

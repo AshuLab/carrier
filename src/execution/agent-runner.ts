@@ -1,14 +1,15 @@
 import type { AccountRuntime } from '../config/providers.ts';
 import type { ResolvedSkills } from '../config/skills.ts';
 import type { HarnessName } from '../harnesses/names.ts';
-import type { ExecutionUsage, failureKinds } from '../storage/executions.ts';
+import type { ExecutionUsage, Slot, failureKinds } from '../storage/executions.ts';
 import type { AgentEvent } from './events.ts';
 
 export interface AgentTask extends AccountRuntime {
   executionId: string;
   repo: string; // "owner/name"
   epic: number;
-  stage: 'ship' | 'review' | 'fix';
+  stage: 'ship' | 'review' | 'fix' | 'lead';
+  reviewer?: Slot; // a review's slot; absent for ship and fix
   profile: string; // GitHub profile of the effective config
   harness: HarnessName;
   model: string;
@@ -29,10 +30,14 @@ export interface AgentTask extends AccountRuntime {
     round?: number;
     previousSummaries: string[];
     verifyStateFirst?: boolean;
-    /** Fix turn: what the last review asked to change. Review turn after the first: the previous round's blockers, to reuse their ids. */
-    blockers?: { id?: string; title: string; url?: string }[];
-    /** Fix turn after a review that completed with non-blocking findings: the threads to answer and leave open. Takes the place of `blockers`. */
-    observations?: { id?: string; title: string; url?: string }[];
+    /** Fix turn: what the last review asked to change, with the reviewer of each when the epic has several. Review turn after the first: the reviewer's own blockers of the round before, to reuse their ids. */
+    blockers?: { id?: string; title: string; url?: string; reviewer?: Slot }[];
+    /** Fix turn after reviews that completed with non-blocking findings: the threads to answer and leave open, with the reviewer of each when the epic has several. Takes the place of `blockers`. */
+    observations?: { id?: string; title: string; url?: string; reviewer?: Slot }[];
+    /** Review turn of an epic with several reviewers: other reviewers publish on the same pull request. */
+    severalReviewers?: true;
+    /** Lead turn: what each reviewer that gave a verdict on the head they agreed on said in its summary. */
+    reviewerSummaries?: { reviewer: Slot; summary: string }[];
   };
 }
 

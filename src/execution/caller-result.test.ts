@@ -105,3 +105,51 @@ test.each([
 ])('rejects %s', (_name, value) => {
   expect(parse(value)).toMatchObject({ ok: false, kind: 'invalid' });
 });
+
+// --- the lead reviewer's result ---
+
+const lead: Expected = { ...expected, stage: 'lead' };
+const leadCompleted = { ...completed, stage: 'lead' };
+const leadChanges = { ...changes, stage: 'lead' };
+const leadHuman = { ...human, stage: 'lead' };
+
+test.each([leadCompleted, leadChanges, leadHuman])('the lead is a stage of the contract: its completed, changes_requested and needs_human results validate', (value) => {
+  expect(parse(value, lead)).toEqual({ ok: true, result: value });
+});
+
+test.each([
+  [{ submitted: true }],
+  [{ submitted: true, url: 'https://github.com/AshuLab/carrier/pull/7#pullrequestreview-9' }],
+  [{ submitted: false }],
+])('a completed lead result may carry an approval, and keeps it', (approval) => {
+  expect(parse({ ...leadCompleted, approval }, lead)).toEqual({ ok: true, result: { ...leadCompleted, approval } });
+});
+
+test.each([
+  ['without submitted', { url: 'https://github.com/a/b' }],
+  ['submitted that is not a boolean', { submitted: 'yes' }],
+  ['a url that is not one', { submitted: true, url: 'later' }],
+  ['an unknown key', { submitted: true, by: 'me' }],
+])('an approval %s is invalid', (_name, approval) => {
+  expect(parse({ ...leadCompleted, approval }, lead)).toMatchObject({ ok: false, kind: 'invalid' });
+});
+
+test.each<[string, object, Expected]>([
+  ['a completed review', { ...completed, approval: { submitted: true } }, expected],
+  ['a completed ship', { ...completed, stage: 'ship', approval: { submitted: true } }, { ...expected, stage: 'ship' }],
+  ['a completed fix', { ...completed, stage: 'fix', approval: { submitted: true } }, { ...expected, stage: 'fix' }],
+  ['a lead that asks for changes', { ...leadChanges, approval: { submitted: false } }, lead],
+  ['a lead that cannot conclude', { ...leadHuman, approval: { submitted: false } }, lead],
+  ['a review that asks for changes', { ...changes, approval: { submitted: false } }, expected],
+])('an approval is accepted only on a completed lead result: %s with one is invalid', (_name, value, exp) => {
+  expect(parse(value, exp)).toMatchObject({ ok: false, kind: 'invalid' });
+});
+
+test('a review result is not a lead result and the other way round: the stage is checked against the execution', () => {
+  expect(parse(leadCompleted)).toMatchObject({ ok: false, kind: 'mismatch' });
+  expect(parse(completed, lead)).toMatchObject({ ok: false, kind: 'mismatch' });
+});
+
+test('a lead that completes may list observations, as a reviewer does', () => {
+  expect(parse({ ...leadCompleted, observations: [{ title: 'rename it' }] }, lead)).toMatchObject({ ok: true });
+});

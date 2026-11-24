@@ -7,6 +7,7 @@ import { promisify } from 'node:util';
 import type { EnginePlaces } from '../config/places.ts';
 import { repoNamePattern } from '../config/schema.ts';
 import type { GitHubProfile } from '../integrations/github.ts';
+import { reviewerSlots } from '../storage/executions.ts';
 import type { Workspaces } from './workspaces.ts';
 
 const execFileAsync = promisify(execFile);
@@ -143,7 +144,7 @@ export class GitWorkspaces implements Workspaces {
   }
 
   /**
-   * What a merged or cancelled epic leaves on the disk goes: its reviewer checkout, the author's worktree of `branch` and Solve's
+   * What a merged or cancelled epic leaves on the disk goes: the checkouts of its reviewers, the author's worktree of `branch` and Solve's
    * `<that path>--lane-N` worktrees beside it, then the epic's local branches whose tip is already on the remote. A worktree with
    * work nowhere else and a branch not on the remote are kept, and returned so the caller can say why. Only paths `git worktree list`
    * reports for this clone are removed.
@@ -155,16 +156,16 @@ export class GitWorkspaces implements Workspaces {
       if (!existsSync(join(clone, '.git'))) return { kept: [] };
       const linked = await this.linkedWorktrees(clone);
       const author = branch ? linked.find((w) => w.branch === branch)?.path : undefined;
-      const review = this.reviewPath(repo, epic);
-      const doomed = linked.filter((w) => w.path === review || (author && (w.path === author || w.path.startsWith(`${author}--lane-`))));
+      const reviews = new Set(reviewerSlots.map((slot) => this.reviewPath(repo, epic, slot)));
+      const doomed = linked.filter((w) => reviews.has(w.path) || (author && (w.path === author || w.path.startsWith(`${author}--lane-`))));
       // Fetched first, so a commit is judged against the remote as it is now.
       if (branch) await this.remote(repo, ['fetch', '--prune', 'origin'], clone);
       const kept: string[] = [];
       // One already deleted by hand is only a stale entry: `prune` drops it.
       for (const { path } of doomed.filter((w) => existsSync(w.path))) {
-        // The reviewer's checkout is detached at the PR's head, which is on the remote; an author or lane worktree may hold work nowhere else:
+        // A reviewer's checkout is detached at the PR's head, which is on the remote; an author or lane worktree may hold work nowhere else:
         // uncommitted files, or commits of a detached HEAD on no branch. Such a one stays, and its branch with it (it is checked out).
-        if (path !== review) {
+        if (!reviews.has(path)) {
           const dirty = (await git(['status', '--porcelain'], { cwd: path })) !== '';
           const unsaved = (await git(['rev-list', '--count', 'HEAD', '--not', '--branches', '--remotes'], { cwd: path })) !== '0';
           if (dirty || unsaved) {
@@ -190,22 +191,28 @@ export class GitWorkspaces implements Workspaces {
     });
   }
 
-  private reviewPath(repo: string, epic: number) {
-    return join(this.places.reviews, repo.split('/')[1]!, String(epic));
+  /** The mandatory reviewer's checkout keeps the path it has always had; every other slot is beside it, never inside it. */
+  private reviewPath(repo: string, epic: number, slot: string) {
+    const path = join(this.places.reviews, repo.split('/')[1]!, String(epic));
+    return slot === 'reviewer' ? path : `${path}--${slot}`;
   }
 
   /**
-   * A checkout detached at the PR's head, apart from the author's and from Solve's `worktrees/`; each round re-points it, resets the tracked
-   * files to it and removes the untracked ones, keeping the ignored (a review does not rebuild its dependencies). Returns the commit it is at.
+   * A checkout of a slot detached at `commit` (the PR's head when none is given), apart from the author's and from Solve's `worktrees/`; each round
+   * re-points it, resets the tracked files to it and removes the untracked ones, keeping the ignored (a review does not rebuild its dependencies).
+   * Returns the commit it is at. A `commit` has to be in the PR's history, which is fetched first.
    */
-  async prepareReviewer(repo: string, epic: number, pr: number) {
+  async prepareReviewer(repo: string, epic: number, pr: number, options: { slot?: string; commit?: string } = {}) {
+    const { slot = 'reviewer', commit } = options;
     assertCount(epic, 'epic');
     assertCount(pr, 'pr');
+    if (!(reviewerSlots as readonly string[]).includes(slot)) throw new Error(`invalid slot ${slot}`);
+    if (commit !== undefined && !/^[0-9a-f]{40}$/.test(commit)) throw new Error(`invalid commit ${commit}`);
     return this.serial(repo, async () => {
       const clone = await this.ensureClone(repo);
       await this.remote(repo, ['fetch', 'origin', this.reviewRef(pr)], clone);
-      const sha = await git(['rev-parse', '--verify', 'FETCH_HEAD^{commit}'], { cwd: clone });
-      const path = this.reviewPath(repo, epic);
+      const sha = await git(['rev-parse', '--verify', `${commit ?? 'FETCH_HEAD'}^{commit}`], { cwd: clone });
+      const path = this.reviewPath(repo, epic, slot);
       if (existsSync(join(path, '.git'))) {
         await git(['reset', '--hard', sha], { cwd: path });
         await git(['clean', '-fd'], { cwd: path });

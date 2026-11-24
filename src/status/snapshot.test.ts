@@ -3,9 +3,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
+import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, expect, test } from 'vitest';
 import { callerResults } from '../storage/caller-results.ts';
 import { openDatabase, type Db } from '../storage/db.ts';
+import { epicEvents } from '../storage/events.ts';
 import { executions } from '../storage/executions.ts';
 import { epics, epicStates } from '../storage/schema.ts';
 import { renderPanel } from '../terminal/dashboard/plain.ts';
@@ -70,7 +72,7 @@ test('an epic carries its stage, round, links, activity, error and the blockers 
   const epic = add(12, 'running', {
     stage: 'fix', round: 2, prNumber: 50, startedAt: 1_000, stageStartedAt: 40_000, lastActivityAt: 90_000, lastError: 'the agent process ended with an error',
   });
-  const base = { epicId: epic.id, stage: 'review' as const, resultPath: '/r', startedAt: 0 };
+  const base = { epicId: epic.id, stage: 'review' as const, resultPath: '/r', startedAt: 1_000 };
   const review = (executionId: string, outcome: string, result: object) => {
     db.insert(executions).values({ ...base, executionId }).run();
     db.insert(callerResults).values({ executionId, outcome, result: JSON.stringify(result) }).run();
@@ -119,8 +121,8 @@ test('watched lists every repo with the agents it resolves to and its last check
 test('a running epic with a frozen config lists its running execution as a session, without the profile; blocker titles are capped', () => {
   const agent = { profile: 'secret-profile', option: 'o', harness: 'claude' as const, model: 'm-author' };
   const config = { name: 'acme/web', agents: { author: agent, reviewer: { profile: 'other', option: 'o', harness: 'codex' as const, model: 'm-review', provider: 'ollama' as const } } };
-  const epic = add(7, 'running', { config, round: 2 });
-  db.insert(executions).values({ executionId: 'e1', epicId: epic.id, stage: 'review', resultPath: '/r', startedAt: 10 }).run();
+  const epic = add(7, 'running', { config, round: 2, startedAt: 5 });
+  db.insert(executions).values({ executionId: 'e1', epicId: epic.id, stage: 'review', status: 'finished', resultPath: '/r', startedAt: 10 }).run();
   db.insert(callerResults).values({ executionId: 'e1', outcome: 'changes_requested', result: JSON.stringify({ blockers: Array.from({ length: 12 }, () => ({ title: 'x'.repeat(300) })) }) }).run();
   db.insert(executions).values({ executionId: 'e2', epicId: epic.id, stage: 'fix', resultPath: '/r', startedAt: 20 }).run();
 
@@ -231,4 +233,171 @@ test('the snapshot reads the executions of an epic by index and never walks the 
   const walks = reads.flatMap((sql) => (traced.$client.prepare(`explain query plan ${sql}`).all() as { detail: string }[]).map((row) => row.detail)).filter((detail) => /\bSCAN (executions|execution_events)\b/.test(detail));
   traced.$client.close();
   expect(walks).toEqual([]);
+});
+
+test('the execution the snapshot names for an epic is the newest of the author or of the mandatory reviewer, whichever other slot ended last', () => {
+  const { id } = add(1, 'running', { stage: 'review' });
+  const run = (executionId: string, startedAt: number, extra: Partial<typeof executions.$inferInsert>) =>
+    db.insert(executions).values({ executionId, epicId: id, stage: 'review', status: 'finished', resultPath: '/r.json', startedAt, ...extra }).run();
+  run('ship', 1_000, { stage: 'ship' });
+  run('main', 2_000, { reviewer: 'reviewer' });
+  run('extra', 3_000, { reviewer: 'reviewer-2' }); // the newest, of another slot
+  run('lead', 4_000, { reviewer: 'lead' });
+  expect(snapshot().epics[0]).toMatchObject({ issue: 1, executionId: 'main' });
+
+  run('main-again', 5_000, { stage: 'review', reviewer: null }); // a review row with no slot written is the mandatory reviewer's
+  expect(snapshot().epics[0]).toMatchObject({ executionId: 'main-again' });
+});
+
+test('the session of a running extra reviewer reads its agent from the epic\'s saved configuration', () => {
+  const agent = { profile: 'p', harness: 'claude' as const, model: 'opus' };
+  const config = { name: 'acme/web', agents: { author: agent, reviewer: { ...agent, harness: 'codex' as const, model: 'gpt' }, extraReviewers: [{ ...agent, harness: 'agy' as const, model: 'flash' }] } } as NonNullable<(typeof epics.$inferInsert)['config']>;
+  const { id } = add(1, 'running', { stage: 'review', config });
+  db.insert(executions).values({ executionId: 'x', epicId: id, stage: 'review', reviewer: 'reviewer-2', status: 'running', resultPath: '/r.json', startedAt: 1_000 }).run();
+  expect(snapshot().sessions).toMatchObject([{ executionId: 'x', stage: 'review', harness: 'agy', model: 'flash' }]);
+});
+
+// --- a round of several reviewers, and a session for each running execution of an epic ---
+
+const agentOf = (harness: 'claude' | 'codex' | 'agy', model: string) => ({ profile: `${harness}-p`, harness, model });
+const severalConfig = { name: 'acme/web', agents: { author: agentOf('claude', 'opus'), reviewer: agentOf('codex', 'gpt'), extraReviewers: [agentOf('agy', 'flash'), { ...agentOf('claude', 'sonnet'), provider: 'ollama' as const }] } } as unknown as NonNullable<(typeof epics.$inferInsert)['config']>;
+const run = (epicId: number, executionId: string, startedAt: number, extra: Partial<typeof executions.$inferInsert> = {}) =>
+  db.insert(executions).values({ executionId, epicId, stage: 'review', status: 'finished', resultPath: '/r.json', startedAt, ...extra }).run();
+const verdict = (executionId: string, outcome: 'completed' | 'changes_requested' | 'needs_human') => db.insert(callerResults).values({ executionId, outcome, result: JSON.stringify({ outcome, blockers: [] }) }).run();
+const none = (epicId: number, round: number, headSha: string, slot: string, why: string, at = 2_000) =>
+  db.insert(epicEvents).values({ epicId, at, type: 'reviewer_no_verdict', data: { round, headSha, none: { slot, kind: 'agent_needs_human', why } } }).run();
+
+test('the snapshot lists a session for each running execution of an epic, with the harness and the model each ran with from its own record, and its reviewer slot', () => {
+  const { id } = add(1, 'running', { stage: 'review', round: 1, startedAt: 500, config: severalConfig });
+  run(id, 'author', 1_000, { stage: 'ship' });
+  run(id, 'main', 2_000, { reviewer: 'reviewer', status: 'running', harness: 'codex', model: 'gpt' });
+  run(id, 'second', 2_100, { reviewer: 'reviewer-2', status: 'running', harness: 'claude', model: 'opus-failover' }); // a failover left the saved agent (agy, flash)
+  run(id, 'third', 2_200, { reviewer: 'reviewer-3', status: 'running' }); // no record of its own: the saved agent
+  run(id, 'done', 2_300, { reviewer: 'reviewer-2', status: 'finished', harness: 'agy', model: 'flash' });
+
+  expect(snapshot().sessions).toEqual([
+    { executionId: 'main', repo: 'acme/web', issue: 1, stage: 'review', round: 1, harness: 'codex', model: 'gpt', startedAt: 2_000, last: null, reviewer: 'reviewer' },
+    { executionId: 'second', repo: 'acme/web', issue: 1, stage: 'review', round: 1, harness: 'claude', model: 'opus-failover', startedAt: 2_100, last: null, reviewer: 'reviewer-2' },
+    { executionId: 'third', repo: 'acme/web', issue: 1, stage: 'review', round: 1, harness: 'claude', model: 'sonnet', startedAt: 2_200, last: null, reviewer: 'reviewer-3' },
+  ]);
+});
+
+test('a session of the author names no reviewer slot, and an epic with a single running execution has a single session', () => {
+  const { id } = add(1, 'running', { stage: 'ship', config: severalConfig });
+  run(id, 'author', 1_000, { stage: 'ship', status: 'running' });
+  const [session, ...more] = snapshot().sessions;
+  expect(more).toEqual([]);
+  expect(session).toMatchObject({ executionId: 'author', stage: 'ship', harness: 'claude', model: 'opus' });
+  expect(session).not.toHaveProperty('reviewer');
+});
+
+test('an epic with several reviewers carries how many gave a verdict out of how many were configured, and why each other gave none, for its latest decided round', () => {
+  const { id } = add(1, 'running', { stage: 'fix', round: 1, startedAt: 500, prHeadSha: 'H1', reviewedSha: 'H1', config: severalConfig });
+  for (const [slot, at] of [['reviewer', 1_000], ['reviewer-2', 1_100], ['reviewer-3', 1_200]] as const) run(id, slot, at, { reviewer: slot, round: 1, headSha: 'H1' });
+  verdict('reviewer', 'changes_requested');
+  verdict('reviewer-3', 'completed');
+  verdict('reviewer-2', 'needs_human');
+  none(id, 1, 'H1', 'reviewer-2', 'cannot verify the migration');
+
+  expect(snapshot().epics[0]).toMatchObject({ reviewers: { given: 2, of: 3, none: [{ slot: 'reviewer-2', why: 'cannot verify the migration' }] }, reviewedSha: 'H1' });
+});
+
+test('the count is of the latest round that was decided, not of one still waiting for a reviewer, and not of a head a moved pull request set aside', () => {
+  const { id } = add(1, 'running', { stage: 'review', round: 2, startedAt: 500, config: { ...severalConfig, agents: { ...severalConfig.agents, extraReviewers: [agentOf('agy', 'flash')] } } as never });
+  run(id, 'a1', 1_000, { reviewer: 'reviewer', round: 1, headSha: 'H1' });
+  run(id, 'b1', 1_100, { reviewer: 'reviewer-2', round: 1, headSha: 'H1' });
+  verdict('a1', 'completed');
+  verdict('b1', 'completed');
+  run(id, 'a2', 2_000, { reviewer: 'reviewer', round: 2, headSha: 'H2' }); // round 2 waits for reviewer-2
+  verdict('a2', 'completed');
+  run(id, 'b2', 2_100, { reviewer: 'reviewer-2', round: 2, headSha: 'H2', status: 'running' });
+
+  expect(snapshot().epics[0]!.reviewers).toEqual({ given: 2, of: 2, none: [] }); // round 1's
+
+  db.update(callerResults).set({ outcome: 'superseded' }).where(eq(callerResults.executionId, 'a1')).run(); // round 1's head moved: nothing decided is left
+  expect(snapshot().epics[0]).not.toHaveProperty('reviewers');
+});
+
+test('an epic with one reviewer carries no count, and neither does an epic that has no round yet', () => {
+  const one = { name: 'acme/web', agents: { author: agentOf('claude', 'opus'), reviewer: agentOf('codex', 'gpt') } } as unknown as NonNullable<(typeof epics.$inferInsert)['config']>;
+  const { id } = add(1, 'running', { stage: 'fix', round: 1, startedAt: 500, config: one });
+  run(id, 'a', 1_000, { reviewer: 'reviewer', round: 1, headSha: 'H1' });
+  verdict('a', 'changes_requested');
+  add(2, 'running', { stage: 'ship', startedAt: 500, config: severalConfig });
+
+  const [single, early] = snapshot().epics;
+  expect(single).not.toHaveProperty('reviewers');
+  expect(early).not.toHaveProperty('reviewers');
+});
+
+test('a ready-for-test epic with fewer verdicts than reviewers carries the count too', () => {
+  const { id } = add(1, 'ready_for_test', { round: 1, startedAt: 500, finishedAt: 5_000, reviewedSha: 'H1', config: severalConfig });
+  run(id, 'a', 1_000, { reviewer: 'reviewer', round: 1, headSha: 'H1' });
+  verdict('a', 'completed');
+  none(id, 1, 'H1', 'reviewer-2', 'ran out of usage');
+  none(id, 1, 'H1', 'reviewer-3', 'the skill mine is not installed');
+
+  expect(snapshot().done[0]!.reviewers).toEqual({ given: 1, of: 3, none: [{ slot: 'reviewer-2', why: 'ran out of usage' }, { slot: 'reviewer-3', why: 'the skill mine is not installed' }] });
+});
+
+test('the agents of the extra reviewers come with the epic, and an epic with none has no such field', () => {
+  add(1, 'running', { config: severalConfig });
+  add(2, 'running', { config: { name: 'acme/web', agents: { author: agentOf('claude', 'opus'), reviewer: agentOf('codex', 'gpt') } } as never });
+  const [several, single] = snapshot().epics;
+  expect(several!.agents).toEqual({ author: { harness: 'claude', model: 'opus', provider: null }, reviewer: { harness: 'codex', model: 'gpt', provider: null }, extraReviewers: [{ harness: 'agy', model: 'flash', provider: null }, { harness: 'claude', model: 'sonnet', provider: 'ollama' }] });
+  expect(single!.agents).toEqual({ author: { harness: 'claude', model: 'opus', provider: null }, reviewer: { harness: 'codex', model: 'gpt', provider: null } });
+});
+
+// --- the lead reviewer: the app's stage has no `lead`, so the snapshot reports a review with a flag ---
+
+const leadConfig = { ...severalConfig, agents: { ...severalConfig.agents, leadReviewer: agentOf('claude', 'opus-lead') } } as unknown as NonNullable<(typeof epics.$inferInsert)['config']>;
+
+test('the stage lead is reported as review with a lead flag, never as lead, in the epic and in the session of the lead', () => {
+  const { id } = add(1, 'running', { stage: 'lead', round: 2, leadRound: 1, startedAt: 500, config: leadConfig, reviewedSha: 'H1' });
+  run(id, 'lead-run', 2_000, { stage: 'lead', reviewer: 'lead', status: 'running', harness: 'claude', model: 'opus-lead' });
+  add(2, 'running', { stage: 'review', round: 1, config: leadConfig });
+
+  const s = snapshot();
+  expect(s.epics[0]).toMatchObject({ issue: 1, stage: 'review', lead: true, round: 2, reviewedSha: 'H1' });
+  expect(s.epics[1]).not.toHaveProperty('lead');
+  expect(s.sessions).toEqual([{ executionId: 'lead-run', repo: 'acme/web', issue: 1, stage: 'review', lead: true, round: 2, harness: 'claude', model: 'opus-lead', startedAt: 2_000, last: null, reviewer: 'lead' }]);
+  expect(JSON.stringify(s)).not.toContain('"stage":"lead"');
+  expect(renderPanel(s).join('\n')).toContain('#1'); // the terminal panel reads the same stage
+});
+
+test('the blockers of an epic in the lead\'s exchange are the lead\'s open ones, and the reviewers\' that were answered are not counted', () => {
+  const { id } = add(1, 'running', { stage: 'fix', round: 1, leadRound: 1, startedAt: 500, config: leadConfig });
+  const answer = (executionId: string, stage: 'review' | 'lead', outcome: string, result: object) => {
+    db.insert(executions).values({ epicId: id, stage, reviewer: stage === 'lead' ? 'lead' : 'reviewer', executionId, resultPath: '/r', startedAt: 0 }).run();
+    db.insert(callerResults).values({ executionId, outcome, result: JSON.stringify(result) }).run();
+  };
+  answer('r1', 'review', 'completed', { outcome: 'completed' });
+  answer('l1', 'lead', 'changes_requested', { blockers: [{ title: 'the rollback is untested' }] });
+
+  expect(snapshot().epics[0]).toMatchObject({ stage: 'fix', blockers: 1, blockerTitles: ['the rollback is untested'] });
+});
+
+test('the agent of the lead is listed with those of the epic, and only when the epic has one', () => {
+  add(1, 'running', { stage: 'lead', config: leadConfig });
+  add(2, 'running', { stage: 'review', config: severalConfig });
+  const [withLead, without] = snapshot().epics;
+  expect(withLead!.agents).toMatchObject({ lead: { harness: 'claude', model: 'opus-lead', provider: null } });
+  expect(without!.agents).not.toHaveProperty('lead');
+});
+
+test('an epic that was approved carries the head the lead approved beside the head the reviewers agreed on, and whether its result says it submitted an approval; one without a lead carries none of them', () => {
+  const approved = add(1, 'ready_for_test', { finishedAt: 90_000, startedAt: 500, reviewedSha: 'H1', approvedSha: 'H2' });
+  const quiet = add(2, 'ready_for_test', { finishedAt: 80_000, startedAt: 500, reviewedSha: 'H1', approvedSha: 'H1' });
+  add(3, 'ready_for_test', { finishedAt: 70_000 });
+  db.insert(epicEvents).values({ epicId: approved.id, at: 89_000, type: 'lead_completed', data: { headSha: 'H2', approval: { submitted: true, url: 'https://github.com/acme/web/pull/1#pullrequestreview-1' } } }).run();
+  db.insert(epicEvents).values({ epicId: quiet.id, at: 79_000, type: 'lead_completed', data: { headSha: 'H1', approval: { submitted: false } } }).run();
+
+  const [first, second, third] = snapshot().done;
+  expect(first).toMatchObject({ issue: 1, reviewedSha: 'H1', approvedSha: 'H2', leadApproval: true });
+  expect(second).toMatchObject({ approvedSha: 'H1', leadApproval: false });
+  for (const field of ['reviewedSha', 'approvedSha', 'leadApproval']) expect(third).not.toHaveProperty(field);
+  const running = add(4, 'running', { stage: 'review', reviewedSha: 'H3' });
+  db.update(epics).set({ approvedSha: 'H3' }).where(eq(epics.id, running.id)).run();
+  expect(snapshot().epics.find((e) => e.issue === 4)).toMatchObject({ reviewedSha: 'H3', approvedSha: 'H3' }); // no event yet: the flag is absent
+  expect(snapshot().epics.find((e) => e.issue === 4)).not.toHaveProperty('leadApproval');
 });

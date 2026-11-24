@@ -116,6 +116,14 @@ describe('invalid config', () => {
     expect(limits.required ?? []).not.toContain('idleMinutes');
   });
 
+  test('maxLeadRounds is 3 by default, a positive whole number, and not required of the file', () => {
+    expect(defaults.limits.maxLeadRounds).toBe(3);
+    expect(load({})).toMatchObject({ ok: true, config: { limits: { maxLeadRounds: 3 } } });
+    expect(load({ limits: { maxLeadRounds: 1 } })).toMatchObject({ ok: true, config: { limits: { maxLeadRounds: 1 } } });
+    for (const value of [0, -1, 1.5, '3']) expect(errorsOf({ limits: { maxLeadRounds: value } }).map((e) => e.path)).toEqual(['limits.maxLeadRounds']);
+    expect(userConfigJsonSchema().properties!.limits!.required ?? []).not.toContain('maxLeadRounds');
+  });
+
   test('autoResume is off and autoResumeMaxHours is 12 by default, and both are checked', () => {
     expect(defaults.limits).toMatchObject({ autoResume: false, autoResumeMaxHours: 12 });
     expect(load({ limits: { autoResume: true, autoResumeMaxHours: 0.5 } }).ok).toBe(true);
@@ -186,6 +194,13 @@ describe('labels', () => {
     expect(errorsOf({ labels: { reasons: { tired: 'x' } } }).map((e) => e.path)[0]).toMatch(/^labels\.reasons/);
     expect(errorsOf({ labels: { stages: { fix: 'Carrier:Status:Running' } } })).toEqual([{ path: 'labels.stages.fix', message: 'is the same label as labels.running: each role needs its own' }]);
     expect(errorsOf({ labels: { stages: { ship: 'same' }, reasons: { auth: 'SAME' } } })).toEqual([{ path: 'labels.reasons.auth', message: 'is the same label as labels.stages.ship: each role needs its own' }]);
+  });
+
+  test('the lead is a stage a label can name, with the distinctness rule of the others', () => {
+    expect(load({ labels: { stages: { review: 'c:reviewing', lead: 'carrier:stage:lead-reviewing' } } })).toMatchObject({ ok: true, config: { labels: { stages: { lead: 'carrier:stage:lead-reviewing' } } } });
+    expect(errorsOf({ labels: { stages: { lead: 'Carrier:Status:Running' } } })).toEqual([{ path: 'labels.stages.lead', message: 'is the same label as labels.running: each role needs its own' }]);
+    expect(errorsOf({ labels: { stages: { review: 'same', lead: 'SAME' } } })).toEqual([{ path: 'labels.stages.lead', message: 'is the same label as labels.stages.review: each role needs its own' }]);
+    expect(errorsOf({ labels: { stages: { lead: 'x' }, reasons: { lead_limit: 'X' } } }).map((e) => e.path)).toEqual(['labels.reasons.lead_limit']);
   });
 
   test('refuses an unknown role', () => {
@@ -546,10 +561,10 @@ describe('skills', () => {
 
   test('an unknown key is refused naming it, in the block, in review, in a repo and in a role', () => {
     const author = valid.agents.author;
-    expect(errorsOf(skills({ lead: 'x' }))[0]).toMatchObject({ path: 'skills', message: expect.stringContaining('"lead"') });
+    expect(errorsOf(skills({ bogus: 'x' }))[0]).toMatchObject({ path: 'skills', message: expect.stringContaining('"bogus"') });
     expect(errorsOf(skills({ review: { extra: 'x' } }))[0]).toMatchObject({ path: 'skills.review', message: expect.stringContaining('"extra"') });
-    expect(errorsOf({ repos: [{ name: 'AshuLab/carrier', skills: { lead: 'x' } }] })[0]).toMatchObject({ path: 'repos.0.skills', message: expect.stringContaining('"lead"') });
-    expect(errorsOf({ agents: { ...valid.agents, author: { ...author, skills: { lead: 'x' } } } })[0]).toMatchObject({ path: 'agents.author.skills' });
+    expect(errorsOf({ repos: [{ name: 'AshuLab/carrier', skills: { bogus: 'x' } }] })[0]).toMatchObject({ path: 'repos.0.skills', message: expect.stringContaining('"bogus"') });
+    expect(errorsOf({ agents: { ...valid.agents, author: { ...author, skills: { lead: { review: 'x' } } } } })[0]).toMatchObject({ path: 'agents.author.skills', message: expect.stringContaining('"lead"') });
   });
 
   test('a role takes the skills of its stages in the global roles and in a repo, and one it does not run is refused naming the key', () => {
@@ -559,5 +574,89 @@ describe('skills', () => {
     expect(errorsOf({ agents: { author: { ...author, skills: { review: { review: 'r' } } }, reviewer } })[0]).toMatchObject({ path: 'agents.author.skills', message: expect.stringContaining('"review"') });
     expect(errorsOf({ agents: { author, reviewer: { ...reviewer, skills: { ship: 's' } } } })[0]).toMatchObject({ path: 'agents.reviewer.skills', message: expect.stringContaining('"ship"') });
     expect(errorsOf({ repos: [{ name: 'AshuLab/carrier', agents: { reviewer: { skills: { fix: 'f' } } } }] })[0]).toMatchObject({ path: 'repos.0.agents.reviewer.skills', message: expect.stringContaining('"fix"') });
+  });
+});
+
+describe('extra reviewers, the lead\'s skills and the new reasons', () => {
+  const extra = { profile: 'reviewer-bot', provider: 'claude', model: 'm' };
+  const full = { ...extra, effort: 'high', persona: { name: 'Skeptic' }, skills: { review: { review: 'my-review', publish: null } }, failover: [{ provider: 'codex', model: 'x' }] };
+  const repoWith = (agents: object) => ({ repos: [{ name: 'AshuLab/carrier', agents }] });
+  const path = (user: object) => errorsOf(user)[0]!.path;
+
+  test('zero to three entries with the fields of any agent, the review skills and failover, globally and in a repo', () => {
+    for (const list of [[], [extra], [full, extra, extra]]) {
+      expect(load({ agents: { ...valid.agents, extraReviewers: list } })).toMatchObject({ ok: true, config: { agents: { extraReviewers: list } } });
+      expect(load(repoWith({ extraReviewers: list }))).toMatchObject({ ok: true, config: { repos: [{ agents: { extraReviewers: list } }] } });
+    }
+    expect(load({}).ok && (load({}) as { config: { agents: object } }).config.agents).not.toHaveProperty('extraReviewers');
+  });
+
+  test('a fourth entry is refused naming the list, globally and in a repo', () => {
+    const four = [extra, extra, extra, extra];
+    expect(errorsOf({ agents: { ...valid.agents, extraReviewers: four } })[0]).toMatchObject({ path: 'agents.extraReviewers', message: expect.stringContaining('at most three') });
+    expect(errorsOf(repoWith({ extraReviewers: four }))[0]).toMatchObject({ path: 'repos.0.agents.extraReviewers' });
+  });
+
+  test('the blocks are strict: an unknown key, or a stage the reviewer does not run, is refused naming it', () => {
+    const global = (entry: object) => ({ agents: { ...valid.agents, extraReviewers: [entry] } });
+    expect(errorsOf(global({ ...extra, bogus: 1 }))[0]).toMatchObject({ path: 'agents.extraReviewers.0', message: expect.stringContaining('"bogus"') });
+    expect(errorsOf(global({ ...extra, skills: { lead: { review: 'x' } } }))[0]).toMatchObject({ path: 'agents.extraReviewers.0.skills', message: expect.stringContaining('"lead"') });
+    expect(errorsOf(global({ ...extra, skills: { ship: 'x' } }))[0]).toMatchObject({ path: 'agents.extraReviewers.0.skills', message: expect.stringContaining('"ship"') });
+    expect(errorsOf(global({ ...extra, skills: { review: { review: 'bad name' } } }))[0]).toMatchObject({ path: 'agents.extraReviewers.0.skills.review.review' });
+    expect(errorsOf(global({ ...extra, failover: ['codex'] }))[0]).toMatchObject({ path: 'agents.extraReviewers.0.failover.0' });
+  });
+
+  test('a repo\'s entry carries profile, provider and model, because its list replaces the global one', () => {
+    for (const field of ['profile', 'provider', 'model']) {
+      const { [field]: _, ...without } = extra as Record<string, string>;
+      expect(errorsOf(repoWith({ extraReviewers: [without] })).map((e) => e.path)).toEqual([`repos.0.agents.extraReviewers.0.${field}`]);
+    }
+  });
+
+  test('a repo\'s list replaces the global one whole, an empty one included', () => {
+    const user = { agents: { ...valid.agents, extraReviewers: [extra, extra] }, repos: [{ name: 'AshuLab/carrier', agents: { extraReviewers: [{ ...extra, model: 'repo' }] } }, { name: 'AshuLab/other', agents: { extraReviewers: [] } }, { name: 'AshuLab/third' }] };
+    const result = load(user);
+    if (!result.ok) throw new Error(JSON.stringify(result.errors));
+    const resolved = result.config.repos.map((repo) => resolveRepoConfig(result.config, repo).agents.extraReviewers?.map((e) => e.model));
+    expect(resolved).toEqual([['repo'], undefined, ['m', 'm']]);
+  });
+
+  test('the profile and provider of each are checked as those of the other roles, global and repo, naming the path', () => {
+    expect(errorsOf({ agents: { ...valid.agents, extraReviewers: [extra, { ...extra, profile: 'ghost' }] } })[0]).toMatchObject({ path: 'agents.extraReviewers.1.profile', message: 'profile "ghost" is not declared in profiles' });
+    expect(errorsOf({ agents: { ...valid.agents, extraReviewers: [{ ...extra, provider: 'ghost' }] } })[0]).toMatchObject({ path: 'agents.extraReviewers.0.provider', message: 'provider "ghost" is not declared in providers' });
+    expect(errorsOf(repoWith({ extraReviewers: [{ ...extra, profile: 'ghost' }] }))[0]).toMatchObject({ path: 'repos.0.agents.extraReviewers.0.profile' });
+    expect(errorsOf(repoWith({ extraReviewers: [{ ...extra, provider: 'ghost' }] }))[0]).toMatchObject({ path: 'repos.0.agents.extraReviewers.0.provider' });
+  });
+
+  test.each([
+    ['an undeclared provider', [{ provider: 'ghost' }], 'agents.extraReviewers.0.failover.0.provider', '"ghost" is not declared in providers'],
+    ['a repeated step', [{ provider: 'codex' }, { provider: 'codex' }], 'agents.extraReviewers.0.failover.1', 'repeats another step'],
+    ['the reviewer\'s own provider and model', [{ provider: 'claude', model: 'm' }], 'agents.extraReviewers.0.failover.0', 'would move nowhere'],
+  ])('its failover steps are checked like failover.roles: %s', (_, failover, at, message) => {
+    const errors = errorsOf({ agents: { ...valid.agents, extraReviewers: [{ ...extra, failover }] } });
+    expect(errors.map((e) => e.path)).toEqual([at]);
+    expect(errors[0]!.message).toContain(message);
+    expect(path(repoWith({ extraReviewers: [{ ...extra, failover }] }))).toBe(`repos.0.${at}`);
+  });
+
+  test('the lead takes skills with only lead, and skills.lead has the shape of skills.review, globally, in a repo and in the lead\'s role', () => {
+    const lead = { profile: 'reviewer-bot', provider: 'claude', model: 'm' };
+    expect(load({ skills: { lead: { review: 'my-lead', publish: null } } })).toMatchObject({ ok: true, config: { skills: { lead: { review: 'my-lead', publish: null } } } });
+    expect(load({ skills: { lead: { publish: 'post' } } }).ok).toBe(true);
+    expect(load({ repos: [{ name: 'AshuLab/carrier', skills: { lead: { review: 'r', publish: null } } }] }).ok).toBe(true);
+    expect(load({ agents: { ...valid.agents, leadReviewer: { ...lead, skills: { lead: { review: 'r', publish: 'p' } } } } }).ok).toBe(true);
+    expect(load({ agents: { ...valid.agents, leadReviewer: lead }, repos: [{ name: 'AshuLab/carrier', agents: { leadReviewer: { skills: { lead: { publish: null } } } } }] }).ok).toBe(true);
+    // the same name rule as the other skills, and a stage the lead does not run
+    expect(path({ skills: { lead: { review: 'a b' } } })).toBe('skills.lead.review');
+    expect(path({ skills: { lead: { publish: '../x' } } })).toBe('skills.lead.publish');
+    expect(errorsOf({ agents: { ...valid.agents, leadReviewer: { ...lead, skills: { review: { review: 'r' } } } } })[0]).toMatchObject({ path: 'agents.leadReviewer.skills', message: expect.stringContaining('"review"') });
+    expect(errorsOf({ agents: { ...valid.agents, leadReviewer: { ...lead, skills: { ship: 's' } } } })[0]).toMatchObject({ path: 'agents.leadReviewer.skills', message: expect.stringContaining('"ship"') });
+    expect(errorsOf({ agents: { ...valid.agents, leadReviewer: lead }, repos: [{ name: 'AshuLab/carrier', agents: { leadReviewer: { skills: { fix: 'f' } } } }] })[0]).toMatchObject({ path: 'repos.0.agents.leadReviewer.skills', message: expect.stringContaining('"fix"') });
+  });
+
+  test('reviewers_failed and lead_limit take a reason label like the other kinds of stop', () => {
+    const reasons = { reviewers_failed: 'carrier:reason:reviewers-failed', lead_limit: 'carrier:reason:lead-limit' };
+    expect(load({ labels: { reasons } })).toMatchObject({ ok: true, config: { labels: { reasons } } });
+    expect(errorsOf({ labels: { reasons: { reviewers_failed: 'carrier:reason:x', lead_limit: 'carrier:reason:x' } } })[0]!.message).toContain('is the same label as');
   });
 });

@@ -1,7 +1,7 @@
 import { formatDuration } from '../../format/duration.ts';
 import { printable } from './printable.ts';
 import { defaultLabels } from '../../orchestration/github.ts';
-import type { PanelEpic, PanelSnapshot, UnansweredObservations } from '../../status/types.ts';
+import type { PanelEpic, PanelReviewers, PanelSnapshot, UnansweredObservations } from '../../status/types.ts';
 import { finishedSections, itemsOf, maxListed, type UiState } from './ui-state.ts';
 import { detailOf, historyLine, type DetailProvider } from './history.ts';
 
@@ -35,7 +35,13 @@ export function fit(line: string, columns: number): string {
 export const unansweredLine = ({ count, reason }: UnansweredObservations) =>
   `${count} unanswered observation${count === 1 ? '' : 's'}: ${reason === 'already_taken' ? 'pass already taken' : 'last round'}`;
 
+/** How many reviewers of the latest round gave a verdict out of how many were configured: "1 of 3 gave a verdict". */
+export const reviewersLine = ({ given, of }: Pick<PanelReviewers, 'given' | 'of'>) => `${given} of ${of} gave a verdict`;
+
 const stages = ['ship', 'review', 'fix'] as const;
+/** The stage lead is `review` with `lead` set in the snapshot (the app's stage is a strict enum): the chain draws it as a stage of its own, after the others. */
+const chainOf = (e: Pick<PanelEpic, 'stage' | 'lead'>) => (e.lead ? [...stages, 'lead' as const] : stages);
+const activeOf = (e: Pick<PanelEpic, 'stage' | 'lead'>) => (e.lead ? 'lead' : e.stage);
 
 export type DashboardOptions = {
   columns?: number;
@@ -126,10 +132,12 @@ export function renderDashboard(s: PanelSnapshot, { columns = 80, color = true, 
   const running = s.epics.filter((e) => e.status === 'running');
   const needsYou = s.epics.filter((e) => e.status === 'needs_human');
 
+  // The count of the latest round and, in yellow, why each reviewer without a verdict gave none (an agent wrote it: printable, and `fit` cuts the line).
+  const reviewerLines = (reviewers: PanelReviewers | undefined) => (reviewers ? [`reviewers ${reviewersLine(reviewers)}`, ...reviewers.none.map((n) => paint(`  · ${n.slot}: ${printable(n.why)}`, 'yellow'))] : []);
   const card = (e: PanelEpic, first: boolean) => {
     const chosen = selected(e.repo, e.issue);
     const bar = chosen ? paint('▌', 'bold', 'cyan') : paint('┃', 'dim');
-    const chain = e.stage === null ? paint('starting', 'dim') : stages.map((st) => (st === e.stage ? paint(`[${st}]`, 'bold', 'cyan') : paint(st, 'dim'))).join(paint(' ▸ ', 'dim'));
+    const chain = e.stage === null ? paint('starting', 'dim') : chainOf(e).map((st) => (st === activeOf(e) ? paint(`[${st}]`, 'bold', 'cyan') : paint(st, 'dim'))).join(paint(' ▸ ', 'dim'));
     const round = e.round === null ? '' : ` · round ${Array.from({ length: e.maxReviews }, (_, i) => (i < e.round! ? '●' : '○')).join('')}`;
     if (!first) add();
     add(chosen ? ` ${pointer}${paint(` ${e.repo} #${e.issue} `, 'bold', 'inverse')}${titled(e.title)}` : ` ${bar} ${paint(`${e.repo} #${e.issue}`, 'bold')}${titled(e.title)}`); // the selected card's title is a highlighted label
@@ -139,6 +147,7 @@ export function renderDashboard(s: PanelSnapshot, { columns = 80, color = true, 
     const blockers = e.blockers > 0 ? paint(` · blockers ${e.blockers}`, 'yellow') : '';
     const slices = e.slices && e.slices.total > 0 ? ` · slices ${e.slices.done}/${e.slices.total}` : '';
     add(` ${bar} ${formatDuration(s.now - e.stageSince)} in stage · ${e.lastActivityAt === null ? 'no activity yet' : `active ${ago(e.lastActivityAt)}`}${blockers}${slices}`);
+    for (const text of reviewerLines(e.reviewers)) add(` ${bar} ${text}`);
     add(` ${bar} ${paint(e.prUrl ?? e.issueUrl, 'dim')}`);
     if (e.retryAt !== undefined) add(` ${bar} ${e.retryAt > s.now ? `retrying in ${formatDuration(e.retryAt - s.now)}` : 'retrying at the next check'}`);
     if (e.lastError) add(` ${bar} ${paint(`error: ${printable(e.lastError)}`, 'red')}`);
@@ -166,6 +175,7 @@ export function renderDashboard(s: PanelSnapshot, { columns = 80, color = true, 
     for (const e of needsYou) {
       add(`${lead(e.repo, e.issue, '   ')}${paint(`${e.repo} #${e.issue}`, 'bold')}${titled(e.title)}`);
       if (e.needsHumanReason) add(`   ${printable(e.needsHumanReason)}`);
+      for (const text of reviewerLines(e.reviewers)) add(`   ${text}`);
       if (e.resumeAt !== undefined) add(`   ${e.resumeAt > s.now ? `resumes by itself in ${formatDuration(e.resumeAt - s.now)}` : 'resumes by itself at the next check'}`);
       const history = detail && detailOf(detail, e);
       if (history && history.length > 0) add(`   ${historyLine(history, s.now, paint, width - 3)}`);
@@ -183,6 +193,7 @@ export function renderDashboard(s: PanelSnapshot, { columns = 80, color = true, 
     for (const d of s.done) {
       add(row(d));
       if (d.unansweredObservations) add(`   ${paint(unansweredLine(d.unansweredObservations), 'yellow')}`);
+      for (const text of reviewerLines(d.reviewers)) add(`   ${text}`);
       const history = detail && detailOf(detail, d);
       if (history && history.length > 0) add(`   ${historyLine(history, s.now, paint, width - 3)}`);
     }

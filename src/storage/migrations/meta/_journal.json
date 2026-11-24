@@ -239,6 +239,20 @@
       "when": 1795457906704,
       "tag": "0033_certain_randall",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "6",
+      "when": 1795488816122,
+      "tag": "0034_quick_shocker",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "6",
+      "when": 1795493550684,
+      "tag": "0035_sloppy_titania",
+      "breakpoints": true
     }
   ]
 }

@@ -83,7 +83,7 @@ test('a running epic lists its session newest first, with no descriptor while it
   const { sessions } = (await ask(2)).reply.data;
   expect(sessions.map((s: { executionId: string }) => s.executionId.slice(-1))).toEqual(['2', '1']);
   expect(sessions[0]).toEqual({
-    executionId: '00000000-0000-4000-8000-000000000002', stage: 'review', role: 'reviewer', round: 1,
+    executionId: '00000000-0000-4000-8000-000000000002', stage: 'review', role: 'reviewer', reviewer: 'reviewer', round: 1,
     agent: { harness: 'codex', model: 'gpt', provider: 'ollama' }, profile: 'r', status: 'running', startedAt: 2000, finishedAt: null, resume: null, result: null, failure: null,
   });
   expect(sessions[1].resume).toEqual({ harness: 'claude', sessionId: 'sess-1', cwd: '/work/clone', configDir: '/cfg/claude' });
@@ -196,4 +196,14 @@ test('a failure detail that holds a token and runs past 300 characters is served
   execution(id, 1, { ...ran, status: 'failed', finishedAt: 1500, failureKind: 'unknown', failureDetail: `${token} ${'d'.repeat(400)}` });
   const [{ failure }] = (await ask(9)).reply.data.sessions;
   expect(failure.detail).toBe(`[redacted] ${'d'.repeat(300 - '[redacted] '.length)}`);
+});
+
+test('the session of an extra reviewer reads its agent and profile from the epic\'s saved configuration, and the reply names the role the app reads', async () => {
+  const extra = { ...agent, profile: 'x', harness: 'agy' as const, model: 'flash' };
+  const id = db.insert(epics).values({ repo: 'AshuLab/a', issue: 10, status: 'running', config: { ...config, agents: { ...config.agents, extraReviewers: [extra] } } as typeof config }).returning({ id: epics.id }).get().id;
+  execution(id, 1, { stage: 'review', reviewer: 'reviewer-2', status: 'running' }); // no agent recorded on the row: the saved configuration is where it is read
+  execution(id, 2, { stage: 'review', reviewer: 'reviewer', status: 'running' });
+  const { sessions } = (await ask(10)).reply.data;
+  expect(sessions.map((s: { role: string; profile: string; agent: { harness: string; model: string } }) => [s.role, s.profile, s.agent.harness, s.agent.model])).toEqual([['reviewer', 'r', 'codex', 'm'], ['reviewer', 'x', 'agy', 'flash']]);
+  expect(sessions.map((s: { reviewer: string }) => s.reviewer)).toEqual(['reviewer', 'reviewer-2']); // the slot, as a string beside the role
 });

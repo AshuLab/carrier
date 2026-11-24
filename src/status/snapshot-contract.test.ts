@@ -6,6 +6,7 @@ import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, expect, test } from 'vitest';
 import { callerResults } from '../storage/caller-results.ts';
 import { openDatabase, type Db } from '../storage/db.ts';
+import { epicEvents } from '../storage/events.ts';
 import { executions } from '../storage/executions.ts';
 import { epics, type epicStates } from '../storage/schema.ts';
 import { buildSnapshot } from './snapshot.ts';
@@ -38,22 +39,32 @@ const config = { name: 'acme', agents: { author: agent('claude', 'claude-sonnet-
 
 // Every field of the snapshot has a value somewhere in this sample, so the app can be built against it.
 test('the snapshot JSON equals macos/Tests/Fixtures/snapshot.json (UPDATE_FIXTURES=1 rewrites it)', () => {
-  const inReview = add('acme/web', 12, 'running', { config, stage: 'review', round: 2, prNumber: 50, queuedAt: 500, startedAt: 1_000, stageStartedAt: 40_000, lastActivityAt: 90_000, lastError: 'the agent process ended with an error', workspace: '/work/acme/web-epic' });
+  const inReview = add('acme/web', 12, 'running', { config: { ...config, agents: { ...config.agents, extraReviewers: [agent('agy', 'gemini-3')] } } as never, reviewedSha: 'a1b2c3d', stage: 'review', round: 2, prNumber: 50, queuedAt: 500, startedAt: 1_000, stageStartedAt: 40_000, lastActivityAt: 90_000, lastError: 'the agent process ended with an error', workspace: '/work/acme/web-epic' });
   const inShip = add('acme/web', 13, 'running', { config, stage: 'ship', queuedAt: 600, startedAt: 7_000, stageStartedAt: 7_000, workspace: '/work/acme/web-13', retryAt: 100_030_000 });
   const waiting = add('acme/api', 4, 'needs_human', { config, stage: 'fix', round: 5, prNumber: 9, queuedAt: 700, startedAt: 2_000, stageStartedAt: 8_000, finishedAt: 60_000, needsHumanKind: 'review_limit', needsHumanReason: 'review limit' });
-  for (const [i, kind] of (['agent_needs_human', 'retries_exhausted', 'timeout', 'auth', 'workspace', 'pr_invalid', 'usage_limit', 'engine_error', 'skill_missing'] as const).entries()) {
-    add('acme/api', 5 + i, 'needs_human', { config, stage: 'ship', queuedAt: 800 + i, startedAt: 3_000 + i, finishedAt: 61_000 + i, needsHumanKind: kind, needsHumanReason: kind.replace('_', ' '), ...(kind === 'usage_limit' && { resumeAt: 90_000_000 }) });
+  for (const [i, kind] of (['agent_needs_human', 'retries_exhausted', 'timeout', 'auth', 'workspace', 'pr_invalid', 'usage_limit', 'engine_error', 'skill_missing', 'reviewers_failed', 'lead_limit'] as const).entries()) {
+    add('acme/api', 5 + i, 'needs_human', { ...(kind === 'lead_limit' ? { config: { ...config, agents: { ...config.agents, leadReviewer: agent('claude', 'claude-opus-5') } } as never, stage: 'lead' as const, round: 2, leadRound: 1, reviewedSha: 'e4f5a6b' } : { config, stage: 'ship' as const }), queuedAt: 800 + i, startedAt: 3_000 + i, finishedAt: 61_000 + i, needsHumanKind: kind, needsHumanReason: kind.replace('_', ' '), ...(kind === 'usage_limit' && { resumeAt: 90_000_000 }) });
   }
   add('acme/web', 20, 'queued', { queuedAt: 20_000 });
   add('acme/api', 21, 'queued', { queuedAt: 21_000 });
-  const shipped = add('acme/web', 30, 'ready_for_test', { prNumber: 77, finishedAt: 95_000 });
+  // Approved by the lead on another head than the reviewers agreed on: the head moved while the lead reviewed.
+  const shipped = add('acme/web', 30, 'ready_for_test', { prNumber: 77, finishedAt: 95_000, startedAt: 1_800, reviewedSha: 'e4f5a6b', approvedSha: 'f7a8b9c', leadRound: 1 });
+  db.insert(epicEvents).values({ epicId: shipped.id, at: 94_900, type: 'lead_completed', data: { headSha: 'f7a8b9c', approval: { submitted: true, url: 'https://github.com/acme/web/pull/77#pullrequestreview-1' } } }).run();
   add('acme/api', 31, 'ready_for_test', { finishedAt: 80_000, unansweredObservations: 2, unansweredReason: 'already_taken' });
   const merged = add('acme/web', 40, 'merged', { prNumber: 88, finishedAt: 98_000 });
   add('acme/api', 41, 'cancelled', { finishedAt: 90_000, cancelReason: 'final PR closed without merge' });
   exec('exec-ship-40', merged.id, 'ship', 3_000);
   exec('exec-ship-12', inReview.id, 'ship', 1_000);
   db.update(executions).set({ status: 'finished', finishedAt: 39_000 }).where(eq(executions.executionId, 'exec-ship-12')).run();
+  // Round 1 of two reviewers is decided (the second gave no verdict), and round 2 runs both of them.
+  db.insert(executions).values([
+    { executionId: 'exec-review-12-r1', epicId: inReview.id, stage: 'review', reviewer: 'reviewer', status: 'finished', round: 1, headSha: 'a1b2c3d', resultPath: '/r', startedAt: 39_100, finishedAt: 39_900 },
+    { executionId: 'exec-review-12-r1-2', epicId: inReview.id, stage: 'review', reviewer: 'reviewer-2', status: 'finished', round: 1, headSha: 'a1b2c3d', resultPath: '/r', startedAt: 39_200, finishedAt: 39_900 },
+  ]).run();
+  db.insert(callerResults).values({ executionId: 'exec-review-12-r1', outcome: 'completed', result: JSON.stringify({ blockers: [] }) }).run();
+  db.insert(epicEvents).values({ epicId: inReview.id, at: 39_900, type: 'reviewer_no_verdict', data: { round: 1, headSha: 'a1b2c3d', none: { slot: 'reviewer-2', kind: 'agent_needs_human', why: 'cannot verify the migration' } } }).run();
   exec('exec-review-12', inReview.id, 'review', 40_000);
+  db.insert(executions).values({ executionId: 'exec-review-12-2', epicId: inReview.id, stage: 'review', reviewer: 'reviewer-2', status: 'running', harness: 'agy', model: 'gemini-3', round: 2, headSha: 'e4f5a6b', resultPath: '/r', startedAt: 40_100 }).run();
   exec('exec-ship-13', inShip.id, 'ship', 7_000);
   exec('exec-fix-4', waiting.id, 'fix', 8_000);
   exec('exec-ship-30', shipped.id, 'ship', 2_000);
@@ -65,7 +76,7 @@ test('the snapshot JSON equals macos/Tests/Fixtures/snapshot.json (UPDATE_FIXTUR
     version: '0.1.0', pollIntervalMs: 300_000, labels: defaultLabels,
     rateLimit: { remaining: 4_812, limit: 5_000, resetAt: 130_000, profile: 'orchestrator' },
     watched: [
-      { repo: 'acme/web', lastCheckedAt: 98_000, ok: true, error: null, agents: { author: { harness: 'claude', model: 'claude-sonnet-5-5', provider: null }, reviewer: { harness: 'codex', model: 'gpt-5', provider: 'ollama' } } },
+      { repo: 'acme/web', lastCheckedAt: 98_000, ok: true, error: null, agents: { author: { harness: 'claude', model: 'claude-sonnet-5-5', provider: null }, reviewer: { harness: 'codex', model: 'gpt-5', provider: 'ollama' }, lead: { harness: 'claude', model: 'claude-opus-5', provider: null } } },
       { repo: 'acme/api', lastCheckedAt: 98_000, ok: false, error: 'GitHub answered 502', agents: { author: { harness: 'agy', model: 'gemini-3', provider: null }, reviewer: { harness: 'claude', model: 'claude-sonnet-5-5', provider: null } } },
     ],
     lastEvent: (id) => ({ 'exec-review-12': { kind: 'tool', text: 'Read src/auth/token.ts', at: 99_000 }, 'exec-ship-13': { kind: 'say', text: 'Writing the migration', at: 99_500 } })[id] ?? null,

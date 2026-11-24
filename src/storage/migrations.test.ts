@@ -31,7 +31,7 @@ test('applies the Drizzle Kit migration to a temp SQLite file and reads a row ba
 
   db.insert(epics).values({ repo: 'AshuLab/carrier', issue: 3 }).run();
 
-  expect(db.select().from(epics).all()).toEqual([{ id: 1, repo: 'AshuLab/carrier', issue: 3, status: 'queued', queuedAt: 0, startedAt: null, config: null, cancelReason: null, cancelKind: null, labelPending: false, stage: null, stageStartedAt: null, workspace: null, lastActivityAt: null, lastError: null, round: null, prNumber: null, prHeadSha: null, pr: null, reviewedSha: null, verification: null, observationsPassAt: null, needsHumanReason: null, needsHumanKind: null, title: null, labels: null, branch: null, removedFrom: null, removedReason: null, finishedAt: null, cleanedAt: null, authorOption: null, reviewerOption: null, recoveries: 0, resumeStage: null, roundLimit: null, resumeAt: null, autoResumes: 0, headRepeats: 0, unansweredObservations: null, unansweredReason: null, retryAt: null }]);
+  expect(db.select().from(epics).all()).toEqual([{ id: 1, repo: 'AshuLab/carrier', issue: 3, status: 'queued', queuedAt: 0, startedAt: null, config: null, cancelReason: null, cancelKind: null, labelPending: false, stage: null, stageStartedAt: null, workspace: null, lastActivityAt: null, lastError: null, round: null, prNumber: null, prHeadSha: null, pr: null, reviewedSha: null, leadRound: null, approvedSha: null, verification: null, observationsPassAt: null, needsHumanReason: null, needsHumanKind: null, title: null, labels: null, branch: null, removedFrom: null, removedReason: null, finishedAt: null, cleanedAt: null, authorOption: null, reviewerOption: null, recoveries: 0, resumeStage: null, roundLimit: null, resumeAt: null, autoResumes: 0, headRepeats: 0, unansweredObservations: null, unansweredReason: null, retryAt: null }]);
   sqlite.close();
 });
 
@@ -52,7 +52,7 @@ test('the executions migration applies to a database that already holds executio
 
   migrate(db, { migrationsFolder: full });
   expect(db.select().from(executions).all()).toEqual([
-    { executionId: 'e1', epicId: 1, stage: 'ship', status: 'finished', sessionId: 's1', error: null, harness: null, model: null, provider: null, option: null, configDir: null, workspace: null, round: null, headSha: null, resultPath: '/r.json', startedAt: 5, finishedAt: null, failureKind: null, failureDetail: null, exitCode: null, signal: null, hostFreeMemMb: null, hostLoad: null, usage: null },
+    { executionId: 'e1', epicId: 1, stage: 'ship', status: 'finished', sessionId: 's1', error: null, harness: null, model: null, provider: null, option: null, configDir: null, workspace: null, reviewer: null, round: null, headSha: null, resultPath: '/r.json', startedAt: 5, finishedAt: null, failureKind: null, failureDetail: null, exitCode: null, signal: null, hostFreeMemMb: null, hostLoad: null, usage: null },
   ]);
   sqlite.close();
 });
@@ -113,5 +113,23 @@ test('the observations pass migration applies to a database that already holds e
 
   migrate(db, { migrationsFolder: full });
   expect(db.select().from(epics).all()).toMatchObject([{ repo: 'AshuLab/carrier', issue: 3, status: 'running', stage: 'review', round: 2, observationsPassAt: null }]);
+  sqlite.close();
+});
+
+test('the lead migration applies to a database that already holds epics: their lead round and approved head are null', () => {
+  const full = join(import.meta.dirname, 'migrations');
+  const old = join(dir, 'old');
+  cpSync(full, old, { recursive: true });
+  const journal = JSON.parse(readFileSync(join(full, 'meta', '_journal.json'), 'utf8')) as { entries: { tag: string }[] };
+  const index = journal.entries.findIndex((e) => /^0035_/.test(e.tag));
+  writeFileSync(join(old, 'meta', '_journal.json'), JSON.stringify({ ...journal, entries: journal.entries.slice(0, index) }));
+
+  const sqlite = new Database(join(dir, 'old.db'));
+  const db = drizzle(sqlite);
+  migrate(db, { migrationsFolder: old });
+  sqlite.exec(`INSERT INTO epics (repo, issue, status, reviewedSha) VALUES ('AshuLab/carrier', 3, 'ready_for_test', '${'a'.repeat(40)}')`);
+
+  migrate(db, { migrationsFolder: full });
+  expect(db.select().from(epics).all()[0]).toMatchObject({ issue: 3, reviewedSha: 'a'.repeat(40), leadRound: null, approvedSha: null });
   sqlite.close();
 });

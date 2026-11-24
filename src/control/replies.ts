@@ -1,5 +1,5 @@
 import type { ReviewThread } from '../orchestration/github.ts';
-import type { EpicOptions, PanelAgent, UnansweredObservations } from '../status/types.ts';
+import type { EpicOptions, PanelAgent, PanelReviewers, UnansweredObservations } from '../status/types.ts';
 import type { executionStates } from '../storage/executions.ts';
 import type { AgentFailure } from '../execution/agent-runner.ts';
 
@@ -59,8 +59,11 @@ export type SessionsReply = {
   /** Newest first. */
   sessions: {
     executionId: string;
-    stage: 'ship' | 'review' | 'fix';
+    /** `lead` is the lead reviewer's: unlike the snapshot, the replies name it. */
+    stage: 'ship' | 'review' | 'fix' | 'lead';
     role: 'author' | 'reviewer';
+    /** The reviewer's slot (`reviewer`, `reviewer-2`...; `lead` for the lead) as a string, on a review session. */
+    reviewer?: string;
     round: number | null;
     agent: PanelAgent;
     /** The key of `profiles` the role acts as, from the epic's frozen configuration; null for an epic frozen before profiles were kept. The app reads whose account it is from the configuration. */
@@ -100,14 +103,19 @@ export type Blocker = {
 export type Observation = { id: string | null; title: string; url: string | null };
 
 export type EpicReply = {
-  stages: { stage: 'queued' | 'ship' | 'review' | 'fix' | 'ready'; startedAt: number; endedAt: number | null }[];
+  /** `reviewers` (the slots as strings, `reviewer-2`...) is only on a review stage in which several reviewers ran. */
+  stages: { stage: 'queued' | 'ship' | 'review' | 'fix' | 'lead' | 'ready'; startedAt: number; endedAt: number | null; reviewers?: string[] }[];
+  /** One per round, however many reviewers it has; a round repeated on a new head is one, for the head it was decided on. */
   rounds: {
     round: number;
+    /** The mandatory reviewer's (or, when it gave no verdict, the first that did), with its verdict, blockers and observations. */
     reviewer: PanelAgent;
     verdict: 'approved' | 'changes_requested' | 'limit_reached';
     blockers: Blocker[];
     /** In the reviewer's order; empty when the review listed none or predates the field. */
     observations: Observation[];
+    /** The other reviewers that gave a verdict in the round, by slot; absent from a round with one reviewer. */
+    otherReviewers?: { slot: string; agent: PanelAgent; verdict: 'approved' | 'changes_requested' | 'limit_reached'; blockers: Blocker[]; observations: Observation[] }[];
     reviewMs: number | null;
     fixMs: number | null;
     /** The head the review looked at, and the head the fix left. */
@@ -117,6 +125,16 @@ export type EpicReply = {
   }[];
   /** Only an epic that went to ready for test with observations nobody answered has it. */
   unansweredObservations?: UnansweredObservations;
+  /** How many reviewers gave a verdict out of how many are configured, and why each other gave none, for the latest decided round; only an epic with several reviewers that has one. */
+  reviewers?: PanelReviewers;
+  /** The head the reviewers agreed on; absent until a round agreed. */
+  reviewedSha?: string;
+  /** The head the lead reviewer approved; only an epic whose lead completed has it, and it may differ from `reviewedSha` when the head moved while the lead reviewed. */
+  approvedSha?: string;
+  /** Whether the lead's result says it submitted the pull request's formal approval; only an epic whose lead completed has it, and nothing is read from GitHub for it. */
+  leadApproval?: boolean;
+  /** The agent of the lead reviewer; only an epic that has one. */
+  lead?: PanelAgent;
   /** A cache of GitHub, never read to decide anything (ADR 0008). */
   slices: {
     number: number;

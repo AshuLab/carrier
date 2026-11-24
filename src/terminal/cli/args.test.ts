@@ -77,7 +77,7 @@ test('restart without its argument or with a second one is a usage error, and th
 test('restart takes --from ship, review or fix and refuses any other', () => {
   for (const from of ['ship', 'review', 'fix']) expect(parseCli(['restart', 'A/a#1', '--from', from])).toMatchObject({ ok: true, flags: { from } });
   expect(parseCli(['restart', 'A/a#1'])).toMatchObject({ ok: true });
-  for (const from of ['merged', '', 'Review']) expect(parseCli(['restart', 'A/a#1', '--from', from])).toEqual({ ok: false, message: '--from takes ship, review, fix' });
+  for (const from of ['merged', '', 'Review', 'lead']) expect(parseCli(['restart', 'A/a#1', '--from', from])).toEqual({ ok: false, message: '--from takes ship, review, fix' });
   expect(usage()).toContain('--from <ship|review|fix>');
 });
 

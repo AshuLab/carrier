@@ -6,7 +6,8 @@ const json = (result: CallerResult) => '```json\n' + JSON.stringify(result, null
 /** The contract: where to write the result and which JSON shapes Carrier accepts for this stage. */
 export function resultContract(task: AgentTask, pr: { number: number; headSha: string }): string[] {
   const { executionId, repo, epic, stage, resultPath } = task;
-  const reviewing = stage === 'review';
+  const leading = stage === 'lead';
+  const reviewing = stage === 'review' || leading;
   const common = { executionId, repo, epic, stage, summary: '<one or two sentences for the next agent of this epic: what you did and concluded>' };
 
   const completed = (evidence: string): CallerResult => ({
@@ -15,10 +16,11 @@ export function resultContract(task: AgentTask, pr: { number: number; headSha: s
     pr,
     verification: { ci: 'passed', evidence },
     ...(reviewing && { observations: [{ id: '<stable-id>', title: '<non-blocking finding>', url: `https://github.com/${repo}/pull/${pr.number}#discussion_r456` }] }),
+    ...(leading && { approval: { submitted: true, url: `https://github.com/${repo}/pull/${pr.number}#pullrequestreview-789` } }),
   });
   const changesRequested: CallerResult = {
     ...common,
-    stage: 'review',
+    stage: leading ? 'lead' : 'review',
     outcome: 'changes_requested',
     pr,
     blockers: [{ id: '<stable-id>', title: '<blocker>', url: `https://github.com/${repo}/pull/${pr.number}#discussion_r123` }],

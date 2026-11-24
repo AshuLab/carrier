@@ -142,4 +142,35 @@ describe('resolveRepoConfig skills', () => {
       fix: { name: 'code-resolve', named: false },
     });
   });
+
+  test('the lead\'s and each extra reviewer\'s skills are resolved for the epic, the lead only when there is a lead', () => {
+    expect(resolveFirst({}).skills).not.toHaveProperty('lead');
+    const resolved = resolveFirst({
+      skills: { review: { review: 'g-review', publish: null }, lead: { review: 'g-lead' } },
+      agents: {
+        ...base.agents,
+        leadReviewer: { profile: 'c', provider: 'claude', model: 'm3', skills: { lead: { publish: 'own-post' } } },
+        extraReviewers: [{ profile: 'c', provider: 'local', model: 'm4', skills: { review: { review: 'mine' } }, failover: [{ provider: 'codex' }] }, { profile: 'b', provider: 'codex', model: 'm5' }],
+      },
+    });
+    expect(resolved.skills!.lead).toEqual({ review: { name: 'g-lead', named: true }, publish: { name: 'own-post', named: true } });
+    expect(resolved.agents.extraReviewers).toEqual([
+      { profile: 'c', option: 'local', providerName: 'local', harness: 'codex', provider: 'ollama', configDir: '/srv/codex', model: 'm4', skills: { review: { name: 'mine', named: true }, publish: null }, failover: [{ provider: 'codex' }], sharedIdentity: true },
+      { ...resolvedReviewer, profile: 'b', model: 'm5', skills: { review: { name: 'g-review', named: true }, publish: null }, sharedIdentity: true },
+    ]);
+  });
+
+  test('an extra reviewer is saved as sharing the author\'s identity only when its profile is the same account', () => {
+    const resolved = resolveFirst({
+      profiles: { ...base.profiles, bot: { kind: 'forge', agent: 'reviewer-bot' } },
+      agents: { ...base.agents, extraReviewers: [{ profile: 'bot', provider: 'codex', model: 'm4' }, { profile: 'a', provider: 'codex', model: 'm5' }] },
+    });
+    expect(resolved.agents.extraReviewers!.map((e) => e.sharedIdentity)).toEqual([undefined, true]);
+  });
+  test('the lead is saved as sharing the author\'s identity only when its profile is the same account', () => {
+    const profiles = { ...base.profiles, bot: { kind: 'forge', agent: 'reviewer-bot' } };
+    const lead = (profile: string) => resolveFirst({ profiles, agents: { ...base.agents, leadReviewer: { profile, provider: 'claude', model: 'm3' } } }).agents.leadReviewer;
+    expect(lead('bot')).not.toHaveProperty('sharedIdentity');
+    expect(lead('a')).toMatchObject({ profile: 'a', sharedIdentity: true });
+  });
 });

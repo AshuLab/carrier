@@ -70,8 +70,8 @@ public struct RoleStage: Equatable, Identifiable {
 }
 
 extension AgentRole {
-    /// What the engine runs for the role, in the order an epic goes through it. The Lead reviewer has no stage: the engine does not run it yet
-    /// (`agents.leadReviewer` is read and kept, and nothing uses it).
+    /// What the engine runs for the role, in the order an epic goes through it. The Lead reviewer has no stage here: the engine runs it,
+    /// once after the reviewers agree, but the app does not list its skills yet.
     public var stages: [RoleStage] {
         switch self {
         case .author: [

@@ -11,7 +11,7 @@ import { epicOf } from '../../control/epic.ts';
 import { eventsOf, lastEventOf } from '../../control/events.ts';
 import { cardsMemo, fileDiff, filesOf } from '../../control/files.ts';
 import { inheritedConfigDirs, sessionsOf } from '../../control/sessions.ts';
-import { startControlServer, version } from '../../control/server.ts';
+import { startControlServer, version, type Controls } from '../../control/server.ts';
 import { listAvailableRepos } from '../../integrations/available-repos.ts';
 import { forgeCwd } from '../../integrations/forge-cwd.ts';
 import { GhGitHub, type GhGitHubOptions } from '../../integrations/github.ts';
@@ -144,6 +144,7 @@ export async function startCarrier(started: Config, folder: string, loadConfig: 
       pollIntervalMs: config.pollIntervalMinutes * 60_000,
       maxConcurrentEpics: config.limits.maxConcurrentEpics,
       maxReviews: config.limits.maxReviews,
+      maxLeadRounds: config.limits.maxLeadRounds,
       maxExecutionRetries: config.limits.maxExecutionRetries,
       maxExecutionHours: config.limits.maxExecutionHours,
       idleMinutes: config.limits.idleMinutes,
@@ -199,7 +200,7 @@ export async function startCarrier(started: Config, folder: string, loadConfig: 
     files: (repo: string, issue: number, executionId?: string) => filesOf(db, places.repos, repo, issue, executionId, cards),
     fileDiff: (repo: string, issue: number, section: string, path: string) => fileDiff(db, places.repos, repo, issue, section, path, cards),
     availableRepos: (page: number) => deps.listRepos(page, timeoutMs()),
-    resumeEpic: (repo: string, issue: number, chosen: { author?: string; reviewer?: string; from?: 'ship' | 'review' | 'fix'; extraRounds?: number }) => engine.resumeEpic(repo, issue, chosen),
+    resumeEpic: (repo: string, issue: number, chosen: Parameters<Controls['resumeEpic']>[2]) => engine.resumeEpic(repo, issue, chosen),
     recoverEpic: (repo: string, issue: number) => engine.recoverEpic(repo, issue),
     reload: () =>
       engine.reload(() => {

@@ -15,7 +15,7 @@ private func decode<T: Decodable>(_ json: String, as type: T.Type = T.self) thro
 
 @Test func decodesTheSessionsReply() throws {
     let reply: SessionsReply = try golden("sessions")
-    #expect(reply.sessions.map(\.stage) == ["fix", "review", "fix", "fix", "review", "ship"])
+    #expect(reply.sessions.map(\.stage) == ["fix", "review", "fix", "fix", "review", "ship", "lead", "review"])
     #expect(reply.sessions[0].status == "running")
     #expect(reply.sessions[0].resume == nil)
     #expect(reply.sessions[0].finishedAt == nil)
@@ -55,8 +55,9 @@ private func decode<T: Decodable>(_ json: String, as type: T.Type = T.self) thro
 
 @Test func decodesTheEpicReply() throws {
     let reply: EpicReply = try golden("epic")
-    #expect(reply.stages.map(\.stage) == ["queued", "ship", "review", "fix"])
-    #expect(reply.stages[3].endedAt == nil)
+    #expect(reply.stages.map(\.stage) == ["queued", "ship", "review", "fix", "lead"])
+    #expect(reply.stages[3].endedAt == 70_000)
+    #expect(reply.stages[4].endedAt == nil)
     #expect(reply.rounds.map(\.verdict) == ["changes_requested", "changes_requested", "approved", "limit_reached"])
     #expect(reply.rounds[0].fixedSha == "2222222bbbbbbb")
     #expect(reply.rounds[0].commits.count == 2)

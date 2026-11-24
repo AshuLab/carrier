@@ -66,6 +66,13 @@ test('a running epic shows its stage in the chain, rounds as dots, blockers, tim
   expect(out).toContain('┃ https://github.com/AshuLab/api/pull/9'); // the PR once there is one
 });
 
+test('an epic in the stage lead (reported as review with lead set) shows the lead as the active stage, and an epic in review does not show it', () => {
+  const lead = plain(snap({ epics: [epic({ stage: 'review', lead: true, round: 2 })] }));
+  expect(lead).toContain('┃ ship ▸ review ▸ fix ▸ [lead] · round ●●○○○');
+  expect(lead).not.toContain('[review]');
+  expect(plain(snap({ epics: [epic({ stage: 'review', round: 2 })] }))).not.toContain('lead');
+});
+
 test('a running epic shows its slices closed out of the total, and nothing when unknown or without sub-issues', () => {
   expect(plain(snap({ epics: [epic({ slices: { done: 3, total: 5 } })] }))).toContain('in stage · active 8s ago · slices 3/5');
   expect(plain(snap({ epics: [epic({ blockers: 1, slices: { done: 0, total: 2 } })] }))).toContain(' · blockers 1 · slices 0/2');
@@ -422,4 +429,31 @@ test('an epic with no stage yet says it is starting, and a read-only dashboard o
   expect(out).toContain('starting');
   expect(out).not.toContain('choice');
   expect(out).toContain('Ctrl+C stops it');
+});
+
+// --- a round of several reviewers: how many gave a verdict, and why each other gave none ---
+
+const severalReviewers = { given: 1, of: 3, none: [{ slot: 'reviewer-2' as const, why: 'cannot verify\x1b[2J the migration' }, { slot: 'reviewer-3' as const, why: 'ran out of usage' }] };
+
+test('a running card with several reviewers shows the count and the reason of each reviewer without a verdict, after the stage line', () => {
+  const out = plain(snap({ epics: [epic({ stage: 'fix', round: 1, reviewers: severalReviewers })] }));
+  expect(out).toContain('┃ 12m 40s in stage · active 8s ago\n ┃ reviewers 1 of 3 gave a verdict\n ┃   · reviewer-2: cannot verify [2J the migration\n ┃   · reviewer-3: ran out of usage');
+  expect(out).not.toMatch(/\x1b\[2J/);
+});
+
+test('a card with every verdict shows only the count, and an epic with one reviewer shows nothing new', () => {
+  expect(plain(snap({ epics: [epic({ stage: 'fix', round: 1, reviewers: { given: 2, of: 2, none: [] } })] }))).toMatch(/┃ reviewers 2 of 2 gave a verdict\n(?! ┃   ·)/);
+  expect(plain(snap({ epics: [epic({ stage: 'fix', round: 1 })] }))).not.toContain('reviewers');
+});
+
+test('an epic that needs you, and one ready for test, show the count and the reasons under their rows', () => {
+  const done = { repo: 'AshuLab/carrier', issue: 28, title: 'Menu bar', labels: [], prNumber: 44, finishedAt: now - 7_200_000, executionId: null, reviewers: { given: 1, of: 2, none: [{ slot: 'reviewer-2' as const, why: 'ran out of usage' }] } };
+  const out = plain(snap({ epics: [epic({ issue: 29, status: 'needs_human', needsHumanReason: 'no reviewer gave a verdict in round 1', reviewers: { given: 0, of: 2, none: [{ slot: 'reviewer' as const, why: 'cannot verify' }, { slot: 'reviewer-2' as const, why: 'ran out of usage' }] } })], done: [done] }));
+  expect(out).toContain('NEEDS YOU ▲\n   AshuLab/carrier #29\n   no reviewer gave a verdict in round 1\n   reviewers 0 of 2 gave a verdict\n     · reviewer: cannot verify\n     · reviewer-2: ran out of usage');
+  expect(out).toContain('READY FOR TEST ✔\n   AshuLab/carrier #28 · PR #44 · 2h 00m ago  Menu bar\n   reviewers 1 of 2 gave a verdict\n     · reviewer-2: ran out of usage');
+});
+
+test('the lines of the reviewers are never cut away by the 50-column floor of the count', () => {
+  const out = plain(snap({ epics: [epic({ stage: 'fix', round: 1, reviewers: { given: 1, of: 4, none: [] } })] }), 50);
+  expect(out).toContain('reviewers 1 of 4 gave a verdict');
 });

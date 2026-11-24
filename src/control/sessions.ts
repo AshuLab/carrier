@@ -78,7 +78,7 @@ export function sessionsOf(db: Db, repo: string, issue: number, inherited: Confi
         row.status === 'running' || row.sessionId === null || row.workspace === null
           ? null
           : { harness, sessionId: row.sessionId, cwd: row.workspace, ...(configDir !== undefined && { configDir }) };
-      return { executionId: row.executionId, stage: row.stage, role, round: row.round, agent, profile, status: row.status, startedAt: row.startedAt, finishedAt: row.finishedAt, resume, result: resultOf(result), failure: failureOf(row) };
+      return { executionId: row.executionId, stage: row.stage, role, ...(slot !== null && { reviewer: slot }), round: row.round, agent, profile, status: row.status, startedAt: row.startedAt, finishedAt: row.finishedAt, resume, result: resultOf(result), failure: failureOf(row) };
     }),
   };
 }

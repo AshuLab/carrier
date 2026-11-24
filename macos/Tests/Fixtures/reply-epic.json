@@ -13,7 +13,11 @@
     {
       "stage": "review",
       "startedAt": 39000,
-      "endedAt": 60000
+      "endedAt": 60000,
+      "reviewers": [
+        "reviewer",
+        "reviewer-2"
+      ]
     },
     {
       "stage": "fix",
@@ -131,7 +135,34 @@
           "url": null
         }
       ],
-      "commits": []
+      "commits": [],
+      "otherReviewers": [
+        {
+          "slot": "reviewer-2",
+          "agent": {
+            "harness": "claude",
+            "model": "claude-sonnet-5-5",
+            "provider": null
+          },
+          "verdict": "changes_requested",
+          "blockers": [
+            {
+              "id": "B1",
+              "title": "Use the shared helper",
+              "url": "https://github.com/acme/web/pull/50#discussion_B1",
+              "mark": "new",
+              "approximate": false
+            }
+          ],
+          "observations": [
+            {
+              "id": null,
+              "title": "Prefer a const here",
+              "url": null
+            }
+          ]
+        }
+      ]
     },
     {
       "round": 5,

@@ -1,6 +1,6 @@
-import { asc, and, eq, gte, inArray, sql } from 'drizzle-orm';
+import { asc, and, desc, eq, gte, inArray, sql } from 'drizzle-orm';
 import type { CallerResult } from '../execution/caller-result.ts';
-import { callerResults } from '../storage/caller-results.ts';
+import { callerResults, supersededOutcome } from '../storage/caller-results.ts';
 import type { Db } from '../storage/db.ts';
 import { epicEvents } from '../storage/events.ts';
 import { executions, slotOf, type Slot } from '../storage/executions.ts';
@@ -65,4 +65,34 @@ export function roundNones(db: Pick<Db, 'select'>, epic: { id: number; startedAt
 export function recordNoVerdict(db: Pick<Db, 'select' | 'insert'>, epic: { id: number; startedAt: number | null }, { round, headSha }: RoundHead, none: NoVerdict, at: number) {
   if (roundNones(db, epic, { round, headSha }).some((n) => n.slot === none.slot)) return;
   db.insert(epicEvents).values({ epicId: epic.id, at, type: noVerdictEvent, data: { round, headSha, none } }).run();
+}
+
+/** How a round of several came out: how many of its slots gave a verdict out of how many were configured, and for each that gave none, why. Read from the stored rows, so it is the same after a restart. */
+export type RoundTally = { given: number; of: number; none: { slot: Slot; kind: NoVerdict['kind']; why: string }[] };
+
+export function roundTally(db: Pick<Db, 'select'>, epic: { id: number; startedAt: number | null }, on: RoundHead & { headSha: string }, slots: Slot[]): RoundTally {
+  const verdicts = roundVerdicts(db, epic, { stage: 'review', ...on }, null, true);
+  const nones = roundNones(db, epic, on);
+  const silent = slots.filter((slot) => !verdicts.some((v) => v.slot === slot));
+  return { given: slots.length - silent.length, of: slots.length, none: silent.flatMap((slot) => nones.findLast((n) => n.slot === slot) ?? []).map(({ slot, kind, why }) => ({ slot, kind, why })) };
+}
+
+/**
+ * The tally of the latest round of the epic's current attempt that was decided, none while the epic has none: a round still waiting for a reviewer is not counted (its missing
+ * verdicts are not failures yet), and neither is a head a moved pull request set aside. A pure read of the stored rows, for the snapshot.
+ */
+export function latestRoundTally(db: Pick<Db, 'select'>, epic: { id: number; startedAt: number | null }, slots: Slot[]): RoundTally | undefined {
+  const reviews = db.select({ round: executions.round, headSha: executions.headSha, reviewer: executions.reviewer, outcome: callerResults.outcome }).from(executions).leftJoin(callerResults, eq(callerResults.executionId, executions.executionId))
+    .where(and(eq(executions.epicId, epic.id), eq(executions.stage, 'review'), gte(executions.startedAt, epic.startedAt ?? 0))).orderBy(desc(sql`executions.rowid`)).all()
+    .filter((run) => run.round !== null && run.headSha !== null && run.reviewer !== 'lead');
+  const dead = new Set(reviews.filter((run) => run.outcome === supersededOutcome).map((run) => `${run.round}:${run.headSha}`));
+  const seen = new Set<string>();
+  for (const { round, headSha } of reviews) {
+    const key = `${round}:${headSha}`;
+    if (seen.has(key) || dead.has(key)) continue;
+    seen.add(key);
+    const on = { round, headSha: headSha! };
+    if (decideRound(slots, roundVerdicts(db, epic, { stage: 'review', ...on }, null, true), roundNones(db, epic, on)).kind !== 'waiting') return roundTally(db, epic, on, slots);
+  }
+  return undefined;
 }

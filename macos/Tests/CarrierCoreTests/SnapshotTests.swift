@@ -76,6 +76,8 @@ private let agents = PanelSnapshot.Agents(
     #expect(s.sessions == [
         .init(executionId: "exec-review-12", repo: "acme/web", issue: 12, stage: .review, round: 2, harness: "codex", model: "gpt-5",
               startedAt: 40_000, last: .init(kind: "tool", text: "Read src/auth/token.ts", at: 99_000)),
+        .init(executionId: "exec-review-12-2", repo: "acme/web", issue: 12, stage: .review, round: 2, harness: "agy", model: "gemini-3",
+              startedAt: 40_100, last: nil),
         .init(executionId: "exec-ship-13", repo: "acme/web", issue: 13, stage: .ship, round: nil, harness: "claude", model: "claude-sonnet-5-5",
               startedAt: 7_000, last: .init(kind: "say", text: "Writing the migration", at: 99_500)),
     ])

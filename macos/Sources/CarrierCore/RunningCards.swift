@@ -69,7 +69,7 @@ public func runningSection(_ snapshot: PanelSnapshot, time: TimeFormat = .stored
     return RunningSection(cards: cards, room: freeRoom(snapshot))
 }
 
-/// ponytail: the role comes from the stage; the snapshot has one session per epic and no lane, so a ship row has no lane label.
+/// ponytail: the role comes from the stage; the snapshot has a session for each running execution of an epic (an epic with several reviewers has several) and no lane, so a ship row has no lane label.
 func agentRow(_ session: PanelSnapshot.Session, epic: PanelEpic, time: TimeFormat = .stored()) -> AgentRow {
     let agent = agentName(session.harness)
     let action = session.last?.text.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""

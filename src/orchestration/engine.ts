@@ -32,7 +32,7 @@ import { AuthError, GitHubRejected, GitHubUnavailable, hasLabel, isNotFound, lab
 import { queueOrder, queuePosition, reserve } from './reserve.ts';
 import { startRetention, type SessionDirs } from './retention.ts';
 import { earliestRetryDue, failingBesides, failureStreak, isOfAttempt, lastBySlot, retryWait } from './retry.ts';
-import { decideRound, recordNoVerdict, roundNones, roundVerdicts, type NoVerdict, type RoundDecision } from './round.ts';
+import { decideRound, recordNoVerdict, roundNones, roundTally, roundVerdicts, type NoVerdict, type RoundDecision } from './round.ts';
 import { agentOfSlot, failoverStepsOfSlot, roundSlots, skillsOfSlot, withAgentOfSlot } from './slots.ts';
 import type { QuotaReader } from './quota.ts';
 import { isBack, resumeAtOf } from './resume-at.ts';
@@ -1034,8 +1034,11 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
 
   // What a settled review round moves the epic to, on the head it was decided on. A round with no verdict stops in `reviewers_failed`, unless every failure was a quota one:
   // that one is returned, to be stopped as `usage_limit` where the windows can be asked.
-  function applyRound(tx: Pick<Db, 'update'>, now: Epic, round: Exclude<RoundDecision, { kind: 'waiting' }>, head: string): NoVerdict[] | undefined {
+  function applyRound(tx: Pick<Db, 'update' | 'insert' | 'select'>, now: Epic, round: Exclude<RoundDecision, { kind: 'waiting' }>, head: string): NoVerdict[] | undefined {
     const update = updateOf(tx, now.id);
+    // A round of several says how many reviewers gave a verdict out of how many were configured, and why each other gave none; an epic with one reviewer has nothing new to say.
+    const slots = roundSlots(now.config);
+    if (slots.length > 1) tx.insert(epicEvents).values({ epicId: now.id, at: clock.now(), type: 'round_decided', data: { round: now.round, headSha: head, decision: round.kind, ...roundTally(tx, now, { round: now.round, headSha: head }, slots) } }).run();
     if (round.kind === 'failed') {
       if (round.none.every(({ kind }) => kind === 'usage_limit')) return round.none;
       toNeedsHuman(tx, now.id, 'reviewers_failed', `no reviewer gave a verdict in round ${now.round} · ${round.none.map(({ slot, why }) => `${slot}: ${why}`).join(' · ')} · fix what each says, then resume the epic`);

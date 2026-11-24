@@ -116,12 +116,25 @@
       "round": 2,
       "harness": "codex",
       "model": "gpt-5",
+      "reviewer": "reviewer",
       "startedAt": 40000,
       "last": {
         "kind": "tool",
         "text": "Read src/auth/token.ts",
         "at": 99000
       }
+    },
+    {
+      "executionId": "exec-review-12-2",
+      "repo": "acme/web",
+      "issue": 12,
+      "stage": "review",
+      "round": 2,
+      "harness": "agy",
+      "model": "gemini-3",
+      "reviewer": "reviewer-2",
+      "startedAt": 40100,
+      "last": null
     },
     {
       "executionId": "exec-ship-13",
@@ -212,8 +225,26 @@
           "harness": "codex",
           "model": "gpt-5",
           "provider": "ollama"
-        }
-      }
+        },
+        "extraReviewers": [
+          {
+            "harness": "agy",
+            "model": "gemini-3",
+            "provider": null
+          }
+        ]
+      },
+      "reviewers": {
+        "given": 1,
+        "of": 2,
+        "none": [
+          {
+            "slot": "reviewer-2",
+            "why": "cannot verify the migration"
+          }
+        ]
+      },
+      "reviewedSha": "a1b2c3d"
     },
     {
       "repo": "acme/web",

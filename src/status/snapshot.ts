@@ -1,14 +1,16 @@
 import { and, asc, count, desc, eq, gte, inArray, isNull, or, sql } from 'drizzle-orm';
 import type { EffectiveRepoConfig } from '../config/resolve.ts';
 import { latestBlockers } from '../orchestration/blockers.ts';
-import { agentOfSlot } from '../orchestration/slots.ts';
+import { agentOfSlot, roundSlots } from '../orchestration/slots.ts';
 import type { Labels } from '../orchestration/github.ts';
+import { latestRoundTally } from '../orchestration/round.ts';
 import { lastBySlot } from '../orchestration/retry.ts';
 import { queueOrder } from '../orchestration/reserve.ts';
 import type { Db } from '../storage/db.ts';
+import { redact } from '../logging/redact.ts';
 import { executions, slotOf } from '../storage/executions.ts';
 import { epics } from '../storage/schema.ts';
-import type { ControlSnapshot, EpicOptions, PanelAgent, PanelAgents, PanelEpic, PanelSession } from './types.ts';
+import type { ControlSnapshot, EpicOptions, PanelAgent, PanelAgents, PanelEpic, PanelReviewers, PanelSession } from './types.ts';
 
 const agentOf = ({ harness, model, provider }: EffectiveRepoConfig['agents']['author']): PanelAgent => ({ harness, model, provider: provider ?? null });
 const agentsOf = (config: EffectiveRepoConfig): PanelAgents => ({ author: agentOf(config.agents.author), reviewer: agentOf(config.agents.reviewer) });
@@ -27,6 +29,18 @@ export function watchedOf(repos: EffectiveRepoConfig[], lastCheck: (repo: string
     return { repo: r.name, lastCheckedAt: check?.at ?? null, ok: check?.ok ?? true, error: check?.error ?? null, agents: agentsOf(r) };
   });
 }
+
+const maxNoVerdictWhy = 200;
+
+/** A field that is there only when it has a value. */
+const spread = <K extends string, V>(key: K, value: V | undefined) => (value === undefined ? {} : ({ [key]: value } as Record<K, V>));
+
+/** How the epic's latest decided round came out, for an epic with several reviewers that has one: the reason of each reviewer with no verdict is redacted, since an agent wrote it. */
+const reviewersOf = (db: Db, epic: { id: number; startedAt: number | null; config: EffectiveRepoConfig | null }): PanelReviewers | undefined => {
+  const slots = roundSlots(epic.config);
+  const tally = slots.length > 1 ? latestRoundTally(db, epic, slots) : undefined;
+  return tally && { given: tally.given, of: tally.of, none: tally.none.map(({ slot, why }) => ({ slot, why: redact(why).slice(0, maxNoVerdictWhy) })) };
+};
 
 const maxBlockerTitles = 10;
 const maxBlockerTitleLength = 200;
@@ -58,8 +72,8 @@ export function buildSnapshot(
   const shown = db.select().from(epics).where(inArray(epics.status, ['running', 'needs_human'])).orderBy(asc(epics.id)).all();
   // The execution an epic names is the newest of the author or of the mandatory reviewer: which other reviewer ended last does not move it.
   const lastExecution = (epicId: number) => db.select({ id: executions.executionId }).from(executions).where(and(eq(executions.epicId, epicId), or(isNull(executions.reviewer), eq(executions.reviewer, 'reviewer')))).orderBy(desc(executions.startedAt), sql`rowid desc`).limit(1).get()?.id ?? null;
-  const done = db.select({ id: epics.id, repo: epics.repo, issue: epics.issue, title: epics.title, labels: epics.labels, prNumber: epics.prNumber, finishedAt: epics.finishedAt, unansweredObservations: epics.unansweredObservations, unansweredReason: epics.unansweredReason }).from(epics).where(eq(epics.status, 'ready_for_test')).orderBy(desc(epics.finishedAt)).limit(5).all()
-    .map(({ id, labels, unansweredObservations, unansweredReason, ...rest }) => ({ ...rest, labels: labels ?? [], executionId: lastExecution(id), ...(unansweredObservations !== null && unansweredReason !== null && { unansweredObservations: { count: unansweredObservations, reason: unansweredReason } }) }));
+  const done = db.select({ id: epics.id, repo: epics.repo, issue: epics.issue, title: epics.title, labels: epics.labels, prNumber: epics.prNumber, finishedAt: epics.finishedAt, unansweredObservations: epics.unansweredObservations, unansweredReason: epics.unansweredReason, startedAt: epics.startedAt, config: epics.config }).from(epics).where(eq(epics.status, 'ready_for_test')).orderBy(desc(epics.finishedAt)).limit(5).all()
+    .map(({ id, labels, unansweredObservations, unansweredReason, startedAt, config, ...rest }) => ({ ...rest, labels: labels ?? [], executionId: lastExecution(id), ...(unansweredObservations !== null && unansweredReason !== null && { unansweredObservations: { count: unansweredObservations, reason: unansweredReason } }), ...spread('reviewers', reviewersOf(db, { id, startedAt, config })) }));
   const finished = db.select({ id: epics.id, repo: epics.repo, issue: epics.issue, title: epics.title, labels: epics.labels, prNumber: epics.prNumber, finishedAt: epics.finishedAt, status: epics.status, cancelReason: epics.cancelReason }).from(epics)
     .where(and(inArray(epics.status, ['merged', 'cancelled']), gte(epics.finishedAt, now - finishedWindowDays * 86_400_000))).orderBy(desc(epics.finishedAt)).all()
     .map(({ id, labels, finishedAt, status, cancelReason, ...rest }) => ({ ...rest, labels: labels ?? [], finishedAt: finishedAt!, status: status as 'merged' | 'cancelled', cancelReason: status === 'cancelled' ? cancelReason : null, executionId: lastExecution(id) }));
@@ -72,14 +86,22 @@ export function buildSnapshot(
     const failed: EpicOptions['failed'] = (stopped && slotOf(stopped)) || 'author';
     return { ...options!, failed };
   };
-  const epicAgents = (e: { config: EffectiveRepoConfig | null }): PanelAgents | null => e.config && agentsOf(e.config);
+  const epicAgents = (e: { config: EffectiveRepoConfig | null }): PanelAgents | null => {
+    const extra = e.config?.agents.extraReviewers ?? [];
+    return e.config && { ...agentsOf(e.config), ...(extra.length > 0 && { extraReviewers: extra.map(agentOf) }) };
+  };
+  // A session for each running execution of a running epic, in the order they were launched; the harness and the model are the ones the execution ran with, and the saved role's agent only for a row that has none.
   const sessions = shown.flatMap((e) => {
-    const running = db.select({ executionId: executions.executionId, stage: executions.stage, reviewer: executions.reviewer, startedAt: executions.startedAt }).from(executions)
-      .where(and(eq(executions.epicId, e.id), eq(executions.status, 'running'))).orderBy(desc(executions.startedAt), sql`rowid desc`).limit(1).get();
-    const agent = running && e.config && agentOfSlot(e.config, slotOf(running));
-    if (e.status !== 'running' || !running || !agent) return [];
-    const { harness, model } = agent;
-    return [{ executionId: running.executionId, repo: e.repo, issue: e.issue, stage: running.stage, round: e.round, harness, model, startedAt: running.startedAt, last: lastEvent(running.executionId) }];
+    if (e.status !== 'running') return [];
+    const running = db.select({ executionId: executions.executionId, stage: executions.stage, reviewer: executions.reviewer, startedAt: executions.startedAt, harness: executions.harness, model: executions.model }).from(executions)
+      .where(and(eq(executions.epicId, e.id), eq(executions.status, 'running'))).orderBy(asc(executions.startedAt), sql`rowid asc`).all();
+    return running.flatMap((run) => {
+      const slot = slotOf(run);
+      const saved = e.config && agentOfSlot(e.config, slot);
+      const harness = (run.harness ?? saved?.harness) as PanelAgent['harness'] | undefined;
+      if (harness === undefined) return [];
+      return [{ executionId: run.executionId, repo: e.repo, issue: e.issue, stage: run.stage, round: e.round, harness, model: run.model ?? saved?.model ?? '', ...(slot !== null && { reviewer: slot }), startedAt: run.startedAt, last: lastEvent(run.executionId) }];
+    });
   });
   return {
     now,
@@ -125,6 +147,8 @@ export function buildSnapshot(
         blockerTitles: blockers.slice(0, maxBlockerTitles).map((b) => b.title.slice(0, maxBlockerTitleLength)),
         agents: epicAgents(e),
         options: optionsWithFailed(e),
+        ...spread('reviewers', reviewersOf(db, e)),
+        ...(e.reviewedSha !== null && { reviewedSha: e.reviewedSha }),
         ...(e.resumeAt !== null && { resumeAt: e.resumeAt }),
         ...(e.status === 'running' && e.retryAt !== null && { retryAt: e.retryAt }),
       };

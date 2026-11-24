@@ -83,7 +83,7 @@ test('a running epic lists its session newest first, with no descriptor while it
   const { sessions } = (await ask(2)).reply.data;
   expect(sessions.map((s: { executionId: string }) => s.executionId.slice(-1))).toEqual(['2', '1']);
   expect(sessions[0]).toEqual({
-    executionId: '00000000-0000-4000-8000-000000000002', stage: 'review', role: 'reviewer', round: 1,
+    executionId: '00000000-0000-4000-8000-000000000002', stage: 'review', role: 'reviewer', reviewer: 'reviewer', round: 1,
     agent: { harness: 'codex', model: 'gpt', provider: 'ollama' }, profile: 'r', status: 'running', startedAt: 2000, finishedAt: null, resume: null, result: null, failure: null,
   });
   expect(sessions[1].resume).toEqual({ harness: 'claude', sessionId: 'sess-1', cwd: '/work/clone', configDir: '/cfg/claude' });
@@ -205,4 +205,5 @@ test('the session of an extra reviewer reads its agent and profile from the epic
   execution(id, 2, { stage: 'review', reviewer: 'reviewer', status: 'running' });
   const { sessions } = (await ask(10)).reply.data;
   expect(sessions.map((s: { role: string; profile: string; agent: { harness: string; model: string } }) => [s.role, s.profile, s.agent.harness, s.agent.model])).toEqual([['reviewer', 'r', 'codex', 'm'], ['reviewer', 'x', 'agy', 'flash']]);
+  expect(sessions.map((s: { reviewer: string }) => s.reviewer)).toEqual(['reviewer', 'reviewer-2']); // the slot, as a string beside the role
 });

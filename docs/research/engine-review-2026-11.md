@@ -4,7 +4,7 @@ Read-only review of how an epic goes through the engine, made to find where it c
 Four reviewers each took a stretch (intake and start, the stages, results and retries, recovery and ending), and the findings below are theirs, merged and ordered by what they cost the person.
 Nothing was run and no finding was reproduced: "read" says the code was read for it, "checked" says the lead of the review read the lines again, and "suspected" says it follows from the code but no one saw it happen.
 Line numbers are those of `src/orchestration/engine.ts` unless a file is named, in the working tree of 2026-11-22 (with the uncommitted label changes), so they drift.
-The decisions taken from this are in [the engine improvements spec](../specs/carrier-engine-improvements.md).
+The decisions taken from this are in the four specs that came out of it: [the engine never leaves an epic stuck](../specs/engine-never-stuck.md), [a review to trust and an intake in order](../specs/review-to-trust-and-intake.md), [labels and skills the person names](../specs/labels-and-skills-the-person-names.md) and [several reviewers and a lead](../specs/several-reviewers-and-a-lead.md).
 
 ## How an epic goes through the engine
 

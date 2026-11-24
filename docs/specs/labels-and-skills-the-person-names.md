@@ -13,7 +13,7 @@ The skill each stage runs is written into Carrier's prompts: `ship` for the firs
 A person who builds or reviews another way has to edit Carrier's code, and the engine cannot tell before an epic starts that a skill does not exist for the account its role runs on, so a missing skill shows up as an agent that improvises, a run spent and a result that does not fit.
 
 It hurts whoever runs Carrier on real epics, today Diego.
-This is the third of four epics that come out of the review of the engine ([the findings](../research/engine-review-2026-11.md)); the first two, [the engine never leaves an epic stuck](engine-never-stuck.md) and [a review to trust and an intake in order](review-to-trust-and-intake.md), are merged, and the last, several reviewers and a lead, starts from `main` once this one is: [the rest](carrier-engine-improvements.md).
+This is the third of four epics that come out of the review of the engine ([the findings](../research/engine-review-2026-11.md)); the first two, [the engine never leaves an epic stuck](engine-never-stuck.md) and [a review to trust and an intake in order](review-to-trust-and-intake.md), are merged, and the last, several reviewers and a lead, starts from `main` once this one is: [several reviewers and a lead](several-reviewers-and-a-lead.md).
 
 ## Solution
 
@@ -127,7 +127,7 @@ Testing seams, per story, preferring the seams the repo has:
 
 ## Out of scope
 
-The last epic, several reviewers with a lead, which adds the `lead` stage, `skills.lead` and the skills of extra reviewers, and is specced again from `main` when its turn comes ([the backlog](carrier-engine-improvements.md)).
+The last epic, several reviewers with a lead, which adds the `lead` stage, `skills.lead` and the skills of extra reviewers, and is [its own spec](several-reviewers-and-a-lead.md).
 
 Cleaning the old label names, a switch that turns on the stage and reason labels, and moving Solve's labels.
 

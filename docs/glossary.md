@@ -394,19 +394,19 @@ See [ADR 0049](adr/0049-a-quota-stop-wakes-up-by-itself-when-the-provider-says-t
 _Avoid_: auto-retry (a retry is the automatic new execution after a technical failure), auto-restart, resume by timer.
 
 **Review round** - One pass of every reviewer of the epic over the same head, in parallel, each in its own checkout.
-Planned, not built yet: today a review round is the single review defined above, and several reviewers in parallel belong to a later epic of [the engine improvements](specs/carrier-engine-improvements.md).
+Planned, not built yet: today a review round is the single review defined above, and several reviewers in parallel belong to a later epic of [the spec of several reviewers and a lead](specs/several-reviewers-and-a-lead.md).
 It ends when every reviewer has settled, and it counts once toward `maxReviews` however many reviewers it has.
 It is not a lead round.
 See [ADR 0048](adr/0048-a-review-round-has-several-reviewers-in-parallel-and-a-lead-reviewer-closes-it.md).
 _Avoid_: review (that is one reviewer's execution), turn.
 
 **Lead reviewer** - The optional role (`leadReviewer`) that reviews last, once the reviewers and the author agree on a head, and gives or withholds the approval of the pull request.
-Planned, not built yet: this belongs to a later epic of [the engine improvements](specs/carrier-engine-improvements.md), so the config it names does not exist today.
+Planned, not built yet: this belongs to a later epic of [the spec of several reviewers and a lead](specs/several-reviewers-and-a-lead.md), so the config it names does not exist today.
 It has its own skill (`skills.lead`) and exchanges with the author alone, one lead round at a time.
 _Avoid_: tech lead, final reviewer, approver.
 
 **Lead round** - One exchange of the lead reviewer asking for changes and the author fixing them, up to `limits.maxLeadRounds` (3 by default).
-Planned, not built yet: this belongs to a later epic of [the engine improvements](specs/carrier-engine-improvements.md), so the config it names does not exist today.
+Planned, not built yet: this belongs to a later epic of [the spec of several reviewers and a lead](specs/several-reviewers-and-a-lead.md), so the config it names does not exist today.
 It does not count toward `maxReviews`, and the other reviewers do not see the commits it makes.
 _Avoid_: round (that is a review round).
 

@@ -55,10 +55,10 @@ What each part of `engine/` holds:
 | `state/` | `carrier.db` (SQLite, the authority, in WAL mode: `carrier.db-wal` and `carrier.db-shm` appear beside it while it is open and are part of it, so do not delete them or copy `carrier.db` alone while Carrier runs; `.backup` of `sqlite3` takes a consistent copy), `control.sock` (the control socket the CLI and the app use), `carrier.lock` (one engine per folder), the results of each execution (deleted with its logs), and `forge-cwd/<owner>/<name>` (the stub folder Forge runs in before a repo's first clone). |
 | `logs/` | `orchestrator.log`, `executions/<id>/` (each agent run's full output), and `start.log` (what a detached Carrier prints; the macOS app's start writes `app-start.log`). |
 | `repos/` | Carrier's clones, `<owner>/<repo>`. |
-| `reviews/` | The reviewer's separate checkouts, `<repo>/<epic>/`. |
+| `reviews/` | The reviewers' separate checkouts: `<repo>/<epic>/` for the mandatory reviewer, and `<repo>/<epic>--<slot>/` beside it for each other slot (`reviewer-2` to `reviewer-4`, `lead`). |
 | `worktrees/` | `<repo>/<feature>/`, Carrier's own place for an epic's worktree by default. Any other place works: Carrier finds an epic's worktree with `git worktree list`. |
 
-When an epic is merged or cancelled the engine removes, always, its reviewer checkout, the author's worktree and Solve's `<worktree>--lane-N` worktrees beside it, wherever they are, and the epic's local branches whose tip is already on the remote.
+When an epic is merged or cancelled the engine removes, always, the checkouts of its reviewers, the author's worktree and Solve's `<worktree>--lane-N` worktrees beside it, wherever they are, and the epic's local branches whose tip is already on the remote.
 An author or lane worktree with uncommitted files or commits on no branch is kept, and so is a branch that is not on the remote; the log says so.
 It does this at the next poll, also for epics that ended earlier; a failure is logged and tried again at the following one.
 

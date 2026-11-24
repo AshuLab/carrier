@@ -93,10 +93,13 @@ export class FakeWorkspaces implements Workspaces {
     return `/work/${repo}/${epic}/author`;
   }
 
-  /** The commit a reviewer checkout reports. */
-  reviewerCommit: (repo: string, pr: number) => string = () => 'a'.repeat(40);
-  async prepareReviewer(repo: string, epic: number, pr: number) {
-    return { path: `/work/${repo}/${epic}/reviewer-${pr}`, commit: this.reviewerCommit(repo, pr) };
+  /** The commit a reviewer checkout reports when it is not given one. */
+  reviewerCommit: (repo: string, pr: number, slot: string) => string = () => 'a'.repeat(40);
+  async prepareReviewer(repo: string, epic: number, pr: number, options: { slot?: string; commit?: string } = {}) {
+    const slot = options.slot ?? 'reviewer';
+    // The mandatory reviewer's path is the one it has always had; the other slots are beside it.
+    const path = slot === 'reviewer' ? `/work/${repo}/${epic}/reviewer-${pr}` : `/work/${repo}/${epic}/${slot}-${pr}`;
+    return { path, commit: options.commit ?? this.reviewerCommit(repo, pr, slot) };
   }
 
   async findWorktree(repo: string, branch: string): Promise<string | null> {

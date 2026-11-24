@@ -210,7 +210,7 @@ test('doctor --json prints only the checks as a JSON array on stdout and exits l
   const json = spawnSync(process.execPath, [main, 'doctor', '--config', config, '--json'], { cwd: dir, encoding: 'utf8', env });
   const checks = JSON.parse(json.stdout);
   expect(json.status).toBe(1);
-  expect(checks).toContainEqual({ name: 'git installed', status: 'fail', detail: 'not found on PATH', fix: expect.any(String) });
+  expect(checks).toContainEqual({ name: 'git installed', status: 'fail', detail: 'not found on PATH', detailCode: 'doctor.notOnPath', detailParams: {}, fix: expect.any(String), fixCode: 'doctor.fix.install', fixParams: { tool: 'git' } });
   const plain = spawnSync(process.execPath, [main, 'doctor', '--config', config], { cwd: dir, encoding: 'utf8', env });
   expect(plain.status).toBe(1);
   expect(plain.stdout).toContain('checks failed');

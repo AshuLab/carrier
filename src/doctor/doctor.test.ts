@@ -281,22 +281,23 @@ test('a local model fails with what the server does have, or when the server is 
 
 // The remedy of each family of failures; it only names what the check already knew.
 const gh = { a: { kind: 'gh' }, b: { kind: 'forge', agent: 'bot' } };
-const fixOf = async (cfg: Config, d: Partial<DoctorDeps>) => failed(await doctor(cfg, deps(d)))[0]?.fix;
+const fixOf = async (cfg: Config, d: Partial<DoctorDeps>) => failed(await doctor(cfg, deps(d)))[0];
 
 test.each([
-  ['a missing tool', () => fixOf(config(), { which: (c) => c !== 'gh' }), 'install the GitHub CLI (https://cli.github.com) and run: gh auth login'],
-  ['agent-forge missing', () => fixOf(config(), { which: (c) => c !== 'agent-forge' }), 'install it: pnpm add -g @ashulab/agent-forge (https://github.com/AshuLab/agent-forge)'],
-  ['an unknown Forge agent', () => fixOf(config(), { mint: async () => Promise.reject(new Error('could not mint a token for artanis-agent: Agent not found: artanis-agent')) }), 'agent-forge --list shows your agents; add one with: agent-forge add'],
-  ['no installation', () => fixOf(config(), { mint: async () => Promise.reject(new Error('could not mint a token for artanis-agent: has no installations')) }), 'install the GitHub App of that agent on AshuLab'],
-  ['an unreadable key', () => fixOf(config(), { mint: async () => Promise.reject(new Error('could not mint a token for artanis-agent: Private key for x not found or unreadable')) }), 'check privateKeyPath of that agent in your Forge registry'],
-  ['any other mint error', () => fixOf(config(), { mint: async () => Promise.reject(new Error('boom')) }), 'run: agent-forge token --agent artanis-agent from a clone of the repo to see the full error'],
-  ['a gh login that cannot mint', () => fixOf(config({ profiles: gh, orchestratorProfile: 'b', agents: { author: { profile: 'a', provider: 'claude', model: 'm' }, reviewer: { profile: 'b', provider: 'codex', model: 'm' } } }), { mint: async (p) => (p.kind === 'gh' ? Promise.reject(new Error('x')) : 't') }), 'run: gh auth login'],
-  ['a 404 on the repo', () => fixOf(config(), { listLabels: async () => Promise.reject(new Error('GitHub answered HTTP 404: Not Found')) }), 'the repo does not exist or this identity cannot see it: install the App on AshuLab and give it access to AshuLab/carrier, or let Carrier read as another identity: orchestratorProfile in engine.json (Settings > Engine > GitHub identity)'],
-  ['a 401 on the repo', () => fixOf(config(), { listLabels: async () => Promise.reject(new Error('GitHub answered HTTP 401: Bad credentials')) }), "the identity's credentials were rejected: for gh run gh auth login, for a bot check its App in Forge"],
-  ['a local server that is down', () => fixOf(local(), { localModels: async () => Promise.reject(new Error('ECONNREFUSED')) }), 'start the server (LM Studio: lms server start, Ollama: ollama serve) and download the model'],
-  ['a missing local model', () => fixOf(local(), { localModels: async () => ['other'] }), 'download it in LM Studio / ollama pull google/gemma-4-12b'],
-])('fix: %s', async (_, run, expected) => {
-  expect(await run()).toBe(expected);
+  ['a missing tool', () => fixOf(config(), { which: (c) => c !== 'gh' }), 'install the GitHub CLI (https://cli.github.com) and run: gh auth login', ['doctor.fix.install', { tool: 'gh' }]],
+  ['agent-forge missing', () => fixOf(config(), { which: (c) => c !== 'agent-forge' }), 'install it: pnpm add -g @ashulab/agent-forge (https://github.com/AshuLab/agent-forge)', ['doctor.fix.install', { tool: 'agent-forge' }]],
+  ['an unknown Forge agent', () => fixOf(config(), { mint: async () => Promise.reject(new Error('could not mint a token for artanis-agent: Agent not found: artanis-agent')) }), 'agent-forge --list shows your agents; add one with: agent-forge add', ['doctor.fix.agentNotFound', {}]],
+  ['no installation', () => fixOf(config(), { mint: async () => Promise.reject(new Error('could not mint a token for artanis-agent: has no installations')) }), 'install the GitHub App of that agent on AshuLab', ['doctor.fix.installApp', { owner: 'AshuLab' }]],
+  ['an unreadable key', () => fixOf(config(), { mint: async () => Promise.reject(new Error('could not mint a token for artanis-agent: Private key for x not found or unreadable')) }), 'check privateKeyPath of that agent in your Forge registry', ['doctor.fix.privateKey', {}]],
+  ['any other mint error', () => fixOf(config(), { mint: async () => Promise.reject(new Error('boom')) }), 'run: agent-forge token --agent artanis-agent from a clone of the repo to see the full error', ['doctor.fix.mintOther', { agent: 'artanis-agent' }]],
+  ['a gh login that cannot mint', () => fixOf(config({ profiles: gh, orchestratorProfile: 'b', agents: { author: { profile: 'a', provider: 'claude', model: 'm' }, reviewer: { profile: 'b', provider: 'codex', model: 'm' } } }), { mint: async (p) => (p.kind === 'gh' ? Promise.reject(new Error('x')) : 't') }), 'run: gh auth login', ['doctor.fix.ghLogin', {}]],
+  ['a 404 on the repo', () => fixOf(config(), { listLabels: async () => Promise.reject(new Error('GitHub answered HTTP 404: Not Found')) }), 'the repo does not exist or this identity cannot see it: install the App on AshuLab and give it access to AshuLab/carrier, or let Carrier read as another identity: orchestratorProfile in engine.json (Settings > Engine > GitHub identity)', ['doctor.fix.repoNotVisible', { owner: 'AshuLab', repo: 'AshuLab/carrier' }]],
+  ['a 401 on the repo', () => fixOf(config(), { listLabels: async () => Promise.reject(new Error('GitHub answered HTTP 401: Bad credentials')) }), "the identity's credentials were rejected: for gh run gh auth login, for a bot check its App in Forge", ['doctor.fix.credentialsRejected', {}]],
+  ['a local server that is down', () => fixOf(local(), { localModels: async () => Promise.reject(new Error('ECONNREFUSED')) }), 'start the server (LM Studio: lms server start, Ollama: ollama serve) and download the model', ['doctor.fix.serverDown', {}]],
+  ['a missing local model', () => fixOf(local(), { localModels: async () => ['other'] }), 'download it in LM Studio / ollama pull google/gemma-4-12b', ['doctor.fix.modelMissing', { model: 'google/gemma-4-12b' }]],
+])('fix: %s', async (_, run, expected, [code, params]) => {
+  const check = await run();
+  expect([check?.fix, check?.fixCode, check?.fixParams]).toEqual([expected, code, params]);
 });
 
 test('an unlisted read failure has no fix, and passing checks never do', async () => {
@@ -394,7 +395,7 @@ test('Authentication required on the first stderr line is logged out at once: th
   const process = fakeAgy({ stderr: 'Authentication required. Open https://accounts.example/login?code=SECRET\n' }); // never ends by itself
   const checks = await doctor(config(onlyAgy), deps({ startAgy: () => process }));
   expect(process.kill).toHaveBeenCalledTimes(1);
-  expect(agyChecks(checks)).toEqual([{ name: 'agy provider agy is logged in', status: 'fail', detail: 'not logged in', fix: 'log in with: agy' }]);
+  expect(agyChecks(checks)).toEqual([{ name: 'agy provider agy is logged in', status: 'fail', detail: 'not logged in', detailCode: 'doctor.loginMissing', detailParams: {}, fix: 'log in with: agy', fixCode: 'doctor.fix.loginAgy', fixParams: {} }]);
   expect(JSON.stringify(checks)).not.toContain('SECRET');
 });
 
@@ -496,7 +497,7 @@ test('--json prints the checks as one JSON array and nothing else, with the exit
     expect(checks).toEqual(await doctor(config(), overrides));
     expect(json.code).toBe(terminal.code);
     expect(json.code).toBe(checks.some((c) => c.status === 'fail') ? 1 : 0);
-    for (const check of checks) expect(Object.keys(check).every((key) => ['name', 'status', 'detail', 'fix', 'repo', 'profiles'].includes(key))).toBe(true);
+    for (const check of checks) expect(Object.keys(check).every((key) => ['name', 'status', 'detail', 'detailCode', 'detailParams', 'fix', 'fixCode', 'fixParams', 'repo', 'profiles'].includes(key))).toBe(true);
     // A reader that ignores repo and profiles sees what it saw before the fields existed.
     const bare = (list: Check[]) => list.map(({ repo: _repo, profiles: _profiles, ...rest }) => rest);
     expect(bare(checks).map((c) => c.name)).toEqual(checks.map((c) => c.name));
@@ -643,4 +644,61 @@ test('a skill an extra reviewer or the lead named that is absent fails, and a de
   expect(byStatus('fail')).toEqual(['AshuLab/carrier reviewer-2 can use the skill my-review', 'AshuLab/carrier lead can use the skill my-lead']);
   expect(byStatus('warn')).toEqual(['AshuLab/carrier reviewer can use the skill code-post', 'AshuLab/carrier reviewer-2 can use the skill code-post', 'AshuLab/carrier lead can use the skill code-post']);
   expect(checks.find((check) => check.status === 'fail')).toMatchObject({ detail: expect.stringContaining('does not find it for the account of the reviewer-2'), fix: expect.stringContaining('my-review') });
+});
+
+// The code and parameters of each detail, beside its words ([ADR 0055](../../docs/adr/0055-a-refusal-carries-a-code-and-its-parameters-and-its-english-words-are-the-fallback.md)).
+const detailOf = async (cfg: Config, d: Partial<DoctorDeps>, only = (c: Check) => c.status !== 'ok') => (await doctor(cfg, deps(d))).find(only);
+const absent = new FakeSkills();
+absent.answers['code-review'] = 'absent';
+absent.answers['my-ship'] = 'absent';
+absent.answers['code-post'] = 'cannot-tell';
+
+test.each([
+  ['a tool that is not on the PATH', () => detailOf(config(), { which: (c) => c !== 'git' }), 'doctor.notOnPath', {}],
+  ['a mint that fails', () => detailOf(config(), { mint: async () => Promise.reject(new Error('boom')) }), 'doctor.mintFailed', { error: 'boom' }],
+  ['a read that fails', () => detailOf(config(), { listLabels: async () => Promise.reject(new Error('GitHub answered HTTP 422: x')) }), 'doctor.readFailed', { error: 'GitHub answered HTTP 422: x' }],
+  ['labels that are missing', () => detailOf(config(), { listLabels: async () => ['bug'] }), 'doctor.labelsMissing', { labels: 'solve:epic, solve:epic:ready', count: 2 }],
+  ['a model that is not downloaded', () => detailOf(local(), { localModels: async () => ['other', 'more'] }), 'doctor.modelNotDownloaded', { have: 'other, more' }],
+  ['a server that is down', () => detailOf(local(), { localModels: async () => Promise.reject(new Error('ECONNREFUSED')) }), 'doctor.serverNotAnswering', { server: 'LM Studio', url: 'http://localhost:1234' }],
+  ['a command that does not run', () => detailOf(config({ providers: { claude: { harness: 'claude', command: '/opt/gone' }, codex: { harness: 'codex' } } }), { commandRuns: async () => false }), 'doctor.commandNotRunnable', { command: '/opt/gone' }],
+  ['a login missing in a folder', () => detailOf(config(withDirs), { loggedIn: async () => false }), 'doctor.loginMissingAt', { configDir: '/home/me/.claude-work' }],
+  ['a login missing in the environment', () => detailOf(config(), { loggedIn: async () => false }), 'doctor.loginMissingInEnvironment', {}],
+  ['a login check that cannot run in a folder', () => detailOf(config(withDirs), { loggedIn: async () => Promise.reject(new Error('x')) }), 'doctor.loginCheckFailedAt', { harness: 'claude', configDir: '/home/me/.claude-work' }],
+  ['a login check that cannot run in the environment', () => detailOf(config(), { loggedIn: async () => Promise.reject(new Error('x')) }), 'doctor.loginCheckFailedInEnvironment', { harness: 'claude' }],
+  ['an agy that is logged out', () => detailOf(config(onlyAgy), { startAgy: () => fakeAgy({ stderr: 'Authentication required\n' }) }), 'doctor.loginMissing', {}],
+  ['an agy that gives no answer', () => detailOf(config(onlyAgy), { startAgy: () => fakeAgy({ stdout: 'garbage', end: true }) }), 'doctor.agyLoginUnknown', {}],
+  ['an agy that cannot start', () => detailOf(config(onlyAgy), { startAgy: () => { throw new Error('EACCES'); } }), 'doctor.agyNotRunnable', {}],
+  ['a skill the person named that is absent', () => detailOf(config({ skills: { ship: 'my-ship' } }), { skills: absent }), 'doctor.skillNotFound', { harness: 'Claude Code', role: 'author' }],
+  ['a default skill that is absent', () => detailOf(config(), { skills: absent }, (c) => c.status === 'warn' && c.name.endsWith('code-review')), 'doctor.skillNotFoundDefault', { harness: 'Codex', role: 'reviewer' }],
+  ['a skill that cannot be told about', () => detailOf(config(), { skills: absent }, (c) => c.status === 'warn' && c.name.endsWith('code-post')), 'doctor.skillUnreadable', { harness: 'Codex' }],
+])('detail: %s has its code and params beside its words', async (_, run, code, params) => {
+  const check = await run();
+  expect(check?.detail).toBeTruthy();
+  expect([check?.detailCode, check?.detailParams]).toEqual([code, params]);
+});
+
+test('the socket path warning has its code and params, and a check with no remedy has no code for it', async () => {
+  const root = `/tmp/${'é'.repeat(40)}`;
+  const socket = (await runDoctor(config(), root, deps())).find((check) => check.status === 'warn');
+  expect([socket?.detailCode, socket?.detailParams, socket?.fixCode, socket?.fixParams]).toEqual(['doctor.socketPathTooLong', { path: `${root}/engine/state/control.sock`, bytes: 111, max: 103 }, 'doctor.fix.socketPath', { max: 77 }]);
+  const unlisted = failed(await doctor(config(), deps({ listLabels: async () => Promise.reject(new Error('GitHub answered HTTP 422: x')) })))[0]!;
+  expect(unlisted).toHaveProperty('detailCode');
+  expect(unlisted).not.toHaveProperty('fixCode');
+  expect(unlisted).not.toHaveProperty('fixParams');
+  for (const check of await doctor(config(), deps())) expect(Object.keys(check).filter((key) => /Code$|Params$/.test(key))).toEqual([]);
+});
+
+test.each([
+  ['the labels Solve creates', () => detailOf(config(), { listLabels: async () => ['bug'] }), 'doctor.fix.solveSetup', {}],
+  ['a label the person named', () => detailOf(config({ labels: { ...defaultLabels, ready: 'carrier:go' } }), { listLabels: async () => ['solve:epic'] }), 'doctor.fix.ownLabels', { labels: 'carrier:go', count: 1, epic: 'solve:epic', ready: 'solve:epic:ready' }],
+  ['a login in a folder', () => detailOf(config(withDirs), { loggedIn: async () => false }), 'doctor.fix.loginAt', { harness: 'claude', variable: 'CLAUDE_CONFIG_DIR', configDir: '/home/me/.claude-work' }],
+  ['a login in the environment', () => detailOf(config(), { loggedIn: async () => false }), 'doctor.fix.login', { harness: 'claude' }],
+  ['a login of agy', () => detailOf(config(onlyAgy), { startAgy: () => fakeAgy({ stderr: 'Authentication required\n' }) }), 'doctor.fix.loginAgy', {}],
+  ['a command that does not run', () => detailOf(config({ providers: { claude: { harness: 'claude', command: '/opt/gone' }, codex: { harness: 'codex' } } }), { commandRuns: async () => false }), 'doctor.fix.command', { provider: 'claude' }],
+  ['a skill that is absent', () => detailOf(config({ skills: { ship: 'my-ship' } }), { skills: absent }), 'doctor.fix.skill', { skill: 'my-ship' }],
+  ['a skill that cannot be told about', () => detailOf(config(), { skills: absent }, (c) => c.status === 'warn' && c.name.endsWith('code-post')), 'doctor.fix.skillUnread', {}],
+  ['an agy that cannot start', () => detailOf(config(onlyAgy), { startAgy: () => { throw new Error('EACCES'); } }), 'doctor.fix.install', { tool: 'agy' }],
+])('fix code: %s', async (_, run, code, params) => {
+  const check = await run();
+  expect([check?.fixCode, check?.fixParams]).toEqual([code, params]);
 });

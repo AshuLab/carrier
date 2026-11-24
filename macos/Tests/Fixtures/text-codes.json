@@ -95,6 +95,309 @@
       "problem": "example"
     }
   },
+  "doctor.agyLoginUnknown": {
+    "params": {}
+  },
+  "doctor.agyNotRunnable": {
+    "params": {}
+  },
+  "doctor.commandNotRunnable": {
+    "params": {
+      "command": "example"
+    }
+  },
+  "doctor.fix.agentNotFound": {
+    "params": {}
+  },
+  "doctor.fix.command": {
+    "params": {
+      "provider": "example"
+    }
+  },
+  "doctor.fix.credentialsRejected": {
+    "params": {}
+  },
+  "doctor.fix.ghLogin": {
+    "params": {}
+  },
+  "doctor.fix.install": {
+    "params": {
+      "tool": "example"
+    }
+  },
+  "doctor.fix.installApp": {
+    "params": {
+      "owner": "example"
+    }
+  },
+  "doctor.fix.login": {
+    "params": {
+      "harness": "example"
+    }
+  },
+  "doctor.fix.loginAgy": {
+    "params": {}
+  },
+  "doctor.fix.loginAt": {
+    "params": {
+      "configDir": "example",
+      "harness": "example",
+      "variable": "example"
+    }
+  },
+  "doctor.fix.mintOther": {
+    "params": {
+      "agent": "example"
+    }
+  },
+  "doctor.fix.modelMissing": {
+    "params": {
+      "model": "example"
+    }
+  },
+  "doctor.fix.ownLabels": {
+    "params": {
+      "count": "example",
+      "epic": "example",
+      "labels": "example",
+      "ready": "example"
+    }
+  },
+  "doctor.fix.privateKey": {
+    "params": {}
+  },
+  "doctor.fix.repoNotVisible": {
+    "params": {
+      "owner": "example",
+      "repo": "example"
+    }
+  },
+  "doctor.fix.serverDown": {
+    "params": {}
+  },
+  "doctor.fix.skill": {
+    "params": {
+      "skill": "example"
+    }
+  },
+  "doctor.fix.skillUnread": {
+    "params": {}
+  },
+  "doctor.fix.socketPath": {
+    "params": {
+      "max": "example"
+    }
+  },
+  "doctor.fix.solveSetup": {
+    "params": {}
+  },
+  "doctor.labelsMissing": {
+    "params": {
+      "count": "example",
+      "labels": "example"
+    }
+  },
+  "doctor.loginCheckFailedAt": {
+    "params": {
+      "configDir": "example",
+      "harness": "example"
+    }
+  },
+  "doctor.loginCheckFailedInEnvironment": {
+    "params": {
+      "harness": "example"
+    }
+  },
+  "doctor.loginMissing": {
+    "params": {}
+  },
+  "doctor.loginMissingAt": {
+    "params": {
+      "configDir": "example"
+    }
+  },
+  "doctor.loginMissingInEnvironment": {
+    "params": {}
+  },
+  "doctor.mintFailed": {
+    "params": {
+      "error": "example"
+    }
+  },
+  "doctor.modelNotDownloaded": {
+    "params": {
+      "have": "example"
+    }
+  },
+  "doctor.notOnPath": {
+    "params": {}
+  },
+  "doctor.readFailed": {
+    "params": {
+      "error": "example"
+    }
+  },
+  "doctor.serverNotAnswering": {
+    "params": {
+      "server": "example",
+      "url": "example"
+    }
+  },
+  "doctor.skillNotFound": {
+    "params": {
+      "harness": "example",
+      "role": "example"
+    }
+  },
+  "doctor.skillNotFoundDefault": {
+    "params": {
+      "harness": "example",
+      "role": "example"
+    }
+  },
+  "doctor.skillUnreadable": {
+    "params": {
+      "harness": "example"
+    }
+  },
+  "doctor.socketPathTooLong": {
+    "params": {
+      "bytes": "example",
+      "max": "example",
+      "path": "example"
+    }
+  },
+  "epic.stop.agentNeedsHuman": {
+    "params": {
+      "reason": "example"
+    }
+  },
+  "epic.stop.auth": {
+    "params": {
+      "detail": "example",
+      "profile": "example"
+    }
+  },
+  "epic.stop.authProfileRemoved": {
+    "params": {
+      "profile": "example"
+    }
+  },
+  "epic.stop.engineError": {
+    "params": {
+      "detail": "example"
+    }
+  },
+  "epic.stop.headChangedRepeatedly": {
+    "params": {
+      "pr": "example",
+      "times": "example"
+    }
+  },
+  "epic.stop.leadCannotConclude": {
+    "params": {
+      "reason": "example"
+    }
+  },
+  "epic.stop.leadLimit": {
+    "params": {
+      "blockers": "example",
+      "limit": "example"
+    }
+  },
+  "epic.stop.pullRequestHeadMismatch": {
+    "params": {
+      "found": "example",
+      "pr": "example",
+      "reported": "example"
+    }
+  },
+  "epic.stop.pullRequestMissing": {
+    "params": {
+      "pr": "example"
+    }
+  },
+  "epic.stop.pullRequestNotLinked": {
+    "params": {
+      "issue": "example",
+      "pr": "example"
+    }
+  },
+  "epic.stop.pullRequestNotOpen": {
+    "params": {
+      "pr": "example"
+    }
+  },
+  "epic.stop.retriesExhausted": {
+    "params": {
+      "attempts": "example",
+      "failure": "example",
+      "idle": "example",
+      "stage": "example"
+    }
+  },
+  "epic.stop.reviewLimit": {
+    "params": {
+      "cap": "example",
+      "round": "example"
+    }
+  },
+  "epic.stop.reviewersFailed": {
+    "params": {
+      "detail": "example",
+      "round": "example"
+    }
+  },
+  "epic.stop.reviewersNotAgreed": {
+    "params": {
+      "detail": "example",
+      "round": "example"
+    }
+  },
+  "epic.stop.skillMissing": {
+    "params": {}
+  },
+  "epic.stop.timeout": {
+    "params": {
+      "limit": "example",
+      "stage": "example"
+    }
+  },
+  "epic.stop.usageLimit": {
+    "params": {}
+  },
+  "epic.stop.usageLimitWakeRefused": {
+    "params": {
+      "cause": "example",
+      "detail": "example",
+      "issue": "example",
+      "option": "example",
+      "ranOut": "example",
+      "repo": "example",
+      "role": "example",
+      "runs": "example",
+      "stage": "example",
+      "why": "example"
+    }
+  },
+  "epic.stop.workspacePrepare": {
+    "params": {
+      "error": "example"
+    }
+  },
+  "epic.stop.worktreeListFailed": {
+    "params": {
+      "attempts": "example",
+      "error": "example",
+      "repo": "example"
+    }
+  },
+  "epic.stop.worktreeNotFound": {
+    "params": {
+      "branch": "example",
+      "repo": "example"
+    }
+  },
   "epic.unknown": {
     "params": {}
   },
@@ -203,6 +506,9 @@
       "problem": "example"
     }
   },
+  "project.fileNotWritten": {
+    "params": {}
+  },
   "project.gitFailed": {
     "params": {
       "repo": "example",
@@ -252,6 +558,11 @@
     }
   },
   "providers.invalid": {
+    "params": {
+      "path": "example"
+    }
+  },
+  "providers.keyInvalid": {
     "params": {
       "path": "example"
     }
@@ -312,6 +623,19 @@
   },
   "resume.roleUnknown": {
     "params": {}
+  },
+  "session.action.failed": {
+    "params": {
+      "action": "example",
+      "output": "example"
+    }
+  },
+  "session.action.failedWithCode": {
+    "params": {
+      "action": "example",
+      "exitCode": "example",
+      "output": "example"
+    }
   },
   "session.agentRemoved": {
     "params": {
@@ -401,6 +725,14 @@
   "session.deliveryFailed": {
     "params": {}
   },
+  "session.fetch.failed": {
+    "params": {}
+  },
+  "session.fetch.remoteGone": {
+    "params": {
+      "remote": "example"
+    }
+  },
   "session.gone": {
     "params": {}
   },
@@ -408,6 +740,58 @@
     "params": {
       "length": "example",
       "max": "example"
+    }
+  },
+  "session.notice.actionWentOn": {
+    "params": {
+      "reason": "example",
+      "reasonCode": "example"
+    }
+  },
+  "session.notice.actionsNotRun": {
+    "params": {
+      "path": "example",
+      "problem": "example"
+    }
+  },
+  "session.notice.agentSwitched": {
+    "params": {
+      "from": "example",
+      "to": "example"
+    }
+  },
+  "session.notice.conversationLost": {
+    "params": {}
+  },
+  "session.notice.mcpNotStarted": {
+    "params": {}
+  },
+  "session.notice.mcpNotUsed": {
+    "params": {
+      "problem": "example"
+    }
+  },
+  "session.notice.projectNotAdded": {
+    "params": {
+      "folder": "example",
+      "reason": "example",
+      "reasonCode": "example"
+    }
+  },
+  "session.notice.startedFromFetched": {
+    "params": {
+      "reason": "example",
+      "reasonCode": "example",
+      "remote": "example"
+    }
+  },
+  "session.notice.startedFromLocal": {
+    "params": {
+      "behind": "example",
+      "branch": "example",
+      "reason": "example",
+      "reasonCode": "example",
+      "remote": "example"
     }
   },
   "session.option.changeFailed": {
@@ -452,6 +836,29 @@
     "params": {}
   },
   "session.retry.preparing": {
+    "params": {}
+  },
+  "session.step.agentErrored": {
+    "params": {}
+  },
+  "session.step.agentNotStarted": {
+    "params": {}
+  },
+  "session.step.couldNotBeDone": {
+    "params": {
+      "step": "example"
+    }
+  },
+  "session.step.interrupted": {
+    "params": {}
+  },
+  "session.step.messageNotDelivered": {
+    "params": {}
+  },
+  "session.step.projectNotMade": {
+    "params": {}
+  },
+  "session.step.worktreeNotBack": {
     "params": {}
   },
   "session.switchAgent.archived": {
@@ -515,7 +922,95 @@
   "title.writeFailed": {
     "params": {}
   },
-  "usage.priceInvalid": {
+  "usage.price.aliasEmpty": {
+    "params": {}
+  },
+  "usage.price.modelEmpty": {
+    "params": {}
+  },
+  "usage.price.ratesInvalid": {
+    "params": {}
+  },
+  "usage.probe.agyAnswerNotUnderstood": {
+    "params": {}
+  },
+  "usage.probe.agyNoJson": {
+    "params": {}
+  },
+  "usage.probe.agyNotFound": {
+    "params": {}
+  },
+  "usage.probe.agyNotRun": {
+    "params": {}
+  },
+  "usage.probe.agySignedOut": {
+    "params": {}
+  },
+  "usage.probe.claudeAnswerNotUnderstood": {
+    "params": {}
+  },
+  "usage.probe.claudeCredentialsEmpty": {
+    "params": {}
+  },
+  "usage.probe.claudeCredentialsUnreadable": {
+    "params": {}
+  },
+  "usage.probe.claudeKeychainDenied": {
+    "params": {}
+  },
+  "usage.probe.claudeLoginExpired": {
+    "params": {}
+  },
+  "usage.probe.claudeLoginExpiredRenews": {
+    "params": {}
+  },
+  "usage.probe.claudeLoginMissing": {
+    "params": {}
+  },
+  "usage.probe.codexEnded": {
+    "params": {}
+  },
+  "usage.probe.codexLimitsNotUnderstood": {
+    "params": {}
+  },
+  "usage.probe.codexNotFound": {
+    "params": {}
+  },
+  "usage.probe.codexRateLimited": {
+    "params": {}
+  },
+  "usage.probe.codexRefused": {
+    "params": {}
+  },
+  "usage.probe.codexSignedOut": {
+    "params": {}
+  },
+  "usage.probe.failed": {
+    "params": {}
+  },
+  "usage.probe.loginRefused": {
+    "params": {}
+  },
+  "usage.probe.noLocalServer": {
+    "params": {}
+  },
+  "usage.probe.providerError": {
+    "params": {
+      "status": "example"
+    }
+  },
+  "usage.probe.providerRateLimited": {
+    "params": {}
+  },
+  "usage.probe.providerUnavailable": {
+    "params": {
+      "status": "example"
+    }
+  },
+  "usage.probe.timedOut": {
+    "params": {}
+  },
+  "usage.probe.unreachable": {
     "params": {}
   },
   "workspace.branchNotListed": {

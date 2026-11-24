@@ -14,13 +14,26 @@ import { listLocalModels, localLabel, localUrl, type LocalProvider } from '../ha
 import { configDirVariable, harnessLabel } from '../harnesses/names.ts';
 import { createSkills, type Skills } from '../harnesses/skills.ts';
 import { defaultLabels, hasLabel } from '../orchestration/github.ts';
+import type { CodedText, TextParams } from '../orchestration/text-params.ts';
 import { fixes, installFix } from './fixes.ts';
 
 /**
  * `fix` is one remedy line for the person at the terminal; only failures and warnings have one.
+ * `detailCode` and `detailParams` stand for `detail`, `fixCode` and `fixParams` for `fix` ([ADR 0055](../../docs/adr/0055-a-refusal-carries-a-code-and-its-parameters-and-its-english-words-are-the-fallback.md)): each pair is there when its words are, and the words stay.
  * `repo` and `profiles` are set together on the checks about one repo: the names under `config.profiles` the check stands for, never empty.
  */
-export type Check = { name: string; status: 'ok' | 'warn' | 'fail'; detail?: string; fix?: string; repo?: string; profiles?: string[] };
+export type Check = {
+  name: string;
+  status: 'ok' | 'warn' | 'fail';
+  detail?: string;
+  detailCode?: string;
+  detailParams?: TextParams;
+  fix?: string;
+  fixCode?: string;
+  fixParams?: TextParams;
+  repo?: string;
+  profiles?: string[];
+};
 
 /** The part of the agy process the login check reads; the check kills it as soon as it knows. */
 export interface AgyProcess {
@@ -148,13 +161,16 @@ const realDeps: DoctorDeps = {
 
 const identity = (profile: GitHubProfile) => (profile.kind === 'forge' ? `forge agent ${profile.agent}` : 'your gh login');
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error));
+/** The detail of a check: its words with its code and parameters. */
+const said = ({ code, text, params }: CodedText) => ({ detail: text, detailCode: code, detailParams: params });
+/** The remedy of a check, or nothing at all when none applies: a remedy that does not apply is no key. */
+const remedy = (fix: CodedText | undefined) => (fix === undefined ? {} : { fix: fix.text, fixCode: fix.code, fixParams: fix.params });
 
 /** What the machine has to be able to do, and whether each identity can act on each repo. Reads only; creates nothing on GitHub. */
 export async function runDoctor(config: Config, folder: string, overrides: Partial<DoctorDeps> = {}, onCheck: (check: Check) => void = () => {}, onStart: (name: string) => void = () => {}): Promise<Check[]> {
   const deps = { ...realDeps, ...overrides };
   const checks: Check[] = [];
   const report = (check: Check) => {
-    if (check.fix === undefined) delete check.fix; // a remedy that does not apply is no key at all
     checks.push(check);
     onCheck(check);
     return check.status === 'ok';
@@ -165,7 +181,7 @@ export async function runDoctor(config: Config, folder: string, overrides: Parti
     onStart(name);
     const found = deps.which(command);
     if (!found) missing.add(command);
-    return report(found ? { name, status: 'ok' } : { name, status: 'fail', detail: 'not found on PATH', fix: installFix[command] });
+    return report(found ? { name, status: 'ok' } : { name, status: 'fail', ...said({ code: 'doctor.notOnPath', text: 'not found on PATH', params: {} }), ...remedy(installFix[command]) });
   };
 
   const repos = config.repos.map((repo) => resolveRepoConfig(config, repo));
@@ -176,7 +192,7 @@ export async function runDoctor(config: Config, folder: string, overrides: Parti
   // Only a path that does not fit is reported: Carrier works without the socket, it just has none for the app to use.
   const socket = enginePlacesOf(folder).socket;
   const { fits, bytes } = socketPathFits(socket);
-  if (fits === false) report({ name: 'control socket path fits', status: 'warn', detail: `${socket} is ${bytes} bytes and a socket path holds 103, so Carrier starts without its control socket`, fix: fixes.socketPath });
+  if (fits === false) report({ name: 'control socket path fits', status: 'warn', ...said({ code: 'doctor.socketPathTooLong', text: `${socket} is ${bytes} bytes and a socket path holds 103, so Carrier starts without its control socket`, params: { path: socket, bytes, max: 103 } }), ...remedy(fixes.socketPath) });
 
   const hasGit = installed('git');
   const hasGh = installed('gh');
@@ -192,10 +208,10 @@ export async function runDoctor(config: Config, folder: string, overrides: Parti
     onStart(name);
     try {
       const have = await deps.localModels(provider);
-      report(have.includes(model) ? { name, status: 'ok' } : { name, status: 'fail', detail: `not downloaded there (it has: ${have.join(', ') || 'nothing'})`, fix: fixes.modelMissing(model) });
+      report(have.includes(model) ? { name, status: 'ok' } : { name, status: 'fail', ...said({ code: 'doctor.modelNotDownloaded', text: `not downloaded there (it has: ${have.join(', ') || 'nothing'})`, params: { have: have.join(', ') } }), ...remedy(fixes.modelMissing(model)) });
     } catch (error) {
       log.error('a local model server did not answer', error, { provider });
-      report({ name, status: 'fail', detail: `${localLabel[provider]} is not answering at ${localUrl[provider]}; start its server`, fix: fixes.serverDown });
+      report({ name, status: 'fail', ...said({ code: 'doctor.serverNotAnswering', text: `${localLabel[provider]} is not answering at ${localUrl[provider]}; start its server`, params: { server: localLabel[provider], url: localUrl[provider] } }), ...remedy(fixes.serverDown) });
     }
   }
 
@@ -204,7 +220,7 @@ export async function runDoctor(config: Config, folder: string, overrides: Parti
     const name = `${harness} provider ${provider} command runs`;
     onStart(name);
     const runs = await deps.commandRuns(command).catch(() => false);
-    return report(runs ? { name, status: 'ok' } : { name, status: 'fail', detail: `${command} does not exist or does not run`, fix: fixes.command(provider) });
+    return report(runs ? { name, status: 'ok' } : { name, status: 'fail', ...said({ code: 'doctor.commandNotRunnable', text: `${command} does not exist or does not run`, params: { command } }), ...remedy(fixes.command(provider)) });
   };
 
   // Every Claude and Codex provider, whether a role uses it or not: a login that has run out shows here before an epic needs it.
@@ -218,24 +234,23 @@ export async function runDoctor(config: Config, folder: string, overrides: Parti
       try {
         const login = await agyLogin(deps);
         if (login === 'in') report({ name, status: 'ok' });
-        else if (login === 'out') report({ name, status: roleProviders.has(provider) ? 'fail' : 'warn', detail: 'not logged in', fix: fixes.login('agy', undefined) });
-        else report({ name, status: 'warn', detail: 'could not tell whether agy is logged in (it neither answered nor asked for a login in time)' });
+        else if (login === 'out') report({ name, status: roleProviders.has(provider) ? 'fail' : 'warn', ...said({ code: 'doctor.loginMissing', text: 'not logged in', params: {} }), ...remedy(fixes.login('agy', undefined)) });
+        else report({ name, status: 'warn', ...said({ code: 'doctor.agyLoginUnknown', text: 'could not tell whether agy is logged in (it neither answered nor asked for a login in time)', params: {} }) });
       } catch (error) {
         log.error('could not run agy to check the login', error, { provider });
-        report({ name, status: 'warn', detail: 'could not run agy to check the login', fix: installFix.agy });
+        report({ name, status: 'warn', ...said({ code: 'doctor.agyNotRunnable', text: 'could not run agy to check the login', params: {} }), ...remedy(installFix.agy) });
       }
       continue;
     }
     if (harness !== 'claude' && harness !== 'codex') continue;
     const name = `${harness} provider ${provider} is logged in`;
     const status = roleProviders.has(provider) ? 'fail' : 'warn';
-    const where = configDir ? `at ${configDir}` : 'in the environment Carrier runs in';
     onStart(name);
     try {
-      report((await deps.loggedIn(harness, configDir, ...(command === undefined ? [] : [command]))) ? { name, status: 'ok' } : { name, status, detail: `not logged in ${where}`, fix: fixes.login(harness, configDir) });
+      report((await deps.loggedIn(harness, configDir, ...(command === undefined ? [] : [command]))) ? { name, status: 'ok' } : { name, status, ...said(configDir ? { code: 'doctor.loginMissingAt', text: `not logged in at ${configDir}`, params: { configDir } } : { code: 'doctor.loginMissingInEnvironment', text: 'not logged in in the environment Carrier runs in', params: {} }), ...remedy(fixes.login(harness, configDir)) });
     } catch (error) {
       log.error(`could not run ${harness} to check the login`, error, { provider });
-      report({ name, status, detail: `could not run ${harness} to check the login ${where}`, fix: installFix[harness] });
+      report({ name, status, ...said(configDir ? { code: 'doctor.loginCheckFailedAt', text: `could not run ${harness} to check the login at ${configDir}`, params: { harness, configDir } } : { code: 'doctor.loginCheckFailedInEnvironment', text: `could not run ${harness} to check the login in the environment Carrier runs in`, params: { harness } }), ...remedy(installFix[harness]) });
     }
   }
 
@@ -257,7 +272,7 @@ export async function runDoctor(config: Config, folder: string, overrides: Parti
         await deps.mint(profile, repo.name);
         report({ name, status: 'ok', repo: repo.name, profiles: names });
       } catch (error) {
-        report({ name, status: 'fail', detail: message(error), fix: fixes.mint(profile, repo.name, message(error)), repo: repo.name, profiles: names });
+        report({ name, status: 'fail', ...said({ code: 'doctor.mintFailed', text: message(error), params: { error: message(error) } }), ...remedy(fixes.mint(profile, repo.name, message(error))), repo: repo.name, profiles: names });
       }
     }
     if (!usable(orchestrator)) continue;
@@ -267,7 +282,7 @@ export async function runDoctor(config: Config, folder: string, overrides: Parti
     try {
       labels = await deps.listLabels(config, repo.name, folder);
     } catch (error) {
-      report({ name, status: 'fail', detail: message(error), fix: fixes.read(repo.name, message(error)), repo: repo.name, profiles: [config.orchestratorProfile] });
+      report({ name, status: 'fail', ...said({ code: 'doctor.readFailed', text: message(error), params: { error: message(error) } }), ...remedy(fixes.read(repo.name, message(error))), repo: repo.name, profiles: [config.orchestratorProfile] });
       continue;
     }
     report({ name, status: 'ok', repo: repo.name, profiles: [config.orchestratorProfile] });
@@ -278,7 +293,7 @@ export async function runDoctor(config: Config, folder: string, overrides: Parti
     // Solve creates the default labels; one the person chose is theirs to create.
     const own = missing.filter((label) => !hasLabel([defaultLabels.epic, defaultLabels.ready], label));
     const fix = own.length === 0 ? fixes.solve : fixes.ownLabels(own);
-    report(missing.length === 0 ? { name: solveName, status: 'ok', repo: repo.name, profiles: [config.orchestratorProfile] } : { name: solveName, status: 'fail', detail: `missing ${missing.join(', ')}`, fix, repo: repo.name, profiles: [config.orchestratorProfile] });
+    report(missing.length === 0 ? { name: solveName, status: 'ok', repo: repo.name, profiles: [config.orchestratorProfile] } : { name: solveName, status: 'fail', ...said({ code: 'doctor.labelsMissing', text: `missing ${missing.join(', ')}`, params: { labels: missing.join(', '), count: missing.length } }), ...remedy(fix), repo: repo.name, profiles: [config.orchestratorProfile] });
   }
 
   // The skills each role invokes, for the account it runs on, looked for from the repo's clone: the worktree of an epic does not exist yet.
@@ -300,8 +315,9 @@ export async function runDoctor(config: Config, folder: string, overrides: Parti
         const answer = await deps.skills.has(agent.harness, agent.configDir, clone, skill.name);
         const where = { repo: repo.name, profiles: [agent.profile] };
         if (answer === 'present') report({ name, status: 'ok', ...where });
-        else if (answer === 'cannot-tell') report({ name, status: 'warn', detail: `could not tell whether ${harnessLabel[agent.harness]} finds it: some place it looks could not be read`, fix: fixes.skillUnread, ...where });
-        else report({ name, status: skill.named ? 'fail' : 'warn', detail: `${harnessLabel[agent.harness]} does not find it for the account of the ${role}${skill.named ? '' : ' (it is Solve\'s default, so the epic runs anyway)'}`, fix: fixes.skill(skill.name), ...where });
+        else if (answer === 'cannot-tell') report({ name, status: 'warn', ...said({ code: 'doctor.skillUnreadable', text: `could not tell whether ${harnessLabel[agent.harness]} finds it: some place it looks could not be read`, params: { harness: harnessLabel[agent.harness] } }), ...remedy(fixes.skillUnread), ...where });
+        else if (skill.named) report({ name, status: 'fail', ...said({ code: 'doctor.skillNotFound', text: `${harnessLabel[agent.harness]} does not find it for the account of the ${role}`, params: { harness: harnessLabel[agent.harness], role } }), ...remedy(fixes.skill(skill.name)), ...where });
+        else report({ name, status: 'warn', ...said({ code: 'doctor.skillNotFoundDefault', text: `${harnessLabel[agent.harness]} does not find it for the account of the ${role} (it is Solve's default, so the epic runs anyway)`, params: { harness: harnessLabel[agent.harness], role } }), ...remedy(fixes.skill(skill.name)), ...where });
       }
     }
   }

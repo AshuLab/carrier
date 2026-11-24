@@ -36,6 +36,7 @@ import { agreedSummaries, decideRound, recordNoVerdict, roundNones, roundTally, 
 import { agentOfSlot, failoverStepsOfSlot, roundSlots, skillsOfSlot, withAgentOfSlot } from './slots.ts';
 import type { QuotaReader } from './quota.ts';
 import { isBack, resumeAtOf } from './resume-at.ts';
+import type { CodedText } from './text-params.ts';
 
 export type EngineSettings = {
   pollIntervalMs: number;
@@ -175,7 +176,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
   const restart = (queuedAt: number) => ({
     status: 'queued' as const, queuedAt, startedAt: null, config: null, labelPending: false, stage: null, stageStartedAt: null, workspace: null,
     lastActivityAt: null, lastError: null, round: null, prNumber: null, prHeadSha: null, pr: null, reviewedSha: null, leadRound: null, approvedSha: null, verification: null, observationsPassAt: null,
-    needsHumanReason: null, needsHumanKind: null, finishedAt: null, authorOption: null, reviewerOption: null, recoveries: 0, autoResumes: 0, headRepeats: 0, unansweredObservations: null, unansweredReason: null, retryAt: null, resumeStage: null, roundLimit: null, resumeAt: null,
+    needsHumanReason: null, needsHumanCode: null, needsHumanParams: null, needsHumanKind: null, finishedAt: null, authorOption: null, reviewerOption: null, recoveries: 0, autoResumes: 0, headRepeats: 0, unansweredObservations: null, unansweredReason: null, retryAt: null, resumeStage: null, roundLimit: null, resumeAt: null,
   });
   // The rounds an epic may have: what a resume granted it, else the live setting (a changed `maxReviews` applies at the epic's next review).
   // The cancels that lost no work: `ready` coming back before the epic had an execution puts it in the queue again.
@@ -185,7 +186,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
   // worktree and the rest of where it stood; `resumeStage` tells `begin` where to start.
   const requeueKeeping = (queuedAt: number) => ({
     status: 'queued' as const, queuedAt, startedAt: null, config: null, labelPending: false, stage: null, stageStartedAt: null,
-    lastActivityAt: null, lastError: null, leadRound: null, approvedSha: null, needsHumanReason: null, needsHumanKind: null, finishedAt: null, authorOption: null, reviewerOption: null, recoveries: 0, autoResumes: 0, headRepeats: 0, unansweredObservations: null, unansweredReason: null, retryAt: null, resumeAt: null,
+    lastActivityAt: null, lastError: null, leadRound: null, approvedSha: null, needsHumanReason: null, needsHumanCode: null, needsHumanParams: null, needsHumanKind: null, finishedAt: null, authorOption: null, reviewerOption: null, recoveries: 0, autoResumes: 0, headRepeats: 0, unansweredObservations: null, unansweredReason: null, retryAt: null, resumeAt: null,
   });
 
   // The labels a poll read of each issue (`repo#issue`), kept up to date by Carrier's own writes and emptied when the poll ends:
@@ -266,8 +267,8 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
   };
 
   // The epic leaves `running` for `needs_human`; the label follows (labelPending) and the slot is free.
-  const toNeedsHuman = (writer: Pick<Db, 'update'>, id: number, kind: (typeof needsHumanKinds)[number], reason: string) =>
-    writer.update(epics).set({ status: 'needs_human', needsHumanKind: kind, needsHumanReason: reason, finishedAt: clock.now(), labelPending: true, retryAt: null }).where(eq(epics.id, id)).run();
+  const toNeedsHuman = (writer: Pick<Db, 'update'>, id: number, kind: (typeof needsHumanKinds)[number], reason: CodedText) =>
+    writer.update(epics).set({ status: 'needs_human', needsHumanKind: kind, needsHumanReason: reason.text, needsHumanCode: reason.code, needsHumanParams: reason.params, finishedAt: clock.now(), labelPending: true, retryAt: null }).where(eq(epics.id, id)).run();
 
   // What the database says when it cannot be read or written: about the whole engine, never about one epic.
   const isDatabaseError = (e: unknown) => [e, (e as Error | undefined)?.cause].some((x) => typeof (x as NodeJS.ErrnoException | undefined)?.code === 'string' && (x as NodeJS.ErrnoException).code!.startsWith('SQLITE_'));
@@ -287,7 +288,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       if (run) await run.stop(); // its own end is recorded when it settles
       else db.update(executions).set({ status: 'failed', finishedAt: clock.now(), error: reason }).where(eq(executions.executionId, executionId)).run();
     }
-    if (stillRunning(epicId)) toNeedsHuman(db, epicId, 'engine_error', reason);
+    if (stillRunning(epicId)) toNeedsHuman(db, epicId, 'engine_error', { code: 'epic.stop.engineError', text: reason, params: { detail: reason } });
     await freeSlot().catch((err) => log.error('freeing the slot of a stopped epic failed', err));
   }
 
@@ -406,15 +407,15 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
 
   // With failover on, the role that ran out moves to the first option of `order` that has not run out in this epic and its stage runs
   // again as a rebuilt session, no retry spent. `why` is what to add to the stop reason when it could not move.
-  async function failOver(epicId: number, stage: AgentTask['stage'], failedExecution: Execution): Promise<{ relaunched: true } | { relaunched: false; why: string }> {
+  async function failOver(epicId: number, stage: AgentTask['stage'], failedExecution: Execution): Promise<{ relaunched: true } | { relaunched: false; why: string; ranOut: string }> {
     const epic = fresh(epicId);
     const epoch = epochOf(epicId);
     const { config } = epic;
     const slot = slotOf(failedExecution);
     const steps = failoverStepsOfSlot(config, slot);
-    if (!config || steps.length === 0) return { relaunched: false, why: '' };
+    if (!config || steps.length === 0) return { relaunched: false, why: '', ranOut: '' };
     const triggers = config.failover?.triggers ?? failoverTriggers;
-    if (!matchesFailoverTrigger(triggers, failedExecution.failureKind, failedExecution.failureDetail)) return { relaunched: false, why: '' };
+    if (!matchesFailoverTrigger(triggers, failedExecution.failureKind, failedExecution.failureDetail)) return { relaunched: false, why: '', ranOut: '' };
     const failoverKinds = [
       ...(triggers.includes('usage_limit') ? (['usage_limit'] as const) : []),
       ...((triggers.includes('service_down') || triggers.includes('rate_limit')) ? (['api_error', 'spawn_error'] as const) : []),
@@ -428,7 +429,10 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     };
     const hasRunOut = (step: { provider: string; model?: string }) => ranOut.some((run) => run.option === step.provider && run.model === modelOf(step));
     const next = steps.find((step) => !hasRunOut(step));
-    if (next === undefined) return { relaunched: false, why: `; no step left in failover, ran out: ${[...new Set(ranOut.map((run) => `${run.option ?? '?'} ${run.model ?? '?'}`))].join(', ')}` };
+    if (next === undefined) {
+      const options = [...new Set(ranOut.map((run) => `${run.option ?? '?'} ${run.model ?? '?'}`))].join(', ');
+      return { relaunched: false, why: noStepLeft(options), ranOut: options };
+    }
     if (stopping || epic.status !== 'running') return { relaunched: true };
     // Read only; GitHub being down is not a reason to stop: the agent verifies the state first anyway.
     const found = await github.findPullRequest(epic.repo, epic.issue).catch((e) => (failed(e), null));
@@ -484,6 +488,18 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     for (const epic of due) await isolating(epic.id, epic.repo, () => wakeOne(epic));
   }
 
+  // The reason of an epic whose wake-up was refused: the clause that promised it is replaced, found by the stored `when`, never by the words. A reason with no code (from before them) keeps its words.
+  function wakeRefused(epic: Epic, why: string): Partial<typeof epics.$inferInsert> {
+    const stored = epic.needsHumanParams;
+    if (epic.needsHumanCode !== 'epic.stop.usageLimit' || stored === null || stored.wake !== 'scheduled' || epic.needsHumanReason === null) return {};
+    const reason: CodedText = {
+      code: 'epic.stop.usageLimitWakeRefused',
+      text: epic.needsHumanReason.replace(` · resumes by itself at ${stored.when}`, () => ` · it will not resume by itself: ${why}`),
+      params: { cause: stored.cause!, runs: stored.runs!, stage: stored.stage!, option: stored.option!, role: stored.role!, repo: stored.repo!, issue: stored.issue!, detail: stored.detail!, ranOut: stored.ranOut!, why },
+    };
+    return { needsHumanReason: reason.text, needsHumanCode: reason.code, needsHumanParams: reason.params };
+  }
+
   async function wakeOne(epic: Epic) {
     // A stop at the lead, or at the author's fix of its exchange, resumes at that stage with its lead round kept: only the wake-up sets `lead` (a person's resume starts the lead's exchange over).
     const stage = epic.stage === 'review' || epic.stage === 'fix' || epic.stage === 'lead' ? epic.stage : null;
@@ -495,7 +511,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
         // Not what the stage would work on, and nothing in the epic changes that by itself: it stops waiting (no read of GitHub at every poll, no promise in the
         // panel) and a person's resume decides. The reason keeps the way out and says why it will not go on.
         log.warn('the epic does not wake up', { epicId: epic.id, refusal: refusal.reason });
-        db.update(epics).set({ resumeAt: null, needsHumanReason: epic.needsHumanReason?.replace(/ · resumes by itself at \S+/, ` · it will not resume by itself: ${refusal.reason}`) }).where(and(eq(epics.id, epic.id), eq(epics.status, 'needs_human'), eq(epics.resumeAt, epic.resumeAt!))).run();
+        db.update(epics).set({ resumeAt: null, ...wakeRefused(epic, refusal.reason) }).where(and(eq(epics.id, epic.id), eq(epics.status, 'needs_human'), eq(epics.resumeAt, epic.resumeAt!))).run();
         return;
       }
     }
@@ -524,6 +540,8 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     if (woke && back.run.option) restarts.set(epic.id, { [woken ?? 'author']: back.run.option }); // the role that ran out, the lead included, goes back on the option that came back
   }
 
+  const noStepLeft = (ranOut: string) => (ranOut === '' ? '' : `; no step left in failover, ran out: ${ranOut}`);
+
   // A stage ended on its usage limit: another option of the failover list, or the epic stops for a person. The reason says how to go on
   // (the panel cuts long lines, so the way out comes before the agent's own detail, which carries the reset time).
   // With `autoResume` on it also says when the window comes back, and the epic keeps that time as `resumeAt` when it is within `autoResumeMaxHours`.
@@ -533,12 +551,12 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     // A reviewer of a round of several with no option left gives no verdict: the round goes on with the others.
     const why = `ran out of usage on option ${execution.option ?? execution.harness}${execution.failureDetail ? ` · ${execution.failureDetail}` : ''}${moved.why}`;
     if (await settleWithoutVerdict(epicId, { slot: slotOf(execution)!, kind: 'usage_limit', why, executionId: execution.executionId }, execution.headSha)) return;
-    await stopOnUsageLimit(epicId, [execution], moved.why);
+    await stopOnUsageLimit(epicId, [execution], moved.ranOut);
   }
 
   // The epic stops on its usage limit, for the execution that ran out or, when a round of several reviewers had no verdict and every failure was a quota one, for all of them
   // (reviewers that share a provider account run out together): it comes back when the last of their windows does.
-  async function stopOnUsageLimit(epicId: number, runs: Execution[], noFailover = '') {
+  async function stopOnUsageLimit(epicId: number, runs: Execution[], ranOut = '') {
     const { autoResume, autoResumeMaxHours } = settings(); // read once: a reload applies to the next stop
     const spent = fresh(epicId).autoResumes >= maxAutoResumes;
     // A server error says nothing about the quota: no window to probe, no promise to resume by itself.
@@ -550,6 +568,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     const detail = runs.flatMap((run) => (run.failureDetail ? [` · ${run.failureDetail}`] : [])).join('');
     const scheduled = back !== undefined && back - clock.now() <= autoResumeMaxHours * 3_600_000;
     const when = back === undefined ? '' : new Date(back).toISOString();
+    const wakeKind = !autoResume || serverError ? 'off' : spent ? 'spent' : back === undefined ? 'unknown' : scheduled ? 'scheduled' : 'far';
     const wake = !autoResume || serverError ? ''
       : spent ? ` · it already resumed by itself ${maxAutoResumes} times in a row: it will not again`
       : back === undefined ? ' · it will not resume by itself: the provider did not say when the window comes back'
@@ -563,7 +582,13 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
           ? `the provider answered the ${run.stage} execution on option ${option} with a server error, not a usage limit · wait and resume the epic, or carrier restart ${repo}#${issue} --${role} <option>`
           : `the ${run.stage} execution ran out of usage on option ${option} · carrier restart ${repo}#${issue} --${role} <option>`;
       }).join(' · ');
-      toNeedsHuman(tx, epicId, 'usage_limit', `${runs.length > 1 ? 'no reviewer gave a verdict, every one ran out of usage · ' : ''}${what}${wake}${detail}${noFailover}`);
+      const first = runs[0]!;
+      toNeedsHuman(tx, epicId, 'usage_limit', {
+        code: 'epic.stop.usageLimit',
+        text: `${runs.length > 1 ? 'no reviewer gave a verdict, every one ran out of usage · ' : ''}${what}${wake}${detail}${noStepLeft(ranOut)}`,
+        // the words of the run that ran out first, the others in `detail`; `when` is empty unless the window is known
+        params: { cause: serverError ? 'serverError' : 'quota', runs: runs.length, stage: first.stage, option: first.option ?? first.harness ?? '', role: slotOf(first) ?? 'author', repo, issue, wake: wakeKind, when, hours: autoResumeMaxHours, times: maxAutoResumes, detail: runs.flatMap((run) => (run.failureDetail ? [run.failureDetail] : [])).join(' · '), ranOut },
+      });
       if (scheduled) {
         tx.update(epics).set({ resumeAt: back }).where(eq(epics.id, epicId)).run();
         tx.insert(epicEvents).values({ epicId, at: clock.now(), type: 'auto_resume_scheduled', data: { resumeAt: back } }).run();
@@ -675,7 +700,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
   const launchStage = (epic: Epic, stage: 'review' | 'fix' | 'lead') => (stage === 'review' ? launchRound(epic) : execute(epic, stage));
 
   // The reason to stop for the first skill the person named and the role's harness does not find, none when every one is found, default or cannot be told.
-  async function missingSkill(epic: Epic, slot: Slot | null, folder: string): Promise<string | undefined> {
+  async function missingSkill(epic: Epic, slot: Slot | null, folder: string): Promise<CodedText | undefined> {
     const { ship, review, fix, lead } = skillsOfSlot(epic.config!, slot);
     const agent = agentOfSlot(epic.config!, slot)!;
     const role = slot ?? 'author';
@@ -692,7 +717,12 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
         codex: `in the account folder (${account}), ~/.agents/skills, the repo (${folder}), /etc/codex/skills and its plugin cache`,
         agy: `in the repo (${folder}), ~/.gemini and the plugins it lists`,
       }[agent.harness];
-      return `the skill ${skill.name} (skills.${key}) is not installed for the ${role}: ${agent.harness} looked where it finds skills, ${where} · install it, or name another in skills.${key}, then resume the epic`;
+      return {
+        code: 'epic.stop.skillMissing',
+        text: `the skill ${skill.name} (skills.${key}) is not installed for the ${role}: ${agent.harness} looked where it finds skills, ${where} · install it, or name another in skills.${key}, then resume the epic`,
+        // `account` is empty for the harness's default folder
+        params: { skill: skill.name, key, role, harness: agent.harness, account: agent.configDir ?? '', folder },
+      };
     }
     return undefined;
   }
@@ -735,7 +765,10 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     } catch (e) {
       log.error('could not prepare the workspace', e, { repo: epic.repo, epic: epic.issue, stage });
       if (!unchanged(epic.id, epoch)) return; // parked while the workspace was prepared: it keeps where it was
-      toNeedsHuman(db, epic.id, 'workspace', `could not prepare the workspace: ${e instanceof Error ? e.message : String(e)}`);
+      {
+        const error = e instanceof Error ? e.message : String(e);
+        toNeedsHuman(db, epic.id, 'workspace', { code: 'epic.stop.workspacePrepare', text: `could not prepare the workspace: ${error}`, params: { error } });
+      }
       await stopRunsOf(epic.id);
       return applyLabels(fresh(epic.id));
     }
@@ -744,7 +777,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     const missing = await missingSkill(epic, slot, workspace);
     if (missing) {
       if (!unchanged(epic.id, epoch)) return;
-      if (await settleWithoutVerdict(epic.id, { slot, kind: 'skill_missing', why: missing }, reviewedCommit ?? null)) return; // an extra reviewer's: no verdict, no run
+      if (await settleWithoutVerdict(epic.id, { slot, kind: 'skill_missing', why: missing.text }, reviewedCommit ?? null)) return; // an extra reviewer's: no verdict, no run
       toNeedsHuman(db, epic.id, 'skill_missing', missing);
       await stopRunsOf(epic.id);
       return applyLabels(fresh(epic.id));
@@ -865,7 +898,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
           else {
             // A reload removed the profile: every run that names it fails the same way and says nothing about the others, so only this epic
             // stops, naming it. The runs already going keep the token they started with.
-            if (stillRunning(epic.id)) toNeedsHuman(db, epic.id, 'auth', `profile ${task.profile} was removed from the configuration: put it back, then restart the epic`);
+            if (stillRunning(epic.id)) toNeedsHuman(db, epic.id, 'auth', { code: 'epic.stop.authProfileRemoved', text: `profile ${task.profile} was removed from the configuration: put it back, then restart the epic`, params: { profile: task.profile } });
             await freeSlot();
           }
         } else if (exit === 'timed_out') {
@@ -880,12 +913,23 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
   }
 
   // `detail` is what the execution stored, `exceeded N h`: the limit as it was when the run started.
-  const timeoutReason = (stage: string, detail: string | null) =>
-    `the ${stage} execution exceeded the time limit${detail?.startsWith('exceeded ') ? ` of ${detail.slice('exceeded '.length)}` : ''} (limits.maxExecutionHours) · session and worktree are kept: raise the limit or set it to "unlimited", then resume the epic`;
+  const timeoutReason = (stage: string, detail: string | null): CodedText => {
+    const limit = detail?.startsWith('exceeded ') ? detail.slice('exceeded '.length) : '';
+    return {
+      code: 'epic.stop.timeout',
+      text: `the ${stage} execution exceeded the time limit${limit === '' ? '' : ` of ${limit}`} (limits.maxExecutionHours) · session and worktree are kept: raise the limit or set it to "unlimited", then resume the epic`,
+      params: { stage, limit },
+    };
+  };
 
   // The profiles that sent one authentication signal and have had no execution end without one since. Not saved: a restart forgets it and costs one more signal.
   const authSignals = new Set<string>();
-  const authError = (profile: string, detail?: string) => `authentication error for profile ${profile}${detail ? `: ${failureDetail(detail)}` : ''}`;
+  const authReason = (profile: string, detail?: string): CodedText => ({
+    code: 'epic.stop.auth',
+    text: `authentication error for profile ${profile}${detail ? `: ${failureDetail(detail)}` : ''}`,
+    params: { profile, detail: detail ? failureDetail(detail) : '' },
+  });
+  const authError = (profile: string, detail?: string) => authReason(profile, detail).text;
 
   // The profile's authentication signal repeated: the running epics that use it stop for a person, with their runs, and the others go on.
   // `detail` is the message of the error, redacted like any other reason. The profile is never swapped for another one.
@@ -893,7 +937,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     for (const epic of db.select().from(epics).where(eq(epics.status, 'running')).orderBy(asc(epics.id)).all()) {
       const { author, reviewer, leadReviewer, extraReviewers } = epic.config!.agents;
       if (![author, reviewer, leadReviewer, ...(extraReviewers ?? [])].some((agent) => agent?.profile === profile)) continue; // any role, the extra reviewers and the lead included
-      toNeedsHuman(db, epic.id, 'auth', authError(profile, detail));
+      toNeedsHuman(db, epic.id, 'auth', authReason(profile, detail));
       const running = db.select().from(executions).where(and(eq(executions.epicId, epic.id), eq(executions.status, 'running'))).all();
       await Promise.all(running.map(({ executionId }) => active.get(executionId)?.stop()));
     }
@@ -929,7 +973,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
         const failure = last.failureKind === 'invalid_result' ? `the agent ended with an invalid result (invalid_result: ${last.error})` : last.error;
         const why = `ran out of ${last.stage} retries (${earlier.length + 1} attempts): ${failure}${idle}`;
         if (await settleWithoutVerdict(epicId, { slot, kind: 'retries_exhausted', why, executionId: last.executionId }, last.headSha)) return; // a reviewer of a round of several gives no verdict
-        toNeedsHuman(db, epicId, 'retries_exhausted', why);
+        toNeedsHuman(db, epicId, 'retries_exhausted', { code: 'epic.stop.retriesExhausted', text: why, params: { stage: last.stage, attempts: earlier.length + 1, failure: failure ?? '', idle: idle === '' ? 0 : 1 } });
         await stopRunsOf(epicId);
         return await freeSlot();
       }
@@ -1015,12 +1059,12 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
   };
 
   // Does the final PR the caller reported hold up against what GitHub says? Returns why not, or null.
-  function prProblem({ issue }: Epic, found: Awaited<ReturnType<GitHub['getPullRequest']>>, pr: { number: number; headSha: string }, stage: Execution['stage']) {
-    if (!found) return `PR #${pr.number} does not exist`;
-    if (found.state !== 'open') return `PR #${pr.number} is not open`;
-    if (!new RegExp(`\\bcloses #${issue}(?!\\d)`, 'i').test(found.body)) return `PR #${pr.number} does not reference the epic (missing "Closes #${issue}")`;
+  function prProblem({ issue }: Epic, found: Awaited<ReturnType<GitHub['getPullRequest']>>, pr: { number: number; headSha: string }, stage: Execution['stage']): CodedText | null {
+    if (!found) return { code: 'epic.stop.pullRequestMissing', text: `PR #${pr.number} does not exist`, params: { pr: pr.number } };
+    if (found.state !== 'open') return { code: 'epic.stop.pullRequestNotOpen', text: `PR #${pr.number} is not open`, params: { pr: pr.number } };
+    if (!new RegExp(`\\bcloses #${issue}(?!\\d)`, 'i').test(found.body)) return { code: 'epic.stop.pullRequestNotLinked', text: `PR #${pr.number} does not reference the epic (missing "Closes #${issue}")`, params: { pr: pr.number, issue } };
     // A review's moved head (the lead's too) is not a problem of the pull request: it is reviewed again (ADR 0047), `settle` decides.
-    if (stage !== 'review' && stage !== 'lead' && found.headSha !== pr.headSha) return `the head of PR #${pr.number} is ${found.headSha}, not ${pr.headSha}`;
+    if (stage !== 'review' && stage !== 'lead' && found.headSha !== pr.headSha) return { code: 'epic.stop.pullRequestHeadMismatch', text: `the head of PR #${pr.number} is ${found.headSha}, not ${pr.headSha}`, params: { pr: pr.number, found: found.headSha, reported: pr.headSha } };
     return null;
   }
 
@@ -1061,7 +1105,10 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     if (result.outcome === 'changes_requested') {
       const limit = settings().maxLeadRounds;
       if ((now.leadRound ?? 1) < limit) updateOf(tx, now.id)({ stage: 'fix', stageStartedAt: clock.now(), lastError: null });
-      else toNeedsHuman(tx, now.id, 'lead_limit', `the lead reviewer still asked for changes in each of its ${limit} rounds (limits.maxLeadRounds): ${result.blockers.map((b) => b.title).join(' · ')} · fix them yourself or raise limits.maxLeadRounds, then resume the epic`);
+      else {
+        const blockers = result.blockers.map((b) => b.title).join(' · ');
+        toNeedsHuman(tx, now.id, 'lead_limit', { code: 'epic.stop.leadLimit', text: `the lead reviewer still asked for changes in each of its ${limit} rounds (limits.maxLeadRounds): ${blockers} · fix them yourself or raise limits.maxLeadRounds, then resume the epic`, params: { limit, blockers } });
+      }
       return;
     }
     updateOf(tx, now.id)({ status: 'ready_for_test', approvedSha: result.pr.headSha, finishedAt: clock.now(), labelPending: true, lastError: null });
@@ -1077,15 +1124,17 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     if (slots.length > 1) tx.insert(epicEvents).values({ epicId: now.id, at: clock.now(), type: 'round_decided', data: { round: now.round, headSha: head, decision: round.kind, ...roundTally(tx, now, { round: now.round, headSha: head }, slots) } }).run();
     if (round.kind === 'failed') {
       if (round.none.every(({ kind }) => kind === 'usage_limit')) return round.none;
-      toNeedsHuman(tx, now.id, 'reviewers_failed', `no reviewer gave a verdict in round ${now.round} · ${round.none.map(({ slot, why }) => `${slot}: ${why}`).join(' · ')} · fix what each says, then resume the epic`);
+      const detail = round.none.map(({ slot, why }) => `${slot}: ${why}`).join(' · ');
+      toNeedsHuman(tx, now.id, 'reviewers_failed', { code: 'epic.stop.reviewersFailed', text: `no reviewer gave a verdict in round ${now.round} · ${detail} · fix what each says, then resume the epic`, params: { round: now.round ?? 0, detail } });
     }
     // Every verdict completed, but a reviewer whose blockers are open gave none: not agreement, and nothing for the author to fix.
     else if (round.kind === 'open_blockers') {
-      toNeedsHuman(tx, now.id, 'reviewers_failed', `round ${now.round} is not agreed: ${round.none.map(({ slot, why }) => `${slot} asked for changes before, its blockers are still open, and it gave no verdict (${why})`).join(' · ')} · fix what each says, then resume the epic`);
+      const detail = round.none.map(({ slot, why }) => `${slot}: ${why}`).join(' · ');
+      toNeedsHuman(tx, now.id, 'reviewers_failed', { code: 'epic.stop.reviewersNotAgreed', text: `round ${now.round} is not agreed: ${round.none.map(({ slot, why }) => `${slot} asked for changes before, its blockers are still open, and it gave no verdict (${why})`).join(' · ')} · fix what each says, then resume the epic`, params: { round: now.round ?? 0, detail } });
     }
     // The round stays: the fix turn answers it, and the next review numbers the following one.
     else if (round.kind === 'changes_requested') {
-      if ((now.round ?? 0) >= roundCap(now)) toNeedsHuman(tx, now.id, 'review_limit', `review limit: round ${now.round} of ${roundCap(now)} still has requested changes`);
+      if ((now.round ?? 0) >= roundCap(now)) toNeedsHuman(tx, now.id, 'review_limit', { code: 'epic.stop.reviewLimit', text: `review limit: round ${now.round} of ${roundCap(now)} still has requested changes`, params: { round: now.round ?? 0, cap: roundCap(now) } });
       else update({ stage: 'fix', stageStartedAt: clock.now() });
     }
     // The one observations pass: the author answers them on the same round, and the reviewed head and verification wait for how it ends.
@@ -1130,7 +1179,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       db.update(epics).set({ lastError: message }).where(eq(epics.id, epic.id)).run();
       return retry(epic.id, slotOf(execution));
     }
-    let problem: { kind: 'workspace' | 'pr_invalid'; text: string } | null = null;
+    let problem: { kind: 'workspace' | 'pr_invalid'; reason: CodedText } | null = null;
     let movedTo: string | null = null; // a review whose head moved while it ran: the head GitHub has now, which the next round is made on
     let moved: { head: string; pr: number } | null = null; // the head GitHub has now when a review's head is not it; whether this result is the one that repeats the round is decided where the epic is read, with no wait before the write
     let alreadyRepeated = false; // another reviewer of the round found this move first and the round was repeated: this verdict is only set aside
@@ -1141,7 +1190,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       const { pr } = parsed.result;
       const found = await github.getPullRequest(epic.repo, pr.number);
       const invalid = prProblem(epic, found, pr, execution.stage);
-      if (invalid) problem = { kind: 'pr_invalid', text: invalid };
+      if (invalid) problem = { kind: 'pr_invalid', reason: invalid };
       else if ((execution.stage === 'review' || execution.stage === 'lead') && found!.headSha !== pr.headSha) moved = { head: found!.headSha, pr: pr.number };
       if (!problem && execution.stage === 'ship') {
         // Solve put the epic's worktree where its solve.md says: read it back from git, keep the real path for the fix turns.
@@ -1162,8 +1211,11 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
             return;
           }
           worktreeListFailures.delete(execution.executionId);
-          problem = { kind: 'workspace', text: `could not list the worktrees of the clone of ${epic.repo} after ${failures} attempts: ${listError instanceof Error ? listError.message : String(listError)}` };
-        } else if (!workspace) problem = { kind: 'workspace', text: `could not find the worktree for branch ${branch} in the clone of ${epic.repo}` };
+          {
+            const error = listError instanceof Error ? listError.message : String(listError);
+            problem = { kind: 'workspace', reason: { code: 'epic.stop.worktreeListFailed', text: `could not list the worktrees of the clone of ${epic.repo} after ${failures} attempts: ${error}`, params: { repo: epic.repo, attempts: failures, error } } };
+          }
+        } else if (!workspace) problem = { kind: 'workspace', reason: { code: 'epic.stop.worktreeNotFound', text: `could not find the worktree for branch ${branch} in the clone of ${epic.repo}`, params: { branch, repo: epic.repo } } };
       }
     }
     if (outside(epic.id) || epochOf(epic.id) !== epoch) return; // it ended, or was parked (and maybe restored) while GitHub was asked: stays `finished` without a result, the next run imports it
@@ -1172,7 +1224,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     if (moved !== null) {
       superseded = true;
       if (now.prHeadSha === moved.head) alreadyRepeated = true;
-      else if (now.headRepeats >= maxHeadRepeats) problem = { kind: 'pr_invalid', text: `the head of PR #${moved.pr} changed during the review ${now.headRepeats + 1} times in a row` };
+      else if (now.headRepeats >= maxHeadRepeats) problem = { kind: 'pr_invalid', reason: { code: 'epic.stop.headChangedRepeatedly', text: `the head of PR #${moved.pr} changed during the review ${now.headRepeats + 1} times in a row`, params: { pr: moved.pr, times: now.headRepeats + 1 } } };
       else movedTo = moved.head;
     }
     const slots = roundSlots(now.config);
@@ -1189,9 +1241,9 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       // The verdict judged a head that is not the pull request's any more: kept as the execution it is, never read by a later round (a resume at review included).
       if (superseded) tx.update(callerResults).set({ outcome: supersededOutcome }).where(eq(callerResults.executionId, execution.executionId)).run();
       if (result.outcome === 'needs_human') {
-        if (!asNone) toNeedsHuman(tx, epic.id, 'agent_needs_human', execution.stage === 'lead' ? `the lead reviewer cannot conclude: ${result.reason}` : result.reason);
+        if (!asNone) toNeedsHuman(tx, epic.id, 'agent_needs_human', execution.stage === 'lead' ? { code: 'epic.stop.leadCannotConclude', text: `the lead reviewer cannot conclude: ${result.reason}`, params: { reason: result.reason } } : { code: 'epic.stop.agentNeedsHuman', text: result.reason, params: { reason: result.reason } });
         else if (round && round.kind !== 'waiting') quotaStop = applyRound(tx, now, round, head);
-      } else if (problem) toNeedsHuman(tx, epic.id, problem.kind, problem.text);
+      } else if (problem) toNeedsHuman(tx, epic.id, problem.kind, problem.reason);
       else if (movedTo) {
         // The stage and round stay: the same stage reviews the new head.
         tx.update(epics).set({ prHeadSha: movedTo, headRepeats: now.headRepeats + 1 }).where(eq(epics.id, epic.id)).run();

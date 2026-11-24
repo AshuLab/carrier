@@ -309,6 +309,11 @@
       "prUrl": "https://github.com/acme/api/pull/9",
       "lastError": null,
       "needsHumanReason": "review limit",
+      "needsHumanCode": "epic.stop.reviewLimit",
+      "needsHumanParams": {
+        "round": 5,
+        "cap": 5
+      },
       "slices": null,
       "executionId": "exec-fix-4",
       "title": "Issue 4 of acme/api",
@@ -429,6 +434,11 @@
       "prUrl": null,
       "lastError": null,
       "needsHumanReason": "timeout",
+      "needsHumanCode": "epic.stop.timeout",
+      "needsHumanParams": {
+        "stage": "ship",
+        "limit": "4 h"
+      },
       "slices": null,
       "executionId": null,
       "title": "Issue 7 of acme/api",

@@ -55,3 +55,17 @@ test('an invalid override is refused and nothing is saved', () => {
   refused({ model: 'm', action: 'custom', inputUsdPerMillion: 1 } as never);
   expect(overrides.list().size).toBe(0);
 });
+
+test('an invalid override carries its code and parameters beside its words', () => {
+  const overrides = overridesIn();
+  const codeOf = (request: Parameters<typeof overrides.set>[0]) => {
+    try {
+      overrides.set(request);
+    } catch (error) {
+      return error instanceof PriceOverrideInvalid ? { code: error.code, message: error.message, params: error.params } : error;
+    }
+  };
+  expect(codeOf({ model: '  ', action: 'zero' })).toEqual({ code: 'usage.price.modelEmpty', message: 'the model is empty', params: {} });
+  expect(codeOf({ model: 'm', action: 'alias', aliasModel: '  ' })).toEqual({ code: 'usage.price.aliasEmpty', message: 'the alias target is empty', params: {} });
+  expect(codeOf({ model: 'm', action: 'custom', inputUsdPerMillion: -1, outputUsdPerMillion: 1 })).toMatchObject({ code: 'usage.price.ratesInvalid', params: {} });
+});

@@ -530,7 +530,7 @@ test('a failed clone stays listed with its reason, never what git said, until it
   const host = fakeProjects(git);
   host.cloneProject({ repo: 'acme/app' });
   await vi.waitFor(() => expect(host.projectClones().clones[0]?.state).toBe('failed'));
-  expect(host.projectClones()).toEqual({ clones: [{ repo: 'acme/app', folder: dest, state: 'failed', error: 'git could not clone acme/app' }] });
+  expect(host.projectClones()).toEqual({ clones: [{ repo: 'acme/app', folder: dest, state: 'failed', error: 'git could not clone acme/app', code: 'project.gitFailed', params: { repo: 'acme/app', step: 'clone' } }] });
   expect(existsSync(join(root, 'projects.json'))).toBe(false);
   expect(host.dismissClone({ repo: 'acme/app' })).toEqual({ clones: [] });
   git.failures.clear();

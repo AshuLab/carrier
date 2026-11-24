@@ -43,8 +43,8 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
 
   // Nothing is shown when the machine is fine. What cannot work at all stops here, with how to fix it.
   const lacking = [
-    ...(['git', 'gh'] as const).filter((tool) => !deps.which(tool)).map((tool) => `${tool}: ${installFix[tool]}`),
-    ...(harnesses.length === 0 ? ['an agent CLI, any of these:', ...harnessNames.map((h) => `  ${h}: ${installFix[h]}`)] : []),
+    ...(['git', 'gh'] as const).filter((tool) => !deps.which(tool)).map((tool) => `${tool}: ${installFix[tool]!.text}`),
+    ...(harnesses.length === 0 ? ['an agent CLI, any of these:', ...harnessNames.map((h) => `  ${h}: ${installFix[h]!.text}`)] : []),
   ];
   if (lacking.length > 0) throw new Error(`Carrier needs these before it can run:\n${lacking.map((line) => `  ${line}`).join('\n')}`);
   ui.note(foundLines(detected).join('\n'), 'Found on this Mac');

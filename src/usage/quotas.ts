@@ -25,12 +25,12 @@ export function createQuotas(ports: UsagePorts) {
       // Only a ProbeError's own words are kept: anything else may carry what a provider or a child printed.
       const known = error instanceof ProbeError;
       if (known === false) log.error('a quota probe failed unexpectedly', { provider, name: error instanceof Error ? error.name : typeof error });
-      snapshot = { provider, status: known ? error.status : 'error', checkedAt, windows: [], message: known ? error.message : 'the check failed' };
+      snapshot = { provider, status: known ? error.status : 'error', checkedAt, windows: [], ...(known ? { message: error.message, messageCode: error.code, messageParams: error.params } : { message: 'the check failed', messageCode: 'usage.probe.failed', messageParams: {} }) };
     }
     if (snapshot.status === 'ok') lastGood.set(key, snapshot);
     else if (snapshot.status === 'rate_limited') {
       const before = lastGood.get(key);
-      if (before !== undefined) snapshot = { ...before, status: 'rate_limited', stale: true, ...(snapshot.message !== undefined && { message: snapshot.message }) };
+      if (before !== undefined) snapshot = { ...before, status: 'rate_limited', stale: true, ...(snapshot.message !== undefined && { message: snapshot.message, ...(snapshot.messageCode !== undefined && { messageCode: snapshot.messageCode, messageParams: snapshot.messageParams ?? {} }) }) };
     }
     if (snapshot.status !== 'ok') log.warn('a quota probe did not succeed', { provider, status: snapshot.status });
     kept.set(key, { at: ports.clock.now(), snapshot });

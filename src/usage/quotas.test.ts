@@ -161,6 +161,25 @@ test('claude rate limited keeps the last known windows, marked stale, with the t
   expect(limited).toMatchObject({ status: 'rate_limited', stale: true, checkedAt: good.checkedAt, windows: good.windows, extraUsage: good.extraUsage });
 });
 
+test('a message carries its code and parameters beside its words, also on the stale snapshot a rate limit leaves', async () => {
+  const files = readsCredentials();
+  expect(await ports().quotas(claude)).toMatchObject({ message: expect.stringContaining('no Claude login found'), messageCode: 'usage.probe.claudeLoginMissing', messageParams: {} });
+  expect(await ports({ files, http: async () => ({ status: 503, json: {} }) }).quotas(claude)).toMatchObject({ message: 'the provider answered HTTP 503', messageCode: 'usage.probe.providerUnavailable', messageParams: { status: 503 } });
+  expect(await ports({ files, http: async () => ({ status: 418, json: {} }) }).quotas(claude)).toMatchObject({ messageCode: 'usage.probe.providerError', messageParams: { status: 418 } });
+  expect(await ports({ files, http: async () => { throw errorWith('ETIMEDOUT'); } }).quotas(claude)).toMatchObject({ messageCode: 'usage.probe.timedOut', messageParams: {} });
+  expect(await ports({ files, http: async () => { throw new Error(`boom ${SECRET}`); } }).quotas(claude)).toMatchObject({ status: 'unavailable', messageCode: 'usage.probe.unreachable' });
+  let status = 200;
+  const { quotas, clock } = ports({ files, http: async () => ({ status, json: claudeUsage }) });
+  await quotas(claude);
+  status = 429;
+  clock.advance(QUOTA_KEPT_MS);
+  expect(await quotas(claude)).toMatchObject({ status: 'rate_limited', stale: true, message: 'the provider is rate limiting this check', messageCode: 'usage.probe.providerRateLimited', messageParams: {} });
+  // an error that is not a probe's says nothing of itself, and has a code of its own
+  const unknown = await ports({ files, http: async () => ({ status: 200, get json(): unknown { throw new TypeError(`broken ${SECRET}`); } }) }).quotas(claude);
+  expect(unknown).toMatchObject({ status: 'error', message: 'the check failed', messageCode: 'usage.probe.failed', messageParams: {} });
+  expect(JSON.stringify(unknown)).not.toContain(SECRET);
+});
+
 test('claude rate limited with nothing known has no windows and is not stale', async () => {
   const limited = await ports({ files: readsCredentials(), http: async () => ({ status: 429, json: {} }) }).quotas(claude);
   expect(limited).toMatchObject({ status: 'rate_limited', windows: [] });

@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createScopedLogger } from '@ashulab/universal-logger';
-import { and, asc, desc, eq, inArray, isNotNull, isNull, lte, ne, notInArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lte, ne, notInArray, sql } from 'drizzle-orm';
 import type { EnginePlaces } from '../config/places.ts';
 import { runtimeOf } from '../config/providers.ts';
 import type { Agent, EffectiveRepoConfig, ExtraReviewer } from '../config/resolve.ts';
@@ -662,9 +662,10 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
   }
   const roundLaunches = new Set<number>();
   const relaunch = new Set<number>();
-  // The heads of the epic's current round that a verdict was set aside on because the pull request moved: no execution on one of them is of the round any more.
+  // The heads of the epic's current round that a reviewers' verdict was set aside on because the pull request moved: no execution on one of them is of the round any more.
+  // Only the reviewers' own, in the epic's current attempt: the lead's superseded review is of its exchange and an earlier attempt's is another round's, even on the same round number and commit.
   const deadHeads = (epic: Epic) =>
-    new Set(db.select({ headSha: executions.headSha }).from(executions).innerJoin(callerResults, eq(callerResults.executionId, executions.executionId)).where(and(eq(executions.epicId, epic.id), eq(executions.round, epic.round!), eq(callerResults.outcome, supersededOutcome))).all().map((r) => r.headSha));
+    new Set(db.select({ headSha: executions.headSha }).from(executions).innerJoin(callerResults, eq(callerResults.executionId, executions.executionId)).where(and(eq(executions.epicId, epic.id), eq(executions.stage, 'review'), eq(executions.round, epic.round!), gte(executions.startedAt, epic.startedAt ?? Number.MAX_SAFE_INTEGER), eq(callerResults.outcome, supersededOutcome))).all().map((r) => r.headSha));
   // Whether an execution about to start (a retry, a failover, a launch that prepared its workspace) is the round's no more: the epic moved on from its stage, or the round was repeated
   // on another head while GitHub or the checkout was awaited (`movedTo` does not advance the epoch): the repeat makes the slot again, so this one would be a second run of it.
   const setAside = (epicId: number, stage: AgentTask['stage'], headSha: string | null) => {

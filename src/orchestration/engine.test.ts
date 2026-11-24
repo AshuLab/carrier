@@ -6855,6 +6855,23 @@ test.each(noVerdictCases)('with several reviewers, $name: the round goes on with
   expect(labelsOf(1)).toEqual(['carrier:status:ready-for-test']);
 });
 
+test.each([
+  ['a lead\'s review of that head that a moved pull request set aside', { stage: 'lead', reviewer: 'lead', startedAt: 2_000 }],
+  ['a review of that head in an earlier attempt of the epic', { stage: 'review', reviewer: 'reviewer', startedAt: -1 }],
+] as const)('%s is not a head the round set aside: the round on it settles', async (_name, run) => {
+  const db = open();
+  inReview(db, { startedAt: 0 });
+  seedExecution(db, 'old', 1, { ...run, round: 1, headSha: SHA, status: 'finished' });
+  db.insert(callerResults).values({ executionId: 'old', outcome: 'superseded', result: JSON.stringify({ summary: 's' }) }).run();
+  runner.behavior = bySlot({ reviewer: gives(ok), 'reviewer-2': cannotConclude });
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  await engine.idle();
+
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'ready_for_test', round: 1, reviewedSha: SHA });
+  expect(noVerdictOf(engine.db).map((n) => n.slot)).toEqual(['reviewer-2']);
+});
+
 test.each(noVerdictCases)('with one reviewer, $name: the epic stops with $kind, as it did', async ({ kind, behavior, setUp, slow }) => {
   setUp();
   const own = { ...repos[0]!, agents, ...(kind === 'skill_missing' && { skills: resolveSkills(solveSkills, { review: { review: 'mine' } }) }) } as EffectiveRepoConfig;

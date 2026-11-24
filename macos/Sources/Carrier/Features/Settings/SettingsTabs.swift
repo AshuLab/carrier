@@ -640,12 +640,12 @@ struct SettingsTitle: Equatable {
     let subtitle: String
 }
 
-struct SettingsTitleKey: PreferenceKey {
+struct SettingsTitleKey: SwiftUI.PreferenceKey {
     static let defaultValue: SettingsTitle? = nil
     static func reduce(value: inout SettingsTitle?, nextValue: () -> SettingsTitle?) { value = nextValue() ?? value }
 }
 
-struct SettingsHeaderNoteKey: PreferenceKey {
+struct SettingsHeaderNoteKey: SwiftUI.PreferenceKey {
     static let defaultValue: SettingsHeaderNote? = nil
     static func reduce(value: inout SettingsHeaderNote?, nextValue: () -> SettingsHeaderNote?) { value = nextValue() ?? value }
 }

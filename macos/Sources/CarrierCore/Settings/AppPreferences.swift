@@ -3,418 +3,429 @@ import Foundation
 /// The App group's preferences, kept in user defaults so they hold across a relaunch: each with its default, and a bad saved value
 /// reads as the default. The keys are the ones that already existed, so nothing a person set is lost.
 public struct AppPreferences {
-    public static let styleKey = "menu.iconStyle"
-    public static let animatesKey = "menu.animate"
-    public static let confirmStopKey = "stop.confirm"
-    public static let timeStyleKey = "display.timeStyle"
-    public static let clockHoursKey = "display.clock"
-    public static let colorSchemeKey = "appearance.colorScheme"
-    public static let densityKey = "appearance.density"
-    public static let themeKey = "appearance.theme"
-    public static let accentKey = "appearance.accent"
-    public static let tintKey = "appearance.tint"
-    public static let translucentKey = "appearance.translucent"
-    public static let monospaceFamilyKey = "appearance.mono.family"
-    public static let monospaceSizeKey = "appearance.mono.size"
-    public static let monospaceLineHeightKey = "appearance.mono.lineHeight"
-    public static let monospaceLigaturesKey = "appearance.mono.ligatures"
-    public static let monospaceWrapKey = "appearance.mono.wrap"
-    public static let monospaceLineNumbersKey = "appearance.mono.lineNumbers"
-    public static let statesByShapeKey = "appearance.statesByShape"
-    public static let messageWidthKey = "appearance.messageWidth"
-    public static let chatTextSizeKey = "chat.textSize"
-    public static let chatLineSpacingKey = "chat.lineSpacing"
-    public static let chatMessageSpacingKey = "chat.messageSpacing"
-    public static let chatSurfaceKey = "chat.surface"
-    public static let sendKeyKey = "chat.sendKey"
-    public static let whileWorkingKey = "chat.whileWorking"
-    public static let writingToolsKey = "chat.writingTools"
-    public static let checksSpellingKey = "chat.checkSpelling"
-    public static let correctsSpellingKey = "chat.correctSpelling"
-    public static let showsContextUsageKey = "chat.showsContextUsage"
-    public static let followsOutputKey = "chat.followOutput"
-    public static let messageTimesKey = "chat.messageTimes"
-    public static let toolOutputKey = "chat.toolOutput"
-    public static let opensFailedCallsKey = "chat.opensFailedCalls"
-    public static let diffStyleKey = "chat.diffStyle"
-    public static let outputLengthKey = "chat.outputLength"
-    public static let confirmDeleteKey = "chat.confirmDelete"
-    public static let showsReasoningKey = "chat.showReasoning"
-    public static let newSessionAgentKey = "chat.newSession.agent"
-    public static let newSessionModelKey = "chat.newSession.model"
-    public static let newSessionEffortKey = "chat.newSession.effort"
-    public static let newSessionAccessKey = "chat.newSession.access"
-    public static let workInKey = "chat.newSession.workIn"
-    public static let dictationEnabledKey = "dictation.enabled"
-    public static let dictationCleanupEnabledKey = "dictation.cleanup.enabled"
-    public static let dictationCleanupServerKey = "dictation.cleanup.server"
-    public static let dictationCleanupModelKey = "dictation.cleanup.model"
-    public static let dictationCleanupPromptKey = "dictation.cleanup.prompt"
-    public static let dictationModelKey = "dictation.model"
+    public static let styleKey = Preference.menuIconStyle.name
+    public static let animatesKey = Preference.menuAnimate.name
+    public static let confirmStopKey = Preference.stopConfirm.name
+    public static let timeStyleKey = Preference.displayTimeStyle.name
+    public static let clockHoursKey = Preference.displayClock.name
+    public static let colorSchemeKey = Preference.appearanceColorScheme.name
+    public static let densityKey = Preference.appearanceDensity.name
+    public static let themeKey = Preference.appearanceTheme.name
+    public static let accentKey = Preference.appearanceAccent.name
+    public static let tintKey = Preference.appearanceTint.name
+    public static let translucentKey = Preference.appearanceTranslucent.name
+    public static let monospaceFamilyKey = Preference.appearanceMonoFamily.name
+    public static let monospaceSizeKey = Preference.appearanceMonoSize.name
+    public static let monospaceLineHeightKey = Preference.appearanceMonoLineHeight.name
+    public static let monospaceLigaturesKey = Preference.appearanceMonoLigatures.name
+    public static let monospaceWrapKey = Preference.appearanceMonoWrap.name
+    public static let monospaceLineNumbersKey = Preference.appearanceMonoLineNumbers.name
+    public static let statesByShapeKey = Preference.appearanceStatesByShape.name
+    public static let messageWidthKey = Preference.appearanceMessageWidth.name
+    public static let chatTextSizeKey = Preference.chatTextSize.name
+    public static let chatLineSpacingKey = Preference.chatLineSpacing.name
+    public static let chatMessageSpacingKey = Preference.chatMessageSpacing.name
+    public static let chatSurfaceKey = Preference.chatSurface.name
+    public static let sendKeyKey = Preference.chatSendKey.name
+    public static let whileWorkingKey = Preference.chatWhileWorking.name
+    public static let writingToolsKey = Preference.chatWritingTools.name
+    public static let checksSpellingKey = Preference.chatCheckSpelling.name
+    public static let correctsSpellingKey = Preference.chatCorrectSpelling.name
+    public static let showsContextUsageKey = Preference.chatShowsContextUsage.name
+    public static let followsOutputKey = Preference.chatFollowOutput.name
+    public static let messageTimesKey = Preference.chatMessageTimes.name
+    public static let toolOutputKey = Preference.chatToolOutput.name
+    public static let opensFailedCallsKey = Preference.chatOpensFailedCalls.name
+    public static let diffStyleKey = Preference.chatDiffStyle.name
+    public static let outputLengthKey = Preference.chatOutputLength.name
+    public static let confirmDeleteKey = Preference.chatConfirmDelete.name
+    public static let showsReasoningKey = Preference.chatShowReasoning.name
+    public static let newSessionAgentKey = Preference.chatNewSessionAgent.name
+    public static let newSessionModelKey = Preference.chatNewSessionModel.name
+    public static let newSessionEffortKey = Preference.chatNewSessionEffort.name
+    public static let newSessionAccessKey = Preference.chatNewSessionAccess.name
+    public static let workInKey = Preference.chatNewSessionWorkIn.name
+    public static let dictationEnabledKey = Preference.dictationEnabled.name
+    public static let dictationCleanupEnabledKey = Preference.dictationCleanupEnabled.name
+    public static let dictationCleanupServerKey = Preference.dictationCleanupServer.name
+    public static let dictationCleanupModelKey = Preference.dictationCleanupModel.name
+    public static let dictationCleanupPromptKey = Preference.dictationCleanupPrompt.name
+    public static let dictationModelKey = Preference.dictationModel.name
     /// Load the chosen model when Carrier opens with Dictation on, and when Dictation is turned on or the model or language changes.
-    public static let dictationKeepReadyKey = "dictation.model.keepReady"
+    public static let dictationKeepReadyKey = Preference.dictationModelKeepReady.name
     /// Minutes without dictating after which the model is released; 0 is Never.
-    public static let dictationReleaseAfterKey = "dictation.model.releaseAfter"
-    public static let dictationLanguageKey = "dictation.language"
-    public static let dictationGlobalKey = "dictation.global"
-    public static let dictationKeepTextKey = "dictation.history.keepText"
-    public static let dictationKeepAudioKey = "dictation.history.keepAudio"
-    public static let dictationDeleteAudioAfterKey = "dictation.history.deleteAudioAfter"
-    public static let dictationTypingSpeedKey = "dictation.statistics.wpm"
-    public static let dictationAccessibilityExplainedKey = "dictation.accessibilityExplained"
-    public static let dictationShortcutKey = "dictation.shortcut"
-    public static let dictationActivationKey = "dictation.activation"
-    public static let dictationWidgetStyleKey = "dictation.widget.style"
-    public static let dictationWidgetPositionKey = "dictation.widget.position"
-    public static let dictationWidgetThemeKey = "dictation.widget.theme"
-    public static let dictationWidgetPreviewKey = "dictation.widget.preview"
-    public static let dictationWidgetSpotKey = "dictation.widget.spot"
-    public static let dictationStartSoundOnKey = "dictation.sound.start.on"
-    public static let dictationStartSoundKey = "dictation.sound.start"
-    public static let dictationEndSoundOnKey = "dictation.sound.end.on"
-    public static let dictationEndSoundKey = "dictation.sound.end"
-    public static let dictationSoundVolumeKey = "dictation.sound.volume"
-    public static let awakeScreenKey = "awake.screen"
-    public static let awakeMinutesKey = "awake.minutes"
-    public static let awakeAgentsKey = "awake.agents"
-    public static let awakeGraceKey = "awake.grace"
-    public static let awakeBatteryKey = "awake.battery"
-    public static let awakeNotifyKey = "awake.notify"
-    public static let awakeShortcutKey = "awake.shortcut"
-    public static let updateDelayKey = "updates.delayDays"
-    public static let terminalThemeKey = "terminal.theme"
-    public static let terminalFontFamilyKey = "terminal.font.family"
-    public static let terminalFontSizeKey = "terminal.font.size"
-    public static let terminalFontLigaturesKey = "terminal.font.ligatures"
-    public static let terminalCursorStyleKey = "terminal.cursor.style"
-    public static let terminalCursorBlinkKey = "terminal.cursor.blink"
-    public static let terminalPaddingXKey = "terminal.padding.x"
-    public static let terminalPaddingYKey = "terminal.padding.y"
-    public static let terminalMinimumContrastKey = "terminal.minimumContrast"
-    public static let terminalConfirmCloseKey = "terminal.confirmCloseRunningProcess"
-    public static let terminalPinPromptToBottomKey = "terminal.pinPromptToBottom"
-    public static let terminalDrawerHeightKey = "terminal.drawerHeight"
-    public static let defaultTerminalDrawerHeight: Double = 260
-    public static let terminalFontThickenKey = "terminal.font.thicken"
-    public static let terminalDimInactivePanesKey = "terminal.panes.dimInactive"
-    public static let terminalFocusFollowsMouseKey = "terminal.panes.focusFollowsMouse"
-    public static let terminalOptionAsAltKey = "terminal.input.optionAsAlt"
-    public static let terminalCopyOnSelectKey = "terminal.input.copyOnSelect"
-    public static let terminalScrollbackLimitKey = "terminal.scrollback.limit"
+    public static let dictationReleaseAfterKey = Preference.dictationModelReleaseAfter.name
+    public static let dictationLanguageKey = Preference.dictationLanguage.name
+    public static let dictationGlobalKey = Preference.dictationGlobal.name
+    public static let dictationKeepTextKey = Preference.dictationHistoryKeepText.name
+    public static let dictationKeepAudioKey = Preference.dictationHistoryKeepAudio.name
+    public static let dictationDeleteAudioAfterKey = Preference.dictationHistoryDeleteAudioAfter.name
+    public static let dictationTypingSpeedKey = Preference.dictationStatisticsWpm.name
+    public static let dictationAccessibilityExplainedKey = Preference.dictationAccessibilityExplained.name
+    public static let dictationShortcutKey = Preference.dictationShortcut.name
+    public static let dictationActivationKey = Preference.dictationActivation.name
+    public static let dictationWidgetStyleKey = Preference.dictationWidgetStyle.name
+    public static let dictationWidgetPositionKey = Preference.dictationWidgetPosition.name
+    public static let dictationWidgetThemeKey = Preference.dictationWidgetTheme.name
+    public static let dictationWidgetPreviewKey = Preference.dictationWidgetPreview.name
+    public static let dictationWidgetSpotKey = Preference.dictationWidgetSpot.name
+    public static let dictationStartSoundOnKey = Preference.dictationSoundStartOn.name
+    public static let dictationStartSoundKey = Preference.dictationSoundStart.name
+    public static let dictationEndSoundOnKey = Preference.dictationSoundEndOn.name
+    public static let dictationEndSoundKey = Preference.dictationSoundEnd.name
+    public static let dictationSoundVolumeKey = Preference.dictationSoundVolume.name
+    public static let awakeScreenKey = Preference.awakeScreen.name
+    public static let awakeMinutesKey = Preference.awakeMinutes.name
+    public static let awakeAgentsKey = Preference.awakeAgents.name
+    public static let awakeGraceKey = Preference.awakeGrace.name
+    public static let awakeBatteryKey = Preference.awakeBattery.name
+    public static let awakeNotifyKey = Preference.awakeNotify.name
+    public static let awakeShortcutKey = Preference.awakeShortcut.name
+    public static let updateDelayKey = Preference.updatesDelayDays.name
+    public static let terminalThemeKey = Preference.terminalTheme.name
+    public static let terminalFontFamilyKey = Preference.terminalFontFamily.name
+    public static let terminalFontSizeKey = Preference.terminalFontSize.name
+    public static let terminalFontLigaturesKey = Preference.terminalFontLigatures.name
+    public static let terminalCursorStyleKey = Preference.terminalCursorStyle.name
+    public static let terminalCursorBlinkKey = Preference.terminalCursorBlink.name
+    public static let terminalPaddingXKey = Preference.terminalPaddingX.name
+    public static let terminalPaddingYKey = Preference.terminalPaddingY.name
+    public static let terminalMinimumContrastKey = Preference.terminalMinimumContrast.name
+    public static let terminalConfirmCloseKey = Preference.terminalConfirmCloseRunningProcess.name
+    public static let terminalPinPromptToBottomKey = Preference.terminalPinPromptToBottom.name
+    public static let terminalDrawerHeightKey = Preference.terminalDrawerHeight.name
+    public static let defaultTerminalDrawerHeight = Preference.terminalDrawerHeight.defaultValue
+    public static let terminalFontThickenKey = Preference.terminalFontThicken.name
+    public static let terminalDimInactivePanesKey = Preference.terminalPanesDimInactive.name
+    public static let terminalFocusFollowsMouseKey = Preference.terminalPanesFocusFollowsMouse.name
+    public static let terminalOptionAsAltKey = Preference.terminalInputOptionAsAlt.name
+    public static let terminalCopyOnSelectKey = Preference.terminalInputCopyOnSelect.name
+    public static let terminalScrollbackLimitKey = Preference.terminalScrollbackLimit.name
 
-    public static let defaultStyle = IconStyle.countAndBar
-    public static let defaultAnimates = true
-    public static let defaultShowsEpics = true
-    public static let defaultConfirmStop = true
-    public static let defaultColorScheme = ColorSchemeChoice.system
-    public static let defaultDensity = Density.comfortable
-    public static let defaultMessageWidth = MessageWidth.medium
-    public static let defaultChatLineSpacing = ChatLineSpacing.normal
-    public static let defaultChatMessageSpacing = MessageSpacing.comfortable
-    public static let defaultChatSurface = ChatSurface.glass
-    public static let defaultTheme = Theme.carrier
-    public static let defaultTint = Tint.off
-    public static let defaultSendKey = SendKey.return
-    public static let defaultWhileWorking = WhileWorking.queue
-    public static let defaultWritingTools = false
-    public static let defaultChecksSpelling = true
-    public static let defaultCorrectsSpelling = false
-    public static let defaultShowsContextUsage = true
-    public static let defaultFollowsOutput = true
-    public static let defaultMessageTimes = MessageTimes.hover
-    public static let defaultToolOutput = ToolOutputMode.collapsed
-    public static let defaultOpensFailedCalls = true
-    public static let defaultDiffStyle = DiffStyle.unified
-    public static let defaultOutputLength = OutputLength.short
-    public static let defaultConfirmDelete = true
-    public static let defaultWorkIn = WorkIn.baseFolder
-    public static let defaultShowsReasoning = true
-    public static let defaultDictationEnabled = true
-    public static let defaultDictationGlobal = true
-    public static let defaultDictationKeepReady = true
-    public static let defaultDictationReleaseAfter = 15
-    public static let defaultDictationKeepText = true
-    public static let defaultDictationKeepAudio = false
-    public static let defaultDictationDeleteAudioAfter = 30
-    public static let defaultDictationTypingSpeed = 40
+    public static let defaultStyle = Preference.menuIconStyle.defaultValue
+    public static let defaultAnimates = Preference.menuAnimate.defaultValue
+    public static let defaultShowsEpics = Preference.menuShowEpics.defaultValue
+    public static let defaultConfirmStop = Preference.stopConfirm.defaultValue
+    public static let defaultColorScheme = Preference.appearanceColorScheme.defaultValue
+    public static let defaultDensity = Preference.appearanceDensity.defaultValue
+    public static let defaultMessageWidth = Preference.appearanceMessageWidth.defaultValue
+    public static let defaultChatLineSpacing = Preference.chatLineSpacing.defaultValue
+    public static let defaultChatMessageSpacing = Preference.chatMessageSpacing.defaultValue
+    public static let defaultChatSurface = Preference.chatSurface.defaultValue
+    public static let defaultTheme = Preference.appearanceTheme.defaultValue
+    public static let defaultTint = Preference.appearanceTint.defaultValue
+    public static let defaultSendKey = Preference.chatSendKey.defaultValue
+    public static let defaultWhileWorking = Preference.chatWhileWorking.defaultValue
+    public static let defaultWritingTools = Preference.chatWritingTools.defaultValue
+    public static let defaultChecksSpelling = Preference.chatCheckSpelling.defaultValue
+    public static let defaultCorrectsSpelling = Preference.chatCorrectSpelling.defaultValue
+    public static let defaultShowsContextUsage = Preference.chatShowsContextUsage.defaultValue
+    public static let defaultFollowsOutput = Preference.chatFollowOutput.defaultValue
+    public static let defaultMessageTimes = Preference.chatMessageTimes.defaultValue
+    public static let defaultToolOutput = Preference.chatToolOutput.defaultValue
+    public static let defaultOpensFailedCalls = Preference.chatOpensFailedCalls.defaultValue
+    public static let defaultDiffStyle = Preference.chatDiffStyle.defaultValue
+    public static let defaultOutputLength = OutputLength(rawValue: Preference.chatOutputLength.defaultValue) ?? .short
+    public static let defaultConfirmDelete = Preference.chatConfirmDelete.defaultValue
+    public static let defaultWorkIn = Preference.chatNewSessionWorkIn.defaultValue
+    public static let defaultShowsReasoning = Preference.chatShowReasoning.defaultValue
+    public static let defaultDictationEnabled = Preference.dictationEnabled.defaultValue
+    public static let defaultDictationGlobal = Preference.dictationGlobal.defaultValue
+    public static let defaultDictationKeepReady = Preference.dictationModelKeepReady.defaultValue
+    public static let defaultDictationReleaseAfter = Preference.dictationModelReleaseAfter.defaultValue
+    public static let defaultDictationKeepText = Preference.dictationHistoryKeepText.defaultValue
+    public static let defaultDictationKeepAudio = Preference.dictationHistoryKeepAudio.defaultValue
+    public static let defaultDictationDeleteAudioAfter = Preference.dictationHistoryDeleteAudioAfter.defaultValue
+    public static let defaultDictationTypingSpeed = Preference.dictationStatisticsWpm.defaultValue
     public static let dictationTypingSpeedRange = 10...200
-
     private let defaults: UserDefaults
 
     public init(defaults: UserDefaults = .standard) { self.defaults = defaults }
+
+    /// What a preference holds: the saved value, or its default while none is saved or the saved one is not valid.
+    public func value<V: PreferenceValue>(_ key: PreferenceKey<V>) -> V { V.read(defaults, key.name) ?? key.defaultValue }
+
+    public func store<V: PreferenceValue>(_ value: V, for key: PreferenceKey<V>) { value.write(defaults, key.name) }
+
+    /// What an optional preference holds: nil while none is saved or the saved one is not valid.
+    public func value<V: PreferenceValue>(_ key: OptionalPreferenceKey<V>) -> V? { V.read(defaults, key.name) }
+
+    /// Keeps the value of an optional preference, or takes it out for nil (`@AppStorage` has no optional `Double`).
+    public func store<V: PreferenceValue>(_ value: V?, for key: OptionalPreferenceKey<V>) {
+        if let value { value.write(defaults, key.name) } else { defaults.removeObject(forKey: key.name) }
+    }
 
     /// What a new session opens with: the provider, its model and its reasoning. Each is empty when the person chose none, and the session
     /// then takes the first provider that can work and that provider's own model and level.
     public var newSessionStart: NewSessionStart {
         NewSessionStart(
-            agent: defaults.string(forKey: Self.newSessionAgentKey) ?? "",
-            model: defaults.string(forKey: Self.newSessionModelKey) ?? "",
-            effort: defaults.string(forKey: Self.newSessionEffortKey) ?? "",
-            access: NewSessionStart.access(fromJSON: defaults.string(forKey: Self.newSessionAccessKey) ?? "")
+            agent: value(Preference.chatNewSessionAgent),
+            model: value(Preference.chatNewSessionModel),
+            effort: value(Preference.chatNewSessionEffort),
+            access: NewSessionStart.access(fromJSON: value(Preference.chatNewSessionAccess))
         )
     }
 
     public var style: IconStyle {
-        get { defaults.string(forKey: Self.styleKey).flatMap(IconStyle.init(rawValue:)) ?? Self.defaultStyle }
-        nonmutating set { defaults.set(newValue.rawValue, forKey: Self.styleKey) }
+        get { value(Preference.menuIconStyle) }
+        nonmutating set { store(newValue, for: Preference.menuIconStyle) }
     }
 
     public var animates: Bool {
-        get { defaults.object(forKey: Self.animatesKey) as? Bool ?? Self.defaultAnimates }
-        nonmutating set { defaults.set(newValue, forKey: Self.animatesKey) }
+        get { value(Preference.menuAnimate) }
+        nonmutating set { store(newValue, for: Preference.menuAnimate) }
     }
 
     public var showsEpics: Bool {
-        get { defaults.object(forKey: showEpicsKey) as? Bool ?? Self.defaultShowsEpics }
-        nonmutating set { defaults.set(newValue, forKey: showEpicsKey) }
+        get { value(Preference.menuShowEpics) }
+        nonmutating set { store(newValue, for: Preference.menuShowEpics) }
     }
 
     /// Whether stopping Carrier asks first when it would interrupt epics.
     public var confirmStop: Bool {
-        get { defaults.object(forKey: Self.confirmStopKey) as? Bool ?? Self.defaultConfirmStop }
-        nonmutating set { defaults.set(newValue, forKey: Self.confirmStopKey) }
+        get { value(Preference.stopConfirm) }
+        nonmutating set { store(newValue, for: Preference.stopConfirm) }
     }
 
     /// How ages and times read everywhere in the app: relative or as a clock time.
     public var timeStyle: TimeStyle {
-        get { defaults.string(forKey: Self.timeStyleKey).flatMap(TimeStyle.init(rawValue:)) ?? .relative }
-        nonmutating set { defaults.set(newValue.rawValue, forKey: Self.timeStyleKey) }
+        get { value(Preference.displayTimeStyle) }
+        nonmutating set { store(newValue, for: Preference.displayTimeStyle) }
     }
 
     /// The clock of clock times: the Mac's, 12 or 24 hours.
     public var clockHours: ClockHours {
-        get { defaults.string(forKey: Self.clockHoursKey).flatMap(ClockHours.init(rawValue:)) ?? .system }
-        nonmutating set { defaults.set(newValue.rawValue, forKey: Self.clockHoursKey) }
+        get { value(Preference.displayClock) }
+        nonmutating set { store(newValue, for: Preference.displayClock) }
     }
 
     /// The appearance of every window of the app: the Mac's, or light or dark whatever the Mac is.
     public var colorScheme: ColorSchemeChoice {
-        get { defaults.string(forKey: Self.colorSchemeKey).flatMap(ColorSchemeChoice.init(rawValue:)) ?? Self.defaultColorScheme }
-        nonmutating set { defaults.set(newValue.rawValue, forKey: Self.colorSchemeKey) }
+        get { value(Preference.appearanceColorScheme) }
+        nonmutating set { store(newValue, for: Preference.appearanceColorScheme) }
     }
 
     /// The text size of the whole interface in percent, the one the type scale reads.
     public var textSize: Int {
         get { TypeScale.stored(in: defaults).percent }
-        nonmutating set { defaults.set(TypeScale(percent: newValue).percent, forKey: TypeScale.percentKey) }
+        nonmutating set { store(TypeScale(percent: newValue).percent, for: Preference.appearanceTextSize) }
     }
 
     public var density: Density {
-        get { defaults.string(forKey: Self.densityKey).flatMap(Density.init(rawValue:)) ?? Self.defaultDensity }
-        nonmutating set { defaults.set(newValue.rawValue, forKey: Self.densityKey) }
+        get { value(Preference.appearanceDensity) }
+        nonmutating set { store(newValue, for: Preference.appearanceDensity) }
     }
 
     public var theme: Theme {
-        get { defaults.string(forKey: Self.themeKey).flatMap(Theme.init(rawValue:)) ?? Self.defaultTheme }
-        nonmutating set { defaults.set(newValue.rawValue, forKey: Self.themeKey) }
+        get { value(Preference.appearanceTheme) }
+        nonmutating set { store(newValue, for: Preference.appearanceTheme) }
     }
 
     /// The accent the person picked; nil is the theme's own.
     public var accent: AccentColor? {
-        get { defaults.string(forKey: Self.accentKey).flatMap(AccentColor.init(rawValue:)) }
-        nonmutating set { defaults.set(newValue?.rawValue, forKey: Self.accentKey) }
+        get { value(Preference.appearanceAccent).flatMap(AccentColor.init(rawValue:)) }
+        nonmutating set { store(newValue?.rawValue, for: Preference.appearanceAccent) }
     }
 
     public var tint: Tint {
-        get { defaults.string(forKey: Self.tintKey).flatMap(Tint.init(rawValue:)) ?? Self.defaultTint }
-        nonmutating set { defaults.set(newValue.rawValue, forKey: Self.tintKey) }
+        get { value(Preference.appearanceTint) }
+        nonmutating set { store(newValue, for: Preference.appearanceTint) }
     }
 
     /// Whether windows are translucent: what the person chose, and while they did not, the opposite of the system's Reduce transparency.
     public func translucent(systemReducesTransparency: Bool) -> Bool {
-        defaults.object(forKey: Self.translucentKey) as? Bool ?? (systemReducesTransparency == false)
+        value(Preference.appearanceTranslucent) ?? (systemReducesTransparency == false)
     }
 
-    public func setTranslucent(_ value: Bool) { defaults.set(value, forKey: Self.translucentKey) }
+    public func setTranslucent(_ value: Bool) { store(value, for: Preference.appearanceTranslucent) }
 
     /// The font, size, line height, ligatures, wrapping and line numbers of code and output; a bad saved value reads as its default.
     public var monospace: MonospaceSettings {
         get {
-            let standard = MonospaceSettings()
-            let size = defaults.object(forKey: Self.monospaceSizeKey) as? Double
+            let size = CGFloat(value(Preference.appearanceMonoSize))
             return MonospaceSettings(
-                family: defaults.string(forKey: Self.monospaceFamilyKey) ?? standard.family,
-                size: size.map { min(max(CGFloat($0), MonospaceSettings.sizeRange.lowerBound), MonospaceSettings.sizeRange.upperBound) } ?? standard.size,
-                lineHeight: defaults.string(forKey: Self.monospaceLineHeightKey).flatMap(LineHeight.init(rawValue:)) ?? standard.lineHeight,
-                ligatures: defaults.object(forKey: Self.monospaceLigaturesKey) as? Bool ?? standard.ligatures,
-                wrapLongLines: defaults.object(forKey: Self.monospaceWrapKey) as? Bool ?? standard.wrapLongLines,
-                lineNumbers: defaults.object(forKey: Self.monospaceLineNumbersKey) as? Bool ?? standard.lineNumbers
+                family: value(Preference.appearanceMonoFamily),
+                size: min(max(size, MonospaceSettings.sizeRange.lowerBound), MonospaceSettings.sizeRange.upperBound),
+                lineHeight: value(Preference.appearanceMonoLineHeight),
+                ligatures: value(Preference.appearanceMonoLigatures),
+                wrapLongLines: value(Preference.appearanceMonoWrap),
+                lineNumbers: value(Preference.appearanceMonoLineNumbers)
             )
         }
         nonmutating set {
-            defaults.set(newValue.family, forKey: Self.monospaceFamilyKey)
-            defaults.set(Double(newValue.size), forKey: Self.monospaceSizeKey)
-            defaults.set(newValue.lineHeight.rawValue, forKey: Self.monospaceLineHeightKey)
-            defaults.set(newValue.ligatures, forKey: Self.monospaceLigaturesKey)
-            defaults.set(newValue.wrapLongLines, forKey: Self.monospaceWrapKey)
-            defaults.set(newValue.lineNumbers, forKey: Self.monospaceLineNumbersKey)
+            store(newValue.family, for: Preference.appearanceMonoFamily)
+            store(Double(newValue.size), for: Preference.appearanceMonoSize)
+            store(newValue.lineHeight, for: Preference.appearanceMonoLineHeight)
+            store(newValue.ligatures, for: Preference.appearanceMonoLigatures)
+            store(newValue.wrapLongLines, for: Preference.appearanceMonoWrap)
+            store(newValue.lineNumbers, for: Preference.appearanceMonoLineNumbers)
         }
     }
 
     /// Whether each state wears a symbol beside its color, so that color is not the only clue.
     public var statesByShape: Bool {
-        get { defaults.object(forKey: Self.statesByShapeKey) as? Bool ?? false }
-        nonmutating set { defaults.set(newValue, forKey: Self.statesByShapeKey) }
+        get { value(Preference.appearanceStatesByShape) }
+        nonmutating set { store(newValue, for: Preference.appearanceStatesByShape) }
     }
 
     /// How wide a conversation gets before its messages wrap.
     public var messageWidth: MessageWidth {
-        get { defaults.string(forKey: Self.messageWidthKey).flatMap(MessageWidth.init(rawValue:)) ?? Self.defaultMessageWidth }
-        nonmutating set { defaults.set(newValue.rawValue, forKey: Self.messageWidthKey) }
+        get { value(Preference.appearanceMessageWidth) }
+        nonmutating set { store(newValue, for: Preference.appearanceMessageWidth) }
     }
 
     /// The size of the text of the messages, in points: the chat's own, apart from the text size of the app.
     public var chatTextSize: CGFloat {
-        get { ChatText.clamped(CGFloat(defaults.object(forKey: Self.chatTextSizeKey) as? Double ?? Double(ChatText.defaultSize))) }
-        nonmutating set { defaults.set(Double(ChatText.clamped(newValue)), forKey: Self.chatTextSizeKey) }
+        get { ChatText.clamped(CGFloat(value(Preference.chatTextSize))) }
+        nonmutating set { store(Double(ChatText.clamped(newValue)), for: Preference.chatTextSize) }
     }
 
     /// The room between the lines of a message.
     public var chatLineSpacing: ChatLineSpacing {
-        get { defaults.string(forKey: Self.chatLineSpacingKey).flatMap(ChatLineSpacing.init(rawValue:)) ?? Self.defaultChatLineSpacing }
-        nonmutating set { defaults.set(newValue.rawValue, forKey: Self.chatLineSpacingKey) }
+        get { value(Preference.chatLineSpacing) }
+        nonmutating set { store(newValue, for: Preference.chatLineSpacing) }
     }
 
     /// The room between the messages of a conversation.
     public var chatMessageSpacing: MessageSpacing {
-        get { defaults.string(forKey: Self.chatMessageSpacingKey).flatMap(MessageSpacing.init(rawValue:)) ?? Self.defaultChatMessageSpacing }
-        nonmutating set { defaults.set(newValue.rawValue, forKey: Self.chatMessageSpacingKey) }
+        get { value(Preference.chatMessageSpacing) }
+        nonmutating set { store(newValue, for: Preference.chatMessageSpacing) }
     }
 
     /// How the conversation draws its cards, bubbles and box: glass, or flat.
     public var chatSurface: ChatSurface {
-        get { defaults.string(forKey: Self.chatSurfaceKey).flatMap(ChatSurface.init(rawValue:)) ?? Self.defaultChatSurface }
-        nonmutating set { defaults.set(newValue.rawValue, forKey: Self.chatSurfaceKey) }
+        get { value(Preference.chatSurface) }
+        nonmutating set { store(newValue, for: Preference.chatSurface) }
     }
 
     /// The key that sends in the message box; the other one makes a new line.
     public var sendKey: SendKey {
-        get { defaults.string(forKey: Self.sendKeyKey).flatMap(SendKey.init(rawValue:)) ?? Self.defaultSendKey }
-        nonmutating set { defaults.set(newValue.rawValue, forKey: Self.sendKeyKey) }
+        get { value(Preference.chatSendKey) }
+        nonmutating set { store(newValue, for: Preference.chatSendKey) }
     }
 
     /// What sending does while the agent answers.
     public var whileWorking: WhileWorking {
-        get { defaults.string(forKey: Self.whileWorkingKey).flatMap(WhileWorking.init(rawValue:)) ?? Self.defaultWhileWorking }
-        nonmutating set { defaults.set(newValue.rawValue, forKey: Self.whileWorkingKey) }
+        get { value(Preference.chatWhileWorking) }
+        nonmutating set { store(newValue, for: Preference.chatWhileWorking) }
     }
 
     /// Whether the system's Writing Tools offer to rewrite the text of the message box.
     public var writingTools: Bool {
-        get { defaults.object(forKey: Self.writingToolsKey) as? Bool ?? Self.defaultWritingTools }
-        nonmutating set { defaults.set(newValue, forKey: Self.writingToolsKey) }
+        get { value(Preference.chatWritingTools) }
+        nonmutating set { store(newValue, for: Preference.chatWritingTools) }
     }
 
     public var checksSpelling: Bool {
-        get { defaults.object(forKey: Self.checksSpellingKey) as? Bool ?? Self.defaultChecksSpelling }
-        nonmutating set { defaults.set(newValue, forKey: Self.checksSpellingKey) }
+        get { value(Preference.chatCheckSpelling) }
+        nonmutating set { store(newValue, for: Preference.chatCheckSpelling) }
     }
 
     public var correctsSpelling: Bool {
-        get { defaults.object(forKey: Self.correctsSpellingKey) as? Bool ?? Self.defaultCorrectsSpelling }
-        nonmutating set { defaults.set(newValue, forKey: Self.correctsSpellingKey) }
+        get { value(Preference.chatCorrectSpelling) }
+        nonmutating set { store(newValue, for: Preference.chatCorrectSpelling) }
     }
 
     /// Whether an open session's message box shows the ring of the context and the limits beside the microphone.
     public var showsContextUsage: Bool {
-        get { defaults.object(forKey: Self.showsContextUsageKey) as? Bool ?? Self.defaultShowsContextUsage }
-        nonmutating set { defaults.set(newValue, forKey: Self.showsContextUsageKey) }
+        get { value(Preference.chatShowsContextUsage) }
+        nonmutating set { store(newValue, for: Preference.chatShowsContextUsage) }
     }
 
     /// Whether a conversation scrolls to new output while the person is at its end.
     public var followsOutput: Bool {
-        get { defaults.object(forKey: Self.followsOutputKey) as? Bool ?? Self.defaultFollowsOutput }
-        nonmutating set { defaults.set(newValue, forKey: Self.followsOutputKey) }
+        get { value(Preference.chatFollowOutput) }
+        nonmutating set { store(newValue, for: Preference.chatFollowOutput) }
     }
 
     /// Whether messages show the time they were written, written in the General format.
     public var messageTimes: MessageTimes {
-        get { defaults.string(forKey: Self.messageTimesKey).flatMap(MessageTimes.init(rawValue:)) ?? Self.defaultMessageTimes }
-        nonmutating set { defaults.set(newValue.rawValue, forKey: Self.messageTimesKey) }
+        get { value(Preference.chatMessageTimes) }
+        nonmutating set { store(newValue, for: Preference.chatMessageTimes) }
     }
 
     /// What the agent's tools show in a conversation.
     public var toolOutput: ToolOutputMode {
-        get { defaults.string(forKey: Self.toolOutputKey).flatMap(ToolOutputMode.init(rawValue:)) ?? Self.defaultToolOutput }
-        nonmutating set { defaults.set(newValue.rawValue, forKey: Self.toolOutputKey) }
+        get { value(Preference.chatToolOutput) }
+        nonmutating set { store(newValue, for: Preference.chatToolOutput) }
     }
 
     /// Whether a call that failed opens by itself, whatever the mode but hidden.
     public var opensFailedCalls: Bool {
-        get { defaults.object(forKey: Self.opensFailedCallsKey) as? Bool ?? Self.defaultOpensFailedCalls }
-        nonmutating set { defaults.set(newValue, forKey: Self.opensFailedCallsKey) }
+        get { value(Preference.chatOpensFailedCalls) }
+        nonmutating set { store(newValue, for: Preference.chatOpensFailedCalls) }
     }
 
     /// How an edit's diff reads: its lines one under the other, or removed and added side by side.
     public var diffStyle: DiffStyle {
-        get { defaults.string(forKey: Self.diffStyleKey).flatMap(DiffStyle.init(rawValue:)) ?? Self.defaultDiffStyle }
-        nonmutating set { defaults.set(newValue.rawValue, forKey: Self.diffStyleKey) }
+        get { value(Preference.chatDiffStyle) }
+        nonmutating set { store(newValue, for: Preference.chatDiffStyle) }
     }
 
     /// How many lines of an output show before Show more.
     public var outputLength: OutputLength {
-        get { OutputLength(rawValue: defaults.integer(forKey: Self.outputLengthKey)) ?? Self.defaultOutputLength }
-        nonmutating set { defaults.set(newValue.rawValue, forKey: Self.outputLengthKey) }
+        get { OutputLength(rawValue: value(Preference.chatOutputLength)) ?? Self.defaultOutputLength }
+        nonmutating set { store(newValue.rawValue, for: Preference.chatOutputLength) }
     }
 
     /// Whether the agent's reasoning shows folded under its message, when the host sends it.
     public var showsReasoning: Bool {
-        get { defaults.object(forKey: Self.showsReasoningKey) as? Bool ?? Self.defaultShowsReasoning }
-        nonmutating set { defaults.set(newValue, forKey: Self.showsReasoningKey) }
+        get { value(Preference.chatShowReasoning) }
+        nonmutating set { store(newValue, for: Preference.chatShowReasoning) }
     }
 
     /// Whether deleting a session asks first.
     public var confirmDelete: Bool {
-        get { defaults.object(forKey: Self.confirmDeleteKey) as? Bool ?? Self.defaultConfirmDelete }
-        nonmutating set { defaults.set(newValue, forKey: Self.confirmDeleteKey) }
+        get { value(Preference.chatConfirmDelete) }
+        nonmutating set { store(newValue, for: Preference.chatConfirmDelete) }
     }
 
     /// Where a new session opens: the base folder, or a new worktree when its folder offers one.
     public var workIn: WorkIn {
-        get { defaults.string(forKey: Self.workInKey).flatMap(WorkIn.init(rawValue:)) ?? Self.defaultWorkIn }
-        nonmutating set { defaults.set(newValue.rawValue, forKey: Self.workInKey) }
+        get { value(Preference.chatNewSessionWorkIn) }
+        nonmutating set { store(newValue, for: Preference.chatNewSessionWorkIn) }
     }
 
     /// The days the app waits after a release before it offers it by itself; none until the person chooses.
     public var updateDelayDays: Int {
-        get { clampedUpdateDelay(defaults.integer(forKey: Self.updateDelayKey)) }
-        nonmutating set { defaults.set(clampedUpdateDelay(newValue), forKey: Self.updateDelayKey) }
+        get { clampedUpdateDelay(value(Preference.updatesDelayDays)) }
+        nonmutating set { store(clampedUpdateDelay(newValue), for: Preference.updatesDelayDays) }
     }
 
     /// Whether the message box has a microphone: Dictation is on until the person turns it off.
     public var dictationEnabled: Bool {
-        get { defaults.object(forKey: Self.dictationEnabledKey) as? Bool ?? Self.defaultDictationEnabled }
-        nonmutating set { defaults.set(newValue, forKey: Self.dictationEnabledKey) }
+        get { value(Preference.dictationEnabled) }
+        nonmutating set { store(newValue, for: Preference.dictationEnabled) }
     }
 
     /// Whether Cleanup is on: off until the person turns it on. It does not wait for a server and a model: the run needs them (`DictationController`).
     public var dictationCleanupEnabled: Bool {
-        get { defaults.bool(forKey: Self.dictationCleanupEnabledKey) }
-        nonmutating set { defaults.set(newValue, forKey: Self.dictationCleanupEnabledKey) }
+        get { value(Preference.dictationCleanupEnabled) }
+        nonmutating set { store(newValue, for: Preference.dictationCleanupEnabled) }
     }
 
     /// The model server Cleanup uses; nil while the person chose none.
     public var dictationCleanupServer: CleanupServer? {
-        get { defaults.string(forKey: Self.dictationCleanupServerKey).flatMap(CleanupServer.init(rawValue:)) }
-        nonmutating set { defaults.set(newValue?.rawValue, forKey: Self.dictationCleanupServerKey) }
+        get { value(Preference.dictationCleanupServer) }
+        nonmutating set { store(newValue, for: Preference.dictationCleanupServer) }
     }
 
     /// The model of that server Cleanup uses; nil while the person chose none.
     public var dictationCleanupModel: String? {
-        get { defaults.string(forKey: Self.dictationCleanupModelKey) }
-        nonmutating set { defaults.set(newValue, forKey: Self.dictationCleanupModelKey) }
+        get { value(Preference.dictationCleanupModel) }
+        nonmutating set { store(newValue, for: Preference.dictationCleanupModel) }
     }
 
     /// The prompt of Cleanup: the default until the person writes one, and what they left (an empty box too) after.
     public var dictationCleanupPrompt: String {
-        get { defaults.string(forKey: Self.dictationCleanupPromptKey) ?? defaultCleanupPrompt }
-        nonmutating set { defaults.set(newValue, forKey: Self.dictationCleanupPromptKey) }
+        get { value(Preference.dictationCleanupPrompt) }
+        nonmutating set { store(newValue, for: Preference.dictationCleanupPrompt) }
     }
 
     /// The id of the speech model the person chose; nil while they did not.
     public var dictationModelID: String? {
-        get { defaults.string(forKey: Self.dictationModelKey) }
-        nonmutating set { defaults.set(newValue, forKey: Self.dictationModelKey) }
+        get { value(Preference.dictationModel) }
+        nonmutating set { store(newValue, for: Preference.dictationModel) }
     }
 
     /// The chosen speech model among those on offer: Apple's when none was chosen or the saved one is not on offer any more.
@@ -424,148 +435,143 @@ public struct AppPreferences {
 
     /// The language the person chose, `automaticLanguage` or a base code; nil while they did not (`languageChoices` says what that is).
     public var dictationLanguage: String? {
-        get { defaults.string(forKey: Self.dictationLanguageKey) }
-        nonmutating set { defaults.set(newValue, forKey: Self.dictationLanguageKey) }
+        get { value(Preference.dictationLanguage) }
+        nonmutating set { store(newValue, for: Preference.dictationLanguage) }
     }
 
     /// Whether the chosen speech model is loaded before the first dictation: on until the person turns it off.
     public var dictationKeepReady: Bool {
-        get { defaults.object(forKey: Self.dictationKeepReadyKey) as? Bool ?? Self.defaultDictationKeepReady }
-        nonmutating set { defaults.set(newValue, forKey: Self.dictationKeepReadyKey) }
+        get { value(Preference.dictationModelKeepReady) }
+        nonmutating set { store(newValue, for: Preference.dictationModelKeepReady) }
     }
 
     /// The minutes without dictating after which the model is released (a choice of `dictationReleaseChoices`, 0 is never); a saved value that is not on offer reads as 15.
     public var dictationReleaseAfter: Int {
         get {
-            let saved = defaults.object(forKey: Self.dictationReleaseAfterKey) as? Int
-            return saved.flatMap { minutes in dictationReleaseChoices.contains { $0.minutes == minutes } ? minutes : nil } ?? Self.defaultDictationReleaseAfter
+            let saved = value(Preference.dictationModelReleaseAfter)
+            return dictationReleaseChoices.contains { $0.minutes == saved } ? saved : Self.defaultDictationReleaseAfter
         }
-        nonmutating set { defaults.set(newValue, forKey: Self.dictationReleaseAfterKey) }
+        nonmutating set { store(newValue, for: Preference.dictationModelReleaseAfter) }
     }
 
     /// Whether the history keeps the text of each dictation: on until the person turns it off. The entries that exist stay when it is off, and Reset never deletes them.
     public var dictationKeepText: Bool {
-        get { defaults.object(forKey: Self.dictationKeepTextKey) as? Bool ?? Self.defaultDictationKeepText }
-        nonmutating set { defaults.set(newValue, forKey: Self.dictationKeepTextKey) }
+        get { value(Preference.dictationHistoryKeepText) }
+        nonmutating set { store(newValue, for: Preference.dictationHistoryKeepText) }
     }
 
     /// Whether the history keeps the audio of each dictation it records: off until the person turns it on.
     public var dictationKeepAudio: Bool {
-        get { defaults.object(forKey: Self.dictationKeepAudioKey) as? Bool ?? Self.defaultDictationKeepAudio }
-        nonmutating set { defaults.set(newValue, forKey: Self.dictationKeepAudioKey) }
+        get { value(Preference.dictationHistoryKeepAudio) }
+        nonmutating set { store(newValue, for: Preference.dictationHistoryKeepAudio) }
     }
 
     /// The days after which the audio of a dictation is deleted (a choice of `dictationAudioLimits`, 0 is never); a saved value that is not on offer reads as 30.
     public var dictationDeleteAudioAfter: Int {
         get {
-            let saved = defaults.object(forKey: Self.dictationDeleteAudioAfterKey) as? Int
-            return saved.flatMap { days in dictationAudioLimits.contains { $0.days == days } ? days : nil } ?? Self.defaultDictationDeleteAudioAfter
+            let saved = value(Preference.dictationHistoryDeleteAudioAfter)
+            return dictationAudioLimits.contains { $0.days == saved } ? saved : Self.defaultDictationDeleteAudioAfter
         }
-        nonmutating set { defaults.set(newValue, forKey: Self.dictationDeleteAudioAfterKey) }
+        nonmutating set { store(newValue, for: Preference.dictationHistoryDeleteAudioAfter) }
     }
 
     /// How fast the person types, in words a minute, which the time saved is measured against: 40 until they set it, always within 10 to 200.
     public var dictationTypingSpeed: Int {
-        get { min(max(defaults.object(forKey: Self.dictationTypingSpeedKey) as? Int ?? Self.defaultDictationTypingSpeed, Self.dictationTypingSpeedRange.lowerBound), Self.dictationTypingSpeedRange.upperBound) }
-        nonmutating set { defaults.set(newValue, forKey: Self.dictationTypingSpeedKey) }
+        get { min(max(value(Preference.dictationStatisticsWpm), Self.dictationTypingSpeedRange.lowerBound), Self.dictationTypingSpeedRange.upperBound) }
+        nonmutating set { store(newValue, for: Preference.dictationStatisticsWpm) }
     }
 
     /// Whether the global shortcut dictates in any app: on until the person turns it off. It only counts while `dictationEnabled` is on too (`globalDictationIsOn`).
     public var dictationGlobal: Bool {
-        get { defaults.object(forKey: Self.dictationGlobalKey) as? Bool ?? Self.defaultDictationGlobal }
-        nonmutating set { defaults.set(newValue, forKey: Self.dictationGlobalKey) }
+        get { value(Preference.dictationGlobal) }
+        nonmutating set { store(newValue, for: Preference.dictationGlobal) }
     }
 
     /// Whether the page already told the person what Accessibility is for. Not a setting: Reset leaves it, so the explanation is not given twice.
     public var dictationAccessibilityExplained: Bool {
-        get { defaults.bool(forKey: Self.dictationAccessibilityExplainedKey) }
-        nonmutating set { defaults.set(newValue, forKey: Self.dictationAccessibilityExplainedKey) }
+        get { value(Preference.dictationAccessibilityExplained) }
+        nonmutating set { store(newValue, for: Preference.dictationAccessibilityExplained) }
     }
 
     /// The keys of the global dictation: ⌥⇧ Space until the person records another, and one that does not pass the recorder's rules reads as that.
     public var dictationShortcut: DictationShortcut {
-        get { defaults.string(forKey: Self.dictationShortcutKey).flatMap(DictationShortcut.init(stored:)) ?? .standard }
-        nonmutating set { defaults.set(newValue.stored, forKey: Self.dictationShortcutKey) }
+        get { DictationShortcut(stored: value(Preference.dictationShortcut)) ?? .standard }
+        nonmutating set { store(newValue.stored, for: Preference.dictationShortcut) }
     }
 
     /// What the Keep awake page sets; a missing or bad value reads as its default.
     public var awake: AwakeSettings {
         var settings = AwakeSettings()
-        if defaults.object(forKey: Self.awakeScreenKey) != nil { settings.keepsScreenOn = defaults.bool(forKey: Self.awakeScreenKey) }
-        if defaults.object(forKey: Self.awakeMinutesKey) != nil { settings.defaultMinutes = AwakeLength.valid(defaults.integer(forKey: Self.awakeMinutesKey)) }
-        if defaults.object(forKey: Self.awakeAgentsKey) != nil { settings.followsAgents = defaults.bool(forKey: Self.awakeAgentsKey) }
-        if defaults.object(forKey: Self.awakeGraceKey) != nil {
-            let grace = defaults.integer(forKey: Self.awakeGraceKey)
-            if AwakeSettings.graceChoices.contains(grace) { settings.graceMinutes = grace }
-        }
-        settings.battery = defaults.string(forKey: Self.awakeBatteryKey).flatMap(BatteryRule.init(rawValue:)) ?? .standard
-        if defaults.object(forKey: Self.awakeNotifyKey) != nil { settings.notifies = defaults.bool(forKey: Self.awakeNotifyKey) }
+        settings.keepsScreenOn = value(Preference.awakeScreen)
+        settings.defaultMinutes = AwakeLength.valid(value(Preference.awakeMinutes))
+        settings.followsAgents = value(Preference.awakeAgents)
+        let grace = value(Preference.awakeGrace)
+        if AwakeSettings.graceChoices.contains(grace) { settings.graceMinutes = grace }
+        settings.battery = value(Preference.awakeBattery)
+        settings.notifies = value(Preference.awakeNotify)
         return settings
     }
 
     /// The keys that turn Keep awake on or off from any app: none until the person records them, so no installed app loses a combination.
     public var awakeShortcut: DictationShortcut? {
-        get { defaults.string(forKey: Self.awakeShortcutKey).flatMap(DictationShortcut.init(stored:)) }
-        nonmutating set {
-            if let newValue { defaults.set(newValue.stored, forKey: Self.awakeShortcutKey) } else { defaults.removeObject(forKey: Self.awakeShortcutKey) }
-        }
+        get { value(Preference.awakeShortcut).flatMap(DictationShortcut.init(stored:)) }
+        nonmutating set { store(newValue?.stored, for: Preference.awakeShortcut) }
     }
 
     /// Toggle until the person chooses Hold.
     public var dictationActivation: DictationActivation {
-        get { defaults.string(forKey: Self.dictationActivationKey).flatMap(DictationActivation.init(rawValue:)) ?? .toggle }
-        nonmutating set { defaults.set(newValue.rawValue, forKey: Self.dictationActivationKey) }
+        get { value(Preference.dictationActivation) }
+        nonmutating set { store(newValue, for: Preference.dictationActivation) }
     }
 
     /// Medium until the person chooses another.
     public var dictationWidgetStyle: DictationWidgetStyle {
-        get { defaults.string(forKey: Self.dictationWidgetStyleKey).flatMap(DictationWidgetStyle.init(rawValue:)) ?? .medium }
-        nonmutating set { defaults.set(newValue.rawValue, forKey: Self.dictationWidgetStyleKey) }
+        get { value(Preference.dictationWidgetStyle) }
+        nonmutating set { store(newValue, for: Preference.dictationWidgetStyle) }
     }
 
     /// Bottom until the person chooses Top.
     public var dictationWidgetPosition: DictationWidgetPosition {
-        get { defaults.string(forKey: Self.dictationWidgetPositionKey).flatMap(DictationWidgetPosition.init(rawValue:)) ?? .bottom }
-        nonmutating set { defaults.set(newValue.rawValue, forKey: Self.dictationWidgetPositionKey) }
+        get { value(Preference.dictationWidgetPosition) }
+        nonmutating set { store(newValue, for: Preference.dictationWidgetPosition) }
     }
 
     /// The widget's theme: the accent's glass until the person chooses another.
     public var dictationWidgetTheme: DictationWidgetTheme {
-        get { defaults.string(forKey: Self.dictationWidgetThemeKey).flatMap(DictationWidgetTheme.init(rawValue:)) ?? .accent }
-        nonmutating set { defaults.set(newValue.rawValue, forKey: Self.dictationWidgetThemeKey) }
+        get { value(Preference.dictationWidgetTheme) }
+        nonmutating set { store(newValue, for: Preference.dictationWidgetTheme) }
     }
 
     /// Whether the widget shows the words as they are said; on until the person turns it off.
     public var dictationWidgetPreview: Bool {
-        get { defaults.object(forKey: Self.dictationWidgetPreviewKey) as? Bool ?? true }
-        nonmutating set { defaults.set(newValue, forKey: Self.dictationWidgetPreviewKey) }
+        get { value(Preference.dictationWidgetPreview) }
+        nonmutating set { store(newValue, for: Preference.dictationWidgetPreview) }
     }
 
     /// Where the person dragged the widget; nil until they do, and again when they choose Top or Bottom. A stored value that cannot be read is nil.
     public var dictationWidgetSpot: DictationWidgetSpot? {
-        get { defaults.string(forKey: Self.dictationWidgetSpotKey).flatMap(DictationWidgetSpot.init(text:)) }
-        nonmutating set {
-            if let newValue { defaults.set(newValue.text, forKey: Self.dictationWidgetSpotKey) } else { defaults.removeObject(forKey: Self.dictationWidgetSpotKey) }
-        }
+        get { value(Preference.dictationWidgetSpot).flatMap(DictationWidgetSpot.init(text:)) }
+        nonmutating set { store(newValue?.text, for: Preference.dictationWidgetSpot) }
     }
 
     /// The Sounds group of the Dictation page; a saved sound that is not on offer reads as the default, and the volume as 0 to 100.
     public var dictationSounds: DictationSounds {
         get {
             var sounds = DictationSounds()
-            sounds.startOn = defaults.object(forKey: Self.dictationStartSoundOnKey) as? Bool ?? sounds.startOn
-            sounds.endOn = defaults.object(forKey: Self.dictationEndSoundOnKey) as? Bool ?? sounds.endOn
-            sounds.start = defaults.string(forKey: Self.dictationStartSoundKey).flatMap { dictationSoundChoices.contains($0) ? $0 : nil } ?? sounds.start
-            sounds.end = defaults.string(forKey: Self.dictationEndSoundKey).flatMap { dictationSoundChoices.contains($0) ? $0 : nil } ?? sounds.end
-            sounds.volume = (defaults.object(forKey: Self.dictationSoundVolumeKey) as? Int).map { min(max($0, 0), 100) } ?? sounds.volume
+            sounds.startOn = value(Preference.dictationSoundStartOn)
+            sounds.endOn = value(Preference.dictationSoundEndOn)
+            let start = value(Preference.dictationSoundStart), end = value(Preference.dictationSoundEnd)
+            if dictationSoundChoices.contains(start) { sounds.start = start }
+            if dictationSoundChoices.contains(end) { sounds.end = end }
+            sounds.volume = min(max(value(Preference.dictationSoundVolume), DictationSounds.volumeRange.lowerBound), DictationSounds.volumeRange.upperBound)
             return sounds
         }
         nonmutating set {
-            defaults.set(newValue.startOn, forKey: Self.dictationStartSoundOnKey)
-            defaults.set(newValue.start, forKey: Self.dictationStartSoundKey)
-            defaults.set(newValue.endOn, forKey: Self.dictationEndSoundOnKey)
-            defaults.set(newValue.end, forKey: Self.dictationEndSoundKey)
-            defaults.set(newValue.volume, forKey: Self.dictationSoundVolumeKey)
+            store(newValue.startOn, for: Preference.dictationSoundStartOn)
+            store(newValue.start, for: Preference.dictationSoundStart)
+            store(newValue.endOn, for: Preference.dictationSoundEndOn)
+            store(newValue.end, for: Preference.dictationSoundEnd)
+            store(newValue.volume, for: Preference.dictationSoundVolume)
         }
     }
 
@@ -573,143 +579,51 @@ public struct AppPreferences {
     public var terminal: TerminalSettings {
         get {
             TerminalSettings(
-                themeOverride: defaults.string(forKey: Self.terminalThemeKey).flatMap(Theme.init(rawValue:)),
-                fontFamilyOverride: defaults.string(forKey: Self.terminalFontFamilyKey),
-                fontSizeOverride: defaults.object(forKey: Self.terminalFontSizeKey) as? Double,
-                fontLigaturesOverride: defaults.object(forKey: Self.terminalFontLigaturesKey) as? Bool,
-                fontThicken: defaults.object(forKey: Self.terminalFontThickenKey) as? Bool ?? TerminalSettings.defaultFontThicken,
-                cursorStyle: defaults.string(forKey: Self.terminalCursorStyleKey).flatMap(TerminalCursorStyleChoice.init(rawValue:)) ?? TerminalSettings.defaultCursorStyle,
-                cursorBlink: defaults.object(forKey: Self.terminalCursorBlinkKey) as? Bool ?? TerminalSettings.defaultCursorBlink,
-                paddingX: defaults.object(forKey: Self.terminalPaddingXKey) as? Double ?? TerminalSettings.defaultPaddingX,
-                paddingY: defaults.object(forKey: Self.terminalPaddingYKey) as? Double ?? TerminalSettings.defaultPaddingY,
-                minimumContrast: defaults.object(forKey: Self.terminalMinimumContrastKey) as? Double ?? TerminalSettings.defaultMinimumContrast,
-                dimInactivePanes: defaults.object(forKey: Self.terminalDimInactivePanesKey) as? Bool ?? TerminalSettings.defaultDimInactivePanes,
-                focusFollowsMouse: defaults.object(forKey: Self.terminalFocusFollowsMouseKey) as? Bool ?? TerminalSettings.defaultFocusFollowsMouse,
-                optionAsAlt: defaults.string(forKey: Self.terminalOptionAsAltKey).flatMap(TerminalOptionAsAlt.init(rawValue:)) ?? TerminalSettings.defaultOptionAsAlt,
-                copyOnSelect: defaults.object(forKey: Self.terminalCopyOnSelectKey) as? Bool ?? TerminalSettings.defaultCopyOnSelect,
-                scrollbackLimit: (defaults.object(forKey: Self.terminalScrollbackLimitKey) as? Int).flatMap(TerminalScrollbackLimit.init(rawValue:)) ?? TerminalSettings.defaultScrollbackLimit,
-                confirmCloseRunningProcess: defaults.object(forKey: Self.terminalConfirmCloseKey) as? Bool ?? TerminalSettings.defaultConfirmCloseRunningProcess,
-                pinPromptToBottom: defaults.object(forKey: Self.terminalPinPromptToBottomKey) as? Bool ?? TerminalSettings.defaultPinPromptToBottom
+                themeOverride: value(Preference.terminalTheme),
+                fontFamilyOverride: value(Preference.terminalFontFamily),
+                fontSizeOverride: value(Preference.terminalFontSize),
+                fontLigaturesOverride: value(Preference.terminalFontLigatures),
+                fontThicken: value(Preference.terminalFontThicken),
+                cursorStyle: value(Preference.terminalCursorStyle),
+                cursorBlink: value(Preference.terminalCursorBlink),
+                paddingX: value(Preference.terminalPaddingX),
+                paddingY: value(Preference.terminalPaddingY),
+                minimumContrast: value(Preference.terminalMinimumContrast),
+                dimInactivePanes: value(Preference.terminalPanesDimInactive),
+                focusFollowsMouse: value(Preference.terminalPanesFocusFollowsMouse),
+                optionAsAlt: value(Preference.terminalInputOptionAsAlt),
+                copyOnSelect: value(Preference.terminalInputCopyOnSelect),
+                scrollbackLimit: TerminalScrollbackLimit(rawValue: value(Preference.terminalScrollbackLimit)) ?? TerminalSettings.defaultScrollbackLimit,
+                confirmCloseRunningProcess: value(Preference.terminalConfirmCloseRunningProcess),
+                pinPromptToBottom: value(Preference.terminalPinPromptToBottom)
             )
         }
         nonmutating set {
-            if let theme = newValue.themeOverride {
-                defaults.set(theme.rawValue, forKey: Self.terminalThemeKey)
-            } else {
-                defaults.removeObject(forKey: Self.terminalThemeKey)
-            }
-            if let family = TerminalSettings.cleanFontFamily(newValue.fontFamilyOverride) {
-                defaults.set(family, forKey: Self.terminalFontFamilyKey)
-            } else {
-                defaults.removeObject(forKey: Self.terminalFontFamilyKey)
-            }
-            if let size = newValue.fontSizeOverride {
-                defaults.set(TerminalSettings.clampFontSize(size), forKey: Self.terminalFontSizeKey)
-            } else {
-                defaults.removeObject(forKey: Self.terminalFontSizeKey)
-            }
-            if let ligatures = newValue.fontLigaturesOverride {
-                defaults.set(ligatures, forKey: Self.terminalFontLigaturesKey)
-            } else {
-                defaults.removeObject(forKey: Self.terminalFontLigaturesKey)
-            }
-            defaults.set(newValue.fontThicken, forKey: Self.terminalFontThickenKey)
-            defaults.set(newValue.cursorStyle.rawValue, forKey: Self.terminalCursorStyleKey)
-            defaults.set(newValue.cursorBlink, forKey: Self.terminalCursorBlinkKey)
-            defaults.set(TerminalSettings.clampPadding(newValue.paddingX), forKey: Self.terminalPaddingXKey)
-            defaults.set(TerminalSettings.clampPadding(newValue.paddingY), forKey: Self.terminalPaddingYKey)
-            defaults.set(TerminalSettings.clampMinimumContrast(newValue.minimumContrast), forKey: Self.terminalMinimumContrastKey)
-            defaults.set(newValue.dimInactivePanes, forKey: Self.terminalDimInactivePanesKey)
-            defaults.set(newValue.focusFollowsMouse, forKey: Self.terminalFocusFollowsMouseKey)
-            defaults.set(newValue.optionAsAlt.rawValue, forKey: Self.terminalOptionAsAltKey)
-            defaults.set(newValue.copyOnSelect, forKey: Self.terminalCopyOnSelectKey)
-            defaults.set(newValue.scrollbackLimit.rawValue, forKey: Self.terminalScrollbackLimitKey)
-            defaults.set(newValue.confirmCloseRunningProcess, forKey: Self.terminalConfirmCloseKey)
-            defaults.set(newValue.pinPromptToBottom, forKey: Self.terminalPinPromptToBottomKey)
+            store(newValue.themeOverride, for: Preference.terminalTheme)
+            store(TerminalSettings.cleanFontFamily(newValue.fontFamilyOverride), for: Preference.terminalFontFamily)
+            store(newValue.fontSizeOverride.map(TerminalSettings.clampFontSize), for: Preference.terminalFontSize)
+            store(newValue.fontLigaturesOverride, for: Preference.terminalFontLigatures)
+            store(newValue.fontThicken, for: Preference.terminalFontThicken)
+            store(newValue.cursorStyle, for: Preference.terminalCursorStyle)
+            store(newValue.cursorBlink, for: Preference.terminalCursorBlink)
+            store(TerminalSettings.clampPadding(newValue.paddingX), for: Preference.terminalPaddingX)
+            store(TerminalSettings.clampPadding(newValue.paddingY), for: Preference.terminalPaddingY)
+            store(TerminalSettings.clampMinimumContrast(newValue.minimumContrast), for: Preference.terminalMinimumContrast)
+            store(newValue.dimInactivePanes, for: Preference.terminalPanesDimInactive)
+            store(newValue.focusFollowsMouse, for: Preference.terminalPanesFocusFollowsMouse)
+            store(newValue.optionAsAlt, for: Preference.terminalInputOptionAsAlt)
+            store(newValue.copyOnSelect, for: Preference.terminalInputCopyOnSelect)
+            store(newValue.scrollbackLimit.rawValue, for: Preference.terminalScrollbackLimit)
+            store(newValue.confirmCloseRunningProcess, for: Preference.terminalConfirmCloseRunningProcess)
+            store(newValue.pinPromptToBottom, for: Preference.terminalPinPromptToBottom)
         }
     }
-
-    public static let terminalKeys: [String] = [
-        terminalThemeKey, terminalFontFamilyKey, terminalFontSizeKey, terminalFontLigaturesKey, terminalFontThickenKey,
-        terminalCursorStyleKey, terminalCursorBlinkKey, terminalPaddingXKey, terminalPaddingYKey,
-        terminalMinimumContrastKey, terminalDimInactivePanesKey, terminalFocusFollowsMouseKey,
-        terminalOptionAsAltKey, terminalCopyOnSelectKey, terminalScrollbackLimitKey,
-        terminalConfirmCloseKey, terminalPinPromptToBottomKey, terminalDrawerHeightKey,
-    ]
 
     /// Clears only embedded terminal settings back to defaults.
-    public func resetTerminal() {
-        for key in Self.terminalKeys { defaults.removeObject(forKey: key) }
-    }
+    public func resetTerminal() { reset(.terminal) }
 
-    /// Takes the keys of one page out, so it reads as its defaults again; the other pages are not touched.
-    public func reset(_ page: SettingsPage) {
-        for key in Self.keys(of: page) { defaults.removeObject(forKey: key) }
-    }
-
-    // the pages that gain preferences add their keys here
-    private static func keys(of page: SettingsPage) -> [String] {
-        switch page {
-        case .general: [styleKey, animatesKey, showEpicsKey, timeStyleKey, clockHoursKey]
-        case .sidebar:
-            [
-                SidebarStore.groupByKey, SidebarStore.sessionSortKey, SidebarStore.archiveSortKey, SidebarStore.archiveListSortKey, SidebarStore.showsIconKey,
-                SidebarStore.showsBranchKey, SidebarStore.showsPullRequestKey, SidebarStore.showsDiffKey, SidebarStore.showsProvidersKey, SidebarStore.showsAgeKey, SidebarStore.widthKey,
-            ]
-        case .appearance:
-            [
-                colorSchemeKey, TypeScale.percentKey, IconWeight.key, IconSet.key, densityKey, themeKey, accentKey, tintKey, translucentKey, statesByShapeKey,
-                monospaceFamilyKey, monospaceSizeKey, monospaceLineHeightKey, monospaceLigaturesKey, monospaceWrapKey, monospaceLineNumbersKey,
-            ]
-        case .terminal: terminalKeys
-        case .chat:
-            [
-                sendKeyKey, whileWorkingKey, writingToolsKey, checksSpellingKey, correctsSpellingKey, showsContextUsageKey, followsOutputKey, messageTimesKey,
-                toolOutputKey, opensFailedCallsKey, diffStyleKey, outputLengthKey, showsReasoningKey, messageWidthKey, chatSurfaceKey,
-                chatTextSizeKey, chatLineSpacingKey, chatMessageSpacingKey,
-            ]
-        // the ages of the session clock live in chat.json: the page's own Reset writes them back
-        case .sessions: [confirmDeleteKey, newSessionAgentKey, newSessionModelKey, newSessionEffortKey, newSessionAccessKey, workInKey]
-        case .notifications:
-            [
-                notifyNeedsYouKey, notifyReadyForTestKey, notifyProblemKey, notifyChatNeedsAttentionKey, notifyChatDoneKey, notifyOnlyWhenAwayKey,
-                notifyDockBadgeKey, notifySoundKey, notifyReminderKey, notifyQuietKey, notifyQuietStartKey, notifyQuietEndKey,
-            ]
-        case .dictation:
-            [
-                dictationEnabledKey,
-                dictationCleanupEnabledKey,
-                dictationCleanupServerKey,
-                dictationCleanupModelKey,
-                dictationCleanupPromptKey,
-                dictationModelKey,
-                dictationLanguageKey,
-                dictationKeepReadyKey,
-                dictationReleaseAfterKey,
-                dictationGlobalKey,
-                dictationKeepTextKey,
-                dictationKeepAudioKey,
-                dictationDeleteAudioAfterKey,
-                dictationTypingSpeedKey,
-                dictationShortcutKey,
-                dictationActivationKey,
-                dictationWidgetStyleKey,
-                dictationWidgetPositionKey,
-                dictationWidgetThemeKey,
-                dictationWidgetPreviewKey,
-                dictationWidgetSpotKey,
-                dictationStartSoundOnKey,
-                dictationStartSoundKey,
-                dictationEndSoundOnKey,
-                dictationEndSoundKey,
-                dictationSoundVolumeKey,
-            ]
-        case .keybindings: [ShortcutTable.key]
-        case .keepAwake: [awakeScreenKey, awakeMinutesKey, awakeAgentsKey, awakeGraceKey, awakeBatteryKey, awakeNotifyKey, awakeShortcutKey]
-        // the Providers and Projects pages only read (projects.json is the person's, never reset), the About page writes Sparkle's own preferences, the Carrier pages write engine.json or (Engine) a few switches that have no Reset, and the Health page keeps its own settings
-        case .providers, .projects, .about, .engine, .behavior, .watching, .agents, .health: []
-        }
-    }
+    /// Takes the keys of one page out (the schema says which: `design/preferences.json`), so it reads as its defaults again; the other pages are not touched.
+    public func reset(_ page: SettingsPage) { Preference.reset(page, in: defaults) }
 }
 
 /// The provider (a chat agent's name), model and reasoning a new session opens with, and what it may do (the options about access, by the

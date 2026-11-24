@@ -1,8 +1,11 @@
-import { mkdtempSync, rmSync, statSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { connect, type Socket } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
+import { chatConfigPathOf } from '../config/places.ts';
+import { editChatSettings } from './config.ts';
 import { ChatRefused, textCode } from './runner.ts';
 import { startChatServer, type ChatControls } from './server.ts';
 
@@ -98,6 +101,8 @@ const controls = (): ChatControls => ({
     if (args.model === 'refused') throw new ChatRefused('usage.priceInvalid', 'That price cannot be saved', { model: 'refused' });
     return { args };
   },
+  // the real writing code, over a scratch Carrier folder
+  editChatSettings: ({ changes }) => editChatSettings(changes, home()),
 });
 const seen: AbortSignal[] = [];
 let refuseBulkTitles = false;
@@ -136,7 +141,7 @@ test('the socket is 0600, and a client gets a hello and the empty list', async (
   await open();
   expect(statSync(join(dir, 'chat.sock')).mode & 0o777).toBe(0o600);
   const c = await client();
-  expect(c.hello).toMatchObject({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, capabilities: ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'agentOptions', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'createProject', 'githubRepos', 'repoBranches', 'health', 'providers', 'plan', 'stop', 'reasoning', 'rename', 'usage', 'usageOverride', 'accountIdentity', 'accountPalette', 'switchAgent', 'stopTask', 'worktreeStart', 'fetchIfStale', 'listsRev', 'projects', 'textGenerators', 'regenerateTitle', 'regenerateTitles'] });
+  expect(c.hello).toMatchObject({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, capabilities: ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'agentOptions', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'createProject', 'githubRepos', 'repoBranches', 'health', 'providers', 'plan', 'stop', 'reasoning', 'rename', 'usage', 'usageOverride', 'accountIdentity', 'accountPalette', 'switchAgent', 'stopTask', 'worktreeStart', 'fetchIfStale', 'listsRev', 'projects', 'textGenerators', 'regenerateTitle', 'regenerateTitles', 'config'] });
   expect(typeof c.hello.version).toBe('string');
   expect(await c.ask('{"id":1,"cmd":"list"}')).toEqual({ id: 1, ok: true, data: { sessions: [] } });
 });
@@ -594,4 +599,61 @@ test('close removes the socket file', async () => {
   await open();
   closers.pop()!();
   expect(() => statSync(join(dir, 'chat.sock'))).toThrow();
+});
+
+const home = () => join(dir, 'home'); // not there until a test or the writing code makes it
+const settingsFile = () => chatConfigPathOf(home());
+const seed = (text: string) => (mkdirSync(home()), writeFileSync(settingsFile(), text));
+const edit = async (changes: object) => {
+  await open();
+  const c = await client();
+  return c.ask(JSON.stringify({ id: 1, cmd: 'editChatSettings', changes }));
+};
+
+test('editChatSettings changes the keys it is given, keeps every other key as written, and a null removes one', async () => {
+  const written = { projectsFolder: '/where/I/keep/them', agents: { me: { account: 'claude-work' } }, deleteAfterDays: 60, worktreeStart: 'local' };
+  seed(JSON.stringify(written));
+  expect(await edit({ archiveAfterDays: 7, worktreeStart: null, idleCloseMinutes: 30 })).toEqual({ id: 1, ok: true, data: { saved: { archiveAfterDays: 7, idleCloseMinutes: 30 } } });
+  expect(JSON.parse(readFileSync(settingsFile(), 'utf8'))).toEqual({ projectsFolder: '/where/I/keep/them', agents: written.agents, deleteAfterDays: 60, archiveAfterDays: 7, idleCloseMinutes: 30 });
+  expect(readdirSync(home()).filter((name) => name.endsWith('.tmp'))).toEqual([]);
+});
+
+test('editChatSettings makes a chat.json that is not there, with its folder', async () => {
+  expect(await edit({ deleteAfterDays: 'never' })).toMatchObject({ ok: true, data: { saved: { deleteAfterDays: 'never' } } });
+  expect(JSON.parse(readFileSync(settingsFile(), 'utf8'))).toEqual({ deleteAfterDays: 'never' });
+});
+
+test.each([
+  [{ idleCloseMinutes: 15 }, 'idleCloseMinutes', 'invalid_union'],
+  [{ deleteAfterDays: 10 }, 'deleteAfterDays', 'custom'],
+  [{ archiveAfterDays: 0 }, 'archiveAfterDays', 'too_small'],
+  [{ worktreeStart: 'origin' }, 'worktreeStart', 'invalid_value'],
+])('editChatSettings refuses %o with the key path and kind, and leaves the file as it was', async (changes, path, problem) => {
+  const text = '{ "agents": {},\n  "archiveAfterDays": 20 }\n';
+  seed(text);
+  const reply = await edit(changes);
+  expect(reply).toMatchObject({ id: 1, ok: false, code: 'config.problem', params: { path, problem } });
+  expect(reply.error).toContain(path);
+  expect(readFileSync(settingsFile(), 'utf8')).toBe(text);
+});
+
+test.each([['[1, 2]', 'notAnObject'], ['"text"', 'notAnObject'], ['{ not json', 'notJson']])('editChatSettings refuses a chat.json that holds %s and leaves it as it was', async (text, problem) => {
+  seed(text);
+  expect(await edit({ archiveAfterDays: 7 })).toMatchObject({ ok: false, code: 'config.problem', params: { path: '(file)', problem } });
+  expect(readFileSync(settingsFile(), 'utf8')).toBe(text);
+});
+
+test('editChatSettings takes only the four settings, and its request and reply are the golden files', async () => {
+  await open();
+  const c = await client();
+  expect(await c.ask('{"id":1,"cmd":"editChatSettings","changes":{"projectsFolder":"/x"}}')).toMatchObject({ ok: false, code: 'request.invalid' });
+  expect(await c.ask('{"id":2,"cmd":"editChatSettings"}')).toMatchObject({ ok: false, code: 'request.invalid' });
+  // what the app sends and the host answers (macos/Tests/CarrierCoreTests/Connection/ChatHostTests.swift); UPDATE_FIXTURES=1 rewrites it
+  const request = { cmd: 'editChatSettings', changes: { archiveAfterDays: 7, deleteAfterDays: 'never', worktreeStart: 'local', idleCloseMinutes: null } };
+  const { id, ...reply } = await c.ask(JSON.stringify({ id: 3, ...request }));
+  const json = `${JSON.stringify({ request, reply }, null, 2)}\n`;
+  const file = fileURLToPath(new URL('../../macos/Tests/Fixtures/chat-edit-settings.json', import.meta.url));
+  if (process.env.UPDATE_FIXTURES === '1') writeFileSync(file, json);
+  expect(json).toBe(readFileSync(file, 'utf8'));
+  expect(id).toBe(3);
 });

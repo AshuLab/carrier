@@ -15,8 +15,8 @@ const log = createScopedLogger('chat');
 const MAX_LINE_BYTES = 1024 * 1024;
 
 /** The requests a chat host answers; each slice that adds one adds its name here. */
-export type ChatCapability = 'agents' | 'list' | 'open' | 'resume' | 'send' | 'answer' | 'interrupt' | 'setOption' | 'agentOptions' | 'events' | 'close' | 'archive' | 'delete' | 'workspace' | 'fetch' | 'suggestName' | 'checkName' | 'deletePreview' | 'cloneRepo' | 'createProject' | 'githubRepos' | 'repoBranches' | 'health' | 'providers' | 'plan' | 'stop' | 'reasoning' | 'rename' | 'usage' | 'usageOverride' | 'accountIdentity' | 'accountPalette' | 'switchAgent' | 'stopTask' | 'worktreeStart' | 'fetchIfStale' | 'listsRev' | 'projects' | 'textGenerators' | 'regenerateTitle' | 'regenerateTitles';
-export const capabilities: ChatCapability[] = ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'agentOptions', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'createProject', 'githubRepos', 'repoBranches', 'health', 'providers', 'plan', 'stop', 'reasoning', 'rename', 'usage', 'usageOverride', 'accountIdentity', 'accountPalette', 'switchAgent', 'stopTask', 'worktreeStart', 'fetchIfStale', 'listsRev', 'projects', 'textGenerators', 'regenerateTitle', 'regenerateTitles'];
+export type ChatCapability = 'agents' | 'list' | 'open' | 'resume' | 'send' | 'answer' | 'interrupt' | 'setOption' | 'agentOptions' | 'events' | 'close' | 'archive' | 'delete' | 'workspace' | 'fetch' | 'suggestName' | 'checkName' | 'deletePreview' | 'cloneRepo' | 'createProject' | 'githubRepos' | 'repoBranches' | 'health' | 'providers' | 'plan' | 'stop' | 'reasoning' | 'rename' | 'usage' | 'usageOverride' | 'accountIdentity' | 'accountPalette' | 'switchAgent' | 'stopTask' | 'worktreeStart' | 'fetchIfStale' | 'listsRev' | 'projects' | 'textGenerators' | 'regenerateTitle' | 'regenerateTitles' | 'config';
+export const capabilities: ChatCapability[] = ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'agentOptions', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'createProject', 'githubRepos', 'repoBranches', 'health', 'providers', 'plan', 'stop', 'reasoning', 'rename', 'usage', 'usageOverride', 'accountIdentity', 'accountPalette', 'switchAgent', 'stopTask', 'worktreeStart', 'fetchIfStale', 'listsRev', 'projects', 'textGenerators', 'regenerateTitle', 'regenerateTitles', 'config'];
 
 const id = z.number().int().positive();
 const sessionId = z.uuid();
@@ -26,6 +26,13 @@ const rate = z.number().finite().nonnegative().max(10_000);
 export const usageOverrideRequest = z
   .strictObject({ id, cmd: z.literal('usageOverride'), model, action: z.enum(['local', 'alias', 'custom', 'clear']), aliasTo: model.optional(), inputPerMillionUsd: rate.optional(), cachedInputPerMillionUsd: rate.optional(), cacheWritePerMillionUsd: rate.optional(), outputPerMillionUsd: rate.optional() })
   .refine((r) => (r.action === 'alias' ? r.aliasTo !== undefined : r.action === 'custom' ? r.inputPerMillionUsd !== undefined && r.outputPerMillionUsd !== undefined : true));
+// The `config` capability: the requests that change a file of the Carrier folder through the chat host (ADR 0053). A value the file's schema refuses is refused there, with its key path and kind.
+const settingValue = z.union([z.string().max(100), z.number().finite(), z.boolean(), z.null()]);
+export const editChatSettingsRequest = z.strictObject({
+  id,
+  cmd: z.literal('editChatSettings'),
+  changes: z.strictObject({ archiveAfterDays: settingValue.optional(), deleteAfterDays: settingValue.optional(), worktreeStart: settingValue.optional(), idleCloseMinutes: settingValue.optional() }),
+});
 export const usageRequest = z.strictObject({
   id,
   cmd: z.literal('usage'),
@@ -82,6 +89,7 @@ export const chatRequest = z.union([
   z.strictObject({ id, cmd: z.literal('providers') }),
   usageRequest,
   usageOverrideRequest,
+  editChatSettingsRequest,
   z.strictObject({ id, cmd: z.literal('stop') }),
 ]);
 type Request = z.infer<typeof chatRequest>;
@@ -153,6 +161,8 @@ export type ChatControls = {
   usage(args: Args<'usage'>): Promise<unknown>;
   /** Sets or clears the price of a model; refused in words for a price that cannot be saved. */
   usageOverride(args: Args<'usageOverride'>): unknown;
+  /** Changes keys of `chat.json` and answers `{ saved }`; refused with `config.problem` for a file or a result the file's schema refuses. */
+  editChatSettings(args: Args<'editChatSettings'>): unknown;
 };
 
 async function run(request: Exclude<Request, { cmd: 'stop' }>, controls: ChatControls, gone: AbortSignal): Promise<unknown> {
@@ -239,6 +249,8 @@ async function run(request: Exclude<Request, { cmd: 'stop' }>, controls: ChatCon
       return controls.usage({ refresh: request.refresh, days: request.days, provider: request.provider, source: request.source, search: request.search, account: request.account });
     case 'usageOverride':
       return controls.usageOverride({ model: request.model, action: request.action, aliasTo: request.aliasTo, inputPerMillionUsd: request.inputPerMillionUsd, cachedInputPerMillionUsd: request.cachedInputPerMillionUsd, cacheWritePerMillionUsd: request.cacheWritePerMillionUsd, outputPerMillionUsd: request.outputPerMillionUsd });
+    case 'editChatSettings':
+      return controls.editChatSettings({ changes: request.changes });
   }
 }
 

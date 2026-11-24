@@ -13,16 +13,29 @@ export const persona = z.strictObject({
   prompt: z.string().trim().min(1).max(4000).optional(),
 });
 
+/** The name of a skill, as the prompt spells it after `/` or `$`: one token, no path, no blanks, no shell characters. */
+const skillNamePattern = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$/;
+const skillName = z.string().regex(skillNamePattern, 'must be a skill name: letters, digits, "_", ".", ":" or "-", at most 64 characters, starting with a letter or a digit');
+
+const shipSkills = { ship: skillName.optional(), fix: skillName.optional() };
+const reviewSkills = { review: z.strictObject({ review: skillName.optional(), publish: skillName.nullable().optional() }).optional() };
+/** The skills of a repo, merged by key onto the global ones. */
+const skillsLevel = z.strictObject({ ...shipSkills, ...reviewSkills });
+
 export const efforts = ['low', 'medium', 'high', 'xhigh', 'max'] as const;
 
 // A role keeps its GitHub identity and persona, and points at an AI provider and model.
-const agent = z.strictObject({
+const agentFields = {
   persona: persona.optional(),
   profile: z.string().min(1),
   provider: z.string().min(1),
   model: z.string().min(1),
   effort: z.enum(efforts).optional(),
-});
+};
+const agent = z.strictObject(agentFields);
+// A role names only the stages it runs.
+const author = z.strictObject({ ...agentFields, skills: z.strictObject(shipSkills).optional() });
+const reviewer = z.strictObject({ ...agentFields, skills: z.strictObject(reviewSkills).optional() });
 
 // The two shapes the spike fixed (docs/research/agent-forge.md): a bot through Agent Forge, or the user's own `gh` login. No secrets here.
 const profile = z.discriminatedUnion('kind', [
@@ -86,7 +99,8 @@ export const configSchema = z
       .array(
         z.strictObject({
           name: z.string().regex(repoNamePattern, 'must be owner/name'),
-          agents: z.strictObject({ author: agent.partial(), reviewer: agent.partial(), leadReviewer: agent.partial().optional() }).partial().optional(),
+          agents: z.strictObject({ author: author.partial(), reviewer: reviewer.partial(), leadReviewer: agent.partial().optional() }).partial().optional(),
+          skills: skillsLevel.optional(),
         }),
       ),
     profiles: z.record(z.string(), profile),
@@ -94,7 +108,13 @@ export const configSchema = z
     orchestratorProfile: z.string().min(1).optional(),
     /** Not a key of `engine.json`: the loader puts here what `providers.json` declares (ADR 0020). */
     providers: accounts,
-    agents: z.strictObject({ author: agent, reviewer: agent, leadReviewer: agent.optional() }),
+    agents: z.strictObject({ author, reviewer, leadReviewer: agent.optional() }),
+    /** The skill each stage runs: ship, review (with the one that publishes, or `null` for a review skill that publishes by itself) and fix. */
+    skills: z.strictObject({
+      ship: skillName,
+      review: z.strictObject({ review: skillName, publish: skillName.nullable() }),
+      fix: skillName,
+    }),
     /** A role with a non-empty list of steps moves to the next one upon usage_limit, rate_limit, or service_down. */
     failover: failoverSchema.optional(),
     limits: z.strictObject({

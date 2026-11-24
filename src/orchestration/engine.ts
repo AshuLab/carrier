@@ -7,7 +7,9 @@ import type { EnginePlaces } from '../config/places.ts';
 import { runtimeOf } from '../config/providers.ts';
 import { failoverStepsFor, type Agent, type EffectiveRepoConfig } from '../config/resolve.ts';
 import { failoverTriggers, matchesFailoverTrigger } from '../config/schema.ts';
+import { savedSkills } from '../config/skills.ts';
 import type { HarnessName } from '../harnesses/names.ts';
+import type { Skills } from '../harnesses/skills.ts';
 import type { AgentExit, AgentFailure, AgentRun, AgentRunner, AgentTask } from '../execution/agent-runner.ts';
 import { failureDetail } from '../execution/failure.ts';
 import { parseCallerResult } from '../execution/caller-result.ts';
@@ -70,6 +72,8 @@ export type EngineOptions = {
   sessionDirs?: SessionDirs;
   /** Whether the configuration declares the profile now. */
   profileDeclared: (name: string) => boolean;
+  /** Whether the harness of a role finds a skill, asked before a role starts. */
+  skills: Skills;
 };
 
 const log = createScopedLogger('engine');
@@ -106,7 +110,7 @@ const executionStatus: Record<AgentExit, (typeof executionStates)[number]> = {
   session_unavailable: 'failed',
 };
 
-export function createEngine({ db, github, clock, repos, settings, runner, workspaces, quota, places, sessionDirs, profileDeclared }: EngineOptions) {
+export function createEngine({ db, github, clock, repos, settings, runner, workspaces, quota, places, sessionDirs, profileDeclared, skills }: EngineOptions) {
   let error: GitHubUnavailable | AuthError | null = null;
   let nextPollAt: number | null = null;
   let paused = false; // intake only: nothing new is reserved, what is running goes on
@@ -561,6 +565,26 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     }
   }
 
+  // The reason to stop for the first skill the person named and the role's harness does not find, none when every one is found, default or cannot be told.
+  async function missingSkill(epic: Epic, role: 'author' | 'reviewer', folder: string): Promise<string | undefined> {
+    const { ship, review, fix } = savedSkills(epic.config);
+    const agent = epic.config!.agents[role];
+    const invoked = role === 'author' ? [['ship', ship], ['fix', fix]] as const : [['review.review', review.review], ['review.publish', review.publish]] as const;
+    for (const [key, skill] of invoked) {
+      if (skill === null || !skill.named) continue;
+      if ((await skills.has(agent.harness, agent.configDir, folder, skill.name)) !== 'absent') continue;
+      const account = agent.configDir ?? `the default folder of ${agent.harness}`;
+      // The places each reader looks in (`src/harnesses/skills.ts`): Antigravity has no account folder, and Codex reads its plugin cache instead of listing plugins.
+      const where = {
+        claude: `in the account folder (${account}), the repo (${folder}) and the plugins it lists`,
+        codex: `in the account folder (${account}), ~/.agents/skills, the repo (${folder}), /etc/codex/skills and its plugin cache`,
+        agy: `in the repo (${folder}), ~/.gemini and the plugins it lists`,
+      }[agent.harness];
+      return `the skill ${skill.name} (skills.${key}) is not installed for the ${role}: ${agent.harness} looked where it finds skills, ${where} · install it, or name another in skills.${key}, then resume the epic`;
+    }
+    return undefined;
+  }
+
   // Starts an execution of the stage; `retryOf` is the failed or interrupted one it replaces: same session, verify
   // the real state first. `rebuild` (the session is gone) starts a new session instead, with the PR as GitHub has it now.
   async function execute(epic: Epic, stage: AgentTask['stage'], retryOf?: Execution, rebuild?: { pr: { number: number; headSha: string } | null }) {
@@ -594,6 +618,14 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       toNeedsHuman(db, epic.id, 'workspace', `could not prepare the workspace: ${e instanceof Error ? e.message : String(e)}`);
       return applyLabels(fresh(epic.id));
     }
+    // A skill the person named that the role's harness does not find stops the epic here, before an execution exists or a run is spent. Every launch, resume,
+    // wake-up, failover and `restart --author|--reviewer` comes through here; Solve's defaults and an answer that cannot tell never stop it.
+    const missing = await missingSkill(epic, reviewing ? 'reviewer' : 'author', workspace);
+    if (missing) {
+      if (!unchanged(epic.id, epoch)) return;
+      toNeedsHuman(db, epic.id, 'skill_missing', missing);
+      return applyLabels(fresh(epic.id));
+    }
     const executionId = randomUUID();
     const resultPath = join(places.state, 'results', `${executionId}.json`);
     const { maxExecutionHours: hoursLimit, idleMinutes } = settings(); // read once: the run keeps the timeout and the idle limit it launches with
@@ -606,6 +638,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       stage,
       ...(reviewing ? epic.config!.agents.reviewer : epic.config!.agents.author),
       sharedIdentity: epic.config!.sharedIdentity === true,
+      skills: savedSkills(epic.config),
       workspace,
       resultPath,
       timeoutMs: hoursLimit === 'unlimited' ? null : hoursLimit * 3_600_000,

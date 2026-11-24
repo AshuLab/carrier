@@ -1,6 +1,7 @@
 import type { HarnessName } from '../harnesses/names.ts';
 import { runtimeOf, type AccountRuntime } from './providers.ts';
 import type { Config } from './schema.ts';
+import { resolveSkills, type ResolvedSkills } from './skills.ts';
 
 // What an agent runs with: the role (profile, persona, model) and the provider it points at (harness, configDir, local server).
 export type Agent = {
@@ -25,6 +26,8 @@ export type EffectiveRepoConfig = {
   providers?: Config['providers'];
   options?: Record<string, { harness: HarnessName; model?: string; configDir?: string; provider?: 'lmstudio' | 'ollama' }>;
   failover?: Config['failover'];
+  /** Saved with the epic; absent on epics saved before it existed (`savedSkills` reads those as Solve's defaults). */
+  skills?: ResolvedSkills;
   agents: { author: Agent; reviewer: Agent; leadReviewer?: Agent };
 };
 
@@ -64,6 +67,7 @@ export function resolveRepoConfig(config: Config, repo: Config['repos'][number])
     sharedIdentity: author !== undefined && reviewer !== undefined && sameAccount(author, reviewer),
     providers: config.providers,
     ...(config.failover && { failover: config.failover }),
+    skills: resolveSkills(config.skills, repo.skills, config.agents.author.skills, config.agents.reviewer.skills, repo.agents?.author?.skills, repo.agents?.reviewer?.skills),
     agents,
   };
 }

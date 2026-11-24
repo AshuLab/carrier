@@ -11,7 +11,8 @@ import { profileToken } from '../execution/git-workspaces.ts';
 import { forgeCwd } from '../integrations/forge-cwd.ts';
 import { GhGitHub, type GitHubProfile } from '../integrations/github.ts';
 import { listLocalModels, localLabel, localUrl, type LocalProvider } from '../harnesses/local.ts';
-import { configDirVariable } from '../harnesses/names.ts';
+import { configDirVariable, harnessLabel } from '../harnesses/names.ts';
+import { createSkills, type Skills } from '../harnesses/skills.ts';
 import { defaultLabels, hasLabel } from '../orchestration/github.ts';
 import { fixes, installFix } from './fixes.ts';
 
@@ -41,6 +42,8 @@ export interface DoctorDeps {
   commandRuns: (command: string) => Promise<boolean>;
   /** Starts `agy -p /usage` for the Antigravity login check; throws when it cannot start. */
   startAgy: () => AgyProcess;
+  /** Whether the harness of a role finds a skill, for its account and its repo folder. */
+  skills: Skills;
 }
 
 const log = createScopedLogger('doctor');
@@ -132,6 +135,7 @@ const realDeps: DoctorDeps = {
   loggedIn: (harness, configDir, command) => cliLoggedIn(harness, configDir, undefined, command),
   commandRuns: (command) => new Promise((resolve) => execFile(command, ['--version'], { timeout: 10_000 }, (error) => resolve(error === null))),
   startAgy,
+  skills: createSkills(),
   which: (command) => spawnSync('which', [command]).status === 0,
   mint: (profile, repo) => profileToken(profile)(repo),
   listLabels: (config, repo, folder) =>
@@ -275,6 +279,28 @@ export async function runDoctor(config: Config, folder: string, overrides: Parti
     const own = missing.filter((label) => !hasLabel([defaultLabels.epic, defaultLabels.ready], label));
     const fix = own.length === 0 ? fixes.solve : fixes.ownLabels(own);
     report(missing.length === 0 ? { name: solveName, status: 'ok', repo: repo.name, profiles: [config.orchestratorProfile] } : { name: solveName, status: 'fail', detail: `missing ${missing.join(', ')}`, fix, repo: repo.name, profiles: [config.orchestratorProfile] });
+  }
+
+  // The skills each role invokes, for the account it runs on, looked for from the repo's clone: the worktree of an epic does not exist yet.
+  // A skill the person named that is absent is a problem; a default that is absent, or any answer that cannot tell, is a warning.
+  for (const repo of repos) {
+    const clone = join(enginePlacesOf(folder).repos, repo.name);
+    const invoked = [
+      { role: 'author', agent: repo.agents.author, skills: [repo.skills!.ship, repo.skills!.fix] },
+      { role: 'reviewer', agent: repo.agents.reviewer, skills: [repo.skills!.review.review, repo.skills!.review.publish] },
+    ] as const;
+    for (const { role, agent, skills } of invoked) {
+      for (const skill of skills) {
+        if (skill === null) continue;
+        const name = `${repo.name} ${role} can use the skill ${skill.name}`;
+        onStart(name);
+        const answer = await deps.skills.has(agent.harness, agent.configDir, clone, skill.name);
+        const where = { repo: repo.name, profiles: [agent.profile] };
+        if (answer === 'present') report({ name, status: 'ok', ...where });
+        else if (answer === 'cannot-tell') report({ name, status: 'warn', detail: `could not tell whether ${harnessLabel[agent.harness]} finds it: some place it looks could not be read`, fix: fixes.skillUnread, ...where });
+        else report({ name, status: skill.named ? 'fail' : 'warn', detail: `${harnessLabel[agent.harness]} does not find it for the account of the ${role}${skill.named ? '' : ' (it is Solve\'s default, so the epic runs anyway)'}`, fix: fixes.skill(skill.name), ...where });
+      }
+    }
   }
   return checks;
 }

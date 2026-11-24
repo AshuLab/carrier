@@ -1,5 +1,6 @@
 import { defaultLabels } from '../orchestration/github.ts';
 import type { Providers } from './providers.ts';
+import { solveSkills } from './skills.ts';
 import { configSchema, type Config } from './schema.ts';
 
 export const defaults = {
@@ -7,6 +8,7 @@ export const defaults = {
   labels: defaultLabels,
   finishedWindowDays: 15,
   logLevel: 'info',
+  skills: solveSkills,
   limits: {
     maxConcurrentEpics: 3,
     maxReviews: 5,

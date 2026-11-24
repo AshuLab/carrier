@@ -34,23 +34,23 @@ If GitHub is down or rate-limits requests, the queue and state are kept, the err
 
 ### Execution and stage loop
 
-When a slot is free, the scheduler reserves the oldest epic with an atomic SQLite operation; an epic never has two active executions. On reserving it, it checks that the issue is still open and ready, moves it to `solve:epic:running` and persists the start. Time in the queue does not count toward the execution limit.
+When a slot is free, the scheduler reserves the oldest epic with an atomic SQLite operation; an epic never has two active executions. On reserving it, it checks that the issue is still open and ready, moves it to `carrier:status:running` and persists the start. Time in the queue does not count toward the execution limit.
 
-The author invokes `ship` with the epic's identity, harness, model and context and leaves the final integration PR. Then the reviewer, with another identity and a separate checkout, receives spec, tickets, PR, SHA and context from earlier rounds, reviews with `code-review` and publishes the findings with `code-post`. If there are blockers and rounds remain, the author fixes or answers each finding and the reviewer reviews again, verifying fixes and regressions. The skills keep their reports; the caller agent interprets them and hands over one result JSON file per execution. The loop advances when that result arrives, without waiting for the polling interval.
+The author invokes `ship` (by default, and every skill named here is configurable in `skills`) with the epic's identity, harness, model and context and leaves the final integration PR. Then the reviewer, with another identity and a separate checkout, receives spec, tickets, PR, SHA and context from earlier rounds, reviews with `code-review` and publishes the findings with `code-post`. If there are blockers and rounds remain, the author fixes or answers each finding and the reviewer reviews again, verifying fixes and regressions. The skills keep their reports; the caller agent interprets them and hands over one result JSON file per execution. The loop advances when that result arrives, without waiting for the polling interval.
 
 The engine combines the stage with the caller result:
 
 | Stage | Result | Next step |
 | --- | --- | --- |
 | `ship` | `completed` | review, round 1 |
-| `review` | `completed` (conclusive, no blockers, checks confirmed on the reviewed commit), no observations | `solve:epic:ready-for-test` |
+| `review` | `completed` (conclusive, no blockers, checks confirmed on the reviewed commit), no observations | `carrier:status:ready-for-test` |
 | `review` | `completed` with observations, the pass not taken and the round below the maximum | `fix` (the observations pass), same round |
-| `review` | `completed` with observations, the pass taken or the round at the maximum | `solve:epic:ready-for-test` |
+| `review` | `completed` with observations, the pass taken or the round at the maximum | `carrier:status:ready-for-test` |
 | `review` | `changes_requested` | `fix` if the round is below the maximum; otherwise `needs_human` |
-| `fix`, the observations pass | `completed`, `pr.headSha` equals the reviewed head | `solve:epic:ready-for-test` |
+| `fix`, the observations pass | `completed`, `pr.headSha` equals the reviewed head | `carrier:status:ready-for-test` |
 | `fix`, the observations pass | `completed`, a new head | review, next round |
 | `fix`, for blockers | `completed` | review, next round |
-| any | `needs_human` | `solve:epic:needs-human` with the reason |
+| any | `needs_human` | `carrier:status:needs-human` with the reason |
 
 An observation is a finding of a `completed` review that does not stop approval. The pass runs once per epic and never at the last round, and the engine tells it from a fix for blockers by the epic's latest stored review result (`completed` or `changes_requested`). See [ADR 0009](../adr/0009-observations-trigger-one-resolve-pass-before-ready-for-test.md) and [the observations spec](review-observations-pass.md).
 
@@ -66,7 +66,7 @@ Technical failures (the agent process ends badly, missing or invalid JSON, trans
 
 ### Epic outcomes
 
-`solve:epic:ready-for-test` and `solve:epic:needs-human` replace `solve:epic:running` on the issue. An epic in human intervention stays stopped with its reason while the others advance; Diego resolves it outside Carrier. Carrier does not reactivate it on its own, nor on restart, and the app has no key or command for it: it goes back to the queue only when Diego puts `solve:epic:ready` on the issue again (Carrier never leaves that label on a stopped epic), and then it starts from `ship`, reusing its worktree and PR, with the rounds reset.
+`carrier:status:ready-for-test` and `carrier:status:needs-human` replace `carrier:status:running` on the issue. An epic in human intervention stays stopped with its reason while the others advance; Diego resolves it outside Carrier. Carrier does not reactivate it on its own, nor on restart, and the app has no key or command for it: it goes back to the queue only when Diego puts `solve:epic:ready` on the issue again (Carrier never leaves that label on a stopped epic), and then it starts from `ship`, reusing its worktree and PR, with the rounds reset.
 
 If the final PR is merged while there is active work, its executions are stopped, sessions and history are kept and no new turns are launched. If the epic's issue or its final PR is closed without merge, the epic is cancelled: its agents are stopped, what was done is kept and the reason is shown in the terminal. Neither merges nor closures of slices done by `ship` trigger these rules. The PR state check is technical coordination, not code evaluation.
 
@@ -185,7 +185,7 @@ export const CallerResult = z.discriminatedUnion('outcome', [
 }
 ```
 
-**Labels.** Carrier owns `solve:epic:running`, `solve:epic:ready-for-test` and `solve:epic:needs-human` and creates them in a configured repo, if missing, when an epic is first labelled there; `solve:epic:ready` belongs to Solve and is not created. Carrier creates its three with a colour and a description (`running` blue `0969da`, `ready-for-test` purple `8957e5`, `needs-human` orange-red `d93f0b`, loud on purpose) and never changes one that already exists; `ready` is created by Solve's hand-off step ([AshuLab/skills#34](https://github.com/AshuLab/skills/issues/34)).
+**Labels.** Carrier owns `carrier:status:running`, `carrier:status:ready-for-test` and `carrier:status:needs-human` and creates them in a configured repo, if missing, when an epic is first labelled there; `solve:epic:ready` belongs to Solve and is not created. Carrier creates its three with a colour and a description (`running` blue `0969da`, `ready-for-test` purple `8957e5`, `needs-human` orange-red `d93f0b`, loud on purpose) and never changes one that already exists; `ready` is created by Solve's hand-off step ([AshuLab/skills#34](https://github.com/AshuLab/skills/issues/34)).
 
 **Panel.** Drawn with ANSI sequences from the standard library, without TUI dependencies.
 

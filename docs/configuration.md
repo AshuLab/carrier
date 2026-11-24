@@ -94,6 +94,7 @@ The accounts the roles name (`claude` and `codex` here) are declared in `provide
 | `agents.leadReviewer` | no | none | Optional technical lead role `{ profile, provider, model, persona? }` (configuration setup; reserved for upcoming lead reviewer gating in the Carrier flow). |
 | `agents.<role>.effort` | no | none | How hard the model thinks: one of `low`, `medium`, `high`, `xhigh` or `max`, in the global role and in a repo's override of it. Passed as `--effort` to Claude and Antigravity and as `-c model_reasoning_effort=<level>` to Codex, in every run and resume. Without it nothing is passed and the CLI uses its own. Anything else is refused naming the key. |
 | `agents.<role>.persona` | no | none | `{ name?, prompt? }`: who the agent of that role is. `name` is one line of at most 40 characters; `prompt` is text of at most 4000 characters, given to the agent as you wrote it. See [Personas](#personas). |
+| `skills` | no | Solve's: `ship`, `code-review` with `code-post`, `code-resolve` | The skill each stage runs: `{ ship, review: { review, publish }, fix }`, also in a repo and in a role. See [Skills](#skills). |
 | `failover` | no | none | `{ triggers?, roles? }`: for each role, a list of steps it moves through when its credits run out or service fails. See [Failover](#failover). |
 | `pollIntervalMinutes` | no | `5` | How often it looks for ready epics. |
 | `labels` | no | the `solve:epic…` names below | The label of each role, the same in every repo: `{ epic, ready, running, readyForTest, needsHuman }`, each optional. A name is one line without commas, at most 50 characters, and no two roles, stages or kinds of stop may share one (GitHub ignores case, so `Solve:Epic` is `solve:epic`): a config that repeats one is refused naming the second. See [Labels](#labels). |
@@ -116,15 +117,28 @@ Carrier reads and writes five labels on an epic's issue, each named by a role in
 | --- | --- | --- | --- |
 | `epic` | `solve:epic` | Solve, a person | Marks an epic. Carrier reads the open ones for the slice progress and the title. |
 | `ready` | `solve:epic:ready` | Solve, a person | Queues the epic. Carrier takes it off in every status except queued (running, needs human, ready for test, merged, cancelled) and never leaves it on a stopped one, so a person puts it back to restart: pick a label that is not part of your own workflow. A removal that failed is retried at the next check, and until it succeeds the `ready` on a stopped epic is not read as a restart. |
-| `running` | `solve:epic:running` | Carrier | An orchestrator is building the epic. |
-| `readyForTest` | `solve:epic:ready-for-test` | Carrier | Reviewed on the current head; a person tests and merges. |
-| `needsHuman` | `solve:epic:needs-human` | Carrier | Stopped for a person, with the reason in the app. |
+| `running` | `carrier:status:running` | Carrier | An orchestrator is building the epic. |
+| `readyForTest` | `carrier:status:ready-for-test` | Carrier | Reviewed on the current head; a person tests and merges. |
+| `needsHuman` | `carrier:status:needs-human` | Carrier | Stopped for a person, with the reason in the app. |
 
-Two more groups are off until you name them, so a Carrier that does not name them writes exactly what it wrote before:
+Solve writes `epic` and `ready`, so they keep the `solve:` names; Carrier writes the other three, so they are named `carrier:status:*`.
+An issue that already carries an old name (`solve:epic:running`, `solve:epic:ready-for-test` or `solve:epic:needs-human`) keeps it: Carrier only removes the labels it names now, and nothing cleans the old ones.
+A board or an automation keyed on an old name changes it, or you set the old names in `labels`.
+
+Two more groups are off until you name them, so a Carrier that does not name them writes nothing more than the five above:
 
 - `labels.stages`: `{ ship, review, fix }`, each optional. While an epic runs, the issue carries the label of its stage beside `running`, and the next stage replaces it.
-- `labels.reasons`: one optional label per kind of stop, `review_limit`, `agent_needs_human`, `retries_exhausted`, `timeout`, `auth`, `workspace`, `pr_invalid`, `usage_limit` and `engine_error`.
+- `labels.reasons`: one optional label per kind of stop, `review_limit`, `agent_needs_human`, `retries_exhausted`, `timeout`, `auth`, `workspace`, `pr_invalid`, `usage_limit`, `engine_error` and `skill_missing`.
   While an epic waits for a person, the issue carries the label of its kind beside `needsHuman`.
+
+The names below are proposals you may copy into `labels`; none is on until you name it:
+
+| Where | Label |
+| --- | --- |
+| `labels.stages.ship` | `carrier:stage:building` |
+| `labels.stages.review` | `carrier:stage:reviewing` |
+| `labels.stages.fix` | `carrier:stage:fixing-review` |
+| `labels.reasons.<kind>` | `carrier:reason:<kind>`, for example `carrier:reason:review_limit` |
 
 A stage label costs one more write to GitHub at each stage change, which is why it is opt-in.
 A status change removes only the owned labels the issue has, taken from the labels the poll read in the same check (or read once from GitHub when a request causes the change), so the writes do not grow with the labels named.
@@ -301,6 +315,42 @@ A role, author or reviewer, can have a persona: a name and a prompt that say who
 ```
 
 A repo's `agents.<role>.persona` replaces the global persona of that role whole, not field by field. When `carrier init` edits a config, an empty answer keeps a persona field and `-` clears it. The name is trimmed and cannot contain a line break; the prompt is trimmed and cannot be empty.
+
+## Skills
+
+The prompt of each stage invokes a skill by name, and `skills` says which.
+By default they are Solve's: `ship` for the ship stage, `code-review` (and `code-post`, which publishes its report) for the review stage, and `code-resolve` for the fix stage.
+
+```json
+{
+  "skills": {
+    "ship": "ship",
+    "review": { "review": "code-review", "publish": "code-post" },
+    "fix": "code-resolve"
+  },
+  "repos": [{ "name": "owner/repo", "skills": { "review": { "review": "my-review", "publish": null } } }],
+  "agents": { "reviewer": { "profile": "reviewer-bot", "provider": "claude", "model": "<model>", "skills": { "review": { "review": "my-review" } } } }
+}
+```
+
+A skill is only a name: a letter or digit first, then letters, digits, `_`, `.`, `:` or `-`, at most 64 characters (`ship` and `solve:ship` are fine).
+Anything else (empty, blanks, a leading `/` or `$`, a path, a line break, a semicolon, a non-ASCII letter) is refused when the config loads, naming it.
+Every block is strict, so an unknown key is refused naming it.
+`publish` is a name, or `null` for a review skill that publishes by itself; left out, it is inherited.
+
+The order is the role's own `skills`, then the repo's, then the global, then Solve's, merged by key and one level inside `review`.
+A role names only the stages it runs: the author `ship` and `fix`, the reviewer `review`; another key is refused naming it.
+The `lead` stage and the skills of extra reviewers are not accepted yet.
+
+The resolved skills are saved with an epic's configuration when it starts, so a reload changes nothing for a running epic, and an epic restarted from ship takes the skills of that moment.
+An epic saved before this version has none saved and reads Solve's.
+Carrier remembers which skills you named at any level (a global one that is Solve's own name counts as not named) and which are Solve's defaults.
+
+Before an epic starts, resumes or changes the option of a role (a failover, or `carrier restart --author` or `--reviewer`), Carrier asks whether the harness and account of that role find each skill the role invokes.
+Only a skill you named stops an epic, and only when the answer is that it is absent: the epic stops in needs-human with the kind `skill_missing`, naming the skill, the role and where it looked, before any agent run is spent.
+A skill that is Solve's default never stops an epic, and neither does an answer of "cannot tell" (a place Carrier cannot read might hold the skill), so a role that runs today keeps running.
+Carrier reads the places of Claude Code, Codex and Antigravity (`agy`) for this; [troubleshooting](troubleshooting.md) lists where each harness is read.
+See [troubleshooting](troubleshooting.md) for what to do when it stops.
 
 ## Profiles
 

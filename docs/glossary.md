@@ -44,7 +44,7 @@ _Avoid_: process (technical termination is something else), epic.
 **Caller result** - Structured conclusion of an execution, in JSON: `completed`, `changes_requested` or `needs_human`. It is independent of whether the process ended well or badly.
 _Avoid_: process success/failure, CLI state.
 
-**Human intervention** - State of an epic that is stopped (`solve:epic:needs-human`) by `needs_human`, timeout, exhausted limit, inconclusive review or authentication error. Diego resolves it outside Carrier; Carrier takes it back only when he puts `solve:epic:ready` on the issue again.
+**Human intervention** - State of an epic that is stopped (`carrier:status:needs-human`) by `needs_human`, timeout, exhausted limit, inconclusive review or authentication error. Diego resolves it outside Carrier; Carrier takes it back only when he puts `solve:epic:ready` on the issue again.
 _Avoid_: error, failure, pause.
 
 **Author** - Agent that invokes `ship` and handles the findings; it keeps its identity throughout the epic.
@@ -373,7 +373,7 @@ The epic keeps that cap as its `roundLimit`; an epic with none follows the live 
 _Avoid_: restart from review, rewind.
 
 **Stage skill** - The skill a stage invokes, named in the `skills` block of the config (a repo's `skills` replaces what it names): by default Solve's `ship`, `code-review` with `code-post` to publish, and `code-resolve`.
-Planned, not built yet: this belongs to a later epic of [the engine improvements](specs/carrier-engine-improvements.md), so the config it names does not exist today.
+The prompts of ship, review and fix invoke the names the epic was saved with, so a reload does not change a running epic and a restart from ship takes the new ones.
 Only the name is configurable; Carrier keeps the prompt around it and the result contract, and the skill has to leave what the engine checks, above all a linked worktree and an open pull request that closes the epic after ship.
 See [ADR 0045](adr/0045-each-stage-runs-a-skill-the-config-names-and-carrier-keeps-the-contract.md).
 _Avoid_: command, plugin, custom prompt (the prompt is not configurable).

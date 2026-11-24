@@ -14,7 +14,7 @@ export function priorFrom(raw: unknown, rawProviders: unknown): Prior | undefine
   const loaded = loadConfig(defaults, raw, accounts.providers);
   if (!loaded.ok) return undefined;
   const { config } = loaded;
-  const role = (r: Config['agents']['author']): Role => ({ identity: config.profiles[r.profile]!, provider: r.provider, model: r.model, ...(r.effort && { effort: r.effort }), ...(r.persona && { persona: r.persona }) });
+  const role = (r: Omit<Config['agents']['author'], 'skills'>): Role => ({ identity: config.profiles[r.profile]!, provider: r.provider, model: r.model, ...(r.effort && { effort: r.effort }), ...(r.persona && { persona: r.persona }) });
   // The loader makes a folder absolute; written back with `~` it stays portable.
   const providers = Object.fromEntries(Object.entries(config.providers).map(([name, p]) => [name, p.configDir ? { ...p, configDir: tilde(p.configDir) } : p]));
   return {

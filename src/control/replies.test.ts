@@ -166,6 +166,8 @@ test('the epic reply equals reply-epic.json', () => {
     ],
     branch: 'feat/issue-12/epic',
     unansweredObservations: { count: 2, reason: 'already_taken' },
+    // two reviewers gave a verdict out of three; the third gave none
+    reviewers: { given: 2, of: 3, none: [{ slot: 'reviewer-3', why: 'cannot verify the migration' }] },
     // the head the reviewers agreed on and the head the lead approved differ when the head moved while the lead reviewed
     reviewedSha: '5555555eeeeeee',
     approvedSha: '7777777ggggggg',

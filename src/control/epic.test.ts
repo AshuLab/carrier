@@ -239,6 +239,26 @@ test('a round repeated on a new head shows once, for the head it was decided on,
   expect(rounds.map((r) => [r.round, r.reviewedSha, r.verdict, r.otherReviewers!.map((o) => o.slot)])).toEqual([[1, B, 'changes_requested', ['reviewer-2']]]);
 });
 
+test('the reply of an epic with several reviewers says how many gave a verdict out of how many are configured, and why each other gave none', async () => {
+  const id = epicRow({ config: manyConfig, startedAt: 50 });
+  slotReview(id, 'reviewer', 1, SHA, { outcome: 'completed', ...pr(SHA) });
+  slotReview(id, 'reviewer-2', 1, SHA, { outcome: 'needs_human', ...pr(SHA), reason: 'cannot verify' });
+  slotReview(id, 'reviewer-3', 1, SHA, { outcome: 'completed', ...pr(SHA) });
+  db.insert(epicEvents).values({ epicId: id, at: 400, type: 'reviewer_no_verdict', data: { round: 1, headSha: SHA, none: { slot: 'reviewer-2', kind: 'agent_needs_human', why: 'x'.repeat(300) } } }).run();
+
+  expect((await reply()).reviewers).toEqual({ given: 2, of: 3, none: [{ slot: 'reviewer-2', why: 'x'.repeat(200) }] });
+});
+
+test('the reply of an epic with one reviewer, or whose round is still waiting, has no count of reviewers', async () => {
+  const single = epicRow({ startedAt: 50 });
+  slotReview(single, 'reviewer', 1, SHA, { outcome: 'completed', ...pr(SHA) });
+  expect(await reply()).not.toHaveProperty('reviewers');
+
+  const waiting = epicRow({ issue: 2, config: manyConfig, startedAt: 50 });
+  slotReview(waiting, 'reviewer', 1, SHA, { outcome: 'completed', ...pr(SHA) }); // the other two have not settled
+  expect(await epicOf(db, 'AshuLab/a', 2)).not.toHaveProperty('reviewers');
+});
+
 test('the review stage lists the slots that ran in it when there were several', async () => {
   const id = epicRow({ config: manyConfig, startedAt: 1 });
   run(id, 'ship', 10, 20, { outcome: 'completed', ...pr(SHA) });
@@ -541,4 +561,27 @@ test('an epic with no lead carries none of the lead\'s fields, and one still in 
   expect(r).toMatchObject({ reviewedSha: SHA, lead: { model: 'opus-lead' } });
   expect(r).not.toHaveProperty('approvedSha');
   expect(r).not.toHaveProperty('leadApproval');
+});
+
+test('a fix of the lead\'s exchange belongs to no round: the round the reviewers agreed on keeps no fix time, head or commits from it', async () => {
+  const B = 'b'.repeat(40);
+  const id = epicRow({ config: leadConfig, startedAt: 50 });
+  slotReview(id, 'reviewer', 1, SHA, { outcome: 'completed', ...pr(SHA) });
+  leadRun(id, SHA, 1_000, { outcome: 'changes_requested', ...pr(SHA), blockers: [{ title: 'The lead found this' }] });
+  run(id, 'fix', 1_100, 1_200, { outcome: 'completed', ...pr(B) });
+  leadRun(id, B, 1_300, { outcome: 'completed', ...pr(B) });
+
+  const { rounds } = await reply();
+  expect(rounds).toHaveLength(1);
+  expect(rounds[0]).toMatchObject({ round: 1, verdict: 'approved', fixMs: null, fixedSha: null, commits: [] });
+});
+
+test('the fix of an observations pass still belongs to the round that listed them, lead or no lead', async () => {
+  const B = 'b'.repeat(40);
+  const id = epicRow({ config: leadConfig, startedAt: 50 });
+  slotReview(id, 'reviewer', 1, SHA, { outcome: 'completed', ...pr(SHA), observations: [{ title: 'Rename x' }] });
+  run(id, 'fix', 300, 360, { outcome: 'completed', ...pr(B) });
+  leadRun(id, B, 1_000, { outcome: 'completed', ...pr(B) });
+
+  expect((await reply()).rounds[0]).toMatchObject({ fixMs: 60, fixedSha: B });
 });

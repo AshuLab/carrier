@@ -15,7 +15,9 @@ import { epics } from '../storage/schema.ts';
 import type { Blocker, EpicReply } from './replies.ts';
 import { optionsOf } from '../status/snapshot.ts';
 import { agentOf } from './sessions.ts';
-import { leadApproval } from '../orchestration/round.ts';
+import { latestRoundTally, leadApproval } from '../orchestration/round.ts';
+import { roundSlots } from '../orchestration/slots.ts';
+import { redact } from '../logging/redact.ts';
 
 const log = createScopedLogger('control');
 const execFileAsync = promisify(execFile);
@@ -28,6 +30,7 @@ const MAX_COMMITS = 50;
 const MAX_TEXT = 200;
 const MAX_URL = 500;
 const MAX_ACTIVITY = 80;
+const MAX_NO_VERDICT_WHY = 200;
 const MAX_LIVE_EVENTS = 500; // per kind, newest first, of the one running execution
 
 type Round = EpicReply['rounds'][number];
@@ -178,6 +181,7 @@ export async function epicOf(db: Db, repo: string, issue: number): Promise<EpicR
   // A round is its number and the head its reviews were given, however many reviewers it has; a review of a head that moved is of no round, and neither is any other review on that head.
   let attempt = 0;
   let worked = false; // a review or a fix ran in this attempt
+  let leading = false; // the lead has reviewed since the last review of the reviewers: a fix now is the lead's exchange
   const entries: Entry[] = [];
   const dead = new Set<string>(); // the rounds and heads a verdict was set aside on
   for (const { run, result, outcome } of runs) {
@@ -189,13 +193,18 @@ export async function epicOf(db: Db, repo: string, issue: number): Promise<EpicR
       if (worked) {
         attempt++;
         worked = false;
+        leading = false;
       }
       continue;
     }
     worked = true;
-    if (run.stage === 'lead') continue; // the lead's exchange is no round: the round's verdicts are the reviewers'
+    if (run.stage === 'lead') {
+      leading = true;
+      continue; // the lead's exchange is no round: the round's verdicts are the reviewers'
+    }
     const last = entries.at(-1);
     if (run.stage === 'fix') {
+      if (leading) continue; // the author answering the lead: it answers no round of the reviewers
       if (last === undefined || last.attempt !== attempt) continue;
       last.fixed = true;
       if (result === null) continue; // a retry or one still running
@@ -204,6 +213,7 @@ export async function epicOf(db: Db, repo: string, issue: number): Promise<EpicR
       last.fixedSha = parsed.outcome === 'completed' ? parsed.pr.headSha : null;
       continue;
     }
+    leading = false; // a review of the reviewers: the lead's exchange starts over
     if (result === null) continue;
     const parsed = JSON.parse(result) as CallerResult;
     if (parsed.outcome === 'needs_human') continue; // the reviewer stopped: no verdict to show
@@ -290,6 +300,8 @@ export async function epicOf(db: Db, repo: string, issue: number): Promise<EpicR
   const reviewer = runs.findLast(({ run }) => run.stage === 'review' && run.workspace !== null)?.run.workspace ?? null;
   const lead = epic.config?.agents.leadReviewer;
   const approved = leadApproval(db, epic);
+  const slots = roundSlots(epic.config);
+  const tally = slots.length > 1 ? latestRoundTally(db, epic, slots) : undefined; // the reason of a reviewer with no verdict is redacted: an agent wrote it
   const worktrees: EpicReply['worktrees'] = [
     ...(epic.workspace === null ? [] : [{ kind: 'epic' as const, lane: null, path: epic.workspace }]),
     ...(reviewer === null ? [] : [{ kind: 'reviewer' as const, lane: null, path: reviewer }]),
@@ -297,5 +309,5 @@ export async function epicOf(db: Db, repo: string, issue: number): Promise<EpicR
   // the row records the branch once ship is validated; before that the worktree's HEAD is the only place it is
   const branch = epic.branch ?? (epic.workspace === null ? null : ((await git(epic.workspace, ['symbolic-ref', '--short', 'HEAD']))?.trim() || null));
 
-  return { stages, rounds, slices: slices.map(({ number, title, state, blockedBy, prNumber, prState, prMergedAt, closedAt, readAt }) => ({ number, title, state, blockedBy, prNumber, prState, prMergedAt, closedAt, readAt, lane: null, activity: null, ...(state === 'in_progress' && hints.get(number)) })), slicesTruncated: slices.some((s) => s.truncated), threads: threads.map(({ epicId, position, readAt, truncated, ...thread }) => thread), threadsTruncated: threads.some((t) => t.truncated), worktrees, branch, options: optionsOf(epic), ...(epic.unansweredObservations !== null && epic.unansweredReason !== null && { unansweredObservations: { count: epic.unansweredObservations, reason: epic.unansweredReason } }), pr: epic.pr, ...(epic.reviewedSha !== null && { reviewedSha: epic.reviewedSha }), ...(epic.approvedSha !== null && { approvedSha: epic.approvedSha, ...(approved !== undefined && { leadApproval: approved }) }), ...(lead && { lead: { harness: lead.harness, model: lead.model, provider: lead.provider ?? null } }) };
+  return { stages, rounds, slices: slices.map(({ number, title, state, blockedBy, prNumber, prState, prMergedAt, closedAt, readAt }) => ({ number, title, state, blockedBy, prNumber, prState, prMergedAt, closedAt, readAt, lane: null, activity: null, ...(state === 'in_progress' && hints.get(number)) })), slicesTruncated: slices.some((s) => s.truncated), threads: threads.map(({ epicId, position, readAt, truncated, ...thread }) => thread), threadsTruncated: threads.some((t) => t.truncated), worktrees, branch, options: optionsOf(epic), ...(epic.unansweredObservations !== null && epic.unansweredReason !== null && { unansweredObservations: { count: epic.unansweredObservations, reason: epic.unansweredReason } }), pr: epic.pr, ...(tally && { reviewers: { given: tally.given, of: tally.of, none: tally.none.map(({ slot, why }) => ({ slot, why: redact(why).slice(0, MAX_NO_VERDICT_WHY) })) } }), ...(epic.reviewedSha !== null && { reviewedSha: epic.reviewedSha }), ...(epic.approvedSha !== null && { approvedSha: epic.approvedSha, ...(approved !== undefined && { leadApproval: approved }) }), ...(lead && { lead: { harness: lead.harness, model: lead.model, provider: lead.provider ?? null } }) };
 }

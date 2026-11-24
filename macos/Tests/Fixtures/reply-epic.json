@@ -336,6 +336,16 @@
     "count": 2,
     "reason": "already_taken"
   },
+  "reviewers": {
+    "given": 2,
+    "of": 3,
+    "none": [
+      {
+        "slot": "reviewer-3",
+        "why": "cannot verify the migration"
+      }
+    ]
+  },
   "reviewedSha": "5555555eeeeeee",
   "approvedSha": "7777777ggggggg",
   "leadApproval": true,

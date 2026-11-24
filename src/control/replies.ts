@@ -1,5 +1,5 @@
 import type { ReviewThread } from '../orchestration/github.ts';
-import type { EpicOptions, PanelAgent, UnansweredObservations } from '../status/types.ts';
+import type { EpicOptions, PanelAgent, PanelReviewers, UnansweredObservations } from '../status/types.ts';
 import type { executionStates } from '../storage/executions.ts';
 import type { AgentFailure } from '../execution/agent-runner.ts';
 
@@ -125,6 +125,8 @@ export type EpicReply = {
   }[];
   /** Only an epic that went to ready for test with observations nobody answered has it. */
   unansweredObservations?: UnansweredObservations;
+  /** How many reviewers gave a verdict out of how many are configured, and why each other gave none, for the latest decided round; only an epic with several reviewers that has one. */
+  reviewers?: PanelReviewers;
   /** The head the reviewers agreed on; absent until a round agreed. */
   reviewedSha?: string;
   /** The head the lead reviewer approved; only an epic whose lead completed has it, and it may differ from `reviewedSha` when the head moved while the lead reviewed. */

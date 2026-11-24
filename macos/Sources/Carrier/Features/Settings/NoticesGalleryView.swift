@@ -8,7 +8,7 @@ struct NoticesGalleryView: View {
     static let sessionId = "b4000000-0000-4000-8000-000000000001"
     static func shows(_ id: String) -> Bool { id == sessionId && CommandLine.arguments.contains("--fixture") }
 
-    @AppStorage(AppPreferences.messageWidthKey) private var messageWidth = AppPreferences.defaultMessageWidth
+    @AppStorage(Preference.appearanceMessageWidth) private var messageWidth
 
     var body: some View {
         ScrollView {

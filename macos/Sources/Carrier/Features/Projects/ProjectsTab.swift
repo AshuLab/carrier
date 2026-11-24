@@ -392,10 +392,10 @@ private struct ProjectDetailView: View {
     @State private var branches: [WorkspaceInfo.Branch] = []
     private let catalog = ModelCatalog.shared
     /// What Settings > Sessions starts a new session with, which a project left on "Same as everywhere" follows.
-    @AppStorage(AppPreferences.newSessionAgentKey) private var everywhereAgent = ""
-    @AppStorage(AppPreferences.newSessionModelKey) private var everywhereModel = ""
-    @AppStorage(AppPreferences.newSessionEffortKey) private var everywhereEffort = ""
-    @AppStorage(AppPreferences.newSessionAccessKey) private var everywhereAccess = ""
+    @AppStorage(Preference.chatNewSessionAgent) private var everywhereAgent
+    @AppStorage(Preference.chatNewSessionModel) private var everywhereModel
+    @AppStorage(Preference.chatNewSessionEffort) private var everywhereEffort
+    @AppStorage(Preference.chatNewSessionAccess) private var everywhereAccess
     /// Why the last change of the Carrier switch was refused, and the question asked before it goes off.
     @State private var watchFailure: String?
     @State private var confirmingStop = false

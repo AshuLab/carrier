@@ -128,9 +128,9 @@ private func running(_ snapshot: PanelSnapshot) -> ConnectionState { .running(sn
 
 @Test func theSoundIsOnUntilTurnedOff() {
     let defaults = UserDefaults(suiteName: "carrier-test-\(UUID().uuidString)")!
-    #expect(defaults.notifiesWithSound)
-    defaults.set(false, forKey: notifySoundKey)
-    #expect(defaults.notifiesWithSound == false)
+    #expect(AppPreferences(defaults: defaults).notifiesWithSound)
+    defaults.set(false, forKey: Preference.notifySound.name)
+    #expect(AppPreferences(defaults: defaults).notifiesWithSound == false)
 }
 
 // quiet hours
@@ -141,11 +141,11 @@ private func at(_ hour: Int, _ minute: Int = 0) -> Date {
 
 @Test func quietHoursAreOffUntilTurnedOnAndOfferTenPMToEightAM() {
     let defaults = UserDefaults(suiteName: "carrier-test-\(UUID().uuidString)")!
-    #expect(defaults.quietHours == QuietHours(enabled: false, start: 22 * 60, end: 8 * 60))
-    #expect(defaults.quietHours.contains(at(23)) == false)
-    defaults.set(true, forKey: notifyQuietKey)
-    defaults.set(9 * 60 + 30, forKey: notifyQuietStartKey)
-    #expect(defaults.quietHours == QuietHours(enabled: true, start: 9 * 60 + 30, end: 8 * 60))
+    #expect(AppPreferences(defaults: defaults).quietHours == QuietHours(enabled: false, start: 22 * 60, end: 8 * 60))
+    #expect(AppPreferences(defaults: defaults).quietHours.contains(at(23)) == false)
+    defaults.set(true, forKey: Preference.notifyQuiet.name)
+    defaults.set(9 * 60 + 30, forKey: Preference.notifyQuietStart.name)
+    #expect(AppPreferences(defaults: defaults).quietHours == QuietHours(enabled: true, start: 9 * 60 + 30, end: 8 * 60))
 }
 
 @Test func aWindowInsideOneDayIsQuietFromItsStartUntilItsEnd() {
@@ -215,19 +215,19 @@ private let both = snapshot([epic(7, .needsHuman, reason: "x")], done: [ready(9,
 
 @Test func theSwitchesAreOnUntilTurnedOff() {
     let defaults = UserDefaults(suiteName: "carrier-test-\(UUID().uuidString)")!
-    #expect(defaults.notificationKinds == NotificationKinds())
-    defaults.set(false, forKey: notifyReadyForTestKey)
-    #expect(defaults.notificationKinds == NotificationKinds(readyForTest: false))
-    defaults.set(false, forKey: notifyNeedsYouKey)
-    #expect(defaults.notificationKinds == NotificationKinds(needsYou: false, readyForTest: false))
+    #expect(AppPreferences(defaults: defaults).notificationKinds == NotificationKinds())
+    defaults.set(false, forKey: Preference.notifyReadyForTest.name)
+    #expect(AppPreferences(defaults: defaults).notificationKinds == NotificationKinds(readyForTest: false))
+    defaults.set(false, forKey: Preference.notifyNeedsYou.name)
+    #expect(AppPreferences(defaults: defaults).notificationKinds == NotificationKinds(needsYou: false, readyForTest: false))
 }
 
 @Test func aProblemIsOffUntilTurnedOnAndNotInFrontIsOnUntilTurnedOff() {
     let defaults = UserDefaults(suiteName: "carrier-test-\(UUID().uuidString)")!
-    #expect(defaults.notificationKinds.problem == false && defaults.notifiesOnlyWhenAway)
-    defaults.set(true, forKey: notifyProblemKey)
-    defaults.set(false, forKey: notifyOnlyWhenAwayKey)
-    #expect(defaults.notificationKinds.problem && defaults.notifiesOnlyWhenAway == false)
+    #expect(AppPreferences(defaults: defaults).notificationKinds.problem == false && AppPreferences(defaults: defaults).notifiesOnlyWhenAway)
+    defaults.set(true, forKey: Preference.notifyProblem.name)
+    defaults.set(false, forKey: Preference.notifyOnlyWhenAway.name)
+    #expect(AppPreferences(defaults: defaults).notificationKinds.problem && AppPreferences(defaults: defaults).notifiesOnlyWhenAway == false)
 }
 
 @Test func aBannerIsHeldBackOnlyWhenAskedAndTheAppIsInFront_AndTheTestAlwaysShows() {
@@ -398,11 +398,11 @@ private let chatDoneOn = NotificationKinds(chatDone: true)
 
 @Test func theChatSwitchesStartWithNeedsAttentionOnAndDoneOff() {
     let defaults = UserDefaults(suiteName: "carrier-test-\(UUID().uuidString)")!
-    #expect(defaults.notificationKinds.chatNeedsAttention)
-    #expect(defaults.notificationKinds.chatDone == false)
-    defaults.set(true, forKey: notifyChatDoneKey)
-    defaults.set(false, forKey: notifyChatNeedsAttentionKey)
-    #expect(defaults.notificationKinds == NotificationKinds(chatNeedsAttention: false, chatDone: true))
+    #expect(AppPreferences(defaults: defaults).notificationKinds.chatNeedsAttention)
+    #expect(AppPreferences(defaults: defaults).notificationKinds.chatDone == false)
+    defaults.set(true, forKey: Preference.notifyChatDone.name)
+    defaults.set(false, forKey: Preference.notifyChatNeedsAttention.name)
+    #expect(AppPreferences(defaults: defaults).notificationKinds == NotificationKinds(chatNeedsAttention: false, chatDone: true))
 }
 
 @Test func theWatcherSeedsOnTheFirstListAndPostsTheChangesAfterWithTheSound() {
@@ -433,9 +433,9 @@ private let chatDoneOn = NotificationKinds(chatDone: true)
 
 @Test func theDockBadgeIsOnUntilTurnedOff() {
     let defaults = UserDefaults(suiteName: "carrier-test-\(UUID().uuidString)")!
-    #expect(defaults.showsDockBadge)
-    defaults.set(false, forKey: notifyDockBadgeKey)
-    #expect(defaults.showsDockBadge == false)
+    #expect(AppPreferences(defaults: defaults).showsDockBadge)
+    defaults.set(false, forKey: Preference.notifyDockBadge.name)
+    #expect(AppPreferences(defaults: defaults).showsDockBadge == false)
 }
 
 @Test func theWatcherSetsTheBadgeFromTheTwoLastStatesAndClearsItAtZeroOrWithTheSwitchOff() {
@@ -482,13 +482,13 @@ private func after(_ minutes: Double) -> Date { start.addingTimeInterval(minutes
 
 @Test func theReminderIntervalIsNeverUntilChosenAndABadValueReadsAsNever() {
     let defaults = UserDefaults(suiteName: "carrier-test-\(UUID().uuidString)")!
-    #expect(defaults.reminderInterval == .never)
-    defaults.set(900, forKey: notifyReminderKey)
-    #expect(defaults.reminderInterval == .quarterHour)
-    defaults.set(3600, forKey: notifyReminderKey)
-    #expect(defaults.reminderInterval == .hour)
-    defaults.set(7, forKey: notifyReminderKey)
-    #expect(defaults.reminderInterval == .never)
+    #expect(AppPreferences(defaults: defaults).reminderInterval == .never)
+    defaults.set(900, forKey: Preference.notifyReminder.name)
+    #expect(AppPreferences(defaults: defaults).reminderInterval == .quarterHour)
+    defaults.set(3600, forKey: Preference.notifyReminder.name)
+    #expect(AppPreferences(defaults: defaults).reminderInterval == .hour)
+    defaults.set(7, forKey: Preference.notifyReminder.name)
+    #expect(AppPreferences(defaults: defaults).reminderInterval == .never)
 }
 
 @Test func theWatcherRemindsAnEpicAndASessionAtTheirOwnPaceAndLeavesTheRestAlone() {

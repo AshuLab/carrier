@@ -109,23 +109,21 @@ public struct SetupSettings: Equatable {
 /// time the shell is asked. The key is not the one the three-field setup used, so what that one saved is ignored, with no migration.
 public struct SetupStore {
     private let defaults: UserDefaults
-    private let key = "shellSetup"
-    private let carrierKey = "engine.carrier"
 
     public init(defaults: UserDefaults = .standard) { self.defaults = defaults }
 
     public func load() -> SetupSettings? {
-        guard let saved = defaults.dictionary(forKey: key) as? [String: String] else { return nil }
+        guard let saved = defaults.dictionary(forKey: Preference.shellSetup.name) as? [String: String] else { return nil }
         return SetupSettings(node: saved["node"] ?? "", path: saved["path"] ?? "")
     }
 
     public func save(_ settings: SetupSettings) {
-        defaults.set(["node": settings.node, "path": settings.path], forKey: key)
+        defaults.set(["node": settings.node, "path": settings.path], forKey: Preference.shellSetup.name)
     }
 
     /// The advanced "use this carrier" value; empty when unset.
     public var carrierOverride: String {
-        get { defaults.string(forKey: carrierKey) ?? "" }
-        nonmutating set { defaults.set(newValue, forKey: carrierKey) }
+        get { AppPreferences(defaults: defaults).value(Preference.engineCarrier) }
+        nonmutating set { AppPreferences(defaults: defaults).store(newValue, for: Preference.engineCarrier) }
     }
 }

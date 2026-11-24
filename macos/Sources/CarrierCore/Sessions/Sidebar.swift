@@ -7,7 +7,7 @@ public enum GroupBy: String, CaseIterable {
     case status, repo
 }
 
-/// The ids in a stored `SidebarStore.pinnedKey`.
+/// The ids in the stored `Preference.sidebarPinned`.
 public func pinnedIds(_ stored: String) -> Set<String> { Set(stored.split(separator: ",").map(String.init)) }
 
 /// The string to store for these ids.
@@ -15,68 +15,55 @@ public func storedPins(_ ids: Set<String>) -> String { ids.sorted().joined(separ
 
 /// The grouping, the Sessions and Archive sorts and the unfolded section, kept in user defaults so they survive a relaunch.
 public struct SidebarStore {
-    public static let groupByKey = "sidebar.groupBy"
-    public static let sessionSortKey = "sidebar.sessionSort"
-    public static let archiveSortKey = "sidebar.archiveSort"
-    /// How the Archive list under the sidebar groups its sessions (By workspace or By age); the Archive page has its own, `archiveSortKey`.
-    public static let archiveListSortKey = "sidebar.archiveListSort"
-    /// The pinned sessions' ids, comma-separated (an `@AppStorage` string; read it with `pinnedIds`).
-    public static let pinnedKey = "sidebar.pinned"
-    public static let showsIconKey = "sidebar.row.icon"
-    public static let showsBranchKey = "sidebar.row.branch"
-    public static let showsProvidersKey = "sidebar.row.providers"
-    public static let showsAgeKey = "sidebar.row.age"
-    public static let showsPullRequestKey = "sidebar.row.pullRequest"
-    public static let showsDiffKey = "sidebar.row.diff"
-    private static let openKey = "sidebar.open"
-    private static let slotsTotalKey = "sidebar.slotsTotal"
-    public static let widthKey = "sidebar.width"
     /// How narrow and how wide the sidebar can be dragged, in points, and the width it opens at until the person moves it.
     public static let widthRange: ClosedRange<Double> = 280...800
-    public static let defaultWidth: Double = 360
+    public static let defaultWidth = Preference.sidebarWidth.defaultValue
 
-    private let defaults: UserDefaults
+    private let preferences: AppPreferences
 
-    public init(defaults: UserDefaults = .standard) { self.defaults = defaults }
+    public init(defaults: UserDefaults = .standard) { preferences = AppPreferences(defaults: defaults) }
 
     public var groupBy: GroupBy {
-        get { defaults.string(forKey: Self.groupByKey).flatMap(GroupBy.init(rawValue:)) ?? .status }
-        nonmutating set { defaults.set(newValue.rawValue, forKey: Self.groupByKey) }
+        get { preferences.value(Preference.sidebarGroupBy) }
+        nonmutating set { preferences.store(newValue, for: Preference.sidebarGroupBy) }
     }
 
     public var sessionSort: SessionSort {
-        get { defaults.string(forKey: Self.sessionSortKey).flatMap(SessionSort.init(rawValue:)) ?? .workspace }
-        nonmutating set { defaults.set(newValue.rawValue, forKey: Self.sessionSortKey) }
+        get { preferences.value(Preference.sidebarSessionSort) }
+        nonmutating set { preferences.store(newValue, for: Preference.sidebarSessionSort) }
     }
 
-    public var pinned: Set<String> { pinnedIds(defaults.string(forKey: Self.pinnedKey) ?? "") }
+    public var pinned: Set<String> {
+        get { pinnedIds(preferences.value(Preference.sidebarPinned)) }
+        nonmutating set { preferences.store(storedPins(newValue), for: Preference.sidebarPinned) }
+    }
 
     public var archiveSort: ArchiveSort {
-        get { defaults.string(forKey: Self.archiveSortKey).flatMap(ArchiveSort.init(rawValue:)) ?? .dateArchived }
-        nonmutating set { defaults.set(newValue.rawValue, forKey: Self.archiveSortKey) }
+        get { preferences.value(Preference.sidebarArchiveSort) }
+        nonmutating set { preferences.store(newValue, for: Preference.sidebarArchiveSort) }
     }
 
     /// The width the person left the sidebar at, kept inside `widthRange`; `defaultWidth` until they move it.
     public var width: Double {
-        get { Self.clamped(defaults.object(forKey: Self.widthKey) as? Double ?? Self.defaultWidth) }
-        nonmutating set { defaults.set(Self.clamped(newValue), forKey: Self.widthKey) }
+        get { Self.clamped(preferences.value(Preference.sidebarWidth)) }
+        nonmutating set { preferences.store(Self.clamped(newValue), for: Preference.sidebarWidth) }
     }
 
     private static func clamped(_ width: Double) -> Double { min(max(width, widthRange.lowerBound), widthRange.upperBound) }
 
     /// The slots total the engine last reported, for the bars of a stopped engine; nil until one was seen.
     public var slotsTotal: Int? {
-        get { defaults.object(forKey: Self.slotsTotalKey) as? Int }
-        nonmutating set { defaults.set(newValue, forKey: Self.slotsTotalKey) }
+        get { preferences.value(Preference.sidebarSlotsTotal) }
+        nonmutating set { preferences.store(newValue, for: Preference.sidebarSlotsTotal) }
     }
 
     /// The unfolded section. Both folded is stored as "none"; a value that is not a section brings back Sessions.
     public var open: OpenSection? {
         get {
-            let stored = defaults.string(forKey: Self.openKey)
-            return stored == "none" ? nil : stored.flatMap(OpenSection.init(rawValue:)) ?? .sessions
+            let stored = preferences.value(Preference.sidebarOpen)
+            return stored == "none" ? nil : OpenSection(rawValue: stored) ?? .sessions
         }
-        nonmutating set { defaults.set(newValue?.rawValue ?? "none", forKey: Self.openKey) }
+        nonmutating set { preferences.store(newValue?.rawValue ?? "none", for: Preference.sidebarOpen) }
     }
 }
 

@@ -6,7 +6,7 @@ import SwiftUI
 /// field under the row.
 struct SessionsRows: View {
     let sessions: Sessions
-    @AppStorage(SidebarStore.pinnedKey) private var pinnedStored = ""
+    @AppStorage(Preference.sidebarPinned) private var pinnedStored
     /// The order, shared with the Sessions home and remembered by the model.
     @Binding var sort: SessionSort
     @Binding var selection: Selection

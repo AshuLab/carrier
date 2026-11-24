@@ -4,18 +4,16 @@ import Foundation
 /// the app keeps, per session, the last activity it had seen, in user defaults. A session met for the first time counts as seen (an old
 /// list does not all turn unread the day this arrives), and the one being looked at is seen as it moves.
 public struct SessionSeen: Equatable {
-    public static let key = "sessions.seen"
-
     /// The last activity seen, by session id, in seconds since 1970.
     private var seen: [String: Double]
 
     public init(seen: [String: Double] = [:]) { self.seen = seen }
 
     public static func stored(in defaults: UserDefaults = .standard) -> SessionSeen {
-        SessionSeen(seen: defaults.dictionary(forKey: key) as? [String: Double] ?? [:])
+        SessionSeen(seen: defaults.dictionary(forKey: Preference.sessionsSeen.name) as? [String: Double] ?? [:])
     }
 
-    public func store(in defaults: UserDefaults = .standard) { defaults.set(seen, forKey: Self.key) }
+    public func store(in defaults: UserDefaults = .standard) { defaults.set(seen, forKey: Preference.sessionsSeen.name) }
 
     /// The rows with `unread` set: an idle session whose last activity is later than the one seen. `viewing` is the session open on screen;
     /// it and the sessions met for the first time are taken as seen now. Sessions that are gone are forgotten. Returns whether what was

@@ -22,4 +22,28 @@ if [ -s /tmp/check-structure.$$ ]; then
 fi
 rm -f /tmp/check-structure.$$
 
+# Rule: user defaults are read and written only under CarrierCore/Settings/.
+# Flags `UserDefaults.standard`, and a call of the defaults' own accessors (set, object, string, bool, integer, double, float, data, array,
+# dictionary, stringArray, url, removeObject) with a literal key (`forKey: "`), outside Sources/CarrierCore/Settings/.
+# Ignores: comment lines; an injected `defaults: UserDefaults` parameter and its `= .standard` default; `didChangeNotification` observers;
+# and `forKey: "` on something that is not the defaults (`removeValue` on a dictionary, `setValue` of key-value coding, `add` on a layer).
+# Exclusion list, each with its reason; a file here is not scanned:
+#   Sources/CarrierCore/Chat/ChatOptions.swift  the per-session state (`chat.options.<id>`, `chat.commands.<id>`, `chat.agent.<id>`): state of a session, not a preference
+# Sparkle's own `SU*` keys are read by Sparkle, no code of the app names them; the last Settings page is `AppPreferences.lastSettingsPage`, under Settings/.
+STATE_FILES=("Sources/CarrierCore/Chat/ChatOptions.swift")
+grep -rnE 'UserDefaults\.standard|\b(set|object|string|bool|integer|double|float|data|array|dictionary|stringArray|url|removeObject)\(.*forKey: "' Sources --include='*.swift' |
+  grep -v '^Sources/CarrierCore/Settings/' |
+  grep -vE '^[^:]+:[0-9]+:\s*//' |
+  while IFS= read -r hit; do
+    file="${hit%%:*}"
+    skip=0
+    for state in "${STATE_FILES[@]}"; do [ "$file" = "$state" ] && skip=1; done
+    [ "$skip" = 0 ] && echo "$hit" | sed -E 's/^([^:]+:[0-9]+):.*/\1: user defaults are touched outside CarrierCore\/Settings\/: use Preference and AppPreferences/'
+  done > /tmp/check-structure-defaults.$$
+if [ -s /tmp/check-structure-defaults.$$ ]; then
+  cat /tmp/check-structure-defaults.$$
+  FAILED=1
+fi
+rm -f /tmp/check-structure-defaults.$$
+
 exit $FAILED

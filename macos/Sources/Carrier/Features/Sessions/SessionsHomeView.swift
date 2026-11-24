@@ -13,7 +13,7 @@ struct SessionsHomeView: View {
     @State private var query: String?
     @State private var filter = SessionFilter()
     @State private var filterOpen = false
-    @AppStorage(SidebarStore.pinnedKey) private var pinnedStored = ""
+    @AppStorage(Preference.sidebarPinned) private var pinnedStored
     @FocusState private var searching: Bool
     @FocusState private var listFocused: Bool
     /// The row the arrow keys are on, by id; Return opens it.
@@ -227,7 +227,7 @@ private struct SessionHomeRow: View {
     let open: () -> Void
     @State private var hovered = false
     @Environment(SessionActions.self) private var actions
-    @AppStorage(SidebarStore.pinnedKey) private var pinnedStored = ""
+    @AppStorage(Preference.sidebarPinned) private var pinnedStored
 
     private var pinned: Bool { pinnedIds(pinnedStored).contains(row.id) }
 

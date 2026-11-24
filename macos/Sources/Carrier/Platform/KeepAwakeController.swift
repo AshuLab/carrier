@@ -116,7 +116,7 @@ import IOKit.pwr_mgt
 
     /// The switch "While agents work" of the Keep awake page.
     func setFollowsAgents(_ on: Bool) {
-        defaults.set(on, forKey: AppPreferences.awakeAgentsKey)
+        AppPreferences(defaults: defaults).store(on, for: Preference.awakeAgents)
         settingsChanged()
     }
 

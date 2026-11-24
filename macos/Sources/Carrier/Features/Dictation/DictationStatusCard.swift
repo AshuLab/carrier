@@ -6,9 +6,9 @@ import SwiftUI
 /// microphone, Accessibility and the speech model, with what is in the way and a button for what macOS has to be told. With the switch off it only says so.
 struct DictationStatusCard: View {
     var dictation = DictationController.shared
-    @AppStorage(AppPreferences.dictationGlobalKey) private var global = AppPreferences.defaultDictationGlobal
+    @AppStorage(Preference.dictationGlobal) private var global
     // the model in use is the controller's; this makes the card redraw when it changes, Reset included
-    @AppStorage(AppPreferences.dictationModelKey) private var savedModel: String?
+    @AppStorage(Preference.dictationModel) private var savedModel
     /// What macOS says of Accessibility now; asked again each time Carrier comes back to the front, since it is allowed in System Settings.
     @State private var trusted = AXIsProcessTrusted()
 

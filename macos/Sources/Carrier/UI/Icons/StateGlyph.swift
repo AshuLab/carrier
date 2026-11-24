@@ -37,7 +37,7 @@ struct Disc: View {
     let mark: String
     var shape: StateShape?
     var size: CGFloat = 18
-    @AppStorage(AppPreferences.statesByShapeKey) private var byShape = false
+    @AppStorage(Preference.appearanceStatesByShape) private var byShape
 
     var body: some View {
         if byShape, let shape {
@@ -56,7 +56,7 @@ struct StateMark: View {
     let shape: StateShape?
     let size: CGFloat
     var weight = Font.Weight.heavy
-    @AppStorage(AppPreferences.statesByShapeKey) private var byShape = false
+    @AppStorage(Preference.appearanceStatesByShape) private var byShape
 
     @ViewBuilder var body: some View {
         if byShape, let shape {

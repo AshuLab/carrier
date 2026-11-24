@@ -7,10 +7,10 @@ struct CleanupGroup: View {
     var cleanup = CleanupController.shared
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     // the choices are the controller's to read and write; these make the group redraw when they change, Reset included
-    @AppStorage(AppPreferences.dictationCleanupEnabledKey) private var savedEnabled = false
-    @AppStorage(AppPreferences.dictationCleanupServerKey) private var savedServer: String?
-    @AppStorage(AppPreferences.dictationCleanupModelKey) private var savedModel: String?
-    @AppStorage(AppPreferences.dictationCleanupPromptKey) private var savedPrompt: String?
+    @AppStorage(Preference.dictationCleanupEnabled) private var savedEnabled
+    @AppStorage(Preference.dictationCleanupServer) private var savedServer
+    @AppStorage(Preference.dictationCleanupModel) private var savedModel
+    @AppStorage(Preference.dictationCleanupPrompt) private var savedPrompt
 
     var body: some View {
         SettingsGroup(

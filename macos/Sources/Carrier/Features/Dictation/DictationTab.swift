@@ -12,20 +12,20 @@ struct DictationTabView: View {
     var place = SettingsPlace(.dictation)
     var go: (SettingsPlace) -> Void = { _ in }
     // the cleanup's choices are the controller's, and a defaults it does not publish: these make the toolbar's line and the Cleanup row redraw when they change
-    @AppStorage(AppPreferences.dictationCleanupEnabledKey) private var cleanupOn = false
-    @AppStorage(AppPreferences.dictationCleanupServerKey) private var cleanupServer: String?
+    @AppStorage(Preference.dictationCleanupEnabled) private var cleanupOn
+    @AppStorage(Preference.dictationCleanupServer) private var cleanupServer
     // what the summaries of the first screen say is stored in these; they make it redraw when a screen changes one, Reset included
-    @AppStorage(AppPreferences.dictationGlobalKey) private var global = AppPreferences.defaultDictationGlobal
-    @AppStorage(AppPreferences.dictationShortcutKey) private var shortcutText = ""
-    @AppStorage(AppPreferences.dictationActivationKey) private var activation = DictationActivation.toggle
-    @AppStorage(AppPreferences.dictationWidgetStyleKey) private var widgetStyle = DictationWidgetStyle.medium
-    @AppStorage(AppPreferences.dictationStartSoundOnKey) private var startOn = DictationSounds().startOn
-    @AppStorage(AppPreferences.dictationStartSoundKey) private var start = DictationSounds.defaultStart
-    @AppStorage(AppPreferences.dictationEndSoundOnKey) private var endOn = DictationSounds().endOn
-    @AppStorage(AppPreferences.dictationEndSoundKey) private var end = DictationSounds.defaultEnd
-    @AppStorage(AppPreferences.dictationSoundVolumeKey) private var volume = DictationSounds.defaultVolume
-    @AppStorage(AppPreferences.dictationModelKey) private var savedModel: String?
-    @AppStorage(AppPreferences.dictationLanguageKey) private var savedLanguage: String?
+    @AppStorage(Preference.dictationGlobal) private var global
+    @AppStorage(Preference.dictationShortcut) private var shortcutText
+    @AppStorage(Preference.dictationActivation) private var activation
+    @AppStorage(Preference.dictationWidgetStyle) private var widgetStyle
+    @AppStorage(Preference.dictationSoundStartOn) private var startOn
+    @AppStorage(Preference.dictationSoundStart) private var start
+    @AppStorage(Preference.dictationSoundEndOn) private var endOn
+    @AppStorage(Preference.dictationSoundEnd) private var end
+    @AppStorage(Preference.dictationSoundVolume) private var volume
+    @AppStorage(Preference.dictationModel) private var savedModel
+    @AppStorage(Preference.dictationLanguage) private var savedLanguage
 
     private var screen: DictationScreen? { place.path.first.flatMap(DictationScreen.init(rawValue:)) }
 
@@ -105,7 +105,7 @@ struct DictationTabView: View {
         case .global:
             return dictation.enabled && global ? "\(AppPreferences().dictationShortcut.text) · \(activation == .hold ? "Hold" : "Toggle") · \(widgetStyle.title)" : "Off"
         case .cleanup:
-            return cleanupOn ? "On · \(cleanupServer.flatMap(CleanupServer.init(rawValue:))?.title ?? "no server yet")" : "Off"
+            return cleanupOn ? "On · \(cleanupServer?.title ?? "no server yet")" : "Off"
         case .sounds:
             if startOn == false, endOn == false { return "Off" }
             return "\(startOn ? start : "—") · \(endOn ? end : "—") · \(volume)%"

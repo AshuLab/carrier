@@ -9,8 +9,8 @@ import SwiftUI
 struct TranscriptRows: View {
     let content: TranscriptBody
     @Binding var flipped: Set<String>
-    @AppStorage(AppPreferences.toolOutputKey) private var mode = AppPreferences.defaultToolOutput
-    @AppStorage(AppPreferences.showsReasoningKey) private var showsReasoning = AppPreferences.defaultShowsReasoning
+    @AppStorage(Preference.chatToolOutput) private var mode
+    @AppStorage(Preference.chatShowReasoning) private var showsReasoning
 
     var body: some View {
         switch content {
@@ -46,8 +46,8 @@ struct LoadingRow: View {
 struct FlowItemView: View {
     let flow: FlowItem
     @Binding var flipped: Set<String>
-    @AppStorage(AppPreferences.toolOutputKey) private var mode = AppPreferences.defaultToolOutput
-    @AppStorage(AppPreferences.opensFailedCallsKey) private var opensFailed = AppPreferences.defaultOpensFailedCalls
+    @AppStorage(Preference.chatToolOutput) private var mode
+    @AppStorage(Preference.chatOpensFailedCalls) private var opensFailed
 
     var body: some View {
         switch flow {
@@ -94,8 +94,8 @@ private struct LinkedText: View {
     @State private var hovered: Int?
     @State private var overLink = false
     @State private var width: CGFloat = 0
-    @AppStorage(AppPreferences.chatTextSizeKey) private var size = Double(ChatText.defaultSize)
-    @AppStorage(AppPreferences.chatLineSpacingKey) private var spacing = AppPreferences.defaultChatLineSpacing
+    @AppStorage(Preference.chatTextSize) private var size
+    @AppStorage(Preference.chatLineSpacing) private var spacing
 
     var body: some View {
         Text(lit)
@@ -183,7 +183,7 @@ private struct MarkdownTableView: View {
     let table: MarkdownTable
     @State private var hovering = false
     @State private var copied = false
-    @AppStorage(AppPreferences.chatTextSizeKey) private var size = Double(ChatText.defaultSize)
+    @AppStorage(Preference.chatTextSize) private var size
 
     var body: some View {
         let columns = table.header.count
@@ -305,7 +305,7 @@ private struct TableLayout: Layout {
 struct MarkdownView: View {
     let text: String
     @Environment(\.colorScheme) private var scheme
-    @AppStorage(AppPreferences.chatTextSizeKey) private var size = Double(ChatText.defaultSize)
+    @AppStorage(Preference.chatTextSize) private var size
     private var dark: Bool { scheme == .dark }
 
     private enum Segment {

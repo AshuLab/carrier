@@ -622,6 +622,14 @@ public struct AppPreferences {
     /// Clears only embedded terminal settings back to defaults.
     public func resetTerminal() { reset(.terminal) }
 
+    /// The page Settings was left on: state, not a preference, so the schema has no entry for it and no page's Reset takes it out.
+    public var lastSettingsPage: SettingsPage {
+        get { defaults.string(forKey: Self.lastSettingsPageKey).flatMap(SettingsPage.init(rawValue:)) ?? .general }
+        nonmutating set { defaults.set(newValue.rawValue, forKey: Self.lastSettingsPageKey) }
+    }
+
+    private static let lastSettingsPageKey = "settingsLastPage"
+
     /// Takes the keys of one page out (the schema says which: `design/preferences.json`), so it reads as its defaults again; the other pages are not touched.
     public func reset(_ page: SettingsPage) { Preference.reset(page, in: defaults) }
 }

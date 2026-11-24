@@ -2,9 +2,6 @@ import Foundation
 
 // The epics section of the menu bar menu: plain values the AppKit menu maps one to one (docs/specs/macos-app-redesign.md, story 32).
 
-/// The user default behind the switch in Settings; on unless set otherwise.
-public let showEpicsKey = "menu.showEpics"
-
 public enum EpicMenuState: Equatable {
     case needsYou, running, waiting, ready, done, cancelled
 

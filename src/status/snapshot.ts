@@ -1,6 +1,6 @@
 import { and, asc, count, desc, eq, gte, inArray, isNull, or, sql } from 'drizzle-orm';
 import type { EffectiveRepoConfig } from '../config/resolve.ts';
-import { latestBlockers } from '../orchestration/blockers.ts';
+import { latestBlockers, latestLeadBlockers } from '../orchestration/blockers.ts';
 import { agentOfSlot, roundSlots } from '../orchestration/slots.ts';
 import type { Labels } from '../orchestration/github.ts';
 import { latestRoundTally, leadApproval } from '../orchestration/round.ts';
@@ -120,7 +120,7 @@ export function buildSnapshot(
     sessions,
     finished,
     epics: shown.map((e) => {
-      const blockers = latestBlockers(db, e.id);
+      const blockers = [...latestBlockers(db, e.id), ...latestLeadBlockers(db, e.id)]; // the lead's open ones too, while the author fixes them
       return {
         repo: e.repo,
         issue: e.issue,

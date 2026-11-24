@@ -23,7 +23,7 @@ import { executions, slotOf, type executionStates, type Slot } from '../storage/
 import { executionOutput, taskContext } from '../logging/logger.ts';
 import { epics, type cancelKinds, type needsHumanKinds } from '../storage/schema.ts';
 import type { Clock } from './clock.ts';
-import { latestBlockers, latestObservations, openBlockerSlots } from './blockers.ts';
+import { latestBlockers, latestLeadBlockers, latestObservations, openBlockerSlots } from './blockers.ts';
 import { changesSlices } from './changes-slices.ts';
 import { RecoverRefused } from './recover-refused.ts';
 import { ResumeRefused } from './resume-refused.ts';
@@ -51,7 +51,7 @@ export type EngineSettings = {
   maxExecutionRetries: number;
   /** Reviews of the final PR before the epic goes to a person; fix turns do not count. */
   maxReviews: number;
-  /** Reviews of the lead reviewer's exchange with the author before the epic goes to a person (`lead_limit`); the engine does not read it yet. */
+  /** Reviews of the lead reviewer's exchange with the author before the epic goes to a person (`lead_limit`); read when the lead's answer is decided. */
   maxLeadRounds: number;
   /** The labels by role: `ready` queues an epic (Carrier takes it off when the epic starts and puts it back to restart a stopped one), `running`, `readyForTest` and `needsHuman` are the ones Carrier writes. */
   labels: Labels;
@@ -746,7 +746,9 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     const resultPath = join(places.state, 'results', `${executionId}.json`);
     const { maxExecutionHours: hoursLimit, idleMinutes } = settings(); // read once: the run keeps the timeout and the idle limit it launches with
     // A fix right after a review that completed is the observations pass; after one that asked for changes, it answers the blockers.
-    const observations = stage === 'fix' ? latestObservations(db, epic.id, { tagged: several }) : null;
+    // The fix of the lead's exchange (or resumed after it) answers the lead's blockers alone: the lead's observations never go to the author, and the reviewers' are not asked again.
+    const leadBlockers = stage === 'fix' ? latestLeadBlockers(db, epic.id) : [];
+    const observations = stage === 'fix' && leadBlockers.length === 0 ? latestObservations(db, epic.id, { tagged: several }) : null;
     const found = agentOfSlot(epic.config!, slot);
     if (!found) throw new Error(`the epic's saved configuration has no agent for ${slot}`);
     // What an extra reviewer keeps besides an agent (its review skills, its failover steps, whether it shares the author's account) is not part of the task's agent.
@@ -769,7 +771,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       context: {
         previousSummaries: leading ? [] : reviewing || rebuild ? previousSummaries(epic.id) : [], // the lead is given what the reviewers said, by reviewer
         ...(leading && { reviewerSummaries: agreedSummaries(db, epic) }),
-        ...(observations ? { observations } : (stage === 'fix' || (reviewing && (epic.round ?? 0) > 1)) && { blockers: latestBlockers(db, epic.id, reviewing ? { slot: slot! } : { tagged: several }) }),
+        ...(observations ? { observations } : leadBlockers.length > 0 ? { blockers: leadBlockers } : (stage === 'fix' || (reviewing && (epic.round ?? 0) > 1)) && { blockers: latestBlockers(db, epic.id, reviewing ? { slot: slot! } : { tagged: several }) }),
         ...(reviewing && several && { severalReviewers: true as const }),
         ...(retryOf && { verifyStateFirst: true }),
         ...(pr && { pr }),
@@ -1046,14 +1048,17 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
   }
 
   // What the lead reviewer's result moves the epic to, for a head that was its own. Completed: ready for test with the head it approved, and what it said about its approval kept
-  // as an event of the epic (it does not require one). A lead that asks for changes stops the epic for a person, as its other answers do, until the author's fix for it is built.
+  // as an event of the epic (it does not require one). A lead that asks for changes sends the epic to the author's fix with its blockers alone, and only the lead reviews again, on the head
+  // after the fix; its rounds are its own (`leadRound`, up to `limits.maxLeadRounds`, read now) and neither the review round nor `maxReviews` moves. At the limit the epic stops for a person.
   function settleLead(tx: Pick<Db, 'update' | 'insert'>, now: Epic, result: Exclude<CallerResult, { outcome: 'needs_human' }>) {
     if (result.outcome === 'changes_requested') {
-      toNeedsHuman(tx, now.id, 'lead_limit', `the lead reviewer asked for changes: ${result.blockers.map((b) => b.title).join(' · ')} · fix them, then resume the epic`);
+      const limit = settings().maxLeadRounds;
+      if ((now.leadRound ?? 1) < limit) updateOf(tx, now.id)({ stage: 'fix', stageStartedAt: clock.now(), lastError: null });
+      else toNeedsHuman(tx, now.id, 'lead_limit', `the lead reviewer still asked for changes in each of its ${limit} rounds (limits.maxLeadRounds): ${result.blockers.map((b) => b.title).join(' · ')} · fix them yourself or raise limits.maxLeadRounds, then resume the epic`);
       return;
     }
     updateOf(tx, now.id)({ status: 'ready_for_test', approvedSha: result.pr.headSha, finishedAt: clock.now(), labelPending: true, lastError: null });
-    tx.insert(epicEvents).values({ epicId: now.id, at: clock.now(), type: 'lead_completed', data: { headSha: result.pr.headSha, ...(result.approval && { approval: result.approval }) } }).run();
+    tx.insert(epicEvents).values({ epicId: now.id, at: clock.now(), type: 'lead_completed', data: { headSha: result.pr.headSha, ...(result.approval && { approval: result.approval }), ...(result.observations && result.observations.length > 0 && { observations: result.observations }) } }).run();
   }
 
   // What a settled review round moves the epic to, on the head it was decided on. A round with no verdict stops in `reviewers_failed`, unless every failure was a quota one:
@@ -1191,8 +1196,10 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       else if (execution.stage === 'lead') settleLead(tx, now, result);
       else if (round) quotaStop = applyRound(tx, now, round, head);
       else if (execution.stage === 'ship') updateOf(tx, epic.id)({ stage: 'review', stageStartedAt: clock.now(), round: 1, prNumber: result.pr.number, prHeadSha: result.pr.headSha, workspace, branch });
-      // The pass ended with the head that was reviewed: nothing to review again, the reviewer's verification stands.
-      else if (execution.stage === 'fix' && latestObservations(db, epic.id) && result.pr.headSha === now.reviewedSha) agreed(tx, now, {});
+      // The fix of the lead's exchange: only the lead reviews again, on the head after the fix, with one more round of its own.
+      else if (execution.stage === 'fix' && now.leadRound !== null) updateOf(tx, epic.id)({ stage: 'lead', stageStartedAt: clock.now(), leadRound: now.leadRound + 1, prHeadSha: result.pr.headSha });
+      // The pass ended with the head that was reviewed: nothing to review again, the reviewer's verification stands (a fix of the lead's blockers resumed after it stopped is no pass).
+      else if (execution.stage === 'fix' && latestLeadBlockers(db, epic.id).length === 0 && latestObservations(db, epic.id) && result.pr.headSha === now.reviewedSha) agreed(tx, now, {});
       else updateOf(tx, epic.id)({ stage: 'review', stageStartedAt: clock.now(), round: (now.round ?? 0) + 1, prHeadSha: result.pr.headSha }); // a fix: the review numbers the following round
     });
     // The last error is cleared by a result, unless another slot's failure is still being recovered: it is that error.

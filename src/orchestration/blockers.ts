@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, inArray, ne, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, isNull, ne, or, sql } from 'drizzle-orm';
 import type { CallerResult } from '../execution/caller-result.ts';
 import { callerResults } from '../storage/caller-results.ts';
 import type { Db } from '../storage/db.ts';
@@ -42,4 +42,20 @@ export function latestObservations(db: Db, epicId: number, { tagged = false }: {
   const last = [...lastReviews(db, epicId, true)];
   if (last.length === 0 || !last.every(([, { outcome }]) => outcome === 'completed')) return null;
   return last.flatMap(([reviewer, { result }]) => ((result as Extract<CallerResult, { outcome: 'completed' }>).observations ?? []).map((o) => (tagged ? { ...o, reviewer } : o)));
+}
+
+/**
+ * The blockers the lead reviewer's latest review left open: its newest result when it asked for changes and no review of the reviewers came after it. What the author's fix of the lead's
+ * exchange answers, and what a fix resumed after the lead stopped the epic is given. The lead's observations are never part of it.
+ */
+export function latestLeadBlockers(db: Pick<Db, 'select'>, epicId: number) {
+  const rows = db
+    .select({ stage: executions.stage, outcome: callerResults.outcome, result: callerResults.result })
+    .from(executions)
+    .leftJoin(callerResults, eq(callerResults.executionId, executions.executionId))
+    .where(and(eq(executions.epicId, epicId), inArray(executions.stage, ['review', 'lead']), or(isNull(callerResults.outcome), ne(callerResults.outcome, 'needs_human'))))
+    .orderBy(desc(sql`executions.rowid`))
+    .all();
+  const last = rows.find(({ stage, outcome }) => stage === 'review' || outcome !== null); // a review of the reviewers closes the lead's blockers; so does a lead result with none
+  return last?.stage === 'lead' && last.outcome === 'changes_requested' ? (JSON.parse(last.result!) as Extract<CallerResult, { outcome: 'changes_requested' }>).blockers : [];
 }

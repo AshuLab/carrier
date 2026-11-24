@@ -403,12 +403,14 @@ _Avoid_: review (that is one reviewer's execution), turn.
 **Lead reviewer** - The optional role (`leadReviewer`) that reviews last, once, after the reviewers agree, on the head they agreed on and in its own checkout, and gives the pull request its formal approval when it finds no blocker.
 The engine runs it: the epic goes to the stage `lead` and, when the lead completes, to ready for test with the head the lead approved kept beside the head the reviewers agreed on; a head that moves while it reviews repeats its review.
 It has its own skill (`skills.lead`), and the approval it says it submitted is recorded and shown, never required.
-The exchange with the author alone, one lead round at a time, is still to come in [the spec of several reviewers and a lead](specs/several-reviewers-and-a-lead.md): today a lead that asks for changes stops the epic in `lead_limit`.
+When it asks for changes the exchange is between it and the author alone, one lead round at a time, up to `limits.maxLeadRounds`, and then the epic stops in `lead_limit`.
 _Avoid_: tech lead, final reviewer, approver.
 
 **Lead round** - One exchange of the lead reviewer asking for changes and the author fixing them, up to `limits.maxLeadRounds` (3 by default).
-Not run yet: the config it names (`agents.leadReviewer`, `skills.lead`, `limits.maxLeadRounds`) is accepted, checked by `carrier doctor` and saved with the epic, and the engine runs it in a later slice of [the spec of several reviewers and a lead](specs/several-reviewers-and-a-lead.md).
-It does not count toward `maxReviews`, and the other reviewers do not see the commits it makes.
+The epic's `leadRound` is the number of the lead's review in this attempt: it is 1 when the lead first reviews, and the author's fix of the lead's blockers is followed by the lead's review again, one more, on the head after the fix.
+The limit is read when the lead's answer is decided, and a lead that asks for changes at the limit stops the epic in `lead_limit`.
+It does not count toward `maxReviews` and does not change the epic's review round, and the other reviewers do not see the commits it makes.
+A resume at a stage starts it over: the lead gets its rounds again once the reviewers agree.
 _Avoid_: round (that is a review round).
 
 **Re-review (of a moved head)** - A review made again on the new head, without counting a round, because the pull request's head moved while the review ran; at most twice in a row, then the epic stops in `pr_invalid`.

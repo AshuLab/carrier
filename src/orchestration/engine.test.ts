@@ -6294,6 +6294,17 @@ test('a restart recovers each review slot from its own last execution: the slot 
   expect(executionsOf(engine.db).map((e) => e.reviewer)).toEqual(['reviewer', 'reviewer-2', 'reviewer-2']);
 });
 
+test('an epic with one reviewer relaunches the review whose result stands in the round, as it did before the slots', async () => {
+  const db = open();
+  inReview(db, {}, repos[0]!);
+  reviewRow(db, 'r1', 'reviewer', { status: 'finished', startedAt: 1 });
+  db.insert(callerResults).values({ executionId: 'r1', outcome: 'completed', result: JSON.stringify({ summary: 's' }) }).run();
+  runner.behavior = () => ({ exit: 'hang' });
+  await start(1);
+
+  expect(runner.tasks.map((t) => [t.stage, t.reviewer])).toEqual([['review', 'reviewer']]);
+});
+
 test('a restart recovers both slots when both lost their agent, each in its own session', async () => {
   const db = open();
   inReview(db);

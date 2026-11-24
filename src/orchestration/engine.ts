@@ -1272,8 +1272,10 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     } else if (last.status === 'finished' && epic.stage) {
       const result = db.select().from(callerResults).where(eq(callerResults.executionId, last.executionId)).get();
       if (!result) return false;
-      // A slot whose result stands in the round the epic is at has nothing to launch: the round goes on with the slots that have none.
-      if (last.stage === epic.stage && last.round === epic.round && result.outcome !== supersededOutcome) return false;
+      // With several reviewers, a slot whose result stands in the round the epic is at has nothing to launch: the round goes on with the slots that have none.
+      // With one, the import moves the stage (or supersedes the result), so that state is not reached; if it were, it relaunches the stage as it always did.
+      const several = epic.config !== null && agentOfSlot(epic.config, 'reviewer-2') !== undefined;
+      if (several && last.stage === epic.stage && last.round === epic.round && result.outcome !== supersededOutcome) return false;
       await launch(epic, epic.stage); // imported, but the next stage was never launched
     } else return false;
     return true;

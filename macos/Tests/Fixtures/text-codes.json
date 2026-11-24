@@ -520,6 +520,11 @@
       "name": "example"
     }
   },
+  "project.missing": {
+    "params": {
+      "path": "example"
+    }
+  },
   "project.nameInvalid": {
     "params": {
       "name": "example"

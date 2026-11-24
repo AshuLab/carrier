@@ -29,7 +29,7 @@ Its Swift twin is `macos/Sources/CarrierCore/CarrierPlaces.swift`, which also ha
 
 1. `src/config/projects.ts`: the `projectEntry` schema, `updateProjectsFile` for every write (it reads again, checks and renames), and the table in `projects.test.ts`.
 2. `UPDATE_FIXTURES=1 pnpm test` rewrites `macos/Tests/Fixtures/projects.json`, and `ContractTests.swift` fails until `ProjectsFile.swift` repeats the rule.
-3. Both writers keep every entry and every key they do not touch; neither writes over a file that does not match.
+3. The only writer is Node's: `src/chat/project-edits.ts` (the chat host's requests and `carrier config`), which keeps every entry and every key it does not touch and never writes over a file that does not match; the app reads the file and asks for each change.
 
 `chat.json`:
 

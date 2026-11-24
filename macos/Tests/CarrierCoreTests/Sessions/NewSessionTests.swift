@@ -785,11 +785,11 @@ private func projectsRoot(_ names: [String]) throws -> String {
         try? FileManager.default.removeItem(atPath: folder)
     }
     let file = ProjectsFile(folder: carrier)
-    let model = NewSessionModel(host: FakeChat(), ensureHost: { true }, log: { _ in }, sleep: { _ in }, projects: ProjectsModel(host: FakeChat(), file: file) { _ in nil })
+    let model = NewSessionModel(host: FakeChat(), ensureHost: { true }, log: { _ in }, sleep: { _ in }, projects: ProjectsModel(host: CloneHost(writing: carrier), file: file) { _ in nil })
     #expect(model.offersAddAsProject == false) // nothing chosen
     await model.choose(folder: folder)
     #expect(model.offersAddAsProject)
-    model.addAsProject()
+    await model.addAsProject()
     #expect(model.offersAddAsProject == false && model.addProjectProblem == nil)
     let entries = try file.read()
     #expect(entries.map(\.path) == [folder] && entries[0].origin == "added")
@@ -808,7 +808,7 @@ private func projectsRoot(_ names: [String]) throws -> String {
         try? FileManager.default.removeItem(atPath: folder)
     }
     let file = ProjectsFile(folder: carrier)
-    let model = NewSessionModel(host: FakeChat(), ensureHost: { true }, log: { _ in }, sleep: { _ in }, projectsFolder: { "/nowhere" }, projects: ProjectsModel(host: FakeChat(), file: file) { _ in nil })
+    let model = NewSessionModel(host: FakeChat(), ensureHost: { true }, log: { _ in }, sleep: { _ in }, projectsFolder: { "/nowhere" }, projects: ProjectsModel(host: CloneHost(writing: carrier), file: file) { _ in nil })
     model.choose(newProject: "my-idea")
     #expect(model.offersAddAsProject == false) // the host registers a new project itself
     await model.choose(repo: "acme/web")
@@ -816,7 +816,7 @@ private func projectsRoot(_ names: [String]) throws -> String {
     try Data("{ nope".utf8).write(to: file.url)
     await model.choose(folder: folder)
     #expect(model.offersAddAsProject)
-    model.addAsProject()
+    await model.addAsProject()
     #expect(model.addProjectProblem != nil && model.offersAddAsProject)
     #expect(try String(contentsOf: file.url, encoding: .utf8) == "{ nope")
 }

@@ -104,7 +104,7 @@ type ProjectEntry = {
 
 The schema refuses a repeated path, an empty or blank name or command, an unknown key, a wrong-typed field and an empty path; its test is a table of those and of the well-formed entries, and it writes `macos/Tests/Fixtures/projects.json` for `ContractTests.swift`, as `engine-config-contract.test.ts` does for the engine's file, so that `ProjectsFile.swift` parses, checks and writes the same.
 
-**Who writes what.** The app writes what the person edits, and adding an existing folder, and keeps the keys it does not know, reading the file again just before writing.
+**Who writes what.** The app asks for what the person edits, and for adding an existing folder, and the chat host writes it (`carrier config` does when no host answers; [ADR 0053](../adr/0053-a-carrier-config-file-has-one-owner-process-and-a-front-end-writes-it-through-that-process.md)): it keeps the keys it does not know, reading the file again just before writing.
 The host writes an entry when a preparation that cloned or created succeeds, and when a project is cloned from Settings. `origin` is `cloned` only when the clone step ran in that preparation, `created` for a new project, and `added` for everything else, including a folder that was already in the projects folder and was only fetched; only the first two can be deleted from disk.
 The app watches the file, since the host can change it while Settings is open.
 

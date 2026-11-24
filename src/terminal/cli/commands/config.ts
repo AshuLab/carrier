@@ -2,7 +2,8 @@ import type { Readable } from 'node:stream';
 import { chatPlacesOf } from '../../../config/places.ts';
 import { editChatSettings } from '../../../chat/config.ts';
 import { ChatRefused } from '../../../chat/runner.ts';
-import { editChatSettingsRequest } from '../../../chat/server.ts';
+import { projectEdits } from '../../../chat/project-edits.ts';
+import { chatRequest, projectRequests } from '../../../chat/server.ts';
 import { refused } from '../../../control/server.ts';
 import { connectControl, ControlRefused, ControlUnreachable } from '../control-client.ts';
 
@@ -10,12 +11,12 @@ import { connectControl, ControlRefused, ControlUnreachable } from '../control-c
 type Printed = { ok: true; data: unknown } | { ok: false; error: string; code?: string; params?: Record<string, string | number> };
 
 /** The reply of the host that answers on `chat.sock` and lists `config`; null when none does, so the caller writes the file itself. */
-async function askOwner(folder: string, changes: object): Promise<Printed | null> {
+async function askOwner(folder: string, cmd: string, fields: Record<string, unknown>): Promise<Printed | null> {
   try {
     const client = await connectControl(chatPlacesOf(folder).socket);
     try {
       if (client.hello.capabilities.includes('config') === false) return null; // an older host: its settings are read each pass, so a write by this process is as good
-      return { ok: true, data: await client.request('editChatSettings', { changes }) };
+      return { ok: true, data: await client.request(cmd, fields) };
     } finally {
       client.close();
     }
@@ -42,16 +43,20 @@ export async function configCommand(folder: string, input: Readable = process.st
     const { id, ...reply } = refused(null, 'request.invalidJson', 'invalid JSON');
     return print(reply as Printed), 2;
   }
-  const request = editChatSettingsRequest.omit({ id: true }).safeParse(value);
-  if (request.success === false) {
+  // the requests of the `config` capability, by name: the socket's schema checks them (without an `id` of their own) and the same code answers them
+  const names = new Set<unknown>(['editChatSettings', ...projectRequests.map((request) => request.shape.cmd.value)]);
+  const named = typeof value === 'object' && value !== null && 'id' in value === false && names.has((value as { cmd?: unknown }).cmd);
+  const request = named ? chatRequest.safeParse({ id: 1, ...(value as object) }) : undefined;
+  if (request?.success !== true) {
     const { id, ...reply } = refused(null, 'request.invalid', 'invalid request');
     return print(reply as Printed), 2;
   }
-  const { changes } = request.data;
-  let reply = await askOwner(folder, changes);
+  const { id, cmd, ...fields } = request.data;
+  let reply = await askOwner(folder, cmd, fields);
   if (reply === null) {
     try {
-      reply = { ok: true, data: editChatSettings(changes, folder) };
+      const write = cmd === 'editChatSettings' ? () => editChatSettings((fields as { changes: object }).changes, folder) : () => (projectEdits as Record<string, (fields: never, folder: string) => unknown>)[cmd]!(fields as never, folder);
+      reply = { ok: true, data: write() };
     } catch (error) {
       if (error instanceof ChatRefused === false) throw error;
       reply = { ok: false, error: error.message, code: error.code, params: error.params };

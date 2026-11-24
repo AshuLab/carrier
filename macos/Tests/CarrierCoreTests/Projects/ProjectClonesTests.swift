@@ -14,7 +14,26 @@ final class CloneHost: ChatHost, @unchecked Sendable {
     /// What `newProject` was asked, and the entry the real host would write (the file of `registerIn`), so the model finds the project after.
     private(set) var made: [(name: String, parent: String?)] = []
     var registerIn: ProjectsFile?
-    init(_ clones: [ProjectClone] = []) { self.clones = clones }
+    init(_ clones: [ProjectClone] = []) {
+        self.clones = clones
+        writes = nil
+    }
+    /// The Carrier folder the project requests write, as the fixture host does with the Swift writers (until they go); with none, `changeProjects` is refused as an older host does.
+    private let writes: String?
+    /// The project requests the model sent, in order.
+    private(set) var changes: [ProjectsChange] = []
+    init(writing folder: String) {
+        clones = []
+        writes = folder
+    }
+    func changeProjects(_ change: ProjectsChange) async throws -> ProjectsChanged {
+        lock.withLock { changes.append(change) }
+        if let failure { throw failure }
+        guard let writes else { throw ControlError.remote(.hostLacks(change.cmd)) }
+        let (data, refusal) = applyProjectsChange(change, home: writes)
+        if let refusal { throw ControlError.remote(refusal) }
+        return try JSONDecoder().decode(ProjectsChanged.self, from: JSONSerialization.data(withJSONObject: data ?? [:]))
+    }
     var current: [ProjectClone] { get { lock.withLock { clones } } set { lock.withLock { clones = newValue } } }
 
     func cloneProject(_ repo: String, into parent: String?) async throws -> ProjectClone {

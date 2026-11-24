@@ -15,7 +15,7 @@ private func decode<T: Decodable>(_ json: String, as type: T.Type = T.self) thro
 
 @Test func decodesTheSessionsReply() throws {
     let reply: SessionsReply = try golden("sessions")
-    #expect(reply.sessions.map(\.stage) == ["fix", "review", "fix", "fix", "review", "ship"])
+    #expect(reply.sessions.map(\.stage) == ["fix", "review", "fix", "fix", "review", "ship", "review"])
     #expect(reply.sessions[0].status == "running")
     #expect(reply.sessions[0].resume == nil)
     #expect(reply.sessions[0].finishedAt == nil)

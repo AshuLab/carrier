@@ -55,12 +55,17 @@ private let utc = TimeFormat(style: .relative, hours: .h24, timeZone: TimeZone(i
 
 @Test func anAgentRowHasTheAgentRoleRoundActionAndStart() throws {
     let rows = runningSection(try load { $0.sessions![0].startedAt = 1_700_000_000_000 }, time: utc).cards[0].agents
-    #expect(rows == [
-        AgentRow(
-            agent: "Codex", initial: "X", role: "Reviewer", round: "round 2/5", action: "Read src/auth/token.ts",
-            since: "since 22:13", running: true
-        )
-    ])
+    #expect(rows.first == AgentRow(
+        agent: "Codex", initial: "X", role: "Reviewer", round: "round 2/5", action: "Read src/auth/token.ts",
+        since: "since 22:13", running: true
+    ))
+}
+
+@Test func anEpicWithSeveralReviewersHasARowForEachRunningExecution() throws {
+    let rows = runningSection(try load(), time: utc).cards[0].agents
+    #expect(rows.map(\.agent) == ["Codex", "Antigravity"])
+    #expect(rows.map(\.role) == ["Reviewer", "Reviewer"])
+    #expect(rows[1].action == "working" && rows[1].round == "round 2/5")
 }
 
 @Test func aShipRowHasNoRoundAndABuilderRole() throws {
@@ -70,7 +75,7 @@ private let utc = TimeFormat(style: .relative, hours: .h24, timeZone: TimeZone(i
 }
 
 @Test func aSessionWithoutAnEventSaysWorking() throws {
-    let row = try #require(runningSection(try load { $0.sessions![1].last = nil }, time: utc).cards[1].agents.first)
+    let row = try #require(runningSection(try load { $0.sessions![2].last = nil }, time: utc).cards[1].agents.first)
     #expect(row.action == "working")
 }
 

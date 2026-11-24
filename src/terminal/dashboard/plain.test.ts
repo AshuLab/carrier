@@ -133,3 +133,22 @@ test('no finished epics, or an engine that sends none, adds no lines', () => {
   expect(renderPanel(snapshot({ finished: [] }))).toHaveLength(1);
   expect(renderPanel(snapshot())).toHaveLength(1);
 });
+
+test('an epic with several reviewers says how many gave a verdict out of how many, and why each other gave none; one with a single reviewer shows nothing new', () => {
+  const reviewers = { given: 1, of: 3, none: [{ slot: 'reviewer-2' as const, why: 'cannot verify\x1b[2J the migration' }, { slot: 'reviewer-3' as const, why: 'ran out of usage' }] };
+  const lines = renderPanel(snapshot({ epics: [epic({ stage: 'fix', round: 1, reviewers })] }));
+  expect(lines.slice(1)).toEqual([
+    expect.stringContaining('acme/web#12  fix  round 1/5'),
+    '  issue https://github.com/acme/web/issues/12',
+    '  reviewers: 1 of 3 gave a verdict',
+    '    reviewer-2: cannot verify [2J the migration',
+    '    reviewer-3: ran out of usage',
+  ]);
+  expect(renderPanel(snapshot({ epics: [epic({ stage: 'fix', round: 1 })] })).join('\n')).not.toContain('reviewers');
+});
+
+test('a round where every reviewer gave a verdict says only the count', () => {
+  const lines = renderPanel(snapshot({ epics: [epic({ status: 'needs_human', needsHumanReason: 'review limit', reviewers: { given: 2, of: 2, none: [] } })] })).join('\n');
+  expect(lines).toContain('reviewers: 2 of 2 gave a verdict');
+  expect(lines).not.toContain('    reviewer');
+});

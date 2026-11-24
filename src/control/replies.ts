@@ -61,6 +61,8 @@ export type SessionsReply = {
     executionId: string;
     stage: 'ship' | 'review' | 'fix';
     role: 'author' | 'reviewer';
+    /** The reviewer's slot (`reviewer`, `reviewer-2`...) as a string, on a review session. */
+    reviewer?: string;
     round: number | null;
     agent: PanelAgent;
     /** The key of `profiles` the role acts as, from the epic's frozen configuration; null for an epic frozen before profiles were kept. The app reads whose account it is from the configuration. */
@@ -100,14 +102,19 @@ export type Blocker = {
 export type Observation = { id: string | null; title: string; url: string | null };
 
 export type EpicReply = {
-  stages: { stage: 'queued' | 'ship' | 'review' | 'fix' | 'ready'; startedAt: number; endedAt: number | null }[];
+  /** `reviewers` (the slots as strings, `reviewer-2`...) is only on a review stage in which several reviewers ran. */
+  stages: { stage: 'queued' | 'ship' | 'review' | 'fix' | 'ready'; startedAt: number; endedAt: number | null; reviewers?: string[] }[];
+  /** One per round, however many reviewers it has; a round repeated on a new head is one, for the head it was decided on. */
   rounds: {
     round: number;
+    /** The mandatory reviewer's (or, when it gave no verdict, the first that did), with its verdict, blockers and observations. */
     reviewer: PanelAgent;
     verdict: 'approved' | 'changes_requested' | 'limit_reached';
     blockers: Blocker[];
     /** In the reviewer's order; empty when the review listed none or predates the field. */
     observations: Observation[];
+    /** The other reviewers that gave a verdict in the round, by slot; absent from a round with one reviewer. */
+    otherReviewers?: { slot: string; agent: PanelAgent; verdict: 'approved' | 'changes_requested' | 'limit_reached'; blockers: Blocker[]; observations: Observation[] }[];
     reviewMs: number | null;
     fixMs: number | null;
     /** The head the review looked at, and the head the fix left. */

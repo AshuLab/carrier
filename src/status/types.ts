@@ -11,6 +11,9 @@ export type UnansweredObservations = { count: number; reason: (typeof unanswered
  */
 export type EpicOptions = { names: string[]; author: string | null; reviewer: string | null; extraReviewers?: (string | null)[]; lead?: string | null; failed?: 'author' | Slot };
 
+/** How the latest decided round of an epic with several reviewers came out: how many gave a verdict out of how many were configured, and why each other gave none (cut and redacted). */
+export type PanelReviewers = { given: number; of: number; none: { slot: Slot; why: string }[] };
+
 // What the panel shows, whatever draws it: read from SQLite by snapshot.ts, drawn by dashboard.ts (a terminal) or plain.ts (a pipe).
 export type PanelEpic = {
   repo: string;
@@ -39,6 +42,8 @@ export type PanelEpic = {
   executionId: string | null;
   /** Absent from an epic reserved before options existed. */
   options?: EpicOptions;
+  /** Only an epic with several reviewers that has a decided round has it: the latest one's count. */
+  reviewers?: PanelReviewers;
   /** ms since epoch: when an epic stopped on its quota resumes by itself; absent when it does not. */
   resumeAt?: number;
   /** ms since epoch: when the retry of a running epic's `api_error` starts; absent when none waits. */
@@ -66,7 +71,7 @@ export type PanelSnapshot = {
   /** Each watched repo's last check; absent from an engine that does not send it (the control snapshot always has it). */
   watched?: { repo: string; ok: boolean; error: string | null }[];
   /** The epics that ended ready for test, most recent first. */
-  done: { repo: string; issue: number; title: string | null; labels: string[]; prNumber: number | null; finishedAt: number | null; executionId: string | null; unansweredObservations?: UnansweredObservations }[];
+  done: { repo: string; issue: number; title: string | null; labels: string[]; prNumber: number | null; finishedAt: number | null; executionId: string | null; unansweredObservations?: UnansweredObservations; reviewers?: PanelReviewers }[];
   /** The merged and cancelled epics inside the finished window, newest first; absent from an engine that does not send it (the control snapshot always has it). */
   finished?: PanelFinished[];
 };
@@ -83,7 +88,8 @@ export type PanelFinished = {
 // What the control socket serves: the panel's snapshot plus what the macOS app draws. Everything here is additive (protocol 1),
 // and the terminal panel keeps reading `PanelSnapshot`, of which this is a superset.
 export type PanelAgent = { harness: 'claude' | 'codex' | 'agy'; model: string; provider: string | null };
-export type PanelAgents = { author: PanelAgent; reviewer: PanelAgent };
+/** The agents of an epic; `extraReviewers` (`reviewer-2` first) is there only when it has them. */
+export type PanelAgents = { author: PanelAgent; reviewer: PanelAgent; extraReviewers?: PanelAgent[] };
 export type NeedsHumanKind = (typeof needsHumanKinds)[number];
 
 export type EpicAdditions = {
@@ -101,6 +107,8 @@ export type EpicAdditions = {
   blockerTitles: string[];
   /** The agents frozen when the epic started; null while it is queued. */
   agents: PanelAgents | null;
+  /** The head the reviewers agreed on (the head of the decision that sent the epic to its observations pass or to ready for test); absent until a round agreed. */
+  reviewedSha?: string;
 };
 
 export type PanelSession = {
@@ -109,8 +117,11 @@ export type PanelSession = {
   issue: number;
   stage: 'ship' | 'review' | 'fix';
   round: number | null;
+  /** The harness and the model the execution ran with, from its own record. */
   harness: PanelAgent['harness'];
   model: string;
+  /** The slot of a review (`reviewer`, `reviewer-2`...); absent for the author's. */
+  reviewer?: Slot;
   startedAt: number;
   /** The newest event of the execution; null until events are recorded. */
   last: { kind: string; text: string; at: number } | null;
@@ -129,7 +140,7 @@ export type ControlSnapshot = Omit<PanelSnapshot, 'queue' | 'epics'> & {
   };
   /** One row per watched repository; lastCheckedAt is null (and ok true) until its first poll. */
   watched: { repo: string; lastCheckedAt: number | null; ok: boolean; error: string | null; agents: PanelAgents }[];
-  /** The running executions, at most one per running epic. */
+  /** The running executions: one for each running execution of an epic, so an epic with several reviewers has several. */
   sessions: PanelSession[];
   /** The merged and cancelled epics that ended inside the finished window, newest first, with no row cap. */
   finished: PanelFinished[];

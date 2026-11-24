@@ -16,6 +16,7 @@ import { executionEvents } from '../storage/events.ts';
 import { executions } from '../storage/executions.ts';
 import { epicSlices } from '../storage/epic-slices.ts';
 import { epics } from '../storage/schema.ts';
+import { eq } from 'drizzle-orm';
 import { epicOf, git as engineGit, limited, MAX_ROUNDS } from './epic.ts';
 import { enginePlacesOf } from '../config/places.ts';
 import { defaultLabels } from '../orchestration/github.ts';
@@ -160,6 +161,94 @@ test('a review of a head that moved is no round: the repeat on the new head is t
   db.update(callerResults).set({ outcome: 'superseded' }).run();
   run(id, 'review', 20, 21, { outcome: 'completed', ...pr('b'.repeat(40)) }, 1);
   expect((await reply()).rounds.map((r) => [r.round, r.verdict, r.reviewedSha])).toEqual([[1, 'approved', 'b'.repeat(40)]]);
+});
+
+// --- a round of several reviewers is one round, with the mandatory reviewer's verdict as the app reads it and the others' beside it ---
+
+const extraAgent = { profile: 'c', option: 'o', harness: 'agy' as const, model: 'flash' };
+const manyConfig = { name: 'AshuLab/a', agents: { ...agents, extraReviewers: [extraAgent, { ...extraAgent, harness: 'claude' as const, model: 'sonnet' }] } } as unknown as EffectiveRepoConfig;
+let m = 0;
+/** A review of a round by a slot, on the head it was given; the agent comes from the saved configuration, as it does for a row that recorded none. */
+function slotReview(epicId: number, slot: string, round: number, headSha: string, result: object | null, startedAt = round * 100 + m) {
+  const executionId = `m-${++m}`;
+  db.insert(executions).values({ executionId, epicId, stage: 'review', reviewer: slot as 'reviewer', status: 'finished', resultPath: '/r.json', startedAt, finishedAt: startedAt + 5, round, headSha, workspace: `/reviews/${slot}` }).run();
+  if (result) db.insert(callerResults).values({ executionId, outcome: (result as { outcome: string }).outcome, result: JSON.stringify(result) }).run();
+  return executionId;
+}
+
+test('a round of several reviewers is one round: the mandatory reviewer\'s verdict, blockers and observations as the app reads them, and the others\' in an optional list with their slot and agent', async () => {
+  const id = epicRow({ config: manyConfig });
+  slotReview(id, 'reviewer', 1, SHA, { outcome: 'completed', ...pr(SHA), observations: [{ title: 'Rename x' }] });
+  slotReview(id, 'reviewer-2', 1, SHA, { outcome: 'changes_requested', ...pr(SHA), blockers: [{ id: 'B1', title: 'Use the helper' }] });
+  slotReview(id, 'reviewer-3', 1, SHA, { outcome: 'completed', ...pr(SHA) });
+
+  const { rounds } = await reply();
+  expect(rounds).toHaveLength(1);
+  expect(rounds[0]).toMatchObject({ round: 1, verdict: 'approved', blockers: [], observations: [{ id: null, title: 'Rename x', url: null }], reviewedSha: SHA });
+  expect(rounds[0]!.reviewer).toEqual({ harness: 'codex', model: 'r', provider: null }); // the mandatory reviewer's agent from its saved role
+  expect(rounds[0]!.otherReviewers).toEqual([
+    { slot: 'reviewer-2', agent: { harness: 'agy', model: 'flash', provider: null }, verdict: 'changes_requested', blockers: [{ id: 'B1', title: 'Use the helper', url: null, mark: 'new', approximate: false }], observations: [] },
+    { slot: 'reviewer-3', agent: { harness: 'claude', model: 'sonnet', provider: null }, verdict: 'approved', blockers: [], observations: [] },
+  ]);
+});
+
+test('an epic with one reviewer has no list of other reviewers', async () => {
+  const id = epicRow();
+  slotReview(id, 'reviewer', 1, SHA, { outcome: 'completed', ...pr(SHA) });
+  expect((await reply()).rounds[0]).not.toHaveProperty('otherReviewers');
+});
+
+test('each reviewer\'s blockers are marked against its own earlier ones: the same id of two reviewers never collides', async () => {
+  const id = epicRow({ config: manyConfig });
+  const B = 'b'.repeat(40);
+  slotReview(id, 'reviewer', 1, SHA, { outcome: 'changes_requested', ...pr(SHA), blockers: [{ id: 'B1', title: 'first' }] });
+  slotReview(id, 'reviewer-2', 1, SHA, { outcome: 'changes_requested', ...pr(SHA), blockers: [{ id: 'B1', title: 'second' }] });
+  run(id, 'fix', 300, 301, { outcome: 'completed', ...pr(B) }, 1);
+  slotReview(id, 'reviewer', 2, B, { outcome: 'completed', ...pr(B), resolved: ['B1'] });
+  slotReview(id, 'reviewer-2', 2, B, { outcome: 'changes_requested', ...pr(B), blockers: [{ id: 'B1', title: 'second, still' }] });
+
+  const { rounds } = await reply();
+  expect(rounds.map((r) => r.round)).toEqual([1, 2]);
+  expect(rounds[1]!.blockers.map((b) => [b.id, b.mark])).toEqual([['B1', 'fixed']]);
+  expect(rounds[1]!.otherReviewers![0]!.blockers.map((b) => [b.id, b.title, b.mark])).toEqual([['B1', 'second, still', 'carried']]);
+  expect(rounds[0]!.fixedSha).toBe(B);
+});
+
+test('a reviewer that gave no verdict is not in the round; when it is the mandatory one, the first reviewer with a verdict stands for the round', async () => {
+  const id = epicRow({ config: manyConfig });
+  slotReview(id, 'reviewer', 1, SHA, { outcome: 'needs_human', ...pr(SHA), reason: 'cannot verify' });
+  slotReview(id, 'reviewer-2', 1, SHA, { outcome: 'changes_requested', ...pr(SHA), blockers: [{ title: 'Only one' }] });
+  slotReview(id, 'reviewer-3', 1, SHA, { outcome: 'needs_human', ...pr(SHA), reason: 'cannot verify' });
+
+  const { rounds } = await reply();
+  expect(rounds).toHaveLength(1);
+  expect(rounds[0]).toMatchObject({ verdict: 'changes_requested', reviewer: { harness: 'agy', model: 'flash' }, blockers: [{ title: 'Only one' }] });
+  expect(rounds[0]).not.toHaveProperty('otherReviewers');
+});
+
+test('a round repeated on a new head shows once, for the head it was decided on, whichever reviewer found the head moved', async () => {
+  const id = epicRow({ config: manyConfig });
+  const B = 'b'.repeat(40);
+  slotReview(id, 'reviewer', 1, SHA, { outcome: 'completed', ...pr(SHA) }); // gave its verdict on a head that then moved: not of any round
+  const found = slotReview(id, 'reviewer-2', 1, SHA, { outcome: 'completed', ...pr(SHA) });
+  db.update(callerResults).set({ outcome: 'superseded' }).where(eq(callerResults.executionId, found)).run();
+  slotReview(id, 'reviewer', 1, B, { outcome: 'changes_requested', ...pr(B), blockers: [{ title: 'On the new head' }] });
+  slotReview(id, 'reviewer-2', 1, B, { outcome: 'completed', ...pr(B) });
+
+  const { rounds } = await reply();
+  expect(rounds.map((r) => [r.round, r.reviewedSha, r.verdict, r.otherReviewers!.map((o) => o.slot)])).toEqual([[1, B, 'changes_requested', ['reviewer-2']]]);
+});
+
+test('the review stage lists the slots that ran in it when there were several', async () => {
+  const id = epicRow({ config: manyConfig, startedAt: 1 });
+  run(id, 'ship', 10, 20, { outcome: 'completed', ...pr(SHA) });
+  slotReview(id, 'reviewer', 1, SHA, { outcome: 'completed', ...pr(SHA) }, 30);
+  slotReview(id, 'reviewer-2', 1, SHA, { outcome: 'completed', ...pr(SHA) }, 31);
+  expect((await reply()).stages.map((s) => [s.stage, s.reviewers])).toEqual([['queued', undefined], ['ship', undefined], ['review', ['reviewer', 'reviewer-2']], ['ready', undefined]]);
+
+  const single = epicRow({ issue: 2, startedAt: 1 });
+  slotReview(single, 'reviewer', 1, SHA, { outcome: 'completed', ...pr(SHA) }, 30);
+  expect((await epicOf(db, 'AshuLab/a', 2))!.stages.every((s) => s.reviewers === undefined)).toBe(true);
 });
 
 test('technical retries inside a round do not make a round', async () => {

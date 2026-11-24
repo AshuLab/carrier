@@ -10,7 +10,7 @@ import { callerResults, supersededOutcome } from '../storage/caller-results.ts';
 import { epicReviewThreads } from '../storage/epic-review-threads.ts';
 import { epicSlices } from '../storage/epic-slices.ts';
 import { executionEvents } from '../storage/events.ts';
-import { executions } from '../storage/executions.ts';
+import { executions, reviewerSlots, slotOf, type Slot } from '../storage/executions.ts';
 import { epics } from '../storage/schema.ts';
 import type { Blocker, EpicReply } from './replies.ts';
 import { optionsOf } from '../status/snapshot.ts';
@@ -30,6 +30,9 @@ const MAX_ACTIVITY = 80;
 const MAX_LIVE_EVENTS = 500; // per kind, newest first, of the one running execution
 
 type Round = EpicReply['rounds'][number];
+type Verdicts = Extract<CallerResult, { outcome: 'completed' | 'changes_requested' }>;
+/** A review that gave a verdict, and a round with the reviews it has so far: `key` is the attempt, the round and the head. */
+type Entry = { key: string; attempt: number; reviews: { run: typeof executions.$inferSelect; parsed: Verdicts; slot: Slot }[]; fixed: boolean; fixMs: number | null; fixedSha: string | null };
 type Found = { id: string | null; title: string; url: string | null };
 
 /** A title compared without caring for case or spacing. */
@@ -171,54 +174,82 @@ export async function epicOf(db: Db, repo: string, issue: number): Promise<EpicR
     .all();
 
   // Rounds, attempt by attempt: a ship after a review or a fix is an epic that started again.
+  // A round is its number and the head its reviews were given, however many reviewers it has; a review of a head that moved is of no round, and neither is any other review on that head.
   let attempt = 0;
   let worked = false; // a review or a fix ran in this attempt
-  let open: Found[] | null = null; // the previous round's open blockers; null before the first round
-  const found: { round: Round; attempt: number; fixed: boolean }[] = [];
+  const entries: Entry[] = [];
+  const dead = new Set<string>(); // the rounds and heads a verdict was set aside on
   for (const { run, result, outcome } of runs) {
-    if (outcome === supersededOutcome) continue; // a review of a head that moved: no verdict, and no round of its own
+    if (outcome === supersededOutcome) {
+      if (run.stage === 'review' && run.headSha !== null) dead.add(`${attempt}:${run.round}:${run.headSha}`);
+      continue; // a review of a head that moved: no verdict, and no round of its own
+    }
     if (run.stage === 'ship') {
       if (worked) {
         attempt++;
         worked = false;
-        open = null;
       }
       continue;
     }
     worked = true;
-    const last = found.at(-1);
+    const last = entries.at(-1);
     if (run.stage === 'fix') {
       if (last === undefined || last.attempt !== attempt) continue;
       last.fixed = true;
       if (result === null) continue; // a retry or one still running
       const parsed = JSON.parse(result) as CallerResult;
-      last.round.fixMs = run.finishedAt === null ? null : run.finishedAt - run.startedAt;
-      last.round.fixedSha = parsed.outcome === 'completed' ? parsed.pr.headSha : null;
+      last.fixMs = run.finishedAt === null ? null : run.finishedAt - run.startedAt;
+      last.fixedSha = parsed.outcome === 'completed' ? parsed.pr.headSha : null;
       continue;
     }
     if (result === null) continue;
     const parsed = JSON.parse(result) as CallerResult;
     if (parsed.outcome === 'needs_human') continue; // the reviewer stopped: no verdict to show
-    const toFound = ({ id, title, url }: { id?: string; title: string; url?: string }): Found => ({ id: id ?? null, title: title.slice(0, MAX_TEXT), url: url !== undefined && url.length <= MAX_URL ? url : null });
-    const blockers: Found[] = parsed.outcome === 'changes_requested' ? parsed.blockers.map(toFound) : [];
-    const observations: Found[] = parsed.outcome === 'completed' ? (parsed.observations ?? []).slice(0, MAX_OBSERVATIONS).map(toFound) : [];
+    const slot = slotOf(run)!;
+    const key = `${attempt}:${run.round}:${run.headSha}`;
+    // The same slot twice on one round and head is a round started again (a resume at review), which a round of its own as it always was.
+    const entry = entries.findLast((e) => e.key === key && !e.fixed && !e.reviews.some((r) => r.slot === slot));
+    const review = { run, parsed, slot };
+    if (entry) entry.reviews.push(review);
+    else entries.push({ key, attempt, reviews: [review], fixed: false, fixMs: null, fixedSha: null });
+  }
+  const toFound = ({ id, title, url }: { id?: string; title: string; url?: string }): Found => ({ id: id ?? null, title: title.slice(0, MAX_TEXT), url: url !== undefined && url.length <= MAX_URL ? url : null });
+  const found: { round: Round; attempt: number; fixed: boolean }[] = [];
+  let open = new Map<Slot, Found[]>(); // each reviewer's open blockers of the round before, in this attempt; none before the first round
+  let openOf = -1;
+  for (const entry of entries.filter((e) => !dead.has(e.key))) {
+    if (entry.attempt !== openOf) {
+      openOf = entry.attempt;
+      open = new Map();
+    }
+    const reviews = entry.reviews.toSorted((x, y) => reviewerSlots.indexOf(x.slot) - reviewerSlots.indexOf(y.slot));
+    const shown = reviews.map(({ run, parsed, slot }) => {
+      const blockers: Found[] = parsed.outcome === 'changes_requested' ? parsed.blockers.map(toFound) : [];
+      const observations: Found[] = parsed.outcome === 'completed' ? (parsed.observations ?? []).slice(0, MAX_OBSERVATIONS).map(toFound) : [];
+      const reviewed = { run, slot, agent: agentOf(run, epic.config), verdict: parsed.outcome === 'completed' ? ('approved' as const) : ('changes_requested' as const), blockers: marked(blockers, open.get(slot) ?? null, parsed.resolved ?? []), observations, headSha: parsed.pr.headSha };
+      open.set(slot, blockers);
+      return reviewed;
+    });
+    // The mandatory reviewer stands for the round as the app reads it; when it gave no verdict, the first that did.
+    const main = shown.find((r) => r.slot === 'reviewer') ?? shown[0]!;
+    const others = shown.filter((r) => r !== main).map(({ slot, agent, verdict, blockers, observations }) => ({ slot, agent, verdict, blockers, observations }));
     found.push({
-      attempt,
-      fixed: false,
+      attempt: entry.attempt,
+      fixed: entry.fixed,
       round: {
-        round: run.round ?? (found.filter((f) => f.attempt === attempt).length + 1),
-        reviewer: agentOf(run, epic.config),
-        verdict: parsed.outcome === 'completed' ? 'approved' : 'changes_requested',
-        blockers: marked(blockers, open, parsed.resolved ?? []),
-        observations,
-        reviewMs: run.finishedAt === null ? null : run.finishedAt - run.startedAt,
-        fixMs: null,
-        reviewedSha: parsed.pr.headSha,
-        fixedSha: null,
+        round: main.run.round ?? (found.filter((f) => f.attempt === entry.attempt).length + 1),
+        reviewer: main.agent,
+        verdict: main.verdict,
+        blockers: main.blockers,
+        observations: main.observations,
+        reviewMs: main.run.finishedAt === null ? null : main.run.finishedAt - main.run.startedAt,
+        fixMs: entry.fixMs,
+        reviewedSha: main.headSha,
+        fixedSha: entry.fixedSha,
         commits: [],
+        ...(others.length > 0 && { otherReviewers: others }),
       },
     });
-    open = blockers;
   }
   // read with the rows above, before git is waited for: the reply is one cut of the database, not one that a poll can change in between
   const slices = db.select().from(epicSlices).where(eq(epicSlices.epicId, epic.id)).orderBy(epicSlices.number).all();
@@ -228,7 +259,10 @@ export async function epicOf(db: Db, repo: string, issue: number): Promise<EpicR
   const hitLimit = epic.status === 'needs_human' && epic.needsHumanReason?.startsWith('review limit') === true;
   const rounds = await Promise.all(found.slice(-MAX_ROUNDS).map(async ({ round, attempt: of, fixed }) => {
     // Nothing answered it and nothing follows: the epic stopped there for the limit.
-    if (round.verdict === 'changes_requested' && fixed === false && (of < attempt || hitLimit)) round.verdict = 'limit_reached';
+    if (fixed === false && (of < attempt || hitLimit)) {
+      if (round.verdict === 'changes_requested') round.verdict = 'limit_reached';
+      for (const other of round.otherReviewers ?? []) if (other.verdict === 'changes_requested') other.verdict = 'limit_reached';
+    }
     if (round.reviewedSha !== null && round.fixedSha !== null) round.commits = await commitsBetween(epic.workspace, round.reviewedSha, round.fixedSha);
     return round;
   }));
@@ -237,14 +271,17 @@ export async function epicOf(db: Db, repo: string, issue: number): Promise<EpicR
   const stages: EpicReply['stages'] = [{ stage: 'queued', startedAt: epic.queuedAt, endedAt: epic.startedAt }];
   if (epic.startedAt !== null) {
     const startedAt = epic.startedAt;
-    const segments: { stage: 'ship' | 'review' | 'fix'; startedAt: number }[] = [];
+    const segments: { stage: 'ship' | 'review' | 'fix'; startedAt: number; slots: Slot[] }[] = [];
     for (const { run } of runs) {
-      if (run.startedAt >= startedAt && segments.at(-1)?.stage !== run.stage) segments.push({ stage: run.stage, startedAt: segments.length === 0 ? startedAt : run.startedAt });
+      if (run.startedAt < startedAt) continue;
+      if (segments.at(-1)?.stage !== run.stage) segments.push({ stage: run.stage, startedAt: segments.length === 0 ? startedAt : run.startedAt, slots: [] });
+      const slot = run.stage === 'review' ? slotOf(run) : null;
+      if (slot !== null && !segments.at(-1)!.slots.includes(slot)) segments.at(-1)!.slots.push(slot);
     }
     // reserved, the clone still being prepared: no execution yet
-    if (segments.length === 0 && epic.stage !== null) segments.push({ stage: epic.stage, startedAt });
+    if (segments.length === 0 && epic.stage !== null) segments.push({ stage: epic.stage, startedAt, slots: [] });
     const ended = epic.status === 'running' ? null : epic.finishedAt;
-    stages.push(...segments.map((segment, i) => ({ ...segment, endedAt: segments[i + 1]?.startedAt ?? ended })));
+    stages.push(...segments.map(({ stage, startedAt, slots }, i) => ({ stage, startedAt, endedAt: segments[i + 1]?.startedAt ?? ended, ...(slots.length > 1 && { reviewers: slots }) })));
     if (epic.status === 'ready_for_test' && epic.finishedAt !== null) stages.push({ stage: 'ready', startedAt: epic.finishedAt, endedAt: null });
   }
 

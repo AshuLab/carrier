@@ -6883,6 +6883,53 @@ test('with no verdict at all the epic stops in needs-human with reviewers_failed
   expect(eventTypes(engine.db)).not.toContain('auto_resume_scheduled');
 });
 
+// --- a decided round of several is recorded as an event of the epic: how many gave a verdict of how many were configured, and why each other gave none ---
+
+const roundsDecidedOf = (db: Db) => eventsOf(db).filter((e) => e.type === 'round_decided').map((e) => e.data);
+
+test('a round of several that is decided records how many reviewers gave a verdict out of how many were configured, and why the other gave none', async () => {
+  const engine = await roundOf(bySlot({ reviewer: gives(ok), 'reviewer-2': cannotConclude }));
+
+  expect(roundsDecidedOf(engine.db)).toEqual([{ round: 1, headSha: SHA, decision: 'completed', given: 1, of: 2, none: [{ slot: 'reviewer-2', kind: 'agent_needs_human', why: 'cannot verify' }] }]);
+});
+
+test('a round where every reviewer gave a verdict records them all and no reason', async () => {
+  const engine = await roundOf(verdictBy({ reviewer: ok, 'reviewer-2': asks('use the helper') }));
+
+  expect(roundsDecidedOf(engine.db)).toEqual([{ round: 1, headSha: SHA, decision: 'changes_requested', given: 2, of: 2, none: [] }]);
+});
+
+test('each round of an epic records its own, and a round with no verdict at all records none given out of the configured', async () => {
+  const engine = await roundOf(
+    (task) => (task.context.round === 1 ? bySlot({ reviewer: gives(asks('x')), 'reviewer-2': cannotConclude })(task) : cannotConclude(task)),
+    { fix: (task) => (pull(50, { headSha: HEAD2 }), fixDone(task, HEAD2)) },
+  );
+
+  expect(roundsDecidedOf(engine.db).map((d) => [(d as { round: number }).round, (d as { decision: string }).decision, (d as { given: number }).given, (d as { of: number }).of])).toEqual([[1, 'changes_requested', 1, 2], [2, 'failed', 0, 2]]);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'reviewers_failed' });
+});
+
+test('a round repeated on a moved head is not decided: only the round decided on the new head is recorded', async () => {
+  const late = lateOpen();
+  let moved = false;
+  const engine = await roundOf((task) => {
+    if (task.context.pr!.headSha === SHA && task.reviewer === 'reviewer') {
+      if (!moved) pull(50, { headSha: HEAD2 });
+      moved = true;
+      return verdictBy({ reviewer: ok }, late.when)(task);
+    }
+    return task.context.pr!.headSha === SHA ? { exit: 'hang' } : verdictBy({ reviewer: ok, 'reviewer-2': ok })(task);
+  }, { late });
+
+  expect(roundsDecidedOf(engine.db)).toEqual([{ round: 1, headSha: HEAD2, decision: 'completed', given: 2, of: 2, none: [] }]);
+});
+
+test('an epic with one reviewer records no round event: nothing new for it', async () => {
+  const engine = await roundOf(verdictBy({ reviewer: ok }), { config: repos[0]! });
+
+  expect(roundsDecidedOf(engine.db)).toEqual([]);
+});
+
 // --- a reviewer whose blockers are still open and who gives no verdict is not agreement (ADR 0048) ---
 
 const toHead2 = (task: AgentTask) => (pull(50, { headSha: HEAD2 }), fixDone(task, HEAD2));

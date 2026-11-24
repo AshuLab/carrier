@@ -22,6 +22,7 @@
       "executionId": "9a7d1c52-0b3e-4f6a-8d2c-1e5f7a9b3c4d",
       "stage": "review",
       "role": "reviewer",
+      "reviewer": "reviewer",
       "round": 2,
       "agent": {
         "harness": "codex",
@@ -111,6 +112,7 @@
       "executionId": "7e2a9d14-6b0c-4f83-9c5e-3a1d8b4f6c20",
       "stage": "review",
       "role": "reviewer",
+      "reviewer": "reviewer",
       "round": 1,
       "agent": {
         "harness": "codex",
@@ -168,6 +170,30 @@
         "hostFreeMemMb": 812,
         "hostLoad": 6.4
       }
+    },
+    {
+      "executionId": "6d3c7a21-8e4b-4c19-b0f2-5a9d1e3c7b84",
+      "stage": "review",
+      "role": "reviewer",
+      "reviewer": "reviewer-2",
+      "round": 1,
+      "agent": {
+        "harness": "claude",
+        "model": "claude-sonnet-5-5",
+        "provider": null
+      },
+      "profile": "acme-reviewer-2",
+      "status": "finished",
+      "startedAt": 39100,
+      "finishedAt": 44000,
+      "resume": null,
+      "result": {
+        "outcome": "needs_human",
+        "summary": "Could not conclude.",
+        "verification": null,
+        "reason": "cannot verify the migration"
+      },
+      "failure": null
     }
   ]
 }

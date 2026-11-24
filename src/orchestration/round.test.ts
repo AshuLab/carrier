@@ -48,3 +48,22 @@ test('with no verdict at all the round failed, each slot with its reason', () =>
 test('a reason that came later for a slot stands over the older one', () => {
   expect(decideRound(['reviewer'], [], [none('reviewer'), { ...none('reviewer', 'usage_limit'), why: 'later' }])).toMatchObject({ kind: 'failed', none: [{ why: 'later' }] });
 });
+
+test('a slot with blockers still open that gave no verdict does not let completed verdicts close the round: it fails naming that slot', () => {
+  const decision = decideRound(['reviewer', 'reviewer-2'], [done('reviewer')], [none('reviewer-2')], ['reviewer-2']);
+  expect(decision).toEqual({ kind: 'open_blockers', none: [none('reviewer-2')] });
+});
+
+test('every slot with open blockers and no verdict is named, and one with none open is left out', () => {
+  const decision = decideRound(['reviewer', 'reviewer-2', 'reviewer-3'], [done('reviewer')], [none('reviewer-2'), none('reviewer-3')], ['reviewer-3', 'reviewer-2']);
+  expect(decision).toEqual({ kind: 'open_blockers', none: [none('reviewer-2'), none('reviewer-3')] });
+  expect(decideRound(['reviewer', 'reviewer-2', 'reviewer-3'], [done('reviewer')], [none('reviewer-2'), none('reviewer-3')], ['reviewer-3'])).toEqual({ kind: 'open_blockers', none: [none('reviewer-3')] });
+});
+
+test('another slot that asks for changes lets the round go on to the fix, which answers the open blockers too', () => {
+  expect(decideRound(['reviewer', 'reviewer-2'], [asks('reviewer')], [none('reviewer-2')], ['reviewer-2'])).toEqual({ kind: 'changes_requested' });
+});
+
+test('open blockers of a slot that gave a verdict in the round are its own verdict to stand, not a silence', () => {
+  expect(decideRound(['reviewer', 'reviewer-2'], [done('reviewer'), done('reviewer-2')], [], ['reviewer-2']).kind).toBe('completed');
+});

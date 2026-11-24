@@ -7,9 +7,11 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { type CompiledCopy, CopyError, LANGUAGES, type Language, compileCopy, emitCatalog, emitSwift, emitTypeScript } from './copy.ts';
+import { type CompiledTokens, TokenError, compileTokens, emitTokensSwift } from './tokens.ts';
 
 export interface Sources {
   copy: CompiledCopy;
+  tokens: CompiledTokens;
 }
 
 /** A file the generator writes: its path from the repository root, and what it holds. */
@@ -29,11 +31,11 @@ export function copyOutputs(paths: { swift: string; catalog: string; typescript:
 
 /**
  * The output table: every emitter registers the files it writes here.
- * It is empty on purpose.
- * The Swift outputs (the copy accessor and catalog, the tokens, the preferences) arrive with the changes that use them,
- * and the web's TypeScript with the web; the copy source is still parsed and checked on every run.
+ * The tokens' Swift is written; the tokens' TypeScript and CSS are emitted and tested but written nowhere until a web front-end exists.
+ * The other Swift outputs (the copy accessor and catalog, the preferences) arrive with the changes that use them;
+ * the copy source is still parsed and checked on every run.
  */
-export const outputs: Output[] = [];
+export const outputs: Output[] = [{ path: 'macos/Sources/CarrierCore/Theme/Tokens.generated.swift', render: (sources) => emitTokensSwift(sources.tokens) }];
 
 export const REPOSITORY_ROOT = join(import.meta.dirname, '..');
 
@@ -48,7 +50,8 @@ export function loadSources(root: string): Sources {
     return parsed as Record<string, string>;
   };
   const [en, es] = LANGUAGES.map(read) as [Record<string, string>, Record<string, string>];
-  return { copy: compileCopy({ en, es }) };
+  const tokens: unknown = JSON.parse(readFileSync(join(root, 'design', 'tokens.json'), 'utf8'));
+  return { copy: compileCopy({ en, es }), tokens: compileTokens(tokens) };
 }
 
 function write(folder: string, table: Output[], sources: Sources): void {
@@ -92,7 +95,7 @@ function main(): number {
     generate(REPOSITORY_ROOT);
     return 0;
   } catch (error) {
-    if (error instanceof CopyError) {
+    if (error instanceof CopyError || error instanceof TokenError) {
       console.error(error.message);
       return 1;
     }

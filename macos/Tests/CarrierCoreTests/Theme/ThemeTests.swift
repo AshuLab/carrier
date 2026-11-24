@@ -79,4 +79,73 @@ import Testing
         let tinted = themeSurfaces(.carrier, scheme: .light, tint: .strong, translucent: true)
         #expect(close(tinted.window, RGBA(hex: 0x007aff, alpha: Tint.strong.opacity)))
     }
+
+    // MARK: what design/tokens.json says, pinned to the values the code held before it
+
+    /// The `switch` that `Theme.swift` had, copied here before it was deleted: window, sidebar and accent of each theme and version.
+    private static let before: [(Theme, ThemeScheme, UInt32, UInt32, UInt32?)] = [
+        (.carrier, .dark, 0x1c1c1e, 0x2f2f33, nil), (.carrier, .light, 0xf2f2f7, 0xdcdce2, nil),
+        (.graphite, .dark, 0x17181a, 0x26272a, 0x98989d), (.graphite, .light, 0xececee, 0xd9d9dc, 0x636366),
+        (.ocean, .dark, 0x0f1b24, 0x18304a, 0x32ade6), (.ocean, .light, 0xeaf3fa, 0xcfe3f2, 0x0a7fc0),
+        (.forest, .dark, 0x121a14, 0x1d2f22, 0x30d158), (.forest, .light, 0xeef5ee, 0xd3e6d6, 0x1f9d45),
+        (.sunset, .dark, 0x1f1712, 0x34241a, 0xff9f0a), (.sunset, .light, 0xfbf1e6, 0xf1dcc3, 0xd97706),
+        (.paper, .dark, 0x222120, 0x32302d, 0x6ea8ff), (.paper, .light, 0xf6f4ef, 0xe6e1d4, 0x007aff),
+        (.rose, .dark, 0x1f1418, 0x35212a, 0xff6b9a), (.rose, .light, 0xfbeff2, 0xf2d6de, 0xd6336c),
+        (.lavender, .dark, 0x18141f, 0x2a2238, 0xb58cff), (.lavender, .light, 0xf3effb, 0xe0d6f2, 0x7c3aed),
+        (.midnight, .dark, 0x0a0e1a, 0x141b30, 0x2dd4bf), (.midnight, .light, 0xeceef8, 0xd3d8ee, 0x0f9d8a),
+    ]
+
+    @Test func the_nine_themes_in_both_versions_keep_the_values_of_the_switch_they_came_from() {
+        #expect(Theme.allCases.count == 9 && Self.before.count == 18)
+        for (theme, scheme, window, sidebar, accent) in Self.before {
+            #expect(
+                themeSurfaces(theme, scheme: scheme, translucent: false) == ThemeSurfaces(window: RGBA(hex: window), sidebar: RGBA(hex: sidebar), accent: accent.map { RGBA(hex: $0) }),
+                "\(theme) \(scheme)")
+        }
+    }
+
+    @Test func the_seven_presets_keep_their_names_and_values() {
+        let before: [(String, UInt32)] = [("blue", 0x0a84ff), ("purple", 0xbf5af2), ("pink", 0xff375f), ("red", 0xff453a), ("orange", 0xff9f0a), ("green", 0x30d158), ("graphite", 0x8e8e93)]
+        #expect(AccentColor.allCases.map(\.rawValue) == before.map(\.0))
+        for (name, hex) in before { #expect(AccentColor(rawValue: name)?.color == RGBA(hex: hex), "\(name)") }
+        #expect([AccentColor.blue, .purple, .pink, .red, .orange, .green, .graphite] == AccentColor.allCases)
+    }
+
+    /// A color the views drew from components (0 to 1): a hex holds each of them to within half a step of 255.
+    private func matches(_ hex: UInt32, _ red: Double, _ green: Double, _ blue: Double) -> Bool {
+        let color = RGBA(hex: hex)
+        return [(color.red, red), (color.green, green), (color.blue, blue)].allSatisfy { abs($0 - $1) <= 0.5 / 255 + 1e-9 }
+    }
+
+    /// `Color(hue:saturation:brightness:)` as components.
+    private func hsb(_ hue: Double, _ saturation: Double, _ brightness: Double) -> (Double, Double, Double) {
+        let sector = Int(hue * 6) % 6, fraction = hue * 6 - Double(Int(hue * 6))
+        let p = brightness * (1 - saturation), q = brightness * (1 - saturation * fraction), t = brightness * (1 - saturation * (1 - fraction))
+        return [(brightness, t, p), (q, brightness, p), (p, brightness, t), (p, q, brightness), (t, p, brightness), (brightness, p, q)][sector]
+    }
+
+    @Test func each_semantic_color_keeps_the_value_of_the_literal_it_was_taken_from() {
+        // SessionRowView: the orange of "Waiting for you" (the system's on dark), done, the cyan of work in the background
+        #expect(matches(Tokens.Status.attention.light, 0.70, 0.36, 0))
+        #expect(Tokens.Status.attention.dark == 0xff9f0a && RGBA(hex: Tokens.Status.attention.dark) == AccentColor.orange.color)
+        #expect(matches(Tokens.Status.done.light, 0.12, 0.55, 0.24) && matches(Tokens.Status.done.dark, 0.19, 0.70, 0.31))
+        #expect(matches(Tokens.Status.background.light, 0.0, 0.48, 0.70) && matches(Tokens.Status.background.dark, 0.35, 0.78, 0.98))
+        // SessionPeekView: the violet of work in hand; ChatToolGroupView: the slow call is the orange of "Waiting for you"
+        #expect(matches(Tokens.Status.working.light, 0.42, 0.22, 0.72) && matches(Tokens.Status.working.dark, 0.79, 0.63, 1.0))
+        #expect(Tokens.Status.slowCall.light == Tokens.Status.attention.light && Tokens.Status.slowCall.dark == Tokens.Status.attention.dark)
+        // ChatToolGroupView: the kinds of tool call (`Color.thought` is the dark violet)
+        #expect(matches(Tokens.ToolCall.thought.light, 0.48, 0.29, 0.75) && matches(Tokens.ToolCall.thought.dark, 0.79, 0.63, 1.0))
+        #expect(matches(Tokens.ToolCall.files.light, 0.04, 0.39, 0.78) && matches(Tokens.ToolCall.files.dark, 0.42, 0.71, 1.0))
+        #expect(matches(Tokens.ToolCall.shell.light, 0.11, 0.54, 0.24) && matches(Tokens.ToolCall.shell.dark, 0.31, 0.85, 0.45))
+        #expect(matches(Tokens.ToolCall.mcp.light, 0.66, 0.39, 0.0) && matches(Tokens.ToolCall.mcp.dark, 1.0, 0.70, 0.25))
+        #expect(matches(Tokens.ToolCall.subagents.light, 0.54, 0.18, 0.75) && matches(Tokens.ToolCall.subagents.dark, 0.84, 0.55, 1.0))
+        // ChatApprovalView: the dusty amber, the same in both versions
+        let amber = hsb(0.07, 0.5, 0.78)
+        #expect(matches(Tokens.Attention.approval.light, amber.0, amber.1, amber.2) && Tokens.Attention.approval.light == Tokens.Attention.approval.dark)
+        // The Mac's accent, which a tint over Carrier's own surfaces uses, and ToolbarPillButton's glass and selected row
+        #expect(Tokens.Accent.system.light == 0x007aff && Tokens.Accent.system.dark == 0x0a84ff)
+        #expect(Tokens.Accent.glass.light == AccentShade(darken: 0.4, alpha: 1) && Tokens.Accent.glass.dark == AccentShade(darken: 0.4, alpha: 1))
+        #expect(Tokens.Accent.selectedRow.light == AccentShade(darken: 0, alpha: 0.45))
+        #expect(Tokens.Accent.selectedRow.dark == AccentShade(darken: 0.5, alpha: 0.85))
+    }
 }

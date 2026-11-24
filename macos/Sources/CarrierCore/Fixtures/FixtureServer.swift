@@ -129,8 +129,9 @@ public final class FixtureServer {
     {"name":"acme/api","private":true,"pushedAt":"2026-10-15T09:00:00Z"}],"hasMore":false}
     """
 
-    /// Accepted and answered with nothing, as the real engine would; the fixture has no one to pause or stop.
+    /// The requests that change the roles, personas, failover, lead reviewer or orchestrator profile in `engine.json`: `engineRolesReply` writes them.
     static let roleRequests: Set<String> = ["editRole", "editRepoRole", "editPersona", "editFailover", "setLeadReviewer", "setOrchestratorProfile"]
+    /// Accepted and answered with nothing, as the real engine would; the fixture has no one to pause or stop.
     private static let controls: Set<String> = ["pause", "resume", "checkNow", "stop", "resumeEpic", "recoverEpic", "reload"]
 
     /// `longTranscript`: `events` answers with a made-up transcript of thousands of events instead of the golden file.

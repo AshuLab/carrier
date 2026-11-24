@@ -33,8 +33,8 @@ public typealias Reload = () -> ReloadOutcome
 /// (nil), the answer being `ReloadStatus`'s. A `Reload` is one too.
 public typealias AfterWrite = () -> ReloadOutcome?
 
-/// `Reload` for the engine at `socketPath`. Blocks until the engine has answered (3 s to connect, 3 s to reply at most): a page runs it
-/// through `reloadInBackground`, a model that already waits (`await reloadOffMain`) runs it on its own.
+/// `Reload` for the engine at `socketPath`. Blocks until the engine has answered (3 s to connect, 3 s to reply at most): a model runs it
+/// with `await reloadOffMain`.
 public func reloadEngine(socketPath: String = controlSocketPath()) -> ReloadOutcome {
     guard let client = ControlClient.connect(path: socketPath, timeout: 3) else { return .nobody }
     defer { client.close() }
@@ -122,17 +122,6 @@ public func reloadOffMain(_ reload: @escaping Reload) async -> ReloadOutcome {
         outcome = nil
         pending = false
     }
-}
-
-/// The `AfterWrite` of the pages: hands the ask to `ReloadStatus.shared`, so a save never waits for the engine. The pages save on the main
-/// thread and the ask is made at once; from any other thread it is made as soon as the main actor is free.
-public func reloadInBackground() -> ReloadOutcome? {
-    if Thread.isMainThread {
-        MainActor.assumeIsolated { _ = ReloadStatus.shared.ask() }
-    } else {
-        Task { @MainActor in ReloadStatus.shared.ask() }
-    }
-    return nil
 }
 
 /// What the page says when the file is saved and the engine did not apply it: nil when it did, there was no one to ask, or the answer is on its way.

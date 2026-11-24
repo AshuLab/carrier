@@ -132,6 +132,7 @@ extension FixtureServer {
         default:
             return nil
         }
+        // `saved` stays empty: the real engine answers the part it changed, but the app reads the file itself and never decodes it.
         guard let words = result.problem else { return Self.answer(id, ["saved": [String: Any](), "engine": "applied"]) }
         return Self.refused(id, "config.problem", words, ["path": .string("(engine.json)"), "problem": .string("invalid")])
     }

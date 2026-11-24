@@ -100,7 +100,7 @@ func applyingRepoRole(_ fields: RoleFields?, role: AgentRole, repo: String, to j
 
 /// Saves `fields` as the repo's own `role` (nil resets it) in the file at `path`, read just now. A profile or account that is not declared
 /// is refused before anything is written.
-func saveRepoRole(_ fields: RoleFields?, role: AgentRole, repo: String, path: String, accounts: [String], reload: AfterWrite = reloadInBackground) -> RoleSave {
+func saveRepoRole(_ fields: RoleFields?, role: AgentRole, repo: String, path: String, accounts: [String], reload: AfterWrite) -> RoleSave {
     let url = URL(fileURLWithPath: path)
     guard let current = try? Data(contentsOf: url), let roles = repoRoles(json: current, repo: repo) else {
         return .failed("The config file could not be read.")

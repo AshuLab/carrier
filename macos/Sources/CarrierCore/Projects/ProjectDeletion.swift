@@ -65,7 +65,7 @@ public func projectDeletionCheck(path: String, reply: ProjectWorktrees, sessions
 /// `worktrees/` folder, deeper than it, and never be the project itself.
 public func projectTrashRefusal(path: String, worktrees: [String], carrierFolder: String, home: String = NSHomeDirectory()) -> String? {
     let expanded = (path as NSString).expandingTildeInPath
-    if let refusal = projectFolderRefusal(expanded, carrierFolder: carrierFolder) { return refusal }
+    if let refusal = projectFolderRefusal(expanded, carrierFolder: carrierFolder) { return refusal.text }
     let real = normalizedFolder(expanded)
     for keep in [normalizedFolder(home), normalizedFolder(carrierFolder)] where real == keep || keep.hasPrefix(real + "/") {
         return "That is the home folder or a folder that holds Carrier's own, so Carrier does not delete it"

@@ -412,8 +412,8 @@ private func call(_ id: Int, _ tool: String, _ arg: String = "", output: [String
     #expect(try await host.events("d4e5f6a7-3b2c-4d9e-8f1a-2b3c4d5e6f04", after: 0, limit: 200).events.isEmpty)
     // the Codex session is waiting: its approval is pending
     #expect(try await host.events("8a2e4b6d-1c3f-4d57-8e9a-0b1c2d3e4f02", after: 0, limit: 200).pending == ["b1"])
-    await #expect(throws: ControlError.remote("unknown session")) { try await host.events(UUID().uuidString, after: 0, limit: 200) }
-    await #expect(throws: ControlError.remote("not a valid session id")) { try await host.events("../x\",\"cmd\":\"stop", after: 0, limit: 200) }
+    await #expect(throws: ControlError.remote(.words("unknown session"))) { try await host.events(UUID().uuidString, after: 0, limit: 200) }
+    await #expect(throws: ControlError.remote(.sessionIdInvalid)) { try await host.events("../x\",\"cmd\":\"stop", after: 0, limit: 200) }
 }
 
 @Test func theFixtureHostRecordsAnAnswerAndRefusesOneThatIsNotPendingOrNotAChoice() async throws {
@@ -421,8 +421,8 @@ private func call(_ id: Int, _ tool: String, _ arg: String = "", output: [String
     defer { server.stop() }
     let host = SocketChatHost(socketPath: { server.chatSocketPath })
     let waiting = "8a2e4b6d-1c3f-4d57-8e9a-0b1c2d3e4f02"
-    await #expect(throws: ControlError.remote("That is not one of the choices")) { try await host.answer(waiting, approval: "b1", choice: "maybe") }
-    await #expect(throws: ControlError.remote("That approval is not pending: it is unknown or was already answered")) { try await host.answer(waiting, approval: "zz", choice: "accept") }
+    await #expect(throws: ControlError.remote(.words("That is not one of the choices"))) { try await host.answer(waiting, approval: "b1", choice: "maybe") }
+    await #expect(throws: ControlError.remote(.words("That approval is not pending: it is unknown or was already answered"))) { try await host.answer(waiting, approval: "zz", choice: "accept") }
     try await host.answer(waiting, approval: "b1", choice: "decline")
     let after = try await host.events(waiting, after: 4, limit: 200)
     #expect(after.pending.isEmpty && after.events.map(\.kind) == ["approval_answered"] && after.events[0].choiceId == "decline")
@@ -720,7 +720,7 @@ private func say(_ id: Int) -> ChatEvent { ChatEvent(id: id, at: id, kind: "assi
     host.events.append(say(2))
     await model.poll()
     #expect(model.failure == nil && model.rows.count == 2)
-    host.failing = ControlError.remote("unknown session")
+    host.failing = ControlError.remote(.words("unknown session"))
     await model.poll()
     #expect(model.failure == "unknown session" && logged.count == 2)
 }
@@ -923,7 +923,7 @@ private func say(_ id: Int) -> ChatEvent { ChatEvent(id: id, at: id, kind: "assi
 @MainActor @Test func aRefusedSendKeepsTheMessageForTryAgainAndTryAgainSendsTheLastMessageWhenTheTurnFailed() async throws {
     let host = ScriptedHost()
     host.live = false
-    host.refusing = .remote("Claude is not logged in; run \"claude\" once to log in")
+    host.refusing = .remote(.words("Claude is not logged in; run \"claude\" once to log in"))
     host.events = [ChatEvent(id: 1, at: 1, kind: "user", text: "hello")]
     let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
     await model.poll()
@@ -1092,12 +1092,12 @@ private func actionStep(_ id: Int, _ name: String, _ when: String, _ status: Str
 @MainActor @Test func aRefusedTryAgainOrCancelIsSaidInWordsAndChangesNothing() async {
     let host = ScriptedHost()
     host.preparation = .running
-    host.refusePreparation = .remote("This session is not in a failed preparation, so there is nothing to try again")
+    host.refusePreparation = .remote(.words("This session is not in a failed preparation, so there is nothing to try again"))
     let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
     await model.poll()
     await model.retryPreparation()
     #expect(model.preparationRefusal == "This session is not in a failed preparation, so there is nothing to try again" && model.preparation == .running)
-    host.refusePreparation = .remote("This session is not being prepared, so there is nothing to cancel")
+    host.refusePreparation = .remote(.words("This session is not being prepared, so there is nothing to cancel"))
     #expect(await model.cancelPreparation() == nil)
     #expect(model.preparationRefusal == "This session is not being prepared, so there is nothing to cancel")
 }
@@ -2003,7 +2003,7 @@ private func flow(_ work: SubagentWork?) -> [String] {
     let host = ScriptedHost()
     host.state = .working
     host.events = Array(subagentTurn[..<6])
-    host.refusingStopTask = .remote("That subagent is not running")
+    host.refusingStopTask = .remote(.words("That subagent is not running"))
     let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
     await model.poll()
     model.show(subagent: "c1")
@@ -2017,12 +2017,12 @@ private func flow(_ work: SubagentWork?) -> [String] {
     let host = SocketChatHost(socketPath: { server.chatSocketPath })
     let id = "a7b8c9d0-6e5f-4a21-9c4d-5e6f7a8b9c07"
     #expect(try await host.capabilities().contains(.stopTask))
-    await #expect(throws: ControlError.remote("That task is not running")) { try await host.stopTask(id, task: "t2") } // finished
-    await #expect(throws: ControlError.remote("That task is not running")) { try await host.stopTask(id, task: "nope") }
+    await #expect(throws: ControlError.remote(.words("That task is not running"))) { try await host.stopTask(id, task: "t2") } // finished
+    await #expect(throws: ControlError.remote(.words("That task is not running"))) { try await host.stopTask(id, task: "nope") }
     try await host.stopTask(id, task: "t3")
     let after = try await host.events(id, after: 25, limit: 200).events
     #expect(after.map(\.kind) == ["task"] && after[0].state == "stopped" && after[0].callId == "a3" && after[0].taskId == "t3")
-    await #expect(throws: ControlError.remote("That task is not running")) { try await host.stopTask(id, task: "t3") }
+    await #expect(throws: ControlError.remote(.words("That task is not running"))) { try await host.stopTask(id, task: "t3") }
 }
 
 @Test func theFixtureHostServesTheSubagentViewWithItsBriefItsThoughtItsMessageAndItsNestedSubagent() async throws {

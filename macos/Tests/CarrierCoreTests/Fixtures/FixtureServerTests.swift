@@ -69,7 +69,7 @@ private func sameJSON(_ a: Data, _ b: Data) throws -> Bool {
     defer { server.stop() }
     let client = try #require(ControlClient.connect(path: server.socketPath))
     _ = try client.hello()
-    #expect(throws: ControlError.remote("unknown request")) { try client.request("selfDestruct") }
+    #expect(throws: ControlError.remote(.words("unknown request"))) { try client.request("selfDestruct") }
     // the connection is still good afterwards
     #expect(try client.request("pause") == Data("null".utf8))
 }
@@ -115,10 +115,10 @@ private func sameJSON(_ a: Data, _ b: Data) throws -> Bool {
     let notice = try #require(try await host.events(idle.id, after: 0, limit: 200).events.last)
     #expect(notice.kind == "notice" && notice.switched == ChatEvent.Switched(from: "claude", to: "codex"))
 
-    await #expect(throws: ControlError.remote("This session already has the agent \"codex\"")) { try await host.switchAgent(idle.id, to: "codex") }
-    await #expect(throws: ControlError.remote("There is no chat agent named \"ghost\"")) { try await host.switchAgent(idle.id, to: "ghost") }
-    await #expect(throws: ControlError.remote("The agent \"claude-beta\" is not found on this machine")) { try await host.switchAgent(idle.id, to: "claude-beta") }
-    await #expect(throws: ControlError.remote("This session is working; interrupt it or wait, then switch its agent")) { try await host.switchAgent(working.id, to: "codex") }
+    await #expect(throws: ControlError.remote(.words("This session already has the agent \"codex\""))) { try await host.switchAgent(idle.id, to: "codex") }
+    await #expect(throws: ControlError.remote(.words("There is no chat agent named \"ghost\""))) { try await host.switchAgent(idle.id, to: "ghost") }
+    await #expect(throws: ControlError.remote(.words("The agent \"claude-beta\" is not found on this machine"))) { try await host.switchAgent(idle.id, to: "claude-beta") }
+    await #expect(throws: ControlError.remote(.words("This session is working; interrupt it or wait, then switch its agent"))) { try await host.switchAgent(working.id, to: "codex") }
 }
 
 @Test func theFixtureHomeCarriesProjectsThatTheListShowsWithTheirRemotes() throws {
@@ -171,9 +171,9 @@ private func sameJSON(_ a: Data, _ b: Data) throws -> Bool {
     let project = server.home + "/projects/carrier"
     let worktree = { (name: String) in "/Users/dev/.carrier/chat/worktrees/AshuLab/carrier/" + name }
     // an open session and uncommitted changes are refused with the host's words, and nothing is listed away
-    await #expect(throws: ControlError.remote("Its session is open")) { try await host.removeProjectWorktree(project, path: worktree("kerrigan")) }
-    await #expect(throws: ControlError.remote("It has uncommitted changes")) { try await host.removeProjectWorktree(project, path: worktree("zeratul")) }
-    await #expect(throws: ControlError.remote("That is not a worktree of this project")) { try await host.removeProjectWorktree(project, path: "/nowhere") }
+    await #expect(throws: ControlError.remote(.words("Its session is open"))) { try await host.removeProjectWorktree(project, path: worktree("kerrigan")) }
+    await #expect(throws: ControlError.remote(.words("It has uncommitted changes"))) { try await host.removeProjectWorktree(project, path: worktree("zeratul")) }
+    await #expect(throws: ControlError.remote(.words("That is not a worktree of this project"))) { try await host.removeProjectWorktree(project, path: "/nowhere") }
     #expect(try await host.projectWorktrees(project).worktrees.count == 5)
 
     try await host.removeProjectWorktree(project, path: worktree("tassadar"))
@@ -197,7 +197,7 @@ private func sameJSON(_ a: Data, _ b: Data) throws -> Bool {
     #expect(try await host.list(archived: false).first { $0.id == fixable.id }?.title == "Regenerated title")
 
     let refused = try #require(sessions.first { $0.title == "Explore the pricing page layout" })
-    await #expect(throws: ControlError.remote("Could not write a title: no text generator is chosen; choose one in Providers")) { try await host.regenerateTitle(refused.id) }
+    await #expect(throws: ControlError.remote(.words("Could not write a title: no text generator is chosen; choose one in Providers"))) { try await host.regenerateTitle(refused.id) }
     #expect(try await host.list(archived: false).first { $0.id == refused.id }?.title == "Explore the pricing page layout")
 }
 
@@ -205,7 +205,7 @@ private func sameJSON(_ a: Data, _ b: Data) throws -> Bool {
     let server = try FixtureServer(fixtures: fixtures)
     defer { server.stop() }
     let host = SocketChatHost(socketPath: { server.chatSocketPath })
-    await #expect(throws: ControlError.remote("Could not write titles: no text generator is chosen; choose one in Providers")) { _ = try await host.regenerateTitles() }
+    await #expect(throws: ControlError.remote(.words("Could not write titles: no text generator is chosen; choose one in Providers"))) { _ = try await host.regenerateTitles() }
 
     let file = ProvidersFile(folder: server.home)
     try file.write(applyingTextGenerator((server: "ollama", model: "qwen3:8b"), to: try file.read()))

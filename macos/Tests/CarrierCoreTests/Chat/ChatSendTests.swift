@@ -109,7 +109,7 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
 @MainActor @Test func aRefusedResumeIsShownAndTheMessageIsNotSentAndStaysInTheBox() async {
     let host = FakeChat()
     host.live = false
-    host.refuse["resume"] = ControlError.remote("The agent's folder is gone")
+    host.refuse["resume"] = ControlError.remote(.words("The agent's folder is gone"))
     var logged: [String] = []
     let chat = model(host, log: { logged.append($0) })
     chat.draft = "hi"
@@ -119,7 +119,7 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
 
 @MainActor @Test func aRefusedSendShowsTheReasonAndKeepsTheText() async {
     let host = FakeChat()
-    host.refuse["send"] = ControlError.remote("That message has 70000 characters; the most a message can have is 64000")
+    host.refuse["send"] = ControlError.remote(.words("That message has 70000 characters; the most a message can have is 64000"))
     let chat = model(host)
     chat.draft = "too long"
     await chat.submit()
@@ -189,7 +189,7 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
     chat.draft = "next"
     await chat.submit()
     host.state = .idle
-    host.refuse["send"] = ControlError.remote("This session is closed")
+    host.refuse["send"] = ControlError.remote(.words("This session is closed"))
     await chat.poll()
     #expect(chat.queued == nil && chat.draft == "next" && chat.refusal == "This session is closed")
 }
@@ -284,7 +284,7 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
     let chat = model(host)
     chat.draft = "first"
     await chat.submit()
-    host.refuse["interrupt"] = ControlError.remote("This session is closed")
+    host.refuse["interrupt"] = ControlError.remote(.words("This session is closed"))
     chat.draft = "instead"
     await chat.submit(whileWorking: .interrupt)
     #expect(chat.queued == "instead" && chat.refusal == "This session is closed" && host.calls == ["send first", "interrupt"])
@@ -330,7 +330,7 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
 
 @MainActor @Test func aRefusedStopIsShown() async {
     let host = FakeChat()
-    host.refuse["interrupt"] = ControlError.remote("This session is closed")
+    host.refuse["interrupt"] = ControlError.remote(.words("This session is closed"))
     let chat = model(host)
     await chat.stop()
     #expect(chat.refusal == "This session is closed")
@@ -376,7 +376,7 @@ private let asked = ChatEvent(
     host.pending = ["p"]
     let chat = model(host)
     await chat.poll()
-    host.refuse["answer"] = ControlError.remote("That approval is not pending: it is unknown or was already answered")
+    host.refuse["answer"] = ControlError.remote(.words("That approval is not pending: it is unknown or was already answered"))
     await chat.answer("p", choice: "allow")
     #expect(chat.refusal == "That approval is not pending: it is unknown or was already answered")
     guard case .approval? = chat.rows.last else {
@@ -424,5 +424,5 @@ private let asked = ChatEvent(
     #expect(all[3]["sessionId"] as? String == session && all[3]["approvalId"] as? String == "a\"1" && all[3]["choiceId"] as? String == "allow\n")
     // `answers` goes on the wire only when there are some
     #expect(all[3]["answers"] == nil && all[4]["answers"] as? [String: String] == ["Which \"one\"?": "A, B"])
-    await #expect(throws: ControlError.remote("not a valid session id")) { try await host.send("../x", "hi") }
+    await #expect(throws: ControlError.remote(.sessionIdInvalid)) { try await host.send("../x", "hi") }
 }

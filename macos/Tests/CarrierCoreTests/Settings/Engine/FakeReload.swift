@@ -21,7 +21,7 @@ final class FakeReload {
     var reload: Reload {
         { [self] in
             seen.append(try? Data(contentsOf: URL(fileURLWithPath: path)))
-            return problem.map { .refused($0) } ?? .applied
+            return problem.map { .refused(.words($0)) } ?? .applied
         }
     }
 }

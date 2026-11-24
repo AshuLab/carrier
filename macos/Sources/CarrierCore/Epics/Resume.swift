@@ -45,12 +45,12 @@ public func resumeCard(_ epic: PanelEpic, canResume: Bool) -> ResumeCard? {
     )
 }
 
-/// The reasons the engine gives for refusing `resumeEpic`.
+/// The reasons the engine gives for refusing `resumeEpic`, by the code of its refusal.
 public enum ResumeRefusal: String, CaseIterable {
-    case unknownEpic = "unknown epic"
-    case notStopped = "not stopped"
-    case githubUnavailable = "github unavailable"
-    case didNotRestart = "did not restart"
+    case unknownEpic = "epic.unknown"
+    case notStopped = "resume.notStopped"
+    case githubUnavailable = "github.unavailable"
+    case didNotRestart = "resume.didNotRestart"
 
     var words: String {
         switch self {
@@ -65,8 +65,8 @@ public enum ResumeRefusal: String, CaseIterable {
 public enum ResumeResult: Equatable {
     /// The epic started again.
     case resumed
-    /// The engine's reason.
-    case refused(String)
+    /// The engine's refusal.
+    case refused(Refusal)
     /// no socket to talk to, or the connection died
     case stopped
     /// an engine that does not list `resumeEpic`
@@ -92,7 +92,7 @@ public func resumeEpic(socketPath: String, repo: String, issue: Int) -> ResumeRe
 public func resumeFailureWords(_ result: ResumeResult) -> String? {
     switch result {
     case .resumed: nil
-    case .refused(let reason): ResumeRefusal(rawValue: reason)?.words ?? "Carrier could not resume this epic (\(reason))."
+    case .refused(let refusal): refusal.code.flatMap(ResumeRefusal.init(rawValue:))?.words ?? "Carrier could not resume this epic (\(refusal.text))."
     case .stopped: "Carrier is not running."
     case .unsupported: "This Carrier cannot resume epics. Update it."
     }

@@ -224,8 +224,8 @@ private func ids(_ update: SessionsUpdate) -> [String] { (update.active + update
     let host = ScriptHost(capabilities: "\"agents\"")
     defer { host.stop() }
     let refusing = ChatLink(path: host.path)
-    await #expect(throws: ControlError.remote("the chat host does not support list")) { _ = try await refusing.list(archived: false) }
-    await #expect(throws: ControlError.remote("the chat host does not support list")) { _ = try await refusing.list(archived: false) }
+    await #expect(throws: ControlError.remote(.hostLacks("list"))) { _ = try await refusing.list(archived: false) }
+    await #expect(throws: ControlError.remote(.hostLacks("list"))) { _ = try await refusing.list(archived: false) }
     #expect(host.connections == 1)
 }
 

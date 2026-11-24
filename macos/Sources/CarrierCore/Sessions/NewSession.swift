@@ -85,7 +85,7 @@ public struct WatchNote: Equatable {
     public var text = ""
     public private(set) var sending = false
     /// Why `open` was refused (or the host would not start), said in words in the draft; nil when it worked.
-    public private(set) var refusal: String?
+    public private(set) var refusal: Refusal?
     /// What the host says the chosen folder is; nil until it answers (and when it refuses, see `workspaceProblem`).
     public private(set) var workspace: WorkspaceInfo?
     /// Why the host would not say what the folder is, in words.
@@ -454,7 +454,7 @@ public struct WatchNote: Equatable {
         } catch {
             guard folder == path else { return }
             // the draft still works: the repository is cloned on its default branch, with no worktree to offer
-            workspaceProblem = report(error, "list the branches of \(name)")
+            workspaceProblem = report(error, "list the branches of \(name)").text
         }
     }
 
@@ -592,7 +592,7 @@ public struct WatchNote: Equatable {
         } catch {
             guard folder == path else { return }
             // the draft still works in the base folder: the host refuses the same folder at `open`, in words
-            workspaceProblem = report(error, "read the workspace")
+            workspaceProblem = report(error, "read the workspace").text
         }
     }
 
@@ -736,7 +736,7 @@ public struct WatchNote: Equatable {
             nameState = .free
         } catch {
             guard folder == path else { return }
-            nameState = .problem(report(error, "suggest a name"))
+            nameState = .problem(report(error, "suggest a name").text)
         }
     }
 
@@ -755,7 +755,7 @@ public struct WatchNote: Equatable {
             return
         } catch {
             guard name == worktreeName else { return }
-            nameState = .problem(report(error, "check the name"))
+            nameState = .problem(report(error, "check the name").text)
         }
     }
 
@@ -782,7 +782,7 @@ public struct WatchNote: Equatable {
                 unreachable = true
                 _ = report(error, "fetch on choosing")
             } else {
-                fetchProblem = report(error, "fetch")
+                fetchProblem = report(error, "fetch").text
             }
         }
     }
@@ -816,7 +816,7 @@ public struct WatchNote: Equatable {
         refusal = nil
         defer { sending = false }
         guard await ensureHost() else {
-            refusal = hostNotRunning
+            refusal = .hostNotRunning
             return nil
         }
         // a host that was not running when the draft opened has not said yet whether it takes a plan
@@ -842,12 +842,12 @@ public struct WatchNote: Equatable {
     /// The first message of a session this draft opened, handed over once to the conversation that shows it.
     public func takeFirstMessage(of id: String) -> String? { firstMessages.removeValue(forKey: id) }
 
-    private func report(_ error: Error, _ doing: String) -> String {
-        let message = ConversationModel.words(error)
+    private func report(_ error: Error, _ doing: String) -> Refusal {
+        let refusal = ConversationModel.refusal(error)
         // a refusal is the host answering as it should; anything else is a failure to talk to it
-        if case ControlError.remote = error { return message }
-        log("new session: could not \(doing): \(message)")
-        return message
+        if case ControlError.remote = error { return refusal }
+        log("new session: could not \(doing): \(refusal.text)")
+        return refusal
     }
 }
 

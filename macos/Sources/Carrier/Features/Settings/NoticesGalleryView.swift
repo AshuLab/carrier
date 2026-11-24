@@ -63,7 +63,7 @@ struct NoticesGalleryView: View {
                     }
                     item("The chat host is older than the app") { ProblemNotice(sentences: NewSessionModel.olderHostNotice) }
                     item("The send was refused: not signed in") {
-                        BannerView(banner: refusalBanner(agent: "claude", reason: "Claude is not logged in; run `claude` once to log in"), agent: "claude", copyDetails: false, retry: nil)
+                        BannerView(banner: refusalBanner(agent: "claude", reason: Refusal(code: "agent.notLoggedIn", params: ["agent": "Claude"], text: "Claude is not logged in; run `claude` once to log in")), agent: "claude", copyDetails: false, retry: nil)
                     }
                     item("The worktree's name cannot be used") { ProblemNotice(title: "That name cannot be used", detail: "A branch named feat/login already exists.") }
                     item("The folder cannot be used") { ProblemNotice(title: "Couldn't use this folder", detail: "It is not a git repository, so it has no worktrees.", failed: true) }
@@ -82,7 +82,7 @@ struct NoticesGalleryView: View {
                     }
                     item("A send the provider refuses: not signed in") {
                         BannerView(
-                            banner: refusalBanner(agent: "claude", reason: "Claude is not logged in; run `claude` once to log in"),
+                            banner: refusalBanner(agent: "claude", reason: Refusal(code: "agent.notLoggedIn", params: ["agent": "Claude"], text: "Claude is not logged in; run `claude` once to log in")),
                             agent: "claude", copyDetails: false, retry: {})
                     }
                     item("A refusal in words (the host said no)") {

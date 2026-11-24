@@ -304,7 +304,7 @@ private struct ConversationBox: View {
             if let refusal = model.optionRefusal { ProblemNotice(text: refusal) }
             if let refusal = model.refusal {
                 if model.refusedText == nil {
-                    ProblemNotice(text: refusal)
+                    ProblemNotice(text: refusal.text)
                 } else {
                     BannerView(banner: refusalBanner(agent: ProviderIdentityStore.shared.shortName(of: model.agent), reason: refusal), agent: model.agent, copyDetails: false, retry: { Task { await model.retry() } })
                 }

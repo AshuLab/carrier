@@ -24,9 +24,9 @@ private func running() throws -> ConnectionState {
 
 @Test func aRefusedSaveMakesTheRepoNotInUseWhateverTheEngineCanDo() throws {
     let words = "Not in use: Carrier kept its previous settings"
-    #expect(settingsNote(state: try running(), canReload: true, outcome: .refused("repos.1.name: bad")) == words)
+    #expect(settingsNote(state: try running(), canReload: true, outcome: .refused(.words("repos.1.name: bad"))) == words)
     // what an engine once said is not said of a Carrier that is stopped: it reads the file when it starts
-    #expect(settingsNote(state: .stopped, canReload: false, outcome: .refused("x")) == "Carrier reads this repository when it starts")
+    #expect(settingsNote(state: .stopped, canReload: false, outcome: .refused(.words("x"))) == "Carrier reads this repository when it starts")
 }
 
 @Test func anEngineThatDidNotAnswerMayHaveAppliedItSoTheRepoIsNotSaidToBeKept() throws {
@@ -39,6 +39,6 @@ private func running() throws -> ConnectionState {
     for outcome in [ReloadOutcome.nobody, .unsupported] {
         #expect(addedRepoNote("a/b", outcome: outcome) == (text: "Carrier reads a/b when it starts", failed: false))
     }
-    #expect(addedRepoNote("a/b", outcome: .refused("bad")).failed && addedRepoNote("a/b", outcome: .refused("bad")).text.hasSuffix("kept its settings: bad"))
+    #expect(addedRepoNote("a/b", outcome: .refused(.words("bad"))).failed && addedRepoNote("a/b", outcome: .refused(.words("bad"))).text.hasSuffix("kept its settings: bad"))
     #expect(addedRepoNote("a/b", outcome: .noAnswer).failed)
 }

@@ -468,7 +468,7 @@ private var work: AccountDraft {
     try file.write(Data(#"{"providers":{"claude":{"harness":"claude"}}}"#.utf8))
     let host = try ProvidersHost(replyJSON(accounts: [account("claude", found: true)]))
     let gate = DispatchSemaphore(value: 0)
-    let store = ProvidersStore(host: host, file: { file }, uses: { [:] }, log: { _ in }, reload: { gate.wait(); return .refused("bad") })
+    let store = ProvidersStore(host: host, file: { file }, uses: { [:] }, log: { _ in }, reload: { gate.wait(); return .refused(.words("bad")) })
 
     // the engine is still thinking: the editor can close, and the words come later
     #expect(await store.save(name: "claude", draft: work))
@@ -508,7 +508,7 @@ private final class LockedAnswers: @unchecked Sendable {
     let gate = DispatchSemaphore(value: 0)
     var logged: [String] = []
     let store = ProvidersStore(
-        host: host, file: { file }, uses: { ["codex": [.role(.author)]] }, log: { logged.append($0) }, reload: { gate.wait(); return .refused("bad") }
+        host: host, file: { file }, uses: { ["codex": [.role(.author)]] }, log: { logged.append($0) }, reload: { gate.wait(); return .refused(.words("bad")) }
     )
 
     // Save is written and the engine is still thinking; Remove is refused before it writes anything
@@ -528,7 +528,7 @@ private final class LockedAnswers: @unchecked Sendable {
     try file.write(Data(#"{"providers":{"claude":{"harness":"claude"}}}"#.utf8))
     let host = try ProvidersHost(replyJSON(accounts: [account("claude", found: true)]))
     let gate = DispatchSemaphore(value: 0)
-    let answers = LockedAnswers([.refused("bad"), .applied])
+    let answers = LockedAnswers([.refused(.words("bad")), .applied])
     var logged: [String] = []
     // each reload takes its answer as it starts, before it waits at the gate: the gate lets them out in any order, and the answer is the ask's, not the thread's
     let store = ProvidersStore(host: host, file: { file }, uses: { [:] }, log: { logged.append($0) }, reload: { let mine = answers.next(); gate.wait(); return mine })
@@ -565,7 +565,7 @@ private final class LockedAnswers: @unchecked Sendable {
     // an older engine is told to nobody: nothing to show, problem or note
     #expect(store.editProblem == nil && store.editNote == nil)
     // a refusal is a problem, and the next save the engine applied clears both
-    answer = .refused("agents.author.provider: bad")
+    answer = .refused(.words("agents.author.provider: bad"))
     #expect(await store.save(name: "claude-work", draft: work))
     await store.settled()
     #expect(store.editProblem?.hasSuffix("agents.author.provider: bad") == true && store.editNote == nil)
@@ -647,7 +647,7 @@ private func object(_ data: Data) throws -> [String: Any] { try #require(JSONSer
     let json = try object(try #require(try file.read()))
     #expect(json["textGenerator"] as? String == "ollama" && json["extra"] as? Int == 1)
     // the engine's refusal is shown with the key it names
-    let refusing = ProvidersStore(host: host, file: { file }, log: { _ in }, reload: { .refused("textGenerator: \"x\" is not declared in textGenerators") })
+    let refusing = ProvidersStore(host: host, file: { file }, log: { _ in }, reload: { .refused(.words("textGenerator: \"x\" is not declared in textGenerators")) })
     await refusing.load()
     #expect(await refusing.chooseTextGenerator(nil))
     await refusing.settled()
@@ -700,7 +700,7 @@ private func object(_ data: Data) throws -> [String: Any] { try #require(JSONSer
     #expect(store.retitleOutcome == .started(0))
     #expect(store.retitleOutcome?.words == "Nothing to title: every session already has a title")
 
-    host.regenerateTitlesResult = .failure(ControlError.remote("Could not write titles: no text generator is chosen; choose one in Providers"))
+    host.regenerateTitlesResult = .failure(ControlError.remote(.words("Could not write titles: no text generator is chosen; choose one in Providers")))
     await store.regenerateTitles()
     #expect(store.retitleOutcome == .refused("Could not write titles: no text generator is chosen; choose one in Providers"))
 

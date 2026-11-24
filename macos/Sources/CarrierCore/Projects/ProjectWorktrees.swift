@@ -135,10 +135,15 @@ public struct ProjectCleanup: Decodable, Equatable, Sendable {
     public struct Skipped: Decodable, Equatable, Sendable {
         public let path: String
         public let reason: String
+        /// The text code and parameters of `reason`; nil from a host that predates the codes.
+        public let code: String?
+        public let params: [String: TextParam]?
 
-        public init(path: String, reason: String) {
+        public init(path: String, reason: String, code: String? = nil, params: [String: TextParam]? = nil) {
             self.path = path
             self.reason = reason
+            self.code = code
+            self.params = params
         }
     }
 

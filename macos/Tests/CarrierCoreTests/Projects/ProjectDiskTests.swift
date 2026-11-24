@@ -130,7 +130,7 @@ private func temporaryProjects(_ paths: [String]) throws -> (folder: String, fil
 
     // an older host refuses (the real one says to restart it): nothing is known and nothing is shown but a dash
     let older = CloneHost()
-    older.failure = ControlError.remote(projectsNeedNewerHost)
+    older.failure = ControlError.remote(.projectsNeedNewerHost)
     let dashes = ProjectsModel(host: older, file: file) { _ in nil }
     dashes.reload()
     await dashes.refreshDisk(.stale)

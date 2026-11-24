@@ -135,7 +135,16 @@ private func setupSection(_ doctor: DoctorState, configExists: Bool) -> HealthSe
 /// not, with the first fix of the checks that have one.
 func groupedChecks(_ checks: [DoctorCheck]) -> [HealthRow] {
     enum Kind: Hashable { case tools, logins, access, single(Int) }
-    func kind(_ index: Int, _ name: String) -> Kind {
+    func kind(_ index: Int, _ check: DoctorCheck) -> Kind {
+        // a check that failed says what it is by the code of its detail; one that passed has none, and its name says it
+        switch check.detailCode {
+        case "doctor.notOnPath": return .tools
+        case "doctor.loginMissing", "doctor.loginMissingAt", "doctor.loginMissingInEnvironment", "doctor.loginCheckFailedAt", "doctor.loginCheckFailedInEnvironment", "doctor.agyLoginUnknown", "doctor.agyNotRunnable":
+            return .logins
+        case "doctor.mintFailed": return .access
+        default: break
+        }
+        let name = check.name
         if name.hasSuffix(" installed") { return .tools }
         if name.contains(" provider "), name.hasSuffix(" is logged in") { return .logins }
         if name.hasPrefix("forge agent ") { return .access }
@@ -144,7 +153,7 @@ func groupedChecks(_ checks: [DoctorCheck]) -> [HealthRow] {
     var order: [Kind] = []
     var members: [Kind: [DoctorCheck]] = [:]
     for (index, check) in checks.enumerated() {
-        let found = kind(index, check.name)
+        let found = kind(index, check)
         if members[found] == nil { order.append(found) }
         members[found, default: []].append(check)
     }

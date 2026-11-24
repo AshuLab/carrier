@@ -81,7 +81,7 @@ private let hello = "{\"event\":\"hello\",\"protocol\":1,\"pid\":42,\"startedAt\
         connection.send("{\"id\":1,\"ok\":false,\"error\":\"internal error\"}\n")
     }
     defer { server.stop() }
-    #expect(throws: ControlError.remote("internal error")) { try send(.pause, socketPath: server.path) }
+    #expect(throws: ControlError.remote(.words("internal error"))) { try send(.pause, socketPath: server.path) }
 }
 
 @Test func noCarrierIsAClosedConnectionNotACrash() {

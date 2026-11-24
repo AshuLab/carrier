@@ -103,6 +103,9 @@ public struct ChatEvent: Codable, Equatable {
     public var after: Double?
     /// Set on a `compact` that failed, and only then: why. The context is as it was.
     public var error: String?
+    /// The text code and parameters of the `text` of a `notice` or the `detail` of a `step`; nil on an event stored before the codes, which has its words only.
+    public var code: String?
+    public var params: [String: TextParam]?
 
     /// The agents of a switch, as `chat.json` names them.
     public struct Switched: Codable, Equatable {
@@ -126,7 +129,8 @@ public struct ChatEvent: Codable, Equatable {
         model: String? = nil, usage: [String: Double]? = nil, step: String? = nil, detail: String? = nil, action: String? = nil, when: String? = nil, questions: [ChatQuestion]? = nil,
         answers: [String: String]? = nil, parentCallId: String? = nil, taskId: String? = nil, state: String? = nil, agentType: String? = nil,
         lastTool: String? = nil, tools: Int? = nil, tokens: Int? = nil, ms: Int? = nil, background: Bool? = nil, switched: Switched? = nil, reason: String? = nil, resetsAt: Int? = nil, resetText: String? = nil,
-        trigger: String? = nil, before: Double? = nil, after: Double? = nil, error: String? = nil
+        trigger: String? = nil, before: Double? = nil, after: Double? = nil, error: String? = nil,
+        code: String? = nil, params: [String: TextParam]? = nil
     ) {
         self.id = id
         self.at = at
@@ -166,6 +170,8 @@ public struct ChatEvent: Codable, Equatable {
         self.before = before
         self.after = after
         self.error = error
+        self.code = code
+        self.params = params
     }
 }
 
@@ -424,9 +430,9 @@ public func failedTurnBanner(agent: String, error: String) -> FailureBanner {
 
 /// The banner of a refusal from `open`, `resume` or `send`: the host's own sentence, and for a provider that is not signed in the
 /// line that says where to sign in.
-public func refusalBanner(agent: String, reason: String) -> FailureBanner {
-    if let hint = signInLine(refusal: reason) { return FailureBanner(title: "\(capitalized(agent)) isn't signed in", detail: reason, hint: hint) }
-    return FailureBanner(title: "\(capitalized(agent)) couldn't continue", detail: reason, hint: nil)
+public func refusalBanner(agent: String, reason: Refusal) -> FailureBanner {
+    if let hint = signInLine(refusal: reason) { return FailureBanner(title: "\(capitalized(agent)) isn't signed in", detail: reason.text, hint: hint) }
+    return FailureBanner(title: "\(capitalized(agent)) couldn't continue", detail: reason.text, hint: nil)
 }
 
 /// Above the box of a session that is not live: sending to it resumes it.
@@ -443,9 +449,9 @@ public let folderGoneNotice = (
 )
 public let folderGoneRefusal = "Its folder was deleted, so it cannot go on"
 
-/// The line under a refusal when the provider is not signed in, nil for any other. The adapters say "<Agent> is not logged in; run … once to log in".
-public func signInLine(refusal reason: String) -> String? {
-    reason.localizedCaseInsensitiveContains("is not logged in") ? "Sign in from a terminal; Carrier never asks for your password" : nil
+/// The line under a refusal when the provider is not signed in (`agent.notLoggedIn`), nil for any other.
+public func signInLine(refusal reason: Refusal) -> String? {
+    reason.has("agent.notLoggedIn") ? "Sign in from a terminal; Carrier never asks for your password" : nil
 }
 
 /// An approval as the card draws it: the question, the tool and its argument, and the provider's choices in its own order.
@@ -854,7 +860,7 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
     /// The message whose send or resume the host refused, for the banner's Try again; nil with no refusal or when it was not a send.
     public private(set) var refusedText: String?
     /// Why the last send, resume, stop or answer was refused, said under the box; nil when it worked.
-    public private(set) var refusal: String?
+    public private(set) var refusal: Refusal?
     /// What the provider offers and the values it runs with, as the last `events` reply said: the pill follows this, never a request.
     public private(set) var options: [ChatOption] = []
     /// Why the last change of an option was refused, said in the panel; nil when it worked.
@@ -1145,7 +1151,7 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
         do {
             try await host.setOption(sessionId, option: option, value: value)
         } catch {
-            optionRefusal = report(error, "change the option")
+            optionRefusal = report(error, "change the option").text
             return
         }
         optionRefusal = nil
@@ -1183,7 +1189,7 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
         do {
             try await host.retryPreparation(sessionId)
         } catch {
-            preparationRefusal = report(error, "try the preparation again")
+            preparationRefusal = report(error, "try the preparation again").text
             return
         }
         preparationRefusal = nil
@@ -1200,7 +1206,7 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
             if plan == nil { await poll() }
             return plan
         } catch {
-            preparationRefusal = report(error, "cancel the preparation")
+            preparationRefusal = report(error, "cancel the preparation").text
             return nil
         }
     }
@@ -1339,7 +1345,7 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
     private func deliver(_ text: String, refill: Bool = true) async {
         // the project's folder was deleted: nothing is asked of the host, and what was typed stays in the box
         if folderGone {
-            refusal = folderGoneRefusal
+            refusal = .folderGone
             return
         }
         sends += 1
@@ -1384,7 +1390,7 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
             do {
                 try await host.setOption(sessionId, option: option, value: value)
             } catch {
-                optionRefusal = report(error, "change the option")
+                optionRefusal = report(error, "change the option").text
             }
         }
     }
@@ -1394,20 +1400,22 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
         refusedText = nil
     }
 
-    private func report(_ error: Error, _ doing: String) -> String {
-        let message = Self.words(error)
+    private func report(_ error: Error, _ doing: String) -> Refusal {
+        let refusal = Self.refusal(error)
         // a refusal is the host answering as it should; anything else is a failure to talk to it
-        if case ControlError.remote = error { return message }
-        log("session \(sessionId): could not \(doing): \(message)")
-        return message
+        if case ControlError.remote = error { return refusal }
+        log("session \(sessionId): could not \(doing): \(refusal.text)")
+        return refusal
     }
 
-    nonisolated static func words(_ error: Error) -> String {
+    nonisolated static func words(_ error: Error) -> String { refusal(error).text }
+
+    nonisolated static func refusal(_ error: Error) -> Refusal {
         switch error {
-        case ControlError.closed: "The chat host is not answering"
-        case ControlError.remote(let reason): reason
-        case ControlError.timeout: "The chat host took too long to answer"
-        default: "The chat host sent something that was not understood"
+        case ControlError.closed: .hostNotAnswering
+        case ControlError.remote(let refusal): refusal
+        case ControlError.timeout: .hostTookTooLong
+        default: .hostNotUnderstood
         }
     }
 }

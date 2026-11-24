@@ -10,8 +10,8 @@ public enum ReloadOutcome: Equatable, Sendable {
     case nobody
     /// the engine is running and does not list `reload` (an older one): it reads the files when it restarts
     case unsupported
-    /// the engine kept its settings; its problem, the key named
-    case refused(String)
+    /// the engine kept its settings; its refusal, the key named
+    case refused(Refusal)
     /// an engine that was there did not answer (a timeout, a socket error): the file is written, and the engine may or may not have applied it
     case noAnswer
 }
@@ -131,7 +131,7 @@ public func reloadWords(_ outcome: ReloadOutcome) -> String? {
     switch outcome {
     // an older Carrier that cannot reload reads the file when it starts: nothing to tell, the next Carrier applies it live
     case .applied, .nobody, .unsupported: nil
-    case .refused(let problem): "Saved, but Carrier kept its settings: \(problem)"
+    case .refused(let problem): "Saved, but Carrier kept its settings: \(problem.text)"
     case .noAnswer: "Saved, but Carrier did not answer: it may not have applied it."
     }
 }

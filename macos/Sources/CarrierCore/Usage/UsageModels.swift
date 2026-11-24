@@ -206,6 +206,9 @@ public struct UsageQuota: Decodable, Equatable {
     public let planType: String?
     /// Why the status is not `ok`.
     public let message: String?
+    /// The text code and parameters of `message`; nil from a host that predates the codes.
+    public let messageCode: String?
+    public let messageParams: [String: TextParam]?
     public let extraUsage: UsageExtra?
     public let credits: UsageCredits?
     public let rateLimitResetCredits: UsageResetCredits?
@@ -213,7 +216,7 @@ public struct UsageQuota: Decodable, Equatable {
     public let servers: [UsageServer]
 
     private enum CodingKeys: String, CodingKey {
-        case account, displayName, provider, status, checkedAt, stale, windows, planType, message, extraUsage, credits, rateLimitResetCredits, aiCreditsNotice, servers
+        case account, displayName, provider, status, checkedAt, stale, windows, planType, message, messageCode, messageParams, extraUsage, credits, rateLimitResetCredits, aiCreditsNotice, servers
     }
 
     public init(from decoder: Decoder) throws {
@@ -228,6 +231,8 @@ public struct UsageQuota: Decodable, Equatable {
         windows = try values.decodeIfPresent([UsageWindow].self, forKey: .windows) ?? []
         planType = try values.decodeIfPresent(String.self, forKey: .planType)
         message = try values.decodeIfPresent(String.self, forKey: .message)
+        messageCode = try values.decodeIfPresent(String.self, forKey: .messageCode)
+        messageParams = try values.decodeIfPresent([String: TextParam].self, forKey: .messageParams)
         extraUsage = try values.decodeIfPresent(UsageExtra.self, forKey: .extraUsage)
         credits = try values.decodeIfPresent(UsageCredits.self, forKey: .credits)
         // the host passes this on as it came from Codex: anything that is not the object read here is no reset credits

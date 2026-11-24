@@ -13,16 +13,25 @@ public struct DoctorCheck: Decodable, Equatable {
     public let status: Status
     public let detail: String?
     public let fix: String?
+    /// The text code and parameters of `detail` and of `fix`; nil on a check of a doctor that predates the codes, and on one that passed.
+    public let detailCode: String?
+    public let detailParams: [String: TextParam]?
+    public let fixCode: String?
+    public let fixParams: [String: TextParam]?
     /// Set with `profiles` on the checks about one repo; an older doctor leaves both out.
     public let repo: String?
     /// The names under `config.profiles` the check stands for.
     public let profiles: [String]?
 
-    public init(name: String, status: Status, detail: String? = nil, fix: String? = nil, repo: String? = nil, profiles: [String]? = nil) {
+    public init(
+        name: String, status: Status, detail: String? = nil, fix: String? = nil, repo: String? = nil, profiles: [String]? = nil,
+        detailCode: String? = nil, detailParams: [String: TextParam]? = nil, fixCode: String? = nil, fixParams: [String: TextParam]? = nil
+    ) {
         self.name = name
         self.status = status
         self.detail = detail
         self.fix = fix
+        (self.detailCode, self.detailParams, self.fixCode, self.fixParams) = (detailCode, detailParams, fixCode, fixParams)
         self.repo = repo
         self.profiles = profiles
     }

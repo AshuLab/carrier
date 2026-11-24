@@ -83,7 +83,7 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"", protocol vers
     }
     // `release/2` is listed only as `origin/release/2`: a remote start finds it, a local one is refused as the host refuses it
     _ = try await host.open(plan: plan("release/2", .remote))
-    await #expect(throws: ControlError.remote("The branch to start from is not one this repository lists")) { _ = try await host.open(plan: plan("release/2", .local)) }
+    await #expect(throws: ControlError.remote(.words("The branch to start from is not one this repository lists"))) { _ = try await host.open(plan: plan("release/2", .local)) }
     _ = try await host.open(plan: plan("main", .remote))
     _ = try await host.open(plan: plan("main", .local))
     let opened = try await host.list(archived: false).filter { $0.workspace?.base == "/Users/dev/web" }
@@ -102,7 +102,7 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"", protocol vers
     defer { server.stop() }
     let client = try #require(ControlClient.connect(path: server.chatSocketPath))
     _ = try client.hello()
-    #expect(throws: ControlError.remote("unknown request")) { try client.request("resume") }
+    #expect(throws: ControlError.remote(.words("unknown request"))) { try client.request("resume") }
     // the connection is still good afterwards
     #expect(try client.request("list").isEmpty == false)
 }
@@ -114,7 +114,7 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"", protocol vers
         connection.send("{\"id\":\(id),\"ok\":false,\"error\":\"internal error\"}\n")
     }
     defer { server.stop() }
-    await #expect(throws: ControlError.remote("internal error")) { try await SocketChatHost(socketPath: { server.path }).agents() }
+    await #expect(throws: ControlError.remote(.words("internal error"))) { try await SocketChatHost(socketPath: { server.path }).agents() }
 }
 
 @Test func aHostThatGoesAwayOrIsNotThereIsClosed() async {
@@ -135,7 +135,7 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"", protocol vers
         asked = connection.readRequestId() != nil
     }
     defer { server.stop() }
-    await #expect(throws: ControlError.remote("the chat host does not support list")) { try await SocketChatHost(socketPath: { server.path }).list(archived: false) }
+    await #expect(throws: ControlError.remote(.hostLacks("list"))) { try await SocketChatHost(socketPath: { server.path }).list(archived: false) }
     #expect(asked == false)
 }
 
@@ -152,8 +152,9 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"", protocol vers
         }
         defer { server.stop() }
         let host = SocketChatHost(socketPath: { server.path })
-        await #expect(throws: ControlError.remote(sentence)) { try await host.list(archived: false) }
-        await #expect(throws: ControlError.remote(sentence)) { try await host.capabilities() }
+        let refusal = Refusal(code: version == 0 ? "app.protocol.carrierOlder" : "app.protocol.appOlder", text: sentence)
+        await #expect(throws: ControlError.remote(refusal)) { try await host.list(archived: false) }
+        await #expect(throws: ControlError.remote(refusal)) { try await host.capabilities() }
         #expect(asked == false)
     }
 }
@@ -201,7 +202,7 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"", protocol vers
     #expect(first.repos[5] == AvailableRepo(name: "vemec/dotfiles", isPrivate: false, pushedAt: nil))
     let second = try await host.githubRepos(page: 2)
     #expect(second.login == nil && second.hasMore == false && second.repos.map(\.name) == ["optyra/docs", "vemec/old-experiments"])
-    await #expect(throws: ControlError.remote("GitHub did not answer; check \"gh auth status\"")) { try await host.githubRepos(page: 3) }
+    await #expect(throws: ControlError.remote(.words("GitHub did not answer; check \"gh auth status\""))) { try await host.githubRepos(page: 3) }
 }
 
 @Test func aHostWithoutTheGithubReposCapabilityIsNotAskedToList() async {
@@ -211,7 +212,7 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"", protocol vers
         asked = connection.readRequestId() != nil
     }
     defer { server.stop() }
-    await #expect(throws: ControlError.remote("the chat host does not support githubRepos")) { try await SocketChatHost(socketPath: { server.path }).githubRepos(page: 1) }
+    await #expect(throws: ControlError.remote(.hostLacks("githubRepos"))) { try await SocketChatHost(socketPath: { server.path }).githubRepos(page: 1) }
     #expect(asked == false)
 }
 
@@ -233,7 +234,7 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"", protocol vers
         asked = connection.readRequestId() != nil
     }
     defer { server.stop() }
-    await #expect(throws: ControlError.remote("the chat host does not support health")) { try await SocketChatHost(socketPath: { server.path }).health(refresh: false) }
+    await #expect(throws: ControlError.remote(.hostLacks("health"))) { try await SocketChatHost(socketPath: { server.path }).health(refresh: false) }
     #expect(asked == false)
 }
 
@@ -331,7 +332,7 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"", protocol vers
     defer { server.stop() }
     let host = SocketChatHost(socketPath: { server.path })
     // a host that does not list `plan` is never sent either request
-    await #expect(throws: ControlError.remote("the chat host does not support cancelPreparation")) { _ = try await host.cancelPreparation("5d1f7c3a-0b6e-4a52-9a1d-3c7e8b2f4a01") }
+    await #expect(throws: ControlError.remote(.hostLacks("cancelPreparation"))) { _ = try await host.cancelPreparation("5d1f7c3a-0b6e-4a52-9a1d-3c7e8b2f4a01") }
 }
 
 @Test func aCancelledPlanForARepositoryIsReadBackWithItsBranchAndWorktree() async throws {
@@ -384,7 +385,7 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"", protocol vers
     #expect(try await host.capabilities().contains(.repoBranches))
     #expect(try await host.repoBranches("AshuLab/web") == RepoBranches(defaultBranch: "main", branches: ["main", "feat/x"], hasMore: false))
     #expect(try await host.repoBranches("AshuLab/api") == RepoBranches(defaultBranch: "trunk", branches: ["trunk"], hasMore: true))
-    await #expect(throws: ControlError.remote("AshuLab/nope was not found, or your GitHub login cannot see it")) { try await host.repoBranches("AshuLab/nope") }
+    await #expect(throws: ControlError.remote(.words("AshuLab/nope was not found, or your GitHub login cannot see it"))) { try await host.repoBranches("AshuLab/nope") }
 }
 
 @Test func repoBranchesGoesOnTheWireWithTheRepoAsAJSONStringAndOnlyForAHostThatListsIt() async throws {
@@ -406,7 +407,7 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"", protocol vers
         asked = connection.readRequestId() != nil
     }
     defer { older.stop() }
-    await #expect(throws: ControlError.remote("the chat host does not support repoBranches")) { _ = try await SocketChatHost(socketPath: { older.path }).repoBranches("AshuLab/carrier") }
+    await #expect(throws: ControlError.remote(.hostLacks("repoBranches"))) { _ = try await SocketChatHost(socketPath: { older.path }).repoBranches("AshuLab/carrier") }
     #expect(asked == false)
 }
 
@@ -555,7 +556,7 @@ private func eventsReply(_ id: Int, rev: String, lists: String) -> String {
     // asking again, even for another folder, is the clone that runs
     #expect(try await host.cloneProject("Vemec/Encaja", into: "/tmp/elsewhere") == started)
     #expect(try await host.projectClones().count == 3)
-    await #expect(throws: ControlError.remote("AshuLab/nope was not found, or your GitHub login cannot see it")) { _ = try await host.cloneProject("AshuLab/nope", into: nil) }
+    await #expect(throws: ControlError.remote(.words("AshuLab/nope was not found, or your GitHub login cannot see it"))) { _ = try await host.cloneProject("AshuLab/nope", into: nil) }
     // a failed clone goes when it is dismissed, a running one stays
     #expect(try await host.dismissClone("acme/private-tools").map(\.repo) == ["acme/docs", "vemec/encaja"])
     #expect(try await host.dismissClone("acme/docs").count == 2)
@@ -582,8 +583,8 @@ private func eventsReply(_ id: Int, rev: String, lists: String) -> String {
     #expect(dismissed["cmd"] as? String == "dismissClone" && dismissed.keys.sorted() == ["cmd", "id", "repo"])
 
     // the host's own limits are checked before anything is sent
-    await #expect(throws: ControlError.remote("\"../x\" is not a repository; write it as owner/name")) { _ = try await host.cloneProject("../x", into: nil) }
-    await #expect(throws: ControlError.remote("That folder cannot be used")) { _ = try await host.cloneProject("acme/app", into: "") }
+    await #expect(throws: ControlError.remote(.words("\"../x\" is not a repository; write it as owner/name"))) { _ = try await host.cloneProject("../x", into: nil) }
+    await #expect(throws: ControlError.remote(.folderUnusable)) { _ = try await host.cloneProject("acme/app", into: "") }
 
     // a host without the capability is told it is older, and is sent nothing
     var asked = false
@@ -593,8 +594,8 @@ private func eventsReply(_ id: Int, rev: String, lists: String) -> String {
     }
     defer { older.stop() }
     let old = SocketChatHost(socketPath: { older.path })
-    await #expect(throws: ControlError.remote(projectsNeedNewerHost)) { _ = try await old.cloneProject("acme/app", into: nil) }
-    await #expect(throws: ControlError.remote(projectsNeedNewerHost)) { _ = try await old.projectClones() }
+    await #expect(throws: ControlError.remote(.projectsNeedNewerHost)) { _ = try await old.cloneProject("acme/app", into: nil) }
+    await #expect(throws: ControlError.remote(.projectsNeedNewerHost)) { _ = try await old.projectClones() }
     #expect(asked == false)
     #expect(projectsNeedNewerHost.contains("older") && projectsNeedNewerHost.contains("Restart"))
 }
@@ -611,14 +612,14 @@ private func eventsReply(_ id: Int, rev: String, lists: String) -> String {
     #expect(entry?.origin == "created")
     // a name whose folder is there is refused with the reason and nothing is written
     let before = try ProjectsFile(folder: server.home).read().count
-    await #expect(throws: ControlError.remote("my-app is already a project; choose another name")) { _ = try await host.newProject("my-app", into: nil) }
+    await #expect(throws: ControlError.remote(.words("my-app is already a project; choose another name"))) { _ = try await host.newProject("my-app", into: nil) }
     #expect(try ProjectsFile(folder: server.home).read().count == before)
     // the parent chosen for this one project
     let parent = server.home + "/elsewhere"
     #expect(try await host.newProject("other", into: parent) == parent + "/local/other")
     // what the host would refuse never goes out
-    await #expect(throws: ControlError.remote("Use only letters, digits, _, . and -")) { _ = try await host.newProject("a b", into: nil) }
-    await #expect(throws: ControlError.remote("That folder cannot be used")) { _ = try await host.newProject("x", into: "") }
+    await #expect(throws: ControlError.remote(.words("Use only letters, digits, _, . and -"))) { _ = try await host.newProject("a b", into: nil) }
+    await #expect(throws: ControlError.remote(.folderUnusable)) { _ = try await host.newProject("x", into: "") }
 }
 
 @Test func theNewProjectRequestGoesOnTheWireAndTheGoldenReplyDecodes() async throws {
@@ -644,7 +645,7 @@ private func eventsReply(_ id: Int, rev: String, lists: String) -> String {
         asked = connection.readRequestId() != nil
     }
     defer { older.stop() }
-    await #expect(throws: ControlError.remote(projectsNeedNewerHost)) { _ = try await SocketChatHost(socketPath: { older.path }).newProject("my-app", into: nil) }
+    await #expect(throws: ControlError.remote(.projectsNeedNewerHost)) { _ = try await SocketChatHost(socketPath: { older.path }).newProject("my-app", into: nil) }
     #expect(asked == false)
 }
 
@@ -678,7 +679,7 @@ private func eventsReply(_ id: Int, rev: String, lists: String) -> String {
         asked = connection.readRequestId() != nil
     }
     defer { older.stop() }
-    await #expect(throws: ControlError.remote(projectsNeedNewerHost)) { _ = try await SocketChatHost(socketPath: { older.path }).projectDisk(["/w"], refresh: .now) }
+    await #expect(throws: ControlError.remote(.projectsNeedNewerHost)) { _ = try await SocketChatHost(socketPath: { older.path }).projectDisk(["/w"], refresh: .now) }
     #expect(asked == false)
 }
 
@@ -702,7 +703,7 @@ private func eventsReply(_ id: Int, rev: String, lists: String) -> String {
     let sent = try #require(try JSONSerialization.jsonObject(with: Data(wire.all[0].utf8)) as? [String: Any])
     #expect(sent["cmd"] as? String == "projectWorktrees" && sent["folder"] as? String == "/w \"x\"" && sent.keys.sorted() == ["cmd", "folder", "id"])
     // what the host would refuse never goes out
-    await #expect(throws: ControlError.remote("That folder cannot be used")) { _ = try await host.projectWorktrees("") }
+    await #expect(throws: ControlError.remote(.folderUnusable)) { _ = try await host.projectWorktrees("") }
 
     // a host without the capability is told it is older, and is sent nothing
     var asked = false
@@ -711,7 +712,7 @@ private func eventsReply(_ id: Int, rev: String, lists: String) -> String {
         asked = connection.readRequestId() != nil
     }
     defer { older.stop() }
-    await #expect(throws: ControlError.remote(projectsNeedNewerHost)) { _ = try await SocketChatHost(socketPath: { older.path }).projectWorktrees("/w") }
+    await #expect(throws: ControlError.remote(.projectsNeedNewerHost)) { _ = try await SocketChatHost(socketPath: { older.path }).projectWorktrees("/w") }
     #expect(asked == false)
 }
 
@@ -732,10 +733,10 @@ private func eventsReply(_ id: Int, rev: String, lists: String) -> String {
     let preview = try await host.cleanProjectWorktrees("/p/app", run: false)
     #expect(cleanUpWords(preview) == "1 worktree, \(ByteCountFormatter.string(fromByteCount: 1_288_490_189, countStyle: .file))" && preview.skipped.map(\.reason) == ["It has uncommitted changes"])
     _ = try await host.cleanProjectWorktrees("/p/app", run: true)
-    await #expect(throws: ControlError.remote("It has uncommitted changes")) { try await host.removeProjectWorktree("/p/app", path: "/w/a \"x\"") }
+    await #expect(throws: ControlError.remote(.words("It has uncommitted changes"))) { try await host.removeProjectWorktree("/p/app", path: "/w/a \"x\"") }
     // what the host would refuse never goes out
-    await #expect(throws: ControlError.remote("That folder cannot be used")) { try await host.removeProjectWorktree("/p/app", path: "") }
-    await #expect(throws: ControlError.remote("That folder cannot be used")) { _ = try await host.cleanProjectWorktrees("", run: true) }
+    await #expect(throws: ControlError.remote(.folderUnusable)) { try await host.removeProjectWorktree("/p/app", path: "") }
+    await #expect(throws: ControlError.remote(.folderUnusable)) { _ = try await host.cleanProjectWorktrees("", run: true) }
 
     let sent = try wire.all.map { try #require(try JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any]) }
     #expect(sent.count == 3)
@@ -751,8 +752,8 @@ private func eventsReply(_ id: Int, rev: String, lists: String) -> String {
     }
     defer { older.stop() }
     let oldHost = SocketChatHost(socketPath: { older.path })
-    await #expect(throws: ControlError.remote(projectsNeedNewerHost)) { try await oldHost.removeProjectWorktree("/p/app", path: "/w") }
-    await #expect(throws: ControlError.remote(projectsNeedNewerHost)) { _ = try await oldHost.cleanProjectWorktrees("/p/app", run: false) }
+    await #expect(throws: ControlError.remote(.projectsNeedNewerHost)) { try await oldHost.removeProjectWorktree("/p/app", path: "/w") }
+    await #expect(throws: ControlError.remote(.projectsNeedNewerHost)) { _ = try await oldHost.cleanProjectWorktrees("/p/app", run: false) }
     #expect(asked == false)
 }
 
@@ -771,7 +772,7 @@ private func eventsReply(_ id: Int, rev: String, lists: String) -> String {
     defer { server.stop() }
     let host = SocketChatHost(socketPath: { server.path })
     #expect(try await host.regenerateTitles() == 4)
-    await #expect(throws: ControlError.remote("Could not write titles: no text generator is chosen; choose one in Providers")) { _ = try await host.regenerateTitles() }
+    await #expect(throws: ControlError.remote(.words("Could not write titles: no text generator is chosen; choose one in Providers"))) { _ = try await host.regenerateTitles() }
     let sent = try #require(try JSONSerialization.jsonObject(with: Data(asked.all[0].utf8)) as? [String: Any])
     #expect(sent["cmd"] as? String == "regenerateTitles" && sent.keys.sorted() == ["cmd", "id"])
 
@@ -781,6 +782,6 @@ private func eventsReply(_ id: Int, rev: String, lists: String) -> String {
         askedOlder = connection.readRequestId() != nil
     }
     defer { older.stop() }
-    await #expect(throws: ControlError.remote("the chat host does not support regenerateTitles")) { _ = try await SocketChatHost(socketPath: { older.path }).regenerateTitles() }
+    await #expect(throws: ControlError.remote(.hostLacks("regenerateTitles"))) { _ = try await SocketChatHost(socketPath: { older.path }).regenerateTitles() }
     #expect(askedOlder == false)
 }

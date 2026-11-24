@@ -70,8 +70,32 @@ private func object(_ data: Data) -> [String: Any]? { try? JSONSerialization.jso
 
     let client = try #require(ControlClient.connect(path: server.path))
     _ = try client.hello()
-    #expect(throws: ControlError.remote("internal error")) { try client.request("snapshot") }
-    #expect(throws: ControlError.remote("invalid request")) { try client.request("snapshot") }
+    #expect(throws: ControlError.remote(.words("internal error"))) { try client.request("snapshot") }
+    #expect(throws: ControlError.remote(.words("invalid request"))) { try client.request("snapshot") }
+}
+
+@Test func anErrorReplyWithACodeThrowsItsCodeAndParamsAndOneWithoutThrowsItsWordsOnly() throws {
+    let server = TestServer { connection in
+        connection.send(hello)
+        guard let id = connection.readRequestId() else { return }
+        // a parameter is a string or a number; a boolean, an object or a list is none
+        connection.send("{\"id\":\(id),\"ok\":false,\"error\":\"Some other words\",\"code\":\"config.problem\",\"params\":{\"path\":\"repos[2]\",\"count\":3,\"ratio\":0.5,\"on\":true,\"nested\":{\"a\":1},\"list\":[1]}}\n")
+        guard let second = connection.readRequestId() else { return }
+        connection.send("{\"id\":\(second),\"ok\":false,\"error\":\"words only\"}\n")
+        guard let third = connection.readRequestId() else { return }
+        connection.send("{\"id\":\(third),\"ok\":false,\"error\":\"a code and nothing else\",\"code\":\"request.invalid\"}\n")
+    }
+    defer { server.stop() }
+
+    let client = try #require(ControlClient.connect(path: server.path))
+    _ = try client.hello()
+    #expect(throws: ControlError.remote(Refusal(code: "config.problem", params: ["path": "repos[2]", "count": 3, "ratio": .number(0.5)], text: "Some other words"))) { try client.request("snapshot") }
+    #expect(throws: ControlError.remote(Refusal(code: nil, params: [:], text: "words only"))) { try client.request("snapshot") }
+    #expect(throws: ControlError.remote(Refusal(code: "request.invalid", text: "a code and nothing else"))) { try client.request("snapshot") }
+}
+
+@Test func aParamReadsInASentenceAsAStringOrAWholeNumber() {
+    #expect(TextParam.string("x").text == "x" && TextParam.number(3).text == "3" && TextParam.number(0.5).text == "0.5")
 }
 
 @Test func aConnectionThatClosesMidRequestThrowsClosed() throws {
@@ -140,7 +164,7 @@ private func object(_ data: Data) -> [String: Any]? { try? JSONSerialization.jso
         let client = try #require(ControlClient.connect(path: server.path))
         defer { client.close() }
         if let sentence {
-            #expect(throws: ControlError.remote(sentence)) { try client.supportedHello() }
+            #expect(throws: ControlError.remote(Refusal(code: version == 0 ? "app.protocol.carrierOlder" : "app.protocol.appOlder", text: sentence))) { try client.supportedHello() }
         } else {
             #expect(try client.supportedHello().protocolVersion == 1)
             _ = try? client.request("snapshot", fields: "")
@@ -247,7 +271,7 @@ private struct Count: Decodable, Equatable { let n: Int }
     #expect(client.repliesParsedOnce == 1)
     #expect(try client.request("events", requires: .events, as: Count.self) == Count(n: 2))
     #expect(client.repliesParsedOnce == 2)
-    #expect(throws: ControlError.remote("nope")) { try client.request("events", requires: .events, as: Count.self) }
+    #expect(throws: ControlError.remote(.words("nope"))) { try client.request("events", requires: .events, as: Count.self) }
     #expect(client.repliesParsedOnce == 2)
 }
 
@@ -275,7 +299,7 @@ private struct Count: Decodable, Equatable { let n: Int }
 
     let client = try #require(ControlClient.connect(path: server.path))
     _ = try client.hello()
-    #expect(throws: ControlError.remote("x")) { try client.request("events", as: Count.self) }
+    #expect(throws: ControlError.remote(.words("x"))) { try client.request("events", as: Count.self) }
     #expect(client.repliesParsedOnce == 0)
 }
 

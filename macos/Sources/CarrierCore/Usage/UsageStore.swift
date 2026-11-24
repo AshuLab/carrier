@@ -12,7 +12,7 @@ import Observation
     /// An answer is on its way and the last one stays on the page.
     public private(set) var isRefreshing = false
     /// Why the last ask did not answer, in words; nil when it did. The last snapshot, if any, stays.
-    public private(set) var error: String?
+    public private(set) var error: Refusal?
     /// When the last ask was answered; nil before the first one (an ask that failed does not set it).
     public private(set) var loadedAt: Date?
 
@@ -76,7 +76,7 @@ import Observation
         var query = UsageQuery(refresh: refresh, days: days, provider: providerFilter, source: sourceFilter, search: searchText, account: accountFilter)
         do {
             guard try await host.capabilities().contains(.usage) else {
-                if mine == asked { error = usageNeedsNewerHost }
+                if mine == asked { error = .usageNeedsNewerHost }
                 return
             }
             // the host filters the quotas by provider and account too: with one on, the quotas of all are asked apart (the refresh goes with them)
@@ -93,7 +93,7 @@ import Observation
                 loadedAt = Date()
             }
         } catch {
-            if mine == asked { self.error = ConversationModel.words(error) }
+            if mine == asked { self.error = ConversationModel.refusal(error) }
         }
     }
 

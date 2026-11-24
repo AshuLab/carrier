@@ -32,19 +32,33 @@ private func project(_ name: String, repo: String?, clone: ProjectClone? = nil) 
     #expect(watchChoices(projects: [project("web", repo: "Acme/Web")], watched: ["acme/web"]).isEmpty)
 }
 
-@Test func aRefusedFailoverStepIsToldInWordsAndSentToAgents() {
-    let own = "Invalid config /h/.carrier/engine.json: failover.roles.author.0: failover.roles.author.0: step is the role's own provider and model, so it would move nowhere"
+/// The banner reads the refusal's code and its `path` and `problem`; the words are only what "What Carrier said" shows, so they differ here from the engine's.
+private func configProblem(_ path: String, _ problem: String, _ text: String = "any words at all") -> Refusal {
+    Refusal(code: "config.problem", params: ["path": .string(path), "problem": .string(problem)], text: text)
+}
+
+@Test func aRefusedFailoverStepIsToldByItsParamsAndSentToAgents() {
+    let own = configProblem("failover.roles.author.0", "stepOwnRole", "Invalid config /h/.carrier/engine.json: unrelated words")
     let banner = refusalBanner(own)
     #expect(banner.title == "Carrier is not using your latest settings")
     #expect(banner.detail == "The Author's failover step 1 is the same provider and model as the Author itself, so it would move nowhere.")
-    #expect(banner.raw == own && banner.fix == .agents && banner.fixTitle == "Open Agents")
-    #expect(refusalBanner("x: failover.roles.leadReviewer.1: step repeats another step of the list").detail == "The Lead reviewer's failover step 2 repeats another step of its list.")
-    #expect(refusalBanner("x: failover.roles.reviewer.0.provider: \"gone\" is not declared in providers").detail == "The Reviewer's failover step 1 uses a provider that is not declared in providers.")
-    // a failover reason the page does not know still goes to Agents, with the engine's words only
-    #expect(refusalBanner("x: failover.roles.author.0: something new").detail == nil && refusalBanner("x: failover.roles.author.0: something new").fix == .agents)
+    #expect(banner.raw == own.text && banner.fix == .agents && banner.fixTitle == "Open Agents")
+    #expect(refusalBanner(configProblem("failover.roles.leadReviewer.1", "stepRepeated")).detail == "The Lead reviewer's failover step 2 repeats another step of its list.")
+    #expect(refusalBanner(configProblem("failover.roles.reviewer.0", "providerNotDeclared")).detail == "The Reviewer's failover step 1 uses a provider that is not declared in providers.")
+    // a kind the page does not know still goes to Agents, with the engine's words only
+    let unknown = refusalBanner(configProblem("failover.roles.author.0", "somethingNew"))
+    #expect(unknown.detail == nil && unknown.fix == .agents)
 }
 
 @Test func aRefusalOfAnythingElseIsShownAsTheEngineSaysItWithNoWayToMendIt() {
-    let banner = refusalBanner("Invalid config /h/.carrier/engine.json: repos.1.name: must be owner/name")
-    #expect(banner.detail == nil && banner.fix == nil && banner.fixTitle == nil && banner.raw.hasSuffix("must be owner/name"))
+    let notARepo = refusalBanner(configProblem("repos[1]", "notARepo", "Invalid config /h/.carrier/engine.json: repos.1.name: must be owner/name"))
+    #expect(notARepo.detail == nil && notARepo.fix == nil && notARepo.fixTitle == nil && notARepo.raw.hasSuffix("must be owner/name"))
+    let other = refusalBanner(Refusal(code: "config.invalid", text: "Invalid config: failover.roles.author.0: something"))
+    #expect(other.detail == nil && other.fix == nil)
+}
+
+/// A reply with no code (an engine that predates the codes) has its words only: shown as they are, and none of them decides.
+@Test func aRefusalWithNoCodeIsShownAsItsWordsAndDecidesNothing() {
+    let old = refusalBanner(.words("x: failover.roles.author.0: step repeats another step of the list"))
+    #expect(old.detail == nil && old.fix == nil && old.raw.hasPrefix("x: failover"))
 }

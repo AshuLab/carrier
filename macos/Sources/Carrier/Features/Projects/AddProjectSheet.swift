@@ -272,8 +272,8 @@ struct AddProjectSheet: View {
                 let folder = try await model.createProject(name, into: parent)
                 dismiss()
                 openProject(folder)
-            } catch ControlError.remote(let words) {
-                problem = words
+            } catch ControlError.remote(let refusal) {
+                problem = refusal.text
             } catch {
                 problem = hostNotRunning
             }
@@ -292,7 +292,7 @@ struct AddProjectSheet: View {
         panel.message = "Choose the folder the new project is made in"
         guard panel.runModal() == .OK, let url = panel.url else { return }
         if let refusal = projectsFolderRefusal(url.path, carrierFolder: currentCarrierFolder()) {
-            problem = refusal
+            problem = refusal.text
             return
         }
         problem = nil
@@ -492,8 +492,8 @@ struct AddProjectSheet: View {
                 let loaded = try await host.githubRepos(page: page)
                 github.repos += loaded.repos.filter { isRepoName($0.name) }
                 if loaded.hasMore == false { return }
-            } catch ControlError.remote(let words) {
-                github.listingProblem = words
+            } catch ControlError.remote(let refusal) {
+                github.listingProblem = refusal.text
                 return
             } catch {
                 return
@@ -520,8 +520,8 @@ struct AddProjectSheet: View {
             do {
                 _ = try await SocketChatHost().repoBranches(repo)
                 github.visibility[key] = .visible
-            } catch ControlError.remote(let words) {
-                github.visibility[key] = isRepoNotVisible(words) ? .notVisible : .problem(words)
+            } catch ControlError.remote(let refusal) {
+                github.visibility[key] = isRepoNotVisible(refusal) ? .notVisible : .problem(refusal.text)
             } catch {
                 github.visibility[key] = nil
             }
@@ -534,8 +534,8 @@ struct AddProjectSheet: View {
             do {
                 try await model.startClone(repo, into: parent)
                 dismiss()
-            } catch ControlError.remote(let words) {
-                problem = words
+            } catch ControlError.remote(let refusal) {
+                problem = refusal.text
             } catch {
                 problem = hostNotRunning
             }
@@ -554,7 +554,7 @@ struct AddProjectSheet: View {
         panel.message = "Choose the folder \(repo) is cloned into"
         guard panel.runModal() == .OK, let url = panel.url else { return }
         if let refusal = projectsFolderRefusal(url.path, carrierFolder: currentCarrierFolder()) {
-            problem = refusal
+            problem = refusal.text
             return
         }
         problem = nil

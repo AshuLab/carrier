@@ -95,8 +95,8 @@ private func connect(_ engine: FixtureEngine) throws -> ControlClient {
 @Test func aBadRepositoryIsRefusedBeforeItIsSent() throws {
     let engine = FixtureEngine(capabilities: ["resumeEpic"])
     defer { engine.stop() }
-    #expect(throws: ControlError.remote("not a valid epic")) { try connect(engine).resumeEpic(repo: "a\"b/web", issue: 12) }
-    #expect(throws: ControlError.remote("not a valid epic")) { try connect(engine).resumeEpic(repo: "acme/web", issue: 0) }
+    #expect(throws: ControlError.remote(.epicInvalid)) { try connect(engine).resumeEpic(repo: "a\"b/web", issue: 12) }
+    #expect(throws: ControlError.remote(.epicInvalid)) { try connect(engine).resumeEpic(repo: "acme/web", issue: 0) }
     #expect(engine.commands.isEmpty)
 }
 
@@ -104,7 +104,7 @@ private func connect(_ engine: FixtureEngine) throws -> ControlClient {
     let engine = FixtureEngine(capabilities: ["resumeEpic"], fail: ["resumeEpic"])
     defer { engine.stop() }
     let client = try connect(engine)
-    #expect(throws: ControlError.remote("internal error")) { try client.resumeEpic(repo: "acme/web", issue: 12) }
+    #expect(throws: ControlError.remote(.words("internal error"))) { try client.resumeEpic(repo: "acme/web", issue: 12) }
     #expect(client.capabilities.contains(.resumeEpic))
 }
 
@@ -114,7 +114,7 @@ private func connect(_ engine: FixtureEngine) throws -> ControlClient {
     #expect(resumeEpic(socketPath: engine.path, repo: "acme/web", issue: 12) == .resumed)
     let refusing = FixtureEngine(capabilities: ["resumeEpic"], fail: ["resumeEpic"])
     defer { refusing.stop() }
-    #expect(resumeEpic(socketPath: refusing.path, repo: "acme/web", issue: 12) == .refused("internal error"))
+    #expect(resumeEpic(socketPath: refusing.path, repo: "acme/web", issue: 12) == .refused(.words("internal error")))
     let old = FixtureEngine(capabilities: ["epic"])
     defer { old.stop() }
     #expect(resumeEpic(socketPath: old.path, repo: "acme/web", issue: 12) == .unsupported)
@@ -124,8 +124,9 @@ private func connect(_ engine: FixtureEngine) throws -> ControlClient {
 // MARK: the words of a refusal
 
 @Test func eachRefusalHasItsOwnWords() {
-    #expect(ResumeRefusal.allCases.map(\.rawValue) == ["unknown epic", "not stopped", "github unavailable", "did not restart"])
-    #expect(ResumeRefusal.allCases.map { resumeFailureWords(.refused($0.rawValue)) } == [
+    #expect(ResumeRefusal.allCases.map(\.rawValue) == ["epic.unknown", "resume.notStopped", "github.unavailable", "resume.didNotRestart"])
+    // the engine's own words are not what the card reads: these differ from today's, and the code decides
+    #expect(ResumeRefusal.allCases.map { resumeFailureWords(.refused(Refusal(code: $0.rawValue, text: "other words for \($0.rawValue)"))) } == [
         "Carrier does not know this epic.",
         "This epic is not stopped, so there is nothing to resume.",
         "GitHub did not answer, so nothing was resumed. Try again.",
@@ -133,8 +134,10 @@ private func connect(_ engine: FixtureEngine) throws -> ControlClient {
     ])
 }
 
-@Test func anythingElseGetsAGenericLineAndTheOtherResultsTheirOwn() {
-    #expect(resumeFailureWords(.refused("internal error")) == "Carrier could not resume this epic (internal error).")
+@Test func aRefusalWithNoKnownCodeGetsAGenericLineAndTheOtherResultsTheirOwn() {
+    #expect(resumeFailureWords(.refused(Refusal(code: "request.internal", text: "internal error"))) == "Carrier could not resume this epic (internal error).")
+    // an engine that predates the codes sends the words only, and the words of a code decide nothing
+    #expect(resumeFailureWords(.refused(.words("unknown epic"))) == "Carrier could not resume this epic (unknown epic).")
     #expect(resumeFailureWords(.stopped) == "Carrier is not running.")
     #expect(resumeFailureWords(.unsupported) == "This Carrier cannot resume epics. Update it.")
     #expect(resumeFailureWords(.resumed) == nil)

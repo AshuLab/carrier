@@ -1,0 +1,38 @@
+{
+  "request": {
+    "cmd": "setLeadReviewer",
+    "draft": {
+      "identity": {
+        "kind": "gh"
+      },
+      "provider": "claude",
+      "model": "opus",
+      "effort": "max"
+    }
+  },
+  "reply": {
+    "ok": true,
+    "data": {
+      "saved": {
+        "agents": {
+          "leadReviewer": {
+            "profile": "reviewer-bot",
+            "provider": "claude",
+            "model": "opus",
+            "effort": "max"
+          }
+        },
+        "profiles": {
+          "author-bot": {
+            "kind": "forge",
+            "agent": "artanis-agent"
+          },
+          "reviewer-bot": {
+            "kind": "gh"
+          }
+        }
+      },
+      "engine": "applied"
+    }
+  }
+}

@@ -103,6 +103,37 @@ test('with no engine, editBehavior writes the values, a default one taken out, a
   expect(JSON.parse(readFileSync(engineFile(), 'utf8'))).toEqual({ ...validEngineFile, logLevel: 'debug', limits: { maxLeadRounds: 2 } });
 });
 
+test.each([
+  [{ cmd: 'editRole', role: 'author', changes: { model: 'm2' } }, (file: any) => file.agents.author.model, 'm2'],
+  [{ cmd: 'editRepoRole', repo: 'acme/web', role: 'reviewer', fields: { model: 'a' } }, (file: any) => file.repos[1].agents.reviewer, { model: 'a' }],
+  [{ cmd: 'editPersona', role: 'author', name: 'Ada', prompt: null }, (file: any) => file.agents.author.persona, { name: 'Ada' }],
+  [{ cmd: 'editFailover', role: 'author', first: { provider: 'codex' }, second: null }, (file: any) => file.failover.roles.author, [{ provider: 'codex' }]],
+  [{ cmd: 'setLeadReviewer', draft: null }, (file: any) => file.agents.leadReviewer, undefined],
+  [{ cmd: 'setOrchestratorProfile', name: null }, (file: any) => file.orchestratorProfile, undefined],
+])('with no engine, %o writes engine.json with the same code and says notRunning', async (request, read, expected) => {
+  writeFileSync(engineFile(), JSON.stringify(validEngineFile));
+  expect(await run(JSON.stringify(request))).toBe(0);
+  expect(printed()).toMatchObject({ ok: true, data: { engine: 'notRunning' } });
+  expect(read(JSON.parse(readFileSync(engineFile(), 'utf8')))).toEqual(expected);
+});
+
+test('a refused role change prints the refusal with its code and params and leaves the file as it was', async () => {
+  const text = JSON.stringify(validEngineFile);
+  writeFileSync(engineFile(), text);
+  expect(await run(engineRequest('editRole', { role: 'author', changes: { provider: 'nope' } }))).toBe(1);
+  expect(printed()).toEqual({ ok: false, error: 'Provider “nope” is not an account of providers.json. Pick another one.', code: 'config.problem', params: { path: 'agents.author.provider', problem: 'notAnAccount' } });
+  expect(readFileSync(engineFile(), 'utf8')).toBe(text);
+});
+
+test('with the engine answering, a role request is forwarded and nothing is written here', async () => {
+  const seen: unknown[] = [];
+  await engineOwner({ editEngineFile: (command) => (seen.push(command.cmd), { saved: {}, engine: 'applied' }) });
+  expect(await run(engineRequest('setOrchestratorProfile', { name: 'x' }))).toBe(0);
+  expect(seen).toEqual(['setOrchestratorProfile']);
+  expect(printed()).toEqual({ ok: true, data: { saved: {}, engine: 'applied' } });
+  expect(() => readFileSync(engineFile())).toThrow();
+});
+
 test('a refused engine.json change prints the refusal with its code and params, leaves the file as it was and exits 1', async () => {
   const text = JSON.stringify(validEngineFile);
   writeFileSync(engineFile(), text);

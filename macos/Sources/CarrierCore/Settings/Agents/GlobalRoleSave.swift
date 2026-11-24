@@ -1,11 +1,11 @@
 import Foundation
 
-// Changing a global role from the Agents page (docs/specs/agents-in-settings.md): writes one key of `agents.<role>` of `engine.json`, plus the
-// profile a chosen identity needs, and nothing else. The file is read again inside the save, so a change another writer made since the page read it
-// is not lost, and every key the app does not know stays. The checks and `RoleSave` are the ones of a repo's role (RepoRoleSave.swift).
+// Changing a global role (docs/specs/agents-in-settings.md): writes keys of `agents.<role>` of `engine.json`, plus the profile a chosen identity needs, and nothing else.
+// The app no longer writes the file: it sends `EngineConfigChange.role`, and the engine (src/config/role-edit.ts) does what this does. This is the fixture engine's copy of it
+// (FixtureServer+EngineConfig.swift), so `--fixture` answers with the engine's words. The checks and `RoleSave` are the ones of a repo's role (RepoRoleSave.swift).
 
 /// The one thing the person changed in a role.
-public enum RoleChange: Equatable {
+public enum RoleChange: Equatable, Sendable {
     /// a bot of the Agent Forge registry: writes (or reuses) the profile `{ kind: "forge", agent: <name> }`
     case bot(String)
     /// the person's own login: the profile `{ kind: "gh" }`
@@ -30,7 +30,7 @@ private func freeProfileName(_ name: String, in profiles: [String: Any]) -> Stri
 /// Applies `changes` to the global `role` in the file at `path`, read just now, together: one write, or none. A bot the registry (`bots`) does not list, a provider that is not
 /// an account, an empty model, or a role left without profile, provider or model is refused before anything is written. With `creating` the role may not be in the file yet (turning the Lead reviewer on), and then
 /// the changes have to make the whole role, identity, provider and model, or nothing is written.
-public func saveGlobalRole(_ changes: [RoleChange], role: AgentRole, path: String, accounts: [String], bots: [String], creating: Bool = false, reload: AfterWrite = reloadInBackground) -> RoleSave {
+func saveGlobalRole(_ changes: [RoleChange], role: AgentRole, path: String, accounts: [String], bots: [String], creating: Bool = false, reload: AfterWrite = reloadInBackground) -> RoleSave {
     let url = URL(fileURLWithPath: path)
     guard let current = try? Data(contentsOf: url), var file = (try? JSONSerialization.jsonObject(with: current)) as? [String: Any] else {
         return .failed("The config file could not be read.")

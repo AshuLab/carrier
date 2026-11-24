@@ -4,17 +4,35 @@ import Foundation
 // Node's code writes the file and makes the engine run on it. The engine answers it when its hello lists `config`; otherwise (Carrier is stopped, or an older engine)
 // `carrier config` takes the same request, without its `id`, and prints the reply the socket would give.
 
-/// A change to `engine.json` the app asks for: the watched repos, or the eight values of Behavior.
+/// A change to `engine.json` the app asks for: the watched repos, the eight values of Behavior, the roles, or the orchestrator's profile.
 public enum EngineConfigChange: Equatable, Sendable {
     /// The whole list of `owner/name`, in order; a repo that stays keeps its own fields in the file.
     case watchedRepos([String])
     /// The eight values Behavior edits; Node takes out of the file the ones equal to the engine's default.
     case behavior(EngineConfig)
+    /// The changes of one pick of the Agents page to a global role, applied together or not at all.
+    case role(AgentRole, [RoleChange])
+    /// A repo's own fields of a role (the ones left nil are not its own); nil takes the repo's override out.
+    case repoRole(repo: String, role: AgentRole, fields: RoleFields?)
+    /// The persona of a global role: either text alone, or both; nil for both takes it out.
+    case persona(role: AgentRole, name: String?, prompt: String?)
+    /// The first two failover steps of a global role; both nil is Switch automatically off.
+    case failover(role: AgentRole, first: FailoverStep?, second: FailoverStep?)
+    /// A complete draft turns the Lead reviewer on; nil turns it off.
+    case leadReviewer(LeadReviewerDraft?)
+    /// nil takes the key out: the author's profile.
+    case orchestratorProfile(String?)
 
     var command: String {
         switch self {
         case .watchedRepos: "setWatchedRepos"
         case .behavior: "editBehavior"
+        case .role: "editRole"
+        case .repoRole: "editRepoRole"
+        case .persona: "editPersona"
+        case .failover: "editFailover"
+        case .leadReviewer: "setLeadReviewer"
+        case .orchestratorProfile: "setOrchestratorProfile"
         }
     }
 
@@ -32,7 +50,55 @@ public enum EngineConfigChange: Equatable, Sendable {
             // a value that is not a number (the page refuses it before) would be a crash in the encoder: the engine refuses an empty change instead
             guard JSONSerialization.isValidJSONObject(changes), let data = try? JSONSerialization.data(withJSONObject: changes, options: [.sortedKeys, .withoutEscapingSlashes]) else { return "" }
             return ",\"changes\":" + String(decoding: data, as: UTF8.self)
+        case .role(let role, let changes):
+            return members(["role": role.rawValue, "changes": wire(changes)])
+        case .repoRole(let repo, let role, let fields):
+            return members(["repo": repo, "role": role.rawValue, "fields": fields.map(wire) ?? NSNull()])
+        case .persona(let role, let name, let prompt):
+            return members(["role": role.rawValue, "name": name ?? NSNull(), "prompt": prompt ?? NSNull()])
+        case .failover(let role, let first, let second):
+            return members(["role": role.rawValue, "first": first.map(wire) ?? NSNull(), "second": second.map(wire) ?? NSNull()])
+        case .leadReviewer(let draft):
+            return members(["draft": draft.map { wire($0.changes) } ?? NSNull()])
+        case .orchestratorProfile(let name):
+            return members(["name": name ?? NSNull()])
         }
+    }
+
+    /// The members of a request after `cmd`, as `fields` has them; nothing when a value could not be JSON (the engine refuses the request without them).
+    private func members(_ object: [String: Any]) -> String {
+        guard JSONSerialization.isValidJSONObject(object), let data = try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys, .withoutEscapingSlashes]) else { return "" }
+        return "," + String(decoding: data, as: UTF8.self).dropFirst().dropLast()
+    }
+
+    /// What a pick of the page changes, as `editRole` takes it: a bot or the gh login is the identity, `effort` nil is `null` (none).
+    private func wire(_ changes: [RoleChange]) -> [String: Any] {
+        var wire: [String: Any] = [:]
+        for change in changes {
+            switch change {
+            case .bot(let name): wire["identity"] = ["kind": "forge", "agent": name]
+            case .gh: wire["identity"] = ["kind": "gh"]
+            case .provider(let provider): wire["provider"] = provider
+            case .model(let model): wire["model"] = model
+            case .effort(let effort): wire["effort"] = effort ?? NSNull()
+            }
+        }
+        return wire
+    }
+
+    /// The fields a repo sets: only the ones that are set.
+    private func wire(_ fields: RoleFields) -> [String: Any] {
+        var wire: [String: Any] = [:]
+        wire["profile"] = fields.profile
+        wire["provider"] = fields.provider
+        wire["model"] = fields.model
+        wire["effort"] = fields.effort
+        wire["persona"] = fields.persona.map { ["name": $0.name, "prompt": $0.prompt].compactMapValues { $0 } }
+        return wire
+    }
+
+    private func wire(_ step: FailoverStep) -> [String: Any] {
+        ["provider": step.provider, "model": step.model, "effort": step.effort].compactMapValues { $0 }
     }
 
     /// The request as `carrier config` reads it: the socket's request without its `id`.
@@ -107,6 +173,23 @@ public typealias SendEngineConfig = (EngineConfigChange) async throws -> EngineC
     } catch {
         FileHandle.standardError.write(Data("carrier: saving engine.json failed: \(error)\n".utf8))
         return .failed("Could not save the config file: \(error.localizedDescription)")
+    }
+}
+
+/// Saves one change at a time, in the order they were asked: two edits made one after the other reach the file in that order, whichever answers first.
+@MainActor public final class EngineConfigQueue {
+    private var last: Task<Void, Never>?
+
+    public init() {}
+
+    public func save(_ change: EngineConfigChange, send: @escaping SendEngineConfig, status: ReloadStatus? = nil) async -> RoleSave {
+        let before = last
+        let mine = Task { () -> RoleSave in
+            await before?.value
+            return await saveEngineConfig(change, send: send, status: status)
+        }
+        last = Task { _ = await mine.value }
+        return await mine.value
     }
 }
 

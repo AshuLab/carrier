@@ -5,8 +5,8 @@ import SwiftUI
 /// The Agents page of Settings (docs/specs/agents-in-settings.md), two kinds of screen, each a place of the window's history (‹ ›) as the Providers and
 /// Dictation pages have: the first (whether the roles are set up, and the three roles of an epic joined by a rail) and one for each role, with its
 /// Who, Persona, Skills and When it runs out of tokens groups. It reads `engine.json`, `providers.json` and the Agent Forge registry (`agentsPage`, tested
-/// in `AgentsPageTests`); a role's screen writes one field of one role as it changes (`saveGlobalRole`, tested in `GlobalRoleSaveTests`). The page has no
-/// automated test.
+/// in `AgentsPageTests`); a role's screen sends one field of one role as it changes (`editRole` and the other requests of `EngineConfigChange`: the engine writes `engine.json`,
+/// and `carrier config` does when none answers, `src/config/role-edit.ts`). The page has no automated test.
 struct AgentsTabView: View {
     /// Where the page is: nothing for the first screen, or the path of a role (`AgentRole.rawValue`).
     var place = SettingsPlace(.agents)
@@ -73,32 +73,33 @@ struct AgentsTabView: View {
         page = currentConfig().flatMap { agentsPage(config: $0, providers: providers, bots: forgeBots(registry: currentForgeRegistry())) }
     }
 
-    /// Writes the change, then reads the file back so the page shows what is there, whether it was saved or refused.
-    private func save(_ change: RoleChange, role: AgentRole, page: AgentsPage) -> RoleSave {
-        save([change], role: role, page: page)
+    /// Sends the change, then reads the file back so the page shows what is there, whether it was saved or refused.
+    private func save(_ change: RoleChange, role: AgentRole) async -> RoleSave {
+        await save([change], role: role)
     }
 
-    /// Several changes of one pick are one write and one ask of the engine.
-    private func save(_ changes: [RoleChange], role: AgentRole, page: AgentsPage) -> RoleSave {
-        if role == .leadReviewer, turningOnLead { return fillLead(changes, page: page) }
-        let result = saveGlobalRole(changes, role: role, path: configFilePath(), accounts: page.accounts, bots: page.bots.names)
+    /// Several changes of one pick are one request: the engine writes them together or not at all.
+    private func save(_ changes: [RoleChange], role: AgentRole) async -> RoleSave {
+        if role == .leadReviewer, turningOnLead { return await fillLead(changes) }
+        let result = await saveToEngine(.role(role, changes))
         load()
         problem = result.problem
         return result
     }
 
-    /// The Persona and failover groups write through here (`saveGlobalPersona`, `saveGlobalFailover`; tested in `RoleDetailsSaveTests`), then read the file back.
-    private func saveDetails(_ result: RoleSave) -> Bool {
+    /// The Persona and failover groups send through here (`EngineConfigChange.persona` and `.failover`), then read the file back.
+    private func saveDetails(_ change: EngineConfigChange) async -> Bool {
+        let result = await saveToEngine(change)
         load()
         problem = result.problem
         return result == .saved
     }
 
-    /// A choice for the role being turned on: kept in the draft, and written only when identity, provider and model are all there.
-    private func fillLead(_ changes: [RoleChange], page: AgentsPage) -> RoleSave {
+    /// A choice for the role being turned on: kept in the draft, and sent only when identity, provider and model are all there.
+    private func fillLead(_ changes: [RoleChange]) async -> RoleSave {
         changes.forEach { leadDraft.apply($0) }
         guard leadDraft.isComplete else { return .saved }
-        let result = turnLeadReviewerOn(leadDraft, path: configFilePath(), accounts: page.accounts, bots: page.bots.names)
+        let result = await saveToEngine(.leadReviewer(leadDraft))
         if result == .saved {
             turningOnLead = false
             leadDraft = LeadReviewerDraft()
@@ -117,9 +118,11 @@ struct AgentsTabView: View {
             turningOnLead = false
         } else {
             turningOnLead = false
-            let result = turnLeadReviewerOff(path: configFilePath())
-            load()
-            problem = result.problem
+            Task {
+                let result = await saveToEngine(.leadReviewer(nil))
+                load()
+                problem = result.problem
+            }
         }
     }
 
@@ -160,8 +163,8 @@ struct AgentsTabView: View {
                             case .account(let account, let model):
                                 // the model belongs to the account's provider: written together, in one save
                                 let changes = (account != row.fields.provider ? [RoleChange.provider(account)] : []) + (model.map { [RoleChange.model($0)] } ?? [])
-                                if changes.isEmpty == false { _ = save(changes, role: row.role, page: page) }
-                            case .effort(let level): _ = save(.effort(level.isEmpty ? nil : level), role: row.role, page: page)
+                                if changes.isEmpty == false { Task { _ = await save(changes, role: row.role) } }
+                            case .effort(let level): Task { _ = await save(.effort(level.isEmpty ? nil : level), role: row.role) }
                             case .none, .inherit: break
                             }
                         }
@@ -171,13 +174,13 @@ struct AgentsTabView: View {
                 SettingsGroup(title: "Persona") {
                     SettingsTabRow(title: "Persona name", detail: "Optional, one line up to 40 characters", first: true) {
                         CommitField(label: "Persona name", text: row.fields.persona?.name ?? "", width: settingsSelectWidth, mono: false, prompt: "None") {
-                            saveDetails(saveGlobalPersona(name: blankIsNil($0), prompt: row.fields.persona?.prompt, role: row.role, path: configFilePath()))
+                            await saveDetails(.persona(role: row.role, name: blankIsNil($0), prompt: row.fields.persona?.prompt))
                         }
                         .id(row.role)
                     }
                     SettingsStackedRow(title: "Persona prompt", detail: "Optional instructions") {
                         CommitEditor(label: "Persona prompt", text: row.fields.persona?.prompt ?? "", prompt: "None") {
-                            saveDetails(saveGlobalPersona(name: row.fields.persona?.name, prompt: blankIsNil($0), role: row.role, path: configFilePath()))
+                            await saveDetails(.persona(role: row.role, name: row.fields.persona?.name, prompt: blankIsNil($0)))
                         }
                         .id(row.role)
                     }
@@ -189,7 +192,7 @@ struct AgentsTabView: View {
                         Toggle("Switch automatically", isOn: Binding(get: { on }, set: { now in
                             if now { switchedOn.insert(row.role) } else {
                                 switchedOn.remove(row.role)
-                                _ = saveDetails(saveGlobalFailover(first: nil, second: nil, role: row.role, path: configFilePath(), accounts: page.accounts))
+                                Task { _ = await saveDetails(.failover(role: row.role, first: nil, second: nil)) }
                             }
                         })).labelsHidden().toggleStyle(.switch)
                     }
@@ -245,10 +248,10 @@ struct AgentsTabView: View {
 
     /// A step of the role's failover: a provider and, optionally, a model. Then can be taken back to None; First needs a provider before anything is written.
     private func stepRow(_ title: String, detail: String, step: FailoverStep?, row: RoleRow, page: AgentsPage, index: Int) -> some View {
-        func write(_ own: FailoverStep?) -> Bool {
+        func write(_ own: FailoverStep?) {
             let first = index == 0 ? own : row.steps.first
             let second = index == 1 ? own : row.steps.dropFirst().first
-            return saveDetails(saveGlobalFailover(first: first, second: second, role: row.role, path: configFilePath(), accounts: page.accounts))
+            Task { _ = await saveDetails(.failover(role: row.role, first: first, second: second)) }
         }
         return SettingsTabRow(title: title, detail: detail) {
             ModelPickerButton(
@@ -256,12 +259,12 @@ struct AgentsTabView: View {
                 effortFallback: (label: "As the role", detail: "Keeps the reasoning the role was running with."), allowsDefaultModel: true, noneTitle: index == 1 ? "No second step" : nil, placeholder: index == 0 ? "Choose…" : "None"
             ) { pick in
                 switch pick {
-                case .account(let account, let model): _ = write(FailoverStep(provider: account, model: model, effort: step?.effort))
-                case .none: _ = write(nil)
+                case .account(let account, let model): write(FailoverStep(provider: account, model: model, effort: step?.effort))
+                case .none: write(nil)
                 case .inherit: break
                 case .effort(let level):
                     // a level goes with a provider: with none yet there is nothing to write it on
-                    if let step { _ = write(FailoverStep(provider: step.provider, model: step.model, effort: level.isEmpty ? nil : level)) }
+                    if let step { write(FailoverStep(provider: step.provider, model: step.model, effort: level.isEmpty ? nil : level)) }
                 }
             }
         }
@@ -294,8 +297,8 @@ struct AgentsTabView: View {
             get: { values.firstIndex(of: current) ?? 0 },
             set: { next in
                 let choice = values[next]
-                if choice == "gh" { _ = save(.gh, role: row.role, page: page) }
-                else if choice.hasPrefix("bot:") { _ = save(.bot(String(choice.dropFirst(4))), role: row.role, page: page) }
+                if choice == "gh" { Task { _ = await save(.gh, role: row.role) } }
+                else if choice.hasPrefix("bot:") { Task { _ = await save(.bot(String(choice.dropFirst(4))), role: row.role) } }
             }
         )
         return SelectMenu(items: items, selection: index).accessibilityLabel("Identity")
@@ -326,11 +329,11 @@ struct CommitField: View {
     let width: CGFloat
     let mono: Bool
     var prompt = ""
-    let commit: (String) -> Bool
+    let commit: (String) async -> Bool
     @State private var draft: String
     @FocusState private var focused: Bool
 
-    init(label: String, text: String, width: CGFloat, mono: Bool, prompt: String = "", commit: @escaping (String) -> Bool) {
+    init(label: String, text: String, width: CGFloat, mono: Bool, prompt: String = "", commit: @escaping (String) async -> Bool) {
         self.label = label
         self.text = text
         self.width = width
@@ -350,7 +353,8 @@ struct CommitField: View {
 
     private func save() {
         guard draft != text else { return }
-        if commit(draft) == false { draft = text }
+        let value = draft
+        Task { if await commit(value) == false { draft = text } }
     }
 }
 
@@ -360,11 +364,11 @@ struct CommitEditor: View {
     let label: String
     let text: String
     var prompt = ""
-    let commit: (String) -> Bool
+    let commit: (String) async -> Bool
     @State private var draft: String
     @FocusState private var focused: Bool
 
-    init(label: String, text: String, prompt: String = "", commit: @escaping (String) -> Bool) {
+    init(label: String, text: String, prompt: String = "", commit: @escaping (String) async -> Bool) {
         self.label = label
         self.text = text
         self.prompt = prompt
@@ -386,6 +390,7 @@ struct CommitEditor: View {
 
     private func save() {
         guard draft != text else { return }
-        if commit(draft) == false { draft = text }
+        let value = draft
+        Task { if await commit(value) == false { draft = text } }
     }
 }

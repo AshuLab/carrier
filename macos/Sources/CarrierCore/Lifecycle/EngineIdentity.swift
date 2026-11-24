@@ -1,7 +1,7 @@
 import Foundation
 
 // The GitHub identity the engine acts as: `orchestratorProfile` of `engine.json`, one of the file's `profiles`. Left out of the file it is the
-// author's profile, so choosing the default removes the key. The engine is asked to reload after the write (EngineReload.swift).
+// author's profile, so choosing the default removes the key. The choice is sent as `EngineConfigChange.orchestratorProfile`: the engine writes the file and runs on it.
 
 public struct EngineIdentity: Equatable {
     /// The title of the choice that removes the key
@@ -29,18 +29,4 @@ public struct EngineIdentity: Equatable {
     public static func options(_ identity: EngineIdentity?) -> [(value: String?, title: String)] {
         [(value: nil, title: defaultTitle)] + (identity?.choices ?? []).map { (value: $0, title: $0) }
     }
-}
-
-/// `json` with `orchestratorProfile` set to `name`, or taken out when `name` is nil (the default); the file's other keys are left as they were.
-/// nil when `json` is not a JSON object: the app never makes a config file.
-public func applyingOrchestratorProfile(_ name: String?, to json: Data) -> Data? {
-    guard var file = (try? JSONSerialization.jsonObject(with: json)) as? [String: Any] else { return nil }
-    if let name { file["orchestratorProfile"] = name } else { file.removeValue(forKey: "orchestratorProfile") }
-    return try? JSONSerialization.data(withJSONObject: file, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
-}
-
-/// Writes the choice into the file at `path`, read just now so another tab's save in between is not lost, and asks the engine to reload once it
-/// is written. `.failed` when the file cannot be read or is not an object (nothing is written, nothing asked).
-public func saveOrchestratorProfile(_ name: String?, path: String, reload: AfterWrite = reloadInBackground) -> RoleSave {
-    saveConfig(path: path, unusable: "The config file could not be read.", edit: { applyingOrchestratorProfile(name, to: $0) }, reload: reload)
 }

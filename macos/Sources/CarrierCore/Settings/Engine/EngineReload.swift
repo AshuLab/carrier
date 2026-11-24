@@ -144,17 +144,3 @@ public func reloadWords(_ outcome: ReloadOutcome) -> String? {
     case .noAnswer: "Saved, but Carrier did not answer: it may not have applied it."
     }
 }
-
-/// What the Behavior and Watching tabs save with: `edit` rewrites the file at `path`, read just now so a save of another tab in between is not
-/// lost; `unusable` is what to say when it cannot be read or `edit` gives nothing. A written file is followed by `reload`.
-public func saveConfig(path: String, unusable: String, edit: (Data) -> Data?, reload: AfterWrite = reloadInBackground) -> RoleSave {
-    let url = URL(fileURLWithPath: path)
-    guard let current = try? Data(contentsOf: url), let updated = edit(current) else { return .failed(unusable) }
-    do {
-        try updated.write(to: url, options: .atomic)
-        return written(reload)
-    } catch {
-        FileHandle.standardError.write(Data("carrier: saving \(path) failed: \(error)\n".utf8))
-        return .failed("Could not save the config file: \(error.localizedDescription)")
-    }
-}

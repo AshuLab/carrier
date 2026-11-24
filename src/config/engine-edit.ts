@@ -22,12 +22,12 @@ export class ConfigRefused extends Error {
   }
 }
 
-const refuse = (path: string, kind: string, words: string) => new ConfigRefused('config.problem', words, { path, problem: kind });
+export const refuse = (path: string, kind: string, words: string) => new ConfigRefused('config.problem', words, { path, problem: kind });
 
-const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
+export const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 
 /** The file as the person has it; one that is not there, is not JSON or is not an object is refused and left as it is: the app never makes the engine's config. */
-function readObject(file: string): Record<string, unknown> {
+export function readObject(file: string): Record<string, unknown> {
   let current: unknown;
   try {
     current = JSON.parse(readFileSync(file, 'utf8'));
@@ -41,7 +41,7 @@ function readObject(file: string): Record<string, unknown> {
 }
 
 /** Checks the whole result as the engine loads it (the defaults under it, the accounts of `providers.json`), then writes it; nothing is written when it is refused. */
-function write(file: string, next: Record<string, unknown>, folder: string) {
+export function write(file: string, next: Record<string, unknown>, folder: string) {
   const accounts = readProvidersFile(folder);
   if (accounts.ok === false) throw refuse('(providers.json)', 'invalid', providersProblem(folder, accounts.errors));
   const checked = loadConfig(defaults, next, accounts.providers);

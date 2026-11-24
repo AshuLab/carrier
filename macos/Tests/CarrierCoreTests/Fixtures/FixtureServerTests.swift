@@ -314,6 +314,103 @@ private func sameJSON(_ a: Data, _ b: Data) throws -> Bool {
     #expect(try Data(contentsOf: URL(fileURLWithPath: file)) == before)
 }
 
+/// The fixture engine's `engine.json`, read again after each request, and a sender to its socket.
+private struct ScratchEngine {
+    let server: FixtureServer
+    let file: String
+    let sender: EngineConfigSender
+
+    init() throws {
+        server = try FixtureServer(fixtures: testPaths().fixtures.path)
+        file = CarrierPlaces(folder: server.home).engineConfig
+        let path = server.socketPath
+        sender = EngineConfigSender(socketPath: { path })
+    }
+
+    func written() throws -> [String: Any] { try #require(JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: file))) as? [String: Any]) }
+    func role(_ name: String) throws -> [String: Any] { try #require((written()["agents"] as? [String: Any])?[name] as? [String: Any]) }
+
+    func steps(_ role: String) throws -> [NSDictionary]? {
+        try (((written()["failover"] as? [String: Any])?["roles"]) as? [String: Any])?[role].flatMap { $0 as? [[String: Any]] }?.map { $0 as NSDictionary }
+    }
+
+    func refusal(_ change: EngineConfigChange) async throws -> Refusal {
+        do { _ = try await sender.send(change) } catch ControlError.remote(let refusal) { return refusal }
+        throw FixtureError.socket("\(change) was not refused")
+    }
+}
+
+@Test func theFixtureEngineChangesARoleItsPersonaAndItsFailoverLikeTheRealEngineAgainstItsScratchFolder() async throws {
+    let engine = try ScratchEngine()
+    defer { engine.server.stop() }
+    // identity, provider, model and effort of a role in one request; a bot of the registry gets the profile that means it, and the failover step the role now runs on goes
+    #expect(try await engine.sender.send(.role(.author, [.bot("acme-spare"), .provider("codex"), .model(" gpt-5 "), .effort(nil)])).outcome == .applied)
+    #expect(try engine.role("author") as NSDictionary == ["profile": "acme-spare", "provider": "codex", "model": "gpt-5"] as NSDictionary)
+    #expect(try engine.steps("author") == [["provider": "claude-work"]])
+    #expect(try (engine.written()["profiles"] as? [String: Any])?["acme-spare"] != nil && engine.written()["repos"] != nil)
+    #expect(try await engine.sender.send(.role(.author, [.gh])).outcome == .applied)
+    #expect(try engine.role("author")["profile"] as? String == "gh")
+    #expect(try await engine.sender.send(.persona(role: .reviewer, name: "Ada", prompt: "Be brief.")).outcome == .applied)
+    #expect(try (engine.role("reviewer")["persona"] as? [String: Any]) as NSDictionary? == ["name": "Ada", "prompt": "Be brief."] as NSDictionary)
+    #expect(try await engine.sender.send(.persona(role: .reviewer, name: nil, prompt: nil)).outcome == .applied)
+    #expect(try engine.role("reviewer")["persona"] == nil)
+    #expect(try await engine.sender.send(.failover(role: .reviewer, first: FailoverStep(provider: "codex", model: "gpt-5-mini", effort: "low"), second: nil)).outcome == .applied)
+    #expect(try engine.steps("reviewer") == [["provider": "codex", "model": "gpt-5-mini", "effort": "low"]])
+    #expect(try await engine.sender.send(.failover(role: .reviewer, first: nil, second: nil)).outcome == .applied)
+    #expect(try engine.steps("reviewer") == nil)
+
+    // what the real engine refuses is refused with its words and a code, and the file is left as it was
+    let before = try Data(contentsOf: URL(fileURLWithPath: engine.file))
+    for (change, words) in [
+        (EngineConfigChange.role(.author, [.bot("ghost")]), "“ghost” is not in Agent Forge’s list. Pick another one."),
+        (.role(.author, [.provider("nope")]), "Provider “nope” is not an account of providers.json. Pick another one."),
+        (.role(.author, [.model("  ")]), "The model cannot be empty."),
+        (.persona(role: .author, name: String(repeating: "x", count: 41), prompt: nil), "The persona’s name is one line of up to 40 characters."),
+        (.failover(role: .author, first: nil, second: FailoverStep(provider: "codex")), "Then needs a First step."),
+        (.failover(role: .author, first: FailoverStep(provider: "codex", model: "gpt-5"), second: nil), "First is the role’s own provider and model, so it would move nowhere."),
+    ] {
+        let refusal = try await engine.refusal(change)
+        #expect(refusal.code == "config.problem" && refusal.text == words, Comment(rawValue: words))
+    }
+    #expect(try Data(contentsOf: URL(fileURLWithPath: engine.file)) == before)
+}
+
+@Test func theFixtureEngineTurnsTheLeadReviewerOffAndOnOnlyWithAWholeDraft() async throws {
+    let engine = try ScratchEngine()
+    defer { engine.server.stop() }
+    #expect(try await engine.sender.send(.leadReviewer(nil)).outcome == .applied)
+    #expect(try engine.written()["agents"] != nil && (engine.written()["agents"] as? [String: Any])?["leadReviewer"] == nil)
+    var draft = LeadReviewerDraft()
+    [RoleChange.bot("acme-lead"), .provider("claude"), .model("claude-opus-5")].forEach { draft.apply($0) }
+    var incomplete = LeadReviewerDraft()
+    incomplete.apply(.provider("claude"))
+    #expect(try await engine.refusal(.leadReviewer(incomplete)).text.hasPrefix("The lead reviewer needs "))
+    #expect(try await engine.sender.send(.leadReviewer(draft)).outcome == .applied)
+    #expect(try engine.role("leadReviewer") as NSDictionary == ["profile": "acme-lead", "provider": "claude", "model": "claude-opus-5"] as NSDictionary)
+}
+
+@Test func theFixtureEngineSetsAndTakesOutTheOrchestratorProfile() async throws {
+    let engine = try ScratchEngine()
+    defer { engine.server.stop() }
+    #expect(try await engine.sender.send(.orchestratorProfile("acme-lead")).outcome == .applied)
+    #expect(try engine.written()["orchestratorProfile"] as? String == "acme-lead")
+    #expect(try await engine.sender.send(.orchestratorProfile(nil)).outcome == .applied)
+    #expect(try engine.written()["orchestratorProfile"] == nil && engine.written()["repos"] != nil)
+}
+
+@Test func theFixtureEngineSetsARepoRoleFromTheFieldsThatAreSetAndResetTakesItOut() async throws {
+    let engine = try ScratchEngine()
+    defer { engine.server.stop() }
+    // the fields that are set, and Reset takes the entry out (and agents with the last)
+    func repoAgents() throws -> [String: Any]? { try (engine.written()["repos"] as? [[String: Any]])?.first { $0["name"] as? String == "acme/web" }?["agents"] as? [String: Any] }
+    #expect(try await engine.sender.send(.repoRole(repo: "acme/web", role: .reviewer, fields: RoleFields(model: "qwen", persona: RolePersona(name: "Rex")))).outcome == .applied)
+    #expect(try repoAgents()?["reviewer"] as? NSDictionary == ["model": "qwen", "persona": ["name": "Rex"]] as NSDictionary)
+    #expect(try await engine.sender.send(.repoRole(repo: "acme/web", role: .reviewer, fields: nil)).outcome == .applied)
+    #expect(try repoAgents() == nil)
+    #expect(try await engine.refusal(.repoRole(repo: "x/y", role: .author, fields: nil)).text == "x/y is no longer in the config file.")
+    #expect(try await engine.refusal(.repoRole(repo: "acme/web", role: .author, fields: RoleFields(profile: "ghost"))).text == "Identity “ghost” is not declared in profiles. Pick another one.")
+}
+
 @Test func theFixtureChatHostAnswersTheFiveProvidersRequestsLikeTheRealOneWithTheEnginesAnswer() async throws {
     let server = try FixtureServer(fixtures: testPaths().fixtures.path)
     defer { server.stop() }

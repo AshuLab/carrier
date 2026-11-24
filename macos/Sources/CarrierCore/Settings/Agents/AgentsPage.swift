@@ -73,7 +73,7 @@ public enum RoleIdentity: Equatable {
 }
 
 /// One step of a role's failover: a provider and, optionally, a model and how hard it thinks (left out, the effort the role was running with).
-public struct FailoverStep: Equatable {
+public struct FailoverStep: Equatable, Sendable {
     public var provider: String
     public var model: String?
     public var effort: String?

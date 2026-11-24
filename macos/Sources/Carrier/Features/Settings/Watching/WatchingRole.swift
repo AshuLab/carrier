@@ -3,8 +3,8 @@ import SwiftUI
 
 /// A role's screen in a repo (`SettingsPlace(.watching, path: [repo, role])`), the Agents page's own screen for what a repo can set: its picture and who it
 /// works as, its place in an epic, Who (Identity and Model) and Persona. A field left on "Same as everywhere" is not written to the repo and shows what it
-/// follows; one the repo sets says Own, and Reset to Agents takes all of them out. Each field writes as it changes (`saveRepoRole`, tested in
-/// `RepoRoleSaveTests`); the file is read again after each write, so `row` and `mine` are what it holds.
+/// follows; one the repo sets says Own, and Reset to Agents takes all of them out. Each field is sent as it changes (`editRepoRole`, which the engine writes, `src/config/role-edit.ts`);
+/// the file is read again after each one, so `row` and `mine` are what it holds.
 struct RepoRoleScreen: View {
     /// The role as the repo has it (the repo's own fields over the global ones), as Agents draws a role.
     let row: RoleRow
@@ -15,7 +15,7 @@ struct RepoRoleScreen: View {
     let accounts: [String]
     let icons: [String: String]
     /// Writes the repo's own fields of the role, nil taking them all out.
-    let save: (RoleFields?) -> RoleSave
+    let save: (RoleFields?) async -> RoleSave
     let open: (AgentRole) -> Void
     @State private var problem: String?
     private let catalog = ModelCatalog.shared
@@ -35,13 +35,13 @@ struct RepoRoleScreen: View {
             SettingsGroup(title: "Persona") {
                 SettingsTabRow(title: "Persona name", detail: "Optional, one line up to 40 characters", first: true) {
                     CommitField(label: "Persona name", text: mine.own.persona?.name ?? "", width: settingsSelectWidth, mono: false, prompt: mine.inherited.persona?.name ?? "Same as everywhere") {
-                        commit(persona: RolePersona(name: blankIsNil($0), prompt: mine.own.persona?.prompt))
+                        await commit(persona: RolePersona(name: blankIsNil($0), prompt: mine.own.persona?.prompt))
                     }
                     .id(row.role)
                 }
                 SettingsStackedRow(title: "Persona prompt", detail: "Optional instructions") {
                     CommitEditor(label: "Persona prompt", text: mine.own.persona?.prompt ?? "", prompt: mine.inherited.persona?.prompt ?? "Same as everywhere") {
-                        commit(persona: RolePersona(name: mine.own.persona?.name, prompt: blankIsNil($0)))
+                        await commit(persona: RolePersona(name: mine.own.persona?.name, prompt: blankIsNil($0)))
                     }
                     .id(row.role)
                 }
@@ -49,7 +49,7 @@ struct RepoRoleScreen: View {
             if mine.isOwn {
                 SettingsGroup(title: "") {
                     SettingsTabRow(title: "Reset to Agents", detail: "Takes out what this repository sets for the \(row.title); it follows Agents again", first: true) {
-                        Button { problem = save(nil).problem } label: { Label("Reset to Agents", icon: .refresh) }.controlSize(.small)
+                        Button { Task { problem = await save(nil).problem } } label: { Label("Reset to Agents", icon: .refresh) }.controlSize(.small)
                     }
                 }
             }
@@ -61,16 +61,16 @@ struct RepoRoleScreen: View {
     }
 
     /// Writes `fields` as the repo's own; nothing set at all is nothing written. false, with the reason shown, when it was refused.
-    private func commit(_ fields: RoleFields) -> Bool {
-        let result = save(fields.isEmpty ? nil : fields)
+    private func commit(_ fields: RoleFields) async -> Bool {
+        let result = await save(fields.isEmpty ? nil : fields)
         problem = result.problem
         return result == .saved
     }
 
-    private func commit(persona: RolePersona) -> Bool {
+    private func commit(persona: RolePersona) async -> Bool {
         var fields = mine.own
         fields.persona = persona.name == nil && persona.prompt == nil ? nil : persona
-        return commit(fields)
+        return await commit(fields)
     }
 
     private func blankIsNil(_ text: String) -> String? { text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : text }
@@ -85,7 +85,7 @@ struct RepoRoleScreen: View {
             set: { next in
                 var fields = mine.own
                 fields.profile = next == 0 ? nil : (profiles.indices.contains(next - 1) ? profiles[next - 1] : mine.own.profile)
-                _ = commit(fields)
+                Task { _ = await commit(fields) }
             }
         )
         return SelectMenu(items: items, selection: index).accessibilityLabel("Identity")
@@ -116,7 +116,7 @@ struct RepoRoleScreen: View {
                 fields.model = nil
             case .none: return
             }
-            _ = commit(fields)
+            Task { _ = await commit(fields) }
         }
     }
 }

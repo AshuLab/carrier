@@ -1,0 +1,26 @@
+{
+  "request": {
+    "cmd": "editPersona",
+    "role": "author",
+    "name": "Ada",
+    "prompt": null
+  },
+  "reply": {
+    "ok": true,
+    "data": {
+      "saved": {
+        "agents": {
+          "author": {
+            "profile": "author-bot",
+            "provider": "claude",
+            "model": "m",
+            "persona": {
+              "name": "Ada"
+            }
+          }
+        }
+      },
+      "engine": "applied"
+    }
+  }
+}

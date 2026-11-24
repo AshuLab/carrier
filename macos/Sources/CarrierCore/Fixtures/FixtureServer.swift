@@ -130,6 +130,7 @@ public final class FixtureServer {
     """
 
     /// Accepted and answered with nothing, as the real engine would; the fixture has no one to pause or stop.
+    static let roleRequests: Set<String> = ["editRole", "editRepoRole", "editPersona", "editFailover", "setLeadReviewer", "setOrchestratorProfile"]
     private static let controls: Set<String> = ["pause", "resume", "checkNow", "stop", "resumeEpic", "recoverEpic", "reload"]
 
     /// `longTranscript`: `events` answers with a made-up transcript of thousands of events instead of the golden file.
@@ -370,6 +371,7 @@ public final class FixtureServer {
         if let body = data[cmd] { return Self.line("{\"id\":\(id),\"ok\":true,\"data\":" + String(decoding: body, as: UTF8.self) + "}") }
         if Self.controls.contains(cmd) { return Self.line("{\"id\":\(id),\"ok\":true}") }
         if cmd == "setWatchedRepos" || cmd == "editBehavior", let answer = engineConfigReply(id, request ?? [:]) { return answer }
+        if Self.roleRequests.contains(cmd), let answer = engineRolesReply(id, request ?? [:]) { return answer }
         return Self.refused(id, "request.invalid", "unknown request")
     }
 

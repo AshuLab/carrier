@@ -11,8 +11,8 @@ import { ResumeRefused } from '../orchestration/resume-refused.ts';
 import { editBehavior, setWatchedRepos } from '../config/engine-edit.ts';
 import { engineConfigPathOf } from '../config/places.ts';
 import { validEngineFile } from '../config/testing.ts';
-import { withEngine, type ConfigReply } from './config.ts';
-import { request, socketPathFits, startControlServer } from './server.ts';
+import { withEngine, writeEngineConfig, type ConfigReply } from './config.ts';
+import { request, socketPathFits, startControlServer, type EngineFileRequest } from './server.ts';
 
 let dir: string;
 let sockets: Socket[];
@@ -36,7 +36,7 @@ const executionId = '3f2b8c1e-5a4d-4e8b-9c1a-0d2e4f6a8b1c';
 function fakeControls() {
   const state = { paused: false, polls: 0, repoPages: [] as number[] };
   const logs = vi.fn((id: string, count: number) => (id === executionId ? ['one', 'two', 'three'].slice(-count) : []));
-  return { state, logs, controls: { poll: () => void state.polls++, setPaused: (paused: boolean) => void (state.paused = paused), logs, sessions: () => ({ sessions: [] }), events: (_id: string, _after: number, _limit: number): EventsReply | null => ({ events: [], next: 0, running: false, structured: true }), epic: (): EpicReply | null | Promise<EpicReply | null> => ({ stages: [], rounds: [], slices: [], slicesTruncated: false, threads: [], threadsTruncated: false, worktrees: [], branch: null, pr: null }), files: (): FilesReply | null | Promise<FilesReply | null> => ({ sections: [], total: null, truncated: false }), fileDiff: (_repo: string, _issue: number, _section: string, _path: string): FileDiffReply | null | Promise<FileDiffReply | null> => ({ rows: [{ sign: '@', text: '@@ -1 +1 @@' }], truncated: false, note: null }), availableRepos: (page: number) => (state.repoPages.push(page), Promise.resolve({ repos: [{ name: 'AshuLab/carrier', private: true, pushedAt: '2026-10-20T10:00:00Z' }], hasMore: page < 3 })), resumeEpic: () => Promise.resolve(), recoverEpic: () => Promise.resolve(), reload: () => {}, setWatchedRepos: (_repos: string[]): ConfigReply => ({ saved: {}, engine: 'applied' }), editBehavior: (_changes: Parameters<typeof editBehavior>[0]): ConfigReply => ({ saved: {}, engine: 'applied' }) } };
+  return { state, logs, controls: { poll: () => void state.polls++, setPaused: (paused: boolean) => void (state.paused = paused), logs, sessions: () => ({ sessions: [] }), events: (_id: string, _after: number, _limit: number): EventsReply | null => ({ events: [], next: 0, running: false, structured: true }), epic: (): EpicReply | null | Promise<EpicReply | null> => ({ stages: [], rounds: [], slices: [], slicesTruncated: false, threads: [], threadsTruncated: false, worktrees: [], branch: null, pr: null }), files: (): FilesReply | null | Promise<FilesReply | null> => ({ sections: [], total: null, truncated: false }), fileDiff: (_repo: string, _issue: number, _section: string, _path: string): FileDiffReply | null | Promise<FileDiffReply | null> => ({ rows: [{ sign: '@', text: '@@ -1 +1 @@' }], truncated: false, note: null }), availableRepos: (page: number) => (state.repoPages.push(page), Promise.resolve({ repos: [{ name: 'AshuLab/carrier', private: true, pushedAt: '2026-10-20T10:00:00Z' }], hasMore: page < 3 })), resumeEpic: () => Promise.resolve(), recoverEpic: () => Promise.resolve(), reload: () => {}, setWatchedRepos: (_repos: string[]): ConfigReply => ({ saved: {}, engine: 'applied' }), editBehavior: (_changes: Parameters<typeof editBehavior>[0]): ConfigReply => ({ saved: {}, engine: 'applied' }), editEngineFile: (_command: EngineFileRequest): ConfigReply => ({ saved: {}, engine: 'applied' }) } };
 }
 
 const stop = async () => {};
@@ -512,6 +512,12 @@ test('no request takes a status, a stage or a round, and each accepts exactly th
     recoverEpic: ['issue', 'repo'],
     setWatchedRepos: ['repos'],
     editBehavior: ['changes'],
+    editRole: ['changes', 'role'],
+    editRepoRole: ['fields', 'repo', 'role'],
+    editPersona: ['name', 'prompt', 'role'],
+    editFailover: ['first', 'role', 'second'],
+    setLeadReviewer: ['draft'],
+    setOrchestratorProfile: ['name'],
   });
   expect(Object.values(accepted).flat().filter((field) => ['status', 'stage', 'round', 'rounds'].includes(field))).toEqual([]);
 });
@@ -689,7 +695,7 @@ test.each([
 async function openConfig(reload: () => void) {
   const file = engineConfigPathOf(dir);
   writeFileSync(file, JSON.stringify(validEngineFile, null, 2));
-  const controls = { ...fakeControls().controls, setWatchedRepos: (repos: string[]) => withEngine(setWatchedRepos(repos, file, dir), reload), editBehavior: (changes: Parameters<typeof editBehavior>[0]) => withEngine(editBehavior(changes, file, dir), reload) };
+  const controls = { ...fakeControls().controls, setWatchedRepos: (repos: string[]) => withEngine(setWatchedRepos(repos, file, dir), reload), editBehavior: (changes: Parameters<typeof editBehavior>[0]) => withEngine(editBehavior(changes, file, dir), reload), editEngineFile: (command: EngineFileRequest) => withEngine(writeEngineConfig(command, file, dir), reload) };
   await open(undefined, controls);
   return { file, c: await client() };
 }
@@ -748,6 +754,71 @@ test.each([
   '{"id":5,"cmd":"editBehavior","changes":{"limits":{"maxReviews":"5"}}}',
   '{"id":5,"cmd":"editBehavior","changes":{"limits":{"idleMinutes":5}}}',
   '{"id":5,"cmd":"editBehavior"}',
+])('%s is a validation error', async (line) => {
+  const { c } = await openConfig(() => {});
+  expect(await c.ask(line)).toEqual({ id: 5, ok: false, error: 'invalid request', code: 'request.invalid', params: {} });
+});
+
+// the role requests of engine.json (the writing module's own tables are in src/config/role-edit.test.ts)
+test.each([
+  ['editRole', '"role":"author","changes":{"provider":"codex","model":"gpt-5","effort":null}', (file: any) => file.agents.author, { profile: 'author-bot', provider: 'codex', model: 'gpt-5' }],
+  ['editRepoRole', '"repo":"acme/web","role":"reviewer","fields":{"model":"qwen","persona":{"name":"Rex"}}', (file: any) => file.repos[1].agents.reviewer, { model: 'qwen', persona: { name: 'Rex' } }],
+  ['editPersona', '"role":"reviewer","name":"Ada","prompt":null', (file: any) => file.agents.reviewer.persona, { name: 'Ada' }],
+  ['editFailover', '"role":"author","first":{"provider":"codex","model":"g"},"second":null', (file: any) => file.failover.roles.author, [{ provider: 'codex', model: 'g' }]],
+  ['setLeadReviewer', '"draft":{"identity":{"kind":"gh"},"provider":"claude","model":"opus"}', (file: any) => file.agents.leadReviewer, { profile: 'reviewer-bot', provider: 'claude', model: 'opus' }],
+  ['setOrchestratorProfile', '"name":"author-bot"', (file: any) => file.orchestratorProfile, 'author-bot'],
+])('%s writes the file, keeping every key it does not touch, makes the engine run on it and answers saved and the engine', async (cmd, fields, read, expected) => {
+  const reload = vi.fn();
+  const { file, c } = await openConfig(reload);
+  const reply = (await c.ask(`{"id":5,"cmd":"${cmd}",${fields}}`)) as { id: number; ok: boolean; data: { engine: string } };
+  expect([reply.id, reply.ok, reply.data.engine]).toEqual([5, true, 'applied']);
+  const after = JSON.parse(readFileSync(file, 'utf8'));
+  expect(read(after)).toEqual(expected);
+  expect(Object.keys(after)).toEqual(Object.keys(validEngineFile));
+  expect(reload).toHaveBeenCalledTimes(1);
+});
+
+test('setLeadReviewer with draft null on a file with no lead reviewer answers saved and the engine runs on it', async () => {
+  const reload = vi.fn();
+  const { file, c } = await openConfig(reload);
+  const before = readFileSync(file, 'utf8');
+  expect(await c.ask('{"id":5,"cmd":"setLeadReviewer","draft":null}')).toEqual({ id: 5, ok: true, data: { saved: {}, engine: 'applied' } });
+  expect(readFileSync(file, 'utf8')).toBe(before);
+  expect(reload).toHaveBeenCalledTimes(1);
+});
+
+test.each([
+  ['editRole', '"role":"author","changes":{"provider":"nope"}', 'Provider “nope” is not an account of providers.json. Pick another one.', { path: 'agents.author.provider', problem: 'notAnAccount' }],
+  ['editRole', '"role":"leadReviewer","changes":{"model":"m"}', 'Lead reviewer has no entry in engine.json. Add it there first.', { path: 'agents.leadReviewer', problem: 'noEntry' }],
+  ['editRepoRole', '"repo":"x/y","role":"author","fields":null', 'x/y is no longer in the config file.', { path: 'repos', problem: 'notWatched' }],
+  ['editRepoRole', '"repo":"acme/web","role":"author","fields":{"profile":"ghost"}', 'Identity “ghost” is not declared in profiles. Pick another one.', { path: 'repos[1].agents.author.profile', problem: 'notDeclared' }],
+  ['editPersona', '"role":"author","name":"","prompt":null', 'The persona’s name cannot be empty. Leave it out instead.', { path: 'agents.author.persona.name', problem: 'empty' }],
+  ['editFailover', '"role":"author","first":null,"second":{"provider":"codex"}', 'Then needs a First step.', { path: 'failover.roles.author.1', problem: 'firstMissing' }],
+  ['editFailover', '"role":"author","first":{"provider":"claude","model":"m"},"second":null', 'First is the role’s own provider and model, so it would move nowhere.', { path: 'failover.roles.author.0', problem: 'stepOwnRole' }],
+  ['setLeadReviewer', '"draft":{"provider":"claude"}', 'The lead reviewer needs an identity, a model.', { path: 'agents.leadReviewer', problem: 'incomplete' }],
+  ['setOrchestratorProfile', '"name":"ghost"', expect.stringContaining('orchestratorProfile'), { path: 'orchestratorProfile', problem: 'invalid' }],
+])('%s with %s is refused with its words, code and params, no reload, and the file is as it was', async (cmd, fields, words, params) => {
+  const reload = vi.fn();
+  const { file, c } = await openConfig(reload);
+  const before = readFileSync(file, 'utf8');
+  expect(await c.ask(`{"id":5,"cmd":"${cmd}",${fields}}`)).toEqual({ id: 5, ok: false, error: words, code: 'config.problem', params });
+  expect(readFileSync(file, 'utf8')).toBe(before);
+  expect(reload).not.toHaveBeenCalled();
+});
+
+test.each([
+  '{"id":5,"cmd":"editRole","role":"author"}',
+  '{"id":5,"cmd":"editRole","role":"boss","changes":{}}',
+  '{"id":5,"cmd":"editRole","role":"author","changes":{"identity":{"kind":"forge"}}}',
+  '{"id":5,"cmd":"editRole","role":"author","changes":{"bots":["a"]}}',
+  '{"id":5,"cmd":"editRepoRole","repo":"nope","role":"author","fields":null}',
+  '{"id":5,"cmd":"editRepoRole","repo":"a/b","role":"author"}',
+  '{"id":5,"cmd":"editRepoRole","repo":"a/b","role":"author","fields":{"accounts":["a"]}}',
+  '{"id":5,"cmd":"editPersona","role":"author","name":"a"}',
+  '{"id":5,"cmd":"editFailover","role":"author","first":{"model":"m"},"second":null}',
+  '{"id":5,"cmd":"editFailover","role":"author","first":null,"second":null,"accounts":["a"]}',
+  '{"id":5,"cmd":"setLeadReviewer"}',
+  '{"id":5,"cmd":"setOrchestratorProfile","name":5}',
 ])('%s is a validation error', async (line) => {
   const { c } = await openConfig(() => {});
   expect(await c.ask(line)).toEqual({ id: 5, ok: false, error: 'invalid request', code: 'request.invalid', params: {} });

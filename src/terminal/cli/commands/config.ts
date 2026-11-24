@@ -8,7 +8,7 @@ import { providersRequests } from '../../../chat/providers-requests.ts';
 import { addAccountRequest, editAccountRequest, editChatSettingsRequest, projectRequests, removeAccountRequest, setAccountsRequest, setTextGeneratorRequest } from '../../../chat/server.ts';
 import { ConfigRefused } from '../../../config/engine-edit.ts';
 import { withEngine, writeEngineConfig } from '../../../control/config.ts';
-import { editBehaviorRequest, refused, setWatchedReposRequest } from '../../../control/server.ts';
+import { editBehaviorRequest, engineFileRequests, refused, setWatchedReposRequest } from '../../../control/server.ts';
 import { connectControl, ControlRefused, ControlUnreachable } from '../control-client.ts';
 
 /** The reply the socket would give, minus its `id`. */
@@ -29,6 +29,7 @@ const requests: Record<string, { schema: z.ZodType; socket: (folder: string) => 
   setWatchedRepos: { schema: setWatchedReposRequest, socket: engineSocket, run: (request, folder) => withEngine(writeEngineConfig(request, engineConfigPathOf(folder), folder)) },
   editBehavior: { schema: editBehaviorRequest, socket: engineSocket, run: (request, folder) => withEngine(writeEngineConfig(request, engineConfigPathOf(folder), folder)) },
 };
+for (const schema of engineFileRequests) requests[schema.shape.cmd.value] = { schema, socket: engineSocket, run: (request, folder) => withEngine(writeEngineConfig(request, engineConfigPathOf(folder), folder)) };
 // the nine requests that write projects.json and projectsFolder: the owner's code takes the fields, not the socket's `id` and `cmd`
 for (const schema of projectRequests) {
   const cmd = schema.shape.cmd.value;

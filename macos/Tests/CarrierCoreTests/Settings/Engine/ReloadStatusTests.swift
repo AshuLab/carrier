@@ -7,12 +7,6 @@ import Testing
     for _ in 0..<1000 where status.pending { try? await Task.sleep(for: .milliseconds(2)) }
 }
 
-private func config(_ json: String = #"{"repos":[]}"#) throws -> String {
-    let path = NSTemporaryDirectory() + "carrier-reload-\(UUID().uuidString).json"
-    try Data(json.utf8).write(to: URL(fileURLWithPath: path))
-    return path
-}
-
 /// An engine that answers `answers` in order, each of them when its gate opens; records the order it was asked in.
 private final class GatedEngine: @unchecked Sendable {
     private let lock = NSLock()
@@ -38,24 +32,14 @@ private final class GatedEngine: @unchecked Sendable {
     }
 }
 
-@MainActor @Test func aSaveIsFollowedByOneAskOfTheEngineAndTheAnswerIsKept() async throws {
+@MainActor @Test func anAskOfTheEngineKeepsItsAnswerAndSaysWhyItRefused() async throws {
     let engine = GatedEngine(answers: [.refused(.words("limits.maxReviews: bad"))])
     let status = ReloadStatus(reload: engine.reload)
-    let path = try config()
-    let result = saveConfig(path: path, unusable: "no", edit: { $0 }, reload: { MainActor.assumeIsolated { _ = status.ask() }; return nil })
-    #expect(result == .saved && status.pending)
+    _ = status.ask()
+    #expect(status.pending)
     await answered(status)
     #expect(engine.calls == 1 && status.outcome == .refused(.words("limits.maxReviews: bad")))
     #expect(status.words == "Saved, but Carrier kept its settings: limits.maxReviews: bad")
-}
-
-@MainActor @Test func aSaveThatWroteNothingAsksNothing() async throws {
-    let engine = GatedEngine(answers: [.applied])
-    let status = ReloadStatus(reload: engine.reload)
-    let result = saveConfig(path: NSTemporaryDirectory() + "carrier-missing-\(UUID().uuidString).json", unusable: "no", edit: { $0 }, reload: { MainActor.assumeIsolated { _ = status.ask() }; return nil })
-    #expect(result == .failed("no") && status.pending == false)
-    try await Task.sleep(for: .milliseconds(30))
-    #expect(engine.calls == 0 && status.outcome == nil)
 }
 
 @MainActor @Test func theAnswerToAnOlderSaveIsDroppedWhenANewerOneWasMade() async throws {

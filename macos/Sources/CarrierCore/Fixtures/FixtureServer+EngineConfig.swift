@@ -1,6 +1,6 @@
 import Foundation
 
-// `setWatchedRepos` and `editBehavior` as the real engine answers them (src/config/engine-edit.ts), against the fixture home's `engine.json`: the file is read again, the change applied to its raw
+// `setWatchedRepos` and `editBehavior` (and, below, the role requests) as the real engine answers them (src/config/engine-edit.ts), against the fixture home's `engine.json`: the file is read again, the change applied to its raw
 // JSON (every other key and every other repo's fields stay), checked with the words and kinds Node gives, and written only when all hold. The reply is `engine: "applied"`: there is no engine to
 // run on the file. A change that would make the whole file invalid in a way only the engine's full schema sees is not refused here.
 
@@ -70,5 +70,69 @@ extension FixtureServer {
             return Self.refused(id, "request.internal", "internal error")
         }
         return Self.answer(id, ["saved": saved, "engine": "applied"])
+    }
+}
+
+// `editRole`, `editRepoRole`, `editPersona`, `editFailover`, `setLeadReviewer` and `setOrchestratorProfile`: the fixture engine runs the same checks the app made before it asked for these (`saveGlobalRole` and the other
+// writers, which only it uses now and which Node's `config/role-edit.ts` repeats word for word) against the fixture home's `engine.json`, `providers.json` and `agent-forge.json`. What Node refuses is refused with
+// the same words; the code is `config.problem` with a key path of `(engine.json)`, the exact path and kind being the real engine's.
+
+extension FixtureServer {
+    func engineRolesReply(_ id: Int, _ request: [String: Any]) -> Data? {
+        let path = CarrierPlaces(folder: home).engineConfig
+        let accounts = declaredAccounts(providersJSON: try? Data(contentsOf: URL(fileURLWithPath: CarrierPlaces(folder: home).providers)))
+        let bots = forgeBots(registry: try? Data(contentsOf: URL(fileURLWithPath: home + "/agent-forge.json"))).names
+        let role = (request["role"] as? String).flatMap(AgentRole.init(rawValue:))
+        func step(_ value: Any?) -> FailoverStep? {
+            guard let step = value as? [String: Any], let provider = step["provider"] as? String else { return nil }
+            return FailoverStep(provider: provider, model: step["model"] as? String, effort: step["effort"] as? String)
+        }
+        func changes(_ wire: [String: Any]) -> [RoleChange] {
+            var found: [RoleChange] = []
+            if let identity = wire["identity"] as? [String: Any] { found.append(identity["kind"] as? String == "gh" ? .gh : .bot(identity["agent"] as? String ?? "")) }
+            if let provider = wire["provider"] as? String { found.append(.provider(provider)) }
+            if let model = wire["model"] as? String { found.append(.model(model)) }
+            if wire.keys.contains("effort") { found.append(.effort(wire["effort"] as? String)) }
+            return found
+        }
+        let result: RoleSave
+        switch request["cmd"] as? String {
+        case "editRole":
+            guard let role, let wire = request["changes"] as? [String: Any] else { return nil }
+            result = saveGlobalRole(changes(wire), role: role, path: path, accounts: accounts, bots: bots, reload: { .applied })
+        case "editRepoRole":
+            guard let role, let repo = request["repo"] as? String, request.keys.contains("fields") else { return nil }
+            let fields = (request["fields"] as? [String: Any]).map { wire in
+                let persona = (wire["persona"] as? [String: Any]).map { RolePersona(name: $0["name"] as? String, prompt: $0["prompt"] as? String) }
+                return RoleFields(profile: wire["profile"] as? String, provider: wire["provider"] as? String, model: wire["model"] as? String, effort: wire["effort"] as? String, persona: persona)
+            }
+            result = saveRepoRole(fields, role: role, repo: repo, path: path, accounts: accounts, reload: { .applied })
+        case "editPersona":
+            guard let role else { return nil }
+            result = saveGlobalPersona(name: request["name"] as? String, prompt: request["prompt"] as? String, role: role, path: path, reload: { .applied })
+        case "editFailover":
+            guard let role else { return nil }
+            result = saveGlobalFailover(first: step(request["first"]), second: step(request["second"]), role: role, path: path, accounts: accounts, reload: { .applied })
+        case "setLeadReviewer":
+            guard request.keys.contains("draft") else { return nil }
+            if let wire = request["draft"] as? [String: Any] {
+                var draft = LeadReviewerDraft()
+                changes(wire).forEach { draft.apply($0) }
+                result = turnLeadReviewerOn(draft, path: path, accounts: accounts, bots: bots, reload: { .applied })
+            } else {
+                result = turnLeadReviewerOff(path: path, reload: { .applied })
+            }
+        case "setOrchestratorProfile":
+            guard request.keys.contains("name") else { return nil }
+            let url = URL(fileURLWithPath: path)
+            guard var file = (try? Data(contentsOf: url)).flatMap({ try? JSONSerialization.jsonObject(with: $0) }) as? [String: Any] else { result = .failed("\(path) could not be read, so it was not changed"); break }
+            file["orchestratorProfile"] = request["name"] as? String
+            let data = try? JSONSerialization.data(withJSONObject: file, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
+            result = data.map { (try? $0.write(to: url, options: .atomic)) != nil } == true ? .saved : .failed("internal error")
+        default:
+            return nil
+        }
+        guard let words = result.problem else { return Self.answer(id, ["saved": [String: Any](), "engine": "applied"]) }
+        return Self.refused(id, "config.problem", words, ["path": .string("(engine.json)"), "problem": .string("invalid")])
     }
 }

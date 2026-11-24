@@ -47,6 +47,29 @@ export const editBehaviorRequest = z.strictObject({
     limits: z.strictObject({ maxConcurrentEpics: whole.optional(), maxReviews: whole.optional(), maxExecutionRetries: whole.optional(), maxExecutionHours: z.union([z.literal('unlimited'), whole]).optional(), githubCallTimeoutSeconds: whole.optional() }).optional(),
   }),
 });
+// The requests that change the roles of `engine.json`: what the Agents page, a repo's role screens and the Engine page send. The words of a field the file refuses are the handler's, so a limit here is only a bound on the line.
+const roleName = z.enum(['author', 'reviewer', 'leadReviewer']);
+const field = z.string().max(200);
+const identity = z.union([z.strictObject({ kind: z.literal('forge'), agent: field }), z.strictObject({ kind: z.literal('gh') })]);
+const roleChanges = z.strictObject({ identity: identity.optional(), provider: field.optional(), model: field.optional(), effort: field.nullable().optional() });
+const personaName = field;
+const personaPrompt = z.string().max(10_000);
+const failoverStep = z.strictObject({ provider: field, model: field.optional(), effort: field.optional() }).nullable();
+export const engineFileRequests = [
+  z.strictObject({ id, cmd: z.literal('editRole'), role: roleName, changes: roleChanges }),
+  z.strictObject({
+    id,
+    cmd: z.literal('editRepoRole'),
+    repo,
+    role: roleName,
+    fields: z.strictObject({ profile: field.optional(), provider: field.optional(), model: field.optional(), effort: field.optional(), persona: z.strictObject({ name: personaName.optional(), prompt: personaPrompt.optional() }).optional() }).nullable(),
+  }),
+  z.strictObject({ id, cmd: z.literal('editPersona'), role: roleName, name: personaName.nullable(), prompt: personaPrompt.nullable() }),
+  z.strictObject({ id, cmd: z.literal('editFailover'), role: roleName, first: failoverStep, second: failoverStep }),
+  z.strictObject({ id, cmd: z.literal('setLeadReviewer'), draft: roleChanges.nullable() }),
+  z.strictObject({ id, cmd: z.literal('setOrchestratorProfile'), name: field.nullable() }),
+] as const;
+type EngineFileCmd = (typeof engineFileRequests)[number]['shape']['cmd']['value'];
 // An allowlist: any other command, field or type is rejected before anything acts on it.
 export const request = z.union([
   z.strictObject({ id, cmd: z.enum(['snapshot', 'pause', 'resume', 'checkNow', 'stop']) }),
@@ -62,6 +85,7 @@ export const request = z.union([
   z.strictObject({ id, cmd: z.literal('recoverEpic'), repo, issue }),
   setWatchedReposRequest,
   editBehaviorRequest,
+  ...engineFileRequests,
 ]);
 
 // src/control and dist/control both sit two folders under the package root.
@@ -104,10 +128,15 @@ export type Controls = {
   setWatchedRepos(repos: string[]): ConfigReply;
   /** Writes the Behavior values of `engine.json` and makes the engine run on the file; throws a `ConfigRefused`, the file left as it was, for a value the engine would refuse. */
   editBehavior(changes: z.infer<typeof editBehaviorRequest>['changes']): ConfigReply;
+  /** Writes one of the role requests of `engine.json` (roles, a repo's role, persona, failover, lead reviewer, orchestrator profile) and makes the engine run on the file; throws a `ConfigRefused`, the file left as it was, for what the engine would refuse. */
+  editEngineFile(command: EngineFileRequest): ConfigReply;
 };
 
+export type EngineFileRequest = z.infer<(typeof engineFileRequests)[number]>;
+const isEngineFile = (command: z.infer<typeof request>): command is EngineFileRequest => engineFileRequests.some((schema) => schema.shape.cmd.value === command.cmd);
+
 /** pause, resume, checkNow and tail. Like the panel's keys, a check is started and not waited for: its failure is the engine's to report. */
-function control(command: Exclude<z.infer<typeof request>, { cmd: 'snapshot' | 'stop' | 'setWatchedRepos' | 'editBehavior' | Capability }>, controls: Controls): Reply {
+function control(command: Exclude<z.infer<typeof request>, { cmd: 'snapshot' | 'stop' | 'setWatchedRepos' | 'editBehavior' | EngineFileCmd | Capability }>, controls: Controls): Reply {
   try {
     if (command.cmd === 'tail') return { id: command.id, ok: true, data: controls.logs(command.executionId, command.lines) };
     if (command.cmd === 'checkNow') void Promise.resolve(controls.poll()).catch((error) => log.error('check now failed', error));
@@ -246,6 +275,16 @@ function answer(line: string, snapshot: () => unknown, controls: Controls, stopA
     const command = parsed.data;
     try {
       return { id: command.id, ok: true, data: command.cmd === 'setWatchedRepos' ? controls.setWatchedRepos(command.repos) : controls.editBehavior(command.changes) };
+    } catch (error) {
+      if (error instanceof ConfigRefused) return refused(command.id, error.code, error.message, error.params);
+      log.error(`${command.cmd} failed`, error);
+      return refused(command.id, 'request.internal', 'internal error');
+    }
+  }
+  if (isEngineFile(parsed.data)) {
+    const command = parsed.data;
+    try {
+      return { id: command.id, ok: true, data: controls.editEngineFile(command) };
     } catch (error) {
       if (error instanceof ConfigRefused) return refused(command.id, error.code, error.message, error.params);
       log.error(`${command.cmd} failed`, error);

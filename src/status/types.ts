@@ -1,4 +1,5 @@
 import type { Labels } from '../orchestration/github.ts';
+import type { TextParams } from '../orchestration/text-params.ts';
 import type { Slot } from '../storage/executions.ts';
 import type { needsHumanKinds, unansweredReasons } from '../storage/schema.ts';
 
@@ -38,6 +39,9 @@ export type PanelEpic = {
   prUrl: string | null;
   lastError: string | null;
   needsHumanReason: string | null;
+  /** The text code of the reason and its parameters; absent when the epic has none, and on a reason stored before the codes, which has its words only. */
+  needsHumanCode?: string;
+  needsHumanParams?: TextParams;
   /** Slices closed out of the total as GitHub reports them; null until the first read or when GitHub sends none. */
   slices: { done: number; total: number } | null;
   /** The latest execution of the epic: where its agent's output is. */

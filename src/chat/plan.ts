@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { repoNamePattern } from '../config/schema.ts';
+import type { TextParams } from '../orchestration/text-params.ts';
 import { projectNamePattern } from './projects.ts';
 
 // Never a leading dash (it would be an option of git) nor whitespace.
@@ -29,5 +30,5 @@ export type Plan = z.infer<typeof plan>;
 export type Step = 'clone' | 'fetch' | 'project' | 'worktree' | 'checkout' | 'action' | 'agent' | 'message';
 /** The moments a project's actions run at (ADR 0039). */
 export type ActionWhen = 'afterClone' | 'newWorktree';
-/** One transition of a step of a session's preparation. `detail` is the reason in words, never git's raw stderr. An `action` step names its action (`action`, cut) and the moment it runs at (`when`): each action is a step of its own. */
-export type StepEvent = { kind: 'step'; step: Step; status: 'running' | 'done' | 'failed'; detail?: string; action?: string; when?: ActionWhen };
+/** One transition of a step of a session's preparation. `detail` is the reason in words, never git's raw stderr, and `code` and `params` say it for a front-end. An `action` step names its action (`action`, cut) and the moment it runs at (`when`): each action is a step of its own. */
+export type StepEvent = { kind: 'step'; step: Step; status: 'running' | 'done' | 'failed'; detail?: string; /** The code and parameters of `detail`; a step stored before they existed has neither. */ code?: string; params?: TextParams; action?: string; when?: ActionWhen };

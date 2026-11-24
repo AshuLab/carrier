@@ -32,6 +32,10 @@ Adding a `chat.json` field: [`src/config/AGENTS.md`](../config/AGENTS.md#adding-
   `ChatRefused(code, words, params)` is every refusal of the host: the code (`textCode`, `<area>.<what>`) is a string literal, the params are strings and numbers, and `pnpm typecheck` refuses one without a code.
   The reply of the socket is `{ id, ok: false, error, code, params }`; the codes are listed with an example of their params in `macos/Tests/Fixtures/text-codes.json` (`UPDATE_FIXTURES=1 pnpm test` rewrites it, `text-codes.test.ts` checks it against the sources).
   A helper that computes a reason elsewhere returns a `Reason` (`code`, `words`, `params`) and its caller throws `refusedFor(reason)`.
+  The other texts the host sends keep their words and gain a sibling `code` and `params`: a notice (`text`), a preparation step (`detail`), a clone's `error`, a cleanup's `skipped.reason` and a provider's `problem`.
+  A step that fails on a `ChatRefused` keeps its code and params.
+  They are stored with the event, and an event stored before them reads back with its words and neither.
+  The scanner of `text-codes.test.ts` finds each by the literal `code: '<code>'` beside a literal `params: { ... }`.
   Codex's `usageLimitExceeded` (not retried) is an `error` with `reason: 'usage_limit'` before `turn_end`; `resetsAt` comes from `account/rateLimits/read`, else `resetText`.
 - `folder.ts`: the check of a session's folder (never inside `<folder>/engine/`), `checkProjectsFolder` and `checkProjectFolder` (shared table: `macos/Tests/Fixtures/project-folder.json`).
 - `projects.ts`: what the chat brings onto the Mac with the person's own `gh` login, under the projects folder (ADR 0015).

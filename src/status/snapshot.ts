@@ -136,6 +136,7 @@ export function buildSnapshot(
         prUrl: e.prNumber === null ? null : `https://github.com/${e.repo}/pull/${e.prNumber}`,
         lastError: e.lastError,
         needsHumanReason: e.needsHumanReason,
+        ...(e.needsHumanCode !== null && { needsHumanCode: e.needsHumanCode, needsHumanParams: e.needsHumanParams ?? {} }),
         slices: slices(e.repo, e.issue),
         executionId: lastExecution(e.id),
         title: e.title,

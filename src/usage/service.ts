@@ -77,7 +77,7 @@ export function createUsage({ ports, history: historyPorts, db, folder, agents, 
       try {
         overrides.set(stored);
       } catch (error) {
-        if (error instanceof PriceOverrideInvalid) throw new ChatRefused('usage.priceInvalid', error.message);
+        if (error instanceof PriceOverrideInvalid) throw new ChatRefused(error.code, error.message, error.params);
         throw error;
       }
       return { model: request.model, action: request.action };

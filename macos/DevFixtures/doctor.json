@@ -1,10 +1,46 @@
 [
   {
-    "name": "git",
+    "name": "control socket path fits",
+    "status": "warn",
+    "detail": "/Users/dev/carrier-carrier-carrier-carrier-carrier-carrier-carrier-carrier-carrier-/engine/state/control.sock is 109 bytes and a socket path holds 103, so Carrier starts without its control socket",
+    "detailCode": "doctor.socketPathTooLong",
+    "detailParams": {
+      "path": "/Users/dev/carrier-carrier-carrier-carrier-carrier-carrier-carrier-carrier-carrier-/engine/state/control.sock",
+      "bytes": 109,
+      "max": 103
+    },
+    "fix": "move the Carrier folder to a shorter path (CARRIER_HOME, at most 77 bytes)",
+    "fixCode": "doctor.fix.socketPath",
+    "fixParams": {
+      "max": 77
+    }
+  },
+  {
+    "name": "git installed",
     "status": "ok"
   },
   {
-    "name": "gh",
+    "name": "gh installed",
+    "status": "ok"
+  },
+  {
+    "name": "claude installed",
+    "status": "ok"
+  },
+  {
+    "name": "codex installed",
+    "status": "ok"
+  },
+  {
+    "name": "agent-forge installed",
+    "status": "ok"
+  },
+  {
+    "name": "claude provider claude is logged in",
+    "status": "ok"
+  },
+  {
+    "name": "codex provider codex is logged in",
     "status": "ok"
   },
   {
@@ -36,7 +72,7 @@
     "status": "ok",
     "repo": "acme/web",
     "profiles": [
-      "acme-author"
+      "acme-gh"
     ]
   },
   {
@@ -44,7 +80,7 @@
     "status": "ok",
     "repo": "acme/web",
     "profiles": [
-      "acme-author"
+      "acme-gh"
     ]
   },
   {
@@ -58,8 +94,16 @@
   {
     "name": "forge agent acme-reviewer can mint a token for acme/api",
     "status": "fail",
-    "detail": "the GitHub App is not installed on acme/api",
-    "fix": "install the acme-reviewer app on acme/api, then run carrier doctor again",
+    "detail": "acme-reviewer has no installations on acme/api",
+    "detailCode": "doctor.mintFailed",
+    "detailParams": {
+      "error": "acme-reviewer has no installations on acme/api"
+    },
+    "fix": "install the GitHub App of that agent on acme",
+    "fixCode": "doctor.fix.installApp",
+    "fixParams": {
+      "owner": "acme"
+    },
     "repo": "acme/api",
     "profiles": [
       "acme-reviewer"
@@ -78,17 +122,24 @@
     "status": "ok",
     "repo": "acme/api",
     "profiles": [
-      "acme-author"
+      "acme-gh"
     ]
   },
   {
     "name": "acme/api has the Solve labels",
     "status": "fail",
     "detail": "missing solve:epic, solve:epic:ready",
+    "detailCode": "doctor.labelsMissing",
+    "detailParams": {
+      "labels": "solve:epic, solve:epic:ready",
+      "count": 2
+    },
     "fix": "run solve:setup in the repo, it creates them",
+    "fixCode": "doctor.fix.solveSetup",
+    "fixParams": {},
     "repo": "acme/api",
     "profiles": [
-      "acme-author"
+      "acme-gh"
     ]
   },
   {
@@ -119,10 +170,157 @@
     "name": "your gh login can read acme/a-really-long-repository-name-for-the-sidebar",
     "status": "fail",
     "detail": "Not Found",
-    "fix": "check the repo name and that your gh login can see it",
+    "detailCode": "doctor.readFailed",
+    "detailParams": {
+      "error": "Not Found"
+    },
+    "repo": "acme/a-really-long-repository-name-for-the-sidebar",
+    "profiles": [
+      "acme-gh"
+    ]
+  },
+  {
+    "name": "acme/web author can use the skill ship",
+    "status": "ok",
+    "repo": "acme/web",
+    "profiles": [
+      "acme-author"
+    ]
+  },
+  {
+    "name": "acme/web author can use the skill code-resolve",
+    "status": "ok",
+    "repo": "acme/web",
+    "profiles": [
+      "acme-author"
+    ]
+  },
+  {
+    "name": "acme/web reviewer can use the skill code-review",
+    "status": "ok",
+    "repo": "acme/web",
+    "profiles": [
+      "acme-reviewer"
+    ]
+  },
+  {
+    "name": "acme/web reviewer can use the skill code-post",
+    "status": "ok",
+    "repo": "acme/web",
+    "profiles": [
+      "acme-reviewer"
+    ]
+  },
+  {
+    "name": "acme/web lead can use the skill code-review",
+    "status": "ok",
+    "repo": "acme/web",
+    "profiles": [
+      "acme-lead"
+    ]
+  },
+  {
+    "name": "acme/web lead can use the skill code-post",
+    "status": "ok",
+    "repo": "acme/web",
+    "profiles": [
+      "acme-lead"
+    ]
+  },
+  {
+    "name": "acme/api author can use the skill ship",
+    "status": "ok",
+    "repo": "acme/api",
+    "profiles": [
+      "acme-author"
+    ]
+  },
+  {
+    "name": "acme/api author can use the skill code-resolve",
+    "status": "ok",
+    "repo": "acme/api",
+    "profiles": [
+      "acme-author"
+    ]
+  },
+  {
+    "name": "acme/api reviewer can use the skill code-review",
+    "status": "ok",
+    "repo": "acme/api",
+    "profiles": [
+      "acme-reviewer"
+    ]
+  },
+  {
+    "name": "acme/api reviewer can use the skill code-post",
+    "status": "ok",
+    "repo": "acme/api",
+    "profiles": [
+      "acme-reviewer"
+    ]
+  },
+  {
+    "name": "acme/api lead can use the skill code-review",
+    "status": "ok",
+    "repo": "acme/api",
+    "profiles": [
+      "acme-lead"
+    ]
+  },
+  {
+    "name": "acme/api lead can use the skill code-post",
+    "status": "ok",
+    "repo": "acme/api",
+    "profiles": [
+      "acme-lead"
+    ]
+  },
+  {
+    "name": "acme/a-really-long-repository-name-for-the-sidebar author can use the skill ship",
+    "status": "ok",
     "repo": "acme/a-really-long-repository-name-for-the-sidebar",
     "profiles": [
       "acme-author"
+    ]
+  },
+  {
+    "name": "acme/a-really-long-repository-name-for-the-sidebar author can use the skill code-resolve",
+    "status": "ok",
+    "repo": "acme/a-really-long-repository-name-for-the-sidebar",
+    "profiles": [
+      "acme-author"
+    ]
+  },
+  {
+    "name": "acme/a-really-long-repository-name-for-the-sidebar reviewer can use the skill code-review",
+    "status": "ok",
+    "repo": "acme/a-really-long-repository-name-for-the-sidebar",
+    "profiles": [
+      "acme-reviewer"
+    ]
+  },
+  {
+    "name": "acme/a-really-long-repository-name-for-the-sidebar reviewer can use the skill code-post",
+    "status": "ok",
+    "repo": "acme/a-really-long-repository-name-for-the-sidebar",
+    "profiles": [
+      "acme-reviewer"
+    ]
+  },
+  {
+    "name": "acme/a-really-long-repository-name-for-the-sidebar lead can use the skill code-review",
+    "status": "ok",
+    "repo": "acme/a-really-long-repository-name-for-the-sidebar",
+    "profiles": [
+      "acme-lead"
+    ]
+  },
+  {
+    "name": "acme/a-really-long-repository-name-for-the-sidebar lead can use the skill code-post",
+    "status": "ok",
+    "repo": "acme/a-really-long-repository-name-for-the-sidebar",
+    "profiles": [
+      "acme-lead"
     ]
   }
 ]

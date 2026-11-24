@@ -23,6 +23,7 @@ import type { Git } from './git.ts';
 import { type ActionWhen, newProjectKind, type Plan, type Step, type StepEvent } from './plan.ts';
 import { realShell, type Shell } from './shell.ts';
 import { redact } from '../logging/redact.ts';
+import type { TextParams } from '../orchestration/text-params.ts';
 import { ChatRefused, refusedFor, type Reason, type BackgroundTask, type ChatChoice, type ChatCommand, type ChatConversation, type ChatEvent, type ChatOption, type ChatQuestion, type ChatRunner } from './runner.ts';
 import { clean } from '../execution/events.ts';
 import { chatEvents, chatTurns, sessions } from './schema.ts';
@@ -277,7 +278,7 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
         await restoreWorktree(git, worktreeOf(found));
       } catch (error) {
         if (error instanceof ChatRefused === false) log.error('bringing back a worktree failed', error);
-        failStep(found.id, 'worktree', error instanceof ChatRefused ? error.message : 'The worktree could not be brought back');
+        failStep(found.id, 'worktree', refusalOr(error, { code: 'session.step.worktreeNotBack', words: 'The worktree could not be brought back', params: {} }));
         throw error;
       }
       stepEvent(found.id, 'worktree', 'done');
@@ -515,21 +516,24 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
   const restoring = new Map<string, { abort: AbortController; done: Promise<void> }>();
   // Sessions told that `projects.json` did not match, so a retry, a second moment or another restore does not say it again: a preparation forgets it when it ends, a restore once the file matched.
   const told = new Set<string>();
-  const stepEvent = (sessionId: string, step: Step, status: StepEvent['status'], detail?: string, action?: Pick<StepEvent, 'action' | 'when'>) => store(sessionId, { kind: 'step', step, status, ...(detail !== undefined && { detail }), ...action });
+  const stepEvent = (sessionId: string, step: Step, status: StepEvent['status'], detail?: Reason, action?: Pick<StepEvent, 'action' | 'when'>) =>
+    store(sessionId, { kind: 'step', step, status, ...(detail !== undefined && { detail: detail.words, code: detail.code, params: detail.params ?? {} }), ...action });
+  /** What a step or a notice says of a failure: a refusal's own code, words and parameters, else the fallback. */
+  const refusalOr = (error: unknown, fallback: Reason): Reason => (error instanceof ChatRefused ? { code: error.code, words: error.message, params: error.params } : fallback);
   /** How the last event of a step left it, undefined when the step never ran. */
   const lastStatus = (sessionId: string, step: Step) => {
     const events = db.select().from(chatEvents).where(and(eq(chatEvents.sessionId, sessionId), eq(chatEvents.kind, 'step'))).orderBy(desc(chatEvents.id)).all();
     return events.find((event) => event.data.step === step)?.data.status as StepEvent['status'] | undefined;
   };
   /** Stops a preparation at a step: the session is idle, the plan stays and the event says why. */
-  const failStep = (sessionId: string, step: Step, detail: string, action?: Pick<StepEvent, 'action' | 'when'>) => {
+  const failStep = (sessionId: string, step: Step, detail: Reason, action?: Pick<StepEvent, 'action' | 'when'>) => {
     stepEvent(sessionId, step, 'failed', detail, action);
     db.update(sessions).set({ state: 'idle', lastActiveAt: clock.now() }).where(eq(sessions.id, sessionId)).run();
   };
   // A host that stopped mid-preparation left sessions whose last step is still running: it comes back failed as interrupted.
   for (const { id: sessionId } of db.select({ id: sessions.id }).from(sessions).where(isNotNull(sessions.plan)).all()) {
     const last = db.select().from(chatEvents).where(and(eq(chatEvents.sessionId, sessionId), eq(chatEvents.kind, 'step'))).orderBy(desc(chatEvents.id)).limit(1).get();
-    if (last?.data.status === 'running') stepEvent(sessionId, last.data.step as Step, 'failed', 'Carrier stopped while this step was running');
+    if (last?.data.status === 'running') stepEvent(sessionId, last.data.step as Step, 'failed', { code: 'session.step.interrupted', words: 'Carrier stopped while this step was running', params: {} });
     db.update(sessions).set({ state: 'idle' }).where(and(eq(sessions.id, sessionId), eq(sessions.state, 'preparing'))).run();
   }
 
@@ -550,7 +554,7 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
       live.awaitingAnswer = false;
       if (event.kind === 'error' || (event.kind === 'turn_end' && event.outcome === 'error')) {
         store(sessionId, event);
-        failStep(sessionId, 'message', 'The agent ended with an error before it answered');
+        failStep(sessionId, 'message', { code: 'session.step.agentErrored', words: 'The agent ended with an error before it answered', params: {} });
         live.turn = undefined;
         live.state = 'idle';
         close({ sessionId }).catch((error) => log.error('closing an agent that failed its first answer failed', error));
@@ -793,7 +797,9 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
     });
     // A conversation without the MCP stays usable; the person is told.
     if (mcp !== undefined && (mcp.url() === undefined || conversation.mcpProblem !== undefined)) {
-      store(sessionId, { kind: 'notice', text: conversation.mcpProblem === undefined ? "Carrier's own tools are not available in this session: the host could not start them." : `The agent could not use Carrier's own tools (${conversation.mcpProblem}), so it works without them.` });
+      store(sessionId, conversation.mcpProblem === undefined
+        ? { kind: 'notice', text: "Carrier's own tools are not available in this session: the host could not start them.", code: 'session.notice.mcpNotStarted', params: {} }
+        : { kind: 'notice', text: `The agent could not use Carrier's own tools (${conversation.mcpProblem}), so it works without them.`, code: 'session.notice.mcpNotUsed', params: { problem: conversation.mcpProblem } });
     }
     armIdle(sessionId, live);
     onLiveChange();
@@ -819,27 +825,27 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
     const fresh = before.fetchedAt !== null && clock.now() - before.fetchedAt < FETCH_FRESH_MS;
     if (branch.startsWith('origin/') || before.branches.some((listed) => listed.name === remote) === false || fresh) return 'remote';
     stepEvent(sessionId, 'fetch', 'running');
-    let why: string;
+    let why: Reason;
     let known = true; // whether `origin/<branch>` is still there to count against
     try {
       const after = await fetchFolder(git, folder, { signal });
       stepEvent(sessionId, 'fetch', 'done');
       if (after.branches.some((listed) => listed.name === remote)) return 'remote';
-      why = `${remote} is no longer on origin`;
+      why = { code: 'session.fetch.remoteGone', words: `${remote} is no longer on origin`, params: { remote } };
       known = false;
     } catch (error) {
       if (signal.aborted) return 'remote'; // the person left: the preparation ends at the next check, with no fallback to record
       if (error instanceof ChatRefused === false) log.error('fetching for a new worktree failed', error);
       stepEvent(sessionId, 'fetch', 'done');
-      why = error instanceof ChatRefused ? error.message : 'The fetch of origin failed';
+      why = refusalOr(error, { code: 'session.fetch.failed', words: 'The fetch of origin failed', params: {} });
     }
     if (before.branches.some((listed) => listed.name === branch && listed.remote === false) === false) {
-      if (known) store(sessionId, { kind: 'notice', text: `${why}, so this worktree started from the copy of ${remote} the last fetch left.` });
+      if (known) store(sessionId, { kind: 'notice', text: `${why.words}, so this worktree started from the copy of ${remote} the last fetch left.`, code: 'session.notice.startedFromFetched', params: { remote, reason: why.words, reasonCode: why.code } });
       return 'remote';
     }
     const counted = known ? await git.run(folder, ['rev-list', '--count', `refs/heads/${branch}..refs/remotes/${remote}`]) : undefined;
     const behind = counted?.ok === true ? Number.parseInt(counted.out, 10) : 0;
-    store(sessionId, { kind: 'notice', text: `${why}, so this worktree started from the local branch ${branch}${behind > 0 ? `, which is ${behind} ${behind === 1 ? 'commit' : 'commits'} behind ${remote}` : ''}.` });
+    store(sessionId, { kind: 'notice', text: `${why.words}, so this worktree started from the local branch ${branch}${behind > 0 ? `, which is ${behind} ${behind === 1 ? 'commit' : 'commits'} behind ${remote}` : ''}.`, code: 'session.notice.startedFromLocal', params: { branch, remote, behind, reason: why.words, reasonCode: why.code } });
     return 'local';
   }
 
@@ -872,7 +878,7 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
       return folder;
     } catch (error) {
       if (error instanceof ChatRefused === false) log.error(`preparing a session failed at ${step}`, error);
-      failStep(sessionId, step, error instanceof ChatRefused ? error.message : `The ${step} could not be done`);
+      failStep(sessionId, step, refusalOr(error, { code: 'session.step.couldNotBeDone', words: `The ${step} could not be done`, params: { step } }));
     }
   }
 
@@ -887,7 +893,7 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
       return true;
     } catch (error) {
       if (error instanceof ChatRefused === false) log.error('preparing a session failed at project', error);
-      failStep(sessionId, 'project', error instanceof ChatRefused ? error.message : 'The project could not be made');
+      failStep(sessionId, 'project', refusalOr(error, { code: 'session.step.projectNotMade', words: 'The project could not be made', params: {} }));
       return false;
     }
   }
@@ -903,7 +909,7 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
       return true;
     } catch (error) {
       if (error instanceof ChatRefused === false) log.error(`preparing a session failed at ${step}`, error);
-      failStep(sessionId, step, error instanceof ChatRefused ? error.message : `The ${step} could not be done`);
+      failStep(sessionId, step, refusalOr(error, { code: 'session.step.couldNotBeDone', words: `The ${step} could not be done`, params: { step } }));
       return false;
     } finally {
       progress.delete(sessionId);
@@ -925,7 +931,8 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
       if (written.ok === false) throw new ChatRefused('project.fileInvalid', `projects.json ${written.errors[0]!.path} ${written.errors[0]!.message}`, { path: written.errors[0]!.path, problem: written.errors[0]!.message });
     } catch (error) {
       if (error instanceof ChatRefused === false) log.error('registering the project of a session failed', error, { folder });
-      store(sessionId, { kind: 'notice', text: `${basename(folder)} was not added to your projects: ${error instanceof ChatRefused ? error.message : 'projects.json could not be written'}.` });
+      const why = refusalOr(error, { code: 'project.fileNotWritten', words: 'projects.json could not be written', params: {} });
+      store(sessionId, { kind: 'notice', text: `${basename(folder)} was not added to your projects: ${why.words}.`, code: 'session.notice.projectNotAdded', params: { folder: basename(folder), reason: why.words, reasonCode: why.code } });
     }
   }
 
@@ -939,7 +946,7 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
   async function runActions(sessionId: string, file: ReturnType<typeof readProjectsFile>, base: string, when: ActionWhen, folder: string, signal: AbortSignal, after = 0): Promise<boolean> {
     if (file.ok === false) {
       // a notice once a preparation: the file's problem, and that an action that would have run did not
-      if (told.has(sessionId) === false) store(sessionId, { kind: 'notice', text: `This project's actions did not run: projects.json ${file.errors[0]!.path} ${file.errors[0]!.message}.` });
+      if (told.has(sessionId) === false) store(sessionId, { kind: 'notice', text: `This project's actions did not run: projects.json ${file.errors[0]!.path} ${file.errors[0]!.message}.`, code: 'session.notice.actionsNotRun', params: { path: file.errors[0]!.path, problem: file.errors[0]!.message } });
       told.add(sessionId);
       return true;
     }
@@ -958,13 +965,16 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
       }
       if (signal.aborted) return false; // the person left: the session goes with its steps
       const end = redact(result.output).trim().slice(-chatCaps.error);
-      const why = `${label.action} failed${result.code === null ? '' : ` with exit code ${result.code}`}${end === '' ? '' : `: ${end}`}`;
+      const words = `${label.action} failed${result.code === null ? '' : ` with exit code ${result.code}`}${end === '' ? '' : `: ${end}`}`;
+      const why: Reason = result.code === null
+        ? { code: 'session.action.failed', words, params: { action: label.action, output: end } }
+        : { code: 'session.action.failedWithCode', words, params: { action: label.action, exitCode: result.code, output: end } };
       if (action.onFail === 'stop') {
         failStep(sessionId, 'action', why, label);
         return false;
       }
       stepEvent(sessionId, 'action', 'done', undefined, label);
-      store(sessionId, { kind: 'notice', text: `${why}. The session went on without it.` });
+      store(sessionId, { kind: 'notice', text: `${why.words}. The session went on without it.`, code: 'session.notice.actionWentOn', params: { reason: why.words, reasonCode: why.code } });
     }
     return true;
   }
@@ -991,7 +1001,7 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
         revoke(issued.invocationId);
         await conversation?.close().catch((closing) => log.error('closing a refused conversation failed', closing));
         if (error instanceof ChatRefused === false) log.error('preparing a session failed at the agent', error);
-        return failStep(sessionId, 'agent', error instanceof ChatRefused ? error.message : 'The agent could not be started');
+        return failStep(sessionId, 'agent', refusalOr(error, { code: 'session.step.agentNotStarted', words: 'The agent could not be started', params: {} }));
       }
       if (signal.aborted) {
         revoke(issued.invocationId);
@@ -1014,7 +1024,7 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
         live.awaitingAnswer = false;
         live.turn = undefined;
         live.state = 'idle';
-        failStep(sessionId, 'message', 'The message could not be delivered to the agent');
+        failStep(sessionId, 'message', { code: 'session.step.messageNotDelivered', words: 'The message could not be delivered to the agent', params: {} });
         await close({ sessionId });
       }
     } catch (error) {
@@ -1314,7 +1324,7 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
       db.update(sessions).set({ harness: launch.harness, agent: chosen.name, options, nativeId: conversation.nativeId ?? null, lastActiveAt: clock.now() }).where(eq(sessions.id, sessionId)).run();
       attach(sessionId, conversation, issued.invocationId, 'idle', { record: old === undefined });
       const toModel = conversation.options.find((option) => option.id === 'model')?.current;
-      store(sessionId, { kind: 'notice', text: `The agent changed from ${current.agent} to ${chosen.name}. ${chosen.name} goes on from a selection of the messages above and can read the rest; reasoning and tool results did not carry over.`, switched: { from: current.agent, to: chosen.name, ...(fromModel != null && { fromModel }), ...(toModel !== undefined && { toModel }) } });
+      store(sessionId, { kind: 'notice', text: `The agent changed from ${current.agent} to ${chosen.name}. ${chosen.name} goes on from a selection of the messages above and can read the rest; reasoning and tool results did not carry over.`, code: 'session.notice.agentSwitched', params: { from: current.agent, to: chosen.name }, switched: { from: current.agent, to: chosen.name, ...(fromModel != null && { fromModel }), ...(toModel !== undefined && { toModel }) } });
       if (old !== undefined) {
         revoke(old.invocationId);
         await old.conversation.close().catch((closing) => log.error('closing the conversation of the agent that was switched away from failed', closing));
@@ -1542,7 +1552,7 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
       attach(sessionId, conversation, issued.invocationId);
       if (conversation.startedOver) {
         // The dead id goes: with it kept, every wake that closes before a first message would try it again and say this again. The notice keeps it.
-        store(sessionId, { kind: 'notice', text: 'The agent could not find this conversation, so this is a new one in the same folder: it does not remember what is above.', ...(current.nativeId !== null && { lostNativeId: current.nativeId }) });
+        store(sessionId, { kind: 'notice', text: 'The agent could not find this conversation, so this is a new one in the same folder: it does not remember what is above.', code: 'session.notice.conversationLost', params: {}, ...(current.nativeId !== null && { lostNativeId: current.nativeId }) });
         db.update(sessions).set({ nativeId: null }).where(eq(sessions.id, sessionId)).run();
         return { session: summary(row(sessionId)), options: conversation.options };
       }
@@ -1851,12 +1861,12 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
     async cleanProjectWorktrees({ folder, run }: { folder: string; run: boolean }) {
       const { base, entries } = await readProjectWorktrees(folder);
       const removed: { path: string; bytes: number }[] = [];
-      const skipped: { path: string; reason: string }[] = [];
+      const skipped: { path: string; reason: string; code: string; params: TextParams }[] = [];
       for (const entry of entries.filter(({ found }) => found?.prState === 'merged')) {
         const { path } = entry.worktree;
         const reason = blockOf(entry);
         if (reason !== null) {
-          skipped.push({ path, reason: reason.words });
+          skipped.push({ path, reason: reason.words, code: reason.code, params: reason.params ?? {} });
           continue;
         }
         const bytes = await folderBytes(path);
@@ -1865,7 +1875,7 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
             await removeProjectEntry(base, entry);
           } catch (error) {
             if (error instanceof ChatRefused === false) throw error;
-            skipped.push({ path, reason: error.message });
+            skipped.push({ path, reason: error.message, code: error.code, params: error.params });
             continue;
           }
         }

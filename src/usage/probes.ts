@@ -22,10 +22,10 @@ const timeMs = (iso: string | null | undefined) => {
 
 /** The status an HTTP answer other than 200 means. */
 function httpFailure(status: number): ProbeError {
-  if (status === 401 || status === 403) return new ProbeError('signed_out', 'the login was refused');
-  if (status === 429) return new ProbeError('rate_limited', 'the provider is rate limiting this check');
-  if (status >= 500) return new ProbeError('unavailable', `the provider answered HTTP ${status}`);
-  return new ProbeError('error', `the provider answered HTTP ${status}`);
+  if (status === 401 || status === 403) return new ProbeError('signed_out', 'usage.probe.loginRefused', 'the login was refused');
+  if (status === 429) return new ProbeError('rate_limited', 'usage.probe.providerRateLimited', 'the provider is rate limiting this check');
+  if (status >= 500) return new ProbeError('unavailable', 'usage.probe.providerUnavailable', `the provider answered HTTP ${status}`, { status });
+  return new ProbeError('error', 'usage.probe.providerError', `the provider answered HTTP ${status}`, { status });
 }
 
 async function call(ports: UsagePorts, request: Parameters<UsagePorts['http']>[0]) {
@@ -33,7 +33,7 @@ async function call(ports: UsagePorts, request: Parameters<UsagePorts['http']>[0
     return await ports.http(request);
   } catch (error) {
     const timedOut = (error as NodeJS.ErrnoException).code === 'ETIMEDOUT' || (error as Error).name === 'TimeoutError';
-    throw timedOut ? new ProbeError('error', 'the check timed out') : new ProbeError('unavailable', 'the provider could not be reached');
+    throw timedOut ? new ProbeError('error', 'usage.probe.timedOut', 'the check timed out') : new ProbeError('unavailable', 'usage.probe.unreachable', 'the provider could not be reached');
   }
 }
 
@@ -96,11 +96,11 @@ async function claudeCredentialsText(ports: UsagePorts, configDir: string): Prom
     try {
       text = await ports.keychain(service, account);
     } catch {
-      throw new ProbeError('unavailable', 'the macOS Keychain did not give the Claude login (it may have been denied; check again to be asked)');
+      throw new ProbeError('unavailable', 'usage.probe.claudeKeychainDenied', 'the macOS Keychain did not give the Claude login (it may have been denied; check again to be asked)');
     }
     if (text !== undefined) return text;
   }
-  throw new ProbeError('missing', 'no Claude login found for this account, neither a credentials file nor a macOS Keychain item');
+  throw new ProbeError('missing', 'usage.probe.claudeLoginMissing', 'no Claude login found for this account, neither a credentials file nor a macOS Keychain item');
 }
 
 /** The access token of the login. An expired one is not refreshed: Claude Code renews it the next time it runs. */
@@ -110,13 +110,13 @@ async function claudeToken(ports: UsagePorts, configDir: string) {
     json = JSON.parse(await claudeCredentialsText(ports, configDir));
   } catch (error) {
     if (error instanceof ProbeError) throw error;
-    throw new ProbeError('signed_out', 'the Claude credentials cannot be read');
+    throw new ProbeError('signed_out', 'usage.probe.claudeCredentialsUnreadable', 'the Claude credentials cannot be read');
   }
   const parsed = claudeCredentials.safeParse(json);
-  if (parsed.success === false) throw new ProbeError('signed_out', 'the Claude credentials hold no login');
+  if (parsed.success === false) throw new ProbeError('signed_out', 'usage.probe.claudeCredentialsEmpty', 'the Claude credentials hold no login');
   const { claudeAiOauth: oauth } = parsed.data;
   if (oauth.expiresAt !== undefined && oauth.expiresAt <= ports.clock.now()) {
-    throw new ProbeError('signed_out', oauth.refreshToken ? 'the Claude login expired; Claude Code renews it the next time it runs' : 'the Claude login expired; sign in again');
+    throw (oauth.refreshToken ? new ProbeError('signed_out', 'usage.probe.claudeLoginExpiredRenews', 'the Claude login expired; Claude Code renews it the next time it runs') : new ProbeError('signed_out', 'usage.probe.claudeLoginExpired', 'the Claude login expired; sign in again'));
   }
   return { accessToken: oauth.accessToken, plan: oauth.subscriptionType ?? undefined };
 }
@@ -126,7 +126,7 @@ const claude: Probe = async (ports, { configDir = join(homedir(), '.claude') }) 
   const answer = await call(ports, { url: CLAUDE_USAGE_URL, headers: { authorization: `Bearer ${accessToken}`, 'anthropic-beta': 'oauth-2025-04-20', accept: 'application/json' }, timeoutMs: PROBE_LIMIT_MS });
   if (answer.status !== 200) throw httpFailure(answer.status);
   const body = z.looseObject({}).safeParse(answer.json);
-  if (body.success === false) throw new ProbeError('error', 'the Claude usage answer was not understood');
+  if (body.success === false) throw new ProbeError('error', 'usage.probe.claudeAnswerNotUnderstood', 'the Claude usage answer was not understood');
   const data = body.data as Record<string, unknown>;
 
   const windows = [...claudeWindowOf('5h', '5h', data.five_hour), ...claudeWindowOf('7d', '7d', data.seven_day)];
@@ -191,9 +191,9 @@ function codexWindows(limit: z.infer<typeof codexLimit>, id: string, group?: str
 /** The status a JSON-RPC error means, from its words; the words themselves are not kept. */
 function rpcFailure(error: unknown): ProbeError {
   const message = String((error as { message?: unknown } | null)?.message ?? '');
-  if (/auth|log ?in|sign ?in/i.test(message)) return new ProbeError('signed_out', 'Codex is not signed in');
-  if (/\b429\b|too many requests/i.test(message)) return new ProbeError('rate_limited', 'Codex is rate limiting this check');
-  return new ProbeError('error', 'Codex refused the request');
+  if (/auth|log ?in|sign ?in/i.test(message)) return new ProbeError('signed_out', 'usage.probe.codexSignedOut', 'Codex is not signed in');
+  if (/\b429\b|too many requests/i.test(message)) return new ProbeError('rate_limited', 'usage.probe.codexRateLimited', 'Codex is rate limiting this check');
+  return new ProbeError('error', 'usage.probe.codexRefused', 'Codex refused the request');
 }
 
 /** `initialize`, then `account/rateLimits/read`, on a child that is always ended: on the answer, on an error, on exit, and at the limit. */
@@ -206,8 +206,8 @@ function readCodexLimits(ports: UsagePorts, command: string, env: NodeJS.Process
       child.kill();
       settle();
     };
-    cancel = ports.clock.after(PROBE_LIMIT_MS, async () => finish(() => reject(new ProbeError('error', 'the check timed out'))));
-    child.onExit((error) => finish(() => reject(error?.code === 'ENOENT' ? new ProbeError('missing', 'the codex binary was not found') : new ProbeError('unavailable', 'codex app-server ended before it answered'))));
+    cancel = ports.clock.after(PROBE_LIMIT_MS, async () => finish(() => reject(new ProbeError('error', 'usage.probe.timedOut', 'the check timed out'))));
+    child.onExit((error) => finish(() => reject(error?.code === 'ENOENT' ? new ProbeError('missing', 'usage.probe.codexNotFound', 'the codex binary was not found') : new ProbeError('unavailable', 'usage.probe.codexEnded', 'codex app-server ended before it answered'))));
     child.onLine((line) => {
       let message: { id?: unknown; result?: unknown; error?: unknown };
       try {
@@ -228,7 +228,7 @@ function readCodexLimits(ports: UsagePorts, command: string, env: NodeJS.Process
 
 const codex: Probe = async (ports, { configDir, command = 'codex' }) => {
   const result = codexResult.safeParse(await readCodexLimits(ports, command, { ...process.env, ...(configDir !== undefined && { CODEX_HOME: configDir }) }));
-  if (result.success === false) throw new ProbeError('error', 'the Codex rate limits were not understood');
+  if (result.success === false) throw new ProbeError('error', 'usage.probe.codexLimitsNotUnderstood', 'the Codex rate limits were not understood');
   const { rateLimits, rateLimitsByLimitId = {}, rateLimitResetCredits } = result.data;
   // The main windows are the `codex` limit; a model-specific limit adds windows of its own and never replaces them.
   const main = rateLimitsByLimitId?.codex ?? rateLimits;
@@ -257,18 +257,18 @@ const agy: Probe = async (ports, { command = 'agy' }) => {
     out = await ports.run(command, ['-p', '/usage', '--output-format', 'json'], { env: { ...process.env, BROWSER: 'true' }, timeoutMs: PROBE_LIMIT_MS });
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code;
-    if (code === 'ENOENT') throw new ProbeError('missing', 'the agy binary was not found');
-    throw new ProbeError('error', code === 'ETIMEDOUT' ? 'the check timed out' : 'agy could not be run');
+    if (code === 'ENOENT') throw new ProbeError('missing', 'usage.probe.agyNotFound', 'the agy binary was not found');
+    throw code === 'ETIMEDOUT' ? new ProbeError('error', 'usage.probe.timedOut', 'the check timed out') : new ProbeError('error', 'usage.probe.agyNotRun', 'agy could not be run');
   }
   let json: unknown;
   try {
     json = JSON.parse(out.stdout);
   } catch {
-    throw new ProbeError(out.code === 0 ? 'error' : 'unavailable', 'agy did not answer with JSON');
+    throw new ProbeError(out.code === 0 ? 'error' : 'unavailable', 'usage.probe.agyNoJson', 'agy did not answer with JSON');
   }
   const parsed = agyOutput.safeParse(json);
   const groups = parsed.success ? parsed.data.command?.data.groups : undefined;
-  if (groups === undefined) throw /sign|log ?in|auth/i.test(parsed.success ? (parsed.data.response ?? '') : '') ? new ProbeError('signed_out', 'Antigravity is not signed in') : new ProbeError('error', 'the agy usage answer was not understood');
+  if (groups === undefined) throw /sign|log ?in|auth/i.test(parsed.success ? (parsed.data.response ?? '') : '') ? new ProbeError('signed_out', 'usage.probe.agySignedOut', 'Antigravity is not signed in') : new ProbeError('error', 'usage.probe.agyAnswerNotUnderstood', 'the agy usage answer was not understood');
   const windows = groups.flatMap((group) =>
     group.buckets.map((bucket): QuotaWindow => {
       const resetsAt = timeMs(bucket.reset_time);
@@ -282,7 +282,7 @@ const agy: Probe = async (ports, { command = 'agy' }) => {
 
 const local: Probe = async (ports) => {
   const servers = await Promise.all(localKinds.map((kind) => ports.localModels(kind).then((models) => ({ kind, running: true, models }), () => ({ kind, running: false, models: [] as string[] }))));
-  return servers.some((s) => s.running) ? { windows: [], servers } : { status: 'unavailable', message: 'no local server answered', windows: [], servers };
+  return servers.some((s) => s.running) ? { windows: [], servers } : { status: 'unavailable', message: 'no local server answered', messageCode: 'usage.probe.noLocalServer', messageParams: {}, windows: [], servers };
 };
 
 export const probes: Record<QuotaTarget['provider'], Probe> = { claude, codex, agy, local };

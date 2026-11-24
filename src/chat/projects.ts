@@ -8,6 +8,7 @@ import { carrierHome } from '../config/places.ts';
 import { readProjectsFile, updateProjectsFile } from '../config/projects.ts';
 import { listAvailableRepos, type AvailableRepo } from '../integrations/available-repos.ts';
 import type { Clock } from '../orchestration/clock.ts';
+import type { TextParams } from '../orchestration/text-params.ts';
 import { repoNamePattern } from '../config/schema.ts';
 import { tokenEnv } from '../execution/git-workspaces.ts';
 import { readChatConfig } from './config.ts';
@@ -144,7 +145,7 @@ export type GithubRepos = { repos: (page: number) => Promise<{ repos: AvailableR
 type CloneReply = { folder: string; repo: string; fetched: boolean };
 
 /** A clone the person started from Settings, as `projectClones` lists it: running with git's latest progress line, or failed with its reason until dismissed. One that finished is a project and is not listed. */
-export type ProjectClone = { repo: string; folder: string; state: 'cloning' | 'failed'; progress?: string; error?: string };
+export type ProjectClone = { repo: string; folder: string; state: 'cloning' | 'failed'; progress?: string; error?: string; /** The code and parameters of `error`. */ code?: string; params?: TextParams };
 type Job = { done: Promise<CloneReply>; mode: 'clone' | 'fetch'; waiters: number; abort: AbortController; listeners: Set<(line: string) => void>; latest?: string };
 
 // The only stderr lines of git that leave this file: its progress, as "Receiving objects: 45%". Anything else can hold a URL.
@@ -220,6 +221,8 @@ export function createProjects({ git, token, github, clock, onCloneChange }: { g
       clone.state = 'failed';
       delete clone.progress;
       clone.error = error instanceof ChatRefused ? error.message : 'internal error';
+      clone.code = error instanceof ChatRefused ? error.code : 'request.internal';
+      clone.params = error instanceof ChatRefused ? error.params : {};
     } finally {
       cloning.delete(abort);
       onCloneChange?.();

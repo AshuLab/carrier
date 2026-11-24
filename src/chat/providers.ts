@@ -3,6 +3,7 @@ import { detect, type Machine } from '../doctor/detect.ts';
 import { harnessNames, type HarnessName } from '../harnesses/names.ts';
 import { localKinds, type LocalProvider } from '../harnesses/local.ts';
 import type { Clock } from '../orchestration/clock.ts';
+import type { TextParams } from '../orchestration/text-params.ts';
 import { PROBE_LIMIT_MS, type ToolState } from './health.ts';
 
 export type ProvidersReply = {
@@ -13,7 +14,7 @@ export type ProvidersReply = {
   /** The text generator `providers.json` names, when it names one. */
   textGenerator?: { name: string; kind: LocalProvider; model: string };
   /** `providers.json` does not match: its first bad key and why, with no accounts. */
-  problem?: { path: string; message: string };
+  problem?: { path: string; message: string; code: string; params: TextParams };
 };
 
 /** Resolves with `onTimeout()` when the probe has not answered by the limit; a probe that fails is the caller's to handle. */
@@ -48,7 +49,10 @@ export function createProviders({ clock, machine, binaryFound }: { clock: Clock;
 
   return async (): Promise<ProvidersReply> => {
     const read = readProvidersFile();
-    if (read.ok === false) return { accounts: [], unadded: [], servers: [], problem: read.errors[0]! };
+    if (read.ok === false) {
+      const { path, message } = read.errors[0]!;
+      return { accounts: [], unadded: [], servers: [], problem: { path, message, code: 'providers.keyInvalid', params: { path } } };
+    }
     const providers: Providers = read.providers;
     const detected = await detect(limited, providers);
 

@@ -3,8 +3,7 @@ import Observation
 import Testing
 @testable import CarrierCore
 
-private let fixtures = URL(fileURLWithPath: #filePath)
-    .deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures").path
+private let fixtures = testPaths().fixtures.path
 
 /// A golden conversation as the host's `events` reply carries it.
 private func golden(_ name: String) throws -> ChatEvents {

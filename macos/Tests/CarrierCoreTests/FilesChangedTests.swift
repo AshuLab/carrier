@@ -108,7 +108,7 @@ private func section(_ id: String, _ kind: String, _ files: [FilesReply.File]) -
 }
 
 @Test func theFixtureReplyReadsAsTheEngineSendsIt() throws {
-    let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures/reply-files.json")
+    let url = testPaths().fixtures.appendingPathComponent("reply-files.json")
     let model = filesChangedModel(try JSONDecoder().decode(FilesReply.self, from: Data(contentsOf: url)))
     #expect(model.sections.map(\.openByDefault) == [true, true, false, true])
     #expect(model.sections[0].files[0].alsoIn == ["Lane 2"])
@@ -127,7 +127,7 @@ private func section(_ id: String, _ kind: String, _ files: [FilesReply.File]) -
 // MARK: fragments
 
 @Test func aReplyBecomesTheRowsTheTranscriptDrawsWithAHunkRowBetweenFragments() throws {
-    let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures/reply-filediff.json")
+    let url = testPaths().fixtures.appendingPathComponent("reply-filediff.json")
     let replies = try JSONDecoder().decode([FileDiffReply].self, from: Data(contentsOf: url))
     guard case .rows(let rows, let truncated) = fileFragment(replies[0]) else { Issue.record("no rows"); return }
     #expect(rows.map(\.sign) == [.hunk, .context, .removed, .added, .added, .context, .context, .hunk, .context, .removed, .added, .context])

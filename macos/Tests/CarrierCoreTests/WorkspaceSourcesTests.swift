@@ -84,8 +84,7 @@ private struct ProjectFolderFixture: Decodable {
 }
 
 @Test func projectFolderRefusalMatchesTheSharedContractTable() throws {
-    let fixtureURL = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures/project-folder.json")
+    let fixtureURL = testPaths().fixtures.appendingPathComponent("project-folder.json")
     let fixture = try JSONDecoder().decode(ProjectFolderFixture.self, from: Data(contentsOf: fixtureURL))
     let root = NSTemporaryDirectory() + "pf-\(UUID().uuidString)"
     let fm = FileManager.default
@@ -134,8 +133,7 @@ private struct WorktreeClashFixture: Decodable {
 }
 
 @Test func worktreeClashRefusalMatchesTheSharedTableTheHostChecksToo() throws {
-    let url = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures/worktree-clash.json")
+    let url = testPaths().fixtures.appendingPathComponent("worktree-clash.json")
     let fixture = try JSONDecoder().decode(WorktreeClashFixture.self, from: Data(contentsOf: url))
     for entry in fixture.cases {
         let others = entry.others.map { ProjectRow(path: $0.path, name: $0.name ?? projectFolderName($0.path), repo: $0.repo) }

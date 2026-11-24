@@ -5,7 +5,7 @@ import Testing
 private let note = "Carrier reads it when it starts"
 private let engine = "/Users/ana/.carrier/engine"
 private func snapshot(_ watched: [(String, Bool)]) throws -> PanelSnapshot {
-    let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures/snapshot.json")
+    let url = testPaths().fixtures.appendingPathComponent("snapshot.json")
     var snapshot = try decodeSnapshot(Data(contentsOf: url))
     let agents = try #require(snapshot.watched?.first).agents
     snapshot.watched = watched.map { PanelSnapshot.Watched(repo: $0.0, lastCheckedAt: snapshot.now - 120_000, ok: $0.1, error: $0.1 ? nil : "GitHub refused it", agents: agents) }

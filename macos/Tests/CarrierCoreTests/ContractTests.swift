@@ -6,8 +6,7 @@ import Testing
 // and a config default or rule that differs from the engine's. The TypeScript tests write the files
 // (src/control/capabilities-contract.test.ts, src/config/engine-config-contract.test.ts); UPDATE_FIXTURES=1 rewrites them.
 
-private let fixtures = URL(fileURLWithPath: #filePath)
-    .deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures")
+private let fixtures = testPaths().fixtures
 
 private func golden(_ name: String) throws -> [String: Any] {
     try #require(JSONSerialization.jsonObject(with: Data(contentsOf: fixtures.appendingPathComponent(name))) as? [String: Any])

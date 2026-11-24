@@ -2,8 +2,7 @@ import Foundation
 import Testing
 @testable import CarrierCore
 
-private let fixtures = URL(fileURLWithPath: #filePath)
-    .deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures").path
+private let fixtures = testPaths().fixtures.path
 
 private func golden(_ name: String) throws -> Data {
     try Data(contentsOf: URL(fileURLWithPath: fixtures + "/" + name))

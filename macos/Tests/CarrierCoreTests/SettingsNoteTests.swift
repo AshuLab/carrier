@@ -3,7 +3,7 @@ import Testing
 @testable import CarrierCore
 
 private func running() throws -> ConnectionState {
-    let fixtures = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures")
+    let fixtures = testPaths().fixtures
     return .running(try decodeSnapshot(Data(contentsOf: fixtures.appendingPathComponent("snapshot.json"))))
 }
 

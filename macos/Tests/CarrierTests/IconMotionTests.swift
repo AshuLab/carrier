@@ -40,10 +40,31 @@ import Testing
 }
 
 @Test func theIconHasNoTimerOrDisplayLink() throws {
-    let source = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        .appendingPathComponent("Sources/Carrier/IconController.swift")
+    let source = try sourceFile(named: "IconController.swift", under: testPaths().sources.appendingPathComponent("Carrier"))
     let code = try String(contentsOf: source, encoding: .utf8)
     for forbidden in ["Timer", "CADisplayLink", "asyncAfter"] {
         #expect(!code.contains(forbidden), "IconController uses \(forbidden)")
     }
+}
+
+private struct SourceFileNotUnique: Error { let name: String; let found: Int }
+
+/// The one file of that name anywhere under `folder`; none or more than one fails, so a moved file is still found and a copy is not read in its place.
+private func sourceFile(named name: String, under folder: URL) throws -> URL {
+    let found = try swiftFiles(under: folder, minimum: 0).filter { $0.lastPathComponent == name }
+    guard found.count == 1 else { throw SourceFileNotUnique(name: name, found: found.count) }
+    return found[0]
+}
+
+@Test func aSourceFileIsFoundByNameAtAnyDepthAndOnlyWhenThereIsOne() throws {
+    let scratch = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: scratch) }
+    for path in ["a/b/One.swift", "Two.swift", "c/Two.swift"] {
+        let file = scratch.appendingPathComponent(path)
+        try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try "".write(to: file, atomically: true, encoding: .utf8)
+    }
+    #expect(try sourceFile(named: "One.swift", under: scratch).path.hasSuffix("a/b/One.swift"))
+    #expect(throws: SourceFileNotUnique.self) { try sourceFile(named: "Missing.swift", under: scratch) }
+    #expect(throws: SourceFileNotUnique.self) { try sourceFile(named: "Two.swift", under: scratch) }
 }

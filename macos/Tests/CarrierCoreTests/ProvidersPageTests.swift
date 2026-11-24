@@ -4,8 +4,7 @@ import Testing
 
 // The rows of the Providers page: the host's `providers` reply joined with who uses each account in engine.json and chat.json.
 
-private let golden = URL(fileURLWithPath: #filePath)
-    .deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures/chat-providers.json")
+private let golden = testPaths().fixtures.appendingPathComponent("chat-providers.json")
 
 private func reply(_ json: String? = nil) throws -> HostProviders {
     try JSONDecoder().decode(HostProviders.self, from: json.map { Data($0.utf8) } ?? Data(contentsOf: golden))

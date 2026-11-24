@@ -244,8 +244,7 @@ private func decodedSession(_ extra: String, state: String = "idle", live: Bool 
     #expect(sessionGroups(rows).map(\.title) == ["carrier", "dev/web", "work/web"])
 }
 
-private let fixtures = URL(fileURLWithPath: #filePath)
-    .deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures").path
+private let fixtures = testPaths().fixtures.path
 
 @Test func theGoldenListGivesTheFixturesGroupsAndTheArchivedCount() async throws {
     let server = try FixtureServer(fixtures: fixtures)

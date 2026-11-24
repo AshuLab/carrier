@@ -4,8 +4,7 @@ import Testing
 
 // The golden files are written by the engine's test (src/control/replies.test.ts).
 private func golden<T: Decodable>(_ name: String, as type: T.Type = T.self) throws -> T {
-    let url = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures/reply-\(name).json")
+    let url = testPaths().fixtures.appendingPathComponent("reply-\(name).json")
     return try JSONDecoder().decode(T.self, from: Data(contentsOf: url))
 }
 

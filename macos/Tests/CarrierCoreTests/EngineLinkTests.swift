@@ -2,8 +2,7 @@ import Foundation
 import Testing
 @testable import CarrierCore
 
-private let snapshotURL = URL(fileURLWithPath: #filePath)
-    .deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures/snapshot.json")
+private let snapshotURL = testPaths().fixtures.appendingPathComponent("snapshot.json")
 
 private func snapshotJSON(now: Int) throws -> String {
     var json = try #require(try JSONSerialization.jsonObject(with: Data(contentsOf: snapshotURL)) as? [String: Any])

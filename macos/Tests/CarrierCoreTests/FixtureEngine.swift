@@ -40,8 +40,7 @@ final class FixtureEngine {
     var commands: [String] { requests.compactMap { $0["cmd"] as? String } }
 
     static func golden(_ cmd: String) -> String {
-        let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures/reply-\(cmd).json")
+        let url = testPaths().fixtures.appendingPathComponent("reply-\(cmd).json")
         let json = try! JSONSerialization.jsonObject(with: Data(contentsOf: url))
         return String(decoding: try! JSONSerialization.data(withJSONObject: json), as: UTF8.self)
     }

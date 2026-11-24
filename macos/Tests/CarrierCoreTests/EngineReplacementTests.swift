@@ -44,8 +44,7 @@ private final class WorkingEngine: @unchecked Sendable {
     private func locked<T>(_ body: () -> T) -> T { lock.lock(); defer { lock.unlock() }; return body() }
 
     private func serve() {
-        let snapshot = try! JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures/snapshot.json"))) as! [String: Any]
+        let snapshot = try! JSONSerialization.jsonObject(with: Data(contentsOf: testPaths().fixtures.appendingPathComponent("snapshot.json"))) as! [String: Any]
         let one = (snapshot["sessions"] as! [[String: Any]])[0]
         let server = TestServer(path: path) { [self] connection in
             let version = locked { self.version }

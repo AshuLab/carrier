@@ -5,9 +5,7 @@ import Testing
 // The sanitised stream of the third spike (docs/research/claude-subagent-attribution.md): two build subagents on lanes 1 and 2 and one
 // review subagent. The engine's parser is not in this package, so the stream is read here the way it reads it: a `task_started`
 // line is a `task` event, a message line is a `say`, a tool call a `tool_start`, its result a `tool_end`.
-private let streamURL = URL(fileURLWithPath: #filePath)
-    .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-    .appendingPathComponent("src/harnesses/claude-subagents.fixture.jsonl")
+private let streamURL = testPaths().root.appendingPathComponent("src/harnesses/claude-subagents.fixture.jsonl")
 
 private func streamEvents() throws -> [ExecEvent] {
     var events: [ExecEvent] = []

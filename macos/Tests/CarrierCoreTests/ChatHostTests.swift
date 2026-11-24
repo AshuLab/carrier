@@ -2,8 +2,7 @@ import Foundation
 import Testing
 @testable import CarrierCore
 
-private let fixtures = URL(fileURLWithPath: #filePath)
-    .deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures").path
+private let fixtures = testPaths().fixtures.path
 
 private func hello(_ capabilities: String = "\"agents\",\"list\"", protocol version: Int = 1) -> String {
     "{\"event\":\"hello\",\"protocol\":\(version),\"pid\":42,\"startedAt\":1000,\"version\":\"x\",\"capabilities\":[\(capabilities)]}\n"
@@ -177,7 +176,7 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"", protocol vers
 
 @Test func theAppSendsNoCloneRepoOrCreateProjectRequest() throws {
     // a plan replaced both (#668); a host keeps them only for apps older than this one
-    let sources = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Sources")
+    let sources = testPaths().sources
     let files = try #require(FileManager.default.enumerator(at: sources, includingPropertiesForKeys: nil))
     var scanned = 0
     for case let file as URL in files where file.pathExtension == "swift" {
@@ -239,7 +238,7 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"", protocol vers
 }
 
 @Test @MainActor func theProvidersStoreHoldsTheReplyOfAHostThatListsProvidersAndSaysWhyOtherwise() async throws {
-    let fixtures = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures").path
+    let fixtures = testPaths().fixtures.path
     let fixture = try FixtureServer(fixtures: fixtures)
     defer { fixture.stop() }
     let store = ProvidersStore(host: SocketChatHost(socketPath: { fixture.chatSocketPath }), log: { _ in })

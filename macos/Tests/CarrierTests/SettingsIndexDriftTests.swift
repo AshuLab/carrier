@@ -6,12 +6,15 @@ import Testing
 /// longer draw takes the person to nothing. The views are read as text: a title written as a string in a `SettingsTabRow`, a
 /// `SettingsStackedRow` or a `SettingsGroup` has to be in the index, and every title in the index has to be written somewhere in the sources.
 @Suite struct SettingsIndexDriftTests {
-    private static let sources = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        .appendingPathComponent("Sources")
+    private static let sources = testPaths().sources
+
+    /// The text of every Swift file of a folder of the sources and its subfolders; fewer than `minimum` files fails.
+    static func text(in folder: URL, minimum: Int) throws -> String {
+        try swiftFiles(under: folder, minimum: minimum).sorted { $0.path < $1.path }.map { try String(contentsOf: $0, encoding: .utf8) }.joined(separator: "\n")
+    }
 
     private static func text(of folder: String) throws -> String {
-        let urls = try FileManager.default.contentsOfDirectory(at: sources.appendingPathComponent(folder), includingPropertiesForKeys: nil)
-        return try urls.filter { $0.pathExtension == "swift" }.map { try String(contentsOf: $0, encoding: .utf8) }.joined(separator: "\n")
+        try text(in: sources.appendingPathComponent(folder), minimum: 100)
     }
 
     /// Rows the pages draw that a search has no use for: a title that is a value (a model's name, an account), or one that exists only while a
@@ -39,5 +42,12 @@ import Testing
         let code = try Self.text(of: "Carrier") + Self.text(of: "CarrierCore")
         let missing = settingsIndex.filter { $0.isPage == false }.map(\.title).filter { code.contains("\"\($0)\"") == false }
         #expect(Set(missing).isEmpty, "in settingsIndex but not drawn any more: \(Set(missing).sorted())")
+    }
+
+    @Test func readingAnEmptyFolderFails() throws {
+        let scratch = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: scratch, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: scratch) }
+        #expect(throws: TooFewFiles.self) { try Self.text(in: scratch, minimum: 100) }
     }
 }

@@ -4,8 +4,7 @@ import Testing
 
 // The `usage` reply (`src/usage/service.ts`) as the app decodes it, the requests it sends, and the store that holds the page's state.
 
-private let golden = URL(fileURLWithPath: #filePath)
-    .deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures/chat-usage.json")
+private let golden = testPaths().fixtures.appendingPathComponent("chat-usage.json")
 
 private func decode(_ json: String) throws -> UsageSnapshot { try JSONDecoder().decode(UsageSnapshot.self, from: Data(json.utf8)) }
 

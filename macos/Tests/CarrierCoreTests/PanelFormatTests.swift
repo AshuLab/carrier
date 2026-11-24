@@ -2,8 +2,7 @@ import Foundation
 import Testing
 @testable import CarrierCore
 
-private let fixtureURL = URL(fileURLWithPath: #filePath)
-    .deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures/snapshot.json")
+private let fixtureURL = testPaths().fixtures.appendingPathComponent("snapshot.json")
 
 private func fixture() throws -> PanelSnapshot { try decodeSnapshot(Data(contentsOf: fixtureURL)) }
 

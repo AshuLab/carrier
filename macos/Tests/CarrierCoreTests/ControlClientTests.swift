@@ -294,8 +294,7 @@ private struct Count: Decodable, Equatable { let n: Int }
     #expect(throws: ControlError.badLine) { try client.request("events", requires: .events, as: Count.self) }
 }
 
-private let snapshotFixture = URL(fileURLWithPath: #filePath)
-    .deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures/snapshot.json")
+private let snapshotFixture = testPaths().fixtures.appendingPathComponent("snapshot.json")
 
 @Test func aSnapshotIsParsedOnceAndAWrongOneStillNamesItsField() throws {
     let good = try JSONSerialization.data(withJSONObject: JSONSerialization.jsonObject(with: Data(contentsOf: snapshotFixture)))

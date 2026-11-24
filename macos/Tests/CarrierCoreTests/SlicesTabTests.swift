@@ -191,7 +191,7 @@ func aFilterShowsOnlyItsGroup(group: SliceGroup, numbers: [Int]) {
 }
 
 @Test func theFixtureRepliesSlicesGroupAsTheDesignExpects() throws {
-    let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures/reply-epic.json")
+    let url = testPaths().fixtures.appendingPathComponent("reply-epic.json")
     let epic = try JSONDecoder().decode(EpicReply.self, from: Data(contentsOf: url))
     let tab = slicesTabModel(nil, reply: epic, now: 99_000)
     // three merged (the builder's lanes), one in progress, and ready, blocked by several and blocked by one; the skipped one is left out

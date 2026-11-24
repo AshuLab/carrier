@@ -232,3 +232,25 @@ test('the snapshot reads the executions of an epic by index and never walks the 
   traced.$client.close();
   expect(walks).toEqual([]);
 });
+
+test('the execution the snapshot names for an epic is the newest of the author or of the mandatory reviewer, whichever other slot ended last', () => {
+  const { id } = add(1, 'running', { stage: 'review' });
+  const run = (executionId: string, startedAt: number, extra: Partial<typeof executions.$inferInsert>) =>
+    db.insert(executions).values({ executionId, epicId: id, stage: 'review', status: 'finished', resultPath: '/r.json', startedAt, ...extra }).run();
+  run('ship', 1_000, { stage: 'ship' });
+  run('main', 2_000, { reviewer: 'reviewer' });
+  run('extra', 3_000, { reviewer: 'reviewer-2' }); // the newest, of another slot
+  run('lead', 4_000, { reviewer: 'lead' });
+  expect(snapshot().epics[0]).toMatchObject({ issue: 1, executionId: 'main' });
+
+  run('main-again', 5_000, { stage: 'review', reviewer: null }); // a review row with no slot written is the mandatory reviewer's
+  expect(snapshot().epics[0]).toMatchObject({ executionId: 'main-again' });
+});
+
+test('the session of a running extra reviewer reads its agent from the epic\'s saved configuration', () => {
+  const agent = { profile: 'p', harness: 'claude' as const, model: 'opus' };
+  const config = { name: 'acme/web', agents: { author: agent, reviewer: { ...agent, harness: 'codex' as const, model: 'gpt' }, extraReviewers: [{ ...agent, harness: 'agy' as const, model: 'flash' }] } } as NonNullable<(typeof epics.$inferInsert)['config']>;
+  const { id } = add(1, 'running', { stage: 'review', config });
+  db.insert(executions).values({ executionId: 'x', epicId: id, stage: 'review', reviewer: 'reviewer-2', status: 'running', resultPath: '/r.json', startedAt: 1_000 }).run();
+  expect(snapshot().sessions).toMatchObject([{ executionId: 'x', stage: 'review', harness: 'agy', model: 'flash' }]);
+});

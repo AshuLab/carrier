@@ -51,6 +51,13 @@ test('taskContext derives the role from the stage and adds the round only when t
   expect(taskContext({ ...base, stage: 'ship', round: null })).toEqual({ ...base, role: 'author', stage: 'ship' });
 });
 
+test('taskContext names the slot of a review when it has one', () => {
+  const base = { repo: 'a/b', epic: 3, executionId: 'x', stage: 'review' as const };
+  expect(taskContext({ ...base, reviewer: 'reviewer-2' }).role).toBe('reviewer-2');
+  expect(taskContext({ ...base, reviewer: 'lead' }).role).toBe('lead');
+  expect(taskContext({ ...base, stage: 'ship', reviewer: null }).role).toBe('author');
+});
+
 // One real process that logs and then gets Ctrl+C: it has no handler, so only writeSync keeps what it emitted.
 const dir = mkdtempSync(join(tmpdir(), 'carrier-log-'));
 const file = join(dir, 'logs', 'orchestrator.log');

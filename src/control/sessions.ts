@@ -1,6 +1,7 @@
 import { and, desc, eq, sql } from 'drizzle-orm';
 import type { Db } from '../storage/db.ts';
-import { executions } from '../storage/executions.ts';
+import { executions, slotOf } from '../storage/executions.ts';
+import { agentOfSlot } from '../orchestration/slots.ts';
 import { epics } from '../storage/schema.ts';
 import { configDirVariable } from '../harnesses/names.ts';
 import type { PanelAgent } from '../status/types.ts';
@@ -43,7 +44,7 @@ export const inheritedConfigDirs = (env: NodeJS.ProcessEnv = process.env): Confi
 
 /** The agent an execution ran with: its own row, or the epic's frozen configuration for a row written before it was recorded. */
 export function agentOf(row: typeof executions.$inferSelect, config: typeof epics.$inferSelect.config): PanelAgent {
-  const frozen = config?.agents[row.stage === 'review' ? 'reviewer' : 'author'];
+  const frozen = config && agentOfSlot(config, slotOf(row));
   return {
     harness: (row.harness ?? frozen?.harness ?? 'claude') as PanelAgent['harness'],
     model: row.model ?? frozen?.model ?? '',
@@ -67,9 +68,10 @@ export function sessionsOf(db: Db, repo: string, issue: number, inherited: Confi
     .all();
   return {
     sessions: rows.map(({ row, result }) => {
-      const role = row.stage === 'review' ? 'reviewer' : 'author';
+      const slot = slotOf(row);
+      const role = slot === null ? 'author' : 'reviewer'; // the reply the app reads names the two roles; the slot is read for the agent and the profile
       const agent = agentOf(row, epic.config);
-      const profile = epic.config?.agents[role]?.profile ?? null;
+      const profile = (epic.config && agentOfSlot(epic.config, slot)?.profile) ?? null;
       const harness = agent.harness;
       const configDir = row.configDir ?? inherited[harness];
       const resume =

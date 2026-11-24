@@ -265,6 +265,15 @@ test.each(['ship', 'review', 'fix'] as const)('the %s persona goes after the rol
   expect(buildPrompt({ ...task(stage), persona: {} })).toBe(buildPrompt(task(stage)));
 });
 
+test('the intro and the signature tell the slot of a review apart: a reviewer by its slot, the lead as the lead', () => {
+  const slotted = (reviewer: NonNullable<AgentTask['reviewer']>) => ({ ...task('review'), reviewer, sharedIdentity: true, persona: { name: 'Atlas' } });
+  expect(buildPrompt({ ...task('review'), reviewer: 'reviewer' })).toBe(buildPrompt(task('review')));
+  expect(buildPrompt(slotted('reviewer-2')).split('\n')[0]).toContain('You are the reviewer-2 of the final integration PR');
+  expect(buildPrompt(slotted('reviewer-2'))).toContain('🤖 Reviewer [Atlas] via Carrier');
+  expect(buildPrompt(slotted('lead')).split('\n')[0]).toContain('You are the lead reviewer of the final integration PR');
+  expect(buildPrompt(slotted('lead'))).toContain('🤖 Lead reviewer [Atlas] via Carrier');
+});
+
 test('signatureOf names the role and the persona, and leaves no brackets without a name', () => {
   expect(signatureOf('reviewer', 'Atlas')).toBe('🤖 Reviewer [Atlas] via Carrier');
   expect(signatureOf('author')).toBe('🤖 Author via Carrier');

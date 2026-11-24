@@ -1,7 +1,7 @@
 import type { AccountRuntime } from '../config/providers.ts';
 import type { ResolvedSkills } from '../config/skills.ts';
 import type { HarnessName } from '../harnesses/names.ts';
-import type { ExecutionUsage, failureKinds } from '../storage/executions.ts';
+import type { ExecutionUsage, Slot, failureKinds } from '../storage/executions.ts';
 import type { AgentEvent } from './events.ts';
 
 export interface AgentTask extends AccountRuntime {
@@ -9,6 +9,7 @@ export interface AgentTask extends AccountRuntime {
   repo: string; // "owner/name"
   epic: number;
   stage: 'ship' | 'review' | 'fix';
+  reviewer?: Slot; // a review's slot; absent for ship and fix
   profile: string; // GitHub profile of the effective config
   harness: HarnessName;
   model: string;

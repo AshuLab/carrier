@@ -1,11 +1,13 @@
 import type { AgentTask } from '../execution/agent-runner.ts';
+import { slotOf } from '../storage/executions.ts';
 import { personaLines } from './persona.ts';
 
 /** Who the agent is, the ground rules, and what happened in earlier turns of this epic. */
 export function intro(task: AgentTask, forgeAgent?: string): string[] {
   const { executionId, repo, epic, stage, context } = task;
+  const slot = slotOf(task);
   const lines = [
-    `You are the ${stage === 'review' ? 'reviewer' : 'author'} of the final integration PR of epic #${epic} in ${repo}. Execution ${executionId}, stage ${stage}.`,
+    `You are the ${slot === null ? 'author' : slot === 'lead' ? 'lead reviewer' : slot} of the final integration PR of epic #${epic} in ${repo}. Execution ${executionId}, stage ${stage}.`,
     ...personaLines(task),
     'Nobody answers questions during this run: decide, and use needs_human when you cannot.',
     'Apply the repo\'s own rules (its docs, agent instructions and conventions) to choose and evaluate tests, CI and blockers. Do not assume commands from other repos.',

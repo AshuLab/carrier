@@ -11,7 +11,7 @@ pnpm only (never npm or yarn). Node 26 runs the TypeScript directly.
 - `pnpm typecheck` and `pnpm test` (unit, fakes and a temp SQLite: no network, no real agents). Run both before a PR.
 - `pnpm test:integration`: real tools, each file skips itself unless its `CARRIER_IT_*` / `CARRIER_TEST_*` variables are set (the header of each file lists them).
 - `pnpm build`: compiles to `dist/` (what is published as `@ashulab/carrier`).
-- `pnpm design` writes what `design/generate.ts` generates from `design/` (the copy, in English and Spanish, so far); `pnpm design:check` fails when a committed generated file differs, and CI runs it.
+- `pnpm design` writes what `design/generate.ts` generates from `design/` (the copy, in English and Spanish, and the tokens: the nine themes, the accent presets and the semantic colours); `pnpm design:check` fails when a committed generated file differs, and CI runs it.
 - `pnpm db:generate`: new Drizzle migration after changing the schema in `src/storage`.
 - `pnpm replay:events <stdout.log>`: prints the events a Claude log yields as JSON lines (`--db <file> --execution <id>` stores them for an execution that predates events).
 - Run from source: `node src/terminal/cli/main.ts <init|doctor|schema|start|status|watch|stop|pause|resume|check|reload|restart|chat|chat-host|usage>`; `--config file` points the engine at another config, the chat takes only `CARRIER_HOME`.

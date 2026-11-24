@@ -33,28 +33,10 @@ public enum Theme: String, CaseIterable, Codable, Sendable {
 
     public var title: String { rawValue.capitalized }
 
-    /// The window, the sidebar and the accent of one version. Carrier's has no accent of its own: it keeps the Mac's.
-    fileprivate func colors(_ scheme: ThemeScheme) -> (window: UInt32, sidebar: UInt32, accent: UInt32?) {
-        switch (self, scheme) {
-        case (.carrier, .dark): (0x1c1c1e, 0x2f2f33, nil)
-        case (.carrier, .light): (0xf2f2f7, 0xdcdce2, nil)
-        case (.graphite, .dark): (0x17181a, 0x26272a, 0x98989d)
-        case (.graphite, .light): (0xececee, 0xd9d9dc, 0x636366)
-        case (.ocean, .dark): (0x0f1b24, 0x18304a, 0x32ade6)
-        case (.ocean, .light): (0xeaf3fa, 0xcfe3f2, 0x0a7fc0)
-        case (.forest, .dark): (0x121a14, 0x1d2f22, 0x30d158)
-        case (.forest, .light): (0xeef5ee, 0xd3e6d6, 0x1f9d45)
-        case (.sunset, .dark): (0x1f1712, 0x34241a, 0xff9f0a)
-        case (.sunset, .light): (0xfbf1e6, 0xf1dcc3, 0xd97706)
-        case (.paper, .dark): (0x222120, 0x32302d, 0x6ea8ff)
-        case (.paper, .light): (0xf6f4ef, 0xe6e1d4, 0x007aff)
-        case (.rose, .dark): (0x1f1418, 0x35212a, 0xff6b9a)
-        case (.rose, .light): (0xfbeff2, 0xf2d6de, 0xd6336c)
-        case (.lavender, .dark): (0x18141f, 0x2a2238, 0xb58cff)
-        case (.lavender, .light): (0xf3effb, 0xe0d6f2, 0x7c3aed)
-        case (.midnight, .dark): (0x0a0e1a, 0x141b30, 0x2dd4bf)
-        case (.midnight, .light): (0xeceef8, 0xd3d8ee, 0x0f9d8a)
-        }
+    /// The window, the sidebar and the accent of one version (`design/tokens.json`). Carrier's has no accent of its own: it keeps the Mac's.
+    fileprivate func colors(_ scheme: ThemeScheme) -> ThemeColors {
+        guard let versions = Tokens.themes[rawValue] else { preconditionFailure("design/tokens.json has no theme \"\(rawValue)\"") }
+        return scheme == .dark ? versions.dark : versions.light
     }
 }
 
@@ -63,16 +45,14 @@ public enum Theme: String, CaseIterable, Codable, Sendable {
 public struct AccentColor: RawRepresentable, CaseIterable, Hashable, Sendable {
     public let rawValue: String
 
-    private static let presets: [(name: String, hex: UInt32)] = [
-        ("blue", 0x0a84ff), ("purple", 0xbf5af2), ("pink", 0xff375f), ("red", 0xff453a), ("orange", 0xff9f0a), ("green", 0x30d158), ("graphite", 0x8e8e93),
-    ]
+    private static let presets = Tokens.accents
 
-    public static let blue = AccentColor(preset: 0), purple = AccentColor(preset: 1), pink = AccentColor(preset: 2), red = AccentColor(preset: 3)
-    public static let orange = AccentColor(preset: 4), green = AccentColor(preset: 5), graphite = AccentColor(preset: 6)
-    /// The seven presets, not their own color.
-    public static let allCases = (0..<presets.count).map { AccentColor(preset: $0) }
+    public static let blue = AccentColor(preset: "blue"), purple = AccentColor(preset: "purple"), pink = AccentColor(preset: "pink"), red = AccentColor(preset: "red")
+    public static let orange = AccentColor(preset: "orange"), green = AccentColor(preset: "green"), graphite = AccentColor(preset: "graphite")
+    /// The presets of `design/tokens.json`, not their own color.
+    public static let allCases = presets.map { AccentColor(preset: $0.name) }
 
-    private init(preset: Int) { rawValue = Self.presets[preset].name }
+    private init(preset name: String) { rawValue = name }
 
     /// Nil for a value that is neither a preset's name nor `#` and six hex digits.
     public init?(rawValue: String) {
@@ -134,7 +114,7 @@ public func themeSurfaces(_ theme: Theme, scheme: ThemeScheme, accent: AccentCol
     // The tint is the theme's own color, never the accent the person chose for the elements: picking a color for the buttons must not paint
     // the windows. Carrier's tint over the system's surface is its accent alone; the Mac's own accent is the blue of its default
     if tint != .off {
-        let over = colors.accent.map { RGBA(hex: $0) } ?? RGBA(hex: scheme == .dark ? 0x0a84ff : 0x007aff)
+        let over = colors.accent.map { RGBA(hex: $0) } ?? RGBA(hex: scheme == .dark ? Tokens.Accent.system.dark : Tokens.Accent.system.light)
         let layer = RGBA(red: over.red, green: over.green, blue: over.blue, alpha: tint.opacity)
         window = window.covered(by: layer)
         sidebar = sidebar.covered(by: layer)

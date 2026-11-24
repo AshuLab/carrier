@@ -5,7 +5,7 @@ private let complete = SetupSettings(
     node: "/n/bin/node", path: "/usr/bin:/n/bin:/bin"
 )
 
-private let homebrew = "/opt/homebrew/bin/carrier"
+private let homebrew = homebrewCarrier
 
 @Test func aBinaryRunsItselfWithChatHostAndNoNode() throws {
     let command = try #require(startChatHostCommand(settings: SetupSettings(path: "/usr/bin"), carrier: homebrew, environment: ["HOME": "/h", "PATH": "/usr/bin"], home: "/h"))
@@ -21,7 +21,7 @@ private let homebrew = "/opt/homebrew/bin/carrier"
 
 @Test func theHostGetsTheEnginePathTheFolderAndKeepsTheRestOfTheEnvironment() throws {
     let command = try #require(startChatHostCommand(settings: complete, carrier: homebrew, environment: ["HOME": "/h", "PATH": "/usr/bin"], home: "/h"))
-    #expect(command.environment["PATH"] == "/n/bin:/usr/bin:/bin:/opt/homebrew/bin")
+    #expect(command.environment["PATH"] == "/n/bin:/usr/bin:/bin:" + homebrewBin)
     #expect(command.environment["HOME"] == "/h")
     #expect(command.environment["CARRIER_HOME"] == "/h/.carrier")
 }

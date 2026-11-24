@@ -2,7 +2,7 @@
 
 ## Requirements
 
-- A Mac with [Homebrew](https://brew.sh). The install below brings Node.js 22 or newer, `git` and the GitHub CLI (`gh`) if they are missing. The app needs an Apple Silicon Mac on macOS 26 or later. Working from a clone needs Node.js 26 and pnpm 12.
+- A Mac with [Homebrew](https://brew.sh). The install below brings Node.js 22 or newer, `git` and the GitHub CLI (`gh`) if they are missing. The app needs a Mac on macOS 26 or later, Apple Silicon or Intel (an Intel Mac cannot go past macOS 26, so its app stops there too). Working from a clone needs Node.js 26 and pnpm 12.
 - At least one of the `claude`, `codex` and `agy` (Antigravity) CLIs, installed and logged in from the terminal where you run Carrier. For local models, LM Studio or Ollama running.
 - A GitHub identity for each role: [Agent Forge](https://github.com/AshuLab/agent-forge) bot profiles, or your own `gh` login. Two different ones is the clean way; if you cannot get a second one, pick the same for both and they share it: what they publish is signed with their role, and both then act with everything that login's token can do.
 - The target repos use the [Solve](https://github.com/AshuLab/skills) flow (see [preparing a repo](preparing-a-repo.md)).

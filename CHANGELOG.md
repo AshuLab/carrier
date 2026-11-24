@@ -42,6 +42,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   With the defaults the prompts are unchanged.
 - A new kind of stop, `skill_missing` (`labels.reasons.skill_missing` names its label): an epic stops in needs-human, with no agent run spent and no retry, when a skill you named is absent for the harness and account of the role that invokes it, checked before it starts, resumes or changes the option of a role.
   A skill that is Solve's default, or an answer of cannot tell, never stops an epic.
+- The Mac app also ships for Intel Macs on macOS 26: `brew install --cask ashulab/tap/carrier` installs the zip of the Mac's own architecture, and the Intel app updates itself from its own feed (`appcast-intel.xml`).
+  It is an x86_64-only build (`CARRIER_ARCH=x86_64 macos/build-app.sh`), not a universal one, and the release builds both on the same runner.
+  The app runs the Homebrew of its own architecture's folder (`/usr/local` on Intel).
+  Dictation on Intel has not been tried on a real Intel Mac.
 
 ### Changed
 

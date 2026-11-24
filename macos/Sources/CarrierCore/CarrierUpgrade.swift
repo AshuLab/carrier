@@ -3,8 +3,8 @@ import Foundation
 // What the app does about an installed `carrier` older than the app: upgrade it through Homebrew, once, without asking (the person
 // accepted the app update), and say why when that fails. The run itself (spawn, log) is the shell's; here is the decision and the sequence.
 
-/// The one `brew` the app runs, Apple Silicon's.
-public let brewPath = "/opt/homebrew/bin/brew"
+/// The one `brew` the app runs: the one of the Homebrew prefix of this build's architecture.
+public let brewPath = homebrewBin + "/brew"
 
 /// The arguments and the extra environment of one `brew` run.
 public struct BrewCommand: Equatable {

@@ -3,11 +3,19 @@
 # Usage: ./build-app.sh [version] [--open]   (version is written into the plist, 0.1.0 when none is given)
 # CARRIER_REUSE_BUILD=1 skips `swift build` and bundles the .build/release/Carrier that is already there (check-app.sh and the release build many bundles from one compile).
 # No version means a dev build: its own name, bundle id and settings, and no updater, so it never gets mixed up with the installed Carrier.
+# CARRIER_ARCH=x86_64 builds the Intel app: an x86_64-only binary (never a universal one, so the compile also works on an Apple Silicon runner) with its own update feed, appcast-intel.xml.
+# No CARRIER_ARCH is the Mac the script runs on (Apple Silicon), and the feed is appcast.xml.
 # The build number (CFBundleVersion) is what Sparkle compares: X.Y.Z -> X*10000 + Y*100 + Z, and 1 when no version is given.
 set -euo pipefail
 cd "$(dirname "$0")"
 VERSION=0.1.0
 BUILD=1
+# an allowlist: the value reaches `swift build` and the feed's URL
+case "${CARRIER_ARCH:-}" in
+  "") ARCH_FLAGS=(); FEED=appcast.xml ;;
+  x86_64) ARCH_FLAGS=(--arch x86_64); FEED=appcast-intel.xml ;;
+  *) echo "error: CARRIER_ARCH '${CARRIER_ARCH}' is not x86_64 (or empty, for this Mac's own architecture)" >&2; exit 1 ;;
+esac
 OPEN=false
 GIVEN=false
 for arg in "$@"; do
@@ -16,7 +24,7 @@ done
 if [ "$GIVEN" = true ]; then
   CHANNEL=release; NAME=Carrier; BUNDLE_ID=dev.ashulab.carrier; ICON=AppIcon
   # the updater starts only from a bundle with a feed (AppUpdater.start), so a dev build has none
-  UPDATER="<key>SUFeedURL</key><string>https://github.com/AshuLab/carrier/releases/latest/download/appcast.xml</string>
+  UPDATER="<key>SUFeedURL</key><string>https://github.com/AshuLab/carrier/releases/latest/download/$FEED</string>
 <key>SUPublicEDKey</key><string>$(tr -d '[:space:]' < update-key.pub)</string>
 <key>SUEnableAutomaticChecks</key><true/>
 <key>SUScheduledCheckInterval</key><integer>3600</integer>"
@@ -49,7 +57,12 @@ esac
 if [ "${CARRIER_REUSE_BUILD:-}" = 1 ]; then
   [ -x .build/release/Carrier ] || { echo "error: CARRIER_REUSE_BUILD=1 but .build/release/Carrier does not exist" >&2; exit 1; }
 else
-  swift build -c release
+  # (${ARCH_FLAGS[@]+...}: bash 3.2 of macOS, under set -u, takes an empty array as unset)
+  swift build -c release ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"}
+fi
+# the Intel app must hold an x86_64 binary and nothing else, whatever .build/release was left holding
+if [ -n "${CARRIER_ARCH:-}" ]; then
+  [ "$(lipo -archs .build/release/Carrier)" = "$CARRIER_ARCH" ] || { echo "error: .build/release/Carrier is '$(lipo -archs .build/release/Carrier)', not $CARRIER_ARCH only" >&2; exit 1; }
 fi
 APP=Carrier.app
 rm -rf "$APP" Carrier.dSYM

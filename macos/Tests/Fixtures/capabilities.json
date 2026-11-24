@@ -11,7 +11,8 @@
     "resumeFromStage",
     "resumeReviewerOptions",
     "recoverEpic",
-    "reload"
+    "reload",
+    "config"
   ],
   "chat": [
     "agents",

@@ -684,24 +684,36 @@ private func projectsRoot(_ names: [String]) throws -> String {
     return root
 }
 
-/// The config file in memory: what `readConfig` gives, what `writeConfig` last got, and a way to make it unwritable.
-@MainActor private final class FakeConfig {
+/// The config file in memory, and the engine that changes it: what `readConfig` gives, what `send` was asked (`sent`), what the engine answers, and a way to make it refuse.
+private final class FakeConfig {
     var json: Data?
-    var writes = 0
+    var sent: [EngineConfigChange] = []
+    var writes: Int { sent.count }
     var unwritable = false
+    var reply = EngineConfigReply(engine: .applied)
+    var failure: Error?
     init(_ text: String? = "{\"repos\": [{\"name\": \"acme/web\"}]}") { json = text.map { Data($0.utf8) } }
-    func write(_ data: Data) throws {
-        if unwritable { throw CocoaError(.fileWriteNoPermission) }
-        json = data
-        writes += 1
+    /// The engine: it keeps a repo's own fields and every other key, as `setWatchedRepos` does.
+    var send: SendEngineConfig {
+        { [self] change in
+            if unwritable { throw ControlError.remote(.words("the config file is not writable")) }
+            if let failure { throw failure }
+            guard case .watchedRepos(let names) = change else { throw ControlError.badLine }
+            var file = (try? JSONSerialization.jsonObject(with: json ?? Data())) as? [String: Any] ?? [:]
+            let kept = file["repos"] as? [[String: Any]] ?? []
+            file["repos"] = names.map { name in kept.first { $0["name"] as? String == name } ?? ["name": name] }
+            json = try? JSONSerialization.data(withJSONObject: file)
+            sent.append(change)
+            return reply
+        }
     }
 }
 
-@MainActor private func chosenDraft(_ host: FakeChat, projects: String = "/nowhere", config: FakeConfig? = nil, reload: @escaping Reload = { .applied }) async -> NewSessionModel {
+@MainActor private func chosenDraft(_ host: FakeChat, projects: String = "/nowhere", config: FakeConfig? = nil) async -> NewSessionModel {
     let config = config ?? FakeConfig()
     let model = NewSessionModel(
         host: host, ensureHost: { true }, log: { _ in }, sleep: { _ in }, projectsFolder: { projects },
-        readConfig: { config.json }, writeConfig: { try config.write($0) }, reload: reload
+        readConfig: { config.json }, send: config.send, status: ReloadStatus(reload: { .nobody })
     )
     await model.load()
     return model
@@ -1053,10 +1065,10 @@ private func listed(_ id: String, _ stage: String) -> ChatSession {
 }
 
 /// A draft that chose `repo`, wrote its first message and sent it: the session `opened` exists and the repository waits for its `message` step.
-@MainActor private func sentForRepo(_ host: FakeChat, config: FakeConfig, repo: String = "AshuLab/carrier", reload: @escaping Reload = { .applied }) async -> NewSessionModel {
+@MainActor private func sentForRepo(_ host: FakeChat, config: FakeConfig, repo: String = "AshuLab/carrier") async -> NewSessionModel {
     host.branchesOf[repo] = RepoBranches(defaultBranch: "main", branches: ["main"])
     host.active = [listed(opened, "running")]
-    let model = await chosenDraft(host, config: config, reload: reload)
+    let model = await chosenDraft(host, config: config)
     await model.choose(repo: repo)
     model.text = "hello"
     #expect(await model.send() == opened)
@@ -1113,32 +1125,31 @@ private func listed(_ id: String, _ stage: String) -> ChatSession {
     _ = model
 }
 
-@MainActor @Test func theEngineIsAskedToReloadAfterTheRepositoryIsWrittenAndNeverWhenItWasNot() async throws {
+@MainActor @Test func theEngineIsAskedForTheListOnceTheRepositoryIsAddedAndNeverWhenItWasNot() async throws {
     let config = FakeConfig()
-    var asked: [Data?] = []
     let host = FakeChat()
-    let model = await sentForRepo(host, config: config, reload: { asked.append(config.json); return .applied })
+    let model = await sentForRepo(host, config: config)
     host.active = [listed(opened, "failed")]
     await model.settleWatches()
-    #expect(asked.isEmpty)
+    #expect(config.sent.isEmpty)
     host.active = [listed(opened, "answered")]
-    await settle { asked.count == 1 }
-    #expect(config.writes == 1 && asked.count == 1 && asked[0] == config.json)
-    // a config that cannot be written: nothing was written, nothing is asked
+    await settle { config.sent.count == 1 }
+    #expect(config.sent == [.watchedRepos(["acme/web", "AshuLab/carrier"])])
+    // a config the engine refuses to change: nothing was sent through, and the note says so
     let stuck = FakeConfig()
     stuck.unwritable = true
-    var askedAgain = 0
     let other = FakeChat()
-    let blocked = await sentForRepo(other, config: stuck, reload: { askedAgain += 1; return .applied })
+    let blocked = await sentForRepo(other, config: stuck)
     other.active = [listed(opened, "answered")]
     await settle { blocked.watchNotes[opened] != nil }
-    #expect(blocked.watchNotes[opened]?.failed == true && askedAgain == 0)
+    #expect(blocked.watchNotes[opened]?.failed == true && stuck.sent.isEmpty)
 }
 
 @MainActor @Test func aRepositoryTheEngineRefusedToApplyIsInTheListAndTheNoteSaysWhatTheEngineAnswered() async {
     let config = FakeConfig()
+    config.reply = EngineConfigReply(engine: .refused, reason: .init(code: "config.invalid", params: [:], error: "repos.1.name: bad"))
     let host = FakeChat()
-    let model = await sentForRepo(host, config: config, reload: { .refused(.words("repos.1.name: bad")) })
+    let model = await sentForRepo(host, config: config)
     host.active = [listed(opened, "answered")]
     await settle { model.watchNotes[opened] != nil }
     #expect(configRepoNames(json: config.json ?? Data()) == ["acme/web", "AshuLab/carrier"])
@@ -1146,18 +1157,26 @@ private func listed(_ id: String, _ stage: String) -> ChatSession {
 }
 
 @MainActor @Test func withNoEngineToAskTheNoteSaysItIsReadAtStartAndWithOneThatDidNotAnswerItSaysSo() async {
-    for (outcome, note) in [
-        (ReloadOutcome.nobody, WatchNote(text: "Carrier reads AshuLab/carrier when it starts", failed: false)),
-        (.unsupported, WatchNote(text: "Carrier reads AshuLab/carrier when it starts", failed: false)),
-        (.noAnswer, WatchNote(text: "AshuLab/carrier was added to Carrier's list, but Carrier did not answer: it may not have applied it.", failed: true)),
+    for (reply, note) in [
+        (EngineConfigReply(engine: .notRunning), WatchNote(text: "Carrier reads AshuLab/carrier when it starts", failed: false)),
+        (EngineConfigReply(engine: .applied), WatchNote(text: "Carrier applies AshuLab/carrier to the next epic", failed: false)),
     ] {
         let config = FakeConfig()
+        config.reply = reply
         let host = FakeChat()
-        let model = await sentForRepo(host, config: config, reload: { outcome })
+        let model = await sentForRepo(host, config: config)
         host.active = [listed(opened, "answered")]
         await settle { model.watchNotes[opened] != nil }
         #expect(configRepoNames(json: config.json ?? Data()) == ["acme/web", "AshuLab/carrier"] && model.watchNotes[opened] == note)
     }
+    // the request could not be made at all: the list is not changed, and the note says it could not be saved
+    let config = FakeConfig()
+    config.failure = ControlError.timeout
+    let host = FakeChat()
+    let model = await sentForRepo(host, config: config)
+    host.active = [listed(opened, "answered")]
+    await settle { model.watchNotes[opened] != nil }
+    #expect(model.watchNotes[opened] == WatchNote(text: "AshuLab/carrier could not be added to Carrier's list: the config file could not be saved.", failed: true))
 }
 
 @MainActor @Test func aPreparationThatFailedAndThenWorksAfterTryAgainAddsTheRepositoryThen() async {

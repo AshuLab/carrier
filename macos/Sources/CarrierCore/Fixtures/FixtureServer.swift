@@ -200,7 +200,7 @@ public final class FixtureServer {
             longChat = try JSONSerialization.jsonObject(with: JSONEncoder().encode(longChatEvents(rounds: 500))) as? [[String: Any]]
         }
         self.data = data
-        let names = ["sessions", "events", "epic", "files", "fileDiff", "availableRepos", "availableReposPaged", "resumeEpic", "resumeFromStage", "resumeReviewerOptions", "recoverEpic", "reload"].map { "\"\($0)\"" }.joined(separator: ",")
+        let names = ["sessions", "events", "epic", "files", "fileDiff", "availableRepos", "availableReposPaged", "resumeEpic", "resumeFromStage", "resumeReviewerOptions", "recoverEpic", "reload", "config"].map { "\"\($0)\"" }.joined(separator: ",")
         hello = Data("{\"event\":\"hello\",\"protocol\":1,\"pid\":\(getpid()),\"startedAt\":0,\"version\":\"fixture\",\"capabilities\":[\(names)]}\n".utf8)
 
         // /tmp, not the default temp folder: a socket path holds 103 bytes and that folder takes about 70
@@ -369,6 +369,7 @@ public final class FixtureServer {
         guard let cmd = request?["cmd"] as? String else { return Self.refused(id, "request.invalid", "invalid request") }
         if let body = data[cmd] { return Self.line("{\"id\":\(id),\"ok\":true,\"data\":" + String(decoding: body, as: UTF8.self) + "}") }
         if Self.controls.contains(cmd) { return Self.line("{\"id\":\(id),\"ok\":true}") }
+        if cmd == "setWatchedRepos" || cmd == "editBehavior", let answer = engineConfigReply(id, request ?? [:]) { return answer }
         return Self.refused(id, "request.invalid", "unknown request")
     }
 
@@ -831,13 +832,13 @@ public final class FixtureServer {
         return reply
     }
 
-    private static func answer(_ id: Int, _ data: Any) -> Data {
+    static func answer(_ id: Int, _ data: Any) -> Data {
         let body = (try? JSONSerialization.data(withJSONObject: data, options: .sortedKeys)).map { String(decoding: $0, as: UTF8.self) } ?? "null"
         return line("{\"id\":\(id),\"ok\":true,\"data\":" + body + "}")
     }
 
     /// The refusal as the host answers it: its words in `error`, and its `code` and `params` beside them (the codes are in `text-codes.json`).
-    private static func refused(_ id: Int?, _ code: String, _ reason: String, _ params: [String: TextParam] = [:]) -> Data {
+    static func refused(_ id: Int?, _ code: String, _ reason: String, _ params: [String: TextParam] = [:]) -> Data {
         let reply: [String: Any] = ["id": id as Any? ?? NSNull(), "ok": false, "error": reason, "code": code, "params": (try? JSONSerialization.jsonObject(with: JSONEncoder().encode(params))) ?? [:]]
         return line(String(decoding: (try? JSONSerialization.data(withJSONObject: reply, options: .sortedKeys)) ?? Data(), as: UTF8.self))
     }

@@ -106,8 +106,8 @@ public func reloadOffMain(_ reload: @escaping Reload) async -> ReloadOutcome {
         return answer
     }
 
-    /// Keeps the answer that the process which wrote the file got from the engine (`providers.json` is written by Carrier's own code, which asks the engine itself),
-    /// as `ask` keeps its own: an ask still on its way is dropped, since this one is newer.
+    /// Keeps the answer that the process which wrote the file got from the engine (`providers.json` is written by Carrier's own code, which asks the engine itself; a change of `engine.json` carries the reload with it, `EngineConfigReply`),
+    /// as `ask` keeps its own: there is no ask to make, and an ask still on its way is dropped, since this one is newer.
     public func record(_ answer: ReloadOutcome) {
         asks += 1
         outcome = answer

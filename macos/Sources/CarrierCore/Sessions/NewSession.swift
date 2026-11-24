@@ -150,8 +150,7 @@ public struct WatchNote: Equatable {
     @ObservationIgnored private let health: HealthStore?
     @ObservationIgnored private let projectsFolder: () -> String
     @ObservationIgnored private let readConfig: () -> Data?
-    @ObservationIgnored private let writeConfig: (Data) throws -> Void
-    @ObservationIgnored private let reload: Reload
+    @ObservationIgnored private let send: SendEngineConfig
     @ObservationIgnored private let status: ReloadStatus
     @ObservationIgnored private let readChatConfig: () throws -> Data?
     /// Counts the fetches (and the times the workspace was chosen), so the answer of one that was left behind is dropped.
@@ -181,14 +180,13 @@ public struct WatchNote: Equatable {
 
     /// `ensureHost` starts the chat host when it is not running (#503) and says whether it answers now.
     /// `sleep` is the wait before a typed name is checked. `projectsFolder` is where `chat.json` says the projects folder is, and
-    /// `readChatConfig` is that file; `readConfig` and `writeConfig` are the engine's config file, which holds the watched repositories.
+    /// `readChatConfig` is that file; `readConfig` is the engine's config file, which holds the watched repositories, and `send` asks the engine, or `carrier config`, to change it.
     public init(
         host: ChatHost, health: HealthStore? = nil, offers: AgentOfferStore? = nil, ensureHost: @escaping @MainActor () async -> Bool = { true },
         log: @escaping (String) -> Void = { FileHandle.standardError.write(Data("carrier: \($0)\n".utf8)) },
         sleep: @escaping (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
         projectsFolder: @escaping () -> String = currentProjectsFolder,
-        readConfig: @escaping () -> Data? = currentConfig, writeConfig: @escaping (Data) throws -> Void = writeCurrentConfig,
-        reload: @escaping Reload = { reloadEngine() },
+        readConfig: @escaping () -> Data? = currentConfig, send: @escaping SendEngineConfig = { try await EngineConfigSender().send($0) },
         status: ReloadStatus? = nil,
         readChatConfig: @escaping () throws -> Data? = currentChatConfig,
         start: @escaping () -> NewSessionStart = { AppPreferences().newSessionStart },
@@ -204,8 +202,7 @@ public struct WatchNote: Equatable {
         self.projectsFolder = projectsFolder
         projectsPath = projectsFolder()
         self.readConfig = readConfig
-        self.writeConfig = writeConfig
-        self.reload = reload
+        self.send = send
         self.status = status ?? .shared
         self.readChatConfig = readChatConfig
         self.ensureHost = ensureHost
@@ -514,7 +511,7 @@ public struct WatchNote: Equatable {
         return steps
     }
 
-    /// Adds `repo` to the config's `repos`, the file read again just now; the engine is then asked to reload, so nothing is restarted. What it
+    /// Asks the engine to add `repo` to the config's `repos` (the list read just now, so a change of another page is not lost); the engine runs on it at once, so nothing is restarted. What it
     /// came to is the session's `watchNotes`.
     private func addToWatched(_ repo: String, session id: String) async {
         func failed(_ reason: String) { watchNotes[id] = WatchNote(text: "\(repo) could not be added to Carrier's list: \(reason).", failed: true) }
@@ -523,16 +520,18 @@ public struct WatchNote: Equatable {
         }
         if names.contains(where: { $0.lowercased() == repo.lowercased() }) { return }  // another session of it got there first
         if let problem = reposProblem(names + [repo]) { return failed(problem) }
-        guard let updated = applyingRepos(names + [repo], to: json) else { return failed("the config file could not be rewritten") }
         do {
-            try writeConfig(updated)
-            watched = names + [repo]
             // the engine may take seconds: the page does not wait for it
-            let note = addedRepoNote(repo, outcome: await status.answer(reload))
+            let reply = try await send(.watchedRepos(names + [repo]))
+            watched = names + [repo]
+            status.record(reply.outcome)
+            let note = addedRepoNote(repo, outcome: reply.outcome)
             watchNotes[id] = WatchNote(text: note.text, failed: note.failed)
+        } catch ControlError.remote(let refusal) {
+            failed(refusal.text)
         } catch {
-            log("new session: could not write the config: \(error)")
-            failed("the config file is not writable")
+            log("new session: could not change the config: \(error)")
+            failed("the config file could not be saved")
         }
     }
 

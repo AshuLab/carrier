@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import CarrierCore
 
-// What the Behavior and Repos tabs save with (`saveConfig`): the file read again, rewritten, written, and then the engine asked to reload.
+// What the writers of `engine.json` that are still the app's save with (`saveConfig`; the Behavior and Watching pages ask the engine instead): the file read again, rewritten, written, and then the engine asked to reload.
 
 private func temporaryConfig(_ text: String = #"{"keep":1,"repos":[{"name":"a/b"}]}"#) throws -> String {
     let path = NSTemporaryDirectory() + "carrier-config-save-\(UUID().uuidString).json"
@@ -10,12 +10,12 @@ private func temporaryConfig(_ text: String = #"{"keep":1,"repos":[{"name":"a/b"
     return path
 }
 
+private func object(_ data: Data) -> [String: Any] { (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] ?? [:] }
+
 @Test func theBehaviorTabsValuesAreWrittenAndThenTheEngineIsAskedToReload() throws {
     let path = try temporaryConfig(#"{"keep":1,"pollIntervalMinutes":5}"#)
     let engine = FakeReload(file: path)
-    var draft = EngineConfig()
-    draft.pollIntervalMinutes = 2
-    let result = saveConfig(path: path, unusable: "unusable", edit: { draft.applied(to: $0) }, reload: engine.reload)
+    let result = saveConfig(path: path, unusable: "unusable", edit: { try? JSONSerialization.data(withJSONObject: object($0).merging(["pollIntervalMinutes": 2]) { $1 }) }, reload: engine.reload)
     #expect(result == .saved && engine.calls == 1)
     let written = try #require(try JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: path))) as? [String: Any])
     #expect(written["pollIntervalMinutes"] as? Double == 2 && written["keep"] as? Int == 1)
@@ -25,7 +25,7 @@ private func temporaryConfig(_ text: String = #"{"keep":1,"repos":[{"name":"a/b"
 @Test func theReposTabsListIsWrittenAndThenTheEngineIsAskedToReload() throws {
     let path = try temporaryConfig()
     let engine = FakeReload(file: path)
-    #expect(saveConfig(path: path, unusable: "unusable", edit: { applyingRepos(["a/b", "c/d"], to: $0) }, reload: engine.reload) == .saved)
+    #expect(saveConfig(path: path, unusable: "unusable", edit: { try? JSONSerialization.data(withJSONObject: object($0).merging(["repos": [["name": "a/b"], ["name": "c/d"]]]) { $1 }) }, reload: engine.reload) == .saved)
     #expect(engine.calls == 1 && configRepoNames(json: engine.seen[0] ?? Data()) == ["a/b", "c/d"])
 }
 
@@ -53,7 +53,7 @@ private func temporaryConfig(_ text: String = #"{"keep":1,"repos":[{"name":"a/b"
 @Test func aSaveTheEngineRefusedToApplyIsWritten() throws {
     let path = try temporaryConfig()
     let engine = FakeReload(file: path, problem: "pollIntervalMinutes: must be positive")
-    let result = saveConfig(path: path, unusable: "unusable", edit: { applyingRepos(["a/b", "c/d"], to: $0) }, reload: engine.reload)
+    let result = saveConfig(path: path, unusable: "unusable", edit: { try? JSONSerialization.data(withJSONObject: object($0).merging(["repos": [["name": "a/b"], ["name": "c/d"]]]) { $1 }) }, reload: engine.reload)
     #expect(result == .saved)
     #expect(configRepoNames(json: try Data(contentsOf: URL(fileURLWithPath: path))) == ["a/b", "c/d"])
 }

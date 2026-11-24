@@ -16,7 +16,7 @@ Its Swift twin is `macos/Sources/CarrierCore/CarrierPlaces.swift`, which also ha
 3. `src/config/resolve.ts`: only if it is per repo or per role (`resolveRepoConfig`, `EffectiveRepoConfig`); keep it optional, older epics were stored without it.
 4. `src/terminal/cli/compose.ts`: read it **inside** a closure (`settings`, `snapshot`, `timeoutMs`), never once at start: `config` is replaced by `reload` ([ADR 0023](../../docs/adr/0023-the-engine-reloads-its-configuration-on-request-and-running-work-keeps-what-it-started-with.md)).
 5. `UPDATE_FIXTURES=1 pnpm test` rewrites `macos/Tests/Fixtures/engine-config.json` (`engine-config-contract.test.ts`), and `ContractTests.swift` fails until `EngineConfig.swift` has the same defaults and refuses the same values.
-6. Swift, only if the app edits it: `macos/Sources/CarrierCore/EngineConfig.swift` repeats the default, the parse (`init(json:)`), the rule (`problems`) and the write (`applied(to:)`); the page is `BehaviorPage.swift` and `BehaviorTab.swift`.
+6. Swift, only if the app edits it: `macos/Sources/CarrierCore/EngineConfig.swift` repeats the default, the parse (`init(json:)`) and the rule (`problems`), and `EngineConfigChange.behavior` sends it; the write is `src/config/engine-edit.ts` (`editBehavior`, with its field rules and its table in `engine-edit.test.ts`) and the request's schema is `editBehaviorRequest` in `src/control/server.ts`; the page is `BehaviorPage.swift` and `BehaviorTab.swift`.
 
 `providers.json`:
 
@@ -38,6 +38,6 @@ Its Swift twin is `macos/Sources/CarrierCore/CarrierPlaces.swift`, which also ha
 2. Swift: `macos/Sources/CarrierCore/SessionAges.swift` for the ages it edits, `WorktreeStart.swift` for `worktreeStart` and `IdleClose.swift` for `idleCloseMinutes`; the row is also listed in `SettingsIndex.swift`, or the Settings search cannot find it.
 
 All four: `docs/configuration.md`, the Settings pages in `docs/macos/` if Settings shows it, and `CHANGELOG.md`.
-The app's writers of `engine.json` keep keys they do not know and send `reload` after saving.
+The app's writers keep keys they do not know, and send `reload` after saving the parts of `engine.json` it still writes; `engine.json`'s watched repos and Behavior values are written by `engine-edit.ts` and followed by the engine's own reload.
 `providers.json` is written by `providers-edit.ts` only ([ADR 0053](../../docs/adr/0053-a-carrier-config-file-has-one-owner-process-and-a-front-end-writes-it-through-that-process.md)): the chat host answers `setAccounts`, `addAccount`, `editAccount`, `removeAccount` and `setTextGenerator` and `carrier config` runs the same code, each reading the raw file again, keeping every key it does not touch, validating the whole result with `providersFileSchema` and renaming a temporary file over it; the one that wrote then asks the engine to reload (`chat/engine-reload.ts`) and the reply says what it did.
 `removeAccount` reads `engine.json` and `chat.json` for who uses the account (`accountUses`) and stops when one of them is there and cannot be read.

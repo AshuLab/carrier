@@ -5,7 +5,7 @@ import SwiftUI
 /// The Watching page: the repos Carrier takes epics from (the `repos` of `engine.json`, `CarrierCore/RepoList.swift`; their order and summary are
 /// `CarrierCore/WatchingList.swift`), each with how its last check went. A row opens the repo's own screen, a place of the window's history: its status,
 /// whether Carrier can work in it, who works there and Stop watching. Watch a project picks one of the Projects. Saved like the Behavior tab: every change
-/// is written as it is made, and nothing restarts Carrier.
+/// is sent to the engine as it is made (`setWatchedRepos`, which writes `engine.json` and makes the engine run on it), and nothing restarts Carrier.
 struct WatchingTabView: View {
     private let timeChanges = TimeFormatChanges()
     /// Where the page is: nothing for the list, or the `owner/name` of a repo.
@@ -27,6 +27,9 @@ struct WatchingTabView: View {
     /// what the engine answered to the last save, from any tab: a refusal means a repo of the list is not in use, whatever the engine can do
     private let reloaded = ReloadStatus.shared
     private let projects = ProjectsModel.shared
+    private let sender = EngineConfigSender.app
+    /// the request in flight; the next one waits for it, so two changes never reach the file out of order
+    @State private var saving: Task<Void, Never>?
     /// the repo whose Stop watching was pressed
     @State private var removing: String?
     /// Watch a project's popover
@@ -259,18 +262,21 @@ struct WatchingTabView: View {
         draft = names
     }
 
-    /// Writes the file, read again just now so a save from the Behavior tab in between is not lost; false (with the reason shown)
-    /// when it could not.
-    private func write() -> Bool {
-        let result = saveConfig(path: path, unusable: "The config file could not be read or the list is not valid.", edit: { applyingRepos(draft, to: $0) })
+    /// Asks the engine for the list as it is now, after the request before it; false, with the reason shown, when it was refused or could not be asked.
+    private func write(_ names: [String]) async -> Bool {
+        let result = await saveEngineConfig(.watchedRepos(names), send: sender.send, status: reloaded)
         failure = result.problem
-        if result == .saved { saved = draft }
+        if result == .saved { saved = names }
         return result == .saved
     }
 
-    /// Writes the list as soon as it changes, when the engine would accept it.
+    /// Sends the list as soon as it changes, when the engine would accept it.
     private func autosave() {
         guard unreadable == false, draft != saved, reposProblem(draft) == nil else { return }
-        _ = write()
+        let names = draft, before = saving
+        saving = Task {
+            await before?.value
+            _ = await write(names)
+        }
     }
 }

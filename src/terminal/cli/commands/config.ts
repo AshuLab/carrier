@@ -1,38 +1,46 @@
 import type { Readable } from 'node:stream';
 import type { z } from 'zod';
-import { chatPlacesOf } from '../../../config/places.ts';
+import { chatPlacesOf, engineConfigPathOf, enginePlacesOf } from '../../../config/places.ts';
 import { editChatSettings } from '../../../chat/config.ts';
 import { ChatRefused } from '../../../chat/runner.ts';
 import { projectEdits } from '../../../chat/project-edits.ts';
 import { providersRequests } from '../../../chat/providers-requests.ts';
 import { addAccountRequest, editAccountRequest, editChatSettingsRequest, projectRequests, removeAccountRequest, setAccountsRequest, setTextGeneratorRequest } from '../../../chat/server.ts';
-import { refused } from '../../../control/server.ts';
+import { ConfigRefused } from '../../../config/engine-edit.ts';
+import { withEngine, writeEngineConfig } from '../../../control/config.ts';
+import { editBehaviorRequest, refused, setWatchedReposRequest } from '../../../control/server.ts';
 import { connectControl, ControlRefused, ControlUnreachable } from '../control-client.ts';
 
 /** The reply the socket would give, minus its `id`. */
 type Printed = { ok: true; data: unknown } | { ok: false; error: string; code?: string; params?: Record<string, string | number> };
 
-/** The requests of the `config` capability this command runs: the socket's schema (with its `id`) and the code the owner runs for it, which this process runs when no owner answers. */
-const requests: Record<string, { schema: z.ZodType; run: (request: any, folder: string) => unknown }> = {
-  editChatSettings: { schema: editChatSettingsRequest, run: (request, folder) => editChatSettings(request.changes, folder) },
-  setAccounts: { schema: setAccountsRequest, run: (request, folder) => providersRequests(folder).setAccounts(request) },
-  addAccount: { schema: addAccountRequest, run: (request, folder) => providersRequests(folder).addAccount(request) },
-  editAccount: { schema: editAccountRequest, run: (request, folder) => providersRequests(folder).editAccount(request) },
-  removeAccount: { schema: removeAccountRequest, run: (request, folder) => providersRequests(folder).removeAccount(request) },
-  setTextGenerator: { schema: setTextGeneratorRequest, run: (request, folder) => providersRequests(folder).setTextGenerator(request) },
+const chatSocket = (folder: string) => chatPlacesOf(folder).socket;
+const engineSocket = (folder: string) => enginePlacesOf(folder).socket;
+
+/** The requests of the `config` capability this command runs: the socket's schema (with its `id`), the socket of the process that owns the file and the code that owner runs for it, which this process runs when no owner answers. */
+const requests: Record<string, { schema: z.ZodType; socket: (folder: string) => string; run: (request: any, folder: string) => unknown }> = {
+  editChatSettings: { schema: editChatSettingsRequest, socket: chatSocket, run: (request, folder) => editChatSettings(request.changes, folder) },
+  setAccounts: { schema: setAccountsRequest, socket: chatSocket, run: (request, folder) => providersRequests(folder).setAccounts(request) },
+  addAccount: { schema: addAccountRequest, socket: chatSocket, run: (request, folder) => providersRequests(folder).addAccount(request) },
+  editAccount: { schema: editAccountRequest, socket: chatSocket, run: (request, folder) => providersRequests(folder).editAccount(request) },
+  removeAccount: { schema: removeAccountRequest, socket: chatSocket, run: (request, folder) => providersRequests(folder).removeAccount(request) },
+  setTextGenerator: { schema: setTextGeneratorRequest, socket: chatSocket, run: (request, folder) => providersRequests(folder).setTextGenerator(request) },
+  // nobody answers for `engine.json`, so nobody runs on what is written
+  setWatchedRepos: { schema: setWatchedReposRequest, socket: engineSocket, run: (request, folder) => withEngine(writeEngineConfig(request, engineConfigPathOf(folder), folder)) },
+  editBehavior: { schema: editBehaviorRequest, socket: engineSocket, run: (request, folder) => withEngine(writeEngineConfig(request, engineConfigPathOf(folder), folder)) },
 };
 // the nine requests that write projects.json and projectsFolder: the owner's code takes the fields, not the socket's `id` and `cmd`
 for (const schema of projectRequests) {
   const cmd = schema.shape.cmd.value;
-  requests[cmd] = { schema, run: ({ id, cmd: _, ...fields }, folder) => (projectEdits as Record<string, (fields: never, folder: string) => unknown>)[cmd]!(fields as never, folder) };
+  requests[cmd] = { schema, socket: chatSocket, run: ({ id, cmd: _, ...fields }, folder) => (projectEdits as Record<string, (fields: never, folder: string) => unknown>)[cmd]!(fields as never, folder) };
 }
 
-/** The reply of the host that answers on `chat.sock` and lists `config`; null when none does, so the caller writes the file itself. */
-async function askOwner(folder: string, cmd: string, fields: Record<string, unknown>): Promise<Printed | null> {
+/** The reply of the process that owns the file when it answers on `socket` and lists `config` (the chat host for `chat.json`, `providers.json` and `projects.json`, the engine for `engine.json`); null when none does, so the caller writes the file itself. */
+async function askOwner(socket: string, cmd: string, fields: Record<string, unknown>): Promise<Printed | null> {
   try {
-    const client = await connectControl(chatPlacesOf(folder).socket);
+    const client = await connectControl(socket);
     try {
-      if (client.hello.capabilities.includes('config') === false) return null; // an older host: its settings are read each pass, so a write by this process is as good
+      if (client.hello.capabilities.includes('config') === false) return null; // an older process: it reads the file again when it needs it, so a write by this process is as good
       return { ok: true, data: await client.request(cmd, fields) };
     } finally {
       client.close();
@@ -69,12 +77,12 @@ export async function configCommand(folder: string, input: Readable = process.st
     return print(reply as Printed), 2;
   }
   const { id, cmd, ...fields } = request.data as { id: number; cmd: string };
-  let reply = await askOwner(folder, cmd, fields);
+  let reply = await askOwner(handler.socket(folder), cmd, fields);
   if (reply === null) {
     try {
       reply = { ok: true, data: await handler.run(request.data, folder) };
     } catch (error) {
-      if (error instanceof ChatRefused === false) throw error;
+      if (error instanceof ChatRefused === false && error instanceof ConfigRefused === false) throw error;
       reply = { ok: false, error: error.message, code: error.code, params: error.params };
     }
   }

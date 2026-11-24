@@ -6,7 +6,7 @@ import { ChatRefused, textCode } from './runner.ts';
 
 // The golden list of the codes a refusal can carry ([ADR 0055](../../docs/adr/0055-a-refusal-carries-a-code-and-its-parameters-and-its-english-words-are-the-fallback.md)):
 // every code with an example of its parameters, read by the app's tests. UPDATE_FIXTURES=1 rewrites it from the sources.
-// A code is found where `new ChatRefused('<code>'` (or `ResumeRefused`, `RecoverRefused`, `ReloadRefused`) or `refused(id, '<code>'` (the reply of a fixed error) passes it,
+// A code is found where `new ChatRefused('<code>'` (or `ResumeRefused`, `RecoverRefused`, `ReloadRefused`, `ConfigRefused`) or `refused(id, '<code>'` (the reply of a fixed error) passes it,
 // or where a helper's reason has `code: '<code>'` (`refusedFor` throws it; `config/problems.ts` gives a config problem its parameters),
 // which is also how a doctor check, a notice, a preparation step, a clone's error, a cleanup's reason, a provider's problem, a usage message and the reason an epic needs a human carry theirs.
 const root = fileURLToPath(new URL('../', import.meta.url));
@@ -92,7 +92,7 @@ function found(): Found[] {
     const text = readFileSync(path, 'utf8');
     const at = path.slice(root.length);
     // a refusal takes its code, its words and its params; a reply takes its id first, and a probe's error its status
-    for (const call of text.matchAll(/new (?:Chat|Resume|Recover|Reload)Refused\(|new PriceOverrideInvalid\(|new ProbeError\(|\brefused\((?=[^)])/g)) {
+    for (const call of text.matchAll(/new (?:Chat|Resume|Recover|Reload|Config)Refused\(|new PriceOverrideInvalid\(|new ProbeError\(|\brefused\((?=[^)])/g)) {
       const open = call.index + call[0].length - 1;
       const args = parts(text, open);
       const [code, params] = call[0].startsWith('new') && call[0] !== 'new ProbeError(' ? [args[0]!, args[2]] : [args[1]!, args[3]];

@@ -8,6 +8,10 @@ import type { EpicReply, EventsReply, FileDiffReply, FilesReply } from './replie
 import { RecoverRefused } from '../orchestration/recover-refused.ts';
 import { ReloadRefused } from '../orchestration/reload-refused.ts';
 import { ResumeRefused } from '../orchestration/resume-refused.ts';
+import { editBehavior, setWatchedRepos } from '../config/engine-edit.ts';
+import { engineConfigPathOf } from '../config/places.ts';
+import { validEngineFile } from '../config/testing.ts';
+import { withEngine, type ConfigReply } from './config.ts';
 import { request, socketPathFits, startControlServer } from './server.ts';
 
 let dir: string;
@@ -32,7 +36,7 @@ const executionId = '3f2b8c1e-5a4d-4e8b-9c1a-0d2e4f6a8b1c';
 function fakeControls() {
   const state = { paused: false, polls: 0, repoPages: [] as number[] };
   const logs = vi.fn((id: string, count: number) => (id === executionId ? ['one', 'two', 'three'].slice(-count) : []));
-  return { state, logs, controls: { poll: () => void state.polls++, setPaused: (paused: boolean) => void (state.paused = paused), logs, sessions: () => ({ sessions: [] }), events: (_id: string, _after: number, _limit: number): EventsReply | null => ({ events: [], next: 0, running: false, structured: true }), epic: (): EpicReply | null | Promise<EpicReply | null> => ({ stages: [], rounds: [], slices: [], slicesTruncated: false, threads: [], threadsTruncated: false, worktrees: [], branch: null, pr: null }), files: (): FilesReply | null | Promise<FilesReply | null> => ({ sections: [], total: null, truncated: false }), fileDiff: (_repo: string, _issue: number, _section: string, _path: string): FileDiffReply | null | Promise<FileDiffReply | null> => ({ rows: [{ sign: '@', text: '@@ -1 +1 @@' }], truncated: false, note: null }), availableRepos: (page: number) => (state.repoPages.push(page), Promise.resolve({ repos: [{ name: 'AshuLab/carrier', private: true, pushedAt: '2026-10-20T10:00:00Z' }], hasMore: page < 3 })), resumeEpic: () => Promise.resolve(), recoverEpic: () => Promise.resolve(), reload: () => {} } };
+  return { state, logs, controls: { poll: () => void state.polls++, setPaused: (paused: boolean) => void (state.paused = paused), logs, sessions: () => ({ sessions: [] }), events: (_id: string, _after: number, _limit: number): EventsReply | null => ({ events: [], next: 0, running: false, structured: true }), epic: (): EpicReply | null | Promise<EpicReply | null> => ({ stages: [], rounds: [], slices: [], slicesTruncated: false, threads: [], threadsTruncated: false, worktrees: [], branch: null, pr: null }), files: (): FilesReply | null | Promise<FilesReply | null> => ({ sections: [], total: null, truncated: false }), fileDiff: (_repo: string, _issue: number, _section: string, _path: string): FileDiffReply | null | Promise<FileDiffReply | null> => ({ rows: [{ sign: '@', text: '@@ -1 +1 @@' }], truncated: false, note: null }), availableRepos: (page: number) => (state.repoPages.push(page), Promise.resolve({ repos: [{ name: 'AshuLab/carrier', private: true, pushedAt: '2026-10-20T10:00:00Z' }], hasMore: page < 3 })), resumeEpic: () => Promise.resolve(), recoverEpic: () => Promise.resolve(), reload: () => {}, setWatchedRepos: (_repos: string[]): ConfigReply => ({ saved: {}, engine: 'applied' }), editBehavior: (_changes: Parameters<typeof editBehavior>[0]): ConfigReply => ({ saved: {}, engine: 'applied' }) } };
 }
 
 const stop = async () => {};
@@ -77,7 +81,7 @@ async function client() {
 test('a client gets a hello, and the snapshot as JSON when it asks', async () => {
   await open();
   const c = await client();
-  expect(c.hello).toEqual({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, version: JSON.parse(readFileSync('package.json', 'utf8')).version, capabilities: ['sessions', 'events', 'epic', 'files', 'fileDiff', 'availableRepos', 'availableReposPaged', 'resumeEpic', 'resumeFromStage', 'resumeReviewerOptions', 'recoverEpic', 'reload'] });
+  expect(c.hello).toEqual({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, version: JSON.parse(readFileSync('package.json', 'utf8')).version, capabilities: ['sessions', 'events', 'epic', 'files', 'fileDiff', 'availableRepos', 'availableReposPaged', 'resumeEpic', 'resumeFromStage', 'resumeReviewerOptions', 'recoverEpic', 'reload', 'config'] });
   expect(await c.ask('{"id":1,"cmd":"snapshot"}')).toEqual({ id: 1, ok: true, data: snapshotData });
   expect(await c.ask('{"id":7,"cmd":"snapshot"}')).toMatchObject({ id: 7, ok: true });
 });
@@ -506,6 +510,8 @@ test('no request takes a status, a stage or a round, and each accepts exactly th
     reload: [],
     resumeEpic: ['author', 'extraRounds', 'from', 'issue', 'lead', 'repo', 'reviewer', 'reviewer2', 'reviewer3', 'reviewer4'],
     recoverEpic: ['issue', 'repo'],
+    setWatchedRepos: ['repos'],
+    editBehavior: ['changes'],
   });
   expect(Object.values(accepted).flat().filter((field) => ['status', 'stage', 'round', 'rounds'].includes(field))).toEqual([]);
 });
@@ -677,4 +683,79 @@ test.each([
   expect(logged).toContain(full);
   expect(logged).toContain(`${Buffer.byteLength(full)} bytes`);
   expect(() => server.close()).not.toThrow();
+});
+
+// The `config` capability: the requests that change engine.json write the file with the code of `config/engine-edit.ts`, then the engine runs on it.
+async function openConfig(reload: () => void) {
+  const file = engineConfigPathOf(dir);
+  writeFileSync(file, JSON.stringify(validEngineFile, null, 2));
+  const controls = { ...fakeControls().controls, setWatchedRepos: (repos: string[]) => withEngine(setWatchedRepos(repos, file, dir), reload), editBehavior: (changes: Parameters<typeof editBehavior>[0]) => withEngine(editBehavior(changes, file, dir), reload) };
+  await open(undefined, controls);
+  return { file, c: await client() };
+}
+
+test('the hello lists config', async () => {
+  await open();
+  expect((await client()).hello.capabilities).toContain('config');
+});
+
+test('setWatchedRepos writes the list keeping the other keys, makes the engine run on it and answers saved and the engine', async () => {
+  const reload = vi.fn();
+  const { file, c } = await openConfig(reload);
+  const reply = await c.ask('{"id":5,"cmd":"setWatchedRepos","repos":["acme/web","new/one"]}');
+  expect(reply).toEqual({ id: 5, ok: true, data: { saved: { repos: [validEngineFile.repos[1], { name: 'new/one' }] }, engine: 'applied' } });
+  expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual({ ...validEngineFile, repos: [validEngineFile.repos[1], { name: 'new/one' }] });
+  expect(reload).toHaveBeenCalledTimes(1);
+});
+
+test('editBehavior writes the values, a default one taken out, and the engine runs on them', async () => {
+  const reload = vi.fn();
+  const { file, c } = await openConfig(reload);
+  const reply = await c.ask('{"id":6,"cmd":"editBehavior","changes":{"pollIntervalMinutes":2,"logLevel":"info","limits":{"maxReviews":5,"maxExecutionHours":"unlimited"}}}');
+  expect(reply).toEqual({ id: 6, ok: true, data: { saved: { pollIntervalMinutes: 2, limits: { maxExecutionHours: 'unlimited' } }, engine: 'applied' } });
+  expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual({ ...validEngineFile, pollIntervalMinutes: 2, limits: { maxLeadRounds: 2, maxExecutionHours: 'unlimited' } });
+  expect(reload).toHaveBeenCalledTimes(1);
+});
+
+test('a reload the engine refuses leaves the file saved and says engine refused with the reason as a text code', async () => {
+  const problem = 'Invalid config /c/engine.json:\n  repos.2.name: must be owner/name';
+  const { file, c } = await openConfig(() => { throw new ReloadRefused('config.problem', problem, { path: 'repos[2]', problem: 'notARepo' }); });
+  const reply = await c.ask('{"id":5,"cmd":"setWatchedRepos","repos":["a/b"]}');
+  expect(reply).toEqual({ id: 5, ok: true, data: { saved: { repos: [{ name: 'a/b' }] }, engine: 'refused', reason: { code: 'config.problem', params: { path: 'repos[2]', problem: 'notARepo' }, error: problem } } });
+  expect(JSON.parse(readFileSync(file, 'utf8')).repos).toEqual([{ name: 'a/b' }]);
+});
+
+test.each([
+  ['setWatchedRepos', '"repos":["a/b","nope"]', 'nope must be owner/name', { path: 'repos[1]', problem: 'notARepo' }],
+  ['setWatchedRepos', '"repos":["a/b","A/B"]', 'A/B is already watched', { path: 'repos[1]', problem: 'alreadyWatched' }],
+  ['editBehavior', '"changes":{"limits":{"maxReviews":0}}', 'Must be 1 or more', { path: 'limits.maxReviews', problem: 'tooSmall' }],
+  ['editBehavior', '"changes":{"logLevel":"loud"}', 'Must be one of debug, info, warn, error', { path: 'logLevel', problem: 'notOneOf' }],
+])('%s with %s is refused with its words, code and params, no reload, and the file is as it was', async (cmd, fields, words, params) => {
+  const reload = vi.fn();
+  const { file, c } = await openConfig(reload);
+  const before = readFileSync(file, 'utf8');
+  expect(await c.ask(`{"id":5,"cmd":"${cmd}",${fields}}`)).toEqual({ id: 5, ok: false, error: words, code: 'config.problem', params });
+  expect(readFileSync(file, 'utf8')).toBe(before);
+  expect(reload).not.toHaveBeenCalled();
+});
+
+test.each([
+  '{"id":5,"cmd":"setWatchedRepos"}',
+  '{"id":5,"cmd":"setWatchedRepos","repos":"a/b"}',
+  '{"id":5,"cmd":"setWatchedRepos","repos":[1]}',
+  '{"id":5,"cmd":"setWatchedRepos","repos":[],"extra":1}',
+  '{"id":5,"cmd":"editBehavior","changes":{"labels":{}}}',
+  '{"id":5,"cmd":"editBehavior","changes":{"limits":{"maxReviews":"5"}}}',
+  '{"id":5,"cmd":"editBehavior","changes":{"limits":{"idleMinutes":5}}}',
+  '{"id":5,"cmd":"editBehavior"}',
+])('%s is a validation error', async (line) => {
+  const { c } = await openConfig(() => {});
+  expect(await c.ask(line)).toEqual({ id: 5, ok: false, error: 'invalid request', code: 'request.invalid', params: {} });
+});
+
+test('a write that fails for any other reason is an internal error without the reason', async () => {
+  vi.spyOn(console, 'error').mockImplementation(() => {});
+  await open(undefined, { ...fakeControls().controls, setWatchedRepos: () => { throw new Error('EACCES /secret/path'); } });
+  const reply = await (await client()).ask('{"id":5,"cmd":"setWatchedRepos","repos":[]}');
+  expect(reply).toEqual({ id: 5, ok: false, error: 'internal error', code: 'request.internal', params: {} });
 });

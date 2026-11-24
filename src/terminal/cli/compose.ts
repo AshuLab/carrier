@@ -1,12 +1,14 @@
 import { chmodSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { configureUniversalLogger, createScopedLogger, type LogLevel } from '@ashulab/universal-logger';
-import { enginePlacesOf } from '../../config/places.ts';
+import { editBehavior, setWatchedRepos, type BehaviorChanges } from '../../config/engine-edit.ts';
+import { engineConfigPathOf, enginePlacesOf } from '../../config/places.ts';
 import type { Config } from '../../config/schema.ts';
 import { resolveRepoConfig } from '../../config/resolve.ts';
 import type { AgentRunner } from '../../execution/agent-runner.ts';
 import { GitWorkspaces, profileToken, type GitWorkspacesOptions } from '../../execution/git-workspaces.ts';
 import type { Workspaces } from '../../execution/workspaces.ts';
+import { withEngine } from '../../control/config.ts';
 import { epicOf } from '../../control/epic.ts';
 import { eventsOf, lastEventOf } from '../../control/events.ts';
 import { cardsMemo, fileDiff, filesOf } from '../../control/files.ts';
@@ -71,6 +73,8 @@ export interface CarrierDeps {
   stdin?: Parameters<typeof startInteractivePanel>[0]['stdin'];
   /** Opens a GitHub page in the browser. */
   openUrl: (url: string) => void;
+  /** The file the engine runs on, which `setWatchedRepos` and `editBehavior` write; the Carrier folder's `engine.json` unless `--config` chose another. */
+  configPath?: string;
   /** The `q` key: ends the process the same way Ctrl+C would. */
   quit: () => void;
 }
@@ -107,6 +111,7 @@ export async function startCarrier(started: Config, folder: string, loadConfig: 
   let config = started; // replaced by a reload; everything that follows the settings reads it where it is used
   const deps = { ...realDeps(), ...overrides };
   const places = enginePlacesOf(folder);
+  const configPath = deps.configPath ?? engineConfigPathOf(folder);
   // First side effect of startup: one instance per Carrier folder.
   const lock = acquireLock(places.state);
   if (!lock.ok) throw new InstanceBusy(`Another carrier instance is already running on ${places.state}`);
@@ -188,6 +193,23 @@ export async function startCarrier(started: Config, folder: string, loadConfig: 
       lastEvent: (executionId) => lastEventOf(db, executionId),
     });
   };
+  const reloadNow = () =>
+    engine.reload(() => {
+      try {
+        const next = loadConfig();
+        const nextRepos = next.repos.map((repo) => resolveRepoConfig(next, repo));
+        deps.setLogLevel(next.logLevel); // before anything is swapped: if it throws, the reload changes nothing and says so
+        repos = nextRepos;
+        config = next;
+      } catch (error) {
+        if (error instanceof CliError) {
+          const words = error.lines.join('\n'); // what a start prints for the file
+          const problem = error instanceof InvalidConfig ? error.errors.map(configProblem).find((found) => found !== null) : undefined;
+          throw problem ? new ReloadRefused(problem.code, words, problem.params) : new ReloadRefused('config.invalid', words);
+        }
+        throw error;
+      }
+    });
   const cards = cardsMemo(() => deps.clock.now());
   const controls = {
     poll: () => engine.pollNow(),
@@ -203,23 +225,9 @@ export async function startCarrier(started: Config, folder: string, loadConfig: 
     availableRepos: (page: number) => deps.listRepos(page, timeoutMs()),
     resumeEpic: (repo: string, issue: number, chosen: Parameters<Controls['resumeEpic']>[2]) => engine.resumeEpic(repo, issue, chosen),
     recoverEpic: (repo: string, issue: number) => engine.recoverEpic(repo, issue),
-    reload: () =>
-      engine.reload(() => {
-        try {
-          const next = loadConfig();
-          const nextRepos = next.repos.map((repo) => resolveRepoConfig(next, repo));
-          deps.setLogLevel(next.logLevel); // before anything is swapped: if it throws, the reload changes nothing and says so
-          repos = nextRepos;
-          config = next;
-        } catch (error) {
-          if (error instanceof CliError) {
-            const words = error.lines.join('\n'); // what a start prints for the file
-            const problem = error instanceof InvalidConfig ? error.errors.map(configProblem).find((found) => found !== null) : undefined;
-            throw problem ? new ReloadRefused(problem.code, words, problem.params) : new ReloadRefused('config.invalid', words);
-          }
-          throw error;
-        }
-      }),
+    reload: reloadNow,
+    setWatchedRepos: (names: string[]) => withEngine(setWatchedRepos(names, configPath, folder), reloadNow),
+    editBehavior: (changes: BehaviorChanges) => withEngine(editBehavior(changes, configPath, folder), reloadNow),
   };
   // Before the recovery: the snapshot and the read requests only read SQLite, and a check or a resume asked meanwhile shares the start's recovery.
   // Until then the snapshot has no next check, which the app and the panel show as starting.

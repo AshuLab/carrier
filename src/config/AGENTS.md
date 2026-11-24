@@ -16,7 +16,7 @@ Its Swift twin is `macos/Sources/CarrierCore/CarrierPlaces.swift`, which also ha
 3. `src/config/resolve.ts`: only if it is per repo or per role (`resolveRepoConfig`, `EffectiveRepoConfig`); keep it optional, older epics were stored without it.
 4. `src/terminal/cli/compose.ts`: read it **inside** a closure (`settings`, `snapshot`, `timeoutMs`), never once at start: `config` is replaced by `reload` ([ADR 0023](../../docs/adr/0023-the-engine-reloads-its-configuration-on-request-and-running-work-keeps-what-it-started-with.md)).
 5. `UPDATE_FIXTURES=1 pnpm test` rewrites `macos/Tests/Fixtures/engine-config.json` (`engine-config-contract.test.ts`), and `ContractTests.swift` fails until `EngineConfig.swift` has the same defaults and refuses the same values.
-6. Swift, only if the app edits it: `macos/Sources/CarrierCore/EngineConfig.swift` repeats the default, the parse (`init(json:)`), the rule (`problems`) and the write (`applied(to:)`); the page is `BehaviorPage.swift` and `BehaviorTab.swift`.
+6. Swift, only if the app edits it: `macos/Sources/CarrierCore/EngineConfig.swift` repeats the default, the parse (`init(json:)`) and the rule (`problems`), and `EngineConfigChange.behavior` sends it; the write is `src/config/engine-edit.ts` (`editBehavior`, with its field rules and its table in `engine-edit.test.ts`) and the request's schema is `editBehaviorRequest` in `src/control/server.ts`; the page is `BehaviorPage.swift` and `BehaviorTab.swift`.
 
 `providers.json`:
 
@@ -38,4 +38,4 @@ Its Swift twin is `macos/Sources/CarrierCore/CarrierPlaces.swift`, which also ha
 2. Swift: `macos/Sources/CarrierCore/SessionAges.swift` for the ages it edits, `WorktreeStart.swift` for `worktreeStart` and `IdleClose.swift` for `idleCloseMinutes`; the row is also listed in `SettingsIndex.swift`, or the Settings search cannot find it.
 
 All four: `docs/configuration.md`, the Settings pages in `docs/macos/` if Settings shows it, and `CHANGELOG.md`.
-The app's writers keep keys they do not know, and send `reload` after saving `engine.json` or `providers.json`.
+The app's writers keep keys they do not know, and send `reload` after saving `providers.json` or the parts of `engine.json` it still writes; `engine.json`'s watched repos and Behavior values are written by `engine-edit.ts` and followed by the engine's own reload.

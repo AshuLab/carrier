@@ -42,42 +42,6 @@ func anythingElseIsNot(name: String) { #expect(isRepoName(name) == false) }
     #expect(configRepoNames(json: Data("[]".utf8)) == nil)
 }
 
-@Test func applyingKeepsEachKeptReposOwnFieldsAndTheRestOfTheFile() throws {
-    let written = object(applyingRepos(["acme/web", "AshuLab/carrier", "acme/new"], to: file))
-    let repos = try #require(written["repos"] as? [[String: Any]])
-    #expect(repos.map { $0["name"] as? String } == ["acme/web", "AshuLab/carrier", "acme/new"])
-    // the override of acme/web is untouched, and a new repo is only its name
-    #expect((repos[0]["agents"] as? [String: Any])?["author"] as? [String: String] == ["profile": "other-bot"])
-    #expect(repos[1].keys.sorted() == ["name"] && repos[2].keys.sorted() == ["name"])
-    #expect(written["keep"] as? String == "~/work" && written["pollIntervalMinutes"] as? Int == 2)
-    #expect((written["limits"] as? [String: Any])?["maxReviews"] as? Int == 7 && written["profiles"] != nil)
-}
-
-@Test func theAppNeverMakesAConfigFileNorWritesAnInvalidList() {
-    #expect(applyingRepos(["a/b"], to: Data()) == nil)
-    #expect(applyingRepos(["a/b"], to: Data("[]".utf8)) == nil)
-    #expect(applyingRepos(["acme/web", "other/web"], to: file) == nil)
-}
-
-@Test func stoppingToWatchTheLastRepoWritesAnEmptyList() throws {
-    let data = try #require(applyingRepos([], to: file))
-    let written = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
-    #expect((written["repos"] as? [Any])?.isEmpty == true && written["profiles"] != nil)
-}
-
-@Test func theBehaviorTabAndTheReposTabKeepEachOthersKeys() throws {
-    var config = EngineConfig(json: file)
-    config.maxConcurrentEpics = 6
-    let afterBehavior = try #require(config.applied(to: file))
-    #expect(configRepoNames(json: afterBehavior) == ["AshuLab/carrier", "acme/web", "vemec/encaja"])
-    #expect((object(afterBehavior)["repos"] as? [[String: Any]])?[1]["agents"] != nil)
-
-    let afterRepos = try #require(applyingRepos(["acme/web"], to: afterBehavior))
-    let engine = EngineConfig(json: afterRepos)
-    #expect(engine.maxConcurrentEpics == 6 && engine.maxReviews == 7 && engine.pollIntervalMinutes == 2)
-    #expect(configRepoNames(json: afterRepos) == ["acme/web"])
-}
-
 @Test func theEpicsOfARepoAreCountedFromTheSnapshot() throws {
     let snapshot = try running()
     #expect(repoEpics("acme/web", snapshot: nil) == nil)
@@ -123,49 +87,65 @@ private func temporaryConfig(_ data: Data = file) throws -> String {
     return path
 }
 
-@Test func turningTheSwitchOnAddsTheRepoKeepingEveryOtherKeyAndAsksTheEngineToReload() throws {
+@MainActor @Test func turningTheSwitchOnSendsTheListWithTheRepoAddedAndKeepsWhatTheEngineAnswered() async throws {
     let path = try temporaryConfig()
     defer { try? FileManager.default.removeItem(atPath: path) }
-    let engine = FakeReload(file: path)
-    #expect(saveWatch(true, repo: "new/thing", path: path, reload: engine.reload) == .saved)
-    let written = try #require(engine.now)
-    #expect(configRepoNames(json: written) == ["AshuLab/carrier", "acme/web", "vemec/encaja", "new/thing"])
-    #expect(object(written)["keep"] as? String == "~/work" && object(written)["profiles"] != nil)
-    #expect((object(written)["repos"] as? [[String: Any]])?[1]["agents"] != nil)
-    #expect(engine.calls == 1 && engine.seen[0] == written)
+    let engine = FakeEngineConfig()
+    let status = ReloadStatus(reload: { .nobody })
+    #expect(await saveWatch(true, repo: "new/thing", path: path, send: engine.send, status: status) == .saved)
+    #expect(engine.sent == [.watchedRepos(["AshuLab/carrier", "acme/web", "vemec/encaja", "new/thing"])])
+    #expect(status.outcome == .applied)
     // already watched, whatever the case GitHub gave it: nothing is added twice
-    #expect(saveWatch(true, repo: "ACME/Web", path: path, reload: engine.reload) == .saved)
-    #expect(configRepoNames(json: try #require(engine.now)) == ["AshuLab/carrier", "acme/web", "vemec/encaja", "new/thing"])
+    #expect(await saveWatch(true, repo: "ACME/Web", path: path, send: engine.send, status: status) == .saved)
+    #expect(engine.sent.last == .watchedRepos(["AshuLab/carrier", "acme/web", "vemec/encaja"]))
+    // the app never writes the file: it is as it was
+    #expect(try Data(contentsOf: URL(fileURLWithPath: path)) == file)
 }
 
-@Test func turningTheSwitchOffRemovesOnlyThatEntry() throws {
+@MainActor @Test func turningTheSwitchOffSendsTheListWithoutOnlyThatEntry() async throws {
     let path = try temporaryConfig()
     defer { try? FileManager.default.removeItem(atPath: path) }
-    let engine = FakeReload(file: path)
-    #expect(saveWatch(false, repo: "Acme/Web", path: path, reload: engine.reload) == .saved)
-    #expect(configRepoNames(json: try #require(engine.now)) == ["AshuLab/carrier", "vemec/encaja"])
-    #expect(object(engine.now)["keep"] as? String == "~/work" && engine.calls == 1)
+    let engine = FakeEngineConfig()
+    #expect(await saveWatch(false, repo: "Acme/Web", path: path, send: engine.send, status: ReloadStatus(reload: { .nobody })) == .saved)
+    #expect(engine.sent == [.watchedRepos(["AshuLab/carrier", "vemec/encaja"])])
 }
 
-@Test func twoWatchedReposWithOneFolderNameAreRefusedWithTheReasonAndNothingIsWritten() throws {
+@MainActor @Test func twoWatchedReposWithOneFolderNameAreRefusedWithTheReasonAndNothingIsSent() async throws {
     let path = try temporaryConfig()
     defer { try? FileManager.default.removeItem(atPath: path) }
-    let engine = FakeReload(file: path)
-    let result = saveWatch(true, repo: "other/web", path: path, reload: engine.reload)
+    let engine = FakeEngineConfig()
+    let result = await saveWatch(true, repo: "other/web", path: path, send: engine.send, status: ReloadStatus(reload: { .nobody }))
     #expect(result == .refused("other/web has the same folder name as acme/web; Solve's worktree paths have no owner"))
-    #expect(engine.now == file && engine.calls == 0)
+    #expect(engine.sent.isEmpty)
 }
 
-@Test func anInvalidOrUnreadableConfigIsNeverWrittenByTheSwitch() throws {
+@MainActor @Test func anInvalidOrUnreadableConfigSendsNothing() async throws {
     let invalid = try temporaryConfig(Data(#"{"repos":[{"name":"a/web"},{"name":"b/web"}]}"#.utf8))
     defer { try? FileManager.default.removeItem(atPath: invalid) }
-    let engine = FakeReload(file: invalid)
-    #expect(saveWatch(false, repo: "x/y", path: invalid, reload: engine.reload).problem == "b/web has the same folder name as a/web; Solve's worktree paths have no owner")
+    let engine = FakeEngineConfig()
+    let status = ReloadStatus(reload: { .nobody })
+    #expect(await saveWatch(false, repo: "x/y", path: invalid, send: engine.send, status: status).problem == "b/web has the same folder name as a/web; Solve's worktree paths have no owner")
     let notJSON = try temporaryConfig(Data("nope".utf8))
     defer { try? FileManager.default.removeItem(atPath: notJSON) }
-    #expect(saveWatch(true, repo: "x/y", path: notJSON, reload: engine.reload) == .failed("The config file could not be read or the list is not valid."))
-    #expect(saveWatch(true, repo: "x/y", path: notJSON + ".missing", reload: engine.reload).problem != nil)
-    #expect(engine.calls == 0)
+    #expect(await saveWatch(true, repo: "x/y", path: notJSON, send: engine.send, status: status) == .failed("The config file could not be read or the list is not valid."))
+    #expect(await saveWatch(true, repo: "x/y", path: notJSON + ".missing", send: engine.send, status: status).problem != nil)
+    #expect(engine.sent.isEmpty)
+}
+
+@MainActor @Test func aListTheEngineRefusesIsRefusedWithItsWordsAndOneItCouldNotRunOnIsSavedAndSaidSo() async throws {
+    let path = try temporaryConfig()
+    defer { try? FileManager.default.removeItem(atPath: path) }
+    let engine = FakeEngineConfig()
+    let status = ReloadStatus(reload: { .nobody })
+    engine.failure = ControlError.remote(Refusal(code: "config.problem", params: ["path": "repos[3]", "problem": "notARepo"], text: "x must be owner/name"))
+    #expect(await saveWatch(true, repo: "x/y", path: path, send: engine.send, status: status) == .refused("x must be owner/name"))
+    #expect(status.outcome == nil)
+    engine.failure = nil
+    engine.reply = EngineConfigReply(engine: .refused, reason: .init(code: "config.invalid", params: [:], error: "agents.author.profile: bad"))
+    #expect(await saveWatch(true, repo: "x/y", path: path, send: engine.send, status: status) == .saved)
+    #expect(status.outcome == .refused(Refusal(code: "config.invalid", text: "agents.author.profile: bad")))
+    engine.failure = ControlError.closed
+    #expect(await saveWatch(true, repo: "x/y", path: path, send: engine.send, status: status).problem != nil)
 }
 
 @Test func theSwitchRowSaysWhatIsOnAndWhyNot() throws {

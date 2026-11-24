@@ -1,8 +1,8 @@
 import Foundation
 
 // The Watching page as plain values: the `repos` of `engine.json` the app lets the person change (which repos are watched), their
-// rows and the text of the confirmation to stop watching one. Nothing here reads or shows a repo's own settings: a repo's other
-// fields in the file are kept exactly as they are.
+// rows and the text of the confirmation to stop watching one. Nothing here reads or shows a repo's own settings: the list is written by
+// the engine (`EngineConfigChange.watchedRepos`), which keeps a repo's other fields in the file exactly as they are.
 
 /// `owner/name`, as the engine's `repoNamePattern` (src/config/schema.ts) accepts it: two parts of letters, digits, `_`, `.`
 /// and `-`, neither of them `.` or `..`.
@@ -39,16 +39,6 @@ public func reposProblem(_ names: [String]) -> String? {
 public func configRepoNames(json: Data) -> [String]? {
     guard let file = (try? JSONSerialization.jsonObject(with: json)) as? [String: Any] else { return nil }
     return (file["repos"] as? [[String: Any]] ?? []).compactMap { $0["name"] as? String }
-}
-
-/// `json` with `names` as its repos. A repo that was there keeps its entry as it is; a new one is `{"name": …}`; everything else
-/// in the file is left alone. nil when `json` is not a JSON object or the list has a problem: like `EngineConfig.applied`, the
-/// app never makes a config file.
-public func applyingRepos(_ names: [String], to json: Data) -> Data? {
-    guard reposProblem(names) == nil, var file = (try? JSONSerialization.jsonObject(with: json)) as? [String: Any] else { return nil }
-    let kept = file["repos"] as? [[String: Any]] ?? []
-    file["repos"] = names.map { name in kept.first { $0["name"] as? String == name } ?? ["name": name] }
-    return try? JSONSerialization.data(withJSONObject: file, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
 }
 
 /// The epics of one repo that stop when it leaves the config: the ones running, queued or waiting for a person.

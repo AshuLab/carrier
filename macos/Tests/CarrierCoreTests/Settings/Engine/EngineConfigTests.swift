@@ -6,8 +6,6 @@ private func object(_ data: Data?) -> [String: Any] {
     (try? JSONSerialization.jsonObject(with: data ?? Data())) as? [String: Any] ?? [:]
 }
 
-private let file = Data(#"{"keep":"~/work","repos":[{"name":"a/b"}],"limits":{"maxReviews":7}}"#.utf8)
-
 @Test func aFileWithoutTheValuesReadsAsTheEnginesDefaults() {
     #expect(EngineConfig(json: Data("{}".utf8)) == EngineConfig())
     #expect(EngineConfig(json: Data("not json".utf8)) == EngineConfig())
@@ -36,32 +34,6 @@ private let file = Data(#"{"keep":"~/work","repos":[{"name":"a/b"}],"limits":{"m
     #expect(config.problems["maxExecutionRetries"] == nil && config.problems["maxExecutionHours"] == nil)
 }
 
-@Test func applyingKeepsEverythingElseAndWritesOnlyWhatDiffersFromTheDefaults() throws {
-    var config = EngineConfig(json: file)
-    config.maxConcurrentEpics = 6
-    config.maxReviews = 5  // back to the default: leaves the file
-    config.maxExecutionHours = nil
-    let written = object(config.applied(to: file))
-    #expect(written["keep"] as? String == "~/work" && (written["repos"] as? [Any])?.count == 1)
-    #expect(written["pollIntervalMinutes"] == nil && written["logLevel"] == nil)
-    let limits = try #require(written["limits"] as? [String: Any])
-    #expect(limits["maxConcurrentEpics"] as? Int == 6 && limits["maxExecutionHours"] as? String == "unlimited" && limits["maxReviews"] == nil)
-    #expect(EngineConfig(json: try #require(config.applied(to: file))) == config)
-}
-
-@Test func theLimitsObjectGoesWhenNothingIsLeftInIt() {
-    let written = object(EngineConfig().applied(to: file))
-    #expect(written["limits"] == nil && written["keep"] as? String == "~/work")
-}
-
-@Test func theAppNeverMakesAConfigFileNorWritesBadValues() {
-    #expect(EngineConfig().applied(to: Data()) == nil)
-    #expect(EngineConfig().applied(to: Data("[]".utf8)) == nil)
-    var config = EngineConfig()
-    config.maxReviews = 0
-    #expect(config.applied(to: file) == nil)
-}
-
 @Test func theFinishedWindowDefaultsTo15AndIsReadFromTheFile() {
     #expect(EngineConfig().finishedWindowDays == 15)
     #expect(EngineConfig(json: Data("{}".utf8)).finishedWindowDays == 15)
@@ -73,7 +45,6 @@ private let file = Data(#"{"keep":"~/work","repos":[{"name":"a/b"}],"limits":{"m
     for days in [0, 31, -1] {
         config.finishedWindowDays = days
         #expect(config.problems["finishedWindowDays"] == "Must be a whole number from 1 to 30")
-        #expect(config.applied(to: file) == nil)
     }
     for days in [1, 30] {
         config.finishedWindowDays = days
@@ -81,37 +52,9 @@ private let file = Data(#"{"keep":"~/work","repos":[{"name":"a/b"}],"limits":{"m
     }
 }
 
-@Test func theFinishedWindowIsSavedAtTheTopLevelWithoutTouchingTheRest() throws {
-    var config = EngineConfig(json: file)
-    config.finishedWindowDays = 7
-    let written = object(config.applied(to: file))
-    #expect(written["finishedWindowDays"] as? Int == 7)
-    #expect(written["keep"] as? String == "~/work" && (written["repos"] as? [Any])?.count == 1)
-    #expect((written["limits"] as? [String: Any])?["maxReviews"] as? Int == 7)
-    #expect(EngineConfig(json: try #require(config.applied(to: file))) == config)
-    config.finishedWindowDays = 15  // back to the default: leaves the file
-    #expect(object(config.applied(to: file))["finishedWindowDays"] == nil)
-}
-
 @Test func theRunTimeTakesUnlimitedOrANumberOfHours() throws {
     #expect(EngineConfig(json: Data(#"{"limits":{"maxExecutionHours":"unlimited"}}"#.utf8)).maxExecutionHours == nil)
     #expect(EngineConfig(json: Data(#"{"limits":{"maxExecutionHours":8}}"#.utf8)).maxExecutionHours == 8)
-    var config = EngineConfig()
-    config.maxExecutionHours = nil
-    #expect((object(config.applied(to: file))["limits"] as? [String: Any])?["maxExecutionHours"] as? String == "unlimited")
-    config.maxExecutionHours = 8
-    #expect((object(config.applied(to: file))["limits"] as? [String: Any])?["maxExecutionHours"] as? Int == 8)
-    #expect(EngineConfig(json: try #require(config.applied(to: file))) == config)
-}
-
-@Test func resettingWritesTheDefaultsOfTheEightValuesAndKeepsTheRestOfTheFile() throws {
-    let changed = Data(#"{"keep":"~/work","repos":[{"name":"a/b"}],"logLevel":"debug","pollIntervalMinutes":0.5,"finishedWindowDays":3,"limits":{"maxConcurrentEpics":6,"maxReviews":7,"maxExecutionRetries":0,"maxExecutionHours":"unlimited","githubCallTimeoutSeconds":90,"other":1}}"#.utf8)
-    let reset = try #require(EngineConfig().applied(to: changed))
-    #expect(EngineConfig(json: reset) == EngineConfig())
-    let written = object(reset)
-    #expect(written["keep"] as? String == "~/work" && (written["repos"] as? [Any])?.count == 1)
-    #expect(written["logLevel"] == nil && written["pollIntervalMinutes"] == nil && written["finishedWindowDays"] == nil)
-    #expect((written["limits"] as? [String: Any])?.keys.sorted() == ["other"])
 }
 
 private let profiled = Data(#"{"zeta":1,"profiles":{"bot":{}},"repos":[{"name":"a/b"}],"orchestratorProfile":"old","limits":{"maxReviews":7}}"#.utf8)

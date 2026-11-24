@@ -106,6 +106,14 @@ public func reloadOffMain(_ reload: @escaping Reload) async -> ReloadOutcome {
         return answer
     }
 
+    /// Keeps what the engine answered to a change of its file that carried the reload with it (`EngineConfigReply`): there is no ask to make, and an ask on its way is dropped.
+    public func record(_ answer: ReloadOutcome) {
+        asks += 1
+        outcome = answer
+        pending = false
+        answers += 1
+    }
+
     /// Forgets the answer and drops those on their way: what the engine said belongs to the engine that said it, and a stopped or restarted
     /// Carrier is another one.
     public func reset() {

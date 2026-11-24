@@ -1,10 +1,10 @@
 import Foundation
 
 // The eight values of `engine.json` the app lets the person change: how often Carrier looks, how loud it logs and its limits.
-// The rules are the engine's (src/config/schema.ts and load.ts); a running engine reads them again when it is asked to reload. Everything else
-// in the file (repos, profiles, agents) is left as it is.
+// The rules are the engine's (src/config/schema.ts and load.ts), checked here while the person types; the file is written by the engine, or by `carrier config`
+// (`EngineConfigChange.behavior`, `src/config/engine-edit.ts`), which leave everything else in it (repos, profiles, agents) as it is.
 
-public struct EngineConfig: Equatable {
+public struct EngineConfig: Equatable, Sendable {
     public static let logLevels = ["debug", "info", "warn", "error"]
 
     public var pollIntervalMinutes = 5.0
@@ -48,27 +48,5 @@ public struct EngineConfig: Equatable {
         if githubCallTimeoutSeconds < 1 { found["githubCallTimeoutSeconds"] = "Must be 1 or more" }
         if (1...30).contains(finishedWindowDays) == false { found["finishedWindowDays"] = "Must be a whole number from 1 to 30" }
         return found
-    }
-
-    /// `json` with these values in it. A value equal to the engine's default is taken out of the file instead of written, so a
-    /// file does not pin what the engine may change later. nil when `json` is not a JSON object or the values have problems:
-    /// the app never makes a config file, it only edits the one `carrier init` made.
-    public func applied(to json: Data) -> Data? {
-        guard problems.isEmpty, var file = (try? JSONSerialization.jsonObject(with: json)) as? [String: Any] else { return nil }
-        let base = EngineConfig()
-        func put(_ key: String, _ value: Any, differs: Bool, in object: inout [String: Any]) {
-            if differs { object[key] = value } else { object.removeValue(forKey: key) }
-        }
-        put("pollIntervalMinutes", pollIntervalMinutes, differs: pollIntervalMinutes != base.pollIntervalMinutes, in: &file)
-        put("logLevel", logLevel, differs: logLevel != base.logLevel, in: &file)
-        put("finishedWindowDays", finishedWindowDays, differs: finishedWindowDays != base.finishedWindowDays, in: &file)
-        var limits = file["limits"] as? [String: Any] ?? [:]
-        put("maxConcurrentEpics", maxConcurrentEpics, differs: maxConcurrentEpics != base.maxConcurrentEpics, in: &limits)
-        put("maxReviews", maxReviews, differs: maxReviews != base.maxReviews, in: &limits)
-        put("maxExecutionRetries", maxExecutionRetries, differs: maxExecutionRetries != base.maxExecutionRetries, in: &limits)
-        put("maxExecutionHours", maxExecutionHours ?? "unlimited", differs: maxExecutionHours != base.maxExecutionHours, in: &limits)
-        put("githubCallTimeoutSeconds", githubCallTimeoutSeconds, differs: githubCallTimeoutSeconds != base.githubCallTimeoutSeconds, in: &limits)
-        if limits.isEmpty { file.removeValue(forKey: "limits") } else { file["limits"] = limits }
-        return try? JSONSerialization.data(withJSONObject: file, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
     }
 }

@@ -114,7 +114,7 @@ import SwiftUI
     let newSession = MainActor.assumeIsolated {
         NewSessionModel(host: SocketChatHost(), health: AppHealth.store, offers: .shared, ensureHost: {
             await withCheckedContinuation { continuation in ChatHostStarter.shared.ensureRunning { continuation.resume(returning: $0) } }
-        }, projects: .shared)
+        }, send: EngineConfigSender.app.send, projects: .shared)
     }
 }
 

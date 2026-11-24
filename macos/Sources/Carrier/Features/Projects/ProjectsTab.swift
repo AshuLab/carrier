@@ -569,11 +569,13 @@ private struct ProjectDetailView: View {
         }
     }
 
-    /// Writes the engine config like the Repos page does and asks the engine to reload; a refusal is shown on the row.
+    /// Asks the engine to change its config like the Watching page does, which runs on it at once; a refusal is shown on the row.
     private func setWatching(_ on: Bool) {
         guard let repo = row.repo else { return }
-        watchFailure = saveWatch(on, repo: repo, path: configFilePath()).problem
-        reloadWatched()
+        Task {
+            watchFailure = await saveWatch(on, repo: repo, path: configFilePath(), send: EngineConfigSender.app.send).problem
+            reloadWatched()
+        }
     }
 
     /// The Worktrees and disk group: the total and a bar, then the main clone and each worktree Carrier made with its size. The worktrees are asked of the host when

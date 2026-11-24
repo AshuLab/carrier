@@ -46,6 +46,6 @@ export async function initCommand(flags: Flags, folder: string): Promise<number 
     }
     throw new CliError(1, error instanceof Error ? error.message : String(error));
   }
-  if (started.start) return void (await runCommand(started.config, folder, () => loadConfigFile(started.path, folder), { framed: true })); // the same process, until Ctrl+C
+  if (started.start) return void (await runCommand(started.config, folder, () => loadConfigFile(started.path, folder), { framed: true, configPath: started.path })); // the same process, until Ctrl+C
   return started.checks.some((c) => c.status === 'fail') ? 1 : 0;
 }

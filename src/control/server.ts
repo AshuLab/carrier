@@ -5,11 +5,13 @@ import { z } from 'zod';
 import type { ChatCapability } from '../chat/server.ts';
 import type { AvailableRepo } from '../integrations/available-repos.ts';
 import { controlSocketIn } from '../config/places.ts';
+import { ConfigRefused } from '../config/engine-edit.ts';
 import { optionNamePattern } from '../config/providers.ts';
 import type { TextParams } from '../orchestration/text-params.ts';
 import { RecoverRefused } from '../orchestration/recover-refused.ts';
 import { ReloadRefused } from '../orchestration/reload-refused.ts';
 import { ResumeRefused } from '../orchestration/resume-refused.ts';
+import type { ConfigReply } from './config.ts';
 import type { EpicReply, EventsReply, FileDiffReply, FilesReply, SessionsReply } from './replies.ts';
 
 const log = createScopedLogger('control');
@@ -32,6 +34,19 @@ const repo = z
 const issue = z.number().int().positive();
 const optionName = z.string().regex(optionNamePattern);
 const extraRounds = z.int().min(1);
+// The `config` capability: the requests that change `engine.json` (ADR 0053). A value the file's schema refuses is refused with its key path and kind.
+const whole = z.number().finite();
+export const setWatchedReposRequest = z.strictObject({ id, cmd: z.literal('setWatchedRepos'), repos: z.array(z.string().max(200)).max(500) });
+export const editBehaviorRequest = z.strictObject({
+  id,
+  cmd: z.literal('editBehavior'),
+  changes: z.strictObject({
+    pollIntervalMinutes: whole.optional(),
+    logLevel: z.string().max(20).optional(),
+    finishedWindowDays: whole.optional(),
+    limits: z.strictObject({ maxConcurrentEpics: whole.optional(), maxReviews: whole.optional(), maxExecutionRetries: whole.optional(), maxExecutionHours: z.union([z.literal('unlimited'), whole]).optional(), githubCallTimeoutSeconds: whole.optional() }).optional(),
+  }),
+});
 // An allowlist: any other command, field or type is rejected before anything acts on it.
 export const request = z.union([
   z.strictObject({ id, cmd: z.enum(['snapshot', 'pause', 'resume', 'checkNow', 'stop']) }),
@@ -45,15 +60,17 @@ export const request = z.union([
   z.strictObject({ id, cmd: z.literal('reload') }),
   z.strictObject({ id, cmd: z.literal('resumeEpic'), repo, issue, author: optionName.optional(), reviewer: optionName.optional(), reviewer2: optionName.optional(), reviewer3: optionName.optional(), reviewer4: optionName.optional(), lead: optionName.optional(), from: z.enum(['ship', 'review', 'fix']).optional(), extraRounds: extraRounds.optional() }),
   z.strictObject({ id, cmd: z.literal('recoverEpic'), repo, issue }),
+  setWatchedReposRequest,
+  editBehaviorRequest,
 ]);
 
 // src/control and dist/control both sit two folders under the package root.
 export const version = (JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')) as { version: string }).version;
 
 /** The optional requests an engine can answer; each one's slice adds its name to `capabilities`. */
-export type Capability = 'sessions' | 'events' | 'epic' | 'files' | 'fileDiff' | 'availableRepos' | 'availableReposPaged' | 'resumeEpic' | 'resumeFromStage' | 'resumeReviewerOptions' | 'recoverEpic' | 'reload';
+export type Capability = 'sessions' | 'events' | 'epic' | 'files' | 'fileDiff' | 'availableRepos' | 'availableReposPaged' | 'resumeEpic' | 'resumeFromStage' | 'resumeReviewerOptions' | 'recoverEpic' | 'reload' | 'config';
 /** What the hello announces. */
-export const capabilities: Capability[] = ['sessions', 'events', 'epic', 'files', 'fileDiff', 'availableRepos', 'availableReposPaged', 'resumeEpic', 'resumeFromStage', 'resumeReviewerOptions', 'recoverEpic', 'reload'];
+export const capabilities: Capability[] = ['sessions', 'events', 'epic', 'files', 'fileDiff', 'availableRepos', 'availableReposPaged', 'resumeEpic', 'resumeFromStage', 'resumeReviewerOptions', 'recoverEpic', 'reload', 'config'];
 export type Hello = { event: 'hello'; protocol: 1; pid: number; startedAt: number; version: string; capabilities: (Capability | ChatCapability)[] };
 export type Reply = { id: number; ok: true; data?: unknown } | { id: number | null; ok: false; error: string; code?: string; params?: TextParams };
 
@@ -83,10 +100,14 @@ export type Controls = {
   recoverEpic(repo: string, issue: number): Promise<void>;
   /** Reads the settings again and runs on them; throws ReloadRefused, with the settings as they were, when they are not valid. */
   reload(): void;
+  /** Writes the watched repos of `engine.json` and makes the engine run on the file; throws a `ConfigRefused`, the file left as it was, for a list the engine would refuse. */
+  setWatchedRepos(repos: string[]): ConfigReply;
+  /** Writes the Behavior values of `engine.json` and makes the engine run on the file; throws a `ConfigRefused`, the file left as it was, for a value the engine would refuse. */
+  editBehavior(changes: z.infer<typeof editBehaviorRequest>['changes']): ConfigReply;
 };
 
 /** pause, resume, checkNow and tail. Like the panel's keys, a check is started and not waited for: its failure is the engine's to report. */
-function control(command: Exclude<z.infer<typeof request>, { cmd: 'snapshot' | 'stop' | Capability }>, controls: Controls): Reply {
+function control(command: Exclude<z.infer<typeof request>, { cmd: 'snapshot' | 'stop' | 'setWatchedRepos' | 'editBehavior' | Capability }>, controls: Controls): Reply {
   try {
     if (command.cmd === 'tail') return { id: command.id, ok: true, data: controls.logs(command.executionId, command.lines) };
     if (command.cmd === 'checkNow') void Promise.resolve(controls.poll()).catch((error) => log.error('check now failed', error));
@@ -219,6 +240,16 @@ function answer(line: string, snapshot: () => unknown, controls: Controls, stopA
       if (error instanceof ReloadRefused) return refused(parsed.data.id, error.code, error.problem, error.params);
       log.error('reload failed', error);
       return refused(parsed.data.id, 'request.internal', 'internal error');
+    }
+  }
+  if (parsed.data.cmd === 'setWatchedRepos' || parsed.data.cmd === 'editBehavior') {
+    const command = parsed.data;
+    try {
+      return { id: command.id, ok: true, data: command.cmd === 'setWatchedRepos' ? controls.setWatchedRepos(command.repos) : controls.editBehavior(command.changes) };
+    } catch (error) {
+      if (error instanceof ConfigRefused) return refused(command.id, error.code, error.message, error.params);
+      log.error(`${command.cmd} failed`, error);
+      return refused(command.id, 'request.internal', 'internal error');
     }
   }
   if (parsed.data.cmd === 'events') {

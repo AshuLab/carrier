@@ -19,7 +19,7 @@ private func sameJSON(_ a: Data, _ b: Data) throws -> Bool {
     defer { server.stop() }
     let client = try #require(ControlClient.connect(path: server.socketPath))
     let hello = try client.hello()
-    #expect(hello.capabilities == [.sessions, .events, .epic, .files, .fileDiff, .availableRepos, .availableReposPaged, .resumeEpic, .resumeFromStage, .resumeReviewerOptions, .recoverEpic, .reload])
+    #expect(hello.capabilities == [.sessions, .events, .epic, .files, .fileDiff, .availableRepos, .availableReposPaged, .resumeEpic, .resumeFromStage, .resumeReviewerOptions, .recoverEpic, .reload, .config])
     let repo = ",\"repo\":\"AshuLab/web\",\"issue\":5"
     let id = ",\"executionId\":\"3f2b8c1e-5a4d-4e8b-9c1a-0d2e4f6a8b1c\""
     #expect(try sameJSON(client.request("snapshot"), golden("snapshot.json")))
@@ -260,4 +260,56 @@ private func sameJSON(_ a: Data, _ b: Data) throws -> Bool {
         #expect(refusal.code == "config.problem" && refusal.params["problem"] == .string("notAnObject"))
     }
     #expect(try Data(contentsOf: URL(fileURLWithPath: file)) == Data("[1]".utf8))
+}
+
+@Test func theFixtureEngineAnswersSetWatchedReposAndEditBehaviorLikeTheRealEngineAgainstItsScratchFolder() async throws {
+    let server = try FixtureServer(fixtures: testPaths().fixtures.path)
+    defer { server.stop() }
+    let file = CarrierPlaces(folder: server.home).engineConfig
+    func written() throws -> [String: Any] { try #require(JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: file))) as? [String: Any]) }
+    let sender = EngineConfigSender(socketPath: { server.socketPath })
+
+    // the golden request of the Watching page: a repo that stays keeps its fields, a new one is only its name, every other key stays
+    let kept = try written()["repos"] as? [[String: Any]]
+    let acmeApi = try #require(kept?.first { $0["name"] as? String == "acme/api" })
+    let answer = try await sender.send(.watchedRepos(["acme/api", "new/one"]))
+    #expect(answer.outcome == .applied)
+    let repos = try #require(written()["repos"] as? [[String: Any]])
+    #expect(repos.count == 2 && (repos[0] as NSDictionary) == (acmeApi as NSDictionary) && (repos[1] as NSDictionary) == ["name": "new/one"] as NSDictionary)
+    #expect(try written()["agents"] != nil && written()["profiles"] != nil && written()["failover"] != nil)
+
+    // the Behavior page: a value off the default is written, one on it is taken out, and an emptied limits goes
+    var config = EngineConfig()
+    config.logLevel = "debug"
+    config.maxReviews = 8
+    config.maxExecutionHours = nil
+    #expect(try await sender.send(.behavior(config)).outcome == .applied)
+    #expect(try EngineConfig(json: Data(contentsOf: URL(fileURLWithPath: file))) == config)
+    #expect(try (written()["limits"] as? [String: Any])?.keys.sorted() == ["maxExecutionHours", "maxReviews"] && written()["pollIntervalMinutes"] == nil)
+    #expect(try await sender.send(.behavior(EngineConfig())).outcome == .applied)
+    #expect(try written()["limits"] == nil && written()["logLevel"] == nil)
+
+    // what Node refuses is refused with its words, a code and the key path and kind, and the file is left as it was
+    let before = try Data(contentsOf: URL(fileURLWithPath: file))
+    for (change, path, problem) in [
+        (EngineConfigChange.watchedRepos(["a/b", "nope"]), "repos[1]", "notARepo"),
+        (.watchedRepos(["a/b", "A/B"]), "repos[1]", "alreadyWatched"),
+        (.watchedRepos(["a/web", "b/web"]), "repos[1]", "sameFolderName"),
+    ] {
+        do {
+            _ = try await sender.send(change)
+            Issue.record("\(path) was saved")
+        } catch ControlError.remote(let refusal) {
+            #expect(refusal.code == "config.problem" && refusal.params == ["path": .string(path), "problem": .string(problem)], Comment(rawValue: path))
+        }
+    }
+    var bad = EngineConfig()
+    bad.maxReviews = 0
+    do {
+        _ = try await sender.send(.behavior(bad))
+        Issue.record("a value the engine refuses was saved")
+    } catch ControlError.remote(let refusal) {
+        #expect(refusal.code == "config.problem" && refusal.params["path"] == .string("limits.maxReviews") && refusal.text == "Must be 1 or more")
+    }
+    #expect(try Data(contentsOf: URL(fileURLWithPath: file)) == before)
 }

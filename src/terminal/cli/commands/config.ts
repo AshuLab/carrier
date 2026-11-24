@@ -1,21 +1,27 @@
 import type { Readable } from 'node:stream';
-import { chatPlacesOf } from '../../../config/places.ts';
+import { z } from 'zod';
+import { chatPlacesOf, engineConfigPathOf, enginePlacesOf } from '../../../config/places.ts';
 import { editChatSettings } from '../../../chat/config.ts';
 import { ChatRefused } from '../../../chat/runner.ts';
 import { editChatSettingsRequest } from '../../../chat/server.ts';
-import { refused } from '../../../control/server.ts';
+import { ConfigRefused } from '../../../config/engine-edit.ts';
+import { withEngine, writeEngineConfig } from '../../../control/config.ts';
+import { editBehaviorRequest, refused, setWatchedReposRequest } from '../../../control/server.ts';
 import { connectControl, ControlRefused, ControlUnreachable } from '../control-client.ts';
 
 /** The reply the socket would give, minus its `id`. */
 type Printed = { ok: true; data: unknown } | { ok: false; error: string; code?: string; params?: Record<string, string | number> };
 
-/** The reply of the host that answers on `chat.sock` and lists `config`; null when none does, so the caller writes the file itself. */
-async function askOwner(folder: string, changes: object): Promise<Printed | null> {
+/** The requests `carrier config` takes: the socket's, without their `id`. */
+const configRequest = z.union([editChatSettingsRequest.omit({ id: true }), setWatchedReposRequest.omit({ id: true }), editBehaviorRequest.omit({ id: true })]);
+
+/** The reply of the process that owns the file when it answers on `socket` and lists `config` (the chat host for `chat.json`, the engine for `engine.json`); null when none does, so the caller writes the file itself. */
+async function askOwner(socket: string, { cmd, ...fields }: z.infer<typeof configRequest>): Promise<Printed | null> {
   try {
-    const client = await connectControl(chatPlacesOf(folder).socket);
+    const client = await connectControl(socket);
     try {
-      if (client.hello.capabilities.includes('config') === false) return null; // an older host: its settings are read each pass, so a write by this process is as good
-      return { ok: true, data: await client.request('editChatSettings', { changes }) };
+      if (client.hello.capabilities.includes('config') === false) return null; // an older process: it reads the file again when it needs it, so a write by this process is as good
+      return { ok: true, data: await client.request(cmd, fields) };
     } finally {
       client.close();
     }
@@ -42,18 +48,19 @@ export async function configCommand(folder: string, input: Readable = process.st
     const { id, ...reply } = refused(null, 'request.invalidJson', 'invalid JSON');
     return print(reply as Printed), 2;
   }
-  const request = editChatSettingsRequest.omit({ id: true }).safeParse(value);
+  const request = configRequest.safeParse(value);
   if (request.success === false) {
     const { id, ...reply } = refused(null, 'request.invalid', 'invalid request');
     return print(reply as Printed), 2;
   }
-  const { changes } = request.data;
-  let reply = await askOwner(folder, changes);
+  const socket = request.data.cmd === 'editChatSettings' ? chatPlacesOf(folder).socket : enginePlacesOf(folder).socket;
+  let reply = await askOwner(socket, request.data);
   if (reply === null) {
     try {
-      reply = { ok: true, data: editChatSettings(changes, folder) };
+      // nobody answers for `engine.json`, so nobody runs on what is written
+      reply = { ok: true, data: request.data.cmd === 'editChatSettings' ? editChatSettings(request.data.changes, folder) : withEngine(writeEngineConfig(request.data, engineConfigPathOf(folder), folder)) };
     } catch (error) {
-      if (error instanceof ChatRefused === false) throw error;
+      if (error instanceof ChatRefused === false && error instanceof ConfigRefused === false) throw error;
       reply = { ok: false, error: error.message, code: error.code, params: error.params };
     }
   }

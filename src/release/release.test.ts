@@ -105,6 +105,15 @@ describe('release.yml, the two architectures', () => {
   });
 });
 
+describe('_macos.yml, the pull request check of the bundle', () => {
+  const macos = readFileSync(join(import.meta.dirname, '../../.github/workflows/_macos.yml'), 'utf8');
+
+  it('checks the bundle of both architectures, so a change that breaks the Intel one fails before a release', () => {
+    expect(macos).toMatch(/matrix:\n\s+arch: \[arm64, x86_64\]/);
+    expect(macos).toContain("CARRIER_ARCH: ${{ matrix.arch == 'x86_64' && 'x86_64' || '' }}");
+  });
+});
+
 describe('github-release.sh', () => {
   // A gh that records its calls; `release view` answers from FAKE_RELEASE_EXISTS.
   function run(args: string[], exists: boolean) {

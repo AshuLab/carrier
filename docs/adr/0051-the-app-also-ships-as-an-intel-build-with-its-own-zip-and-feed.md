@@ -29,6 +29,7 @@ Each architecture has its own files, which keeps an installed Apple Silicon app 
 - The app runs the `brew` of its own architecture's prefix, decided at compile time (`/opt/homebrew` on arm64, `/usr/local` on x86_64).
 
 The release does not run the app's tests on an Intel machine: the runner is Apple Silicon.
+The pull request's CI checks the bundle of both architectures too (`_macos.yml` runs `check-app.sh` once for each), so a change that breaks the Intel one fails before a release.
 The unit tests run natively and the Intel bundle is checked by `check-app.sh` (its binary is x86_64 only, its feed is the Intel one) and by the architecture check of the zip.
 
 ## Consequences

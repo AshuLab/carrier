@@ -1,0 +1,19 @@
+[
+  { "key": "emptyEpics", "args": {}, "language": "en", "region": "US", "text": "No epics yet" },
+  { "key": "emptyEpics", "args": {}, "language": "es", "region": "ES", "text": "Todavía no hay epics" },
+  { "key": "epicsWaiting", "args": { "count": 0 }, "language": "en", "region": "US", "text": "No epics waiting" },
+  { "key": "epicsWaiting", "args": { "count": 1 }, "language": "en", "region": "US", "text": "1 epic waiting" },
+  { "key": "epicsWaiting", "args": { "count": 1234 }, "language": "en", "region": "US", "text": "1,234 epics waiting" },
+  { "key": "epicsWaiting", "args": { "count": 0 }, "language": "es", "region": "ES", "text": "Ningún epic en espera" },
+  { "key": "epicsWaiting", "args": { "count": 1 }, "language": "es", "region": "ES", "text": "1 epic en espera" },
+  { "key": "epicsWaiting", "args": { "count": 1234 }, "language": "es", "region": "ES", "text": "1234 epics en espera" },
+  { "key": "epicsWaiting", "args": { "count": 1234 }, "language": "es", "region": "AR", "text": "1.234 epics en espera" },
+  { "key": "tokensUsed", "args": { "tokens": 1234567 }, "language": "en", "region": "US", "text": "1,234,567 tokens used" },
+  { "key": "tokensUsed", "args": { "tokens": 1234567 }, "language": "es", "region": "ES", "text": "1.234.567 tokens usados" },
+  { "key": "tokensUsed", "args": { "tokens": 1234567 }, "language": "es", "region": "AR", "text": "1.234.567 tokens usados" },
+  { "key": "epicState", "args": { "state": "paused" }, "language": "en", "region": "US", "text": "Paused" },
+  { "key": "epicState", "args": { "state": "paused" }, "language": "es", "region": "AR", "text": "En pausa" },
+  { "key": "epicsByState", "args": { "state": "running", "count": 2 }, "language": "en", "region": "US", "text": "2 epics running" },
+  { "key": "epicsByState", "args": { "state": "other", "count": 1 }, "language": "es", "region": "ES", "text": "1 epic detenido" },
+  { "key": "epicsByState", "args": { "state": "running", "count": 1500 }, "language": "es", "region": "AR", "text": "1.500 epics en marcha" }
+]

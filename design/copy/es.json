@@ -1,0 +1,7 @@
+{
+  "emptyEpics": "Todavía no hay epics",
+  "epicsWaiting": "{count, plural, =0 {Ningún epic en espera} one {# epic en espera} other {# epics en espera}}",
+  "tokensUsed": "{tokens, number} tokens usados",
+  "epicState": "{state, select, running {En marcha} paused {En pausa} other {Detenido}}",
+  "epicsByState": "{state, select, running {{count, plural, one {# epic en marcha} other {# epics en marcha}}} other {{count, plural, one {# epic detenido} other {# epics detenidos}}}}"
+}

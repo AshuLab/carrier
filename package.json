@@ -31,6 +31,8 @@
     "test": "vitest run",
     "test:integration": "vitest run --config vitest.integration.config.ts --passWithNoTests",
     "db:generate": "drizzle-kit generate && drizzle-kit generate --config drizzle.chat.config.ts",
+    "design": "node design/generate.ts",
+    "design:check": "node design/generate.ts --check",
     "prices:update": "node src/usage/update-prices.ts",
     "replay:events": "node src/harnesses/replay-events.ts",
     "prepack": "pnpm build"

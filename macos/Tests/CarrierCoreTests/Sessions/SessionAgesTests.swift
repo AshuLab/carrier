@@ -2,11 +2,6 @@ import Foundation
 import Testing
 @testable import CarrierCore
 
-private func object(_ data: Data?) throws -> [String: Any] {
-    let data = try #require(data)
-    return try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
-}
-
 @Test func theAgesAreTheFilesAndTheDefaultsWhenItHasNoneOrHasAWrongOne() {
     func ages(_ json: String?) -> SessionAges { sessionAges(chatJSON: json.map { Data($0.utf8) }) }
     #expect(ages(nil) == SessionAges(archive: .days(15), delete: .days(30)))
@@ -15,33 +10,6 @@ private func object(_ data: Data?) throws -> [String: Any] {
     #expect(ages(#"{"archiveAfterDays":"never"}"#) == SessionAges(archive: .never, delete: .days(30)))
     for wrong in [#"0"#, #"-1"#, #"1.5"#, #""15""#, "null"] { #expect(ages(#"{"archiveAfterDays":\#(wrong)}"#) == SessionAges(), Comment(rawValue: wrong)) }
     #expect(ages("nope") == SessionAges() && ages("[1]") == SessionAges())
-}
-
-@Test func changingTheAgesKeepsTheOtherKeysAndLeavesDefaultsOut() throws {
-    let file = Data(#"{"agents":{"a":{"harness":"claude"}},"logLevel":"debug","archiveAfterDays":5,"deleteAfterDays":9}"#.utf8)
-    let changed = try object(applyingSessionAges(SessionAges(archive: .days(7), delete: .days(30)), to: file))
-    #expect(changed["archiveAfterDays"] as? Int == 7 && changed["deleteAfterDays"] == nil)
-    #expect(changed["agents"] != nil && changed["logLevel"] as? String == "debug")
-    let defaults = try object(applyingSessionAges(SessionAges(), to: file))
-    #expect(defaults["archiveAfterDays"] == nil && defaults["deleteAfterDays"] == nil && defaults["logLevel"] as? String == "debug")
-    let never = try object(applyingSessionAges(SessionAges(archive: .never, delete: .days(40)), to: nil))
-    #expect(never as NSDictionary == ["archiveAfterDays": "never", "deleteAfterDays": 40])
-    #expect(try object(applyingSessionAges(SessionAges(archive: .days(3), delete: .never), to: nil)) as NSDictionary == ["archiveAfterDays": 3, "deleteAfterDays": "never"])
-    #expect(try object(applyingSessionAges(SessionAges(), to: nil)).isEmpty)
-}
-
-@Test func theResetWritesTheDefaultsBackAndTheFileReadsThem() throws {
-    let file = Data(#"{"logLevel":"debug","archiveAfterDays":"never","deleteAfterDays":9}"#.utf8)
-    let written = try #require(applyingSessionAges(SessionAges(), to: file))
-    #expect(sessionAges(chatJSON: written) == SessionAges(archive: .days(15), delete: .days(30)))
-    #expect(try object(written)["logLevel"] as? String == "debug")
-}
-
-@Test func theAgesAreNotWrittenOverAFileThatCannotBeReadOrWhenTheyBreakTheRule() {
-    #expect(applyingSessionAges(SessionAges(), to: Data("[1]".utf8)) == nil && applyingSessionAges(SessionAges(), to: Data("nope".utf8)) == nil)
-    #expect(applyingSessionAges(SessionAges(archive: .days(30), delete: .days(30)), to: nil) == nil)
-    #expect(applyingSessionAges(SessionAges(archive: .days(15), delete: .days(10)), to: nil) == nil)
-    #expect(applyingSessionAges(SessionAges(archive: .days(0), delete: .days(30)), to: nil) == nil)
 }
 
 @Test func theFieldsSayWhyAValueIsRefusedAndNeverOnEitherSideHasNoComparison() {
@@ -110,21 +78,6 @@ private func line(_ ages: SessionAges, on year: Int, _ month: Int, _ day: Int, u
     #expect(start(#"{"worktreeStart":"local"}"#) == .local && start(#"{"worktreeStart":"remote"}"#) == .remote)
     for wrong in [#""Local""#, #""origin""#, "1", "null", "true", "[]"] { #expect(start(#"{"worktreeStart":\#(wrong)}"#) == .remote, Comment(rawValue: wrong)) }
     #expect(start("nope") == .remote && start("[1]") == .remote)
-}
-
-@Test func changingTheStartKeepsTheOtherKeysAndLeavesTheDefaultOut() throws {
-    let file = Data(#"{"agents":{"a":{"harness":"claude"}},"archiveAfterDays":5,"worktreeStart":"local"}"#.utf8)
-    let remote = try object(applyingWorktreeStart(.remote, to: file))
-    #expect(remote["worktreeStart"] == nil && remote["archiveAfterDays"] as? Int == 5 && remote["agents"] != nil)
-    let local = try object(applyingWorktreeStart(.local, to: Data(#"{"logLevel":"debug"}"#.utf8)))
-    #expect(local as NSDictionary == ["logLevel": "debug", "worktreeStart": "local"])
-    #expect(try object(applyingWorktreeStart(.local, to: nil)) as NSDictionary == ["worktreeStart": "local"])
-    #expect(try object(applyingWorktreeStart(.remote, to: nil)).isEmpty)
-    #expect(worktreeStart(chatJSON: applyingWorktreeStart(.local, to: file)) == .local)
-}
-
-@Test func theStartIsNotWrittenOverAFileThatCannotBeRead() {
-    #expect(applyingWorktreeStart(.local, to: Data("[1]".utf8)) == nil && applyingWorktreeStart(.local, to: Data("nope".utf8)) == nil)
 }
 
 @Test func theStartRowIsOffWithTheReasonWhileWorkInIsTheBaseFolder() {

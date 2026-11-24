@@ -1,7 +1,7 @@
 import Foundation
 
 // The Sessions section of Settings that needs no view: the two ages of the session lifecycle (docs/specs/session-lifecycle.md), read from and
-// written to the chat's own `chat.json` (ADR 0034, ADR 0019). The host reads the file each pass, so a save is used with no restart.
+// changed through `editChatSettings` (ConfigRequests.swift), which Node writes into the chat's own `chat.json` (ADR 0034, ADR 0019, ADR 0053). The host reads the file each pass, so a save is used with no restart.
 
 /// An age of the session clock: a whole number of days, or `never` (that part of the clock is off).
 public enum SessionAge: Equatable {
@@ -57,23 +57,6 @@ public func sessionAgeProblems(_ ages: SessionAges, unparsable: Set<SessionAgeFi
 /// Why the delete field is off, in words; nil when it is on. Archive at `never` means nothing is deleted by the clock, whatever delete says.
 public func deleteAgeOffReason(_ ages: SessionAges) -> String? {
     ages.archive == .never ? "Off while archive is Never: nothing is deleted by the clock" : nil
-}
-
-/// `json` with the two ages set; the file's other keys are left as they were, and an age equal to its default is left out. `json` nil is a
-/// `chat.json` that is not there yet, which this makes. nil when `json` is not a JSON object (the app never overwrites a file it cannot
-/// read) or when the ages break a rule (`sessionAgeProblems`): a value the host would refuse is never written.
-public func applyingSessionAges(_ ages: SessionAges, to json: Data?) -> Data? {
-    guard sessionAgeProblems(ages).isEmpty else { return nil }
-    return editingChatConfig(json) { file in
-        func set(_ key: String, _ age: SessionAge, default fallback: Int) {
-            switch age {
-            case .never: file[key] = "never"
-            case .days(let days): file[key] = days == fallback ? nil : days
-            }
-        }
-        set(archiveKey, ages.archive, default: defaultArchiveAfterDays)
-        set(deleteKey, ages.delete, default: defaultDeleteAfterDays)
-    }
 }
 
 /// The line of the Sessions page about a session left alone from `today`, in dates: both ages count from the same last activity, so both

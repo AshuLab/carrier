@@ -29,7 +29,7 @@ private func literals(in folder: String) throws -> [String: Set<String>] {
     let own: [Refusal] = [
         .hostLacks("stopTask"), .projectsNeedNewerHost, .usageNeedsNewerHost, .folderGone, .hostNotRunning, .hostNotAnswering, .hostTookTooLong, .hostNotUnderstood,
         .folderUnusable, .sessionIdInvalid, .rangeInvalid, .fileInvalid, .epicInvalid, .executionInvalid, .projectNameEmpty, .projectNameTooLong, .projectNameBadStart,
-        .projectNameBadCharacters, .carrierOlder, .appOlder,
+        .projectNameBadCharacters, .carrierOlder, .appOlder, .carrierNotFound, .configNotRun,
     ]
     let codes = own.compactMap(\.code)
     #expect(codes.count == own.count && Set(codes).count == own.count)

@@ -366,6 +366,9 @@ public protocol ChatHost {
     func regenerateTitles() async throws -> Int
     /// What deleting these sessions would discard, one entry per id in the order asked; the host refuses the whole request when an id is unknown.
     func deletePreview(_ ids: [String]) async throws -> [SessionDeletePreview]
+    /// Changes keys of `chat.json` and answers the keys as the file now has them; refused with a code and the key path and kind for a value the file's schema
+    /// refuses, the file left as it was. Over the socket when the hello lists `config`, through `carrier config` otherwise.
+    func editChatSettings(_ changes: ChatSettingChanges) async throws -> ChatSettingsSaved
 }
 
 extension ChatHost {
@@ -419,6 +422,9 @@ extension ChatHost {
     /// A host that cannot say how the machine is refuses; the app only asks one that lists `health`.
     public func health(refresh: Bool) async throws -> HostHealth { throw ControlError.remote(.hostLacks("health")) }
 
+    /// A host that does not write config refuses; the real one always has a way.
+    public func editChatSettings(_ changes: ChatSettingChanges) async throws -> ChatSettingsSaved { throw ControlError.remote(.hostLacks("editChatSettings")) }
+
     /// A host that cannot list the AI tools refuses; the app only asks one that lists `providers`.
     public func providers() async throws -> HostProviders { throw ControlError.remote(.hostLacks("providers")) }
 
@@ -452,7 +458,13 @@ public struct SocketChatHost: ChatHost {
     /// What each session's options and commands were when the host last sent them, so the host can leave them out of the next answers.
     private let lists = ListsMemory()
 
-    public init(socketPath: @escaping () -> String = { chatSocketPath() }) { self.socketPath = socketPath }
+    /// How `carrier config` is run for a request the host cannot take; nil in a context that makes none.
+    private let configLauncher: CarrierConfigLauncher?
+
+    public init(socketPath: @escaping () -> String = { chatSocketPath() }, configLauncher: CarrierConfigLauncher? = nil) {
+        self.socketPath = socketPath
+        self.configLauncher = configLauncher
+    }
 
     public func agents() async throws -> [ChatAgent] {
         let path = socketPath()
@@ -524,6 +536,17 @@ public struct SocketChatHost: ChatHost {
         let fields = ",\"folder\":\(jsonString(folder)),\"name\":\(jsonString(name))"
         let path = socketPath()
         return try await Task.detached { try chatRequest(path, "checkName", requires: .checkName, fields: fields) }.value
+    }
+
+    /// To the socket when the host's hello lists `config`; otherwise (an older host, or none running) `carrier config` takes it and writes the file with the same code.
+    public func editChatSettings(_ changes: ChatSettingChanges) async throws -> ChatSettingsSaved {
+        let fields = ",\"changes\":\(changes.json)"
+        let path = socketPath()
+        if (try? await capabilities())?.contains(.config) == true {
+            return try await Task.detached { try chatRequest(path, "editChatSettings", requires: .config, fields: fields) }.value
+        }
+        guard let configLauncher else { throw ControlError.remote(.hostLacks("editChatSettings")) }
+        return try await configLauncher.run(changes.request, as: ChatSettingsSaved.self)
     }
 
     /// From the hello of the connection the link keeps, which was read once.

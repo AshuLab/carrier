@@ -180,18 +180,6 @@ public func currentChatConfig() throws -> Data? {
     return FileManager.default.fileExists(atPath: url.path) ? try Data(contentsOf: url) : nil
 }
 
-/// `json` (a `chat.json`; nil is one that is not there yet, which this makes) after `edit` changed its keys, the file's other keys left as they were.
-/// nil when `json` is not a JSON object: the app never overwrites a file it cannot read.
-func editingChatConfig(_ json: Data?, _ edit: (inout [String: Any]) -> Void) -> Data? {
-    var file: [String: Any] = [:]
-    if let json {
-        guard let object = (try? JSONSerialization.jsonObject(with: json)) as? [String: Any] else { return nil }
-        file = object
-    }
-    edit(&file)
-    return try? JSONSerialization.data(withJSONObject: file, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
-}
-
 /// Writes `chat.json` in place, making the Carrier folder when it is not there yet.
 public func writeCurrentChatConfig(_ data: Data) throws {
     let url = currentChatConfigURL()

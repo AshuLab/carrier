@@ -79,3 +79,13 @@ final class SetupController: ObservableObject {
         "saved \(store.load() != nil), shell runs this launch \(detectionRuns), carrier \(carrier ?? "not found"), not found [\(settings.missing.joined(separator: ", "))]"
     }
 }
+
+extension CarrierConfigLauncher {
+    /// `carrier config` as the app runs `carrier`: the setup it starts Carrier with, read on the main thread.
+    static var app: CarrierConfigLauncher {
+        CarrierConfigLauncher(runner: SystemProcessRunner()) {
+            let read = { carrierConfigCommand(settings: SetupController.shared.settings, carrier: SetupController.shared.carrier, environment: ProcessInfo.processInfo.environment) }
+            return Thread.isMainThread ? read() : DispatchQueue.main.sync(execute: read)
+        }
+    }
+}

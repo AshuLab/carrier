@@ -1,7 +1,7 @@
 import Foundation
 
 // Starting Carrier from the app: the command line and environment it runs with, and the decision about how the start went.
-// The spawn itself (its own session, stdin from /dev/null, output to the log) lives in the shell.
+// The spawn itself (its own session, stdin from /dev/null, output to the log) is `ProcessRunner.spawnDetached`; the wait and the retry are `CarrierLauncher`.
 
 /// How long the socket has to answer after the process starts.
 public let startTimeout: TimeInterval = 15

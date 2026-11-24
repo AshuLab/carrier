@@ -24,3 +24,13 @@ import Testing
         #expect(try String(contentsOf: file, encoding: .utf8).contains("SystemProcessRunner") == false, Comment(rawValue: file.lastPathComponent))
     }
 }
+
+@Test func aDetachedProgramWritesItsOutputAndItsErrorToTheLogAndItsExitCodeIsLearned() async throws {
+    let log = NSTemporaryDirectory() + "detached-\(UUID().uuidString).log"
+    defer { try? FileManager.default.removeItem(atPath: log) }
+    let process = try SystemProcessRunner().spawnDetached(ProcessCommand(program: "/bin/sh", arguments: ["-c", "echo out; echo err >&2; exit 4"]), log: log)
+    for _ in 0..<500 where process.exitCode == nil { try await Task.sleep(for: .milliseconds(10)) }
+    #expect(process.exitCode == 4)
+    #expect(try String(contentsOfFile: log, encoding: .utf8) == "out\nerr\n")
+    #expect(throws: (any Error).self) { _ = try SystemProcessRunner().spawnDetached(ProcessCommand(program: "/nonexistent/carrier"), log: log) }
+}

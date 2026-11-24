@@ -49,21 +49,7 @@ extension ModelCatalog {
         if case .reply = AppHealth.providers.outcome {} else { await AppHealth.providers.load() }
         guard case .reply(let reply) = AppHealth.providers.outcome,
               let path = reply.accounts.first(where: { $0.harness == "agy" && $0.found })?.path else { return }
-        let output = await Task.detached { () -> String? in
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: path)
-            process.arguments = ["models"]
-            process.standardInput = FileHandle.nullDevice
-            process.standardError = FileHandle.nullDevice
-            let pipe = Pipe()
-            process.standardOutput = pipe
-            do { try process.run() } catch { return nil }
-            DispatchQueue.global().asyncAfter(deadline: .now() + 20) { if process.isRunning { process.terminate() } }
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            process.waitUntilExit()
-            return process.terminationStatus == 0 ? String(decoding: data, as: UTF8.self) : nil
-        }.value
-        let models = output.map(parseAgyModels) ?? []
+        let models = await AgyModels(runner: SystemProcessRunner()).load(binary: path, environment: ProcessInfo.processInfo.environment)
         if models.isEmpty == false { cliModels["agy"] = models }
     }
 }

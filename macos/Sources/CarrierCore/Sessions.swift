@@ -139,11 +139,13 @@ public struct SessionRow: Equatable {
     public var archived: Bool
     /// The branch of a session in a worktree, nil for one in a plain folder.
     public var branch: String?
+    /// For a worktree, the branch it was cut from.
+    public var branchFrom: String?
     /// Where the session works: the worktree's path, or the folder.
     public var folder: String
     /// The folder the session is grouped under: the repository's folder for a session in a worktree, `folder` otherwise.
     public var base: String
-    /// The providers the session has worked with, as the names of their icons; one today, and the row has room for more.
+    /// The providers the session has worked with, as the names of their icons, in the order it first used them: more than one after it changed agent.
     public var providers: [String]
     /// Whether the host has a title for it; `title` says "Untitled session" when it has none.
     public var titled: Bool
@@ -187,7 +189,7 @@ public struct SessionRow: Equatable {
     }
 
     public init(
-        id: String, title: String, workspace: String, agent: String, state: SessionState, updatedAt: Date, archived: Bool = false, branch: String? = nil,
+        id: String, title: String, workspace: String, agent: String, state: SessionState, updatedAt: Date, archived: Bool = false, branch: String? = nil, branchFrom: String? = nil,
         folder: String = "", base: String? = nil, providers: [String] = [], titled: Bool = true, kept: Bool = false, deleteAt: Date? = nil,
         lastMessage: String? = nil, turns: Int = 0, model: String? = nil, reportsActivity: Bool = false, asleep: Bool = false, unread: Bool = false,
         diff: SessionDiff? = nil, pullRequest: SessionPullRequest? = nil, background: [BackgroundTask] = [], orderedAt: Date? = nil
@@ -200,6 +202,7 @@ public struct SessionRow: Equatable {
         self.updatedAt = updatedAt
         self.archived = archived
         self.branch = branch
+        self.branchFrom = branchFrom
         self.folder = folder
         self.base = base ?? folder
         self.providers = providers

@@ -87,6 +87,8 @@ struct PickerInherited {
     var provider: String?
     var model: String?
     var effort: String?
+    /// What it follows, in the words of the list's first row.
+    var follows = "the global role"
 
     var text: String { [provider, model, effort].compactMap { $0 }.filter { $0.isEmpty == false }.joined(separator: " · ") }
 }
@@ -294,7 +296,7 @@ struct ModelPickerButton: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 2) {
                     if let inherited, needle.isEmpty {
-                        row(title: "Same as everywhere", detail: inherited.text.isEmpty ? "Follows the global role." : "Follows the global role: \(inherited.text)", ticked: followsAll) { pick(.inherit) }
+                        row(title: "Same as everywhere", detail: inherited.text.isEmpty ? "Follows \(inherited.follows)." : "Follows \(inherited.follows): \(inherited.text)", ticked: followsAll) { pick(.inherit) }
                     }
                     if allowsDefaultModel, needle.isEmpty {
                         row(title: "Default model", detail: "No model is named: \(viewed.name) runs the one it uses by default.", ticked: isCurrent && model == nil) { pick(.account(viewed.name, model: nil)) }

@@ -22,6 +22,7 @@ struct QuestionCardView: View {
     /// The height the options want, to cap it (and scroll) when a question brings more than fits.
     @State private var optionsHeight: CGFloat = 0
     @FocusState private var writing: Bool
+    @Environment(\.conversationHeight) private var paneHeight
 
     private var question: ChatQuestion { card.questions[min(step, card.questions.count - 1)] }
     private var last: Bool { step >= card.questions.count - 1 }
@@ -49,7 +50,7 @@ struct QuestionCardView: View {
                     .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { optionsHeight = $0 }
                 }
                 .scrollBounceBehavior(.basedOnSize)
-                .frame(height: optionsHeight > 0 ? min(optionsHeight, 300) : nil)
+                .frame(height: optionsHeight > 0 ? min(optionsHeight, cardRoom(in: paneHeight)) : nil)
                 .padding(.top, 6)
                 if picked.indices.contains(step), picked[step].contains(question.options.count) {
                     TextField("Your answer", text: $own[step]).textFieldStyle(.plain).font(.scaled(13)).focused($writing)

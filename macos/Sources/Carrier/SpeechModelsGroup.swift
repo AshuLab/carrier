@@ -12,13 +12,8 @@ struct SpeechModelsGroup: View {
 
     var body: some View {
         SettingsGroup(title: "Speech models", footer: "The model in use is the one with its radio lit. A model on disk can be chosen; one that is not has to be downloaded first.", accessory: {
-            HStack(spacing: 6) {
-                FilterChip(title: "All", on: filter == nil) { filter = nil }
-                ForEach(RecognizerID.allCases, id: \.self) { recognizer in
-                    FilterChip(title: recognizer.title, on: filter == recognizer) { filter = filter == recognizer ? nil : recognizer }
-                }
-            }
-            .padding(.trailing, 14)
+            SegmentedChoice(options: [(value: RecognizerID?.none, title: "All", icon: nil)] + RecognizerID.allCases.map { (value: Optional($0), title: $0.title, icon: nil) }, selection: $filter)
+                .accessibilityLabel("Recognizer")
         }, content: {
             if let missing = speechModelChoice(models: dictation.models, chosen: dictation.chosenModel, state: dictation.store.state(of:)).missing {
                 // another model listens until this one is back: said where it can be downloaded

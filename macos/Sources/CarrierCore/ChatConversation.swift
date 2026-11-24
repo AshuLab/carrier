@@ -96,15 +96,27 @@ public struct ChatEvent: Codable, Equatable {
     public var resetsAt: Int?
     /// When that limit resets, in the provider's own words, when it gives only those.
     public var resetText: String?
+    /// A `compact` event, the provider summarizing the conversation to free context: `manual` (the person's `/compact`) or `auto`, nil when the provider does not say.
+    public var trigger: String?
+    /// The context, in tokens, before and after that summary; nil when the provider does not say. `ms` is how long it took.
+    public var before: Double?
+    public var after: Double?
+    /// Set on a `compact` that failed, and only then: why. The context is as it was.
+    public var error: String?
 
     /// The agents of a switch, as `chat.json` names them.
     public struct Switched: Codable, Equatable {
         public let from: String
         public let to: String
+        /// The models they run, as the host says them: the old agent's last turn (else its option) and the new conversation's own; nil from a host that does not say.
+        public let fromModel: String?
+        public let toModel: String?
 
-        public init(from: String, to: String) {
+        public init(from: String, to: String, fromModel: String? = nil, toModel: String? = nil) {
             self.from = from
             self.to = to
+            self.fromModel = fromModel
+            self.toModel = toModel
         }
     }
 
@@ -113,7 +125,8 @@ public struct ChatEvent: Codable, Equatable {
         status: String? = nil, approvalId: String? = nil, choices: [ChatChoice]? = nil, choiceId: String? = nil, outcome: String? = nil,
         model: String? = nil, usage: [String: Double]? = nil, step: String? = nil, detail: String? = nil, action: String? = nil, when: String? = nil, questions: [ChatQuestion]? = nil,
         answers: [String: String]? = nil, parentCallId: String? = nil, taskId: String? = nil, state: String? = nil, agentType: String? = nil,
-        lastTool: String? = nil, tools: Int? = nil, tokens: Int? = nil, ms: Int? = nil, background: Bool? = nil, switched: Switched? = nil, reason: String? = nil, resetsAt: Int? = nil, resetText: String? = nil
+        lastTool: String? = nil, tools: Int? = nil, tokens: Int? = nil, ms: Int? = nil, background: Bool? = nil, switched: Switched? = nil, reason: String? = nil, resetsAt: Int? = nil, resetText: String? = nil,
+        trigger: String? = nil, before: Double? = nil, after: Double? = nil, error: String? = nil
     ) {
         self.id = id
         self.at = at
@@ -149,6 +162,10 @@ public struct ChatEvent: Codable, Equatable {
         self.reason = reason
         self.resetsAt = resetsAt
         self.resetText = resetText
+        self.trigger = trigger
+        self.before = before
+        self.after = after
+        self.error = error
     }
 }
 
@@ -288,18 +305,91 @@ public enum FeedRow: Equatable, Identifiable {
     case decided(id: String, text: String, allow: Bool)
     /// An approval that is not waiting any more and was not answered (its turn ended): one plain line.
     case line(id: String, text: String)
+    /// The point where the session changed agent: who it was and who it is, drawn as a divider with both agents and a line of what carried over.
+    case switched(id: String, ChatEvent.Switched)
     /// An error event: the provider's text, in the banner of a failed turn.
     case error(id: String, text: String)
     /// A turn the person stopped: the mark with Continue.
     case stopped(id: String)
+    /// A `/clear` that went through: the agent starts again from an empty context. `freed` is the context the turn before it ended with, nil when
+    /// no turn said it. It stands where the empty turn's line would be.
+    case cleared(id: String, freed: Double?)
+    /// The provider summarized the conversation to free context, on the person's `/compact` or by itself: a cut like the clear's, where the agent goes on from the summary.
+    case compacted(id: String, Compaction)
 
     public var id: String {
         switch self {
         case .user(let id, _), .agent(let id, _, _), .turnEnd(let id, _), .tools(let id, _), .approval(let id, _), .decided(let id, _, _),
-            .line(let id, _), .error(let id, _), .stopped(let id): id
+            .line(let id, _), .switched(let id, _), .error(let id, _), .stopped(let id), .cleared(let id, _), .compacted(let id, _): id
         }
     }
 }
+
+/// What the divider of a change of agent says under the two agents: what the new one has of the conversation and what it does not.
+public func handoffDetail(to agent: String) -> String {
+    "\(agent) goes on from a selection of the messages above and can read the rest. Reasoning and tool results did not carry over."
+}
+
+/// What the divider of a `/clear` says under the capsule: the messages stay to be read, and the agent no longer has them.
+public func clearedDetail(agent: String) -> String {
+    "The messages above stay here to read, but \(agent) no longer sees them: it starts again from an empty context."
+}
+
+/// `38.8k tokens freed`: what the capsule of a `/clear` says beside its title, nil when no turn before it said the context.
+public func clearedFreedText(_ freed: Double?) -> String? {
+    guard let freed, freed > 0 else { return nil }
+    return "\(TurnSummary.tokens(freed)) tokens freed"
+}
+
+/// What a `compact` event says: when it ran, the context it left and what it cost; `error` is set when it failed and nothing else is.
+public struct Compaction: Equatable {
+    public let auto: Bool
+    public let before: Double?
+    public let after: Double?
+    public let ms: Int?
+    public let error: String?
+
+    public init(auto: Bool = false, before: Double? = nil, after: Double? = nil, ms: Int? = nil, error: String? = nil) {
+        self.auto = auto
+        self.before = before
+        self.after = after
+        self.ms = ms
+        self.error = error
+    }
+
+    init(_ event: ChatEvent) {
+        self.init(auto: event.trigger == "auto", before: event.before, after: event.after, ms: event.ms, error: event.error)
+    }
+
+    /// The capsule's title.
+    public var title: String { error == nil ? "Context compacted" : "Compaction failed" }
+
+    /// `142.3k → 18.4k tokens` from the sizes the provider gave (`18.4k tokens left` when it gave only what is left), with `auto` before when the agent did it by itself; nil when there is nothing to say.
+    public var sizes: String? {
+        guard error == nil else { return nil }
+        var parts: [String] = auto ? ["auto"] : []
+        if let before, let after, before > 0 { parts.append("\(TurnSummary.tokens(before)) \u{2192} \(TurnSummary.tokens(after)) tokens") }
+        else if let after, after > 0 { parts.append("\(TurnSummary.tokens(after)) tokens left") }
+        return parts.isEmpty ? nil : parts.joined(separator: " \u{00B7} ")
+    }
+
+    /// `−87%`: how much of the context the summary freed; nil unless both sizes are known and it did free some.
+    public var saved: String? {
+        guard error == nil, let before, let after, before > 0, after < before else { return nil }
+        return "\u{2212}\(Int(((before - after) / before * 100).rounded()))%"
+    }
+
+    /// Under the capsule: what happened to the agent's view of the conversation. A failure says the context is as it was and why.
+    public func detail(agent: String) -> String {
+        if let error { return "The context is unchanged. \(error)" }
+        let took = ms.map { " Took \(formatDuration($0))." } ?? ""
+        if auto { return "The context filled up, so \(agent) summarized the earlier conversation and went on. The messages above stay here to read.\(took)" }
+        return "\(agent) summarized the earlier conversation to free space. The messages above stay here to read; from now on it works from the summary.\(took)"
+    }
+}
+
+/// Whether a message of the person is the `/clear` command: the whole text, with no argument.
+public func isClearCommand(_ text: String) -> Bool { text.trimmingCharacters(in: .whitespacesAndNewlines) == "/clear" }
 
 /// The row of the mark or banner that offers a way out (Continue, Try again): the last stopped or failed turn, and only while the
 /// person has not written since. Earlier ones are only a record.
@@ -390,6 +480,8 @@ public func chatFeed(_ events: [ChatEvent], streaming: String = "", pending: Set
     var going: [String: (row: Int, call: Int)] = [:]
     var asked: [String: (row: Int, event: ChatEvent)] = [:]
     var turnStart: Int?
+    /// The context the last turn that said it ended with: what a `/clear` frees.
+    var lastContext: Double?
     var held: [Thought] = []
     // the calls that launched a subagent of the main agent (a `task` event names its call), and where each subagent is: its row and its place in it
     let launching = Set(events.compactMap { $0.kind == "task" && $0.parentCallId == nil ? $0.callId : nil })
@@ -467,16 +559,31 @@ public func chatFeed(_ events: [ChatEvent], streaming: String = "", pending: Set
             }
             going = [:]
             if event.outcome == "error" { markLastRunErred(in: &rows) }
-            if let summary = TurnSummary(event, turnStart: turnStart) { rows.append(.turnEnd(id: id, summary)) }
+            // a `/clear` the agent answered with nothing: the empty line of its turn is the divider of the clear, and the context starts again from none
+            if event.outcome != "error", event.outcome != "interrupted", case .user(_, let said)? = rows.last, isClearCommand(said) {
+                rows.append(.cleared(id: id, freed: lastContext))
+                lastContext = nil
+            } else if case .compacted? = rows.last {
+                // a `/compact` the agent answered with nothing more: the cut is what the turn said, and its own line of statistics would only be empty
+            } else if let summary = TurnSummary(event, turnStart: turnStart) {
+                rows.append(.turnEnd(id: id, summary))
+                lastContext = summary.contextTokens ?? lastContext
+            }
             if event.outcome == "interrupted" { rows.append(.stopped(id: "\(id)-stopped")) }
             turnStart = nil
         case "error":
             release()
             rows.append(.error(id: id, text: event.text ?? "Something went wrong"))
-        case "notice":
-            // said by the host (a resume that began a new conversation): a plain line, never the banner of a failed turn
+        case "compact":
             release()
-            if let text = event.text { rows.append(.line(id: id, text: text)) }
+            rows.append(.compacted(id: id, Compaction(event)))
+            // what it left is the context now (a failed one changed nothing)
+            if event.error == nil { lastContext = event.after }
+        case "notice":
+            // said by the host (a resume that began a new conversation): a plain line, never the banner of a failed turn; a change of agent is its own row
+            release()
+            if let switched = event.switched { rows.append(.switched(id: id, switched)) }
+            else if let text = event.text { rows.append(.line(id: id, text: text)) }
         default:
             continue
         }
@@ -582,7 +689,15 @@ public struct ContextUse: Equatable {
 
 /// The context of the last turn that told it (a turn that was cut short, or a host that does not say it, leaves the one before).
 public func contextUse(_ rows: [FeedRow]) -> ContextUse? {
-    for row in rows.reversed() {
+    for (index, row) in rows.enumerated().reversed() {
+        // a `/clear` emptied it: what the turns before it read is not the context any more
+        if case .cleared = row { return nil }
+        // a summary left what it says (the window is the model's, as the turns before it told it); a failed one left it as it was
+        if case .compacted(_, let cut) = row, cut.error == nil {
+            guard let left = cut.after else { return nil }
+            let window = rows[..<index].reversed().lazy.compactMap { row -> Double? in if case .turnEnd(_, let summary) = row { summary.contextWindow } else { nil } }.first
+            return ContextUse(tokens: left, window: window)
+        }
         if case .turnEnd(_, let summary) = row, let tokens = summary.contextTokens { return ContextUse(tokens: tokens, window: summary.contextWindow) }
     }
     return nil
@@ -703,8 +818,11 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
     public private(set) var canSwitchAgent = false
     public private(set) var switchTargets: [AgentChoice] = []
     public private(set) var switching = false
+    /// The agent the person picked in the panel: the session changes to it when the next message is sent (`deliver`), not when it is picked, so
+    /// choosing and changing one's mind costs nothing and the handoff goes out with the message it is for. nil is the session's own.
+    public private(set) var pendingAgent: String?
     /// The session's agent, as the summary of the host's `events` names it (its list, for a host that does not say); what the app saw last until the first answer, empty for a session that was never seen.
-    public private(set) var agent = ""
+    public private(set) var agent = "" { didSet { if pendingAgent == agent { pendingAgent = nil } } }
     /// Whether the session's agent process runs; a session that is not live shows the closed notice and resumes when a message is sent.
     public private(set) var live = true
     /// Whether the session is asleep: closed, and not on its way to another state (being archived, prepared or woken by a send). Only then the
@@ -758,6 +876,8 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
     /// What the box lists: what the provider offers while the agent runs, else what it offered last with the choices made since; that too
     /// until the first answer, so the selects are there from the first frame of a session the app has seen.
     public var shownOptions: [ChatOption] {
+        // the picked agent lists its options once it has taken over, with the message
+        if pendingAgent != nil { return [] }
         if options.isEmpty == false { return options }
         return remembered.map { option in
             guard let chosen = wakeOptions[option.id] else { return option }
@@ -1036,21 +1156,23 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
     /// says the rest in words (waiting for an approval, preparing, a child).
     public var canSwitchNow: Bool { canSwitchAgent && busy == false && switching == false && archived == false }
 
-    /// Switches the session to another agent: the host keeps its transcript and folder, and the new agent goes on from a selection of the messages
-    /// (and can read the rest). A refusal is kept in words for the panel and nothing changes here; what was chosen for the old agent is let go.
-    public func switchAgent(_ name: String) async {
-        guard name != agent, switching == false else { return }
+    /// Picks the agent the session changes to with the next message, or the session's own again: nothing is asked of the host here (what was chosen for the
+    /// old agent is let go). The host keeps the transcript and folder, and the new agent goes on from a selection of the messages and can read the rest.
+    public func chooseAgent(_ name: String) {
+        guard canSwitchNow else { return }
+        pendingAgent = name == agent ? nil : name
+        wakeOptions = [:]
+        optionRefusal = nil
+    }
+
+    /// The switch a picked agent asks for, before its message: a refusal stops the message and says why in words, and the agent stays picked.
+    private func switchToPendingAgent() async throws {
+        guard let target = pendingAgent else { return }
         switching = true
         defer { switching = false }
-        do {
-            _ = try await host.switchAgent(sessionId, to: name)
-        } catch {
-            optionRefusal = report(error, "switch the agent")
-            return
-        }
-        optionRefusal = nil
+        _ = try await host.switchAgent(sessionId, to: target)
+        pendingAgent = nil
         wakeOptions = [:]
-        await poll()
     }
 
     /// Continue on the mark of a stopped turn.
@@ -1227,6 +1349,7 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
         // the box empties on Enter and not when the host has answered; a refusal puts the text back
         if refill, draft.trimmingCharacters(in: .whitespacesAndNewlines) == text { draft = "" }
         do {
+            try await switchToPendingAgent()
             if try await host.list(archived: false).first(where: { $0.id == sessionId })?.live != true {
                 try await host.resume(sessionId)
                 await applyWakeOptions()

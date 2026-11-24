@@ -17,10 +17,13 @@ public struct CardFact: Equatable {
     public var label: String
     public var value: String
     public var kind: Kind = .text
+    /// A line under the value, smaller and quiet: where it comes from or its whole path.
+    public var detail: String?
 
-    public init(label: String, value: String, kind: Kind = .text) {
+    public init(label: String, value: String, kind: Kind = .text, detail: String? = nil) {
         self.label = label
         self.value = value
         self.kind = kind
+        self.detail = detail
     }
 }

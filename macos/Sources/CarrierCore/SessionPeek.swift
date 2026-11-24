@@ -31,9 +31,15 @@ public struct SessionPeek: Equatable {
 }
 
 public func sessionPeek(_ row: SessionRow, now: Date) -> SessionPeek {
-    var facts = [SessionPeek.Fact(label: "Where", value: row.branch == nil ? "Base folder" : "Worktree")]
-    if let branch = row.branch { facts.append(.init(label: "Branch", value: branch, kind: .branch)) }
-    if row.folder.isEmpty == false { facts.append(.init(label: "Folder", value: (row.folder as NSString).abbreviatingWithTildeInPath, kind: .path)) }
+    var facts = [SessionPeek.Fact(label: "Where", value: row.branch == nil ? "Base folder" : "Worktree of \(row.workspace)")]
+    if let branch = row.branch {
+        facts.append(.init(label: "Branch", value: branch, kind: .branch, detail: row.branchFrom.flatMap { $0.isEmpty ? nil : "cut from \($0)" }))
+    }
+    if row.folder.isEmpty == false {
+        let path = (row.folder as NSString).abbreviatingWithTildeInPath
+        // a worktree is told by its folder's name, with the whole path under it; a base folder is its own path
+        facts.append(row.branch == nil ? .init(label: "Folder", value: path, kind: .path) : .init(label: "Folder", value: worktreeFolderName(row), kind: .path, detail: path))
+    }
     if row.agent.isEmpty == false { facts.append(.init(label: "Agent", value: row.agent, kind: .agent)) }
     if let model = TurnSummary(model: row.model).shortModel { facts.append(.init(label: "Model", value: model)) }
     if row.turns > 0 { facts.append(.init(label: "Turns", value: "\(row.turns)")) }

@@ -261,7 +261,7 @@ private struct SessionHomeRow: View {
         .contentShape(Rectangle())
         .onTapGesture(perform: open)
         .onHover { hovered = $0 }
-        .sessionContextMenu(row, filterWorkspace: filterWorkspace)
+        .sessionContextMenu(row, filterWorkspace: filterWorkspace, inWindow: true)
         .help(row.title)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)

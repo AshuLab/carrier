@@ -114,13 +114,3 @@ private func summary(_ checks: RepoChecks) -> [String] {
     #expect(offered([read("o/r", .fail), mint("a", "o/r", ["bot-a"]), mint("c", "o/r", ["bot-c"], .warn), solve("o/r", .fail)]) == [nil, nil, nil, nil])
     #expect(offered([]) == [nil, nil, nil, nil])
 }
-
-@Test func activatingAnotherIdentityOpensThatRolesForm() throws {
-    let doctor = DoctorState.checks([read("o/r"), mint("a", "o/r", ["bot-a"]), mint("c", "o/r", ["bot-c"], .fail), solve("o/r")])
-    let rows = repoChecks(repo: "o/r", roles: roles("o/r"), doctor: doctor).rows
-    var selection = RepoRoleSelection()
-    selection.useAnotherIdentity(on: rows[1])  // an ok row opens nothing
-    #expect(selection.editing == nil)
-    selection.useAnotherIdentity(on: rows[2])
-    #expect(selection.editing == .reviewer)
-}

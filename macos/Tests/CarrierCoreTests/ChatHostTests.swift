@@ -29,12 +29,12 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"", protocol vers
     #expect(AgentAccounts.harness(of: "nobody") == "nobody")
 
     let active = try await host.list(archived: false)
-    // the fifth is a session whose turn ended while a build runs; the eleven after it fill the sidebar's other states (unread, a single task, plain, pinned, a worktree preparing, a long title...), and the last is the one with three subagents
-    #expect(active.map(\.state) == [.working, .waitingApproval, .idle, .idle, .idle, .idle, .idle, .working, .idle, .working, .idle, .preparing, .idle, .waitingApproval, .working, .idle, .idle])
-    #expect(active.map(\.live) == [true, true, false, false, true, true, true, true, true, true, true, true, false, true, true, true, false])
+    // the fifth is a session whose turn ended while a build runs; the twelve after it fill the sidebar's other states (unread, a single task, plain, pinned, a worktree preparing, a long title, every component of a conversation, every tool...), and the last is the one with three subagents
+    #expect(active.map(\.state) == [.working, .waitingApproval, .idle, .idle, .idle, .idle, .idle, .working, .idle, .working, .idle, .preparing, .idle, .waitingApproval, .working, .idle, .idle, .idle])
+    #expect(active.map(\.live) == [true, true, false, false, true, true, true, true, true, true, true, true, false, true, true, true, true, false])
     let worktree = "/Users/dev/work/web"
-    #expect(active.map { $0.workspace?.base } == [nil, nil, nil, worktree, nil, nil, nil, nil, nil, worktree, worktree, worktree, nil, nil, nil, nil, nil])
-    #expect(active.map(\.background.count) == [0, 0, 0, 0, 3, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+    #expect(active.map { $0.workspace?.base } == [nil, nil, nil, worktree, nil, nil, nil, nil, nil, worktree, worktree, worktree, nil, nil, nil, nil, nil, nil])
+    #expect(active.map(\.background.count) == [0, 0, 0, 0, 3, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
     #expect(active.compactMap(\.pullRequest).map(\.number) == [983, 979, 412, 88, 1051, 1060, 431, 398, 77] && active.compactMap(\.diff).count == 10)
     #expect(try await host.list(archived: true).map(\.archived) == [true, true])
     // the parent carries its children and none of the other sessions has a parent or children
@@ -454,8 +454,9 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"", protocol vers
     #expect(switched.switched == ChatEvent.Switched(from: "claude", to: "codex"))
     let lost = try JSONDecoder().decode(ChatEvent.self, from: Data(#"{"id":10,"at":2,"kind":"notice","text":"new conversation","lostNativeId":"x"}"#.utf8))
     #expect(lost.switched == nil)
-    // the feed shows it as the plain line it is
-    #expect(chatFeed([switched]) == [.line(id: "e9", text: "The agent changed from claude to codex.")])
+    // the feed draws a change of agent as its own divider, and any other notice as the plain line it is
+    #expect(chatFeed([switched]) == [.switched(id: "e9", .init(from: "claude", to: "codex"))])
+    #expect(chatFeed([lost]) == [.line(id: "e10", text: "new conversation")])
 }
 
 private final class Asked: @unchecked Sendable {

@@ -12,8 +12,45 @@ private func row(_ id: String, state: SessionState = .idle, archived: Bool = fal
 
 private func titles(_ sections: [[SessionMenuItem]]) -> [[String]] { sections.map { $0.map(\.title) } }
 
-@Test func anIdleSessionMenuHasPinRenameOpenCopyAndArchive() {
-    #expect(titles(sessionMenu(row("a"))) == [["Pin"], ["Rename…"], ["Open in Terminal", "Copy"], ["Archive"]])
+@Test func anIdleSessionMenuHasPinRenameOpenCopyArchiveAndDelete() {
+    #expect(titles(sessionMenu(row("a"))) == [["Pin"], ["Rename…"], ["Open in Terminal", "Copy"], ["Archive", "Delete…"]])
+}
+
+@Test func theWindowsListsAddMarkAsUnreadNewSessionOnTheBranchAndProjectSettings() {
+    let context = SessionMenuContext(marksUnread: true, startsSessions: true, projectKnown: true)
+    #expect(titles(sessionMenu(row("a", branch: "fix/x"), context: context)) == [
+        ["Pin", "Mark as unread"], ["Rename…"], ["New session on fix/x", "Project settings…", "Open in Terminal", "Copy"], ["Archive", "Delete…"]])
+    let items = sessionMenu(row("a", branch: "fix/x"), context: context).flatMap { $0 }
+    #expect(items.first { $0.title == "Mark as unread" }?.action == .markUnread)
+    #expect(items.first { $0.title == "New session on fix/x" }?.action == .newSession(base: "/Users/dev/web", branch: "fix/x"))
+    #expect(items.first { $0.title == "Project settings…" }?.action == .openProject(base: "/Users/dev/web"))
+}
+
+@Test func markAsUnreadBecomesMarkAsReadAndIsOffForTheOpenSessionAndAbsentForAnArchivedOne() {
+    var unread = row("a")
+    unread.unread = true
+    let marks = { (row: SessionRow, viewing: Bool) in sessionMenu(row, context: SessionMenuContext(marksUnread: true, viewing: viewing)).flatMap { $0 }.first { $0.title.hasPrefix("Mark as") } }
+    #expect(marks(unread, false)?.title == "Mark as read" && marks(unread, false)?.action == .markRead)
+    #expect(marks(row("a"), true)?.disabledReason != nil && marks(row("a"), false)?.disabledReason == nil)
+    #expect(marks(row("a", archived: true), false) == nil)
+}
+
+@Test func newSessionSaysTheBranchShortenedOrTheProjectWhenTheSessionWorksInTheFolder() {
+    #expect(newSessionTitle(row("a")) == "New session in this project")
+    #expect(newSessionTitle(row("a", branch: "carrier/short")) == "New session on carrier/short")
+    let long = newSessionTitle(row("a", branch: "carrier/a-very-long-branch-name-that-does-not-fit-in-a-menu"))
+    #expect(long.hasPrefix("New session on carrier/a-very") && long.contains("\u{2026}") && long.hasSuffix("in-a-menu"))
+    // an archived session has no worktree to cut from
+    #expect(sessionMenu(row("a", archived: true, branch: "x"), context: SessionMenuContext(startsSessions: true)).flatMap { $0 }.contains { $0.title.hasPrefix("New session") } == false)
+}
+
+@Test func aSessionThatWorksOrWaitsCannotBeDeletedAndSaysWhy() {
+    #expect(deleteBlock(row("a")) == nil)
+    #expect(deleteBlock(row("a", state: .working)) == "Stop the session to delete it")
+    #expect(deleteBlock(row("a", state: .waiting)) == "Answer or stop the session to delete it")
+    let delete = { (row: SessionRow) in sessionMenu(row).flatMap { $0 }.first { $0.title == "Delete…" } }
+    #expect(delete(row("a"))?.disabledReason == nil && delete(row("a"))?.destructive == true)
+    #expect(delete(row("a", state: .working))?.disabledReason == "Stop the session to delete it")
 }
 
 @Test func regenerateTitleIsOfferedOnlyToAHostThatListsIt() {

@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- Settings > Carrier > Repos is now Watching: a list of rows, as Projects', of the repos Carrier takes epics from, each with the project's tile, the project's name and its last check, and what it has in flight (the ones GitHub refused first), Check now and Watch a project… in the toolbar (the old GitHub picker is gone). A row opens the repo's own screen, with its status, its project, whether Carrier can work in it, and Stop watching…; Open on GitHub and Check again are in the toolbar. Who works there is the rail of Agents, with a chip saying whether the repo has its own settings for each role, and a role opens its own screen, with its identity, model and persona saved as they change. When the engine refuses the saved settings and keeps the old ones, the page says so in words, with what is wrong and a button to Agents, instead of a cut line.
+- A session's menu in the sidebar and on the home has Mark as unread (Mark as read), New session on its branch (the draft opens with a worktree cut from it), Project settings… and Delete… for any session that is not working, not only an archived one.
 - `carrier doctor` shows, for each role of each repo, whether each skill the role invokes is present, absent or cannot be told for the account the role runs on, with a failure for a named skill that is absent and a warning for a default that is absent and for any it cannot tell.
   Claude Code, Codex and Antigravity (`agy`) are each read where they look for skills (see Troubleshooting); an answer is absent only when every place was read, and cannot tell when one could not be.
 - `carrier recover <repo>#<issue>` continues a running epic whose agent is gone from its real state, and refuses with a reason when the epic is not running or an agent of it is really alive.
@@ -43,8 +45,36 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - A new kind of stop, `skill_missing` (`labels.reasons.skill_missing` names its label): an epic stops in needs-human, with no agent run spent and no retry, when a skill you named is absent for the harness and account of the role that invokes it, checked before it starts, resumes or changes the option of a role.
   A skill that is Solve's default, or an answer of cannot tell, never stops an epic.
 
+### Fixed
+
+- Moving a role to the provider and model its first failover step names (for example from one account to the other one that was its fallback) no longer leaves a config the engine refuses: that step is dropped, since falling back to the account that ran out is no fallback.
+- The switches and sliders of Settings take the accent the person picks, also after the window was opened; they kept the one it was opened with.
+- A long command in an approval, or many options in a question, no longer push the message box out of a short window: they scroll inside the card, which takes at most a third of the window.
+- A session started from the new session screen keeps the model, reasoning and permissions chosen for it, so it wakes with them after it sleeps instead of on its agent's defaults.
+  A session made before this fix kept none of them and wakes on its agent's defaults until they are chosen again.
+
 ### Changed
 
+- A `/clear` shows a cut in the conversation, under your own `/clear`: a glass capsule "Context cleared" with the tokens it freed and a line that says the messages above stay to read but the agent no longer sees them, in place of an empty line of statistics. The context shown in the message box is none after it.
+- A `/compact`, and the agent's own auto-compact, show a cut in the conversation: a glass capsule "Context compacted" with the context before and after ("142.3k → 18.4k tokens") and how much it freed, and a line that the agent goes on from a summary while the messages above stay to read. A failed compaction is the same cut in red and says why. The context in the message box is what the summary left. Claude only: the chat host now reports the provider's compact boundary as a `compact` event.
+- With flat surfaces (Settings > Chat > Surfaces), the fill of every surface of the chat (bubbles, code blocks, cards, notices, the message box) shows over the window's color: it was drawn behind it and never seen, so flat looked flat. The message box is also a notch darker than the window in the dark scheme.
+- A dictation of the History is a row with one quiet line of data under its text (outcome, destination, words and length) in place of five chips, and its detail has no box and no longer repeats the text, the destination or the length.
+- In Statistics, the Overview's cards sit with no container behind them, and the Records are four cards in a row (two by two when narrow) in place of a list of rows.
+- On the Keep awake page, the "Keep awake" button of the Now row is a switch, like the other on/off settings, and the On, Off or Paused chip is gone: the switch and the sentence already say it.
+- The filters with a few fixed values (the speech models, the dictation history and the visibility of the repositories) are segmented choices, and the chips that remain (the tags of the projects) take the same look: the person's accent, a fine edge.
+- The segmented choices of Settings and Usage mark the chosen one with the person's accent, in pieces of the same width that slide from one choice to the next.
+- "Regenerate title" shows the title waiting in the sidebar (it goes quiet and shimmers for at least two seconds, longer if the model takes longer) and then rolls the new title in; the sidebar title rolls whenever it changes.
+- A change of agent shows in the conversation as a divider with the two agents (their mark, label and color as set in `providers.json`, and their models) in a glass capsule and what carried over under it, not as a plain line of text.
+- Picking another agent in a session's panel no longer changes the session on the spot: it changes with the next message you send, with the handoff going out with it.
+- A session that changed agent shows every provider it ran on in the sidebar, not only the current one.
+- A card of the conversation (a run of tools, a table) covers the text next to it while it opens or folds, instead of showing it through the glass.
+- The new session screen no longer has a ✕ beside the workspace; click the workspace to choose another.
+- A role that runs as your own `gh` login (Settings > Agents) shows your GitHub picture, not a gray person.
+- A worktree session names its folder in the header, under the title ("AshuLab/carrier · plagued-marine-hatchery"), and the toolbar pill is the branch alone.
+  The card on the sidebar row says whose worktree it is, the branch it was cut from, and the folder by its name with the whole path under it.
+- A worktree session shows the branch checked out in it now (in the toolbar, the sidebar and Copy branch name), not the `carrier/...` branch it was created with, which an agent may have moved off.
+- A project's "New sessions here" has "Starts with", the same panel as Settings > Sessions: provider, model, reasoning and access, where it only had the provider.
+  A project left on "Same as everywhere" follows Settings > Sessions.
 - The labels Carrier writes default to `carrier:status:running`, `carrier:status:ready-for-test` and `carrier:status:needs-human`, because Carrier writes them and not Solve; `solve:epic` and `solve:epic:ready` stay as Solve writes them.
   An issue that already has `solve:epic:running`, `solve:epic:ready-for-test` or `solve:epic:needs-human` keeps it, since Carrier only removes the labels it names now and nothing cleans the old names.
   Set them in `labels` to keep the old ones.
@@ -56,7 +86,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - An epic whose issue answers 404 or 410 while its repo answers normally is cancelled with the reason that the issue no longer exists, so the engine starts and the rest of its repo goes on.
   A repo that does not answer normally, a 404 for the whole repo included, is shown as refused with its reason and tried again at the next check, and none of its epics is cancelled.
 - A process is never waited on past its exit, and its whole process group is killed after the grace period and once more after the exit.
-
 - A chat session's worktree folder is removed once its pull request is merged, or once the session is archived and untouched for 14 days.
   The whole folder goes, including every file git ignores: build output and dependencies, but also a local `.env` or config kept inside the worktree, which does not come back.
   Its branch stays, and the folder comes back when you resume the session, without its dependencies until something installs them.

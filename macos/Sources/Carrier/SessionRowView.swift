@@ -18,6 +18,7 @@ struct SessionRowView: View {
     var roomy = false
     @State private var hovered = false
     @Environment(SessionActions.self) private var actions
+    private let titles = TitleRegeneration.shared
     @AppStorage(SidebarStore.pinnedKey) private var pinnedStored = ""
     @AppStorage(SidebarStore.showsIconKey) private var showsIcon = true
     @AppStorage(SidebarStore.showsBranchKey) private var showsBranch = true
@@ -128,7 +129,8 @@ struct SessionRowView: View {
             }
             VStack(alignment: .leading, spacing: roomy ? density.sessionLineGap : SidebarMetrics.lineGap) {
                 HStack(spacing: 4) {
-                    Text(row.title).font(SidebarMetrics.item).fontWeight(row.state == .waiting ? .medium : .regular).lineLimit(1).truncationMode(.tail)
+                    RollingTitle(text: titles.title(of: row), waiting: titles.waiting.contains(row.id))
+                        .font(SidebarMetrics.item).fontWeight(row.state == .waiting ? .medium : .regular)
                     Spacer(minLength: 4)
                     ageSlot(content)
                 }
@@ -159,7 +161,7 @@ struct SessionRowView: View {
             Task { try? await Task.sleep(for: .seconds(1.2)); ringKept = false }
         }
         .onHover { hovered = $0 }
-        .sessionContextMenu(row)
+        .sessionContextMenu(row, inWindow: hoverActions)
         .hoverCard { SessionPeekView(card: sessionPeek(row, now: Date())) }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(label(content))

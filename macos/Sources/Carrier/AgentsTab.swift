@@ -320,7 +320,7 @@ private struct SkillValue: View {
 }
 
 /// A text saved when the person presses Return or leaves the field; what the file refuses is put back.
-private struct CommitField: View {
+struct CommitField: View {
     let label: String
     let text: String
     let width: CGFloat
@@ -356,7 +356,7 @@ private struct CommitField: View {
 
 /// A text of several lines saved when the person leaves it (a return is a new line here, so there is no key that saves); what the file refuses is
 /// put back. In the box of `settingsField`, with the prompt shown while it is empty.
-private struct CommitEditor: View {
+struct CommitEditor: View {
     let label: String
     let text: String
     var prompt = ""

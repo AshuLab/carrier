@@ -18,17 +18,6 @@ public struct RepoCheckRow: Equatable, Identifiable {
     public var anotherIdentity: AgentRole? { status == .fail ? role : nil }
 }
 
-/// Which role's form is open in the repo's "Who works here" card.
-public struct RepoRoleSelection: Equatable {
-    public var editing: AgentRole?
-    public init(editing: AgentRole? = nil) { self.editing = editing }
-
-    /// Activating Use another identity on a check row opens the form of that row's role.
-    public mutating func useAnotherIdentity(on row: RepoCheckRow) {
-        if let role = row.anotherIdentity { editing = role }
-    }
-}
-
 public struct RepoChecks: Equatable {
     public var rows: [RepoCheckRow]
     /// said above the rows while the doctor runs or when it could not answer

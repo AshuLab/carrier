@@ -19,14 +19,22 @@ export function agentOfSlot(config: EffectiveRepoConfig, slot: Slot | null): Age
   return agents.extraReviewers?.[extraIndex(slot)];
 }
 
+/** What a lead or an extra reviewer keeps besides its agent: carried over when the agent is replaced, never the agent's own fields. */
+const besidesAgent = (entry: (Agent & Partial<ExtraReviewer>) | undefined) => ({
+  ...(entry?.skills && { skills: entry.skills }),
+  ...(entry?.failover && { failover: entry.failover }),
+  ...(entry?.sharedIdentity && { sharedIdentity: entry.sharedIdentity }),
+});
+
 /** The saved configuration with the slot's agent replaced: where a failover leaves the option the slot runs on. */
 export function withAgentOfSlot(config: EffectiveRepoConfig, slot: Slot | null, agent: Agent): EffectiveRepoConfig {
   const agents = config.agents as SavedAgents;
   if (slot === null) return withAgents(config, { ...agents, author: agent });
   if (slot === 'reviewer') return withAgents(config, { ...agents, reviewer: agent });
-  if (slot === 'lead') return withAgents(config, { ...agents, leadReviewer: { ...agents.leadReviewer, ...agent } }); // keeps what the lead has besides an agent
+  // The agent replaces the previous one whole, so a field the new option leaves unset (provider, configDir, command, effort...) does not survive from the old option.
+  if (slot === 'lead') return withAgents(config, { ...agents, leadReviewer: { ...agent, ...besidesAgent(agents.leadReviewer) } });
   const extraReviewers = [...(agents.extraReviewers ?? [])];
-  extraReviewers[extraIndex(slot)] = { ...extraReviewers[extraIndex(slot)], ...agent }; // keeps what the extra reviewer has besides an agent
+  extraReviewers[extraIndex(slot)] = { ...agent, ...besidesAgent(extraReviewers[extraIndex(slot)]) };
   return withAgents(config, { ...agents, extraReviewers });
 }
 

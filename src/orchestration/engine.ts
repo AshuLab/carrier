@@ -1417,6 +1417,15 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     return acted;
   }
 
+  // With several reviewers, a slot whose failure already settled it with no verdict on the round's head (`reviewer_no_verdict`), or whose head the round moved past,
+  // has nothing to recover: stopping or failing it over again would count a recovery at every poll until the epic stops in `engine_error`.
+  const settledWithoutVerdict = (epic: Epic, last: Execution) => {
+    const slot = slotOf(last);
+    if (epic.stage !== 'review' || epic.round === null || slot === null || roundSlots(epic.config).length < 2) return false;
+    if (last.headSha === null) return false;
+    return deadHeads(epic).has(last.headSha) || roundNones(db, epic, { round: epic.round, headSha: last.headSha }).some((none) => none.slot === slot);
+  };
+
   // Continues the epic from one execution, the last of the slot being recovered (none: the epic has not started one).
   async function recoverFrom(epic: Epic, last: Execution | undefined): Promise<boolean> {
     const id = epic.id;
@@ -1452,6 +1461,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     } else if (
       epic.stage !== null &&
       last.status === 'failed' &&
+      !settledWithoutVerdict(epic, last) &&
       (last.failureKind === 'usage_limit' ||
         matchesFailoverTrigger(failoverTriggersOf(epic.config, slotOf(last)), last.failureKind, last.failureDetail))
     ) {

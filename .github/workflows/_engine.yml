@@ -55,6 +55,21 @@ jobs:
         run: |
           [ -z "$(git status --porcelain)" ] || { git status --short >&2; echo "a schema changed without its migration: run pnpm db:generate and commit the result" >&2; exit 1; }
 
+  # `pnpm design` must find nothing to write: a source in design/ changed without its generated files fails here, and so does a copy key Spanish lacks.
+  design:
+    name: Design
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm design:check
+
   # What `npm publish` ships, installed the way a person gets it: build, pack, install the tarball, run it (.github/scripts/package-smoke.sh).
   package:
     name: Package smoke

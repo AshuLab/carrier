@@ -25,7 +25,7 @@ permissions:
   pull-requests: read # `changes` and `changelog` read the PR's files and labels
 
 jobs:
-  # engine: anything but a change that is only inside macos/. macos: the app, its notices, or the workflows themselves.
+  # engine: anything but a change that is only inside macos/; a generated file there (`*.generated.swift`, `Localizable.xcstrings`) counts, since `pnpm design:check` compares it. macos: the app, its notices, or the workflows themselves.
   # bundle: what build-app.sh and check-app.sh read or write: the scripts, the package, the resources, the key, the fixtures, the notices, and the two workflows that run it.
   changes:
     name: Changes
@@ -51,7 +51,7 @@ jobs:
           fi
           FILES="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR/files" --paginate --jq '.[].filename')"
           echo "$FILES"
-          echo "engine=$(echo "$FILES" | grep -qvE '^macos/' && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "engine=$( (echo "$FILES" | grep -qvE '^macos/' || echo "$FILES" | grep -qE '^macos/.*(\.generated\.swift|/Localizable\.xcstrings)$') && echo true || echo false)" >> "$GITHUB_OUTPUT"
           echo "macos=$(echo "$FILES" | grep -qE '^(macos/|THIRD-PARTY-NOTICES\.md$|\.github/workflows/)' && echo true || echo false)" >> "$GITHUB_OUTPUT"
           echo "bundle=$(echo "$FILES" | grep -qE '^(macos/(build-app\.sh|update-key\.pub|Package\.(swift|resolved)|scripts/|Resources/|Tests/Fixtures/|Sources/[^/]+/Resources/)|THIRD-PARTY-NOTICES\.md$|\.github/workflows/(ci|_macos)\.yml$)' && echo true || echo false)" >> "$GITHUB_OUTPUT"
 

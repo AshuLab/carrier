@@ -1,0 +1,7 @@
+{
+  "emptyEpics": "No epics yet",
+  "epicsWaiting": "{count, plural, =0 {No epics waiting} one {# epic waiting} other {# epics waiting}}",
+  "tokensUsed": "{tokens, number} tokens used",
+  "epicState": "{state, select, running {Running} paused {Paused} other {Stopped}}",
+  "epicsByState": "{state, select, running {{count, plural, one {# epic running} other {# epics running}}} other {{count, plural, one {# epic stopped} other {# epics stopped}}}}"
+}

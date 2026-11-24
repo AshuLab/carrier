@@ -2,8 +2,8 @@ import CarrierCore
 import SwiftUI
 
 /// The Sessions tab: what a new session starts with and where it opens, the two ages of the session clock (each a number of days or Never) and whether deleting
-/// asks first, and, in dates, what the ages do to a session left alone from today. An age is written to the chat's `chat.json` as it is changed (CarrierCore/SessionAges.swift); the chat host reads the file
-/// each pass, so nothing is restarted. Reset puts the preferences back and writes the default ages.
+/// asks first, and, in dates, what the ages do to a session left alone from today. A change is asked of Carrier's own code as it is made (`editChatSettings`: over the chat host's socket, or
+/// `carrier config` when the host does not list `config`), which writes the chat's `chat.json`; the host reads the file each pass, so nothing is restarted. Reset puts the preferences back and writes the default ages.
 struct SessionsTabView: View {
     @State private var saved = SessionAges()
     @State private var draft = SessionAges()
@@ -14,6 +14,12 @@ struct SessionsTabView: View {
     /// fields whose text is not a number yet
     @State private var unparsable: Set<String> = []
     @State private var failure: String?
+    /// what the last request was sent with, so a field that was changed is sent and one that is back to it is not
+    @State private var sentStart = defaultWorktreeStart
+    @State private var sentIdle = defaultIdleClose
+    /// the request in flight; the next one waits for it, so two changes never write the file at once
+    @State private var saving: Task<Void, Never>?
+    private let host = SocketChatHost(configLauncher: .app)
     /// chat.json could not be read: the ages cannot be changed until it can
     @State private var unreadable = false
     @AppStorage(AppPreferences.confirmDeleteKey) private var confirmDelete = AppPreferences.defaultConfirmDelete
@@ -142,6 +148,7 @@ struct SessionsTabView: View {
             draft = saved
             start = worktreeStart(chatJSON: file)
             idle = idleClose(chatJSON: file)
+            (sentStart, sentIdle) = (start, idle)
             failure = nil
             unreadable = false
         } catch {
@@ -150,39 +157,45 @@ struct SessionsTabView: View {
         }
     }
 
-    /// Writes the file, read again just now; nothing while a field is refused (its line says why).
+    /// Asks for the ages; nothing while a field is refused (its line says why).
     private func save() {
         guard draft != saved, problems.isEmpty else { return }
-        if rewriteChatConfig({ applyingSessionAges(draft, to: $0) }) { saved = draft }
+        saved = draft
+        send(.ages(draft))
     }
 
-    /// Writes `worktreeStart`, the file read again just now; when it cannot, the row shows what the host will use and not the choice that was not written.
     private func saveStart() {
-        guard worktreeStart(chatJSON: (try? currentChatConfig()) ?? nil) != start else { return }
-        if rewriteChatConfig({ applyingWorktreeStart(start, to: $0) }) == false { start = worktreeStart(chatJSON: (try? currentChatConfig()) ?? nil) }
+        guard start != sentStart else { return }
+        sentStart = start
+        send(.worktreeStart(start))
     }
 
-    /// Writes `idleCloseMinutes`, the file read again just now; when it cannot, the row shows what the host will use and not the choice that was not written.
     private func saveIdle() {
-        guard idleClose(chatJSON: (try? currentChatConfig()) ?? nil) != idle else { return }
-        if rewriteChatConfig({ applyingIdleClose(idle, to: $0) }) == false { idle = idleClose(chatJSON: (try? currentChatConfig()) ?? nil) }
+        guard idle != sentIdle else { return }
+        sentIdle = idle
+        send(.idleClose(idle))
     }
 
-    /// Reads `chat.json` again, lets `apply` change it and writes it back; false, with the reason in `failure`, when it was not written.
-    private func rewriteChatConfig(_ apply: (Data?) -> Data?) -> Bool {
-        do {
-            guard let updated = apply(try currentChatConfig()) else {
-                failure = "chat.json is not a JSON object, so it was not changed."
-                return false
+    /// Sends the change after the one before it; when it is refused or fails, the rows go back to what the file says and the line says why.
+    private func send(_ changes: ChatSettingChanges) {
+        let before = saving
+        saving = Task {
+            await before?.value
+            do {
+                _ = try await host.editChatSettings(changes)
+                failure = nil
+            } catch {
+                FileHandle.standardError.write(Data("carrier: saving chat.json failed: \(error)\n".utf8))
+                let words = Self.words(error)
+                load()
+                failure = words
             }
-            try writeCurrentChatConfig(updated)
-            failure = nil
-            return true
-        } catch {
-            FileHandle.standardError.write(Data("carrier: saving chat.json failed: \(error)\n".utf8))
-            failure = "Could not save chat.json: \(error.localizedDescription)"
-            return false
         }
+    }
+
+    private static func words(_ error: Error) -> String {
+        if case ControlError.remote(let refusal) = error { return refusal.text }
+        return "Could not save chat.json: \(error.localizedDescription)"
     }
 }
 

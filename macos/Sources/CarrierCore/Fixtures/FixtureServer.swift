@@ -107,7 +107,7 @@ public final class FixtureServer {
     private var longChat: [[String: Any]]?
     /// Sessions already titled by `regenerateTitle` or `regenerateTitles`, so a second bulk ask sees 0 left.
     private var regeneratedSessionIds: Set<String> = []
-    let chatHello = Data("{\"event\":\"hello\",\"protocol\":1,\"pid\":0,\"startedAt\":0,\"version\":\"fixture\",\"capabilities\":[\"agents\",\"list\",\"open\",\"resume\",\"send\",\"events\",\"answer\",\"setOption\",\"archive\",\"delete\",\"deletePreview\",\"workspace\",\"fetch\",\"suggestName\",\"checkName\",\"cloneRepo\",\"createProject\",\"githubRepos\",\"repoBranches\",\"providers\",\"plan\",\"usage\",\"usageOverride\",\"accountIdentity\",\"accountPalette\",\"switchAgent\",\"interrupt\",\"stopTask\",\"worktreeStart\",\"fetchIfStale\",\"projects\",\"textGenerators\",\"regenerateTitle\",\"regenerateTitles\"]}\n".utf8)
+    let chatHello = Data("{\"event\":\"hello\",\"protocol\":1,\"pid\":0,\"startedAt\":0,\"version\":\"fixture\",\"capabilities\":[\"agents\",\"list\",\"open\",\"resume\",\"send\",\"events\",\"answer\",\"setOption\",\"archive\",\"delete\",\"deletePreview\",\"workspace\",\"fetch\",\"suggestName\",\"checkName\",\"cloneRepo\",\"createProject\",\"githubRepos\",\"repoBranches\",\"providers\",\"plan\",\"usage\",\"usageOverride\",\"accountIdentity\",\"accountPalette\",\"switchAgent\",\"interrupt\",\"stopTask\",\"worktreeStart\",\"fetchIfStale\",\"projects\",\"textGenerators\",\"regenerateTitle\",\"regenerateTitles\",\"config\"]}\n".utf8)
     private let data: [String: Data]
     let hello: Data
     private var stopped = false
@@ -635,6 +635,9 @@ public final class FixtureServer {
                 }
                 return Self.answer(id, ["started": started])
             }
+        case "editChatSettings":
+            guard let changes = request?["changes"] as? [String: Any] else { break }
+            return editChatSettings(id, changes)
         case "archive", "delete":
             let verb = request?["cmd"] as? String ?? ""
             guard let session = request?["sessionId"] as? String, let archived = verb == "delete" ? false : request?["archived"] as? Bool else { break }
@@ -661,6 +664,39 @@ public final class FixtureServer {
         default: break
         }
         return Self.line("{\"id\":\(id),\"ok\":false,\"error\":\"unknown request\"}")
+    }
+
+    /// `editChatSettings` as the host answers it: the scratch `chat.json` read again, each key set (null removes it), the four keys checked as the host's schema does, and written only when
+    /// all hold; the reply is the keys as the file now has them. A file that is not a JSON object is refused and left as it was.
+    private func editChatSettings(_ id: Int, _ changes: [String: Any]) -> Data {
+        let url = URL(fileURLWithPath: CarrierPlaces(folder: home).chatConfig)
+        var file: [String: Any] = [:]
+        if let data = try? Data(contentsOf: url) {
+            guard let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
+                return Self.refused(id, "config.problem", "chat.json is not a JSON object, so it was not changed", ["path": "(file)", "problem": "notAnObject"])
+            }
+            file = object
+        }
+        for (key, value) in changes { file[key] = value is NSNull ? nil : value }
+        func refusal(_ path: String, _ problem: String, _ words: String) -> Data {
+            Self.refused(id, "config.problem", "\(path): \(words)", ["path": .string(path), "problem": .string(problem)])
+        }
+        /// the days of an age: nil for "never" or a key that is not there, and whether the value is one the schema takes
+        func age(_ key: String) -> (days: Int?, valid: Bool) {
+            guard let value = file[key], value as? String != "never" else { return (nil, true) }
+            guard let days = value as? Int, days > 0 else { return (nil, false) }
+            return (days, true)
+        }
+        let (archive, delete) = (age("archiveAfterDays"), age("deleteAfterDays"))
+        guard archive.valid else { return refusal("archiveAfterDays", "too_small", "Too small: expected number to be >0") }
+        guard delete.valid else { return refusal("deleteAfterDays", "too_small", "Too small: expected number to be >0") }
+        if let start = file["worktreeStart"], ["remote", "local"].contains(start as? String ?? "") == false { return refusal("worktreeStart", "invalid_value", "Invalid option: expected one of \"remote\"|\"local\"") }
+        if let idle = file["idleCloseMinutes"], [10, 30, 60].contains(idle as? Int ?? 0) == false { return refusal("idleCloseMinutes", "invalid_union", "must be 10, 30 or 60 (minutes)") }
+        if let archive = archive.days, let delete = delete.days, delete <= archive { return refusal("deleteAfterDays", "custom", "must be greater than archiveAfterDays") }
+        guard let data = try? JSONSerialization.data(withJSONObject: file, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]), (try? data.write(to: url, options: .atomic)) != nil else {
+            return Self.refused(id, "request.internal", "internal error")
+        }
+        return Self.answer(id, ["saved": changes.keys.reduce(into: [String: Any]()) { $0[$1] = file[$1] }])
     }
 
     /// The golden check of a worktree name: free unless `chat-names.json` says why not.

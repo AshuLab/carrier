@@ -31,7 +31,7 @@ test('status is a command that takes no arguments', () => {
 });
 
 test('the usage names every command and every init flag', () => {
-  for (const word of ['carrier init', 'carrier doctor', 'carrier schema', 'carrier start', 'carrier status', 'stop', 'pause', 'resume', 'check', 'carrier chat ', 'carrier chat-host', '--repo', '--author-profile', '--reviewer-provider', '--out', '--yes', '--config', '--json']) expect(usage()).toContain(word);
+  for (const word of ['carrier init', 'carrier doctor', 'carrier schema', 'carrier start', 'carrier status', 'stop', 'pause', 'resume', 'check', 'carrier chat ', 'carrier chat-host', 'carrier config', '--repo', '--author-profile', '--reviewer-provider', '--out', '--yes', '--config', '--json']) expect(usage()).toContain(word);
 });
 
 test('stop, pause, resume and check are commands that take no argument', () => {

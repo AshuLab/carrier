@@ -7,11 +7,13 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { type CompiledCopy, CopyError, LANGUAGES, type Language, compileCopy, emitCatalog, emitSwift, emitTypeScript } from './copy.ts';
+import { type Preference, PreferenceError, compilePreferences, emitPreferencesSwift } from './preferences.ts';
 import { type CompiledTokens, TokenError, compileTokens, emitTokensSwift } from './tokens.ts';
 
 export interface Sources {
   copy: CompiledCopy;
   tokens: CompiledTokens;
+  preferences: Preference[];
 }
 
 /** A file the generator writes: its path from the repository root, and what it holds. */
@@ -31,11 +33,11 @@ export function copyOutputs(paths: { swift: string; catalog: string; typescript:
 
 /**
  * The output table: every emitter registers the files it writes here.
- * The tokens' and the copy's Swift are written, with the catalog; the TypeScript and CSS are emitted and tested but written nowhere until a web front-end exists.
- * The other Swift output (the preferences) arrives with the change that uses it.
+ * The tokens', the preferences' and the copy's Swift are written, with the copy catalog; the TypeScript (and the tokens' CSS) are emitted and tested but written nowhere until a web front-end exists.
  */
 export const outputs: Output[] = [
   { path: 'macos/Sources/CarrierCore/Theme/Tokens.generated.swift', render: (sources) => emitTokensSwift(sources.tokens) },
+  { path: 'macos/Sources/CarrierCore/Settings/Preferences.generated.swift', render: (sources) => emitPreferencesSwift(sources.preferences) },
   { path: 'macos/Sources/CarrierCore/Copy/Copy.generated.swift', render: (sources) => emitSwift(sources.copy) },
   { path: 'macos/Sources/CarrierCore/Resources/Localizable.xcstrings', render: (sources) => emitCatalog(sources.copy) },
 ];
@@ -54,7 +56,8 @@ export function loadSources(root: string): Sources {
   };
   const [en, es] = LANGUAGES.map(read) as [Record<string, string>, Record<string, string>];
   const tokens: unknown = JSON.parse(readFileSync(join(root, 'design', 'tokens.json'), 'utf8'));
-  return { copy: compileCopy({ en, es }), tokens: compileTokens(tokens) };
+  const preferences: unknown = JSON.parse(readFileSync(join(root, 'design', 'preferences.json'), 'utf8'));
+  return { copy: compileCopy({ en, es }), tokens: compileTokens(tokens), preferences: compilePreferences(preferences) };
 }
 
 function write(folder: string, table: Output[], sources: Sources): void {
@@ -98,7 +101,7 @@ function main(): number {
     generate(REPOSITORY_ROOT);
     return 0;
   } catch (error) {
-    if (error instanceof CopyError || error instanceof TokenError) {
+    if (error instanceof CopyError || error instanceof TokenError || error instanceof PreferenceError) {
       console.error(error.message);
       return 1;
     }

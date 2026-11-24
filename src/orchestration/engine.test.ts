@@ -11,7 +11,8 @@ import { epics } from '../storage/schema.ts';
 import type { QuotaSnapshot } from '../usage/types.ts';
 import { createEngine, type EngineSettings } from './engine.ts';
 import { ReloadRefused } from './reload-refused.ts';
-import type { ResumeRefused } from './resume-refused.ts';
+import type { RecoverRefused, RecoverRefusal } from './recover-refused.ts';
+import type { ResumeRefused, ResumeRefusal } from './resume-refused.ts';
 import { reserve } from './reserve.ts';
 import { FakeAgentRunner, FakeWorkspaces, type Behavior } from '../execution/fake.ts';
 import type { AgentFailure, AgentTask } from '../execution/agent-runner.ts';
@@ -4384,7 +4385,30 @@ async function stoppedEpic() {
   return engine;
 }
 const flush = () => new Promise<void>((resolve) => setImmediate(resolve));
-const refusal = (promise: Promise<void>) => promise.then(() => null, (e: ResumeRefused) => e.reason);
+// the code each reason of a refusal carries ([ADR 0055](../../docs/adr/0055-a-refusal-carries-a-code-and-its-parameters-and-its-english-words-are-the-fallback.md)): `refusal` checks it beside the words
+const codeOf: Record<ResumeRefusal | RecoverRefusal, string> = {
+  'unknown epic': 'epic.unknown',
+  'github unavailable': 'github.unavailable',
+  'not stopped': 'resume.notStopped',
+  'did not restart': 'resume.didNotRestart',
+  'unknown option': 'resume.optionUnknown',
+  'no such role': 'resume.roleUnknown',
+  'no pull request': 'resume.noPullRequest',
+  'pull request not open': 'resume.pullRequestNotOpen',
+  'pull request head changed': 'resume.pullRequestHeadChanged',
+  'extra rounds need a stage': 'resume.extraRoundsNeedStage',
+  'extra rounds need a review limit': 'resume.extraRoundsNeedReviewLimit',
+  'not running': 'recover.notRunning',
+  'agent alive': 'recover.agentAlive',
+  'not started': 'recover.notStarted',
+  'nothing to recover': 'recover.nothingToRecover',
+  'engine unavailable': 'recover.engineUnavailable',
+};
+const refusal = (promise: Promise<void>) => promise.then(() => null, (e: ResumeRefused | RecoverRefused) => {
+  expect(e.code).toBe(codeOf[e.reason]);
+  expect(e.params).toEqual({});
+  return e.reason;
+});
 
 test('resumeEpic puts ready on a needs_human epic, checks, and answers only once it runs again from ship', async () => {
   const engine = await stoppedEpic();
@@ -4541,7 +4565,7 @@ const codexOption = { harness: 'codex' as const, model: 'gpt', configDir: '/cfg/
 const choosing = (options: NonNullable<EffectiveRepoConfig['options']> = { claude: claudeOption, codex: codexOption }): EffectiveRepoConfig[] => [
   { name: 'AshuLab/a', options, providers: options as any, agents: { author: { profile: 'a', option: 'claude', ...claudeOption }, reviewer: { profile: 'b', option: 'codex', ...codexOption } } },
 ];
-const choiceRefusal = (promise: Promise<void>) => promise.then(() => null, (e: ResumeRefused) => e.reason);
+const choiceRefusal = refusal;
 
 test('with two or more accounts a reserved epic starts its author at once, the account of each role recorded', async () => {
   github.ready = { 'AshuLab/a': ready(1, 2) };
@@ -4782,7 +4806,7 @@ test('a repo a reload adds while a poll runs is read by the poll that follows it
 test('a reload that is refused leaves every setting as it was, rethrows the problem and checks nothing', async () => {
   const engine = await start(2);
   const before = settings;
-  expect(() => engine.reload(() => { throw new ReloadRefused('Invalid config /c.json:\n  limits.maxReviews: Too small'); })).toThrow('limits.maxReviews');
+  expect(() => engine.reload(() => { throw new ReloadRefused('config.invalid', 'Invalid config /c.json:\n  limits.maxReviews: Too small'); })).toThrow('limits.maxReviews');
   expect(settings).toBe(before);
   await clock.advance(5 * MIN - 1);
   expect(github.calls).toBe(0); // no check was asked for, and the timer is the one it was

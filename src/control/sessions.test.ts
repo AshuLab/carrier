@@ -73,7 +73,7 @@ test('the hello lists sessions', async () => {
 test('a queued epic has no sessions, and an unknown one is an error', async () => {
   epic(1, 'queued');
   expect((await ask(1)).reply).toEqual({ id: 1, ok: true, data: { sessions: [] } });
-  expect((await ask(99)).reply).toEqual({ id: 1, ok: false, error: 'unknown epic' });
+  expect((await ask(99)).reply).toEqual({ id: 1, ok: false, error: 'unknown epic', code: 'epic.unknown', params: {} });
 });
 
 test('a running epic lists its session newest first, with no descriptor while it runs', async () => {

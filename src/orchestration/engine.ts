@@ -444,12 +444,12 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
 
   // A resume that keeps the epic's stage needs its pull request open and its head to be the stored one.
   // A resume at review looks at whatever the head is (ADR 0047): it passes `onMoved`, which is told the head found instead of refusing.
-  async function pullRequestRefusal(epic: Epic, onMoved?: (headSha: string) => void): Promise<'no pull request' | 'pull request not open' | 'pull request head changed' | undefined> {
-    if (epic.prNumber === null) return 'no pull request';
+  async function pullRequestRefusal(epic: Epic, onMoved?: (headSha: string) => void): Promise<ResumeRefused | undefined> {
+    if (epic.prNumber === null) return new ResumeRefused('resume.noPullRequest', 'no pull request');
     const found = await github.getPullRequest(epic.repo, epic.prNumber);
-    if (found?.state !== 'open') return 'pull request not open';
+    if (found?.state !== 'open') return new ResumeRefused('resume.pullRequestNotOpen', 'pull request not open');
     if (found.headSha === epic.prHeadSha) return;
-    if (!onMoved) return 'pull request head changed';
+    if (!onMoved) return new ResumeRefused('resume.pullRequestHeadChanged', 'pull request head changed');
     onMoved(found.headSha);
   }
 
@@ -494,8 +494,8 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       if (refusal) {
         // Not what the stage would work on, and nothing in the epic changes that by itself: it stops waiting (no read of GitHub at every poll, no promise in the
         // panel) and a person's resume decides. The reason keeps the way out and says why it will not go on.
-        log.warn('the epic does not wake up', { epicId: epic.id, refusal });
-        db.update(epics).set({ resumeAt: null, needsHumanReason: epic.needsHumanReason?.replace(/ · resumes by itself at \S+/, ` · it will not resume by itself: ${refusal}`) }).where(and(eq(epics.id, epic.id), eq(epics.status, 'needs_human'), eq(epics.resumeAt, epic.resumeAt!))).run();
+        log.warn('the epic does not wake up', { epicId: epic.id, refusal: refusal.reason });
+        db.update(epics).set({ resumeAt: null, needsHumanReason: epic.needsHumanReason?.replace(/ · resumes by itself at \S+/, ` · it will not resume by itself: ${refusal.reason}`) }).where(and(eq(epics.id, epic.id), eq(epics.status, 'needs_human'), eq(epics.resumeAt, epic.resumeAt!))).run();
         return;
       }
     }
@@ -1898,32 +1898,32 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
           new Promise<boolean>((resolve) => (giveUp = clock.after(resumeWaitMs, async () => resolve(false)))),
         ]);
         giveUp();
-        if (!waited) throw new ResumeRefused('did not restart');
+        if (!waited) throw new ResumeRefused('resume.didNotRestart', 'did not restart');
       }
       const epic = db.select().from(epics).where(and(eq(epics.repo, repo), eq(epics.issue, issue))).get();
-      if (!epic) throw new ResumeRefused('unknown epic');
-      if (epic.status !== 'needs_human') throw new ResumeRefused('not stopped');
+      if (!epic) throw new ResumeRefused('epic.unknown', 'unknown epic');
+      if (epic.status !== 'needs_human') throw new ResumeRefused('resume.notStopped', 'not stopped');
       // The requeue freezes the epic's options again from the configuration the engine runs with, so that is what the names are checked against.
       const repoConfig = repos().find((r) => r.name === repo);
       const declared = (repoConfig?.providers ?? repoConfig?.options) ?? {};
       const picked = Object.entries({ author: chosen.author, reviewer: chosen.reviewer, 'reviewer-2': chosen.reviewer2, 'reviewer-3': chosen.reviewer3, 'reviewer-4': chosen.reviewer4, lead: chosen.lead }).filter((pick): pick is [string, string] => pick[1] !== undefined);
-      if (picked.some(([, name]) => !Object.hasOwn(declared, name))) throw new ResumeRefused('unknown option');
+      if (picked.some(([, name]) => !Object.hasOwn(declared, name))) throw new ResumeRefused('resume.optionUnknown', 'unknown option');
       // The roles the epic will run with are the ones the requeue freezes again, from the configuration the engine runs with.
       const slots = roundSlots(repoConfig ?? null);
-      if (picked.some(([role]) => role === 'lead' ? !repoConfig?.agents.leadReviewer : role.startsWith('reviewer-') && !slots.includes(role as Slot))) throw new ResumeRefused('no such role');
+      if (picked.some(([role]) => role === 'lead' ? !repoConfig?.agents.leadReviewer : role.startsWith('reviewer-') && !slots.includes(role as Slot))) throw new ResumeRefused('resume.roleUnknown', 'no such role');
       const keeping = chosen.from === 'review' || chosen.from === 'fix' ? chosen.from : null;
-      if (chosen.extraRounds !== undefined && !keeping) throw new ResumeRefused('extra rounds need a stage');
-      if (chosen.extraRounds !== undefined && epic.needsHumanKind !== 'review_limit') throw new ResumeRefused('extra rounds need a review limit');
+      if (chosen.extraRounds !== undefined && !keeping) throw new ResumeRefused('resume.extraRoundsNeedStage', 'extra rounds need a stage');
+      if (chosen.extraRounds !== undefined && epic.needsHumanKind !== 'review_limit') throw new ResumeRefused('resume.extraRoundsNeedReviewLimit', 'extra rounds need a review limit');
       let adopted: string | undefined;
       if (keeping) {
         let refusal;
         try {
           refusal = await pullRequestRefusal(epic, keeping === 'review' ? (headSha) => (adopted = headSha) : undefined);
         } catch (e) {
-          if (e instanceof GitHubUnavailable || e instanceof AuthError) throw new ResumeRefused('github unavailable');
+          if (e instanceof GitHubUnavailable || e instanceof AuthError) throw new ResumeRefused('github.unavailable', 'github unavailable');
           throw e;
         }
-        if (refusal) throw new ResumeRefused(refusal);
+        if (refusal) throw refusal;
       }
       // Saved with the epic before the label goes on: a restart of the engine, or a check that finds the label later, takes the same stage. Any resume sets it, so an old ask never lingers.
       // The rounds granted go with it, counted from the round the epic is at; a resume that grants none leaves the cap as it was.
@@ -1932,7 +1932,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       const grant = chosen.extraRounds ?? (epic.needsHumanKind === 'review_limit' ? settings().maxReviews : undefined);
       // `labelPending` goes too: the poll takes the `ready` of a stopped epic with a write still pending for Carrier's own, and this one is a person's.
       const saved = db.update(epics).set({ labelPending: false, resumeStage: keeping, resumeAt: null, prHeadSha: adopted ?? epic.prHeadSha, roundLimit: keeping && grant !== undefined ? (epic.round ?? 0) + grant : epic.roundLimit }).where(and(eq(epics.id, epic.id), eq(epics.status, 'needs_human'))).returning().get();
-      if (!saved) throw new ResumeRefused('not stopped');
+      if (!saved) throw new ResumeRefused('resume.notStopped', 'not stopped');
       // A role left out keeps the option it has: the epic is not asked again. The extra reviewers and the lead are put back on theirs by the slices that run them.
       restarts.set(epic.id, { ...(epic.authorOption && { author: epic.authorOption }), ...(epic.reviewerOption && { reviewer: epic.reviewerOption }), ...Object.fromEntries(picked) });
       try {
@@ -1940,7 +1940,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       } catch (e) {
         restarts.delete(epic.id);
         db.update(epics).set({ labelPending: epic.labelPending, resumeStage: null, resumeAt: epic.resumeAt, prHeadSha: epic.prHeadSha, roundLimit: epic.roundLimit }).where(and(eq(epics.id, epic.id), eq(epics.status, 'needs_human'))).run();
-        if (e instanceof GitHubUnavailable || e instanceof AuthError) throw new ResumeRefused('github unavailable');
+        if (e instanceof GitHubUnavailable || e instanceof AuthError) throw new ResumeRefused('github.unavailable', 'github unavailable');
         throw e;
       }
       // Not awaited: the wait below has the deadline. A poll already running is the one that answers, but it may have listed
@@ -1953,7 +1953,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       while (fresh(epic.id).status === 'needs_human') {
         if (clock.now() >= deadline) {
           restarts.delete(epic.id);
-          throw new ResumeRefused('did not restart');
+          throw new ResumeRefused('resume.didNotRestart', 'did not restart');
         }
         if (settled && !again) {
           again = true;
@@ -1969,20 +1969,20 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
      * Rejects with RecoverRefused when it is unknown, not running, has an execution alive or in flight, the engine cannot act now, or the epic's state is one the recovery does not move.
      */
     async recoverEpic(repo: string, issue: number) {
-      if (stopping || suspended || recoveringNow) throw new RecoverRefused('engine unavailable');
+      if (stopping || suspended || recoveringNow) throw new RecoverRefused('recover.engineUnavailable', 'engine unavailable');
       const epic = db.select().from(epics).where(and(eq(epics.repo, repo), eq(epics.issue, issue))).get();
-      if (!epic) throw new RecoverRefused('unknown epic');
-      if (epic.status !== 'running') throw new RecoverRefused('not running');
-      if (epic.stage === null) throw new RecoverRefused('not started'); // the poll's launch has not claimed it yet
-      if (busy(epic.id) || db.select().from(executions).where(and(eq(executions.epicId, epic.id), eq(executions.status, 'running'))).get()) throw new RecoverRefused('agent alive');
+      if (!epic) throw new RecoverRefused('epic.unknown', 'unknown epic');
+      if (epic.status !== 'running') throw new RecoverRefused('recover.notRunning', 'not running');
+      if (epic.stage === null) throw new RecoverRefused('recover.notStarted', 'not started'); // the poll's launch has not claimed it yet
+      if (busy(epic.id) || db.select().from(executions).where(and(eq(executions.epicId, epic.id), eq(executions.status, 'running'))).get()) throw new RecoverRefused('recover.agentAlive', 'agent alive');
       asked.add(epic.id);
       try {
         let acted = false;
-        if (!(await forRepo(repo, async () => (acted = await recoverEpic(epic.id))))) throw new RecoverRefused('github unavailable');
-        if (!acted) throw new RecoverRefused('nothing to recover'); // a state the recovery does not move (a retry owns it, or the epic left that stage): not a recovery
+        if (!(await forRepo(repo, async () => (acted = await recoverEpic(epic.id))))) throw new RecoverRefused('github.unavailable', 'github unavailable');
+        if (!acted) throw new RecoverRefused('recover.nothingToRecover', 'nothing to recover'); // a state the recovery does not move (a retry owns it, or the epic left that stage): not a recovery
       } catch (e) {
         if (e instanceof RecoverRefused) throw e;
-        if (e instanceof AuthError || e instanceof GitHubUnavailable) throw new RecoverRefused('github unavailable');
+        if (e instanceof AuthError || e instanceof GitHubUnavailable) throw new RecoverRefused('github.unavailable', 'github unavailable');
         if (isDatabaseError(e) === false) {
           log.error('recovering an epic failed', e, { repo, epicId: epic.id });
           await stopEpic(epic.id, e);

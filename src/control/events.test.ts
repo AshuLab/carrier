@@ -106,7 +106,7 @@ test('an execution with no events answers an empty page with the cursor it was g
 
 test('an unknown execution is an error', async () => {
   seed();
-  expect(await ask({ id: 4, cmd: 'events', executionId: '00000000-0000-4000-8000-0000000000ff', limit: 5 })).toEqual({ id: 4, ok: false, error: 'unknown execution' });
+  expect(await ask({ id: 4, cmd: 'events', executionId: '00000000-0000-4000-8000-0000000000ff', limit: 5 })).toEqual({ id: 4, ok: false, error: 'unknown execution', code: 'execution.unknown', params: {} });
 });
 
 test('a harness with no parser yet answers structured:false and no events, even if rows exist', async () => {

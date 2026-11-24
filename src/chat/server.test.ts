@@ -178,7 +178,7 @@ test.each([
 ])('%s is "invalid request", with the id only when it is valid', async (_name, line, id) => {
   await open();
   const c = await client();
-  expect(await c.ask(line)).toEqual({ id, ok: false, error: 'invalid request' });
+  expect(await c.ask(line)).toEqual({ id, ok: false, error: 'invalid request', code: 'request.invalid', params: {} });
   expect(await c.ask('{"id":9,"cmd":"list"}')).toMatchObject({ id: 9, ok: true });
 });
 
@@ -250,25 +250,25 @@ test('agentOptions takes the name of an agent and nothing else', async () => {
   await open();
   const c = await client();
   expect(await c.ask('{"id":1,"cmd":"agentOptions","agent":"claude"}')).toEqual({ id: 1, ok: true, data: { agent: 'claude' } });
-  expect(await c.ask('{"id":2,"cmd":"agentOptions"}')).toEqual({ id: 2, ok: false, error: 'invalid request' });
-  expect(await c.ask('{"id":3,"cmd":"agentOptions","agent":""}')).toEqual({ id: 3, ok: false, error: 'invalid request' });
-  expect(await c.ask('{"id":4,"cmd":"agentOptions","agent":"claude","folder":"/"}')).toEqual({ id: 4, ok: false, error: 'invalid request' });
+  expect(await c.ask('{"id":2,"cmd":"agentOptions"}')).toEqual({ id: 2, ok: false, error: 'invalid request', code: 'request.invalid', params: {} });
+  expect(await c.ask('{"id":3,"cmd":"agentOptions","agent":""}')).toEqual({ id: 3, ok: false, error: 'invalid request', code: 'request.invalid', params: {} });
+  expect(await c.ask('{"id":4,"cmd":"agentOptions","agent":"claude","folder":"/"}')).toEqual({ id: 4, ok: false, error: 'invalid request', code: 'request.invalid', params: {} });
 });
 
 test('setOption is a strict request with a session, an option and a value', async () => {
   await open();
   const c = await client();
   expect(await c.ask(`{"id":1,"cmd":"setOption","sessionId":"${uuid}","option":"model","value":"haiku"}`)).toEqual({ id: 1, ok: true, data: { option: 'model', value: 'haiku' } });
-  expect(await c.ask(`{"id":2,"cmd":"setOption","sessionId":"${uuid}","option":"model"}`)).toEqual({ id: 2, ok: false, error: 'invalid request' });
+  expect(await c.ask(`{"id":2,"cmd":"setOption","sessionId":"${uuid}","option":"model"}`)).toEqual({ id: 2, ok: false, error: 'invalid request', code: 'request.invalid', params: {} });
 });
 
 test('archive takes a session and a boolean, delete a session, both strict', async () => {
   await open();
   const c = await client();
   expect(await c.ask(`{"id":1,"cmd":"archive","sessionId":"${uuid}","archived":true}`)).toEqual({ id: 1, ok: true, data: { archived: true } });
-  expect(await c.ask(`{"id":2,"cmd":"archive","sessionId":"${uuid}"}`)).toEqual({ id: 2, ok: false, error: 'invalid request' });
+  expect(await c.ask(`{"id":2,"cmd":"archive","sessionId":"${uuid}"}`)).toEqual({ id: 2, ok: false, error: 'invalid request', code: 'request.invalid', params: {} });
   expect(await c.ask(`{"id":3,"cmd":"delete","sessionId":"${uuid}"}`)).toEqual({ id: 3, ok: true, data: {} });
-  expect(await c.ask(`{"id":4,"cmd":"delete","sessionId":"${uuid}","archived":true}`)).toEqual({ id: 4, ok: false, error: 'invalid request' });
+  expect(await c.ask(`{"id":4,"cmd":"delete","sessionId":"${uuid}","archived":true}`)).toEqual({ id: 4, ok: false, error: 'invalid request', code: 'request.invalid', params: {} });
 });
 
 test('switchAgent takes a session and the name of an agent, strict, and a refusal reaches the client in words', async () => {
@@ -276,18 +276,18 @@ test('switchAgent takes a session and the name of an agent, strict, and a refusa
   const c = await client();
   expect(await c.ask(`{"id":1,"cmd":"switchAgent","sessionId":"${uuid}","agent":"codex"}`)).toEqual({ id: 1, ok: true, data: { session: { id: uuid, agent: 'codex' }, options: [] } });
   expect(await c.ask(`{"id":2,"cmd":"switchAgent","sessionId":"${uuid}","agent":"busy"}`)).toEqual({ id: 2, ok: false, error: 'This session is working; interrupt it or wait, then switch its agent', code: 'session.busy', params: {} });
-  expect(await c.ask(`{"id":3,"cmd":"switchAgent","sessionId":"${uuid}"}`)).toEqual({ id: 3, ok: false, error: 'invalid request' });
-  expect(await c.ask(`{"id":4,"cmd":"switchAgent","sessionId":"${uuid}","agent":""}`)).toEqual({ id: 4, ok: false, error: 'invalid request' });
-  expect(await c.ask('{"id":5,"cmd":"switchAgent","sessionId":"../x","agent":"codex"}')).toEqual({ id: 5, ok: false, error: 'invalid request' });
-  expect(await c.ask(`{"id":6,"cmd":"switchAgent","sessionId":"${uuid}","agent":"codex","options":{}}`)).toEqual({ id: 6, ok: false, error: 'invalid request' });
+  expect(await c.ask(`{"id":3,"cmd":"switchAgent","sessionId":"${uuid}"}`)).toEqual({ id: 3, ok: false, error: 'invalid request', code: 'request.invalid', params: {} });
+  expect(await c.ask(`{"id":4,"cmd":"switchAgent","sessionId":"${uuid}","agent":""}`)).toEqual({ id: 4, ok: false, error: 'invalid request', code: 'request.invalid', params: {} });
+  expect(await c.ask('{"id":5,"cmd":"switchAgent","sessionId":"../x","agent":"codex"}')).toEqual({ id: 5, ok: false, error: 'invalid request', code: 'request.invalid', params: {} });
+  expect(await c.ask(`{"id":6,"cmd":"switchAgent","sessionId":"${uuid}","agent":"codex","options":{}}`)).toEqual({ id: 6, ok: false, error: 'invalid request', code: 'request.invalid', params: {} });
 });
 
 test('rename takes a session and a title, strict', async () => {
   await open();
   const c = await client();
   expect(await c.ask(`{"id":1,"cmd":"rename","sessionId":"${uuid}","title":"New name"}`)).toEqual({ id: 1, ok: true, data: { title: 'New name' } });
-  expect(await c.ask(`{"id":2,"cmd":"rename","sessionId":"${uuid}"}`)).toEqual({ id: 2, ok: false, error: 'invalid request' });
-  expect(await c.ask(`{"id":3,"cmd":"rename","sessionId":"${uuid}","title":"x","archived":true}`)).toEqual({ id: 3, ok: false, error: 'invalid request' });
+  expect(await c.ask(`{"id":2,"cmd":"rename","sessionId":"${uuid}"}`)).toEqual({ id: 2, ok: false, error: 'invalid request', code: 'request.invalid', params: {} });
+  expect(await c.ask(`{"id":3,"cmd":"rename","sessionId":"${uuid}","title":"x","archived":true}`)).toEqual({ id: 3, ok: false, error: 'invalid request', code: 'request.invalid', params: {} });
 });
 
 test('regenerateTitle takes a session id, strict, and a refusal reaches the client in its words', async () => {
@@ -295,16 +295,16 @@ test('regenerateTitle takes a session id, strict, and a refusal reaches the clie
   const c = await client();
   expect(await c.ask(`{"id":1,"cmd":"regenerateTitle","sessionId":"${uuid}"}`)).toEqual({ id: 1, ok: true, data: { title: 'A generated title' } });
   expect(await c.ask('{"id":2,"cmd":"regenerateTitle","sessionId":"00000000-0000-4000-8000-000000000000"}')).toEqual({ id: 2, ok: false, error: 'Could not write a title: no text generator is chosen; choose one in Providers', code: 'title.noGenerator', params: {} });
-  expect(await c.ask('{"id":3,"cmd":"regenerateTitle"}')).toEqual({ id: 3, ok: false, error: 'invalid request' });
-  expect(await c.ask('{"id":4,"cmd":"regenerateTitle","sessionId":"../x"}')).toEqual({ id: 4, ok: false, error: 'invalid request' });
-  expect(await c.ask(`{"id":5,"cmd":"regenerateTitle","sessionId":"${uuid}","title":"x"}`)).toEqual({ id: 5, ok: false, error: 'invalid request' });
+  expect(await c.ask('{"id":3,"cmd":"regenerateTitle"}')).toEqual({ id: 3, ok: false, error: 'invalid request', code: 'request.invalid', params: {} });
+  expect(await c.ask('{"id":4,"cmd":"regenerateTitle","sessionId":"../x"}')).toEqual({ id: 4, ok: false, error: 'invalid request', code: 'request.invalid', params: {} });
+  expect(await c.ask(`{"id":5,"cmd":"regenerateTitle","sessionId":"${uuid}","title":"x"}`)).toEqual({ id: 5, ok: false, error: 'invalid request', code: 'request.invalid', params: {} });
 });
 
 test('regenerateTitles takes no fields, answers how many it started, and a refusal reaches the client in its words', async () => {
   await open();
   const c = await client();
   expect(await c.ask('{"id":1,"cmd":"regenerateTitles"}')).toEqual({ id: 1, ok: true, data: { started: 3 } });
-  expect(await c.ask(`{"id":2,"cmd":"regenerateTitles","sessionId":"${uuid}"}`)).toEqual({ id: 2, ok: false, error: 'invalid request' });
+  expect(await c.ask(`{"id":2,"cmd":"regenerateTitles","sessionId":"${uuid}"}`)).toEqual({ id: 2, ok: false, error: 'invalid request', code: 'request.invalid', params: {} });
   refuseBulkTitles = true;
   expect(await c.ask('{"id":3,"cmd":"regenerateTitles"}')).toEqual({ id: 3, ok: false, error: 'Could not write titles: no text generator is chosen; choose one in Providers', code: 'title.noGenerator', params: {} });
 });
@@ -314,45 +314,45 @@ test('deletePreview takes one to 500 session ids and nothing else', async () => 
   const c = await client();
   expect(await c.ask(`{"id":1,"cmd":"deletePreview","sessionIds":["${uuid}"]}`)).toEqual({ id: 1, ok: true, data: { sessionIds: [uuid] } });
   expect(await c.ask(`{"id":2,"cmd":"deletePreview","sessionIds":${JSON.stringify(Array(500).fill(uuid))}}`)).toMatchObject({ id: 2, ok: true });
-  expect(await c.ask(`{"id":3,"cmd":"deletePreview","sessionIds":${JSON.stringify(Array(501).fill(uuid))}}`)).toEqual({ id: 3, ok: false, error: 'invalid request' });
-  expect(await c.ask('{"id":4,"cmd":"deletePreview","sessionIds":[]}')).toEqual({ id: 4, ok: false, error: 'invalid request' });
-  expect(await c.ask('{"id":5,"cmd":"deletePreview","sessionIds":["../x"]}')).toEqual({ id: 5, ok: false, error: 'invalid request' });
-  expect(await c.ask('{"id":6,"cmd":"deletePreview"}')).toEqual({ id: 6, ok: false, error: 'invalid request' });
-  expect(await c.ask(`{"id":7,"cmd":"deletePreview","sessionIds":["${uuid}"],"force":true}`)).toEqual({ id: 7, ok: false, error: 'invalid request' });
+  expect(await c.ask(`{"id":3,"cmd":"deletePreview","sessionIds":${JSON.stringify(Array(501).fill(uuid))}}`)).toEqual({ id: 3, ok: false, error: 'invalid request', code: 'request.invalid', params: {} });
+  expect(await c.ask('{"id":4,"cmd":"deletePreview","sessionIds":[]}')).toEqual({ id: 4, ok: false, error: 'invalid request', code: 'request.invalid', params: {} });
+  expect(await c.ask('{"id":5,"cmd":"deletePreview","sessionIds":["../x"]}')).toEqual({ id: 5, ok: false, error: 'invalid request', code: 'request.invalid', params: {} });
+  expect(await c.ask('{"id":6,"cmd":"deletePreview"}')).toEqual({ id: 6, ok: false, error: 'invalid request', code: 'request.invalid', params: {} });
+  expect(await c.ask(`{"id":7,"cmd":"deletePreview","sessionIds":["${uuid}"],"force":true}`)).toEqual({ id: 7, ok: false, error: 'invalid request', code: 'request.invalid', params: {} });
 });
 
 test('workspace takes a folder and nothing else', async () => {
   await open();
   const c = await client();
   expect(await c.ask('{"id":1,"cmd":"workspace","folder":"/some/where"}')).toEqual({ id: 1, ok: true, data: { folder: '/some/where' } });
-  expect(await c.ask('{"id":2,"cmd":"workspace"}')).toEqual({ id: 2, ok: false, error: 'invalid request' });
-  expect(await c.ask('{"id":3,"cmd":"workspace","folder":""}')).toEqual({ id: 3, ok: false, error: 'invalid request' });
-  expect(await c.ask('{"id":4,"cmd":"workspace","folder":"/x","fetch":true}')).toEqual({ id: 4, ok: false, error: 'invalid request' });
+  expect(await c.ask('{"id":2,"cmd":"workspace"}')).toEqual({ id: 2, ok: false, error: 'invalid request', code: 'request.invalid', params: {} });
+  expect(await c.ask('{"id":3,"cmd":"workspace","folder":""}')).toEqual({ id: 3, ok: false, error: 'invalid request', code: 'request.invalid', params: {} });
+  expect(await c.ask('{"id":4,"cmd":"workspace","folder":"/x","fetch":true}')).toEqual({ id: 4, ok: false, error: 'invalid request', code: 'request.invalid', params: {} });
 });
 
 test('fetch takes a folder and an optional boolean ifStale, and nothing else', async () => {
   await open();
   const c = await client();
   expect(await c.ask('{"id":1,"cmd":"fetch","folder":"/some/where"}')).toEqual({ id: 1, ok: true, data: { folder: '/some/where', fetched: true } });
-  expect(await c.ask('{"id":2,"cmd":"fetch"}')).toEqual({ id: 2, ok: false, error: 'invalid request' });
-  expect(await c.ask('{"id":3,"cmd":"fetch","folder":""}')).toEqual({ id: 3, ok: false, error: 'invalid request' });
-  expect(await c.ask('{"id":4,"cmd":"fetch","folder":"/x","prune":false}')).toEqual({ id: 4, ok: false, error: 'invalid request' });
+  expect(await c.ask('{"id":2,"cmd":"fetch"}')).toEqual({ id: 2, ok: false, error: 'invalid request', code: 'request.invalid', params: {} });
+  expect(await c.ask('{"id":3,"cmd":"fetch","folder":""}')).toEqual({ id: 3, ok: false, error: 'invalid request', code: 'request.invalid', params: {} });
+  expect(await c.ask('{"id":4,"cmd":"fetch","folder":"/x","prune":false}')).toEqual({ id: 4, ok: false, error: 'invalid request', code: 'request.invalid', params: {} });
   for (const ifStale of [true, false]) expect(await c.ask(`{"id":5,"cmd":"fetch","folder":"/x","ifStale":${ifStale}}`)).toMatchObject({ ok: true });
-  for (const ifStale of ['"true"', '1', 'null', '{}']) expect(await c.ask(`{"id":6,"cmd":"fetch","folder":"/x","ifStale":${ifStale}}`)).toEqual({ id: 6, ok: false, error: 'invalid request' });
+  for (const ifStale of ['"true"', '1', 'null', '{}']) expect(await c.ask(`{"id":6,"cmd":"fetch","folder":"/x","ifStale":${ifStale}}`)).toEqual({ id: 6, ok: false, error: 'invalid request', code: 'request.invalid', params: {} });
 });
 
 test('suggestName takes a folder, checkName a folder and a name, and nothing else', async () => {
   await open();
   const c = await client();
   expect(await c.ask('{"id":1,"cmd":"suggestName","folder":"/some/where"}')).toEqual({ id: 1, ok: true, data: { name: 'named-in-/some/where' } });
-  expect(await c.ask('{"id":2,"cmd":"suggestName"}')).toEqual({ id: 2, ok: false, error: 'invalid request' });
-  expect(await c.ask('{"id":3,"cmd":"suggestName","folder":"/x","name":"a"}')).toEqual({ id: 3, ok: false, error: 'invalid request' });
+  expect(await c.ask('{"id":2,"cmd":"suggestName"}')).toEqual({ id: 2, ok: false, error: 'invalid request', code: 'request.invalid', params: {} });
+  expect(await c.ask('{"id":3,"cmd":"suggestName","folder":"/x","name":"a"}')).toEqual({ id: 3, ok: false, error: 'invalid request', code: 'request.invalid', params: {} });
   expect(await c.ask('{"id":4,"cmd":"checkName","folder":"/x","name":"a-b"}')).toEqual({ id: 4, ok: true, data: { valid: true, free: true, name: 'a-b' } });
-  expect(await c.ask('{"id":5,"cmd":"checkName","folder":"/x"}')).toEqual({ id: 5, ok: false, error: 'invalid request' });
-  expect(await c.ask('{"id":6,"cmd":"checkName","name":"a"}')).toEqual({ id: 6, ok: false, error: 'invalid request' });
-  expect(await c.ask('{"id":7,"cmd":"checkName","folder":"","name":"a"}')).toEqual({ id: 7, ok: false, error: 'invalid request' });
-  expect(await c.ask('{"id":8,"cmd":"checkName","folder":"/x","name":1}')).toEqual({ id: 8, ok: false, error: 'invalid request' });
-  expect(await c.ask('{"id":9,"cmd":"checkName","folder":"/x","name":"a","force":true}')).toEqual({ id: 9, ok: false, error: 'invalid request' });
+  expect(await c.ask('{"id":5,"cmd":"checkName","folder":"/x"}')).toEqual({ id: 5, ok: false, error: 'invalid request', code: 'request.invalid', params: {} });
+  expect(await c.ask('{"id":6,"cmd":"checkName","name":"a"}')).toEqual({ id: 6, ok: false, error: 'invalid request', code: 'request.invalid', params: {} });
+  expect(await c.ask('{"id":7,"cmd":"checkName","folder":"","name":"a"}')).toEqual({ id: 7, ok: false, error: 'invalid request', code: 'request.invalid', params: {} });
+  expect(await c.ask('{"id":8,"cmd":"checkName","folder":"/x","name":1}')).toEqual({ id: 8, ok: false, error: 'invalid request', code: 'request.invalid', params: {} });
+  expect(await c.ask('{"id":9,"cmd":"checkName","folder":"/x","name":"a","force":true}')).toEqual({ id: 9, ok: false, error: 'invalid request', code: 'request.invalid', params: {} });
 });
 
 test('cloneRepo takes one owner/name repo and nothing else, and its signal aborts when the client leaves', async () => {
@@ -360,7 +360,7 @@ test('cloneRepo takes one owner/name repo and nothing else, and its signal abort
   const c = await client();
   expect(await c.ask('{"id":1,"cmd":"cloneRepo","repo":"acme/app"}')).toEqual({ id: 1, ok: true, data: { repo: 'acme/app' } });
   for (const [id, extra] of [[2, ''], [3, ',"repo":""'], [4, ',"repo":"../x"'], [5, ',"repo":"a/..'], [6, ',"repo":"a/b/c"'], [7, ',"repo":"solo"'], [8, ',"repo":7'], [9, ',"repo":"a/b","force":true']] as const) {
-    expect(await c.ask(`{"id":${id},"cmd":"cloneRepo"${extra}${id === 5 ? '"' : ''}}`)).toEqual({ id, ok: false, error: 'invalid request' });
+    expect(await c.ask(`{"id":${id},"cmd":"cloneRepo"${extra}${id === 5 ? '"' : ''}}`)).toEqual({ id, ok: false, error: 'invalid request', code: 'request.invalid', params: {} });
   }
   expect(seen).toHaveLength(1);
   expect(seen[0]!.aborted).toBe(false);
@@ -373,9 +373,9 @@ test('createProject takes one plain folder name and nothing else', async () => {
   const c = await client();
   expect(await c.ask('{"id":1,"cmd":"createProject","name":"my-app.2"}')).toEqual({ id: 1, ok: true, data: { folder: '/projects/local/my-app.2' } });
   const bad = ['""', '"."', '".."', '".hidden"', '"a/b"', '"../x"', '"-x"', '"a b"', `"${'a'.repeat(101)}"`, '7'];
-  for (const [index, name] of bad.entries()) expect(await c.ask(`{"id":${index + 2},"cmd":"createProject","name":${name}}`)).toEqual({ id: index + 2, ok: false, error: 'invalid request' });
-  expect(await c.ask('{"id":20,"cmd":"createProject"}')).toEqual({ id: 20, ok: false, error: 'invalid request' });
-  expect(await c.ask('{"id":21,"cmd":"createProject","name":"a","force":true}')).toEqual({ id: 21, ok: false, error: 'invalid request' });
+  for (const [index, name] of bad.entries()) expect(await c.ask(`{"id":${index + 2},"cmd":"createProject","name":${name}}`)).toEqual({ id: index + 2, ok: false, error: 'invalid request', code: 'request.invalid', params: {} });
+  expect(await c.ask('{"id":20,"cmd":"createProject"}')).toEqual({ id: 20, ok: false, error: 'invalid request', code: 'request.invalid', params: {} });
+  expect(await c.ask('{"id":21,"cmd":"createProject","name":"a","force":true}')).toEqual({ id: 21, ok: false, error: 'invalid request', code: 'request.invalid', params: {} });
   expect(await c.ask(`{"id":22,"cmd":"createProject","name":"${'a'.repeat(100)}"}`)).toMatchObject({ ok: true });
 });
 
@@ -396,7 +396,7 @@ test('the projects requests: a clone starts and answers at once, the clones in f
     '{"id":15,"cmd":"dismissClone"}',
     '{"id":16,"cmd":"dismissClone","repo":"a/b/c"}',
   ];
-  for (const line of bad) expect(await c.ask(line)).toMatchObject({ ok: false, error: 'invalid request' });
+  for (const line of bad) expect(await c.ask(line)).toMatchObject({ ok: false, error: 'invalid request', code: 'request.invalid', params: {} });
 });
 
 test('projectWorktrees takes a folder and nothing else, and answers the main clone and the worktrees', async () => {
@@ -405,7 +405,7 @@ test('projectWorktrees takes a folder and nothing else, and answers the main clo
   expect(await c.ask('{"id":1,"cmd":"projectWorktrees","folder":"/work/app"}')).toEqual({ id: 1, ok: true, data: { main: { path: '/work/app', branch: 'main', state: 'clean' }, worktrees: [{ path: '/home/chat/worktrees/acme/app/kerrigan', branch: 'carrier/kerrigan', session: null, lastActiveAt: 1000, state: 'clean' }] } });
   expect(await c.ask('{"id":2,"cmd":"projectWorktrees","folder":"/gone"}')).toEqual({ id: 2, ok: false, error: 'That folder does not exist', code: 'folder.notFound', params: {} });
   const bad = ['{"id":10,"cmd":"projectWorktrees"}', '{"id":11,"cmd":"projectWorktrees","folder":""}', '{"id":12,"cmd":"projectWorktrees","folder":"/a","force":true}', `{"id":13,"cmd":"projectWorktrees","folder":"/${'a'.repeat(4096)}"}`];
-  for (const line of bad) expect(await c.ask(line)).toMatchObject({ ok: false, error: 'invalid request' });
+  for (const line of bad) expect(await c.ask(line)).toMatchObject({ ok: false, error: 'invalid request', code: 'request.invalid', params: {} });
 });
 
 test('projectDisk takes one to 500 folders and a refresh of stale or now, and nothing else', async () => {
@@ -416,7 +416,7 @@ test('projectDisk takes one to 500 folders and a refresh of stale or now, and no
   const many = JSON.stringify(Array.from({ length: 500 }, (_, index) => `/w/${index}`));
   expect(await c.ask(`{"id":3,"cmd":"projectDisk","folders":${many}}`)).toMatchObject({ ok: true });
   const bad = ['{"id":10,"cmd":"projectDisk"}', '{"id":11,"cmd":"projectDisk","folders":[]}', '{"id":12,"cmd":"projectDisk","folders":[""]}', '{"id":13,"cmd":"projectDisk","folders":["/a"],"refresh":"always"}', '{"id":14,"cmd":"projectDisk","folders":["/a"],"force":true}', `{"id":15,"cmd":"projectDisk","folders":${JSON.stringify(Array.from({ length: 501 }, () => '/a'))}}`, `{"id":16,"cmd":"projectDisk","folders":["/${'a'.repeat(4096)}"]}`, '{"id":17,"cmd":"projectDisk","folders":"/a"}'];
-  for (const line of bad) expect(await c.ask(line)).toMatchObject({ ok: false, error: 'invalid request' });
+  for (const line of bad) expect(await c.ask(line)).toMatchObject({ ok: false, error: 'invalid request', code: 'request.invalid', params: {} });
 });
 
 test('removeProjectWorktree takes a project folder and a worktree path, and cleanProjectWorktrees a folder and whether to run', async () => {
@@ -439,7 +439,7 @@ test('removeProjectWorktree takes a project folder and a worktree path, and clea
     '{"id":16,"cmd":"cleanProjectWorktrees","folder":"/a","run":"yes"}',
     '{"id":17,"cmd":"cleanProjectWorktrees","folder":"/a","run":true,"force":true}',
   ];
-  for (const line of bad) expect(await c.ask(line)).toMatchObject({ ok: false, error: 'invalid request' });
+  for (const line of bad) expect(await c.ask(line)).toMatchObject({ ok: false, error: 'invalid request', code: 'request.invalid', params: {} });
 });
 
 test('newProject takes a plain folder name and an optional parent, and nothing else', async () => {
@@ -455,7 +455,7 @@ test('newProject takes a plain folder name and an optional parent, and nothing e
     '{"id":13,"cmd":"newProject","name":"a","parent":""}',
     '{"id":14,"cmd":"newProject","name":"a","force":true}',
   ];
-  for (const line of bad) expect(await c.ask(line)).toMatchObject({ ok: false, error: 'invalid request' });
+  for (const line of bad) expect(await c.ask(line)).toMatchObject({ ok: false, error: 'invalid request', code: 'request.invalid', params: {} });
 });
 
 const planOf = (extra: object = {}, workspace: object = { kind: 'folder', folder: '/work' }) => JSON.stringify({ id: 1, cmd: 'open', plan: { workspace, agent: 'claude', text: 'hi', ...extra } });
@@ -485,7 +485,7 @@ test('open takes a plan, strictly: what it refuses and what it accepts', async (
     ['a plan together with a folder', JSON.stringify({ id: 1, cmd: 'open', folder: '/work', plan: { workspace: { kind: 'folder', folder: '/work' }, agent: 'claude', text: 'hi' } })],
     ['a plan together with an agent', JSON.stringify({ id: 1, cmd: 'open', agent: 'claude', plan: { workspace: { kind: 'folder', folder: '/work' }, agent: 'claude', text: 'hi' } })],
   ];
-  for (const [what, line] of bad) expect(await c.ask(line), what).toEqual({ id: 1, ok: false, error: 'invalid request' });
+  for (const [what, line] of bad) expect(await c.ask(line), what).toEqual({ id: 1, ok: false, error: 'invalid request', code: 'request.invalid', params: {} });
   // the old open is still the old open
   expect(await c.ask('{"id":2,"cmd":"open","agent":"claude","folder":"/nope"}')).toEqual({ id: 2, ok: false, error: 'That folder does not exist', code: 'folder.notFound', params: {} });
 });
@@ -499,7 +499,7 @@ test('retryPreparation and cancelPreparation take a session id and nothing else,
   expect(await c.ask('{"id":3,"cmd":"cancelPreparation","sessionId":"00000000-0000-4000-8000-000000000000"}')).toEqual({ id: 3, ok: false, error: 'This session is not being prepared, so there is nothing to cancel', code: 'session.notPreparing', params: {} });
   for (const cmd of ['retryPreparation', 'cancelPreparation']) {
     for (const [what, fields] of [['no id', ''], ['an id that is not a UUID', ',"sessionId":"x"'], ['an extra field', `,"sessionId":"${sessionId}","force":true`]] as const) {
-      expect(await c.ask(`{"id":9,"cmd":"${cmd}"${fields}}`), `${cmd} with ${what}`).toEqual({ id: 9, ok: false, error: 'invalid request' });
+      expect(await c.ask(`{"id":9,"cmd":"${cmd}"${fields}}`), `${cmd} with ${what}`).toEqual({ id: 9, ok: false, error: 'invalid request', code: 'request.invalid', params: {} });
     }
   }
 });
@@ -510,9 +510,9 @@ test('githubRepos takes a page from 1 to 100 and nothing else', async () => {
   expect(await c.ask('{"id":1,"cmd":"githubRepos","page":1}')).toEqual({ id: 1, ok: true, data: { page: 1 } });
   expect(await c.ask('{"id":2,"cmd":"githubRepos","page":100}')).toEqual({ id: 2, ok: true, data: { page: 100 } });
   const bad = ['0', '101', '-1', '1.5', '"2"', 'null', 'true'];
-  for (const [index, page] of bad.entries()) expect(await c.ask(`{"id":${index + 3},"cmd":"githubRepos","page":${page}}`)).toEqual({ id: index + 3, ok: false, error: 'invalid request' });
-  expect(await c.ask('{"id":20,"cmd":"githubRepos"}')).toEqual({ id: 20, ok: false, error: 'invalid request' });
-  expect(await c.ask('{"id":21,"cmd":"githubRepos","page":1,"filter":"push"}')).toEqual({ id: 21, ok: false, error: 'invalid request' });
+  for (const [index, page] of bad.entries()) expect(await c.ask(`{"id":${index + 3},"cmd":"githubRepos","page":${page}}`)).toEqual({ id: index + 3, ok: false, error: 'invalid request', code: 'request.invalid', params: {} });
+  expect(await c.ask('{"id":20,"cmd":"githubRepos"}')).toEqual({ id: 20, ok: false, error: 'invalid request', code: 'request.invalid', params: {} });
+  expect(await c.ask('{"id":21,"cmd":"githubRepos","page":1,"filter":"push"}')).toEqual({ id: 21, ok: false, error: 'invalid request', code: 'request.invalid', params: {} });
 });
 
 test('repoBranches takes one owner/name repo and nothing else', async () => {
@@ -520,25 +520,25 @@ test('repoBranches takes one owner/name repo and nothing else', async () => {
   const c = await client();
   expect(await c.ask('{"id":1,"cmd":"repoBranches","repo":"acme/app"}')).toEqual({ id: 1, ok: true, data: { repo: 'acme/app' } });
   const bad = ['""', '"../x"', '"a/b/c"', '"solo"', '7', 'null'];
-  for (const [index, repo] of bad.entries()) expect(await c.ask(`{"id":${index + 3},"cmd":"repoBranches","repo":${repo}}`)).toEqual({ id: index + 3, ok: false, error: 'invalid request' });
-  expect(await c.ask('{"id":20,"cmd":"repoBranches"}')).toEqual({ id: 20, ok: false, error: 'invalid request' });
-  expect(await c.ask('{"id":21,"cmd":"repoBranches","repo":"acme/app","page":1}')).toEqual({ id: 21, ok: false, error: 'invalid request' });
+  for (const [index, repo] of bad.entries()) expect(await c.ask(`{"id":${index + 3},"cmd":"repoBranches","repo":${repo}}`)).toEqual({ id: index + 3, ok: false, error: 'invalid request', code: 'request.invalid', params: {} });
+  expect(await c.ask('{"id":20,"cmd":"repoBranches"}')).toEqual({ id: 20, ok: false, error: 'invalid request', code: 'request.invalid', params: {} });
+  expect(await c.ask('{"id":21,"cmd":"repoBranches","repo":"acme/app","page":1}')).toEqual({ id: 21, ok: false, error: 'invalid request', code: 'request.invalid', params: {} });
 });
 
 test('a line that is not JSON is "invalid JSON" and the connection goes on', async () => {
   await open();
   const c = await client();
-  expect(await c.ask('nope')).toEqual({ id: null, ok: false, error: 'invalid JSON' });
+  expect(await c.ask('nope')).toEqual({ id: null, ok: false, error: 'invalid JSON', code: 'request.invalidJson', params: {} });
   expect(await c.ask('{"id":1,"cmd":"list"}')).toMatchObject({ ok: true });
 });
 
 test('a line over 1 MiB closes the connection with "line too long", and one under it is read', async () => {
   await open();
   const ok = await client();
-  expect(await ok.ask(JSON.stringify({ id: 1, cmd: 'list', pad: 'x'.repeat(500 * 1024) }))).toMatchObject({ id: 1, ok: false, error: 'invalid request' }); // read in full, rejected as a request
+  expect(await ok.ask(JSON.stringify({ id: 1, cmd: 'list', pad: 'x'.repeat(500 * 1024) }))).toMatchObject({ id: 1, ok: false, error: 'invalid request', code: 'request.invalid', params: {} }); // read in full, rejected as a request
   const c = await client();
   c.socket.write(`${'x'.repeat(1024 * 1024 + 1)}\n`);
-  expect(await c.next()).toEqual({ id: null, ok: false, error: 'line too long' });
+  expect(await c.next()).toEqual({ id: null, ok: false, error: 'line too long', code: 'request.tooLong', params: {} });
   await vi.waitFor(() => expect(c.isClosed()).toBe(true));
 });
 
@@ -547,7 +547,7 @@ test('a refusal reaches the client in words, any other failure is only "internal
   const c = await client();
   c.socket.write(`${JSON.stringify({ id: 1, cmd: 'open', agent: 'claude', folder: '/nope' })}\n${JSON.stringify({ id: 2, cmd: 'send', sessionId: uuid, text: 'hi' })}\n${JSON.stringify({ id: 3, cmd: 'events', sessionId: uuid, after: 5, limit: 10 })}\n`);
   expect(await c.next()).toEqual({ id: 1, ok: false, error: 'That folder does not exist', code: 'folder.notFound', params: {} });
-  expect(await c.next()).toEqual({ id: 2, ok: false, error: 'internal error' });
+  expect(await c.next()).toEqual({ id: 2, ok: false, error: 'internal error', code: 'request.internal', params: {} });
   expect(await c.next()).toEqual({ id: 3, ok: true, data: { after: 5 } });
 });
 
@@ -568,9 +568,9 @@ test('a refusal answers its code and params beside its words, and the fixed erro
     for (const value of Object.values(reply.params)) expect(['string', 'number']).toContain(typeof value);
   }
   // the replies of the socket itself keep their words and gain nothing
-  expect(await c.ask('not json')).toEqual({ id: null, ok: false, error: 'invalid JSON' });
-  expect(await c.ask('{"id":6,"cmd":"nope"}')).toEqual({ id: 6, ok: false, error: 'invalid request' });
-  expect(await c.ask(`{"id":7,"cmd":"send","sessionId":"${uuid}","text":"hi"}`)).toEqual({ id: 7, ok: false, error: 'internal error' });
+  expect(await c.ask('not json')).toEqual({ id: null, ok: false, error: 'invalid JSON', code: 'request.invalidJson', params: {} });
+  expect(await c.ask('{"id":6,"cmd":"nope"}')).toEqual({ id: 6, ok: false, error: 'invalid request', code: 'request.invalid', params: {} });
+  expect(await c.ask(`{"id":7,"cmd":"send","sessionId":"${uuid}","text":"hi"}`)).toEqual({ id: 7, ok: false, error: 'internal error', code: 'request.internal', params: {} });
 });
 
 test('stop replies ok and then runs the stop', async () => {

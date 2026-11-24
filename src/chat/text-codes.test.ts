@@ -4,9 +4,10 @@ import { fileURLToPath } from 'node:url';
 import { expect, test } from 'vitest';
 import { ChatRefused, textCode } from './runner.ts';
 
-// The golden list of the codes a ChatRefused can carry ([ADR 0055](../../docs/adr/0055-a-refusal-carries-a-code-and-its-parameters-and-its-english-words-are-the-fallback.md)):
+// The golden list of the codes a refusal can carry ([ADR 0055](../../docs/adr/0055-a-refusal-carries-a-code-and-its-parameters-and-its-english-words-are-the-fallback.md)):
 // every code with an example of its parameters, read by the app's tests. UPDATE_FIXTURES=1 rewrites it from the sources.
-// A code is found where `new ChatRefused('<code>'` passes it, or where a helper's reason has `code: '<code>'` (`refusedFor` throws it).
+// A code is found where `new ChatRefused('<code>'` (or `ResumeRefused`, `RecoverRefused`, `ReloadRefused`) or `refused(id, '<code>'` (the reply of a fixed error) passes it,
+// or where a helper's reason has `code: '<code>'` (`refusedFor` throws it; `config/problems.ts` gives a config problem its parameters).
 const root = fileURLToPath(new URL('../', import.meta.url));
 const file = fileURLToPath(new URL('../../macos/Tests/Fixtures/text-codes.json', import.meta.url));
 
@@ -89,16 +90,18 @@ function found(): Found[] {
   for (const path of sources(root)) {
     const text = readFileSync(path, 'utf8');
     const at = path.slice(root.length);
-    for (const call of text.matchAll(/new ChatRefused\(/g)) {
+    // a refusal takes its code, its words and its params; a reply takes its id first
+    for (const call of text.matchAll(/new (?:Chat|Resume|Recover|Reload)Refused\(|\brefused\((?=[^)])/g)) {
       const open = call.index + call[0].length - 1;
       const args = parts(text, open);
+      const [code, params] = call[0].startsWith('new') ? [args[0]!, args[2]] : [args[1]!, args[3]];
       // a code is a literal, or a choice between literals
-      const codes = [...args[0]!.matchAll(/'([^']+)'/g)].map((literal) => literal[1]!);
-      // a code that is handed on (`refusedFor`, a refusal caught and thrown again with more words) was found where it began
-      if (codes.length === 0) expect(`${at}: ${args[0]}`, 'a ChatRefused takes its code as a string literal').toMatch(/: (reason|error)\.code$/);
-      for (const code of codes) out.push({ code, keys: args[2] === undefined ? [] : keysOf(args[2]), at });
+      const codes = [...code.matchAll(/'([^']+)'/g)].map((literal) => literal[1]!);
+      // a code that is handed on (`refusedFor`, a refusal caught and thrown again with more words, the code of a config problem) was found where it began
+      if (codes.length === 0) expect(`${at}: ${code}`, 'a refusal takes its code as a string literal').toMatch(/: (reason|error|problem)\.code$/);
+      for (const value of codes) out.push({ code: value, keys: params === undefined ? [] : keysOf(params), at });
     }
-    if (at.startsWith('chat/') === false && at.startsWith('usage/') === false) continue;
+    if (at.startsWith('chat/') === false && at.startsWith('usage/') === false && at !== 'config/problems.ts') continue;
     for (const reason of text.matchAll(/\bcode: '([^']+)'/g)) {
       // the object literal that holds it, to read its `params`
       let open = reason.index;
@@ -112,7 +115,7 @@ function found(): Found[] {
 
 type Golden = Record<string, { params: Record<string, string | number> }>;
 
-test('macos/Tests/Fixtures/text-codes.json lists every code a ChatRefused can carry, with an example of its parameters', () => {
+test('macos/Tests/Fixtures/text-codes.json lists every code a refusal can carry, with an example of its parameters', () => {
   const all = found();
   expect(all.length).toBeGreaterThan(100);
   const keysByCode = new Map<string, string[]>();

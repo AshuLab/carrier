@@ -2,13 +2,6 @@ import AppKit
 import CarrierCore
 import SwiftUI
 
-/// Opens the script through `NSWorkspace`, which hands it to the user's handler for `.command` files (Terminal by default).
-struct WorkspaceTerminalOpener: TerminalOpener {
-    func open(_ script: URL) throws {
-        guard NSWorkspace.shared.open(script) else { throw ContinueError.notWritten }
-    }
-}
-
 /// Under an open epic session that is not running: a card line of the feed that opens the embedded terminal drawer
 /// on the validated command. Nothing for a session with no descriptor (running) or one the validation refuses.
 struct ContinueInTerminalView: View {

@@ -101,11 +101,6 @@ public func resumeCommand(_ resume: ValidResume) -> String {
     return "\(steps.cd) && \(steps.run)"
 }
 
-/// Hands a one-use script to the user's terminal; the app's is `NSWorkspace`, tests record the call.
-public protocol TerminalOpener {
-    func open(_ script: URL) throws
-}
-
 public enum ContinueError: Error, Equatable {
     case notWritten
 }

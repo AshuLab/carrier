@@ -18,11 +18,6 @@ public struct TimedWord: Sendable, Equatable {
     }
 }
 
-/// A model that turns a whole piece of audio into words with their times. The core never gives it less than 300 ms.
-public protocol BatchTranscriber: Sendable {
-    func transcribe(_ samples: [Float], sampleRate: Double) async throws -> [TimedWord]
-}
-
 /// What the spike measured on Parakeet TDT v3 (six clips, interval 1 s): the policy `hyb150-12-2`.
 public struct ChunkPolicy: Sendable {
     /// A pass over the segment so far every second of audio.

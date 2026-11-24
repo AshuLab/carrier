@@ -1,5 +1,4 @@
 import AppKit
-import ApplicationServices
 import CarrierCore
 import SwiftUI
 
@@ -14,7 +13,7 @@ struct GlobalDictationGroup: View {
     @AppStorage(Preference.dictationActivation) private var activation
     @State private var explaining = false
     /// What macOS says now; it is asked again each time Carrier comes back to the front, since the person allows it in System Settings.
-    @State private var trusted = AXIsProcessTrusted()
+    @State private var accessibility = AccessibilityState(trust: SystemAccessibilityTrust())
 
     var body: some View {
         SettingsGroup(title: "Global dictation", footer: "The first time you turn it on, Carrier explains what Accessibility is for before macOS asks.") {
@@ -39,12 +38,12 @@ struct GlobalDictationGroup: View {
             }
             .live(.globalSwitch, enabled: dictation.enabled && global)
         }
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in trusted = AXIsProcessTrusted() }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in accessibility.refresh() }
         .alert("Carrier needs Accessibility", isPresented: $explaining) {
             Button("Continue") {
                 explained = true
                 // macOS asks, and lists Carrier in Privacy & Security › Accessibility for the person to allow
-                _ = AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary)
+                accessibility.ask()
             }
             Button("Not now", role: .cancel) {}
         } message: {
@@ -57,15 +56,15 @@ struct GlobalDictationGroup: View {
     private var accessibilityRow: some View {
         SettingsTabRow(
             title: "Accessibility",
-            detail: trusted
+            detail: accessibility.trusted
                 ? "Carrier can see which field has the cursor and paste into it"
                 : "Without it the text goes on the clipboard instead of being pasted. Already allowed? macOS drops it when Carrier updates: reset it"
         ) {
             HStack(spacing: 8) {
-                StatusChip(text: trusted ? "Allowed" : "Not allowed", tint: trusted ? .green : .orange)
+                StatusChip(text: accessibility.trusted ? "Allowed" : "Not allowed", tint: accessibility.trusted ? .green : .orange)
                 Button { FocusedField.openSettings() } label: { Label("Open System Settings", icon: .settings) }
                     .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
-                if trusted == false {
+                if accessibility.trusted == false {
                     Button { FocusedField.resetPermission() } label: { Label("Reset", icon: .refresh) }
                         .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).help("Removes Carrier from Accessibility and asks again")
                 }
@@ -79,7 +78,7 @@ struct GlobalDictationGroup: View {
             get: { global },
             set: {
                 global = $0
-                explaining = $0 && shouldExplainAccessibility(explained: explained, trusted: AXIsProcessTrusted())
+                explaining = $0 && accessibility.shouldExplain(explained: explained)
             })
     }
 }

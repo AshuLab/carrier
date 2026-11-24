@@ -7416,12 +7416,6 @@ test('a resume at review of an epic that stopped in lead_limit starts the review
   expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'lead', leadRound: 1, approvedSha: null });
 });
 
-test('a lead that cannot conclude stops the epic with agent_needs_human', async () => {
-  const engine = await leadFlow(bothAgree, (task) => ({ write: result(task, { outcome: 'needs_human', reason: 'the migration cannot be verified' }) }));
-
-  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'agent_needs_human', needsHumanReason: 'the migration cannot be verified' });
-});
-
 test('a technical failure of the lead is retried as the lead, in its own slot and checkout, and then completes the epic', async () => {
   let runs = 0;
   const engine = await leadFlow(bothAgree, (task) => (++runs === 1 ? { exit: 'failed' } : leadSays(ok)(task)));
@@ -7480,4 +7474,167 @@ test('the slot given back before an epic starts keeps no lead round: a requeue t
   await resumeFrom(engine, 'review');
 
   expect(rows(engine.db)[0]).toMatchObject({ status: 'queued', leadRound: null, approvedSha: null, resumeStage: 'review' });
+});
+
+// --- the lead's failures: it names the lead when it stops the epic, quota has its own failover and wake-up, and its skills are checked at every launch ---
+
+// The lead on `claude` (the fake quota knows its account) with `spare` to move to; the roles of the failover are the test's.
+const leadOnClaude = (roles?: { reviewer?: { provider: string }[]; leadReviewer?: { provider: string }[] }): EffectiveRepoConfig => ({
+  ...withLead(twoReviewers(), { option: 'claude', ...claudeAccount, profile: 'e' }),
+  providers: { claude: claudeAccount, spare: spareAccount } as any,
+  ...(roles && { failover: { roles } }),
+});
+const runsOut = (...options: string[]) => (task: AgentTask) => outOf(...options)(task, { exit: 'stopped' });
+
+test('a lead that cannot conclude stops the epic with agent_needs_human, its reason names the lead and keeps what it said', async () => {
+  const engine = await leadFlow(bothAgree, (task) => ({ write: result(task, { outcome: 'needs_human', reason: 'the migration cannot be verified' }) }));
+
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'agent_needs_human' });
+  expect(rows(engine.db)[0]!.needsHumanReason).toBe('the lead reviewer cannot conclude: the migration cannot be verified');
+});
+
+test('a lead that fails technically is retried with the waits of any execution, counted for the lead alone, and with the retries out the epic stops with retries_exhausted naming the lead', async () => {
+  const engine = await leadFlow(bothAgree, () => ({ exit: 'failed' }));
+  await clock.advance(HOUR);
+  await engine.idle();
+
+  const lead = executionsOf(engine.db).filter((e) => e.stage === 'lead');
+  expect(lead.map((e) => [e.reviewer, e.status])).toEqual(Array(settings.maxExecutionRetries + 1).fill(['lead', 'failed']));
+  expect(runner.tasks.filter((t) => t.stage === 'review')).toHaveLength(2); // the reviewers' own streaks are untouched
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'retries_exhausted' });
+  expect(rows(engine.db)[0]!.needsHumanReason).toContain(`ran out of lead retries (${settings.maxExecutionRetries + 1} attempts)`);
+});
+
+test('a usage limit of the lead moves it through failover.roles.leadReviewer, and with no step left the epic stops with usage_limit naming the lead and the way to restart it', async () => {
+  const engine = await leadFlow(bothAgree, runsOut('claude', 'spare'), { config: leadOnClaude({ leadReviewer: [{ provider: 'spare' }] }) });
+
+  expect(leadTasks().map((t) => t.option)).toEqual(['claude', 'spare']);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'usage_limit', stage: 'lead', leadRound: 1 });
+  const reason = rows(engine.db)[0]!.needsHumanReason!;
+  expect(reason).toContain('the lead execution ran out of usage on option spare');
+  expect(reason).toContain('--lead <option>');
+  expect(reason).toContain('no step left in failover');
+  expect(eventsOf(engine.db).filter((e) => e.type === 'option_switched').map((e) => e.data)).toMatchObject([{ role: 'lead', from: 'claude', to: 'spare', stage: 'lead' }]);
+});
+
+test('with no steps of its own the lead takes failover.roles.reviewer', async () => {
+  const engine = await leadFlow(bothAgree, (task) => outOf('claude')(task, leadSays(ok)(task)), { config: leadOnClaude({ reviewer: [{ provider: 'spare' }] }) });
+
+  expect(leadTasks().map((t) => t.option)).toEqual(['claude', 'spare']);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'ready_for_test' });
+});
+
+test('a lead with an empty list of its own does not take the reviewer\'s steps', async () => {
+  const engine = await leadFlow(bothAgree, runsOut('claude'), { config: leadOnClaude({ reviewer: [{ provider: 'spare' }], leadReviewer: [] }) });
+
+  expect(leadTasks().map((t) => t.option)).toEqual(['claude']);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'usage_limit' });
+});
+
+// The lead runs out on `claude`; the fake quota says its window is back at WAKE.
+async function leadStoppedForQuota(config = leadOnClaude()) {
+  fakeQuota.snapshots['/cfg/claude'] = full('claude', WAKE);
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50);
+  runner.behavior = (task) => (task.stage === 'ship' ? { write: completed(task) } : task.stage === 'review' ? bothAgree(task) : runsOut('claude')(task));
+  const engine = await start(1, [config]);
+  settings = { ...settings, autoResume: true };
+  await clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'usage_limit' }));
+  runner.behavior = (task) => (task.stage === 'lead' ? leadSays(ok)(task) : { exit: 'stopped' });
+  return engine;
+}
+
+test('a quota stop of the lead schedules the wake-up from the lead\'s own account, and the epic wakes up at the stage lead with its lead round kept and no review round repeated', async () => {
+  const engine = await leadStoppedForQuota();
+  expect(rows(engine.db)[0]).toMatchObject({ stage: 'lead', leadRound: 1, resumeAt: WAKE, reviewedSha: SHA });
+  expect(fakeQuota.asked).toEqual([{ provider: 'claude', configDir: '/cfg/claude' }]);
+  const before = runner.tasks.length;
+
+  fakeQuota.snapshots['/cfg/claude'] = back();
+  await clock.advance(WAKE - clock.now() + 5 * MIN);
+  await engine.idle();
+
+  expect(runner.tasks.slice(before).map((t) => [t.stage, t.reviewer, t.option, t.context.round])).toEqual([['lead', 'lead', 'claude', 1]]);
+  expect(eventsOf(engine.db).filter((e) => e.type === 'auto_resumed').map((e) => e.data)).toMatchObject([{ stage: 'lead', option: 'claude', resumeAt: WAKE, count: 1 }]);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'ready_for_test', round: 1, leadRound: 1, resumeStage: null, resumeAt: null, approvedSha: SHA });
+});
+
+test('the wake-up of the lead waits while its window is at 100% and does not touch the reviewers\' account', async () => {
+  const engine = await leadStoppedForQuota();
+  const before = runner.tasks.length;
+  fakeQuota.snapshots['/cfg/claude'] = full('claude', 9 * HOUR);
+  await clock.advance(WAKE - clock.now() + 5 * MIN);
+
+  expect(runner.tasks).toHaveLength(before);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', stage: 'lead', resumeAt: WAKE, autoResumes: 0 });
+});
+
+test('a person\'s resume at review after the lead\'s quota stop starts the lead\'s exchange over: only the wake-up sets the stage lead', async () => {
+  const engine = await leadStoppedForQuota();
+  runner.tasks.length = 0;
+  await clock.advance(MIN);
+  await resumeFrom(engine, 'review');
+
+  expect(rows(engine.db)[0]).toMatchObject({ stage: 'review', leadRound: null, resumeStage: null });
+  expect(runner.tasks.map((t) => t.stage)).toContain('review');
+});
+
+test('a default skill of the lead that is absent, and an answer that cannot tell, never stop the epic', async () => {
+  skills.has = async () => 'absent';
+  const dflt = { ...withLead(twoReviewers()), skills: { ...resolveSkills(solveSkills), lead: { review: { name: 'code-review', named: false }, publish: null } } };
+  const engine = await leadFlow(bothAgree, hang, { config: dflt });
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'lead' });
+  expect(leadTasks()).toHaveLength(1);
+
+  skills.has = async () => 'cannot-tell';
+  const unsure = await leadFlow(bothAgree, hang);
+  expect(rows(unsure.db).at(-1)).toMatchObject({ status: 'running', stage: 'lead' });
+});
+
+test('a skill the person named for the lead that is absent stops the epic with the skill, the role lead and where it looked, spending no run and no retry', async () => {
+  skills.answers['my-lead'] = 'absent';
+  const engine = await leadFlow(bothAgree, hang);
+
+  const reason = rows(engine.db)[0]!.needsHumanReason!;
+  expect(reason).toContain('the skill my-lead (skills.lead.review) is not installed for the lead');
+  expect(reason).toContain('claude looked where it finds skills');
+  expect(executionsOf(engine.db).filter((e) => e.stage === 'lead')).toEqual([]);
+  expect(rows(engine.db)[0]).toMatchObject({ needsHumanKind: 'skill_missing', recoveries: 0 });
+});
+
+test('a failover of the lead onto an option whose harness lacks the named skill stops the epic with skill_missing and spends no run on it', async () => {
+  skills.has = async (harness) => (harness === 'codex' ? 'absent' : 'present');
+  const engine = await leadFlow(bothAgree, runsOut('claude'), { config: leadOnClaude({ leadReviewer: [{ provider: 'spare' }] }) });
+
+  expect(leadTasks().map((t) => t.option)).toEqual(['claude']);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'skill_missing' });
+  expect(rows(engine.db)[0]!.needsHumanReason).toContain('is not installed for the lead: codex looked');
+});
+
+test('a wake-up of the lead stops with skill_missing when its named skill is absent now, and starts no run', async () => {
+  const engine = await leadStoppedForQuota();
+  const before = runner.tasks.length;
+  skills.answers['my-lead'] = 'absent';
+  fakeQuota.snapshots['/cfg/claude'] = back();
+  await clock.advance(WAKE - clock.now() + 5 * MIN);
+  await engine.idle();
+
+  expect(runner.tasks).toHaveLength(before);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'skill_missing' });
+});
+
+test('a restart that changes the lead\'s option checks the skills for that option\'s harness', async () => {
+  const named = { ...everyRole()[0]!, skills: { ...resolveSkills(solveSkills), lead: leadSkills } };
+  const engine = await start(1, [named]);
+  stoppedAt(engine.db, 'review', { config: named, authorOption: 'codex', reviewerOption: 'codex' });
+  runner.behavior = (task) => (task.stage === 'review' ? verdictBy({ reviewer: ok, 'reviewer-2': ok, 'reviewer-3': ok })(task) : { exit: 'stopped' });
+  skills.has = async (harness) => (harness === 'claude' ? 'absent' : 'present'); // the lead moves to claude, where its skill is not found
+  void engine.resumeEpic('AshuLab/a', 1, { from: 'review', lead: 'claude' }).catch(() => {}); // it stops at the lead, so the resume never sees the epic stay running
+  await flush();
+  await clock.advance(5 * MIN);
+  await engine.idle();
+
+  expect(runner.tasks.filter((t) => t.stage === 'lead')).toEqual([]);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'skill_missing' });
 });

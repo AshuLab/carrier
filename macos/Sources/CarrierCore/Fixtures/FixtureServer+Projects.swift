@@ -84,7 +84,13 @@ func applyProjectsChange(_ change: ProjectsChange, home: String) -> (data: [Stri
             return (["saved": entry(path)], nil)
         case .setActions(let path, let actions):
             guard try file.updateActions(path: path, actions: actions) else {
-                return refused("config.problem", "projects.json: projects.0.actions must not be blank", ["path": "actions", "problem": "invalid_format"])
+                // The first blank field the host's schema meets: `projects.<index>.actions.<n>.name` (then `command`), kind `invalid_format`.
+                let index = ((try? file.read()) ?? []).firstIndex { $0.path == path } ?? 0
+                let blank = actions.enumerated().compactMap { n, action in
+                    projectActionProblems(action)[.name] != nil ? (n, "name") : projectActionProblems(action)[.command] != nil ? (n, "command") : nil
+                }.first ?? (0, "name")
+                let field = "projects.\(index).actions.\(blank.0).\(blank.1)"
+                return refused("config.problem", "projects.json: \(field) must not be blank", ["path": .string(field), "problem": "invalid_format"])
             }
             return (["saved": entry(path)], nil)
         case .setFolder(let folder):

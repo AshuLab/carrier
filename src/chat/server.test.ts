@@ -728,7 +728,7 @@ test('the nine project requests and their replies are the golden file', async ()
     const { id, ...reply } = await c.ask(JSON.stringify({ id: 1, ...request }));
     golden[name] = { request, reply };
   }
-  // what the app sends and the host answers (macos/Tests/CarrierCoreTests/Connection/ChatHostTests.swift); UPDATE_FIXTURES=1 rewrites it
+  // what the app sends and the host answers (macos/Tests/CarrierCoreTests/Connection/ProjectsRequestsTests.swift); UPDATE_FIXTURES=1 rewrites it
   const json = `${JSON.stringify(golden, null, 2)}\n`;
   const path = fileURLToPath(new URL('../../macos/Tests/Fixtures/chat-edit-projects.json', import.meta.url));
   if (process.env.UPDATE_FIXTURES === '1') writeFileSync(path, json);

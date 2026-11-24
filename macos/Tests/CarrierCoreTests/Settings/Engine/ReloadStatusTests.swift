@@ -39,13 +39,13 @@ private final class GatedEngine: @unchecked Sendable {
 }
 
 @MainActor @Test func aSaveIsFollowedByOneAskOfTheEngineAndTheAnswerIsKept() async throws {
-    let engine = GatedEngine(answers: [.refused("limits.maxReviews: bad")])
+    let engine = GatedEngine(answers: [.refused(.words("limits.maxReviews: bad"))])
     let status = ReloadStatus(reload: engine.reload)
     let path = try config()
     let result = saveConfig(path: path, unusable: "no", edit: { $0 }, reload: { MainActor.assumeIsolated { _ = status.ask() }; return nil })
     #expect(result == .saved && status.pending)
     await answered(status)
-    #expect(engine.calls == 1 && status.outcome == .refused("limits.maxReviews: bad"))
+    #expect(engine.calls == 1 && status.outcome == .refused(.words("limits.maxReviews: bad")))
     #expect(status.words == "Saved, but Carrier kept its settings: limits.maxReviews: bad")
 }
 
@@ -60,7 +60,7 @@ private final class GatedEngine: @unchecked Sendable {
 
 @MainActor @Test func theAnswerToAnOlderSaveIsDroppedWhenANewerOneWasMade() async throws {
     // the first ask is held by the engine; the second is answered first, and the late refusal of the first must not show
-    let engine = GatedEngine(answers: [.refused("old"), .applied], gated: [0])
+    let engine = GatedEngine(answers: [.refused(.words("old")), .applied], gated: [0])
     let status = ReloadStatus(reload: engine.reload)
     let first = status.ask()
     while engine.calls < 1 { try await Task.sleep(for: .milliseconds(2)) }
@@ -73,7 +73,7 @@ private final class GatedEngine: @unchecked Sendable {
 }
 
 @MainActor @Test func anAppliedAnswerClearsTheRefusalOfBefore() async {
-    let engine = GatedEngine(answers: [.refused("bad"), .applied])
+    let engine = GatedEngine(answers: [.refused(.words("bad")), .applied])
     let status = ReloadStatus(reload: engine.reload)
     await status.ask().value
     #expect(status.words != nil)
@@ -82,11 +82,11 @@ private final class GatedEngine: @unchecked Sendable {
 }
 
 @MainActor @Test func twoEqualRefusalsInARowAreTwoAnswersSoThePageSaysTheSecondAgain() async {
-    let engine = GatedEngine(answers: [.refused("same"), .refused("same")])
+    let engine = GatedEngine(answers: [.refused(.words("same")), .refused(.words("same"))])
     let status = ReloadStatus(reload: engine.reload)
     await status.ask().value
     await status.ask().value
-    #expect(status.outcome == .refused("same") && status.answers == 2)
+    #expect(status.outcome == .refused(.words("same")) && status.answers == 2)
 }
 
 @MainActor @Test func anEngineThatDoesNotListReloadOrDidNotAnswerIsSaidSoAndNobodyToAskIsNot() {
@@ -96,7 +96,7 @@ private final class GatedEngine: @unchecked Sendable {
 }
 
 @MainActor @Test func aStoppedOrRestartedCarrierStartsWithoutTheAnswerOfTheOneBefore() async {
-    let engine = GatedEngine(answers: [.refused("x"), .applied], gated: [1])
+    let engine = GatedEngine(answers: [.refused(.words("x")), .applied], gated: [1])
     let status = ReloadStatus(reload: engine.reload)
     status.ask()
     await answered(status)
@@ -113,6 +113,6 @@ private final class GatedEngine: @unchecked Sendable {
 
 @Test func anOlderEnginesReadsItWhenItStartsIsAFactAndARefusalOrSilenceIsAProblem() {
     #expect(ReloadOutcome.unsupported.isProblem == false && ReloadOutcome.applied.isProblem == false && ReloadOutcome.nobody.isProblem == false)
-    #expect(ReloadOutcome.refused("x").isProblem && ReloadOutcome.noAnswer.isProblem)
+    #expect(ReloadOutcome.refused(.words("x")).isProblem && ReloadOutcome.noAnswer.isProblem)
     #expect(reloadWords(.noAnswer)?.contains("may not have applied it") == true)
 }

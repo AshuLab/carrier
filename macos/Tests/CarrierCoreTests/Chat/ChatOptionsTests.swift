@@ -110,7 +110,7 @@ private final class OptionsHost: ChatHost, @unchecked Sendable {
 
 @MainActor @Test func aRefusalIsSaidInWordsAndNothingChanges() async {
     let host = OptionsHost()
-    host.refuse = ControlError.remote("The reasoning effort can only change between turns")
+    host.refuse = ControlError.remote(.words("The reasoning effort can only change between turns"))
     var logged: [String] = []
     let model = ConversationModel(host: host, sessionId: "s", log: { logged.append($0) })
     await model.poll()

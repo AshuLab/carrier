@@ -12,7 +12,7 @@ extension ControlClient {
     }
 
     public func events(executionId: String, after: Int = 0, limit: Int = 200) throws -> EventsReply? {
-        guard (1...200).contains(limit), after >= 0 else { throw ControlError.remote("not a valid range") }
+        guard (1...200).contains(limit), after >= 0 else { throw ControlError.remote(.rangeInvalid) }
         return try ask(.events, "events", ",\"executionId\":\"\(try uuid(executionId))\",\"after\":\(after),\"limit\":\(limit)")
     }
 
@@ -28,7 +28,7 @@ extension ControlClient {
     /// The edited fragments of one file of a card (`section` is the card's id in the `files` reply). nil when this engine cannot be asked.
     /// A refusal (`unknown file`, a git that did not answer) is about that one file and leaves the capability alone.
     public func fileDiff(repo: String, issue: Int, section: String, path: String) throws -> FileDiffReply? {
-        guard (1...100).contains(section.utf16.count), (1...500).contains(path.utf16.count) else { throw ControlError.remote("not a valid file") }
+        guard (1...100).contains(section.utf16.count), (1...500).contains(path.utf16.count) else { throw ControlError.remote(.fileInvalid) }
         let quoted = { (value: String) in String(decoding: try JSONEncoder().encode(value), as: UTF8.self) }
         return try ask(.fileDiff, "fileDiff", keepOnRefusal: true, try epicFields(repo, issue) + ",\"section\":\(try quoted(section)),\"path\":\(try quoted(path))")
     }
@@ -63,13 +63,13 @@ extension ControlClient {
         let parts = repo.split(separator: "/", omittingEmptySubsequences: false)
         let allowed = repo.utf8.count <= 200 && repo.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || "_.-/".contains($0)) }
         guard allowed, parts.count == 2, parts.allSatisfy({ $0.isEmpty == false && $0 != "." && $0 != ".." }), issue > 0 else {
-            throw ControlError.remote("not a valid epic")
+            throw ControlError.remote(.epicInvalid)
         }
         return ",\"repo\":\"\(repo)\",\"issue\":\(issue)"
     }
 
     private func uuid(_ value: String) throws -> String {
-        guard let id = UUID(uuidString: value)?.uuidString.lowercased() else { throw ControlError.remote("not a valid execution id") }
+        guard let id = UUID(uuidString: value)?.uuidString.lowercased() else { throw ControlError.remote(.executionInvalid) }
         return id
     }
 }

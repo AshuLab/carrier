@@ -114,3 +114,21 @@ private func summary(_ checks: RepoChecks) -> [String] {
     #expect(offered([read("o/r", .fail), mint("a", "o/r", ["bot-a"]), mint("c", "o/r", ["bot-c"], .warn), solve("o/r", .fail)]) == [nil, nil, nil, nil])
     #expect(offered([]) == [nil, nil, nil, nil])
 }
+
+@Test func aFailedCheckIsTakenForItsRowByTheCodeOfItsDetailWhateverItsNameSays() {
+    // names that differ from today's: only the code of the detail says which row each failed check is
+    let doctor = DoctorState.checks([
+        DoctorCheck(name: "access one", status: .fail, detail: "x", repo: "o/r", profiles: ["me"], detailCode: "doctor.readFailed"),
+        DoctorCheck(name: "access two", status: .fail, detail: "y", repo: "o/r", profiles: ["bot-a"], detailCode: "doctor.mintFailed"),
+        DoctorCheck(name: "access three", status: .fail, detail: "z", repo: "o/r", profiles: ["me"], detailCode: "doctor.labelsMissing"),
+    ])
+    let found = repoChecks(repo: "o/r", roles: roles("o/r"), doctor: doctor)
+    #expect(found.rows.map(\.status) == [.fail, .fail, .waiting, .fail])
+    #expect(found.rows.map(\.detail) == ["x", "y", "Not checked yet", "z"])
+}
+
+@Test func aFailedCheckWithAnotherCodeIsNotTakenForARowByItsName() {
+    // the name says "can read", the code says something else: the code decides, and a check with no code is read by its name as before
+    let doctor = DoctorState.checks([DoctorCheck(name: "your gh login can read o/r", status: .fail, detail: "x", repo: "o/r", profiles: ["me"], detailCode: "doctor.somethingNew")])
+    #expect(repoChecks(repo: "o/r", roles: roles("o/r"), doctor: doctor).rows.first?.status == .waiting)
+}

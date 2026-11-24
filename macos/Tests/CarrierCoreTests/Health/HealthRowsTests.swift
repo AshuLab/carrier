@@ -111,6 +111,18 @@ private func health(git: ToolState = .ready, gh: ToolState = .ready, claude: Too
     #expect(rows.allSatisfy { $0.mark == .ok })
 }
 
+@Test func aFailedCheckIsGroupedByTheCodeOfItsDetailWhateverItsNameSays() {
+    // names that differ from today's: only the code of the detail puts each failed check in its card
+    let checks = [
+        DoctorCheck(name: "first", status: .fail, detail: "not found on PATH", detailCode: "doctor.notOnPath"),
+        DoctorCheck(name: "second", status: .fail, detail: "not signed in", detailCode: "doctor.loginMissing"),
+        DoctorCheck(name: "third", status: .fail, detail: "no token", detailCode: "doctor.mintFailed"),
+        DoctorCheck(name: "fourth", status: .fail, detail: "something", detailCode: "doctor.somethingNew"),
+    ]
+    let rows = healthSections(host: nil, facts: allWell, doctor: .checks(checks))[2].rows
+    #expect(rows.map(\.title) == ["Tools installed", "Provider logins", "Repository access", "fourth"])
+}
+
 @Test func aGroupedCardIsAsBadAsItsWorstCheckAndNamesTheOnesThatAreNotOk() {
     let checks = [
         DoctorCheck(name: "git installed", status: .ok), DoctorCheck(name: "agy installed", status: .fail, detail: "not found", fix: "install agy"),

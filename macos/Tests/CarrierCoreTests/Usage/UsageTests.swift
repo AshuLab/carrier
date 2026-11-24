@@ -146,7 +146,7 @@ func host() throws -> UsageHost { UsageHost(try JSONDecoder().decode(UsageSnapsh
     await store.load()
     host.failure = ControlError.timeout
     await store.load()
-    #expect(store.snapshot != nil && store.error == "The chat host took too long to answer" && store.isRefreshing == false)
+    #expect(store.snapshot != nil && store.error?.text == "The chat host took too long to answer" && store.isRefreshing == false)
     host.failure = nil
     await store.load()
     #expect(store.error == nil)
@@ -157,9 +157,21 @@ func host() throws -> UsageHost { UsageHost(try JSONDecoder().decode(UsageSnapsh
     host.capabilitiesAnswer = [.providers]
     let store = UsageStore(host: host)
     await store.load()
-    #expect(store.error == usageNeedsNewerHost && store.snapshot == nil && host.queries.isEmpty && store.isLoading == false)
+    #expect(store.error == .usageNeedsNewerHost && store.snapshot == nil && host.queries.isEmpty && store.isLoading == false)
     #expect(await store.override(UsageOverride(model: "m", action: .local)) == usageNeedsNewerHost)
     #expect(host.overrides.isEmpty)
+}
+
+/// The page says it quietly when the refusal's code is the older host's, whatever its words are.
+@MainActor @Test func theOlderHostIsKnownByTheCodeOfItsRefusalAndNotByItsWords() async throws {
+    let host = try host()
+    host.failure = ControlError.remote(Refusal(code: Refusal.usageNeedsNewerHost.code, text: "Another sentence altogether"))
+    let store = UsageStore(host: host)
+    await store.load()
+    #expect(store.error?.code == Refusal.usageNeedsNewerHost.code && store.error?.text == "Another sentence altogether")
+    host.failure = ControlError.remote(.words(usageNeedsNewerHost))
+    await store.load()
+    #expect(store.error?.code != Refusal.usageNeedsNewerHost.code)
 }
 
 @MainActor @Test func aHostThatDoesNotAnswerIsNotTheOlderHost() async throws {
@@ -168,7 +180,7 @@ func host() throws -> UsageHost { UsageHost(try JSONDecoder().decode(UsageSnapsh
     host.capabilitiesAnswer = [.usage]
     let store = UsageStore(host: host)
     await store.load()
-    #expect(store.error == "The chat host is not answering")
+    #expect(store.error?.text == "The chat host is not answering")
 }
 
 @MainActor @Test func anOverrideIsSentAndTheNumbersAreAskedAgain() async throws {

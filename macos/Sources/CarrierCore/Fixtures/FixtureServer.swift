@@ -365,11 +365,11 @@ public final class FixtureServer {
     private func reply(to line: Data) -> Data {
         let request = (try? JSONSerialization.jsonObject(with: line)) as? [String: Any]
         if let cmd = request?["cmd"] as? String { locked { engineAsked[cmd, default: 0] += 1 } }
-        guard let id = request?["id"] as? Int else { return Self.line("{\"id\":null,\"ok\":false,\"error\":\"invalid request\"}") }
-        guard let cmd = request?["cmd"] as? String else { return Self.line("{\"id\":\(id),\"ok\":false,\"error\":\"invalid request\"}") }
+        guard let id = request?["id"] as? Int else { return Self.refused(nil, "request.invalid", "invalid request") }
+        guard let cmd = request?["cmd"] as? String else { return Self.refused(id, "request.invalid", "invalid request") }
         if let body = data[cmd] { return Self.line("{\"id\":\(id),\"ok\":true,\"data\":" + String(decoding: body, as: UTF8.self) + "}") }
         if Self.controls.contains(cmd) { return Self.line("{\"id\":\(id),\"ok\":true}") }
-        return Self.line("{\"id\":\(id),\"ok\":false,\"error\":\"unknown request\"}")
+        return Self.refused(id, "request.invalid", "unknown request")
     }
 
     /// What the chat socket was asked so far, by request name.
@@ -385,7 +385,7 @@ public final class FixtureServer {
         let folder = (parent ?? currentProjectsFolderOfFixture) + "/" + repo
         if let running = locked({ chatClones.first { ($0["repo"] as? String)?.lowercased() == key && $0["state"] as? String == "cloning" } }) { return Self.answer(id, running) }
         let listed = chatGithubRepos.values.flatMap { ($0["repos"] as? [[String: Any]] ?? []).compactMap { $0["name"] as? String } }
-        guard (Array(chatBranches.keys) + listed).contains(where: { $0.lowercased() == key }) else { return Self.refused(id, "\(repo) was not found, or your GitHub login cannot see it") }
+        guard (Array(chatBranches.keys) + listed).contains(where: { $0.lowercased() == key }) else { return Self.refused(id, "github.repoNotFound", "\(repo) was not found, or your GitHub login cannot see it", ["repo": .string(repo)]) }
         let clone: [String: Any] = ["repo": repo, "folder": folder, "state": "cloning", "progress": "Receiving objects: 45%"]
         locked {
             chatClones.removeAll { ($0["repo"] as? String)?.lowercased() == key }
@@ -396,16 +396,16 @@ public final class FixtureServer {
 
     /// `newProject`: the folder and the entry, as the host makes them, without git; refused as the host refuses.
     private func newProject(_ id: Int, _ name: String, parent: String?) -> Data {
-        if let refusal = projectNameProblem(name) { return Self.refused(id, refusal) }
+        if let refusal = projectNameProblem(name) { return Self.refused(id, "project.nameInvalid", refusal.text, ["name": .string(name)]) }
         let folder = (parent ?? currentProjectsFolderOfFixture) + "/local/" + name
-        guard FileManager.default.fileExists(atPath: folder) == false else { return Self.refused(id, "\(name) is already a project; choose another name") }
+        guard FileManager.default.fileExists(atPath: folder) == false else { return Self.refused(id, "project.nameTaken", "\(name) is already a project; choose another name", ["name": .string(name)]) }
         do {
             try FileManager.default.createDirectory(atPath: folder, withIntermediateDirectories: true)
             let file = ProjectsFile(folder: home)
             try file.add(folder: folder)
             try file.update(path: folder, key: "origin", value: "created")
         } catch {
-            return Self.refused(id, "git could not start the project \(name)")
+            return Self.refused(id, "project.initFailed", "git could not start the project \(name)", ["name": .string(name)])
         }
         return Self.answer(id, ["folder": folder])
     }
@@ -415,7 +415,7 @@ public final class FixtureServer {
     private func chatReply(to line: Data) -> Data {
         let request = (try? JSONSerialization.jsonObject(with: line)) as? [String: Any]
         if let cmd = request?["cmd"] as? String { locked { chatAsked[cmd, default: 0] += 1 } }
-        guard let id = request?["id"] as? Int else { return Self.line("{\"id\":null,\"ok\":false,\"error\":\"invalid request\"}") }
+        guard let id = request?["id"] as? Int else { return Self.refused(nil, "request.invalid", "invalid request") }
         switch request?["cmd"] as? String {
         case "agents":
             return Self.line("{\"id\":\(id),\"ok\":true,\"data\":" + String(decoding: chatAgents, as: UTF8.self) + "}")
@@ -426,7 +426,7 @@ public final class FixtureServer {
             return Self.line("{\"id\":\(id),\"ok\":true,\"data\":" + String(decoding: body, as: UTF8.self) + "}")
         case "events":
             guard let session = request?["sessionId"] as? String, locked({ chatSessions.contains(where: { $0["id"] as? String == session }) }) else {
-                return Self.line("{\"id\":\(id),\"ok\":false,\"error\":\"unknown session\"}")
+                return Self.refused(id, "session.unknown", "unknown session")
             }
             let after = request?["after"] as? Int ?? 0
             let limit = min(max(request?["limit"] as? Int ?? 200, 1), 200)
@@ -455,13 +455,13 @@ public final class FixtureServer {
             }
             if let fetched = chatFetches[folder] { return Self.answer(id, fetched) }
             let git = chatWorkspaces[folder]?["git"] as? Bool ?? false
-            return Self.refused(id, git ? "The fetch of origin failed" : "That folder is not a git repository")
+            return git ? Self.refused(id, "workspace.fetchFailed", "The fetch of origin failed") : Self.refused(id, "workspace.notGit", "That folder is not a git repository")
         case "githubRepos":
             guard let page = request?["page"] as? Int else { break }
-            return chatGithubRepos[String(page)].map { Self.answer(id, $0) } ?? Self.refused(id, "GitHub did not answer; check \"gh auth status\"")
+            return chatGithubRepos[String(page)].map { Self.answer(id, $0) } ?? Self.refused(id, "github.noAnswer", "GitHub did not answer; check \"gh auth status\"")
         case "repoBranches":
             guard let repo = request?["repo"] as? String else { break }
-            return chatBranches[repo].map { Self.answer(id, $0) } ?? Self.refused(id, "\(repo) was not found, or your GitHub login cannot see it")
+            return chatBranches[repo].map { Self.answer(id, $0) } ?? Self.refused(id, "github.repoNotFound", "\(repo) was not found, or your GitHub login cannot see it", ["repo": .string(repo)])
         case "cloneProject":
             guard let repo = request?["repo"] as? String else { break }
             return cloneProject(id, repo, parent: request?["parent"] as? String)
@@ -492,10 +492,10 @@ public final class FixtureServer {
         case "removeProjectWorktree":
             guard let folder = request?["folder"] as? String, let path = request?["path"] as? String else { break }
             let listed = chatProjectWorktrees[(folder as NSString).lastPathComponent]?["worktrees"] as? [[String: Any]] ?? []
-            guard let found = listed.first(where: { $0["path"] as? String == path }), locked({ removedWorktrees.contains(path) }) == false else { return Self.refused(id, "That is not a worktree of this project") }
+            guard let found = listed.first(where: { $0["path"] as? String == path }), locked({ removedWorktrees.contains(path) }) == false else { return Self.refused(id, "worktree.unknown", "That is not a worktree of this project") }
             switch found["state"] as? String {
-            case "sessionOpen": return Self.refused(id, "Its session is open")
-            case "uncommitted": return Self.refused(id, "It has uncommitted changes")
+            case "sessionOpen": return Self.refused(id, "worktree.sessionOpen", "Its session is open")
+            case "uncommitted": return Self.refused(id, "worktree.uncommitted", "It has uncommitted changes")
             default:
                 locked { _ = removedWorktrees.insert(path) }
                 return Self.answer(id, [String: Any]())
@@ -538,31 +538,31 @@ public final class FixtureServer {
                 chatSessions[at]["live"] = true
                 return true
             }
-            return found ? Self.answer(id, [String: Any]()) : Self.refused(id, "unknown session")
+            return found ? Self.answer(id, [String: Any]()) : Self.refused(id, "session.unknown", "unknown session")
         case "switchAgent":
             guard let session = request?["sessionId"] as? String, let agent = request?["agent"] as? String else { break }
             return switchAgent(id, session, to: agent)
         case "send":
             guard let session = request?["sessionId"] as? String, let text = request?["text"] as? String else { break }
             // a session whose list entry says `fixtureRefuseSend` refuses every send with those words (a provider that is not signed in)
-            if let refusal = locked({ chatSessions.first { $0["id"] as? String == session }?["fixtureRefuseSend"] as? String }) { return Self.refused(id, refusal) }
+            if let refusal = locked({ chatSessions.first { $0["id"] as? String == session }?["fixtureRefuseSend"] as? String }) { return Self.refused(id, "agent.notLoggedIn", refusal) }
             let found = locked { () -> Bool in
                 guard chatSessions.contains(where: { $0["id"] as? String == session }) else { return false }
                 let events = chatConversations[session]?.events ?? []
                 chatConversations[session, default: ([], "")].events = events + [["id": (events.last?["id"] as? Int ?? 0) + 1, "at": Int(Date().timeIntervalSince1970 * 1000), "kind": "user", "text": text]]
                 return true
             }
-            return found ? Self.answer(id, [String: Any]()) : Self.refused(id, "unknown session")
+            return found ? Self.answer(id, [String: Any]()) : Self.refused(id, "session.unknown", "unknown session")
         case "answer":
             guard let session = request?["sessionId"] as? String, let approval = request?["approvalId"] as? String, let choice = request?["choiceId"] as? String else { break }
             lock.lock()
             defer { lock.unlock() }
             var events = chatConversations[session]?.events ?? []
             guard let asked = Self.pending(events).first(where: { $0["approvalId"] as? String == approval }) else {
-                return Self.line("{\"id\":\(id),\"ok\":false,\"error\":\"That approval is not pending: it is unknown or was already answered\"}")
+                return Self.refused(id, "session.approval.notPending", "That approval is not pending: it is unknown or was already answered")
             }
             guard (asked["choices"] as? [[String: Any]] ?? []).contains(where: { $0["id"] as? String == choice }) else {
-                return Self.line("{\"id\":\(id),\"ok\":false,\"error\":\"That is not one of the choices\"}")
+                return Self.refused(id, "session.approval.choiceUnknown", "That is not one of the choices")
             }
             var answered: [String: Any] = ["id": (events.last?["id"] as? Int ?? 0) + 1, "at": Int(Date().timeIntervalSince1970 * 1000), "kind": "approval_answered", "approvalId": approval, "choiceId": choice]
             if let answers = request?["answers"] as? [String: String] { answered["answers"] = answers }
@@ -572,9 +572,9 @@ public final class FixtureServer {
         case "setOption":
             guard let session = request?["sessionId"] as? String, let option = request?["option"] as? String, let value = request?["value"] as? String,
                 let at = chatOptions[session]?.firstIndex(where: { $0["id"] as? String == option })
-            else { return Self.line("{\"id\":\(id),\"ok\":false,\"error\":\"This agent has no such option\"}") }
+            else { return Self.refused(id, "session.option.unknown", "This agent has no such option", ["option": .string(request?["option"] as? String ?? "")]) }
             let listed = (chatOptions[session]?[at]["values"] as? [[String: Any]])?.contains { $0["id"] as? String == value } ?? false
-            guard listed else { return Self.line("{\"id\":\(id),\"ok\":false,\"error\":\"The agent does not offer that value for \(option)\"}") }
+            guard listed else { return Self.refused(id, "session.option.valueUnknown", "The agent does not offer that value for \(option)", ["option": .string(option), "value": .string(value)]) }
             chatOptions[session]?[at]["current"] = value
             return Self.line("{\"id\":\(id),\"ok\":true,\"data\":{}}")
         case "stopTask":
@@ -593,7 +593,7 @@ public final class FixtureServer {
             let own = events.filter { $0["kind"] as? String == "task" && $0["taskId"] as? String == task }
             let ended = own.contains { ["completed", "failed", "stopped"].contains($0["state"] as? String ?? "") }
             guard let started = own.first(where: { $0["state"] as? String == "started" }), ended == false else {
-                return Self.line("{\"id\":\(id),\"ok\":false,\"error\":\"That task is not running\"}")
+                return Self.refused(id, "session.task.notRunning", "That task is not running")
             }
             events.append(["id": (events.last?["id"] as? Int ?? 0) + 1, "at": Int(Date().timeIntervalSince1970 * 1000), "kind": "task", "callId": started["callId"] as Any, "taskId": task, "state": "stopped"])
             chatConversations[session]?.events = events
@@ -607,8 +607,8 @@ public final class FixtureServer {
             guard let session = request?["sessionId"] as? String else { break }
             // a session whose list entry says `fixtureRefuseTitle` refuses with those words (no text generator chosen); any other gets a made-up title
             return locked {
-                guard let at = chatSessions.firstIndex(where: { $0["id"] as? String == session }) else { return Self.refused(id, "There is no such session") }
-                if let refusal = chatSessions[at]["fixtureRefuseTitle"] as? String { return Self.refused(id, refusal) }
+                guard let at = chatSessions.firstIndex(where: { $0["id"] as? String == session }) else { return Self.refused(id, "session.unknown", "There is no such session") }
+                if let refusal = chatSessions[at]["fixtureRefuseTitle"] as? String { return Self.refused(id, "title.noGenerator", refusal) }
                 regeneratedSessionIds.insert(session)
                 chatSessions[at]["title"] = "Regenerated title"
                 return Self.answer(id, ["title": "Regenerated title"])
@@ -619,7 +619,7 @@ public final class FixtureServer {
             let chosen = whole?["textGenerator"] as? String
             let declared = (whole?["textGenerators"] as? [String: Any])?[chosen ?? ""] != nil
             guard chosen != nil, declared else {
-                return Self.refused(id, "Could not write titles: no text generator is chosen; choose one in Providers")
+                return Self.refused(id, "title.noGenerator", "Could not write titles: no text generator is chosen; choose one in Providers")
             }
             return locked {
                 var started = 0
@@ -674,7 +674,7 @@ public final class FixtureServer {
         let place = plan["workspace"] as? [String: Any]
         // a repository is cloned by the host under its projects folder, which the fixture only names
         let folder = place?["folder"] as? String ?? (place?["repo"] as? String).map { "/Users/dev/projects/\($0)" }
-        guard let folder, let text = plan["text"] as? String else { return Self.refused(id, "invalid request") }
+        guard let folder, let text = plan["text"] as? String else { return Self.refused(id, "request.invalid", "invalid request") }
         var request: [String: Any] = ["agent": plan["agent"] as Any, "folder": folder]
         if var from = plan["branch"] as? String {
             // as the host does: a remote start of a branch the repository lists as `origin/<name>` is cut from that ref
@@ -697,15 +697,15 @@ public final class FixtureServer {
     /// As the host does: an idle session takes another listed agent and gets the notice of the switch; a working or waiting one, the agent it has and one that is not listed are refused.
     private func switchAgent(_ id: Int, _ session: String, to agent: String) -> Data {
         guard let chosen = ((try? JSONSerialization.jsonObject(with: chatAgents)) as? [[String: Any]])?.first(where: { $0["name"] as? String == agent }) else {
-            return Self.refused(id, "There is no chat agent named \"\(agent)\"")
+            return Self.refused(id, "agent.unknown", "There is no chat agent named \"\(agent)\"", ["agent": .string(agent)])
         }
         return locked {
-            guard let at = chatSessions.firstIndex(where: { $0["id"] as? String == session }) else { return Self.refused(id, "There is no such session") }
+            guard let at = chatSessions.firstIndex(where: { $0["id"] as? String == session }) else { return Self.refused(id, "session.unknown", "There is no such session") }
             let from = chatSessions[at]["agent"] as? String ?? ""
             let state = chatSessions[at]["state"] as? String
-            if state != "idle" { return Self.refused(id, "This session is \(state == "working" ? "working" : "waiting for an approval"); interrupt it or wait, then switch its agent") }
-            if from == agent { return Self.refused(id, "This session already has the agent \"\(agent)\"") }
-            if chosen["found"] as? Bool == false { return Self.refused(id, "The agent \"\(agent)\" is not found on this machine") }
+            if state != "idle" { return Self.refused(id, "session.switchAgent.busy", "This session is \(state == "working" ? "working" : "waiting for an approval"); interrupt it or wait, then switch its agent", ["state": .string(state ?? "")]) }
+            if from == agent { return Self.refused(id, "session.switchAgent.same", "This session already has the agent \"\(agent)\"", ["agent": .string(agent)]) }
+            if chosen["found"] as? Bool == false { return Self.refused(id, "agent.notFound", "The agent \"\(agent)\" is not found on this machine", ["agent": .string(agent)]) }
             chatSessions[at]["agent"] = agent
             chatSessions[at]["harness"] = chosen["harness"] as? String ?? agent
             chatSessions[at]["live"] = true
@@ -719,24 +719,24 @@ public final class FixtureServer {
     }
 
     private func open(_ id: Int, _ request: [String: Any]) -> Data {
-        guard let agent = request["agent"] as? String, let folder = request["folder"] as? String else { return Self.refused(id, "invalid request") }
+        guard let agent = request["agent"] as? String, let folder = request["folder"] as? String else { return Self.refused(id, "request.invalid", "invalid request") }
         guard let chosen = ((try? JSONSerialization.jsonObject(with: chatAgents)) as? [[String: Any]])?.first(where: { $0["name"] as? String == agent }) else {
-            return Self.refused(id, "There is no chat agent named \"\(agent)\"")
+            return Self.refused(id, "agent.unknown", "There is no chat agent named \"\(agent)\"", ["agent": .string(agent)])
         }
         var session: [String: Any] = [
             "id": UUID().uuidString.lowercased(), "agent": agent, "harness": chosen["harness"] as? String ?? agent, "folder": folder, "workspace": ["kind": "folder"],
             "state": "idle", "createdAt": Int(Date().timeIntervalSince1970 * 1000), "lastActiveAt": Int(Date().timeIntervalSince1970 * 1000), "archived": false, "live": true,
         ]
         if let worktree = request["worktree"] as? [String: Any] {
-            guard let info = chatWorkspaces[folder], info["git"] as? Bool == true, info["bare"] as? Bool != true else { return Self.refused(id, "Worktrees need a git repository") }
+            guard let info = chatWorkspaces[folder], info["git"] as? Bool == true, info["bare"] as? Bool != true else { return Self.refused(id, "worktree.notGit", "Worktrees need a git repository") }
             let from = worktree["from"] as? String ?? ""
             guard (info["branches"] as? [[String: Any]])?.contains(where: { $0["name"] as? String == from }) == true else {
-                return Self.refused(id, "The branch to start from is not one this repository lists")
+                return Self.refused(id, "worktree.startNotListed", "The branch to start from is not one this repository lists")
             }
             let names = chatNames["suggestions"] as? [String] ?? []
             let name = worktree["name"] as? String ?? names.first ?? "worktree"
             let check = nameCheck(name)
-            guard check["valid"] as? Bool == true, check["free"] as? Bool == true else { return Self.refused(id, check["reason"] as? String ?? "That name cannot be used") }
+            guard check["valid"] as? Bool == true, check["free"] as? Bool == true else { return Self.refused(id, check["code"] as? String ?? "request.invalid", check["reason"] as? String ?? "That name cannot be used") }
             let path = "/Users/dev/.carrier/chat/worktrees/local/\(URL(fileURLWithPath: folder).lastPathComponent)/\(name)"
             session["folder"] = path
             session["workspace"] = ["kind": "worktree", "branch": "carrier/\(name)", "from": from, "base": folder, "path": path]
@@ -790,9 +790,10 @@ public final class FixtureServer {
         return line("{\"id\":\(id),\"ok\":true,\"data\":" + body + "}")
     }
 
-    private static func refused(_ id: Int, _ reason: String) -> Data {
-        let text = (try? JSONSerialization.data(withJSONObject: reason, options: .fragmentsAllowed)).map { String(decoding: $0, as: UTF8.self) } ?? "\"\""
-        return line("{\"id\":\(id),\"ok\":false,\"error\":" + text + "}")
+    /// The refusal as the host answers it: its words in `error`, and its `code` and `params` beside them (the codes are in `text-codes.json`).
+    private static func refused(_ id: Int?, _ code: String, _ reason: String, _ params: [String: TextParam] = [:]) -> Data {
+        let reply: [String: Any] = ["id": id as Any? ?? NSNull(), "ok": false, "error": reason, "code": code, "params": (try? JSONSerialization.jsonObject(with: JSONEncoder().encode(params))) ?? [:]]
+        return line(String(decoding: (try? JSONSerialization.data(withJSONObject: reply, options: .sortedKeys)) ?? Data(), as: UTF8.self))
     }
 
     private func locked<Value>(_ body: () -> Value) -> Value {

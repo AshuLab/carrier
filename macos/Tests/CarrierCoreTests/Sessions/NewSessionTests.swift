@@ -78,7 +78,7 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
         asksLock.withLock { optionAsks.append(agent); asksOpen += 1; mostAsksOpen = max(mostAsksOpen, asksOpen) }
         defer { asksLock.withLock { asksOpen -= 1 } }
         try await Task.sleep(for: .milliseconds(20)) // an answer takes time: asks that overlap show
-        guard let listed = offered[agent] else { throw ControlError.remote("the chat host does not support agentOptions") }
+        guard let listed = offered[agent] else { throw ControlError.remote(.hostLacks("agentOptions")) }
         return AgentOffer(options: listed, commands: commandsOffered[agent] ?? [])
     }
     func open(plan: SessionPlan) async throws -> String {
@@ -122,7 +122,7 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
     func repoBranches(_ repo: String) async throws -> RepoBranches {
         branchCalls.append(repo)
         if let error = refuse["repoBranches"] { throw error }
-        guard let listed = branchesOf[repo] else { throw ControlError.remote("\(repo) was not found, or your GitHub login cannot see it") }
+        guard let listed = branchesOf[repo] else { throw ControlError.remote(.words("\(repo) was not found, or your GitHub login cannot see it")) }
         return listed
     }
     func githubRepos(page: Int) async throws -> GithubReposPage {
@@ -132,11 +132,11 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
     }
     func cloneProject(_ repo: String, into parent: String?) async throws -> ProjectClone {
         calls.append("cloneProject \(repo)")
-        throw ControlError.remote("a draft never clones")
+        throw ControlError.remote(.words("a draft never clones"))
     }
     func newProject(_ name: String, into parent: String?) async throws -> String {
         calls.append("newProject \(name)")
-        throw ControlError.remote("a draft never makes a project")
+        throw ControlError.remote(.words("a draft never makes a project"))
     }
     func deletePreview(_ ids: [String]) async throws -> [SessionDeletePreview] { [] }
     func health(refresh: Bool) async throws -> HostHealth {
@@ -260,14 +260,14 @@ private func cleanRepo(_ folder: String) -> WorkspaceInfo {
 
 @MainActor @Test func aRefusedOpenIsSaidInTheDraftAndKeepsTheMessage() async {
     let host = FakeChat()
-    host.refuse["open"] = ControlError.remote("claude is not logged in; run claude once to log in")
+    host.refuse["open"] = ControlError.remote(Refusal(code: "agent.notLoggedIn", params: ["agent": "claude"], text: "claude is not logged in; run claude once to log in"))
     let model = await draft(host)
     await model.choose(folder: "/w/api")
     model.text = "hello"
     #expect(await model.send() == nil)
-    #expect(model.refusal == "claude is not logged in; run claude once to log in" && model.text == "hello")
+    #expect(model.refusal?.text == "claude is not logged in; run claude once to log in" && model.text == "hello")
     #expect(host.calls == ["open claude /w/api"])
-    #expect(signInLine(refusal: model.refusal ?? "") != nil)
+    #expect(signInLine(refusal: model.refusal ?? .words("")) != nil)
 }
 
 @MainActor @Test func aHostThatDoesNotListPlanIsSaidToBeOlderAndSendsNothing() async {
@@ -298,7 +298,7 @@ private func cleanRepo(_ folder: String) -> WorkspaceInfo {
     await model.choose(folder: "/w/api")
     model.text = "hello"
     #expect(await model.send() == nil)
-    #expect(model.refusal == hostNotRunning && host.calls.isEmpty && model.text == "hello")
+    #expect(model.refusal == .hostNotRunning && host.calls.isEmpty && model.text == "hello")
 }
 
 @MainActor @Test func aHostThatGoesAwayIsLoggedAndSaidInWords() async {
@@ -309,7 +309,7 @@ private func cleanRepo(_ folder: String) -> WorkspaceInfo {
     await model.choose(folder: "/w/api")
     model.text = "hello"
     #expect(await model.send() == nil)
-    #expect(model.refusal == "The chat host is not answering" && logged.count == 1)
+    #expect(model.refusal == .hostNotAnswering && logged.count == 1)
 }
 
 @Test func theClientOpensWithThePlanInsideJSONStringsAndReadsTheNewId() async throws {
@@ -365,7 +365,7 @@ private func cleanRepo(_ folder: String) -> WorkspaceInfo {
 
 @MainActor @Test func aFolderTheHostWillNotReadIsSaidInWordsAndTheDraftStillWorksInIt() async {
     let host = FakeChat()
-    host.refuse["workspace"] = ControlError.remote("That folder is inside Carrier's own folders")
+    host.refuse["workspace"] = ControlError.remote(.words("That folder is inside Carrier's own folders"))
     let model = await draft(host)
     await model.choose(folder: "/w/api")
     #expect(model.workspaceProblem == "That folder is inside Carrier's own folders" && model.workspace == nil)
@@ -395,7 +395,7 @@ private func cleanRepo(_ folder: String) -> WorkspaceInfo {
     await model.useWorktree(true)
     await model.rollName()
     #expect(model.worktreeName == "keen-ghost-char" && model.nameState == .free)
-    host.refuse["suggestName"] = ControlError.remote("Every name that was tried (50) is already taken; type one instead")
+    host.refuse["suggestName"] = ControlError.remote(.words("Every name that was tried (50) is already taken; type one instead"))
     await model.rollName()
     #expect(model.nameState == .problem("Every name that was tried (50) is already taken; type one instead") && model.canSend == false)
 }
@@ -465,7 +465,7 @@ private func cleanRepo(_ folder: String) -> WorkspaceInfo {
     await model.fetchNow()
     #expect(model.picker(query: "")?.remote.map(\.name) == ["origin/main", "origin/new"] && model.fetchProblem == nil)
     #expect(model.startBranch == "origin/main", "a pick survives the fetch")
-    host.refuse["fetch"] = ControlError.remote("The fetch of origin failed")
+    host.refuse["fetch"] = ControlError.remote(.words("The fetch of origin failed"))
     await model.fetchNow()
     #expect(model.fetchProblem == "The fetch of origin failed" && model.fetching == false)
 }
@@ -555,13 +555,13 @@ private func cleanRepo(_ folder: String) -> WorkspaceInfo {
 
 @MainActor @Test func aRefusedWorktreeIsSaidInTheDraftAndKeepsTheMessageAndTheChoice() async {
     let host = FakeChat()
-    host.refuse["open"] = ControlError.remote("A folder for that worktree already exists")
+    host.refuse["open"] = ControlError.remote(.words("A folder for that worktree already exists"))
     let model = await draft(host)
     await model.choose(folder: "/w/api")
     await model.useWorktree(true)
     model.text = "hello"
     #expect(await model.send() == nil)
-    #expect(model.refusal == "A folder for that worktree already exists" && model.text == "hello" && model.worktree && model.worktreeName == "brave-marine-aiur")
+    #expect(model.refusal?.text == "A folder for that worktree already exists" && model.text == "hello" && model.worktree && model.worktreeName == "brave-marine-aiur")
 }
 
 @MainActor @Test func choosingAnotherFolderStartsTheWorktreeChoiceOver() async {
@@ -625,8 +625,8 @@ private func cleanRepo(_ folder: String) -> WorkspaceInfo {
     #expect(try await host.workspace("/somewhere/else").git == false)
     #expect(try await host.fetch("/Users/dev/carrier", ifStale: false).fetchedAt == 1_792_007_200_000)
     #expect(try await host.fetch("/Users/dev/carrier", ifStale: true).branches.first?.behind == 12, "the fixture host takes ifStale and answers as a current one")
-    await #expect(throws: ControlError.remote("That folder is not a git repository")) { try await host.fetch("/Users/dev/notes", ifStale: true) }
-    await #expect(throws: ControlError.remote("The fetch of origin failed")) { try await host.fetch("/Users/dev/work/web", ifStale: true) }
+    await #expect(throws: ControlError.remote(Refusal(code: "workspace.notGit", text: "That folder is not a git repository"))) { try await host.fetch("/Users/dev/notes", ifStale: true) }
+    await #expect(throws: ControlError.remote(Refusal(code: "workspace.fetchFailed", text: "The fetch of origin failed"))) { try await host.fetch("/Users/dev/work/web", ifStale: true) }
     #expect(try await host.suggestName("/Users/dev/carrier") == "brave-marine-aiur")
     #expect(try await host.suggestName("/Users/dev/carrier") == "keen-ghost-char")
     #expect(try await host.checkName("/Users/dev/carrier", "fix-login") == NameCheck(valid: true, free: false, reason: "A branch called carrier/fix-login already exists"))
@@ -643,13 +643,13 @@ private func cleanRepo(_ folder: String) -> WorkspaceInfo {
     #expect(made.workspace == ChatSession.Workspace(base: "/Users/dev/carrier", branch: "carrier/my-fix", from: "origin/main") && made.folder.hasSuffix("/my-fix"))
     #expect(try await host.events(id, after: 0, limit: 10).events.map(\.kind) == ["step", "step", "user"])
     // refused as the host does
-    await #expect(throws: ControlError.remote("The branch to start from is not one this repository lists")) {
+    await #expect(throws: ControlError.remote(Refusal(code: "worktree.startNotListed", text: "The branch to start from is not one this repository lists"))) {
         try await host.open(plan: plan("/Users/dev/carrier", WorktreeRequest(from: "nope", name: "x")))
     }
-    await #expect(throws: ControlError.remote("A branch called carrier/fix-login already exists")) {
+    await #expect(throws: ControlError.remote(Refusal(code: "worktree.name.branchExists", text: "A branch called carrier/fix-login already exists"))) {
         try await host.open(plan: plan("/Users/dev/carrier", WorktreeRequest(from: "main", name: "fix-login")))
     }
-    await #expect(throws: ControlError.remote("Worktrees need a git repository")) {
+    await #expect(throws: ControlError.remote(Refusal(code: "worktree.notGit", text: "Worktrees need a git repository"))) {
         try await host.open(plan: plan("/Users/dev/notes", WorktreeRequest(from: "main")))
     }
 }
@@ -919,7 +919,7 @@ private func projectsRoot(_ names: [String]) throws -> String {
 
 @MainActor @Test func aRepositoryThatGitHubWillNotListStillWorksOnItsDefaultBranchAndSaysWhy() async {
     let host = FakeChat()
-    host.refuse["repoBranches"] = ControlError.remote("GitHub could not be reached; check the network connection")
+    host.refuse["repoBranches"] = ControlError.remote(.words("GitHub could not be reached; check the network connection"))
     let model = await chosenDraft(host)
     await model.choose(repo: "AshuLab/carrier")
     #expect(model.workspaceProblem == "GitHub could not be reached; check the network connection" && model.workspace == nil && model.offersWorktree == false)
@@ -1138,7 +1138,7 @@ private func listed(_ id: String, _ stage: String) -> ChatSession {
 @MainActor @Test func aRepositoryTheEngineRefusedToApplyIsInTheListAndTheNoteSaysWhatTheEngineAnswered() async {
     let config = FakeConfig()
     let host = FakeChat()
-    let model = await sentForRepo(host, config: config, reload: { .refused("repos.1.name: bad") })
+    let model = await sentForRepo(host, config: config, reload: { .refused(.words("repos.1.name: bad")) })
     host.active = [listed(opened, "answered")]
     await settle { model.watchNotes[opened] != nil }
     #expect(configRepoNames(json: config.json ?? Data()) == ["acme/web", "AshuLab/carrier"])
@@ -1421,7 +1421,7 @@ private func agentHealth(_ states: [String: ToolState]) -> HostHealth {
     let store = HealthStore(host: host, log: { lines.append($0) })
     await store.check(.open)
     let answered = store.latest
-    host.refuse["health"] = ControlError.remote("boom")
+    host.refuse["health"] = ControlError.remote(.words("boom"))
     await store.check(.refresh)
     #expect(lines == ["health: boom"] && store.latest == answered && answered != nil)
 }
@@ -1973,7 +1973,7 @@ private let freshInfo = WorkspaceInfo(
 
 @MainActor @Test func aFetchThatCannotReachTheRemoteShowsNoErrorAndTheFooterSaysSoWithWhenItWasLastFetched() async {
     let host = fetchingHost()
-    host.refuse["fetch"] = ControlError.remote("The fetch of origin failed")
+    host.refuse["fetch"] = ControlError.remote(.words("The fetch of origin failed"))
     let model = await draft(host)
     await model.choose(folder: "/w/api")
     await model.refreshed()

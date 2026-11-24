@@ -191,6 +191,9 @@ public struct PanelEpic: Codable, Equatable, Sendable {
     public var resumeAt: Int?
     /// ms since epoch: when the retry of a running epic's `api_error` starts; absent when none waits (or on an engine that predates it).
     public var retryAt: Int?
+    /// The text code of `needsHumanReason` and its parameters; absent on an engine that predates the codes, which has the words only.
+    public var needsHumanCode: String?
+    public var needsHumanParams: [String: TextParam]?
 }
 
 /// Why a snapshot did not decode; `field` is the path of the offending value, like `epics.0.slices.total`.

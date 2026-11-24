@@ -212,15 +212,20 @@ public struct ProjectClone: Decodable, Equatable, Identifiable, Sendable {
     public let progress: String?
     /// Why a failed clone failed, in the host's words.
     public let error: String?
+    /// The text code and parameters of `error`; nil from a host that predates the codes.
+    public let code: String?
+    public let params: [String: TextParam]?
 
     public var id: String { repo.lowercased() }
 
-    public init(repo: String, folder: String, state: State, progress: String? = nil, error: String? = nil) {
+    public init(repo: String, folder: String, state: State, progress: String? = nil, error: String? = nil, code: String? = nil, params: [String: TextParam]? = nil) {
         self.repo = repo
         self.folder = folder
         self.state = state
         self.progress = progress
         self.error = error
+        self.code = code
+        self.params = params
     }
 }
 
@@ -387,53 +392,53 @@ extension ChatHost {
     }
 
     /// A host that cannot stop a subagent refuses; the app only asks one that lists `stopTask`.
-    public func stopTask(_ id: String, task: String) async throws { throw ControlError.remote("the chat host does not support stopTask") }
+    public func stopTask(_ id: String, task: String) async throws { throw ControlError.remote(.hostLacks("stopTask")) }
 
     /// A host that cannot prepare a session from a plan has nothing to try again.
-    public func retryPreparation(_ id: String) async throws { throw ControlError.remote("the chat host does not support retryPreparation") }
+    public func retryPreparation(_ id: String) async throws { throw ControlError.remote(.hostLacks("retryPreparation")) }
 
     /// A host that cannot prepare a session from a plan has nothing to cancel.
-    public func cancelPreparation(_ id: String) async throws -> SessionPlan? { throw ControlError.remote("the chat host does not support cancelPreparation") }
+    public func cancelPreparation(_ id: String) async throws -> SessionPlan? { throw ControlError.remote(.hostLacks("cancelPreparation")) }
 
     /// A host that cannot list an agent's options before a session says it lists none.
     public func agentOptions(_ agent: String) async throws -> AgentOffer { AgentOffer() }
 
     /// A host that cannot list the branches of a repository refuses; the app only asks one that lists `repoBranches`.
-    public func repoBranches(_ repo: String) async throws -> RepoBranches { throw ControlError.remote("the chat host does not support repoBranches") }
+    public func repoBranches(_ repo: String) async throws -> RepoBranches { throw ControlError.remote(.hostLacks("repoBranches")) }
 
     /// A host that has no projects requests says it is older and to restart it.
-    public func cloneProject(_ repo: String, into parent: String?) async throws -> ProjectClone { throw ControlError.remote(projectsNeedNewerHost) }
-    public func projectClones() async throws -> [ProjectClone] { throw ControlError.remote(projectsNeedNewerHost) }
-    public func projectWorktrees(_ folder: String) async throws -> ProjectWorktrees { throw ControlError.remote(projectsNeedNewerHost) }
-    public func projectDisk(_ folders: [String], refresh: ProjectDiskRefresh) async throws -> ProjectDiskReply { throw ControlError.remote(projectsNeedNewerHost) }
-    public func removeProjectWorktree(_ folder: String, path: String) async throws { throw ControlError.remote(projectsNeedNewerHost) }
-    public func cleanProjectWorktrees(_ folder: String, run: Bool) async throws -> ProjectCleanup { throw ControlError.remote(projectsNeedNewerHost) }
-    public func dismissClone(_ repo: String) async throws -> [ProjectClone] { throw ControlError.remote(projectsNeedNewerHost) }
-    public func newProject(_ name: String, into parent: String?) async throws -> String { throw ControlError.remote(projectsNeedNewerHost) }
+    public func cloneProject(_ repo: String, into parent: String?) async throws -> ProjectClone { throw ControlError.remote(.projectsNeedNewerHost) }
+    public func projectClones() async throws -> [ProjectClone] { throw ControlError.remote(.projectsNeedNewerHost) }
+    public func projectWorktrees(_ folder: String) async throws -> ProjectWorktrees { throw ControlError.remote(.projectsNeedNewerHost) }
+    public func projectDisk(_ folders: [String], refresh: ProjectDiskRefresh) async throws -> ProjectDiskReply { throw ControlError.remote(.projectsNeedNewerHost) }
+    public func removeProjectWorktree(_ folder: String, path: String) async throws { throw ControlError.remote(.projectsNeedNewerHost) }
+    public func cleanProjectWorktrees(_ folder: String, run: Bool) async throws -> ProjectCleanup { throw ControlError.remote(.projectsNeedNewerHost) }
+    public func dismissClone(_ repo: String) async throws -> [ProjectClone] { throw ControlError.remote(.projectsNeedNewerHost) }
+    public func newProject(_ name: String, into parent: String?) async throws -> String { throw ControlError.remote(.projectsNeedNewerHost) }
 
     /// A host that cannot say how the machine is refuses; the app only asks one that lists `health`.
-    public func health(refresh: Bool) async throws -> HostHealth { throw ControlError.remote("the chat host does not support health") }
+    public func health(refresh: Bool) async throws -> HostHealth { throw ControlError.remote(.hostLacks("health")) }
 
     /// A host that cannot list the AI tools refuses; the app only asks one that lists `providers`.
-    public func providers() async throws -> HostProviders { throw ControlError.remote("the chat host does not support providers") }
+    public func providers() async throws -> HostProviders { throw ControlError.remote(.hostLacks("providers")) }
 
     /// A host that cannot say what was used refuses; the app only asks one that lists `usage`.
-    public func usage(_ query: UsageQuery) async throws -> UsageSnapshot { throw ControlError.remote(usageNeedsNewerHost) }
+    public func usage(_ query: UsageQuery) async throws -> UsageSnapshot { throw ControlError.remote(.usageNeedsNewerHost) }
 
     /// A host that cannot price refuses; the app only asks one that lists `usageOverride`.
-    public func usageOverride(_ override: UsageOverride) async throws { throw ControlError.remote(usageNeedsNewerHost) }
+    public func usageOverride(_ override: UsageOverride) async throws { throw ControlError.remote(.usageNeedsNewerHost) }
 
     /// A host that cannot switch agents refuses; the app only asks one that lists `switchAgent`.
-    public func switchAgent(_ id: String, to agent: String) async throws -> AgentSwitch { throw ControlError.remote("the chat host does not support switchAgent") }
+    public func switchAgent(_ id: String, to agent: String) async throws -> AgentSwitch { throw ControlError.remote(.hostLacks("switchAgent")) }
 
     /// A host that cannot rename refuses; the app only asks one that lists `rename`.
-    public func rename(_ id: String, _ title: String) async throws { throw ControlError.remote("the chat host does not support rename") }
+    public func rename(_ id: String, _ title: String) async throws { throw ControlError.remote(.hostLacks("rename")) }
 
     /// A host that cannot write titles refuses; the app only asks one that lists `regenerateTitle`.
-    public func regenerateTitle(_ id: String) async throws -> String { throw ControlError.remote("the chat host does not support regenerateTitle") }
+    public func regenerateTitle(_ id: String) async throws -> String { throw ControlError.remote(.hostLacks("regenerateTitle")) }
 
     /// A host that cannot write earlier titles refuses; the app only asks one that lists `regenerateTitles`.
-    public func regenerateTitles() async throws -> Int { throw ControlError.remote("the chat host does not support regenerateTitles") }
+    public func regenerateTitles() async throws -> Int { throw ControlError.remote(.hostLacks("regenerateTitles")) }
 
     /// A host that knows no commands sends the text as it is.
     public func send(_ id: String, _ text: String, command: String?) async throws { try await send(id, text) }
@@ -540,8 +545,8 @@ public struct SocketChatHost: ChatHost {
 
     public func cloneProject(_ repo: String, into parent: String?) async throws -> ProjectClone {
         // the host's own limits (src/chat/server.ts): a repository as owner/name, and a parent that is not empty or over 4096 characters
-        guard isRepoName(repo) else { throw ControlError.remote("\"\(repo)\" is not a repository; write it as owner/name") }
-        if let parent, parent.isEmpty || parent.count > 4096 { throw ControlError.remote("That folder cannot be used") }
+        guard isRepoName(repo) else { throw ControlError.remote(.repoInvalid(repo)) }
+        if let parent, parent.isEmpty || parent.count > 4096 { throw ControlError.remote(.folderUnusable) }
         let fields = ",\"repo\":\(jsonString(repo))" + (parent.map { ",\"parent\":\(jsonString($0))" } ?? "")
         let path = socketPath()
         return try await Task.detached { try projectsRequest(path, "cloneProject", fields: fields) }.value
@@ -554,7 +559,7 @@ public struct SocketChatHost: ChatHost {
 
     public func projectWorktrees(_ folder: String) async throws -> ProjectWorktrees {
         // the host's own limit (src/chat/server.ts): a folder that is not empty or over 4096 characters
-        if folder.isEmpty || folder.count > 4096 { throw ControlError.remote("That folder cannot be used") }
+        if folder.isEmpty || folder.count > 4096 { throw ControlError.remote(.folderUnusable) }
         let fields = ",\"folder\":\(jsonString(folder))"
         let path = socketPath()
         return try await Task.detached { try projectsRequest(path, "projectWorktrees", fields: fields) }.value
@@ -571,7 +576,7 @@ public struct SocketChatHost: ChatHost {
 
     public func removeProjectWorktree(_ folder: String, path worktree: String) async throws {
         // the host's own limits (src/chat/server.ts): neither empty nor over 4096 characters
-        if folder.isEmpty || folder.count > 4096 || worktree.isEmpty || worktree.count > 4096 { throw ControlError.remote("That folder cannot be used") }
+        if folder.isEmpty || folder.count > 4096 || worktree.isEmpty || worktree.count > 4096 { throw ControlError.remote(.folderUnusable) }
         let fields = ",\"folder\":\(jsonString(folder)),\"path\":\(jsonString(worktree))"
         let path = socketPath()
         // git removes the folder with what it ignores (dependencies, builds), which can take a while
@@ -579,7 +584,7 @@ public struct SocketChatHost: ChatHost {
     }
 
     public func cleanProjectWorktrees(_ folder: String, run: Bool) async throws -> ProjectCleanup {
-        if folder.isEmpty || folder.count > 4096 { throw ControlError.remote("That folder cannot be used") }
+        if folder.isEmpty || folder.count > 4096 { throw ControlError.remote(.folderUnusable) }
         let fields = ",\"folder\":\(jsonString(folder))" + (run ? ",\"run\":true" : "")
         let path = socketPath()
         // the host measures each folder before it answers, and removing them one by one takes as long as each takes
@@ -595,7 +600,7 @@ public struct SocketChatHost: ChatHost {
     public func newProject(_ name: String, into parent: String?) async throws -> String {
         // the host's own limits (src/chat/server.ts): a plain folder name, and a parent that is not empty or over 4096 characters
         if let refusal = projectNameProblem(name) { throw ControlError.remote(refusal) }
-        if let parent, parent.isEmpty || parent.count > 4096 { throw ControlError.remote("That folder cannot be used") }
+        if let parent, parent.isEmpty || parent.count > 4096 { throw ControlError.remote(.folderUnusable) }
         let fields = ",\"name\":\(jsonString(name))" + (parent.map { ",\"parent\":\(jsonString($0))" } ?? "")
         let path = socketPath()
         return try await Task.detached { (try projectsRequest(path, "newProject", fields: fields) as NewProjectReply).folder }.value
@@ -740,7 +745,7 @@ public struct SocketChatHost: ChatHost {
 
 /// Only a UUID goes on the wire as the session id, as the host accepts nothing else.
 private func wireId(_ id: String) throws -> String {
-    guard let id = UUID(uuidString: id)?.uuidString.lowercased() else { throw ControlError.remote("not a valid session id") }
+    guard let id = UUID(uuidString: id)?.uuidString.lowercased() else { throw ControlError.remote(.sessionIdInvalid) }
     return id
 }
 
@@ -933,7 +938,7 @@ func chatExchange<Reply: Decodable>(
     // fields only a host that lists their capability understands: an older one is not sent them
     let sent = fields + also.filter { client.capabilities.contains($0.capability) }.map(\.fields).joined()
     guard let reply = try client.request(command, requires: capability, fields: sent, as: Reply.self) else {
-        throw ControlError.remote("the chat host does not support \(command)")
+        throw ControlError.remote(.hostLacks(command))
     }
     return reply
 }
@@ -953,15 +958,15 @@ fileprivate func chatRequest<Reply: Decodable>(
 
 /// `chatRequest`, but a host that does not list the request is told in the words of what to do about it.
 fileprivate func usageRequest<Reply: Decodable>(_ path: String, _ command: String, requires capability: ControlClient.Capability, fields: String, timeout: TimeInterval = 5) throws -> Reply {
-    do { return try chatRequest(path, command, requires: capability, fields: fields, timeout: timeout) } catch ControlError.remote(let reason) where reason == "the chat host does not support \(command)" {
-        throw ControlError.remote(usageNeedsNewerHost)
+    do { return try chatRequest(path, command, requires: capability, fields: fields, timeout: timeout) } catch ControlError.remote(let reason) where reason.isHostLacking(command) {
+        throw ControlError.remote(.usageNeedsNewerHost)
     }
 }
 
 /// `chatRequest` for the `projects` capability, but a host that does not list it is told in the words of what to do about it.
 fileprivate func projectsRequest<Reply: Decodable>(_ path: String, _ command: String, fields: String = "", timeout: TimeInterval = 5) throws -> Reply {
-    do { return try chatRequest(path, command, requires: .projects, fields: fields, timeout: timeout) } catch ControlError.remote(let reason) where reason == "the chat host does not support \(command)" {
-        throw ControlError.remote(projectsNeedNewerHost)
+    do { return try chatRequest(path, command, requires: .projects, fields: fields, timeout: timeout) } catch ControlError.remote(let reason) where reason.isHostLacking(command) {
+        throw ControlError.remote(.projectsNeedNewerHost)
     }
 }
 

@@ -43,18 +43,20 @@ public func repoChecks(repo: String, roles: [RepoRoleRow], doctor: DoctorState) 
         }
         return RepoCheckRow(title: title, status: status, detail: found.detail, fix: found.fix, role: role)
     }
+    // a check that failed says what it is by the code of its detail; one that passed has none, and its name says it
+    func matches(_ code: String, _ suffix: String, _ check: DoctorCheck) -> Bool { check.detailCode == code || (check.detailCode == nil && check.name.hasSuffix(suffix)) }
     func signRow(_ role: AgentRole) -> RepoCheckRow {
         let profile = roles.first { $0.role == role }?.value.profile
         let found = checks.first { check in
-            check.name.hasSuffix(" can mint a token for \(repo)") && profile.map { check.profiles?.contains($0) == true } == true
+            matches("doctor.mintFailed", " can mint a token for \(repo)", check) && profile.map { check.profiles?.contains($0) == true } == true
         }
         return row("\(role.title) can sign here", role: role, found)
     }
     return RepoChecks(
         rows: [
-            row("Carrier can read it", checks.first { $0.name.hasSuffix(" can read \(repo)") }),
+            row("Carrier can read it", checks.first { matches("doctor.readFailed", " can read \(repo)", $0) }),
             signRow(.author), signRow(.reviewer),
-            row("Solve is set up", checks.first { $0.name == "\(repo) has the Solve labels" }),
+            row("Solve is set up", checks.first { matches("doctor.labelsMissing", " has the Solve labels", $0) }),
         ],
         note: note
     )

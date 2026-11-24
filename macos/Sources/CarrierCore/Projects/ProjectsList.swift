@@ -630,16 +630,16 @@ public let projectRemovalWords = "Its folder and its worktrees stay where they a
     /// `replacing` is the path of the project being pointed at `folder` (Locate…), which does not count as another. nil when it can; a file that does not
     /// read is left to the write, which says why.
     public func addRefusal(folder: String, replacing: String?) -> String? {
-        if let refusal = projectFolderRefusal(folder, carrierFolder: file.folder) { return refusal }
+        if let refusal = projectFolderRefusal(folder, carrierFolder: file.folder) { return refusal.text }
         let others = projectRows((try? file.read()) ?? [], remote: remote).filter { $0.path != replacing }
-        return worktreeClashRefusal(folder: folder, repo: remote(folder), among: others)
+        return worktreeClashRefusal(folder: folder, repo: remote(folder), among: others)?.text
     }
 
     /// Points the project at `path` to `folder`, its new place, after the check for folders that cannot be projects; everything else of the entry stays and
     /// so do the sessions that remember the old path. False when nothing was written: `failure` says why, or `problems` when the file does not match.
     @discardableResult public func locate(path: String, to folder: String) -> Bool {
         if let refusal = projectFolderRefusal(folder, carrierFolder: file.folder) {
-            failure = refusal
+            failure = refusal.text
             return false
         }
         if rows.contains(where: { $0.path != path && isSameFolder($0.path, folder) }) {

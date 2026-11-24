@@ -20,12 +20,12 @@ public func repoReference(_ text: String) -> String? {
 
 /// Why `name` is not a name the host takes for a new project, in words; nil when it is one plain folder name: letters, digits, `_`, `.`
 /// and `-`, at most a hundred, not starting with a dot or a dash (the host's own pattern, so a name it would refuse never goes out).
-public func projectNameProblem(_ name: String) -> String? {
+public func projectNameProblem(_ name: String) -> Refusal? {
     func word(_ c: Character) -> Bool { c.isASCII && (c.isLetter || c.isNumber || c == "_") }
-    guard let first = name.first else { return "Write a name" }
-    if name.count > 100 { return "A name has at most 100 characters" }
-    if word(first) == false { return "A name starts with a letter, a digit or _" }
-    if name.allSatisfy({ word($0) || $0 == "." || $0 == "-" }) == false { return "Use only letters, digits, _, . and -" }
+    guard let first = name.first else { return .projectNameEmpty }
+    if name.count > 100 { return .projectNameTooLong }
+    if word(first) == false { return .projectNameBadStart }
+    if name.allSatisfy({ word($0) || $0 == "." || $0 == "-" }) == false { return .projectNameBadCharacters }
     return nil
 }
 
@@ -60,11 +60,13 @@ private func ownCarrierFolders(carrierFolder: String) -> [(name: String, path: S
 
 /// Why `folder` cannot be the projects folder, in words; nil when it can. The host's own rule (src/chat/folder.ts): an absolute path
 /// that is not the Carrier folder's `engine` or the chat's own `state`, `logs`, `worktrees`, `pending` or `sessions`, or inside one, symlinks resolved.
-public func projectsFolderRefusal(_ folder: String, carrierFolder: String) -> String? {
-    guard folder.hasPrefix("/") else { return "The projects folder must be an absolute path" }
+public func projectsFolderRefusal(_ folder: String, carrierFolder: String) -> Refusal? {
+    guard folder.hasPrefix("/") else { return Refusal(code: "folder.projectsNotAbsolute", text: "The projects folder must be an absolute path") }
     let real = realOfNearest(folder)
     for (name, own) in ownCarrierFolders(carrierFolder: carrierFolder) {
-        if real == own || real.hasPrefix(own + "/") { return "That folder is inside Carrier's own \(name) folder; the chat never works there" }
+        if real == own || real.hasPrefix(own + "/") {
+            return Refusal(code: "folder.insideCarrier", params: ["folder": .string(name)], text: "That folder is inside Carrier's own \(name) folder; the chat never works there")
+        }
     }
     return nil
 }
@@ -102,23 +104,26 @@ private func isLinkedWorktree(_ folder: String) -> Bool {
 
 /// Why `folder` cannot be added as a project, in words; nil when it can. The host's `checkProjectFolder` rule (src/chat/folder.ts):
 /// an existing, readable folder that is not inside Carrier's own folders (symlinks resolved) and not a worktree linked to another project.
-public func projectFolderRefusal(_ folder: String, carrierFolder: String = currentCarrierFolder()) -> String? {
-    guard folder.hasPrefix("/") else { return "The folder must be an absolute path" }
+public func projectFolderRefusal(_ folder: String, carrierFolder: String = currentCarrierFolder()) -> Refusal? {
+    func refusal(_ code: String, _ text: String) -> Refusal { Refusal(code: code, text: text) }
+    guard folder.hasPrefix("/") else { return refusal("folder.notAbsolute", "The folder must be an absolute path") }
     guard let resolved = realpath(folder, nil) else {
-        return errno == EACCES || errno == EPERM ? "That folder cannot be read" : "That folder does not exist"
+        return errno == EACCES || errno == EPERM ? refusal("folder.unreadable", "That folder cannot be read") : refusal("folder.missing", "That folder does not exist")
     }
     let real = String(cString: resolved)
     free(resolved)
     var info = stat()
     guard stat(real, &info) == 0 else {
-        return errno == EACCES || errno == EPERM ? "That folder cannot be read" : "That folder does not exist"
+        return errno == EACCES || errno == EPERM ? refusal("folder.unreadable", "That folder cannot be read") : refusal("folder.missing", "That folder does not exist")
     }
-    guard (info.st_mode & S_IFMT) == S_IFDIR else { return "That path is not a folder" }
-    guard access(real, R_OK | X_OK) == 0 else { return "That folder cannot be read" }
+    guard (info.st_mode & S_IFMT) == S_IFDIR else { return refusal("folder.notDirectory", "That path is not a folder") }
+    guard access(real, R_OK | X_OK) == 0 else { return refusal("folder.unreadable", "That folder cannot be read") }
     for (name, own) in ownCarrierFolders(carrierFolder: carrierFolder) {
-        if real == own || real.hasPrefix(own + "/") { return "That folder is inside Carrier's own \(name) folder; a project cannot live there" }
+        if real == own || real.hasPrefix(own + "/") {
+            return Refusal(code: "folder.projectInsideCarrier", params: ["folder": .string(name)], text: "That folder is inside Carrier's own \(name) folder; a project cannot live there")
+        }
     }
-    if isLinkedWorktree(real) { return "That folder is a worktree linked to another project" }
+    if isLinkedWorktree(real) { return refusal("folder.linkedWorktree", "That folder is a worktree linked to another project") }
     return nil
 }
 
@@ -131,11 +136,15 @@ public func worktreeDirectory(folder: String, repo: String?) -> String {
 /// Why adding `folder` (whose GitHub `owner/name` is `repo`, if any) would clash with one of `projects`, in words naming it; nil when it would not. A clash is
 /// another project whose worktree directory is the same, compared without regard to case; the same folder is already a project, not a clash.
 /// The twin of `checkWorktreeClash` in src/chat/names.ts (ADR 0041).
-public func worktreeClashRefusal(folder: String, repo: String?, among projects: [ProjectRow]) -> String? {
+public func worktreeClashRefusal(folder: String, repo: String?, among projects: [ProjectRow]) -> Refusal? {
     let mine = worktreeDirectory(folder: folder, repo: repo)
     for project in projects where isSameFolder(project.path, folder) == false {
         let theirs = worktreeDirectory(folder: project.path, repo: project.repo)
-        if theirs.lowercased() == mine.lowercased() { return "The worktrees of \(project.name) already use the folder \(theirs); two projects cannot share it" }
+        if theirs.lowercased() == mine.lowercased() {
+            return Refusal(
+                code: "worktree.folderShared", params: ["project": .string(project.name), "directory": .string(theirs)],
+                text: "The worktrees of \(project.name) already use the folder \(theirs); two projects cannot share it")
+        }
     }
     return nil
 }
@@ -202,7 +211,7 @@ public func saveProjectsFolder(
     func refused(_ reason: String) -> String {
         "\(reason). The projects folder stays \(currentPath)."
     }
-    if let problem = projectsFolderRefusal(folder, carrierFolder: carrierFolder) { return refused(problem) }
+    if let problem = projectsFolderRefusal(folder, carrierFolder: carrierFolder) { return refused(problem.text) }
     let json: Data?
     do { json = try readChatConfig() } catch {
         log("could not read chat.json: \(error)")

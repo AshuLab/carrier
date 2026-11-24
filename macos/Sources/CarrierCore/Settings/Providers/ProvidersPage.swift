@@ -41,6 +41,9 @@ public struct HostProviders: Decodable, Equatable {
     public struct Problem: Decodable, Equatable {
         public let path: String
         public let message: String
+        /// The text code and parameters of `message`; nil from a host that predates the codes.
+        public let code: String?
+        public let params: [String: TextParam]?
 
         /// The message with the key it is about, unless the message already names it.
         public var text: String { message.contains(path) ? message : "\(path): \(message)" }

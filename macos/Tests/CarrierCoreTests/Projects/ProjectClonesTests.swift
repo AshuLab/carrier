@@ -107,9 +107,9 @@ private func temporaryFolder() throws -> String {
     let folder = try temporaryFolder()
     defer { try? FileManager.default.removeItem(atPath: folder) }
     let host = CloneHost()
-    host.failure = ControlError.remote("acme/web is already a project")
+    host.failure = ControlError.remote(.words("acme/web is already a project"))
     let model = ProjectsModel(host: host, file: ProjectsFile(folder: folder)) { _ in nil }
-    await #expect(throws: ControlError.remote("acme/web is already a project")) { try await model.startClone("acme/web", into: nil) }
+    await #expect(throws: ControlError.remote(.words("acme/web is already a project"))) { try await model.startClone("acme/web", into: nil) }
     #expect(model.cloneRows.isEmpty)
 }
 
@@ -182,9 +182,9 @@ private func temporaryFolder() throws -> String {
     let folder = try temporaryFolder()
     defer { try? FileManager.default.removeItem(atPath: folder) }
     let host = CloneHost()
-    host.failure = ControlError.remote("mine is already a project; choose another name")
+    host.failure = ControlError.remote(.words("mine is already a project; choose another name"))
     let model = ProjectsModel(host: host, file: ProjectsFile(folder: folder)) { _ in nil }
-    await #expect(throws: ControlError.remote("mine is already a project; choose another name")) { _ = try await model.createProject("mine", into: nil) }
+    await #expect(throws: ControlError.remote(.words("mine is already a project; choose another name"))) { _ = try await model.createProject("mine", into: nil) }
     #expect(model.rows.isEmpty)
 }
 

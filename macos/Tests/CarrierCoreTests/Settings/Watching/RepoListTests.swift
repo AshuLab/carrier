@@ -186,7 +186,7 @@ private func temporaryConfig(_ data: Data = file) throws -> String {
 }
 
 @Test func aRefusedChangeOrAnInvalidConfigIsAnOrangeProblemOnTheRow() throws {
-    let refused = projectWatchRow(repo: "a/web", repos: ["a/web"], state: .running(try running()), canReload: true, outcome: .refused("repos.0.name: bad"), failure: nil)
+    let refused = projectWatchRow(repo: "a/web", repos: ["a/web"], state: .running(try running()), canReload: true, outcome: .refused(.words("repos.0.name: bad")), failure: nil)
     #expect(refused.problem == "Saved, but Carrier kept its settings: repos.0.name: bad")
     let failed = projectWatchRow(repo: "a/web", repos: [], state: .running(try running()), canReload: true, outcome: nil, failure: "other/web has the same folder name as a/web; Solve's worktree paths have no owner")
     #expect(failed.problem?.hasPrefix("other/web has the same folder name") == true)

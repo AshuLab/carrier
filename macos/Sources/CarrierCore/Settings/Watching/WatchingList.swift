@@ -49,19 +49,20 @@ public struct RefusalBanner: Equatable {
     public var fixTitle: String? { fix.map { "Open \($0.rawValue)" } }
 }
 
-/// The banner for the engine's `reason` (its `Invalid config <file>: <path>: <message>`). A failover step of a role that the engine refuses is told in words and sent
-/// to Agents, where it is mended; any other reason is shown as the engine says it.
-public func refusalBanner(_ reason: String) -> RefusalBanner {
-    guard let regex = try? NSRegularExpression(pattern: #"failover\.roles\.(author|reviewer|leadReviewer)\.(\d+)"#),
-        let found = regex.firstMatch(in: reason, range: NSRange(reason.startIndex..., in: reason)),
-        let roleRange = Range(found.range(at: 1), in: reason), let stepRange = Range(found.range(at: 2), in: reason)
-    else { return RefusalBanner(detail: nil, raw: reason, fix: nil) }
-    let role = ["author": "Author", "reviewer": "Reviewer", "leadReviewer": "Lead reviewer"][String(reason[roleRange])] ?? String(reason[roleRange])
-    let step = (Int(reason[stepRange]) ?? 0) + 1
+/// The banner for the engine's refusal of the saved file. A `config.problem` about a failover step of a role is told in words, from its `path` and `problem`,
+/// and sent to Agents, where it is mended; any other refusal is shown as the engine says it.
+public func refusalBanner(_ reason: Refusal) -> RefusalBanner {
+    let path = reason.params["path"]?.text.split(separator: ".").map(String.init) ?? []
+    guard reason.has("config.problem"), path.count == 4, path[0] == "failover", path[1] == "roles", let index = Int(path[3]) else {
+        return RefusalBanner(detail: nil, raw: reason.text, fix: nil)
+    }
+    let role = ["author": "Author", "reviewer": "Reviewer", "leadReviewer": "Lead reviewer"][path[2]] ?? path[2]
     let what: String? =
-        if reason.contains("is the role's own provider and model") { "is the same provider and model as the \(role) itself, so it would move nowhere" }
-        else if reason.contains("repeats another step") { "repeats another step of its list" }
-        else if reason.contains("is not declared in providers") { "uses a provider that is not declared in providers" }
-        else { nil }
-    return RefusalBanner(detail: what.map { "The \(role)'s failover step \(step) \($0)." }, raw: reason, fix: .agents)
+        switch reason.params["problem"]?.text {
+        case "stepOwnRole": "is the same provider and model as the \(role) itself, so it would move nowhere"
+        case "stepRepeated": "repeats another step of its list"
+        case "providerNotDeclared": "uses a provider that is not declared in providers"
+        default: nil
+        }
+    return RefusalBanner(detail: what.map { "The \(role)'s failover step \(index + 1) \($0)." }, raw: reason.text, fix: .agents)
 }

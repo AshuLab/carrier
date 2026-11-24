@@ -822,7 +822,7 @@ private func preview(_ id: String, _ worktree: SessionDeletePreview.Worktree?) -
 
 @MainActor @Test func aRefusalIsReturnedInWordsAndNothingChanges() async {
     let host = FakeHost()
-    host.refuse["a"] = ControlError.remote("This session is working; interrupt or close it first, then archive it")
+    host.refuse["a"] = ControlError.remote(.words("This session is working; interrupt or close it first, then archive it"))
     let actions = SessionActions(host: host, log: { _ in })
     var changed = 0
     actions.changed = { changed += 1 }
@@ -835,7 +835,7 @@ private func preview(_ id: String, _ worktree: SessionDeletePreview.Worktree?) -
         SessionRow(id: id, title: id, workspace: "w", agent: "claude", state: .idle, updatedAt: Date(timeIntervalSince1970: 0), archived: archived)
     }
     let host = FakeHost()
-    host.refuse["no"] = ControlError.remote("This session is working")
+    host.refuse["no"] = ControlError.remote(.words("This session is working"))
     let actions = SessionActions(host: host, log: { _ in })
     var said = 0
     actions.archivingChanged = { said += 1 }
@@ -885,7 +885,7 @@ private func preview(_ id: String, _ worktree: SessionDeletePreview.Worktree?) -
 @MainActor @Test func aHostThatDoesNotAnswerIsLoggedAndSaidAndARefusalIsNotLogged() async {
     let host = FakeHost()
     host.refuse["a"] = ControlError.closed
-    host.refuse["b"] = ControlError.remote("unknown session")
+    host.refuse["b"] = ControlError.remote(.words("unknown session"))
     var logged: [String] = []
     let actions = SessionActions(host: host, log: { logged.append($0) })
     #expect(await actions.delete("a") == "The chat host is not answering")
@@ -902,7 +902,7 @@ private func preview(_ id: String, _ worktree: SessionDeletePreview.Worktree?) -
 
 @MainActor @Test func clearKeepsGoingPastARefusalAndSaysHowManyWentAndWhy() async {
     let host = FakeHost()
-    host.refuse["b"] = ControlError.remote("This session was resumed meanwhile; close it first")
+    host.refuse["b"] = ControlError.remote(.words("This session was resumed meanwhile; close it first"))
     let actions = SessionActions(host: host, log: { _ in })
     let said = await actions.clear(["a", "b", "c"])
     #expect(host.changes == ["delete a", "delete b", "delete c"])
@@ -945,12 +945,12 @@ private func preview(_ id: String, _ worktree: SessionDeletePreview.Worktree?) -
     #expect(try await host.list(archived: false).count == 17)
     try await host.archive(idle, false)
     #expect(try await host.list(archived: true).count == 2)
-    await #expect(throws: ControlError.remote("This session is working; interrupt or close it first, then archive it")) { try await host.archive(working, true) }
+    await #expect(throws: ControlError.remote(.words("This session is working; interrupt or close it first, then archive it"))) { try await host.archive(working, true) }
     let old = "d4e5f6a7-3b2c-4d9e-8f1a-2b3c4d5e6f04"
     try await host.delete(old)
     #expect(try await host.list(archived: true).map(\.id) == ["e5f6a7b8-4c3d-4e0f-9a2b-3c4d5e6f7a05"])
-    await #expect(throws: ControlError.remote("unknown session")) { try await host.delete(old) }
-    await #expect(throws: ControlError.remote("not a valid session id")) { try await host.delete("../x") }
+    await #expect(throws: ControlError.remote(.words("unknown session"))) { try await host.delete(old) }
+    await #expect(throws: ControlError.remote(.sessionIdInvalid)) { try await host.delete("../x") }
 }
 
 @MainActor @Test func aConversationOfAnArchivedSessionIsReadOnlyAndGetsItsBoxBackWhenRestored() async throws {
@@ -1037,7 +1037,7 @@ private func freshPreferences() -> AppPreferences { AppPreferences(defaults: Use
     let host = FakeHost()
     var logged: [String] = []
     let actions = SessionActions(host: host, preferences: freshPreferences(), log: { logged.append($0) })
-    host.previewError = ControlError.remote("There is no such session")
+    host.previewError = ControlError.remote(.words("There is no such session"))
     #expect(await actions.confirmDelete(row("a", "t")) == .refused("There is no such session"))
     #expect(logged.isEmpty)
     host.previewError = ControlError.closed
@@ -1047,14 +1047,14 @@ private func freshPreferences() -> AppPreferences { AppPreferences(defaults: Use
 
 @MainActor @Test func aWorktreeThatCannotBeRemovedRefusesTheDeleteInWordsAndTheSessionStays() async {
     let host = FakeHost()
-    host.refuse["a"] = ControlError.remote("The worktree could not be removed: it is in use by another process")
+    host.refuse["a"] = ControlError.remote(.words("The worktree could not be removed: it is in use by another process"))
     let actions = SessionActions(host: host, log: { _ in })
     var changed = 0
     actions.changed = { changed += 1 }
     #expect(await actions.delete("a") == "The worktree could not be removed: it is in use by another process")
     #expect(changed == 0)
     // in Clear sessions it is the first refusal that is told, with how many went
-    host.refuse["b"] = ControlError.remote("The worktree could not be removed: it is in use by another process")
+    host.refuse["b"] = ControlError.remote(.words("The worktree could not be removed: it is in use by another process"))
     #expect(await actions.clear(["a", "b", "c"]) == "Deleted 1 of 3 archived sessions. The worktree could not be removed: it is in use by another process")
     #expect(changed == 1)
 }
@@ -1070,8 +1070,8 @@ private func freshPreferences() -> AppPreferences { AppPreferences(defaults: Use
         SessionDeletePreview(sessionId: worktreeSession, worktree: .init(path: "/Users/dev/.carrier/worktrees/web/fix-login", branch: "carrier/fix-login", dirty: 2, unpushed: 1)),
         SessionDeletePreview(sessionId: baseSession, worktree: nil),
     ])
-    await #expect(throws: ControlError.remote("There is no such session")) { try await host.deletePreview([baseSession, "3f2b6a52-8f5e-4a63-9d5b-0a1d2c3e4f50"]) }
-    await #expect(throws: ControlError.remote("not a valid session id")) { try await host.deletePreview(["../x"]) }
+    await #expect(throws: ControlError.remote(.words("There is no such session"))) { try await host.deletePreview([baseSession, "3f2b6a52-8f5e-4a63-9d5b-0a1d2c3e4f50"]) }
+    await #expect(throws: ControlError.remote(.sessionIdInvalid)) { try await host.deletePreview(["../x"]) }
 }
 
 // When the clock deletes an archived session, and why a kept one is still there.

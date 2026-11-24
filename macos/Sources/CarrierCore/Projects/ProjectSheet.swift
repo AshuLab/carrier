@@ -125,8 +125,8 @@ public enum RepoCheck: Equatable, Sendable {
 /// What the sheet says in orange for a repository the login cannot see.
 public let repoNotVisibleLine = "Your GitHub login can't see this repository. Check the name, or sign in with another account."
 
-/// Whether a host refusal of `repoBranches` says the repository is not there for this login (the words of src/chat/projects.ts, `notFoundSentence`).
-public func isRepoNotVisible(_ refusal: String) -> Bool { refusal.hasSuffix("was not found, or your GitHub login cannot see it") }
+/// Whether a host refusal of `repoBranches` says the repository is not there for this login.
+public func isRepoNotVisible(_ refusal: Refusal) -> Bool { refusal.has("github.repoNotFound") }
 
 /// What the sheet knows of GitHub: the person's repositories as the host listed them, what was checked of a pasted one, and where a clone goes.
 public struct ProjectSheetGithub: Equatable, Sendable {
@@ -409,7 +409,7 @@ public struct NewProjectForm: Equatable, Sendable {
     /// folder (`taken` says whether a folder or a project is). nil while nothing is typed and when the name can be used; the host checks both again.
     public func problem(taken: (String) -> Bool) -> String? {
         guard name.isEmpty == false else { return nil }
-        if let refusal = projectNameProblem(name) { return refusal }
+        if let refusal = projectNameProblem(name) { return refusal.text }
         return taken(folder) ? "\(name) is already a project; choose another name" : nil
     }
 

@@ -672,8 +672,8 @@ private struct ProjectDetailView: View {
                 try model.deleteFromDisk(path: row.path, worktrees: folders)
                 close()
             }
-        } catch ControlError.remote(let words) {
-            deletionAsk = DeletionAsk(title: "\(row.name) was not deleted", message: words)
+        } catch ControlError.remote(let refusal) {
+            deletionAsk = DeletionAsk(title: "\(row.name) was not deleted", message: refusal.text)
         } catch let error as ProjectTrashError {
             deletionAsk = DeletionAsk(title: "\(row.name) was not deleted", message: error.words)
         } catch {
@@ -760,8 +760,8 @@ private struct ProjectDetailView: View {
             worktreesProblem = nil
             // measuring what Clean up takes walks the folders, so only a project with a merged worktree asks
             cleanup = listed.worktrees.contains { $0.state == .merged } ? try? await model.cleanUpWorktrees(of: row.path, run: false) : nil
-        } catch ControlError.remote(let words) {
-            worktreesProblem = words
+        } catch ControlError.remote(let refusal) {
+            worktreesProblem = refusal.text
         } catch {
             worktreesProblem = "The chat host did not answer."
         }
@@ -775,8 +775,8 @@ private struct ProjectDetailView: View {
             try await model.removeWorktree(path, of: row.path)
             removeProblems[path] = nil
             cleanUpNote = nil
-        } catch ControlError.remote(let words) {
-            removeProblems[path] = words
+        } catch ControlError.remote(let refusal) {
+            removeProblems[path] = refusal.text
         } catch {
             removeProblems[path] = "The chat host did not answer."
         }
@@ -792,8 +792,8 @@ private struct ProjectDetailView: View {
         do {
             cleanUpNote = cleanUpReport(try await model.cleanUpWorktrees(of: row.path, run: true))
             removeProblems = [:]
-        } catch ControlError.remote(let words) {
-            cleanUpNote = words
+        } catch ControlError.remote(let refusal) {
+            cleanUpNote = refusal.text
         } catch {
             cleanUpNote = "The chat host did not answer."
         }

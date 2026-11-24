@@ -4,7 +4,7 @@ public enum ControlError: Error, Equatable {
     case closed
     case timeout
     case badLine
-    case remote(String)
+    case remote(Refusal)
 }
 
 /// The one protocol number this app speaks; a hello's is compared with it only through `protocolMatch`.
@@ -14,11 +14,14 @@ public enum ProtocolMatch: Equatable {
     case match, carrierOlder, appOlder
 
     /// What to tell the person when the protocols differ: which side to update and with which command; nil when they match.
-    public var update: String? {
+    public var update: String? { refusal?.text }
+
+    /// The same, with its code.
+    var refusal: Refusal? {
         switch self {
         case .match: nil
-        case .carrierOlder: "carrier is older than this app. Run brew upgrade carrier in Terminal, then restart Carrier."
-        case .appOlder: "This app is older than carrier. It updates itself; if it has not, run brew upgrade --cask carrier in Terminal, then open the app again."
+        case .carrierOlder: .carrierOlder
+        case .appOlder: .appOlder
         }
     }
 }
@@ -118,7 +121,7 @@ public final class ControlClient {
     /// `hello`, but throws the sentence that says which side to update when the protocols differ, so nothing is sent after it.
     public func supportedHello() throws -> Hello {
         let hello = try hello()
-        if let update = protocolMatch(hello.protocolVersion).update { throw ControlError.remote(update) }
+        if let refusal = protocolMatch(hello.protocolVersion).refusal { throw ControlError.remote(refusal) }
         return hello
     }
 
@@ -187,14 +190,14 @@ public final class ControlClient {
         let id = reply["id"] as? Int
         // an error with no id can only be about this one
         guard id == lastId || (id == nil && reply["ok"] as? Bool == false) else { return nil }
-        guard reply["ok"] as? Bool == true else { throw ControlError.remote(reply["error"] as? String ?? "unknown error") }
+        guard reply["ok"] as? Bool == true else { throw ControlError.remote(Refusal.read(reply)) }
         guard let data = reply["data"] else { return Data("null".utf8) }
         return try JSONSerialization.data(withJSONObject: data, options: .fragmentsAllowed)
     }
 
     /// The last `lines` meaningful lines of an execution's output. Only a UUID goes on the wire, as Carrier accepts nothing else.
     public func tail(executionId: String, lines: Int) throws -> [String] {
-        guard let id = UUID(uuidString: executionId)?.uuidString.lowercased() else { throw ControlError.remote("not a valid execution id") }
+        guard let id = UUID(uuidString: executionId)?.uuidString.lowercased() else { throw ControlError.remote(.executionInvalid) }
         let data = try request("tail", fields: ",\"executionId\":\"\(id)\",\"lines\":\(lines)")
         guard let output = try JSONSerialization.jsonObject(with: data, options: .fragmentsAllowed) as? [String] else { throw ControlError.badLine }
         return output

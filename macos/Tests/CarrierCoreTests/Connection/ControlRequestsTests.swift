@@ -37,7 +37,7 @@ private func connect(_ engine: FixtureEngine) throws -> ControlClient {
     defer { engine.stop() }
     let client = try connect(engine)
 
-    #expect(throws: ControlError.remote("internal error")) { try client.epic(repo: "acme/web", issue: 12) }
+    #expect(throws: ControlError.remote(.words("internal error"))) { try client.epic(repo: "acme/web", issue: 12) }
     #expect(client.capabilities == [.sessions, .events, .files])
     // not asked again, and the others still answer
     #expect(try client.epic(repo: "acme/web", issue: 12) == nil)
@@ -76,9 +76,9 @@ func aRepoThatIsNotOwnerSlashNameIsRefusedBeforeItIsSent(repo: String) throws {
     defer { engine.stop() }
     let client = try connect(engine)
 
-    #expect(throws: ControlError.remote("not a valid epic")) { try client.epic(repo: repo, issue: 1) }
-    #expect(throws: ControlError.remote("not a valid epic")) { try client.sessions(repo: repo, issue: 1) }
-    #expect(throws: ControlError.remote("not a valid epic")) { try client.files(repo: repo, issue: 1) }
+    #expect(throws: ControlError.remote(.epicInvalid)) { try client.epic(repo: repo, issue: 1) }
+    #expect(throws: ControlError.remote(.epicInvalid)) { try client.sessions(repo: repo, issue: 1) }
+    #expect(throws: ControlError.remote(.epicInvalid)) { try client.files(repo: repo, issue: 1) }
     #expect(engine.commands.isEmpty)
     #expect(client.capabilities.count == 4)
 }
@@ -148,7 +148,7 @@ func aRepoThatIsNotOwnerSlashNameIsRefusedBeforeItIsSent(repo: String) throws {
     let engine = FixtureEngine(capabilities: ["reload"], fail: ["reload"])
     defer { engine.stop() }
     let client = try connect(engine)
-    #expect(throws: ControlError.remote("internal error")) { try client.reload() }
+    #expect(throws: ControlError.remote(.words("internal error"))) { try client.reload() }
     #expect(client.capabilities == [.reload])
 }
 
@@ -159,7 +159,7 @@ func aRepoThatIsNotOwnerSlashNameIsRefusedBeforeItIsSent(repo: String) throws {
 
     let refusing = FixtureEngine(capabilities: ["reload"], fail: ["reload"])
     defer { refusing.stop() }
-    #expect(reloadEngine(socketPath: refusing.path) == .refused("internal error"))
+    #expect(reloadEngine(socketPath: refusing.path) == .refused(.words("internal error")))
 }
 
 @Test func anEngineThatSaysHelloAndThenLeavesIsOneThatDidNotAnswerAndIsNotTakenForOneThatApplied() {
@@ -167,7 +167,7 @@ func aRepoThatIsNotOwnerSlashNameIsRefusedBeforeItIsSent(repo: String) throws {
     let leaving = TestServer { $0.send(hello) }
     defer { leaving.stop() }
     #expect(reloadEngine(socketPath: leaving.path) == .noAnswer)
-    #expect(reloadWords(.noAnswer) != nil && reloadWords(.refused("x")) == "Saved, but Carrier kept its settings: x")
+    #expect(reloadWords(.noAnswer) != nil && reloadWords(.refused(.words("x"))) == "Saved, but Carrier kept its settings: x")
     #expect(reloadWords(.applied) == nil && reloadWords(.nobody) == nil)
 }
 

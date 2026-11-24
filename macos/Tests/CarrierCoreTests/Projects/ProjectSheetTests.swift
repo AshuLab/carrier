@@ -264,9 +264,11 @@ private let myRepos = [
     // one in the person's own listing is seen by that login, whatever an old check said
     let listed = projectSheetState(mode: .settings, query: "acme/web", recent: [], projects: [], github: github(myRepos, visibility: ["acme/web": .notVisible]), home: "/Users/ana")
     #expect(listed.firstResult?.isEnabled == true)
-    // the words of the host's refusal are what tell this one from a failure of gh
-    #expect(isRepoNotVisible("acme/secret was not found, or your GitHub login cannot see it"))
-    #expect(isRepoNotVisible("gh is not signed in to GitHub; run \"gh auth login\"") == false)
+    // the code of the host's refusal tells this one from a failure of gh, whatever the words say
+    #expect(isRepoNotVisible(Refusal(code: "github.repoNotFound", params: ["repo": "acme/secret"], text: "other words")))
+    #expect(isRepoNotVisible(Refusal(code: "github.notSignedIn", text: "acme/secret was not found, or your GitHub login cannot see it")) == false)
+    // no code, no decision: the words are not read
+    #expect(isRepoNotVisible(.words("acme/secret was not found, or your GitHub login cannot see it")) == false)
 }
 
 @Test func aMissingOrSignedOutGhShowsTheHostsOwnWordsAndCloneIsOff() {

@@ -1424,11 +1424,12 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     return acted;
   }
 
-  // With several reviewers, a slot whose failure already settled it with no verdict on the round's head (`reviewer_no_verdict`), or whose head the round moved past,
-  // has nothing to recover: stopping or failing it over again would count a recovery at every poll until the epic stops in `engine_error`.
+  // With several reviewers, a slot whose failure already settled it with no verdict on the round's head (`reviewer_no_verdict`), whose head the round moved past, or whose last run
+  // is of an earlier round, has nothing to recover: stopping or failing it over again would count a recovery at every poll until the epic stops in `engine_error`.
   const settledWithoutVerdict = (epic: Epic, last: Execution) => {
     const slot = slotOf(last);
     if (epic.stage !== 'review' || epic.round === null || slot === null || roundSlots(epic.config).length < 2) return false;
+    if (last.round !== null && last.round !== epic.round) return true; // the slot's last run is of an earlier round: this round has none of it yet, `launchRound` makes it, and a stop is not recovered from that row
     if (last.headSha === null) return false;
     return deadHeads(epic).has(last.headSha) || roundNones(db, epic, { round: epic.round, headSha: last.headSha }).some((none) => none.slot === slot);
   };

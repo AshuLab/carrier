@@ -6479,6 +6479,21 @@ test('a slot that already settled with no verdict on the round\'s head is not re
   expect(noVerdictOf(engine.db).map((n) => n.slot)).toEqual(['reviewer-2']);
 });
 
+test('a slot whose last execution failed in an earlier round is not recovered from that row: the slot is launched for the round the epic is at', async () => {
+  const db = open();
+  inReview(db, { round: 2 });
+  reviewRow(db, 'r1', 'reviewer', { status: 'finished', round: 2, startedAt: 3 });
+  db.insert(callerResults).values({ executionId: 'r1', outcome: 'completed', result: JSON.stringify({ summary: 's' }) }).run();
+  reviewRow(db, 'r2', 'reviewer-2', { status: 'failed', error: null, failureKind: 'usage_limit', failureDetail: 'resets 12:40pm', round: 1, startedAt: 2, finishedAt: 2 });
+  db.insert(epicEvents).values({ epicId: 1, at: 2, type: 'reviewer_no_verdict', data: { round: 1, headSha: SHA, none: { slot: 'reviewer-2', kind: 'usage_limit', why: 'out of quota' } } }).run();
+  runner.behavior = () => ({ exit: 'hang' });
+  const engine = await start(1);
+
+  expect(runner.tasks.filter((t) => t.stage === 'review').map((t) => t.reviewer)).toEqual(['reviewer-2']); // launched for round 2, not stopped again on round 1's failure
+  expect(eventsOf(engine.db).filter((e) => e.type === 'reviewer_no_verdict').map((e) => (e.data as { round: number }).round)).toEqual([1]); // nothing recorded under round 2
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'review', round: 2 });
+});
+
 test('an epic with one reviewer relaunches the review whose result stands in the round, as it did before the slots', async () => {
   const db = open();
   inReview(db, {}, repos[0]!);

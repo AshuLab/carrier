@@ -181,6 +181,11 @@ private func decode<T: Decodable>(_ json: String, as type: T.Type = T.self) thro
     #expect(null.slices[0].prState == nil && null.slices[0].prMergedAt == nil)
 }
 
+/// A needs_human epic with only the fields `PanelEpic` requires, then `extra`.
+private func epicJSON(_ extra: String) -> String {
+    #"{"repo":"a/b","issue":1,"status":"needs_human","stage":"fix","round":1,"maxReviews":5,"blockers":0,"stageSince":1,"issueUrl":"u""# + extra + "}"
+}
+
 @Test func theTextsNodeSendsDecodeTheirCodeAndParamsAndAGoldenWrittenBeforeTheCodesStillDecodes() throws {
     let check: DoctorCheck = try decode(#"{"name":"x","status":"fail","detail":"d","detailCode":"doctor.mintFailed","detailParams":{"error":"d","n":2},"fix":"f","fixCode":"doctor.fix.skill","fixParams":{"skill":"s"}}"#)
     #expect(check.detailCode == "doctor.mintFailed" && check.detailParams == ["error": "d", "n": 2] && check.fixCode == "doctor.fix.skill" && check.fixParams == ["skill": "s"])
@@ -196,6 +201,11 @@ private func decode<T: Decodable>(_ json: String, as type: T.Type = T.self) thro
     #expect(quota.messageCode == "usage.probe.failed" && quota.messageParams == [:])
     let oldQuota: UsageQuota = try decode(#"{"account":"a","provider":"claude","status":"error","message":"m"}"#)
     #expect(oldQuota.messageCode == nil && oldQuota.message == "m")
+
+    let epic: PanelEpic = try JSONDecoder().decode(PanelEpic.self, from: Data(epicJSON(#","needsHumanReason":"review limit","needsHumanCode":"epic.stop.reviewLimit","needsHumanParams":{"round":5,"cap":5}"#).utf8))
+    #expect(epic.needsHumanCode == "epic.stop.reviewLimit" && epic.needsHumanParams == ["round": 5, "cap": 5])
+    let oldEpic: PanelEpic = try JSONDecoder().decode(PanelEpic.self, from: Data(epicJSON(#","needsHumanReason":"review limit""#).utf8))
+    #expect(oldEpic.needsHumanCode == nil && oldEpic.needsHumanParams == nil && oldEpic.needsHumanReason == "review limit")
 
     let problem: HostProviders.Problem = try decode(#"{"path":"accounts.0","message":"m","code":"providers.keyInvalid","params":{"path":"accounts.0"}}"#)
     #expect(problem.code == "providers.keyInvalid" && problem.params == ["path": "accounts.0"])

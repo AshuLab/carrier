@@ -281,6 +281,20 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"", protocol vers
     #expect(reply.state == .preparing && reply.preparation == .running && reply.progress == "Receiving objects: 45%")
 }
 
+@Test func aStepAndACloneDecodeTheirCodeAndParamsAndOnesWithoutStillDecode() throws {
+    let step = #"{"events":[{"id":1,"at":5,"kind":"step","step":"clone","status":"failed","detail":"d","code":"session.prepare.cloneFailed","params":{"repo":"a/b"}}],"cursor":1,"streaming":"","session":{"state":"idle"}}"#
+    let event = try JSONDecoder().decode(ChatEvents.self, from: Data(step.utf8)).events[0]
+    #expect(event.code == "session.prepare.cloneFailed" && event.params == ["repo": "a/b"])
+    let old = #"{"events":[{"id":1,"at":5,"kind":"step","step":"clone","status":"failed","detail":"d"}],"cursor":1,"streaming":"","session":{"state":"idle"}}"#
+    let oldEvent = try JSONDecoder().decode(ChatEvents.self, from: Data(old.utf8)).events[0]
+    #expect(oldEvent.code == nil && oldEvent.params == nil && oldEvent.detail == "d")
+
+    let clone = try JSONDecoder().decode(ProjectClone.self, from: Data(#"{"repo":"a/b","folder":"/f","state":"failed","error":"e","code":"folder.cloneFailed","params":{"n":1}}"#.utf8))
+    #expect(clone.code == "folder.cloneFailed" && clone.params == ["n": 1])
+    let oldClone = try JSONDecoder().decode(ProjectClone.self, from: Data(#"{"repo":"a/b","folder":"/f","state":"failed","error":"e"}"#.utf8))
+    #expect(oldClone.code == nil && oldClone.params == nil && oldClone.error == "e")
+}
+
 @Test func aHostThatLeavesTheNewFieldsOutOrSaysNullStillDecodes() throws {
     let bare = #"{"events":[],"cursor":0,"streaming":"","session":{"state":"idle"}}"#
     let reply = try JSONDecoder().decode(ChatEvents.self, from: Data(bare.utf8))

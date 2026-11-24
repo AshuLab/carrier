@@ -18,20 +18,25 @@ export type RoundDecision =
   /** No slot gave a verdict: each one's reason. */
   | { kind: 'failed'; none: NoVerdict[] }
   | { kind: 'changes_requested' }
+  /** Every verdict is a completed review, but a slot that asked for changes in an earlier round gave none in this one: its blockers are still open, so the round is not agreement. */
+  | { kind: 'open_blockers'; none: NoVerdict[] }
   /** Every verdict is a completed review: the observations of all, each with its slot, and the mandatory reviewer's verification (the first slot's). */
   | { kind: 'completed'; observations: (Finding & { slot: Slot })[]; verification: Extract<Verdicts, { outcome: 'completed' }>['verification'] };
 
 /**
  * What a review round comes to, from the verdicts and the slots with no verdict it has on its head, a pure function of the stored rows (ADR 0048).
  * It waits while a slot has neither; a slot with no verdict is absent, and with none at all the round failed. Any verdict that asks for changes asks for them,
- * and only when every verdict is a completed review is the round agreed.
+ * and only when every verdict is a completed review is the round agreed, unless a slot with no verdict still has blockers open from an earlier round (`open`):
+ * its silence is not agreement, and the round is not decided (a fix goes ahead, as it answers them too, when another slot asks for changes).
  */
-export function decideRound(slots: Slot[], verdicts: Verdict[], none: NoVerdict[] = []): RoundDecision {
+export function decideRound(slots: Slot[], verdicts: Verdict[], none: NoVerdict[] = [], open: Slot[] = []): RoundDecision {
   if (!slots.every((slot) => verdicts.some((v) => v.slot === slot) || none.some((n) => n.slot === slot))) return { kind: 'waiting' };
   const given = slots.flatMap((slot) => verdicts.findLast((v) => v.slot === slot) ?? []);
   if (given.length === 0) return { kind: 'failed', none: slots.map((slot) => none.findLast((n) => n.slot === slot)!) };
   const completed = given.flatMap(({ slot, result }) => (result.outcome === 'completed' ? [{ slot, result }] : []));
   if (completed.length < given.length) return { kind: 'changes_requested' };
+  const silent = slots.filter((slot) => open.includes(slot) && !given.some((v) => v.slot === slot));
+  if (silent.length > 0) return { kind: 'open_blockers', none: silent.map((slot) => none.findLast((n) => n.slot === slot)!) };
   return { kind: 'completed', observations: completed.flatMap(({ slot, result }) => (result.observations ?? []).map((o) => ({ ...o, slot }))), verification: completed[0]!.result.verification };
 }
 

@@ -1,17 +1,17 @@
-import { and, asc, eq, inArray, ne, sql } from 'drizzle-orm';
+import { and, asc, eq, gte, inArray, ne, sql } from 'drizzle-orm';
 import type { CallerResult } from '../execution/caller-result.ts';
 import { callerResults } from '../storage/caller-results.ts';
 import type { Db } from '../storage/db.ts';
 import { executions, slotOf, type Slot } from '../storage/executions.ts';
 
 /** The newest review of each slot, in the order they came: the ones that gave a verdict only, or (`any`) whatever its outcome but an answer that it cannot conclude (a reviewer with no verdict is absent), a review of a head that moved included. */
-function lastReviews(db: Db, epicId: number, any = false) {
+function lastReviews(db: Pick<Db, 'select'>, epicId: number, any = false, since: number | null = null) {
   const last = new Map<Slot, { outcome: string; result: CallerResult }>(); // the outcome is the column's: a result of a head that moved keeps its own in the JSON
   for (const row of db
     .select({ reviewer: executions.reviewer, outcome: callerResults.outcome, result: callerResults.result })
     .from(callerResults)
     .innerJoin(executions, eq(executions.executionId, callerResults.executionId))
-    .where(and(eq(executions.epicId, epicId), eq(executions.stage, 'review'), any ? ne(callerResults.outcome, 'needs_human') : inArray(callerResults.outcome, ['changes_requested', 'completed'])))
+    .where(and(eq(executions.epicId, epicId), eq(executions.stage, 'review'), ...(since === null ? [] : [gte(executions.startedAt, since)]), any ? ne(callerResults.outcome, 'needs_human') : inArray(callerResults.outcome, ['changes_requested', 'completed'])))
     .orderBy(asc(sql`executions.rowid`))
     .all()) {
     last.set(slotOf({ stage: 'review', reviewer: row.reviewer })!, { outcome: row.outcome, result: JSON.parse(row.result) as CallerResult });
@@ -27,6 +27,11 @@ export function latestBlockers(db: Db, epicId: number, { slot, tagged = false }:
   return [...lastReviews(db, epicId)]
     .filter(([reviewer]) => slot === undefined || reviewer === slot)
     .flatMap(([reviewer, { outcome, result }]) => (outcome === 'changes_requested' ? (result as Extract<CallerResult, { outcome: 'changes_requested' }>).blockers.map((blocker) => (tagged ? { ...blocker, reviewer } : blocker)) : []));
+}
+
+/** The slots whose latest review of the epic's current attempt asked for changes: the ones whose blockers are still open, whether or not they gave a verdict since. */
+export function openBlockerSlots(db: Pick<Db, 'select'>, epic: { id: number; startedAt: number | null }): Slot[] {
+  return [...lastReviews(db, epic.id, false, epic.startedAt ?? Number.MAX_SAFE_INTEGER)].flatMap(([slot, { outcome }]) => (outcome === 'changes_requested' ? [slot] : []));
 }
 
 /**

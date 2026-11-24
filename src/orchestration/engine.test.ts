@@ -23,6 +23,7 @@ import { executions } from '../storage/executions.ts';
 import { failureStreak } from './retry.ts';
 import { callerResults } from '../storage/caller-results.ts';
 import { latestBlockers } from './blockers.ts';
+import { buildPrompt } from '../prompts/build-prompt.ts';
 import { FakeClock, FakeGitHub, FakeQuota } from './fake.ts';
 import { AuthError, GitHubRejected, GitHubUnavailable, type EpicSlice, type PullRequestBlock, type ReviewThread } from './github.ts';
 import { epicReviewThreads } from '../storage/epic-review-threads.ts';
@@ -6927,6 +6928,72 @@ test('an epic with one reviewer records no round event: nothing new for it', asy
   const engine = await roundOf(verdictBy({ reviewer: ok }), { config: repos[0]! });
 
   expect(roundsDecidedOf(engine.db)).toEqual([]);
+});
+
+// --- a reviewer whose blockers are still open and who gives no verdict is not agreement (ADR 0048) ---
+
+const toHead2 = (task: AgentTask) => (pull(50, { headSha: HEAD2 }), fixDone(task, HEAD2));
+// Round 1 is `first`, any later round `later`: each a map of the verdict of its slot.
+const inRounds = (first: Record<string, (task: AgentTask) => Behavior>, later: Record<string, (task: AgentTask) => Behavior>) => (task: AgentTask) => bySlot(task.context.round === 1 ? first : later)(task);
+
+test('a reviewer that asked for changes and gives no verdict in a later round keeps its blockers open: with every verdict that came completed the epic stops in reviewers_failed naming it, and no fix runs', async () => {
+  const engine = await roundOf(inRounds({ reviewer: gives(ok), 'reviewer-2': gives(asks('use the helper', 'B1')) }, { reviewer: gives(ok), 'reviewer-2': cannotConclude }), { fix: toHead2 });
+
+  expect(runner.tasks.map((t) => t.stage)).toEqual(['ship', 'review', 'review', 'fix', 'review', 'review']);
+  const row = rows(engine.db)[0]!;
+  expect(row).toMatchObject({ status: 'needs_human', needsHumanKind: 'reviewers_failed', round: 2 });
+  expect(row.needsHumanReason).toContain('reviewer-2 asked for changes before, its blockers are still open, and it gave no verdict (cannot verify)');
+  expect(row.needsHumanReason).not.toContain('reviewer:');
+  expect(labelsOf(1)).toEqual(['carrier:status:needs-human']);
+});
+
+test('the reviewer with open blockers that goes silent also stops the round when the others\' verdicts carry observations, which are not passed to the author', async () => {
+  const engine = await roundOf(inRounds({ reviewer: gives(ok), 'reviewer-2': gives(asks('use the helper', 'B1')) }, { reviewer: gives({ ...ok, observations: [{ title: 'rename' }] }), 'reviewer-2': cannotConclude }), { fix: toHead2 });
+
+  expect(runner.tasks.filter((t) => t.stage === 'fix')).toHaveLength(1);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'reviewers_failed' });
+});
+
+test('a reviewer with no verdict whose blockers are not open (it completed or never asked) does not stop the round', async () => {
+  const engine = await roundOf(inRounds({ reviewer: gives(asks('first')), 'reviewer-2': gives(ok) }, { reviewer: gives(ok), 'reviewer-2': cannotConclude }), { fix: toHead2 });
+
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'ready_for_test', reviewedSha: HEAD2 });
+});
+
+test('when another reviewer asks for changes the fix goes ahead, and its list includes the blockers still open of the reviewer that gave none', async () => {
+  const engine = await roundOf(
+    inRounds({ reviewer: gives(ok), 'reviewer-2': gives(asks('use the helper', 'B1')) }, { reviewer: gives(asks('rename it', 'N1')), 'reviewer-2': cannotConclude }),
+    { fix: toHead2, maxReviews: 5 },
+  );
+
+  const [, secondFix] = runner.tasks.filter((t) => t.stage === 'fix');
+  expect(secondFix!.context.blockers).toEqual([{ id: 'N1', title: 'rename it', reviewer: 'reviewer' }, { id: 'B1', title: 'use the helper', reviewer: 'reviewer-2' }]);
+  expect(rows(engine.db)[0]).not.toMatchObject({ needsHumanKind: 'reviewers_failed' });
+});
+
+test('two reviewers whose blockers have no id: the author sees each under its reviewer, each reviewer is given its own by title, and one that no longer lists it has it resolved', async () => {
+  await roundOf(
+    inRounds({ reviewer: gives(asks('first finding')), 'reviewer-2': gives(asks('second finding')) }, { reviewer: gives(asks('first finding')), 'reviewer-2': gives(ok) }),
+    { fix: toHead2 },
+  );
+
+  const [firstFix, secondFix] = runner.tasks.filter((t) => t.stage === 'fix');
+  expect(firstFix!.context.blockers).toEqual([{ title: 'first finding', reviewer: 'reviewer' }, { title: 'second finding', reviewer: 'reviewer-2' }]);
+  const round2 = runner.tasks.filter((t) => t.stage === 'review' && t.context.round === 2);
+  expect(round2.map((t) => [t.reviewer, t.context.blockers])).toEqual([['reviewer', [{ title: 'first finding' }]], ['reviewer-2', [{ title: 'second finding' }]]]);
+  expect(secondFix!.context.blockers).toEqual([{ title: 'first finding', reviewer: 'reviewer' }]);
+  expect(buildPrompt(firstFix!)).toContain('- reviewer: first finding\n- reviewer-2: second finding');
+});
+
+test('every reviewer reads the summaries of the rounds before in its next round, the author\'s on a contradiction included', async () => {
+  await roundOf(
+    inRounds({ reviewer: gives({ ...asks('a'), summary: 'reviewer round 1' }), 'reviewer-2': gives({ ...asks('b'), summary: 'reviewer-2 round 1' }) }, { reviewer: gives(ok), 'reviewer-2': gives(ok) }),
+    { fix: (task) => (pull(50, { headSha: HEAD2 }), { write: result(task, { outcome: 'completed', summary: 'did not follow reviewer-2:B1, it contradicts reviewer:B1', pr: { number: 50, headSha: HEAD2 }, verification: { ci: 'absent', evidence: 'ok' } }) }) },
+  );
+
+  for (const task of runner.tasks.filter((t) => t.stage === 'review' && t.context.round === 2)) {
+    expect(task.context.previousSummaries.slice(0, 3)).toEqual(['reviewer round 1', 'reviewer-2 round 1', 'did not follow reviewer-2:B1, it contradicts reviewer:B1']);
+  }
 });
 
 // Two reviewers on two accounts: the mandatory one on `spare`, the extra one on `claude`.

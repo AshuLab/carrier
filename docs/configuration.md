@@ -292,13 +292,17 @@ The lead reviewer is not run yet.
 - The profile and the provider of each extra reviewer must be declared, and the steps of its `failover` are checked like those of `failover.roles` (a provider that is not declared, a step repeated, a step equal to the reviewer's own provider and model), each refused naming its path.
 - Give each reviewer a profile of its own, a bot for each.
   Every reviewer publishes its comments on the pull request with its own account, so with one bot per reviewer the pull request shows who said what, and a reviewer re-reviewing never takes another's open threads for its own.
-  A profile may be shared, since the id of each blocker, not the account, tells reviewers apart, but then the comments of several reviewers come from one login.
+  Reviewers may share a profile, with each other or with the author: what tells their blockers apart is the reviewer's prefix on the blocker's id (`reviewer-2:B1`), never the account that wrote the comment, and a blocker with no `id` is told apart by its title and the same prefix.
+  The comments of reviewers that share a profile come from one login, so each is told to judge only the blockers it is given and to leave the review threads it did not open; a profile for each reviewer is still the advice, because then the pull request itself shows who said what.
+- When the blockers of two reviewers contradict each other the author decides and says in its summary which one it did not follow and why; the reviewers read the summaries of the earlier rounds in their next round, and the epic has no stop for a contradiction.
 
 Two kinds of stop belong to this, each with its optional label under `labels.reasons` (see [Labels](#labels)) and a line in `carrier status` and in the app:
 
 - `reviewers_failed`: a review round with several reviewers ended with no verdict at all.
   The reason names each reviewer and why it failed.
   A round whose every failure was a usage limit stops in `usage_limit` instead, so it wakes by itself when `limits.autoResume` is on; `reviewers_failed` never wakes by itself.
+  It also stops an epic whose round has only completed verdicts but a reviewer that asked for changes in an earlier round gave none in this one: its blockers are still open, so the round is not agreement, and the reason names that reviewer.
+  If another reviewer does ask for changes the fix goes ahead instead, with the blockers still open of the reviewer that gave none among its own.
   An epic with one reviewer never stops in it.
 - `lead_limit`: the lead reviewer asked for changes in each of the `limits.maxLeadRounds` reviews of its exchange with the author.
 

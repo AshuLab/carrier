@@ -6212,3 +6212,159 @@ test('no label is written for a repo that left the config, whatever the status o
   expect(touched.filter((call) => call.endsWith('AshuLab/a') && /setLabels|createLabel|listLabels/.test(call))).toEqual([]);
   expect(rows(db).every((e) => e.labelPending)).toBe(true);
 });
+
+// --- the slots of a review: what is of the epic reads as of the slot (ADR 0048) ---
+
+// An epic with the mandatory reviewer and one extra: the extra reviewers are kept by the saved configuration, which the config of the slice that reads them fills.
+const extraReviewer = { profile: 'c', option: 'o', harness: 'codex' as const, model: 'm' };
+const twoReviewers = (over: Partial<EffectiveRepoConfig> = {}): EffectiveRepoConfig => ({ ...repos[0]!, agents: { ...agents, extraReviewers: [extraReviewer] } as EffectiveRepoConfig['agents'], ...over });
+const inReview = (db: Db, extra: Partial<typeof epics.$inferInsert> = {}, config = twoReviewers()) => {
+  seedEpic(db, 1, { stage: 'review', round: 1, prNumber: 50, prHeadSha: SHA, config, ...extra });
+  pull(50);
+};
+const reviewRow = (db: Db, executionId: string, reviewer: 'reviewer' | 'reviewer-2', extra: Partial<typeof executions.$inferInsert> = {}) =>
+  seedExecution(db, executionId, 1, { stage: 'review', reviewer, round: 1, headSha: SHA, ...extra });
+const apiFailure = { status: 'failed' as const, error: 'boom', failureKind: 'api_error' as const };
+const retriedSlots = () => runner.tasks.map((t) => t.reviewer);
+
+test('a review execution is stored with its slot, the task carries it, and ship and fix carry none', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50);
+  runner.behavior = (task) => (task.stage === 'ship' ? { write: completed(task) } : { exit: 'hang' });
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(runner.tasks).toHaveLength(2));
+
+  expect(runner.tasks.map((t) => [t.stage, t.reviewer])).toEqual([['ship', undefined], ['review', 'reviewer']]);
+  expect(executionsOf(engine.db).map((e) => [e.stage, e.reviewer])).toEqual([['ship', null], ['review', 'reviewer']]);
+});
+
+test('two slots whose failures are seeded retry each on its own wait, the epic shows the earliest due time, and a restart of the engine finds each', async () => {
+  const db = open();
+  inReview(db, { retryAt: 5 * MIN + 20_000 });
+  reviewRow(db, 'r1', 'reviewer', { ...apiFailure, startedAt: 5 * MIN - 10_000, finishedAt: 5 * MIN - 10_000 }); // due 20 s after the first poll
+  reviewRow(db, 'r2', 'reviewer-2', { ...apiFailure, startedAt: 5 * MIN - 5_000, finishedAt: 5 * MIN }); // due 30 s after it
+  runner.behavior = () => ({ exit: 'hang' });
+  const engine = await start(1); // the engine starts on a database that has the failures: nothing in memory knows them
+  await clock.advance(5 * MIN);
+  expect(runner.tasks).toHaveLength(0);
+
+  await clock.advance(20_000 - 1);
+  await flush();
+  expect(runner.tasks).toHaveLength(0);
+  await clock.advance(1);
+  await vi.waitFor(() => expect(retriedSlots()).toEqual(['reviewer']));
+  expect(rows(engine.db)[0]).toMatchObject({ retryAt: 5 * MIN + 30_000 }); // what is left waiting is the other slot's
+
+  await clock.advance(10_000);
+  await vi.waitFor(() => expect(retriedSlots()).toEqual(['reviewer', 'reviewer-2']));
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', retryAt: null });
+  expect(runner.tasks.map((t) => t.resumeSession)).toEqual(['s-r1', 's-r2']);
+  expect(executionsOf(engine.db).map((e) => [e.executionId === 'r1' || e.executionId === 'r2' ? e.executionId : 'retry', e.reviewer])).toEqual([['r1', 'reviewer'], ['r2', 'reviewer-2'], ['retry', 'reviewer'], ['retry', 'reviewer-2']]);
+});
+
+test('the failover of a slot reads the options that ran out in its own executions: another slot running out on an option does not take it from this one', async () => {
+  const claude = { harness: 'claude' as const, model: 'opus' };
+  const codex = { harness: 'codex' as const, model: 'gpt' };
+  const config = twoReviewers({
+    providers: { claude, codex } as any,
+    failover: { roles: { reviewer: [{ provider: 'claude' }] } },
+    agents: { author: { profile: 'a', option: 'claude', ...claude }, reviewer: { profile: 'b', option: 'codex', ...codex }, extraReviewers: [{ ...extraReviewer, option: 'claude', ...claude }] } as EffectiveRepoConfig['agents'],
+  });
+  const db = open();
+  inReview(db, {}, config);
+  reviewRow(db, 'r2', 'reviewer-2', { status: 'failed', failureKind: 'usage_limit', option: 'claude', model: 'opus', startedAt: 1 }); // the extra reviewer ran out on claude
+  reviewRow(db, 'r1', 'reviewer', { status: 'failed', failureKind: 'usage_limit', option: 'codex', model: 'gpt', startedAt: 2 });
+  runner.behavior = () => ({ exit: 'hang' });
+  await start(1);
+
+  // Read by the epic, claude had run out and no step would be left; read by the slot, claude is the next step of the mandatory reviewer.
+  await vi.waitFor(() => expect(runner.tasks).toHaveLength(1));
+  expect(runner.tasks[0]).toMatchObject({ stage: 'review', reviewer: 'reviewer', option: 'claude' });
+});
+
+test('the quota probe and the wake-up read the slot: the options another slot ran out of are not asked, and the epic wakes on the option that came back', async () => {
+  const lazy = { harness: 'codex' as const, model: 'gpt', configDir: '/cfg/spare' };
+  const eager = { harness: 'claude' as const, model: 'opus', configDir: '/cfg/claude' };
+  const config = twoReviewers({
+    providers: { claude: eager, spare: lazy } as any,
+    agents: { author: { profile: 'a', option: 'claude', ...eager }, reviewer: { profile: 'b', option: 'spare', ...lazy }, extraReviewers: [{ ...extraReviewer, option: 'claude', ...eager }] } as EffectiveRepoConfig['agents'],
+  });
+  const db = open();
+  inReview(db, { status: 'needs_human', needsHumanKind: 'usage_limit', needsHumanReason: 'ran out', resumeAt: MIN, config });
+  reviewRow(db, 'r1', 'reviewer', { status: 'failed', failureKind: 'usage_limit', option: 'spare', model: 'gpt', configDir: '/cfg/spare', harness: 'codex', startedAt: 1 });
+  reviewRow(db, 'r2', 'reviewer-2', { status: 'failed', failureKind: 'usage_limit', option: 'claude', model: 'opus', configDir: '/cfg/claude', harness: 'claude', startedAt: 2 }); // the epic's newest
+  fakeQuota.snapshots['/cfg/spare'] = back('codex');
+  fakeQuota.snapshots['/cfg/claude'] = full('claude', 9 * HOUR);
+  runner.behavior = () => ({ exit: 'hang' });
+  await start(1, [config]);
+  settings = { ...settings, autoResume: true };
+  await clock.advance(5 * MIN);
+
+  expect(fakeQuota.asked).toEqual([{ provider: 'codex', configDir: '/cfg/spare' }]);
+  expect(eventsOf(db).filter((e) => e.type === 'auto_resumed').map((e) => e.data)).toMatchObject([{ stage: 'review', option: 'spare' }]);
+  await vi.waitFor(() => expect(runner.tasks.at(-1)).toMatchObject({ stage: 'review', reviewer: 'reviewer', option: 'spare' }));
+});
+
+test('a restart recovers each review slot from its own last execution: the slot whose agent was lost runs again, the one with a result is left alone', async () => {
+  const db = open();
+  inReview(db);
+  reviewRow(db, 'r1', 'reviewer', { status: 'finished', startedAt: 1 });
+  db.insert(callerResults).values({ executionId: 'r1', outcome: 'completed', result: JSON.stringify({ summary: 's' }) }).run();
+  reviewRow(db, 'r2', 'reviewer-2', { status: 'running', startedAt: 2 }); // its agent died with the engine
+  runner.behavior = () => ({ exit: 'hang' });
+  const engine = await start(1);
+
+  expect(runner.tasks.map((t) => [t.reviewer, t.resumeSession])).toEqual([['reviewer-2', 's-r2']]);
+  expect(statusOf(engine.db, 'r2')).toBe('interrupted');
+  expect(statusOf(engine.db, 'r1')).toBe('finished');
+  expect(executionsOf(engine.db).map((e) => e.reviewer)).toEqual(['reviewer', 'reviewer-2', 'reviewer-2']);
+});
+
+test('an epic with one reviewer relaunches the review whose result stands in the round, as it did before the slots', async () => {
+  const db = open();
+  inReview(db, {}, repos[0]!);
+  reviewRow(db, 'r1', 'reviewer', { status: 'finished', startedAt: 1 });
+  db.insert(callerResults).values({ executionId: 'r1', outcome: 'completed', result: JSON.stringify({ summary: 's' }) }).run();
+  runner.behavior = () => ({ exit: 'hang' });
+  await start(1);
+
+  expect(runner.tasks.map((t) => [t.stage, t.reviewer])).toEqual([['review', 'reviewer']]);
+});
+
+test('a restart recovers both slots when both lost their agent, each in its own session', async () => {
+  const db = open();
+  inReview(db);
+  reviewRow(db, 'r1', 'reviewer', { status: 'running', startedAt: 1 });
+  reviewRow(db, 'r2', 'reviewer-2', { status: 'running', startedAt: 2 });
+  runner.behavior = () => ({ exit: 'hang' });
+  await start(1);
+
+  expect(runner.tasks.map((t) => [t.reviewer, t.resumeSession])).toEqual([['reviewer', 's-r1'], ['reviewer-2', 's-r2']]);
+});
+
+test('a slot that ends well does not reset the recoveries, the automatic resumes and the last error while another slot is recovering from a failure', async () => {
+  const db = open();
+  inReview(db, { recoveries: 2, autoResumes: 1, lastError: 'boom' });
+  reviewRow(db, 'r2', 'reviewer-2', { ...apiFailure, failureDetail: 'HTTP 529', startedAt: 1, finishedAt: 1 });
+  reviewRow(db, 'r1', 'reviewer', { status: 'running', startedAt: 2 });
+  runner.behavior = (task) => ({ write: completed(task) });
+  const engine = await start(1);
+  await engine.idle();
+
+  expect(executionsOf(engine.db).find((e) => e.executionId === 'r1')).toMatchObject({ status: 'interrupted' });
+  const retried = executionsOf(engine.db).find((e) => e.reviewer === 'reviewer' && e.executionId !== 'r1')!;
+  expect(retried.status).toBe('finished');
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'ready_for_test', recoveries: 2, autoResumes: 1, lastError: 'boom' });
+});
+
+test('with no other slot failing, an execution that ends well resets them, as it does for one reviewer', async () => {
+  const db = open();
+  inReview(db, { recoveries: 2, autoResumes: 1, lastError: 'boom' });
+  reviewRow(db, 'r1', 'reviewer', { status: 'running', startedAt: 2 });
+  runner.behavior = (task) => ({ write: completed(task) });
+  const engine = await start(1);
+  await engine.idle();
+
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'ready_for_test', recoveries: 0, autoResumes: 0, lastError: null });
+});

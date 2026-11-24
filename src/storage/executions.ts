@@ -3,6 +3,13 @@ import { epics } from './schema.ts';
 
 export const executionStates = ['running', 'finished', 'failed', 'timed_out', 'interrupted', 'invalid_result'] as const;
 
+/** The slot of a review execution: the mandatory reviewer, up to three more, and the lead (ADR 0048). */
+export const reviewerSlots = ['reviewer', 'reviewer-2', 'reviewer-3', 'reviewer-4', 'lead'] as const;
+export type Slot = (typeof reviewerSlots)[number];
+
+/** The slot an execution or its task belongs to: null for the author (ship and fix), and a review with no slot written is the mandatory reviewer's. */
+export const slotOf = ({ stage, reviewer }: { stage: string; reviewer?: Slot | null }): Slot | null => reviewer ?? (stage === 'review' ? 'reviewer' : null);
+
 export const failureKinds = ['usage_limit', 'api_error', 'killed', 'crashed', 'spawn_error', 'auth', 'session_lost', 'timeout', 'invalid_result', 'unknown'] as const;
 
 /** Tokens and cost of one model's share of a run; costUsd is null when the CLI reported none. */
@@ -15,6 +22,7 @@ export const executions = sqliteTable('executions', {
   executionId: text().primaryKey(),
   epicId: integer().notNull().references(() => epics.id),
   stage: text({ enum: ['ship', 'review', 'fix'] }).notNull(),
+  reviewer: text({ enum: reviewerSlots }), // a review's slot; null for ship and fix, and on rows from before it was recorded (read as `reviewer`: see `slotOf`)
   status: text({ enum: executionStates }).notNull().default('running'),
   sessionId: text(), // saved as soon as the runner reports it, not when it ends
   // Why a technical failure ended it; set only for the ones the engine retries or stops for a person (auth_failed).

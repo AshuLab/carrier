@@ -197,3 +197,12 @@ test('a failure detail that holds a token and runs past 300 characters is served
   const [{ failure }] = (await ask(9)).reply.data.sessions;
   expect(failure.detail).toBe(`[redacted] ${'d'.repeat(300 - '[redacted] '.length)}`);
 });
+
+test('the session of an extra reviewer reads its agent and profile from the epic\'s saved configuration, and the reply names the role the app reads', async () => {
+  const extra = { ...agent, profile: 'x', harness: 'agy' as const, model: 'flash' };
+  const id = db.insert(epics).values({ repo: 'AshuLab/a', issue: 10, status: 'running', config: { ...config, agents: { ...config.agents, extraReviewers: [extra] } } as typeof config }).returning({ id: epics.id }).get().id;
+  execution(id, 1, { stage: 'review', reviewer: 'reviewer-2', status: 'running' }); // no agent recorded on the row: the saved configuration is where it is read
+  execution(id, 2, { stage: 'review', reviewer: 'reviewer', status: 'running' });
+  const { sessions } = (await ask(10)).reply.data;
+  expect(sessions.map((s: { role: string; profile: string; agent: { harness: string; model: string } }) => [s.role, s.profile, s.agent.harness, s.agent.model])).toEqual([['reviewer', 'r', 'codex', 'm'], ['reviewer', 'x', 'agy', 'flash']]);
+});

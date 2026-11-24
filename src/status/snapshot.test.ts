@@ -365,6 +365,18 @@ test('the stage lead is reported as review with a lead flag, never as lead, in t
   expect(renderPanel(s).join('\n')).toContain('#1'); // the terminal panel reads the same stage
 });
 
+test('the blockers of an epic in the lead\'s exchange are the lead\'s open ones, and the reviewers\' that were answered are not counted', () => {
+  const { id } = add(1, 'running', { stage: 'fix', round: 1, leadRound: 1, startedAt: 500, config: leadConfig });
+  const answer = (executionId: string, stage: 'review' | 'lead', outcome: string, result: object) => {
+    db.insert(executions).values({ epicId: id, stage, reviewer: stage === 'lead' ? 'lead' : 'reviewer', executionId, resultPath: '/r', startedAt: 0 }).run();
+    db.insert(callerResults).values({ executionId, outcome, result: JSON.stringify(result) }).run();
+  };
+  answer('r1', 'review', 'completed', { outcome: 'completed' });
+  answer('l1', 'lead', 'changes_requested', { blockers: [{ title: 'the rollback is untested' }] });
+
+  expect(snapshot().epics[0]).toMatchObject({ stage: 'fix', blockers: 1, blockerTitles: ['the rollback is untested'] });
+});
+
 test('the agent of the lead is listed with those of the epic, and only when the epic has one', () => {
   add(1, 'running', { stage: 'lead', config: leadConfig });
   add(2, 'running', { stage: 'review', config: severalConfig });

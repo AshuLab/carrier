@@ -103,7 +103,7 @@ The accounts the roles name (`claude` and `codex` here) are declared in `provide
 | `logLevel` | no | `info` | `debug`, `info`, `warn` or `error`. |
 | `limits.maxConcurrentEpics` | no | `3` | Epics running at the same time. |
 | `limits.maxReviews` | no | `5` | Review rounds before the epic goes to `needs-human`. |
-| `limits.maxLeadRounds` | no | `3` | A positive whole number: the reviews of the lead reviewer's exchange with the author before the epic goes to `needs-human` with the kind `lead_limit`. Zero, negatives, fractions and strings are refused. The engine does not read it yet. |
+| `limits.maxLeadRounds` | no | `3` | A positive whole number: the reviews of the lead reviewer's exchange with the author before the epic goes to `needs-human` with the kind `lead_limit`. Zero, negatives, fractions and strings are refused. It is read when the lead's answer is decided, so a change applies at the lead's next answer, and the lead's rounds do not count toward `maxReviews`. |
 | `limits.maxExecutionRetries` | no | `3` | Retries after a technical failure of an agent execution. |
 | `limits.maxExecutionHours` | no | `4` | Time limit of one agent execution, or `"unlimited"`. `0` does not mean infinite. |
 | `limits.githubCallTimeoutSeconds` | no | `30` | Limit for each short call to GitHub or Forge. |
@@ -277,7 +277,11 @@ When it completes the epic is ready for test with the head it approved recorded 
 Its result may say whether it submitted the approval (`approval` with `submitted` and a `url`): Carrier records that and shows it, and does not require it, so a lead that cannot approve does not block the epic.
 A head that moves while the lead reviews sets its verdict aside and repeats the lead's review on the new head, without counting a round, with the same two repeats in a row as a round and the same stop in `pr_invalid`.
 `labels.stages.lead` (proposed: `carrier:stage:lead-reviewing`) is applied while the epic is in that stage.
-A lead that cannot conclude, fails technically past its retries or lacks a skill you named stops the epic like any other role; one that asks for changes stops it in `lead_limit` for now, and the exchange between the author and the lead alone arrives with a later change.
+A lead that cannot conclude, fails technically past its retries or lacks a skill you named stops the epic like any other role; one that asks for changes starts an exchange between the author and the lead alone: the epic goes to the author's fix with the lead's blockers only, and when the fix completes the lead reviews again, on the head after the fix, up to `limits.maxLeadRounds` reviews in all.
+The other reviewers do not run again, the lead's rounds do not count toward `limits.maxReviews` and the epic's review round does not move.
+The lead's observations are kept with its result and with the event of its completion, are not sent to the author and are not counted as left unanswered.
+At the limit, if the lead still asks for changes, the epic stops in needs-human with the kind `lead_limit`.
+A resume at `review` or `fix` (`carrier restart --from`) of an epic that stopped there starts the lead's exchange over: the fix goes back to the reviewers' round, and the lead gets its `limits.maxLeadRounds` again once the reviewers agree; a resume at `fix` gives the author the lead's latest blockers.
 
 ```json
 {
@@ -314,9 +318,10 @@ Two kinds of stop belong to this, each with its optional label under `labels.rea
   If another reviewer does ask for changes the fix goes ahead instead, with the blockers still open of the reviewer that gave none among its own.
   An epic with one reviewer never stops in it.
 - `lead_limit`: the lead reviewer asked for changes in each of the `limits.maxLeadRounds` reviews of its exchange with the author.
+  The reason names the lead, the limit and the blockers of its last review.
 
 Resume the epic after reading the reason, as for the other kinds.
-Today the lead's first request for changes stops the epic in `lead_limit`, with its blockers in the reason; fix them and resume the epic.
+For `lead_limit`, read the lead's blockers in the reason, fix them yourself or raise `limits.maxLeadRounds`, and resume the epic.
 
 ### Starting an epic and restarting it
 

@@ -1,0 +1,21 @@
+{
+  "request": {
+    "cmd": "editChatSettings",
+    "changes": {
+      "archiveAfterDays": 7,
+      "deleteAfterDays": "never",
+      "worktreeStart": "local",
+      "idleCloseMinutes": null
+    }
+  },
+  "reply": {
+    "ok": true,
+    "data": {
+      "saved": {
+        "archiveAfterDays": 7,
+        "deleteAfterDays": "never",
+        "worktreeStart": "local"
+      }
+    }
+  }
+}

@@ -27,9 +27,3 @@ public func idleClose(chatJSON: Data?) -> IdleClose {
     let object = chatJSON.flatMap { try? JSONSerialization.jsonObject(with: $0) } as? [String: Any]
     return (object?[idleCloseKey] as? Int).flatMap(IdleClose.init(rawValue:)) ?? defaultIdleClose
 }
-
-/// `json` with `idleCloseMinutes` set; the file's other keys are left as they were, and the default is left out. `json` nil is a `chat.json` that is
-/// not there yet, which this makes. nil when `json` is not a JSON object: the app never overwrites a file it cannot read.
-public func applyingIdleClose(_ close: IdleClose, to json: Data?) -> Data? {
-    editingChatConfig(json) { $0[idleCloseKey] = close == defaultIdleClose ? nil : close.rawValue }
-}

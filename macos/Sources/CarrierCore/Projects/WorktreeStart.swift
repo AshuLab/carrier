@@ -28,9 +28,3 @@ public func worktreeStart(chatJSON: Data?) -> WorktreeStart {
 public func worktreeStartOffReason(workIn: WorkIn) -> String? {
     workIn == .baseFolder ? "Only for a new worktree" : nil
 }
-
-/// `json` with `worktreeStart` set; the file's other keys are left as they were, and the default is left out. `json` nil is a `chat.json` that is
-/// not there yet, which this makes. nil when `json` is not a JSON object: the app never overwrites a file it cannot read.
-public func applyingWorktreeStart(_ start: WorktreeStart, to json: Data?) -> Data? {
-    editingChatConfig(json) { $0[worktreeStartKey] = start == defaultWorktreeStart ? nil : start.rawValue }
-}

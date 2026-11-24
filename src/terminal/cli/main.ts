@@ -71,6 +71,9 @@ else if (cli.flags.help) {
         if (cli.flags.config !== undefined) throw new CliError(2, 'carrier usage takes no --config: it asks the chat host, which runs from the Carrier folder (CARRIER_HOME, else ~/.carrier)');
         exit = await (await import('./commands/usage.ts')).usageCommand(cli.flags);
         break;
+      case 'config':
+        exit = await (await import('./commands/config.ts')).configCommand(folder);
+        break;
       default:
         if (configPath === undefined) throw noConfig(usage(), '');
         await (await import('./commands/run.ts')).runCommand(loadConfigFile(configPath, folder), folder, () => loadConfigFile(configPath, folder)); // runs until Ctrl+C

@@ -1,7 +1,7 @@
 import { parseArgs } from 'node:util';
 import { engineConfigPathOf } from '../../config/places.ts';
 
-export const commandNames = ['init', 'doctor', 'schema', 'start', 'status', 'watch', 'stop', 'pause', 'resume', 'check', 'reload', 'restart', 'recover', 'chat', 'chat-host', 'usage'] as const;
+export const commandNames = ['init', 'doctor', 'schema', 'start', 'status', 'watch', 'stop', 'pause', 'resume', 'check', 'reload', 'restart', 'recover', 'chat', 'chat-host', 'usage', 'config'] as const;
 export type CommandName = (typeof commandNames)[number];
 
 export const usage = () => `Usage: carrier --config <path>          run the orchestrator
@@ -22,6 +22,7 @@ export const usage = () => `Usage: carrier --config <path>          run the orch
        carrier chat --stop               stop the chat host
        carrier chat-host                 run the chat host in the foreground
        carrier usage [--json] [--refresh] [--days <7|14|30>] [--provider <all|claude|codex|agy|local>] [--source <all|epic|chat|external>]   live quotas and what was used (starts the chat host if needed)
+       carrier config                    change a Carrier folder setting: one request as one line of JSON on standard input, the reply as one line on standard output (exit 1: refused, 2: not a request)
        carrier --version                 print the installed version
 
 --config defaults to ${engineConfigPathOf()} (where init writes it) when that file exists.

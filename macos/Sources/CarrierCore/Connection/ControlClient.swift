@@ -103,7 +103,7 @@ public final class ControlClient {
     public enum Capability: String, CaseIterable {
         case sessions, events, epic, files, fileDiff, availableRepos, availableReposPaged, resumeEpic, resumeFromStage, resumeReviewerOptions, recoverEpic, reload
         case agents, list, open, resume, send, answer, interrupt, setOption, agentOptions, close, archive, delete, deletePreview, stop
-        case workspace, fetch, suggestName, checkName, cloneRepo, createProject, githubRepos, repoBranches, health, providers, plan, reasoning, rename, regenerateTitle, regenerateTitles, usage, usageOverride, accountIdentity, accountPalette, switchAgent, stopTask, worktreeStart, fetchIfStale, listsRev, projects, textGenerators
+        case workspace, fetch, suggestName, checkName, cloneRepo, createProject, githubRepos, repoBranches, health, providers, plan, reasoning, rename, regenerateTitle, regenerateTitles, usage, usageOverride, accountIdentity, accountPalette, switchAgent, stopTask, worktreeStart, fetchIfStale, listsRev, projects, textGenerators, config
     }
 
     /// What the last `hello()` said Carrier can do; empty until then.

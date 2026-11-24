@@ -215,3 +215,49 @@ private func sameJSON(_ a: Data, _ b: Data) throws -> Bool {
     let fixable = try #require(try await host.list(archived: false).first { $0.id == "f6a7b8c9-5d4e-4f10-8b3c-4d5e6f7a8b06" })
     #expect(fixable.title == "Regenerated title")
 }
+
+@Test func theFixtureChatHostWritesItsChatJSONForEditChatSettingsAndRefusesWhatNodeRefuses() async throws {
+    let server = try FixtureServer(fixtures: testPaths().fixtures.path)
+    defer { server.stop() }
+    let host = SocketChatHost(socketPath: { server.chatSocketPath })
+    #expect(try await host.capabilities().contains(.config))
+    let file = CarrierPlaces(folder: server.home).chatConfig
+    func written() throws -> NSDictionary { try #require(JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: file))) as? NSDictionary) }
+
+    // the golden request: the other keys stay, a null removes a key
+    try Data(#"{"agents":{"a":{"account":"claude"}},"idleCloseMinutes":30,"worktreeStart":"remote"}"#.utf8).write(to: URL(fileURLWithPath: file))
+    let changes = ChatSettingChanges(["archiveAfterDays": .days(7), "deleteAfterDays": .text("never"), "worktreeStart": .text("local"), "idleCloseMinutes": .remove])
+    let saved = try await host.editChatSettings(changes)
+    #expect(saved.saved == ["archiveAfterDays": 7, "deleteAfterDays": "never", "worktreeStart": "local"])
+    #expect(try written() == ["agents": ["a": ["account": "claude"]], "archiveAfterDays": 7, "deleteAfterDays": "never", "worktreeStart": "local"])
+
+    // a value the schema refuses is refused with the key path and kind, and the file is left as it was
+    let before = try Data(contentsOf: URL(fileURLWithPath: file))
+    for (changes, path, problem) in [
+        (ChatSettingChanges(["idleCloseMinutes": .days(15)]), "idleCloseMinutes", "invalid_union"),
+        (ChatSettingChanges(["deleteAfterDays": .days(5)]), "deleteAfterDays", "custom"),
+        (ChatSettingChanges(["archiveAfterDays": .days(0)]), "archiveAfterDays", "too_small"),
+        (ChatSettingChanges(["worktreeStart": .text("origin")]), "worktreeStart", "invalid_value"),
+    ] {
+        do {
+            _ = try await host.editChatSettings(changes)
+            Issue.record("\(path) was saved")
+        } catch ControlError.remote(let refusal) {
+            #expect(refusal.code == "config.problem" && refusal.params == ["path": .string(path), "problem": .string(problem)], Comment(rawValue: path))
+        }
+    }
+    #expect(try Data(contentsOf: URL(fileURLWithPath: file)) == before)
+
+    // a file that does not exist is made, and one that is not a JSON object is refused and left alone
+    try FileManager.default.removeItem(atPath: file)
+    _ = try await host.editChatSettings(.idleClose(.oneHour))
+    #expect(try written() == ["idleCloseMinutes": 60])
+    try Data("[1]".utf8).write(to: URL(fileURLWithPath: file))
+    do {
+        _ = try await host.editChatSettings(.idleClose(.oneHour))
+        Issue.record("a file that is not an object was written")
+    } catch ControlError.remote(let refusal) {
+        #expect(refusal.code == "config.problem" && refusal.params["problem"] == .string("notAnObject"))
+    }
+    #expect(try Data(contentsOf: URL(fileURLWithPath: file)) == Data("[1]".utf8))
+}

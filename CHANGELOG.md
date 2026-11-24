@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- `carrier config` changes a setting of the Carrier folder from a script or the Mac app: it reads one request as a line of JSON on standard input (`{"cmd":"editChatSettings","changes":{"idleCloseMinutes":30}}`), hands it to the chat host when one answers and otherwise writes `chat.json` itself with the same code, and prints the reply as one line of JSON.
+  It exits 0 when it saved, 1 when it refused (the value is left as it was) and 2 when standard input is not a request.
+  The Sessions page of Settings saves the two ages, "Start from" and "Sleep after" through it.
+
 ## [0.19.0] - 2026-11-24
 
 Several reviewers and a lead reviewer, the skill of each stage named in `engine.json`, `carrier recover` and `carrier restart --from`, automatic resume after a usage limit, a Watching page for the repos Carrier takes epics from, and the Mac app for Intel Macs.

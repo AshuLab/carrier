@@ -65,7 +65,7 @@ test('the hello lists githubRepos, and page 1 answers the repositories, hasMore 
 });
 
 test('page 1 still answers the repositories when only the login could not be read', async () => {
-  loginFailure = new ChatRefused('GitHub took too long to answer');
+  loginFailure = new ChatRefused('github.timedOut', 'GitHub took too long to answer');
   const client = await connect();
   expect(await client.request('githubRepos', { page: 1 })).toEqual({ repos: pages[1]!.repos, hasMore: true });
   client.close();
@@ -84,7 +84,7 @@ test('the hello lists repoBranches, and it answers the default branch and the br
   expect(client.hello.capabilities).toContain('repoBranches');
   expect(await client.request('repoBranches', { repo: 'acme/app' })).toEqual({ default: 'main', branches: ['main', 'feat/x'], hasMore: false });
   expect(askedBranches).toEqual(['acme/app']);
-  failure = new ChatRefused('gh is not signed in to GitHub; run "gh auth login"');
+  failure = new ChatRefused('github.notSignedIn', 'gh is not signed in to GitHub; run "gh auth login"');
   await expect(client.request('repoBranches', { repo: 'acme/app' })).rejects.toThrow('gh is not signed in');
   client.close();
 });
@@ -106,7 +106,7 @@ test('a page that is not an integer from 1 to 100 never reaches the listing', as
 
 test('gh missing, signed out, offline or slow comes back as a refusal with its own sentence', async () => {
   const client = await connect();
-  failure = new ChatRefused('gh is not signed in to GitHub; run "gh auth login"');
+  failure = new ChatRefused('github.notSignedIn', 'gh is not signed in to GitHub; run "gh auth login"');
   await expect(client.request('githubRepos', { page: 1 })).rejects.toThrow('gh is not signed in to GitHub; run "gh auth login"');
   await expect(client.request('githubRepos', { page: 2 })).rejects.toThrow('gh is not signed in to GitHub; run "gh auth login"');
   failure = new Error('boom');

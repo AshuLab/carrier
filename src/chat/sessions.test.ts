@@ -434,7 +434,7 @@ test('setOption refuses, with the reason and changing nothing, an unlisted optio
   await expect(sessions.setOption({ sessionId: id, option: 'speed', value: 'fast' })).rejects.toThrow('no option "speed"');
   await expect(sessions.setOption({ sessionId: id, option: 'mode', value: 'yolo' })).rejects.toThrow('"yolo" is not a value of the option "mode"; it offers: plan');
   conversation.setOption = async () => {
-    throw new ChatRefused('Only between turns');
+    throw new ChatRefused('session.busy', 'Only between turns');
   };
   await expect(sessions.setOption({ sessionId: id, option: 'mode', value: 'plan' })).rejects.toThrow('Only between turns');
   expect(sessions.events({ sessionId: id, limit: 10 }).events).toEqual([]);
@@ -2377,7 +2377,7 @@ test('the host is not idle while a session is preparing, and is again once the p
   const s = setup();
   let release!: () => void;
   const gate = new Promise<void>((resolve) => (release = resolve));
-  s.claude.open = async () => (await gate, Promise.reject(new ChatRefused('not today')));
+  s.claude.open = async () => (await gate, Promise.reject(new ChatRefused('session.busy', 'not today')));
   expect(s.sessions.liveCount()).toBe(0);
   const { session } = await s.sessions.openPlan({ plan: planFor() });
   expect(s.sessions.liveCount()).toBe(1);

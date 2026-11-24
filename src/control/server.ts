@@ -54,7 +54,7 @@ export type Capability = 'sessions' | 'events' | 'epic' | 'files' | 'fileDiff' |
 /** What the hello announces. */
 export const capabilities: Capability[] = ['sessions', 'events', 'epic', 'files', 'fileDiff', 'availableRepos', 'availableReposPaged', 'resumeEpic', 'resumeFromStage', 'resumeReviewerOptions', 'recoverEpic', 'reload'];
 export type Hello = { event: 'hello'; protocol: 1; pid: number; startedAt: number; version: string; capabilities: (Capability | ChatCapability)[] };
-export type Reply = { id: number; ok: true; data?: unknown } | { id: number | null; ok: false; error: string };
+export type Reply = { id: number; ok: true; data?: unknown } | { id: number | null; ok: false; error: string; code?: string; params?: Record<string, string | number> };
 
 /** What the socket does for the client: the same controls the interactive panel's keys use. */
 export type Controls = {

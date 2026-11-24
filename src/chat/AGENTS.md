@@ -29,6 +29,9 @@ Adding a `chat.json` field: [`src/config/AGENTS.md`](../config/AGENTS.md#adding-
 - `plan.ts`: the plan's request schema and step types.
 - `shell.ts`: the port through which a project's actions run (`realShell`: its own process group, SIGKILL after 3 s); `FakeShell` in `fake.ts`, and no test runs a real command.
 - `runner.ts`: the chat runner port, with `fake.ts` its test double; `claude.ts` and `codex.ts` are the Claude and Codex adapters.
+  `ChatRefused(code, words, params)` is every refusal of the host: the code (`textCode`, `<area>.<what>`) is a string literal, the params are strings and numbers, and `pnpm typecheck` refuses one without a code.
+  The reply of the socket is `{ id, ok: false, error, code, params }`; the codes are listed with an example of their params in `macos/Tests/Fixtures/text-codes.json` (`UPDATE_FIXTURES=1 pnpm test` rewrites it, `text-codes.test.ts` checks it against the sources).
+  A helper that computes a reason elsewhere returns a `Reason` (`code`, `words`, `params`) and its caller throws `refusedFor(reason)`.
   Codex's `usageLimitExceeded` (not retried) is an `error` with `reason: 'usage_limit'` before `turn_end`; `resetsAt` comes from `account/rateLimits/read`, else `resetText`.
 - `folder.ts`: the check of a session's folder (never inside `<folder>/engine/`), `checkProjectsFolder` and `checkProjectFolder` (shared table: `macos/Tests/Fixtures/project-folder.json`).
 - `projects.ts`: what the chat brings onto the Mac with the person's own `gh` login, under the projects folder (ADR 0015).

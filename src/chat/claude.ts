@@ -59,9 +59,10 @@ export function claudeChatRunner(deps: ClaudeChatDeps = realClaudeDeps): ChatRun
       try {
         binary = deps.resolve(command, env);
       } catch {
-        throw new ChatRefused(`Claude is not installed: ${command === undefined ? 'there is no "claude" on the path' : `"${command}" cannot be run`}`);
+        if (command === undefined) throw new ChatRefused('agent.notInstalled', 'Claude is not installed: there is no "claude" on the path', { agent: 'Claude' });
+        throw new ChatRefused('agent.commandNotRunnable', `Claude is not installed: "${command}" cannot be run`, { agent: 'Claude', command });
       }
-      if (!(await deps.loggedIn(binary, env))) throw new ChatRefused('Claude is not logged in; run "claude" once to log in');
+      if (!(await deps.loggedIn(binary, env))) throw new ChatRefused('agent.notLoggedIn', 'Claude is not logged in; run "claude" once to log in', { agent: 'Claude' });
       const extraArgs = extraArgsOf(launch); // before anything starts, so a refusal reaches the person in its own words
       const begin = async (from: string | undefined) => {
         const conversation = new ClaudeConversation(options, from, child);
@@ -86,11 +87,11 @@ export function claudeChatRunner(deps: ClaudeChatDeps = realClaudeDeps): ChatRun
             return conversation;
           } catch (retry) {
             log.error('claude could not be started', retry);
-            throw new ChatRefused('Claude could not be started');
+            throw new ChatRefused('agent.startFailed', 'Claude could not be started', { agent: 'Claude' });
           }
         }
         log.error('claude could not be started', error);
-        throw new ChatRefused(resume === undefined ? 'Claude could not be started' : 'Claude could not resume that conversation');
+        throw resume === undefined ? new ChatRefused('agent.startFailed', 'Claude could not be started', { agent: 'Claude' }) : new ChatRefused('agent.resumeFailed', 'Claude could not resume that conversation', { agent: 'Claude' });
       }
     },
   };
@@ -223,13 +224,13 @@ class ClaudeConversation implements ChatConversation {
 
   answer(approvalId: string, choiceId: string, answers?: Record<string, string>) {
     const ask = this.pending.get(approvalId);
-    if (ask === undefined) throw new ChatRefused('That approval is not pending any more');
+    if (ask === undefined) throw new ChatRefused('agent.approval.notPending', 'That approval is not pending any more');
     const suggestion = choiceId.startsWith('suggestion:') ? ask.suggestions[Number(choiceId.slice('suggestion:'.length))] : undefined;
     if (choiceId === 'deny') ask.resolve({ behavior: 'deny', message: ask.asking ? 'The user skipped the questions.' : 'The user declined this.' });
-    else if (choiceId === 'allow' && ask.asking && answers === undefined) throw new ChatRefused('The questions need their answers');
+    else if (choiceId === 'allow' && ask.asking && answers === undefined) throw new ChatRefused('agent.approval.answersNeeded', 'The questions need their answers');
     else if (choiceId === 'allow') ask.resolve({ behavior: 'allow', updatedInput: answers === undefined ? ask.input : { ...ask.input, answers } });
     else if (suggestion) ask.resolve({ behavior: 'allow', updatedInput: ask.input, updatedPermissions: [suggestion] });
-    else throw new ChatRefused('That is not one of the choices');
+    else throw new ChatRefused('agent.approval.choiceUnknown', 'That is not one of the choices');
     this.pending.delete(approvalId);
     this.emit({ kind: 'approval_answered', approvalId, choiceId, ...(answers && { answers }) });
   }
@@ -249,8 +250,8 @@ class ClaudeConversation implements ChatConversation {
 
   async setOption(id: string, value: string) {
     const option = this.options.find((o) => o.id === id);
-    if (option === undefined) throw new ChatRefused(`There is no option "${id}"`);
-    if (!option.values.some((v) => v.id === value)) throw new ChatRefused(`"${value}" is not a value of ${id}`);
+    if (option === undefined) throw new ChatRefused('agent.option.unknown', `There is no option "${id}"`, { option: id });
+    if (!option.values.some((v) => v.id === value)) throw new ChatRefused('agent.option.valueUnknown', `"${value}" is not a value of ${id}`, { value, option: id });
     if (id === 'permissionMode') {
       await this.query.setPermissionMode(value as never);
       this.mode = value;
@@ -258,7 +259,7 @@ class ClaudeConversation implements ChatConversation {
       await this.query.setModel(value === 'default' ? undefined : value);
       this.model = value;
     } else {
-      if (this.turning) throw new ChatRefused('The reasoning effort can only change between turns');
+      if (this.turning) throw new ChatRefused('agent.effort.turning', 'The reasoning effort can only change between turns');
       this.hidden++;
       this.input.push(`/effort ${value}`);
       this.effort = value;
@@ -497,7 +498,7 @@ export function extraArgsOf({ autoCompact, idleCompaction, launchArgs = [] }: Ch
   const extra: Record<string, string | null> = {};
   for (let i = 0; i < launchArgs.length; i++) {
     const token = launchArgs[i]!;
-    if (token.startsWith('--') === false || token.length === 2) throw new ChatRefused(`launchArgs entry ${i + 1} is not a --flag: a chat passes only long flags`);
+    if (token.startsWith('--') === false || token.length === 2) throw new ChatRefused('agent.launchArg.notFlag', `launchArgs entry ${i + 1} is not a --flag: a chat passes only long flags`, { entry: i + 1 });
     const [key, ...inline] = token.slice(2).split('=');
     const next = launchArgs[i + 1];
     if (inline.length > 0) extra[key!] = inline.join('=');

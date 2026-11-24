@@ -48,7 +48,7 @@ describe('invalidReason', () => {
     ['a..b', 'two dots'],
     ['a.', 'end with a dot'],
     ['a.lock', '.lock'],
-  ])('%j is not: %s', (name, why) => expect(invalidReason(name)).toContain(why));
+  ])('%j is not: %s', (name, why) => expect(invalidReason(name)?.words).toContain(why));
 });
 
 describe('suggestName with the fake git', () => {

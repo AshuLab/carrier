@@ -106,5 +106,28 @@ export interface ChatRunner {
   open(args: { folder: string; resume?: string; options?: Record<string, string>; /** The agent's `command` from the config: the binary to run, else the one on the path. */ command?: string; /** The account's compaction and launch arguments; none when it sets none. */ launch?: ChatLaunch; env: NodeJS.ProcessEnv; /** The chat MCP of this one conversation, by the key it is registered under, its URL and its bearer token (never logged, never in `argv`); none for a probe. */ mcp?: { serverName: string; url: string; token: string; /** Every tool of the chat MCP, by name: the adapter lets them run without asking. */ tools?: string[] }; /** What the conversation opens with as its instructions (the handoff of a switched session, ADR 0032): Claude's appended system prompt, Codex's developer instructions. Never in front of a message. */ instructions?: string; /** Set for a child session (ADR 0033): its approvals offer Allow and Deny and none of the provider's suggestions, which would raise what it may do. */ child?: boolean }): Promise<ChatConversation>;
 }
 
-/** A failure whose message is for the person, in words: it travels to the client as it is. Any other error is logged and reaches the client as "internal error". */
-export class ChatRefused extends Error {}
+/** The values a text code takes: plain strings and numbers, never a sentence, an object or a boolean. */
+export type TextParams = Record<string, string | number>;
+
+/** A code is `<area>.<what>`, named by what happened ([ADR 0055](../../docs/adr/0055-a-refusal-carries-a-code-and-its-parameters-and-its-english-words-are-the-fallback.md)). */
+export const textCode = /^[a-z][a-zA-Z]*(\.[a-z][a-zA-Z]*)+$/;
+
+/** A reason computed apart from the throw: a code, its English words and its parameters. */
+export type Reason = { code: string; words: string; params?: TextParams };
+
+/**
+ * A failure whose message is for the person, in words: it travels to the client as it is, with its code and parameters beside it. Any other error is logged and reaches the client as "internal error".
+ * Node strips types, so `pnpm typecheck` is what refuses a `ChatRefused` without its code.
+ */
+export class ChatRefused extends Error {
+  code: string;
+  params: TextParams;
+  constructor(code: string, message: string, params: TextParams = {}) {
+    super(message);
+    this.code = code;
+    this.params = params;
+  }
+}
+
+/** A `ChatRefused` for a reason a helper computed. */
+export const refusedFor = (reason: Reason) => new ChatRefused(reason.code, reason.words, reason.params);

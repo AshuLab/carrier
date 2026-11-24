@@ -485,7 +485,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
   }
 
   async function wakeOne(epic: Epic) {
-    // A stop at the lead resumes at the lead's own stage, with its lead round kept: only the wake-up sets `lead` (a person's resume starts the lead's exchange over).
+    // A stop at the lead, or at the author's fix of its exchange, resumes at that stage with its lead round kept: only the wake-up sets `lead` (a person's resume starts the lead's exchange over).
     const stage = epic.stage === 'review' || epic.stage === 'fix' || epic.stage === 'lead' ? epic.stage : null;
     if (epic.autoResumes >= maxAutoResumes) return;
     // Like a resume from a stage: the pull request must be open with the head the epic stored, or the stage would work on something else.
@@ -514,7 +514,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     const woke = db.transaction((tx) => {
       const queuedAt = queuePosition(tx, clock.now()); // after the epics already waiting, and in this write so none enters between
       const moved = tx.update(epics)
-        .set({ ...(stage ? { ...requeueKeeping(queuedAt), ...(stage === 'lead' && { leadRound: epic.leadRound }), resumeStage: stage } : restart(queuedAt)), autoResumes: epic.autoResumes + 1 })
+        .set({ ...(stage ? { ...requeueKeeping(queuedAt), ...((stage === 'lead' || stage === 'fix') && epic.leadRound !== null && { leadRound: epic.leadRound }), resumeStage: stage } : restart(queuedAt)), autoResumes: epic.autoResumes + 1 })
         .where(and(eq(epics.id, epic.id), eq(epics.status, 'needs_human'), eq(epics.resumeAt, epic.resumeAt!))) // a person resumed it, or it ended, while the probe answered
         .returning().get();
       if (moved) tx.insert(epicEvents).values({ epicId: epic.id, at: queuedAt, type: 'auto_resumed', data: { stage: epic.stage, option: back.run.option ?? null, resumeAt: epic.resumeAt, count: epic.autoResumes + 1 } }).run();

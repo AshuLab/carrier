@@ -7580,6 +7580,28 @@ test('a quota stop of the lead schedules the wake-up from the lead\'s own accoun
   expect(rows(engine.db)[0]).toMatchObject({ status: 'ready_for_test', round: 1, leadRound: 1, resumeStage: null, resumeAt: null, approvedSha: SHA });
 });
 
+test('an author fix of the lead\'s exchange that ran out of usage wakes up in the stage fix with the lead round kept, and when it ends the lead reviews again with one more round, not the reviewers', async () => {
+  fakeQuota.snapshots['/cfg/claude'] = full('claude', WAKE);
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50);
+  const base = leadOnClaude();
+  const config = { ...base, agents: { ...base.agents, author: { profile: 'a', option: 'claude', ...claudeAccount } } } as EffectiveRepoConfig;
+  runner.behavior = (task) => (task.stage === 'ship' ? { write: completed(task) } : task.stage === 'review' ? bothAgree(task) : task.stage === 'lead' ? leadAsks('blocker')(task) : runsOut('claude')(task));
+  const engine = await start(1, [config]);
+  settings = { ...settings, autoResume: true };
+  await clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'usage_limit', stage: 'fix', leadRound: 1 }));
+  const before = runner.tasks.length;
+  runner.behavior = (task) => (task.stage === 'lead' ? leadSays(ok)(task) : fixTo(HEAD2)(task));
+
+  fakeQuota.snapshots['/cfg/claude'] = back();
+  await clock.advance(WAKE - clock.now() + 5 * MIN);
+  await engine.idle();
+
+  expect(runner.tasks.slice(before).map((t) => t.stage)).toEqual(['fix', 'lead']);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'ready_for_test', round: 1, leadRound: 2, approvedSha: HEAD2 });
+});
+
 test('the wake-up of the lead waits while its window is at 100% and does not touch the reviewers\' account', async () => {
   const engine = await leadStoppedForQuota();
   const before = runner.tasks.length;

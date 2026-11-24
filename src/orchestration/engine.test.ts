@@ -3400,7 +3400,7 @@ test('a lost session starts a new one with the same profile and the context rebu
   const db = open();
   seedEpic(db, 1, { stage: 'review', round: 2, prNumber: 50, prHeadSha: SHA });
   seedExecution(db, 'old', 1, { stage: 'review', status: 'finished' });
-  db.insert(callerResults).values({ executionId: 'old', outcome: 'changes_requested', result: JSON.stringify({ summary: 'round 1 findings' }) }).run();
+  db.insert(callerResults).values({ executionId: 'old', outcome: 'changes_requested', result: JSON.stringify({ summary: 'round 1 findings', blockers: [] }) }).run();
   seedExecution(db, 'e0', 1, { stage: 'review', status: 'interrupted' });
   pull(50, { headSha: HEAD2 }); // the author pushed while the review was cut
   runner.behavior = (task) => (task.resumeSession ? { exit: 'session_unavailable' } : { exit: 'hang' });
@@ -6355,7 +6355,7 @@ test('a slot that ends well does not reset the recoveries, the automatic resumes
   expect(executionsOf(engine.db).find((e) => e.executionId === 'r1')).toMatchObject({ status: 'interrupted' });
   const retried = executionsOf(engine.db).find((e) => e.reviewer === 'reviewer' && e.executionId !== 'r1')!;
   expect(retried.status).toBe('finished');
-  expect(rows(engine.db)[0]).toMatchObject({ status: 'ready_for_test', recoveries: 2, autoResumes: 1, lastError: 'boom' });
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'review', recoveries: 2, autoResumes: 1, lastError: 'boom' }); // the round waits for the other slot's verdict
 });
 
 test('with no other slot failing, an execution that ends well resets them, as it does for one reviewer', async () => {
@@ -6367,4 +6367,267 @@ test('with no other slot failing, an execution that ends well resets them, as it
   await engine.idle();
 
   expect(rows(engine.db)[0]).toMatchObject({ status: 'ready_for_test', recoveries: 0, autoResumes: 0, lastError: null });
+});
+
+// --- a review round of several reviewers: every slot on the same head, decided by their verdicts (ADR 0048) ---
+
+const ok = { outcome: 'completed', verification: { ci: 'passed', evidence: 'ok' } };
+const asks = (title: string, id?: string) => ({ outcome: 'changes_requested', blockers: [{ ...(id && { id }), title }] });
+// A review answers on the head it was given with the verdict `by` has for its slot; a slot without one hangs.
+const verdictBy = (by: Record<string, object | (() => object)>, when?: Promise<unknown>) => (task: AgentTask): Behavior => {
+  const verdict = by[task.reviewer!];
+  return verdict ? { when, write: result(task, { ...(typeof verdict === 'function' ? verdict() : verdict), pr: { number: 50, headSha: task.context.pr!.headSha } }) } : { exit: 'stopped' };
+};
+const reviewsOf = () => runner.tasks.filter((t) => t.stage === 'review').map((t) => [t.context.round, t.reviewer, t.context.pr!.headSha]);
+const lateOpen = () => {
+  let open!: () => void;
+  const when = new Promise<void>((resolve) => (open = resolve));
+  return { when, open };
+};
+// ship -> a round of every slot of `config` answered by `review` -> a fix answered by `fix`.
+async function roundOf(review: (task: AgentTask) => Behavior, { fix = (() => ({ exit: 'stopped' })) as (task: AgentTask) => Behavior, maxReviews = 5, config = twoReviewers() } = {}) {
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50);
+  runner.behavior = (task) => (task.stage === 'ship' ? { sessionId: 's-ship', write: completed(task) } : task.stage === 'review' ? review(task) : fix(task));
+  const engine = await start(1, [config], 4, 3, maxReviews);
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  return engine;
+}
+const fourReviewers = () => twoReviewers({ agents: { ...agents, extraReviewers: [extraReviewer, { ...extraReviewer, profile: 'd' }, { ...extraReviewer, profile: 'e' }] } as EffectiveRepoConfig['agents'] });
+
+test('the author\'s ship launches every reviewer of the epic at once, each with its slot, its agent and its own checkout of the same commit', async () => {
+  const engine = await roundOf(() => ({ exit: 'stopped' }));
+
+  const reviews = runner.tasks.filter((t) => t.stage === 'review');
+  expect(reviews.map((t) => [t.reviewer, t.profile, t.workspace])).toEqual([['reviewer', 'b', '/work/AshuLab/a/1/reviewer-50'], ['reviewer-2', 'c', '/work/AshuLab/a/1/reviewer-2-50']]);
+  expect(new Set(reviews.map((t) => t.context.pr!.headSha))).toEqual(new Set([SHA]));
+  expect(executionsOf(engine.db).filter((e) => e.stage === 'review').map((e) => [e.reviewer, e.round, e.headSha, e.status])).toEqual([['reviewer', 1, SHA, 'interrupted'], ['reviewer-2', 1, SHA, 'interrupted']]);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'review', round: 1 });
+});
+
+test('an epic with no extra reviewer launches one review, as it always did', async () => {
+  const engine = await roundOf(() => ({ exit: 'stopped' }), { config: repos[0]! });
+  expect(runner.tasks.filter((t) => t.stage === 'review').map((t) => t.reviewer)).toEqual(['reviewer']);
+  expect(executionsOf(engine.db).filter((e) => e.stage === 'review')).toHaveLength(1);
+});
+
+test('each reviewer is launched with the skills of its own entry and with the shared identity of its own profile, not the epic\'s', async () => {
+  const own = { review: { name: 'mine', named: true }, publish: null };
+  await roundOf(() => ({ exit: 'stopped' }), { config: twoReviewers({ sharedIdentity: false, agents: { ...agents, extraReviewers: [{ ...extraReviewer, skills: own, sharedIdentity: true }] } as EffectiveRepoConfig['agents'] }) });
+
+  const [first, second] = runner.tasks.filter((t) => t.stage === 'review');
+  expect(first).toMatchObject({ reviewer: 'reviewer', sharedIdentity: false });
+  expect(second).toMatchObject({ reviewer: 'reviewer-2', sharedIdentity: true, skills: { review: own } });
+  expect(first!.skills.review).not.toEqual(own);
+  expect(first!.context.severalReviewers).toBe(true);
+  expect(second!.context.severalReviewers).toBe(true);
+});
+
+test('a round is settled when every slot has a verdict: with all reviewers completed the epic is ready for test on the head they judged, with the first verification', async () => {
+  const engine = await roundOf(verdictBy({ reviewer: ok, 'reviewer-2': { ...ok, verification: { ci: 'absent', evidence: 'second' } } }));
+
+  expect(reviewsOf()).toEqual([[1, 'reviewer', SHA], [1, 'reviewer-2', SHA]]);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'ready_for_test', round: 1, reviewedSha: SHA, verification: ok.verification, finishedAt: 5 * MIN, labelPending: false });
+  expect(labelsOf(1)).toEqual(['carrier:status:ready-for-test']);
+});
+
+test('the round waits for the slot that has no verdict yet: the epic stays in review and the author is not launched', async () => {
+  const engine = await roundOf(verdictBy({ reviewer: asks('x') }));
+  expect(runner.tasks.map((t) => t.stage)).toEqual(['ship', 'review', 'review']);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'review', round: 1 });
+});
+
+test('two reviewers that end together settle the round once: one fix, one next round', async () => {
+  const { when, open } = lateOpen();
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50);
+  runner.behavior = (task) => (task.stage === 'ship' ? { write: completed(task) } : task.stage === 'review' ? verdictBy({ reviewer: asks('a', 'B1'), 'reviewer-2': asks('b', 'B1') }, when)(task) : { exit: 'stopped' });
+  const engine = await start(1, [twoReviewers()]);
+  await clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(runner.tasks.filter((t) => t.stage === 'review')).toHaveLength(2));
+  open(); // both runs end in the same turn: both import their result before either settles the round
+  await engine.idle();
+
+  expect(runner.tasks.map((t) => t.stage)).toEqual(['ship', 'review', 'review', 'fix']);
+  expect(engine.db.select().from(callerResults).all().map((r) => r.outcome)).toEqual(['completed', 'changes_requested', 'changes_requested']);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'fix', round: 1 });
+});
+
+test('when one reviewer asks for changes the author\'s fix gets its blockers, tagged with the reviewer, and the next round runs every reviewer on the new head, each given only its own blockers', async () => {
+  const engine = await roundOf(
+    (task) => (task.context.round === 1 ? verdictBy({ reviewer: ok, 'reviewer-2': asks('use the helper', 'B1') })(task) : { exit: 'stopped' }),
+    { fix: (task) => (pull(50, { headSha: HEAD2 }), fixDone(task, HEAD2)) },
+  );
+
+  const fix = runner.tasks.find((t) => t.stage === 'fix')!;
+  expect(fix.context.blockers).toEqual([{ id: 'B1', title: 'use the helper', reviewer: 'reviewer-2' }]);
+  expect(fix.context.observations).toBeUndefined();
+  expect(reviewsOf()).toEqual([[1, 'reviewer', SHA], [1, 'reviewer-2', SHA], [2, 'reviewer', HEAD2], [2, 'reviewer-2', HEAD2]]);
+  const [, , round2, round2Extra] = runner.tasks.filter((t) => t.stage === 'review');
+  expect(round2!.context.blockers).toEqual([]);
+  expect(round2Extra!.context.blockers).toEqual([{ id: 'B1', title: 'use the helper' }]);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'review', round: 2, prHeadSha: HEAD2 });
+});
+
+test('two reviewers that ask for changes with the same id both reach the author, each under its reviewer', async () => {
+  await roundOf(verdictBy({ reviewer: asks('first', 'B1'), 'reviewer-2': asks('second', 'B1') }));
+
+  const fix = runner.tasks.find((t) => t.stage === 'fix')!;
+  expect(fix.context.blockers).toEqual([{ id: 'B1', title: 'first', reviewer: 'reviewer' }, { id: 'B1', title: 'second', reviewer: 'reviewer-2' }]);
+});
+
+test('an epic with one reviewer shows the author the reviewer\'s own ids, with no prefix', async () => {
+  await roundOf(verdictBy({ reviewer: asks('only', 'B1') }), { config: repos[0]! });
+  expect(runner.tasks.find((t) => t.stage === 'fix')!.context.blockers).toEqual([{ id: 'B1', title: 'only' }]);
+});
+
+test('the open blockers of a reviewer that completed in the round after its own are not asked of the author again, those of another still are', async () => {
+  await roundOf(
+    (task) => (task.context.round === 1 ? verdictBy({ reviewer: asks('r1', 'B1'), 'reviewer-2': asks('r2', 'B1') })(task) : verdictBy({ reviewer: ok, 'reviewer-2': asks('r2 again', 'B1') })(task)),
+    { fix: (task) => (pull(50, { headSha: HEAD2 }), fixDone(task, HEAD2)) },
+  );
+  const [firstFix, secondFix] = runner.tasks.filter((t) => t.stage === 'fix');
+  expect(firstFix!.context.blockers!.map((b) => b.reviewer)).toEqual(['reviewer', 'reviewer-2']);
+  expect(secondFix!.context.blockers).toEqual([{ id: 'B1', title: 'r2 again', reviewer: 'reviewer-2' }]);
+});
+
+test('a round of two reviewers that both ask for changes at the cap stops the epic with review_limit with no fix', async () => {
+  const engine = await roundOf(verdictBy({ reviewer: asks('a'), 'reviewer-2': asks('b') }), { maxReviews: 1 });
+  expect(runner.tasks.map((t) => t.stage)).toEqual(['ship', 'review', 'review']);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'review_limit', round: 1 });
+});
+
+test('a round counts once toward the cap however many reviewers it has: maxReviews 2 allows two rounds of two reviewers', async () => {
+  const engine = await roundOf(verdictBy({ reviewer: asks('a'), 'reviewer-2': asks('b') }), { maxReviews: 2, fix: (task) => fixDone(task) });
+  expect(reviewsOf().map(([round]) => round)).toEqual([1, 1, 2, 2]);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'review_limit', round: 2 });
+});
+
+test('when every verdict completed with observations the author gets those of all in the one pass, each with its reviewer, and the head that does not change is the agreed head', async () => {
+  const engine = await roundOf(
+    verdictBy({ reviewer: { ...ok, observations: [{ id: 'o1', title: 'rename' }] }, 'reviewer-2': { ...ok, observations: [{ id: 'o1', title: 'typo' }] } }),
+    { fix: (task) => ({ write: result(task, { outcome: 'completed', pr: { number: 50, headSha: SHA }, verification: { ci: 'absent', evidence: 'author' } }) }) },
+  );
+
+  const pass = runner.tasks.find((t) => t.stage === 'fix')!;
+  expect(pass.context.observations).toEqual([{ id: 'o1', title: 'rename', reviewer: 'reviewer' }, { id: 'o1', title: 'typo', reviewer: 'reviewer-2' }]);
+  expect(pass.context.blockers).toBeUndefined();
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'ready_for_test', reviewedSha: SHA, verification: ok.verification, observationsPassAt: 5 * MIN, unansweredObservations: null });
+});
+
+test('a pass that changes the head starts the next round of every reviewer, and the observations left at the last round count those of all reviewers', async () => {
+  const engine = await roundOf(
+    (task) => verdictBy({ reviewer: { ...ok, observations: [{ title: 'one' }] }, 'reviewer-2': { ...ok, observations: [{ title: 'two' }, { title: 'three' }] } })(task),
+    { fix: (task) => (pull(50, { headSha: HEAD2 }), fixDone(task, HEAD2)) },
+  );
+
+  expect(reviewsOf()).toEqual([[1, 'reviewer', SHA], [1, 'reviewer-2', SHA], [2, 'reviewer', HEAD2], [2, 'reviewer-2', HEAD2]]);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'ready_for_test', round: 2, reviewedSha: HEAD2, observationsPassAt: 5 * MIN, unansweredObservations: 3, unansweredReason: 'already_taken' });
+});
+
+test('observations of two reviewers left at the last round the cap allows are counted together, with no pass', async () => {
+  const engine = await roundOf(verdictBy({ reviewer: { ...ok, observations: [{ title: 'one' }] }, 'reviewer-2': { ...ok, observations: [{ title: 'two' }] } }), { maxReviews: 1 });
+  expect(runner.tasks.map((t) => t.stage)).toEqual(['ship', 'review', 'review']);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'ready_for_test', unansweredObservations: 2, unansweredReason: 'last_round', observationsPassAt: null });
+});
+
+test('the first result that finds the head moved stops the other runs of the round and launches it again on the new head, counting no round', async () => {
+  const late = lateOpen();
+  let moved = false;
+  const engine = await roundOf((task) => {
+    if (task.context.pr!.headSha === SHA && task.reviewer === 'reviewer') {
+      if (!moved) pull(50, { headSha: HEAD2 });
+      moved = true;
+      return verdictBy({ reviewer: ok }, late.when)(task);
+    }
+    return task.context.pr!.headSha === SHA ? { exit: 'hang' } : verdictBy({ reviewer: ok, 'reviewer-2': ok })(task);
+  });
+  late.open();
+  await engine.idle();
+
+  expect(reviewsOf()).toEqual([[1, 'reviewer', SHA], [1, 'reviewer-2', SHA], [1, 'reviewer', HEAD2], [1, 'reviewer-2', HEAD2]]);
+  const stale = executionsOf(engine.db).find((e) => e.reviewer === 'reviewer-2' && e.headSha === SHA)!;
+  expect(runner.stopped).toContain(stale.executionId);
+  expect(stale.status).not.toBe('running');
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'ready_for_test', round: 1, prHeadSha: HEAD2, reviewedSha: HEAD2, headRepeats: 0 });
+  expect(eventsOf(engine.db).filter((e) => e.type === 'review_repeated').map((e) => e.data)).toMatchObject([{ round: 1, from: SHA, to: HEAD2, repeats: 1 }]);
+});
+
+test('four reviewers that find the same moved head are one repeat, and two repeats in a row count rounds: the third moved head stops the epic in pr_invalid', async () => {
+  const heads = [HEAD2, HEAD3, HEAD4];
+  const settled = lateOpen();
+  const engine = await roundOf((task) => {
+    // each reviewer of a round pushes to the next head the first time its round is seen, so all four judge a head that is gone
+    const head = task.context.pr!.headSha;
+    if (head === SHA || head === HEAD2 || head === HEAD3) {
+      const next = heads[[SHA, HEAD2, HEAD3].indexOf(head)]!;
+      pull(50, { headSha: next });
+      return verdictBy(Object.fromEntries(['reviewer', 'reviewer-2', 'reviewer-3', 'reviewer-4'].map((slot) => [slot, ok])), settled.when)(task);
+    }
+    return { exit: 'hang' };
+  }, { config: fourReviewers() });
+  settled.open();
+  await engine.idle();
+
+  const repeats = eventsOf(engine.db).filter((e) => e.type === 'review_repeated').map((e) => e.data);
+  expect(repeats).toMatchObject([{ from: SHA, to: HEAD2, repeats: 1 }, { from: HEAD2, to: HEAD3, repeats: 2 }]); // four reviewers each, three rounds: two repeats and a stop
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'pr_invalid', round: 1, headRepeats: 2, reviewedSha: null });
+  expect(rows(engine.db)[0]!.needsHumanReason).toContain('changed during the review 3 times in a row');
+});
+
+test('the count of repeats goes back to zero only when a round is decided on its own head, not when one of its reviewers completes', async () => {
+  let pushed = false;
+  const engine = await roundOf((task) => {
+    if (task.context.pr!.headSha === SHA && task.reviewer === 'reviewer' && !pushed) {
+      pushed = true;
+      pull(50, { headSha: HEAD2 });
+    }
+    return verdictBy({ reviewer: ok, 'reviewer-2': ok })(task);
+  });
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'ready_for_test', reviewedSha: HEAD2, headRepeats: 0 });
+  expect(eventsOf(engine.db).filter((e) => e.type === 'review_repeated')).toHaveLength(1);
+});
+
+test('a restart of the engine in the middle of a round finds from the rows which slots have a result, which lost their agent and which were never launched', async () => {
+  const db = open();
+  inReview(db, {}, twoReviewers({ agents: { ...agents, extraReviewers: [extraReviewer, { ...extraReviewer, profile: 'd' }, { ...extraReviewer, profile: 'e' }] } as EffectiveRepoConfig['agents'] }));
+  reviewRow(db, 'r1', 'reviewer', { status: 'finished', startedAt: 1 }); // has its verdict
+  db.insert(callerResults).values({ executionId: 'r1', outcome: 'completed', result: JSON.stringify({ outcome: 'completed', summary: 's', pr: { number: 50, headSha: SHA }, verification: ok.verification }) }).run();
+  seedExecution(db, 'r2', 1, { stage: 'review', reviewer: 'reviewer-2', round: 1, headSha: SHA, status: 'running', startedAt: 2 }); // lost its agent with the engine
+  // reviewer-3 and reviewer-4 were never launched
+  runner.behavior = () => ({ exit: 'hang' });
+  const engine = await start(1);
+  await vi.waitFor(() => expect(runner.tasks).toHaveLength(3));
+
+  expect(runner.tasks.map((t) => [t.reviewer, t.resumeSession])).toEqual([['reviewer-2', 's-r2'], ['reviewer-3', undefined], ['reviewer-4', undefined]]);
+  expect(runner.tasks.map((t) => t.context.pr!.headSha)).toEqual([SHA, SHA, SHA]);
+  expect(executionsOf(engine.db).filter((e) => e.stage === 'review').map((e) => [e.reviewer, e.status])).toEqual([['reviewer', 'finished'], ['reviewer-2', 'interrupted'], ['reviewer-2', 'running'], ['reviewer-3', 'running'], ['reviewer-4', 'running']]);
+});
+
+// What follows says what happens today to a reviewer that gives no verdict: it stops the epic as a single reviewer does.
+// The slice that gives such a reviewer no verdict changes these tests knowingly.
+
+test('a reviewer that fails past its retries stops the epic with retries_exhausted for now, until the slice that gives it no verdict, and ends the other run of the round', async () => {
+  const engine = await roundOf((task) => (task.reviewer === 'reviewer-2' ? { exit: 'failed' } : { exit: 'hang' }));
+  await clock.advance(10 * MIN);
+  await clock.advance(10 * MIN);
+  await clock.advance(10 * MIN);
+  await engine.idle();
+
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'retries_exhausted' });
+  expect(executionsOf(engine.db).filter((e) => e.reviewer === 'reviewer').every((e) => e.status !== 'running')).toBe(true);
+});
+
+test('a reviewer that answers that it cannot conclude stops the epic with agent_needs_human for now, until the slice that gives it no verdict', async () => {
+  const engine = await roundOf((task) => (task.reviewer === 'reviewer-2' ? { write: result(task, { outcome: 'needs_human', reason: 'cannot verify', pr: { number: 50, headSha: SHA } }) } : { exit: 'hang' }));
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'agent_needs_human', needsHumanReason: 'cannot verify' });
+  expect(runner.stopped).toContain(executionsOf(engine.db).find((e) => e.reviewer === 'reviewer')!.executionId);
+});
+
+test('a reviewer that lacks a skill the person named stops the epic with skill_missing for now, until the slice that gives it no verdict', async () => {
+  skills.answers = { mine: 'absent' };
+  const own = { review: { name: 'mine', named: true }, publish: null };
+  const engine = await roundOf(() => ({ exit: 'stopped' }), { config: twoReviewers({ agents: { ...agents, extraReviewers: [{ ...extraReviewer, skills: own }] } as EffectiveRepoConfig['agents'] }) });
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'skill_missing' });
 });

@@ -155,8 +155,16 @@ describe('resolveRepoConfig skills', () => {
     });
     expect(resolved.skills!.lead).toEqual({ review: { name: 'g-lead', named: true }, publish: { name: 'own-post', named: true } });
     expect(resolved.agents.extraReviewers).toEqual([
-      { profile: 'c', option: 'local', providerName: 'local', harness: 'codex', provider: 'ollama', configDir: '/srv/codex', model: 'm4', skills: { review: { name: 'mine', named: true }, publish: null }, failover: [{ provider: 'codex' }] },
-      { ...resolvedReviewer, profile: 'b', model: 'm5', skills: { review: { name: 'g-review', named: true }, publish: null } },
+      { profile: 'c', option: 'local', providerName: 'local', harness: 'codex', provider: 'ollama', configDir: '/srv/codex', model: 'm4', skills: { review: { name: 'mine', named: true }, publish: null }, failover: [{ provider: 'codex' }], sharedIdentity: true },
+      { ...resolvedReviewer, profile: 'b', model: 'm5', skills: { review: { name: 'g-review', named: true }, publish: null }, sharedIdentity: true },
     ]);
+  });
+
+  test('an extra reviewer is saved as sharing the author\'s identity only when its profile is the same account', () => {
+    const resolved = resolveFirst({
+      profiles: { ...base.profiles, bot: { kind: 'forge', agent: 'reviewer-bot' } },
+      agents: { ...base.agents, extraReviewers: [{ profile: 'bot', provider: 'codex', model: 'm4' }, { profile: 'a', provider: 'codex', model: 'm5' }] },
+    });
+    expect(resolved.agents.extraReviewers!.map((e) => e.sharedIdentity)).toEqual([undefined, true]);
   });
 });

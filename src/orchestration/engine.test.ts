@@ -7093,7 +7093,7 @@ async function leadFlow(review: (task: AgentTask) => Behavior, lead: (task: Agen
   return engine;
 }
 const bothAgree = verdictBy({ reviewer: { ...ok, summary: 'tickets covered' }, 'reviewer-2': { ...ok, summary: 'migration reversible' } });
-const hang = () => ({ exit: 'hang' as const });
+const hang = () => ({ exit: 'stopped' as const }); // the run ends interrupted: the epic stays where it is
 
 test('without a lead the agreed round goes to ready for test as before, with no lead round and no approved head', async () => {
   const engine = await leadFlow(bothAgree, hang, { config: twoReviewers() });
@@ -7259,7 +7259,7 @@ test('a technical failure of the lead is retried as the lead, in its own slot an
 });
 
 test('a skill the person named for the lead that is absent stops the epic with skill_missing before a run is spent, and the lead\'s skills are the ones asked for', async () => {
-  skills.absent.add('my-lead');
+  skills.answers['my-lead'] = 'absent';
   const engine = await leadFlow(bothAgree, hang);
 
   expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'skill_missing' });

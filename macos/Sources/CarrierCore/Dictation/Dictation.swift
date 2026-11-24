@@ -72,23 +72,6 @@ public struct AudioBuffer: Sendable, Equatable {
     }
 }
 
-/// The microphone, shared by every recognizer. The buffers live in memory only; `stop` ends the stream and drops them.
-public protocol AudioCapture: Sendable {
-    func start() throws -> AsyncStream<AudioBuffer>
-    func stop()
-}
-
-/// Turns audio into text events. `prepare` loads what the model needs (it may take seconds, and returns at once when it is loaded); `release` drops it; `recognize` listens until the audio ends,
-/// then gives its last `final` (an empty one when nothing was said, never a failure) and ends its events.
-public protocol Recognizer: Sendable {
-    var id: RecognizerID { get }
-    var models: [SpeechModel] { get }
-    func prepare(_ model: SpeechModel) async throws
-    func recognize(_ audio: AsyncStream<AudioBuffer>) -> AsyncStream<DictationEvent>
-    /// Drops what `prepare` loaded; the next `prepare` loads it again. Harmless when nothing is loaded.
-    func release() async
-}
-
 /// The recognizers a build offers: with none, the message box draws no microphone.
 @MainActor @Observable public final class RecognizerRegistry {
     public static let shared = RecognizerRegistry()

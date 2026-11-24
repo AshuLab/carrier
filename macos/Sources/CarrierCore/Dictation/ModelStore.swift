@@ -29,12 +29,6 @@ public enum ModelDownloadFailure: Error, Equatable, Sendable {
     }
 }
 
-/// Fetches one model into the folder it is given, reporting its progress as a fraction. It stops by throwing when its task is cancelled and
-/// throws a `ModelDownloadFailure` for a cause the person can be told; anything else is told as a failure with its description.
-public protocol ModelDownloader: Sendable {
-    func download(_ model: SpeechModel, into folder: URL, progress: @MainActor @Sendable (Double) -> Void) async throws
-}
-
 public enum ModelState: Equatable, Sendable {
     case notDownloaded
     /// A fraction, `0...1`.

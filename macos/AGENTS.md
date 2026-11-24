@@ -125,6 +125,7 @@ What the person sees: [dictation](../docs/macos/dictation.md).
 
 The logic: `CarrierCore/Dictation.swift`, `DictationSession.swift`, `TentativeText.swift`, `DictationPresentation.swift`, tested with `ScriptedDictation.swift`; `DictationController` holds the switch both boxes read; `LaunchPhases`: after the first frame.
 Readiness: `speechModelStep`, `ModelSlot`, run by `DictationController.warmUp`; `DictationSession.run` captures before `prepare`.
+The platform it needs is protocols in `CarrierCore/Platform/` (`Recognizer`, `AudioCapture`, `BatchTranscriber`, `ModelDownloader`, `TextModelClient`, `AudioPlayer`, `AccessibilityTrust`; `TerminalOpener` for Terminal), implemented in `Carrier/Platform/`; the models over them are `AudioPlayback` (`AudioPlaybackTests`) and `AccessibilityState` (`AccessibilityStateTests`), tested with a fake.
 Firm and tentative: `DictationEvent.partial`, `TentativeText.tentativeRange`, `GlobalDictation.split`.
 The page is `Carrier/DictationTab.swift` (`reset(.dictation)` restores the keys the schema (`design/preferences.json`) gives the page); views untested.
 

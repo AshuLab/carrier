@@ -83,7 +83,7 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"", protocol vers
     }
     // `release/2` is listed only as `origin/release/2`: a remote start finds it, a local one is refused as the host refuses it
     _ = try await host.open(plan: plan("release/2", .remote))
-    await #expect(throws: ControlError.remote(.words("The branch to start from is not one this repository lists"))) { _ = try await host.open(plan: plan("release/2", .local)) }
+    await #expect(throws: ControlError.remote(Refusal(code: "worktree.startNotListed", text: "The branch to start from is not one this repository lists"))) { _ = try await host.open(plan: plan("release/2", .local)) }
     _ = try await host.open(plan: plan("main", .remote))
     _ = try await host.open(plan: plan("main", .local))
     let opened = try await host.list(archived: false).filter { $0.workspace?.base == "/Users/dev/web" }
@@ -202,7 +202,7 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"", protocol vers
     #expect(first.repos[5] == AvailableRepo(name: "vemec/dotfiles", isPrivate: false, pushedAt: nil))
     let second = try await host.githubRepos(page: 2)
     #expect(second.login == nil && second.hasMore == false && second.repos.map(\.name) == ["optyra/docs", "vemec/old-experiments"])
-    await #expect(throws: ControlError.remote(.words("GitHub did not answer; check \"gh auth status\""))) { try await host.githubRepos(page: 3) }
+    await #expect(throws: ControlError.remote(Refusal(code: "github.noAnswer", text: "GitHub did not answer; check \"gh auth status\""))) { try await host.githubRepos(page: 3) }
 }
 
 @Test func aHostWithoutTheGithubReposCapabilityIsNotAskedToList() async {
@@ -385,7 +385,7 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"", protocol vers
     #expect(try await host.capabilities().contains(.repoBranches))
     #expect(try await host.repoBranches("AshuLab/web") == RepoBranches(defaultBranch: "main", branches: ["main", "feat/x"], hasMore: false))
     #expect(try await host.repoBranches("AshuLab/api") == RepoBranches(defaultBranch: "trunk", branches: ["trunk"], hasMore: true))
-    await #expect(throws: ControlError.remote(.words("AshuLab/nope was not found, or your GitHub login cannot see it"))) { try await host.repoBranches("AshuLab/nope") }
+    await #expect(throws: ControlError.remote(Refusal(code: "github.repoNotFound", params: ["repo": "AshuLab/nope"], text: "AshuLab/nope was not found, or your GitHub login cannot see it"))) { try await host.repoBranches("AshuLab/nope") }
 }
 
 @Test func repoBranchesGoesOnTheWireWithTheRepoAsAJSONStringAndOnlyForAHostThatListsIt() async throws {
@@ -556,7 +556,7 @@ private func eventsReply(_ id: Int, rev: String, lists: String) -> String {
     // asking again, even for another folder, is the clone that runs
     #expect(try await host.cloneProject("Vemec/Encaja", into: "/tmp/elsewhere") == started)
     #expect(try await host.projectClones().count == 3)
-    await #expect(throws: ControlError.remote(.words("AshuLab/nope was not found, or your GitHub login cannot see it"))) { _ = try await host.cloneProject("AshuLab/nope", into: nil) }
+    await #expect(throws: ControlError.remote(Refusal(code: "github.repoNotFound", params: ["repo": "AshuLab/nope"], text: "AshuLab/nope was not found, or your GitHub login cannot see it"))) { _ = try await host.cloneProject("AshuLab/nope", into: nil) }
     // a failed clone goes when it is dismissed, a running one stays
     #expect(try await host.dismissClone("acme/private-tools").map(\.repo) == ["acme/docs", "vemec/encaja"])
     #expect(try await host.dismissClone("acme/docs").count == 2)
@@ -583,7 +583,7 @@ private func eventsReply(_ id: Int, rev: String, lists: String) -> String {
     #expect(dismissed["cmd"] as? String == "dismissClone" && dismissed.keys.sorted() == ["cmd", "id", "repo"])
 
     // the host's own limits are checked before anything is sent
-    await #expect(throws: ControlError.remote(.words("\"../x\" is not a repository; write it as owner/name"))) { _ = try await host.cloneProject("../x", into: nil) }
+    await #expect(throws: ControlError.remote(Refusal(code: "project.repoInvalid", params: ["repo": "../x"], text: "\"../x\" is not a repository; write it as owner/name"))) { _ = try await host.cloneProject("../x", into: nil) }
     await #expect(throws: ControlError.remote(.folderUnusable)) { _ = try await host.cloneProject("acme/app", into: "") }
 
     // a host without the capability is told it is older, and is sent nothing
@@ -612,13 +612,13 @@ private func eventsReply(_ id: Int, rev: String, lists: String) -> String {
     #expect(entry?.origin == "created")
     // a name whose folder is there is refused with the reason and nothing is written
     let before = try ProjectsFile(folder: server.home).read().count
-    await #expect(throws: ControlError.remote(.words("my-app is already a project; choose another name"))) { _ = try await host.newProject("my-app", into: nil) }
+    await #expect(throws: ControlError.remote(Refusal(code: "project.nameTaken", params: ["name": "my-app"], text: "my-app is already a project; choose another name"))) { _ = try await host.newProject("my-app", into: nil) }
     #expect(try ProjectsFile(folder: server.home).read().count == before)
     // the parent chosen for this one project
     let parent = server.home + "/elsewhere"
     #expect(try await host.newProject("other", into: parent) == parent + "/local/other")
     // what the host would refuse never goes out
-    await #expect(throws: ControlError.remote(.words("Use only letters, digits, _, . and -"))) { _ = try await host.newProject("a b", into: nil) }
+    await #expect(throws: ControlError.remote(.projectNameBadCharacters)) { _ = try await host.newProject("a b", into: nil) }
     await #expect(throws: ControlError.remote(.folderUnusable)) { _ = try await host.newProject("x", into: "") }
 }
 

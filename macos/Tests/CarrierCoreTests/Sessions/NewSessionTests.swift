@@ -625,8 +625,8 @@ private func cleanRepo(_ folder: String) -> WorkspaceInfo {
     #expect(try await host.workspace("/somewhere/else").git == false)
     #expect(try await host.fetch("/Users/dev/carrier", ifStale: false).fetchedAt == 1_792_007_200_000)
     #expect(try await host.fetch("/Users/dev/carrier", ifStale: true).branches.first?.behind == 12, "the fixture host takes ifStale and answers as a current one")
-    await #expect(throws: ControlError.remote(.words("That folder is not a git repository"))) { try await host.fetch("/Users/dev/notes", ifStale: true) }
-    await #expect(throws: ControlError.remote(.words("The fetch of origin failed"))) { try await host.fetch("/Users/dev/work/web", ifStale: true) }
+    await #expect(throws: ControlError.remote(Refusal(code: "workspace.notGit", text: "That folder is not a git repository"))) { try await host.fetch("/Users/dev/notes", ifStale: true) }
+    await #expect(throws: ControlError.remote(Refusal(code: "workspace.fetchFailed", text: "The fetch of origin failed"))) { try await host.fetch("/Users/dev/work/web", ifStale: true) }
     #expect(try await host.suggestName("/Users/dev/carrier") == "brave-marine-aiur")
     #expect(try await host.suggestName("/Users/dev/carrier") == "keen-ghost-char")
     #expect(try await host.checkName("/Users/dev/carrier", "fix-login") == NameCheck(valid: true, free: false, reason: "A branch called carrier/fix-login already exists"))
@@ -643,13 +643,13 @@ private func cleanRepo(_ folder: String) -> WorkspaceInfo {
     #expect(made.workspace == ChatSession.Workspace(base: "/Users/dev/carrier", branch: "carrier/my-fix", from: "origin/main") && made.folder.hasSuffix("/my-fix"))
     #expect(try await host.events(id, after: 0, limit: 10).events.map(\.kind) == ["step", "step", "user"])
     // refused as the host does
-    await #expect(throws: ControlError.remote(.words("The branch to start from is not one this repository lists"))) {
+    await #expect(throws: ControlError.remote(Refusal(code: "worktree.startNotListed", text: "The branch to start from is not one this repository lists"))) {
         try await host.open(plan: plan("/Users/dev/carrier", WorktreeRequest(from: "nope", name: "x")))
     }
-    await #expect(throws: ControlError.remote(.words("A branch called carrier/fix-login already exists"))) {
+    await #expect(throws: ControlError.remote(Refusal(code: "worktree.name.branchExists", text: "A branch called carrier/fix-login already exists"))) {
         try await host.open(plan: plan("/Users/dev/carrier", WorktreeRequest(from: "main", name: "fix-login")))
     }
-    await #expect(throws: ControlError.remote(.words("Worktrees need a git repository"))) {
+    await #expect(throws: ControlError.remote(Refusal(code: "worktree.notGit", text: "Worktrees need a git repository"))) {
         try await host.open(plan: plan("/Users/dev/notes", WorktreeRequest(from: "main")))
     }
 }

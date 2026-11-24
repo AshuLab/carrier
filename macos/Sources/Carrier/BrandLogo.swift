@@ -3,7 +3,7 @@ import SwiftUI
 
 /// The logo over the sidebar's title bar: the mark alone, centred in the bar. It is an overlay at an exact place and not a toolbar item, because the
 /// toolbar moves its items as the room changes and put the logo under the window's buttons. A one-colour template that takes the text's colour in light
-/// and in dark.
+/// and in dark. A dev build ("Carrier Dev") draws it in the pink of its Dock icon and puts a DEV MODE badge after it, so it is told from the installed one at a glance.
 struct BrandLogo: View {
     static let height: CGFloat = 18
     /// The window's title bar, where the pill and the buttons are centred.
@@ -14,12 +14,33 @@ struct BrandLogo: View {
         return image
     }()
 
+    /// The pink of the dev app's Dock icon (`AppIconDev.icon`).
+    private static let devPink = Color(.displayP3, red: 0.96921, green: 0.15760, blue: 0.85935)
+
     var body: some View {
         let image = Self.mark
-        Image(nsImage: image).renderingMode(.template).resizable()
-            .frame(width: Self.width(of: image), height: Self.height).foregroundStyle(.primary)
-            .frame(maxWidth: .infinity).frame(height: Self.barHeight)
-            .accessibilityElement(children: .ignore).accessibilityLabel("Carrier")
+        let mark = Image(nsImage: image).renderingMode(.template).resizable()
+            .frame(width: Self.width(of: image), height: Self.height).foregroundStyle(isDevBuild ? Self.devPink : .primary)
+        Group {
+            if isDevBuild {
+                // the badge goes when the sidebar is too narrow for both: the pink mark still says it
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 8) { mark; badge }
+                    mark
+                }
+            } else {
+                mark
+            }
+        }
+        .frame(maxWidth: .infinity).frame(height: Self.barHeight)
+        .accessibilityElement(children: .ignore).accessibilityLabel(isDevBuild ? "Carrier, development build" : "Carrier")
+    }
+
+    private var badge: some View {
+        Text("DEV MODE").font(.scaled(10, weight: .bold)).tracking(0.8).foregroundStyle(Self.devPink).lineLimit(1)
+            .padding(.horizontal, 7).padding(.vertical, 1)
+            .background(Capsule().fill(Self.devPink.opacity(0.14)))
+            .overlay(Capsule().strokeBorder(Self.devPink.opacity(0.4), lineWidth: 1))
     }
 
     /// The width at the logo's height, from the proportions of its own drawing, so a new export needs no change here.

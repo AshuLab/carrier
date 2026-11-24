@@ -157,7 +157,7 @@ private func currentConfigURL() -> URL { URL(fileURLWithPath: configFilePath()) 
 /// The config file's bytes, read each time so a change in the file is followed; nil when it cannot be read.
 public func currentConfig() -> Data? { try? Data(contentsOf: currentConfigURL()) }
 
-/// Writes the config file in place; the caller read it just before, as the Repos tab does.
+/// Writes the config file in place; the caller read it just before, as the Watching tab does.
 public func writeCurrentConfig(_ data: Data) throws { try data.write(to: currentConfigURL(), options: .atomic) }
 
 /// The Carrier folder the app works with: `CARRIER_HOME` in its own environment, else `~/.carrier`.

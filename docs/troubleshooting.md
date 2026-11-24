@@ -28,7 +28,7 @@ The cask clears the quarantine attribute after it downloads the app, because the
 xattr -dr com.apple.quarantine /Applications/Carrier.app
 ```
 
-The app needs an Apple Silicon Mac on macOS 26 or later; the cask refuses to install on anything else.
+The app needs a Mac on macOS 26 or later, Apple Silicon or Intel; the cask refuses to install on an older macOS and picks the zip of the Mac's own architecture.
 
 ### Homebrew refuses the formula because the tap is not trusted
 
@@ -55,7 +55,7 @@ The app checks by itself (Sparkle, once a day, and in the background each time i
 - **The app does not check.** The two choices (check by itself, install by itself) are Sparkle's own preferences and Settings has no page for them yet. `defaults read dev.ashulab.carrier SUEnableAutomaticChecks` printing `0` means checking was turned off; `defaults delete dev.ashulab.carrier SUEnableAutomaticChecks` goes back to the default, on. A build with no feed (run with `swift run`, or under `--fixture`) never checks.
 - **The app is older than the first release with Sparkle,** which cannot update itself: run `brew upgrade --cask carrier` once, and from then on it moves by itself.
 - **The update was refused.** `log show --last 1h --predicate 'subsystem == "org.sparkle-project.Sparkle"'` says why. "The update is improperly signed" means the zip was not signed with the key inside the installed app (see "The update key was lost" below). The line "Code signature of the new version doesn't match the old version" appears at the Error level on every update of an ad hoc app and is not a failure.
-- **This Mac is not supported by the release:** the app needs an Apple Silicon Mac on macOS 26 or later.
+- **This Mac is not supported by the release:** the app needs macOS 26 or later. An Intel Mac gets its own build (`Carrier-X.Y.Z-intel.zip`, updated from `appcast-intel.xml`), and cannot run macOS 27.
 
 ### Carrier could not be updated after the app updated
 
@@ -66,7 +66,7 @@ The whole output is in `<folder>/engine/logs/app-upgrade.log` (`<folder>` is the
 - **No network.** Connect and open the app again, or run `brew update && brew upgrade --formula ashulab/tap/carrier` in Terminal.
 - **Another `brew update` or `brew upgrade` is running** and holds Homebrew's lock. Wait for it, then open the app again.
 - **The formula is pinned.** Homebrew skips a pinned formula, so there may be no notice at all and `carrier --version` stays old. `brew list --pinned` lists `carrier`; `brew unpin carrier` and upgrade.
-- **Homebrew is not in `/opt/homebrew`.** The app only runs that one `brew` (Apple Silicon); upgrade in Terminal with your own.
+- **Homebrew is not in its default folder.** The app only runs the `brew` of its own architecture's default folder (`/opt/homebrew/bin/brew` on Apple Silicon, `/usr/local/bin/brew` on Intel); upgrade in Terminal with your own.
 
 ### The engine or the chat host is still on the old version after an update
 

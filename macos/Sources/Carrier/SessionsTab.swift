@@ -24,23 +24,9 @@ struct SessionsTabView: View {
     @AppStorage(AppPreferences.workInKey) private var workIn = AppPreferences.defaultWorkIn
     private let catalog = ModelCatalog.shared
 
-    /// The providers the chat host lists, the ones whose binary was found marked ready.
-    private var startAccounts: [PickerAccount] {
-        catalog.agents.map { PickerAccount(name: $0.name, harness: $0.harness, icon: providerIconName(harness: $0.harness), ready: $0.found) }
-    }
+    private var startAccounts: [PickerAccount] { startPickerAccounts(catalog) }
 
-    /// The access options of the provider a new session opens on (the first that can work when none is named), each at the value chosen here
-    /// and else at the provider's own.
-    private var startAccessScales: [OptionScale] {
-        _ = catalog.offers  // the offers are kept in the store; this is what refreshes the view when they arrive
-        let chosen = NewSessionStart.access(fromJSON: startAccess)
-        let agent = startAgent.isEmpty ? catalog.agents.first { $0.found }?.name : startAgent
-        let options = agent.flatMap { AgentOfferStore.shared.offer($0)?.options } ?? []
-        return composerMenu(options.map { option in
-            guard let value = chosen[option.id], option.values.contains(where: { $0.id == value }) else { return option }
-            return ChatOption(id: option.id, label: option.label, values: option.values, current: value)
-        }).access
-    }
+    private var startAccessScales: [OptionScale] { accessScalesOfStart(catalog: catalog, agent: startAgent, access: startAccess) }
 
     private var unparsableFields: Set<SessionAgeField> { Set(unparsable.map { $0 == "archive" ? .archive : .delete }) }
 
@@ -198,4 +184,23 @@ struct SessionsTabView: View {
             return false
         }
     }
+}
+
+
+/// The providers the chat host lists, the ones whose binary was found marked ready.
+@MainActor func startPickerAccounts(_ catalog: ModelCatalog) -> [PickerAccount] {
+    catalog.agents.map { PickerAccount(name: $0.name, harness: $0.harness, icon: providerIconName(harness: $0.harness), ready: $0.found) }
+}
+
+/// The access options of the provider a new session opens on (the first that can work when none is named), each at the value chosen (the JSON
+/// of option and value) and else at the provider's own.
+@MainActor func accessScalesOfStart(catalog: ModelCatalog, agent named: String, access json: String) -> [OptionScale] {
+    _ = catalog.offers  // the offers are kept in the store; this is what refreshes the view when they arrive
+    let chosen = NewSessionStart.access(fromJSON: json)
+    let agent = named.isEmpty ? catalog.agents.first { $0.found }?.name : named
+    let options = agent.flatMap { AgentOfferStore.shared.offer($0)?.options } ?? []
+    return composerMenu(options.map { option in
+        guard let value = chosen[option.id], option.values.contains(where: { $0.id == value }) else { return option }
+        return ChatOption(id: option.id, label: option.label, values: option.values, current: value)
+    }).access
 }

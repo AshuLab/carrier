@@ -17,6 +17,8 @@ struct ConversationView: View {
     @State private var animatesRows = false
     /// Whether the feed has been taken to its end after it loaded: until then it is not drawn, so the way down is not seen.
     @State private var positioned = false
+    /// The height of the conversation's pane, for what sits over the message box to leave it room (`cardRoom`).
+    @State private var paneHeight: CGFloat = 0
     @AppStorage(AppPreferences.toolOutputKey) private var toolOutput = AppPreferences.defaultToolOutput
     @AppStorage(AppPreferences.chatMessageSpacingKey) private var messageSpacing = AppPreferences.defaultChatMessageSpacing
     @AppStorage(AppPreferences.showsReasoningKey) private var showsReasoning = AppPreferences.defaultShowsReasoning
@@ -192,7 +194,8 @@ struct ConversationView: View {
                 animatesRows = true
             }
         }
-        .safeAreaInset(edge: .bottom, spacing: 0) { if model.archived { archivedBox } else { box } }
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { paneHeight = $0 }
+        .safeAreaInset(edge: .bottom, spacing: 0) { if model.archived { archivedBox } else { box.environment(\.conversationHeight, paneHeight) } }
         .font(.scaled(13))
         .task {
             if let first = draft?.takeFirstMessage(of: model.sessionId) { model.show(firstMessage: first) }
@@ -290,12 +293,12 @@ private struct ConversationBox: View {
                     providers: model.switchTargets.isEmpty
                         ? (model.agent.isEmpty ? [] : [ProviderTab(name: model.agent, icon: AgentAccounts.harness(of: model.agent))])
                         : model.switchTargets.map { ProviderTab(name: $0.name, icon: $0.harness, available: $0.available, note: $0.note) },
-                    agent: model.agent, locked: model.canSwitchNow == false,
+                    agent: model.pendingAgent ?? model.agent, locked: model.canSwitchNow == false,
                     options: model.shownOptions,
                     // a closed session lists what it offered when it last ran, and what is chosen waits for the message that wakes it; one the app
                     // never saw running lists nothing, and the panel says so
-                    emptyNote: model.asleep ? "The provider lists these once the session is awake. Send a message to wake it up." : "Reading what the provider offers…",
-                    busy: model.busy, chooseAgent: { name in Task { await model.switchAgent(name) } }, choose: { option, value in Task { await model.setOption(option, value) } }
+                    emptyNote: model.pendingAgent.map { "\($0) lists these once it has taken over, with your message." } ?? (model.asleep ? "The provider lists these once the session is awake. Send a message to wake it up." : "Reading what the provider offers…"),
+                    busy: model.busy, chooseAgent: { name in model.chooseAgent(name) }, choose: { option, value in Task { await model.setOption(option, value) } }
                 )
             }
             if let refusal = model.optionRefusal { ProblemNotice(text: refusal) }
@@ -404,6 +407,13 @@ struct FeedRowView: View, Equatable {
             ApprovalDecidedView(text: text, allow: allow)
         case .line(_, let text):
             Text(text).codeFont(12).foregroundStyle(.secondary).lineLimit(2).textSelection(.enabled)
+        case .switched(_, let switched):
+            AgentSwitchDivider(switched: switched)
+        case .cleared(_, let freed):
+            ContextCutDivider(glyph: .brush, title: "Context cleared", notes: [clearedFreedText(freed)].compactMap { $0 }, detail: clearedDetail(agent: ProviderIdentityStore.shared.shortName(of: agent)))
+        case .compacted(_, let cut):
+            ContextCutDivider(glyph: cut.error == nil ? .arrowsMinimize : .warning, title: cut.title, notes: [cut.sizes, cut.saved].compactMap { $0 },
+                              detail: cut.detail(agent: ProviderIdentityStore.shared.shortName(of: agent)), failed: cut.error != nil)
         case .error(_, let text):
             BannerView(banner: failedTurnBanner(agent: ProviderIdentityStore.shared.shortName(of: agent), error: text), agent: agent, copyDetails: true, retry: offersWayOut ? actions.retry : nil)
         case .stopped:

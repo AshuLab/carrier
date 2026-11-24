@@ -156,3 +156,41 @@ private func save(_ change: RoleChange, _ role: AgentRole = .author, path: Strin
     #expect(result == .saved && result.problem == nil)
     #expect(try role(path, "author")["model"] as? String == "gpt-5")
 }
+
+private let withSteps = #"""
+{"profiles": {"me": {"kind": "gh"}},
+ "agents": {"author": {"profile": "me", "provider": "claude", "model": "m"}},
+ "failover": {"roles": {"author": [{"provider": "codex", "model": "g"}, {"provider": "claude", "model": "m2", "effort": "high"}, {"provider": "agy"}], "reviewer": [{"provider": "codex", "model": "g"}]}}}
+"""#
+
+private func steps(_ path: String, _ name: String = "author") throws -> [[String: Any]]? {
+    ((try file(path)["failover"] as? [String: Any])?["roles"] as? [String: Any])?[name] as? [[String: Any]]
+}
+
+@Test func aRoleMovedOntoAFailoverStepDropsThatStepAndKeepsTheOthersInOrder() throws {
+    let path = try temporaryConfig(withSteps)
+    // the account the role moves to was its first fallback: running out there and falling back to it would be no fallback
+    #expect(saveGlobalRole([.provider("codex"), .model("g")], role: .author, path: path, accounts: accounts, bots: bots, reload: { .applied }) == .saved)
+    #expect(try steps(path)?.compactMap { $0["provider"] as? String } == ["claude", "agy"])
+    #expect(try role(path, "author")["provider"] as? String == "codex")
+}
+
+@Test func aRoleMovedOntoItsOnlyFailoverStepTurnsTheFailoverOffForThatRoleAndKeepsTheOthers() throws {
+    let path = try temporaryConfig(withSteps.replacingOccurrences(of: #"{"provider": "codex", "model": "g"}, {"provider": "claude", "model": "m2", "effort": "high"}, {"provider": "agy"}], "reviewer""#, with: #"{"provider": "codex", "model": "g"}], "reviewer""#))
+    #expect(try steps(path)?.count == 1)
+    #expect(saveGlobalRole([.provider("codex"), .model("g")], role: .author, path: path, accounts: accounts, bots: bots, reload: { .applied }) == .saved)
+    #expect(try steps(path) == nil)
+    #expect(try steps(path, "reviewer")?.count == 1)
+}
+
+@Test func aStepWithNoModelStaysWhenTheRoleMovesToThatProvider() throws {
+    let path = try temporaryConfig(withSteps)
+    #expect(saveGlobalRole([.provider("agy"), .model("x")], role: .author, path: path, accounts: accounts, bots: bots, reload: { .applied }) == .saved)
+    #expect(try steps(path)?.count == 3)
+}
+
+@Test func aProviderChangeAloneKeepsTheStepsWhenTheModelsDiffer() throws {
+    let path = try temporaryConfig(withSteps)
+    #expect(save(.provider("codex"), path: path) == .saved)
+    #expect(try steps(path)?.count == 3)
+}

@@ -20,7 +20,7 @@ public enum FixtureError: Error, Equatable {
 /// It owns a temporary home (`home`) holding an `engine.json` (`fixtureConfig`: the watched repos, profiles and roles, which also give the Providers page accounts in use), a `chat.json` with two chat agents, a `projects.json` with four projects (`writeProjects`) and a `providers.json` with the golden reply's accounts (`providers` follows it: Antigravity stays "found, not added" until an Add writes it), and the engine's socket in `engine/state/`, so pointing `CARRIER_HOME` at it
 /// makes `controlSocketPath()` find the socket. `stop()` removes the home and everything in it.
 /// The `engine.json` of the fixture home: the repos of the fixture snapshot, the profiles and the three global roles, and one repo that
-/// overrides the reviewer's model, so the Repos page shows an inherited role and a mixed one.
+/// overrides the reviewer's model, so the Watching page shows an inherited role and a mixed one.
 public let fixtureConfig = """
 {
   "repos": [

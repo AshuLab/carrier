@@ -6,14 +6,16 @@ import Testing
     let now = Date(timeIntervalSince1970: 1_000_000)
     let row = SessionRow(
         id: "s1", title: "A title that the row would cut", workspace: "carrier", agent: "claude", state: .idle,
-        updatedAt: now.addingTimeInterval(-7200), branch: "carrier/void-corsair-pylon", folder: "/srv/wt/void-corsair-pylon",
+        updatedAt: now.addingTimeInterval(-7200), branch: "carrier/void-corsair-pylon", branchFrom: "origin/main", folder: "/srv/wt/void-corsair-pylon",
         lastMessage: "Done: the pill has room now.", turns: 3, reportsActivity: true
     )
     let card = sessionPeek(row, now: now)
     #expect(card.title == "A title that the row would cut" && card.name == "carrier" && card.subtitle == "Idle")
     #expect(card.lastMessage == "Done: the pill has room now.")
     #expect(card.facts.map(\.label) == ["Where", "Branch", "Folder", "Agent", "Turns"])
-    #expect(card.facts.map(\.value) == ["Worktree", "carrier/void-corsair-pylon", "/srv/wt/void-corsair-pylon", "claude", "3"])
+    // a worktree says whose it is, the branch it was cut from, and its folder by name with the whole path under it
+    #expect(card.facts.map(\.value) == ["Worktree of carrier", "carrier/void-corsair-pylon", "void-corsair-pylon", "claude", "3"])
+    #expect(card.facts.map(\.detail) == [nil, "cut from origin/main", "/srv/wt/void-corsair-pylon", nil, nil])
     // a long branch or folder is drawn on one line and an agent as its account, so each fact says what it is
     #expect(card.facts.map(\.kind) == [.text, .branch, .path, .agent, .text])
     #expect(card.timeline == "updated 2 hours ago")

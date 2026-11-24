@@ -65,9 +65,11 @@ export type ChatEvent =
   /** A turn the provider opened itself, with no message from the person (a background subagent ended and the SDK answers it). The host's own: never stored, never shown. */
   | { kind: 'turn_start' }
   | { kind: 'turn_end'; outcome: 'ok' | 'interrupted' | 'error'; model?: string; usage?: ChatUsage }
+  /** The provider summarized the conversation to free context: the person's `/compact` or its own auto-compact (`trigger`; absent when the provider does not say). `before` and `after` are the context in tokens, `ms` how long it took. A failure sets `error` and nothing else: the context is as it was. */
+  | { kind: 'compact'; trigger?: 'manual' | 'auto'; before?: number; after?: number; ms?: number; error?: string }
   | { kind: 'background'; /** Every task the agent has running in the background (a command, a monitor, a subagent) after the change; the whole set each time, never stored. */ tasks: BackgroundTask[] }
   | { kind: 'error'; text: string; /** Set when the provider says the account ran out, which a retried rate limit never is. */ reason?: 'usage_limit'; /** When it resets, in ms since the epoch, when the provider gives a timestamp. */ resetsAt?: number; /** When it resets, in the provider's own words, when it gives only those. Never set with `resetsAt`. */ resetText?: string }
-  | { kind: 'notice'; text: string; /** The id the provider no longer had, kept so the cause can be looked for. */ lostNativeId?: string; /** Set when the notice is a switch of agent, naming the agents as the config does. */ switched?: { from: string; to: string } }; // said by the host, never by an adapter: a plain line, not a failure
+  | { kind: 'notice'; text: string; /** The id the provider no longer had, kept so the cause can be looked for. */ lostNativeId?: string; /** Set when the notice is a switch of agent, naming the agents as the config does and the models they run: the old agent's last turn (else its option) and the new conversation's own. */ switched?: { from: string; to: string; fromModel?: string; toModel?: string } }; // said by the host, never by an adapter: a plain line, not a failure
 
 export interface ChatConversation {
   readonly options: ChatOption[];

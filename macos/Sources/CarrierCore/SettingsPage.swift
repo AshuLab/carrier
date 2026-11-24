@@ -4,7 +4,7 @@ public enum SettingsPage: String, CaseIterable, Sendable {
     case general = "General", providers = "Providers", appearance = "Appearance", notifications = "Notifications"
     case keybindings = "Keybindings", dictation = "Dictation", keepAwake = "Keep awake"
     case chat = "Chat", sessions = "Sessions", projects = "Projects", sidebar = "Sidebar", terminal = "Terminal"
-    case agents = "Agents", repos = "Repos", behavior = "Behavior"
+    case agents = "Agents", watching = "Watching", behavior = "Behavior"
     case engine = "Engine", health = "Health", about = "About"
 
     /// A group of the sidebar: the App one has no heading, the others have their own.
@@ -25,25 +25,25 @@ public enum SettingsPage: String, CaseIterable, Sendable {
         switch self {
         case .general, .providers, .appearance, .notifications, .keybindings, .dictation, .keepAwake: .app
         case .chat, .sessions, .projects, .sidebar, .terminal: .workspace
-        case .agents, .repos, .behavior: .carrier
+        case .agents, .watching, .behavior: .carrier
         case .engine, .health, .about: .system
         }
     }
 
-    /// The page is a native `Form` of grouped sections. The others (the projects, the repos and the checks) are lists and tables of their own, which a form
+    /// The page is a native `Form` of grouped sections. The others (the projects and the checks) are lists and tables of their own, which a form
     /// would not hold.
     public var usesForm: Bool {
         switch self {
-        case .general, .providers, .appearance, .notifications, .keybindings, .dictation, .keepAwake, .chat, .sessions, .sidebar, .terminal, .agents, .behavior, .engine, .about: true
-        case .projects, .repos, .health: false
+        case .general, .providers, .appearance, .notifications, .keybindings, .dictation, .keepAwake, .chat, .sessions, .sidebar, .terminal, .agents, .watching, .behavior, .engine, .about: true
+        case .projects, .health: false
         }
     }
 
-    /// The page is a column of the same width as the others (a readable line, centered). The lists of projects and repos and the checks take the whole
+    /// The page is a column of the same width as the others (a readable line, centered). The list of projects and the checks take the whole
     /// width of the window instead (a project's own screen is a column: `SettingsPlace.isColumn`).
     public var isColumn: Bool {
         switch self {
-        case .projects, .repos, .health: false
+        case .projects, .health: false
         default: true
         }
     }
@@ -64,7 +64,7 @@ public enum SettingsPage: String, CaseIterable, Sendable {
         case .providers: .brain
         case .engine: .cpu
         case .behavior: .sliders
-        case .repos: .inbox
+        case .watching: .inbox
         case .agents: .users
         case .sessions: .history
         case .projects: .folder
@@ -88,7 +88,7 @@ public enum SettingsPage: String, CaseIterable, Sendable {
         case .providers: "The AI providers on this Mac and their accounts"
         case .engine: "How the app runs Carrier"
         case .behavior: "How Carrier runs epics"
-        case .repos: "What Carrier watches"
+        case .watching: "The repositories Carrier takes epics from"
         case .agents: "Who works on an epic and where it goes when its tokens run out"
         case .sessions: "How sessions start and age out"
         case .projects: "The folders you work in"

@@ -1,12 +1,12 @@
 import Foundation
 
-// What the Repos page and the new session say about when Carrier uses a repo that is saved (docs/specs/settings-apply-without-restart.md): that
+// What the Watching page and the new session say about when Carrier uses a repo that is saved (docs/specs/settings-apply-without-restart.md): that
 // it applies it to the next epic when the connected engine lists `reload`, else that it reads it when it starts, which is true of a stopped
 // Carrier and of an engine too old to reload. A save the engine did not apply says so, whatever the engine can do.
 
 /// `canReload`: the hello of the engine the app talks to lists `reload`. `outcome`: what the engine answered to the last save; `repo` is
-/// what the note calls the repo ("this repo" on its own page).
-public func settingsNote(state: ConnectionState?, canReload: Bool, outcome: ReloadOutcome?, repo: String = "this repo") -> String {
+/// what the note calls the repo ("this repository" on its own page).
+public func settingsNote(state: ConnectionState?, canReload: Bool, outcome: ReloadOutcome?, repo: String = "this repository") -> String {
     // what the engine answered belongs to a running engine: a stopped Carrier reads the file when it starts, whatever it once said
     guard case .running? = state else { return reads(repo) }
     switch outcome {

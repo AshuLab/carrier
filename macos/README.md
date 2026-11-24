@@ -5,7 +5,7 @@ Building needs **Xcode** (see Toolchain).
 
 ## Install
 
-A person does not build the app: `brew install ashulab/tap/carrier` installs the `carrier` command and `brew install --cask ashulab/tap/carrier` this app in `/Applications` (an Apple Silicon Mac on macOS 26 or later), and the app finds that `carrier` by itself.
+A person does not build the app: `brew install ashulab/tap/carrier` installs the `carrier` command and `brew install --cask ashulab/tap/carrier` this app in `/Applications` (a Mac on macOS 26 or later, Apple Silicon or Intel: the cask installs the zip of the Mac's own architecture), and the app finds that `carrier` by itself.
 `brew upgrade carrier` moves the command and `brew upgrade --cask carrier` the app; the app says which one when their protocols differ.
 The app also updates itself: it embeds Sparkle, checks for a new release by itself and asks before it installs, and when it opens at the new version it upgrades `carrier` with Homebrew (log: `<folder>/engine/logs/app-upgrade.log`) and replaces the chat host and the engine that were running when they are free to replace (see the end of [Start Carrier](../docs/macos/lifecycle.md#start-carrier)).
 Whether it checks and whether it installs by itself are Sparkle's preferences and have no Settings page yet.
@@ -37,7 +37,7 @@ This is how the app is developed; it is not how it is installed.
 
 ```sh
 cd macos
-./build-app.sh          # dev build wrapped in Carrier.app: "Carrier Dev", bundle id dev.ashulab.carrier.dev (its own settings), no updater, a DEV badge on the Dock icon and a "DEV BUILD" mark in the toolbar; signed ad hoc
+./build-app.sh          # dev build wrapped in Carrier.app: "Carrier Dev", bundle id dev.ashulab.carrier.dev (its own settings), no updater, a DEV badge on the Dock icon and the sidebar's logo in pink with a "DEV MODE" badge; signed ad hoc
 ./build-app.sh --open   # same, then opens it
 ./build-app.sh 1.2.3    # a release build: "Carrier", bundle id dev.ashulab.carrier, the updater, 1.2.3 as the version in the plist (0.1.0 for a dev build); the release workflow does this with the tag's version
 open Carrier.app
@@ -88,6 +88,7 @@ So the Sessions + is enabled and a selected session shows a conversation.
 That copy is `Tests/Fixtures` with the content taken out: `AppFixture` holds one chat session, "Notices", which is not a conversation but `NoticesGalleryView`: every notice the conversation and its message box can show (queued message, asleep, archived, a question, a permission, background work, a failed turn, a refusal, a stopped epic…), drawn by the real views with made-up data, one under the other; and a snapshot of Carrier with no epics, no queue and no watched repositories. What the app needs to work (agents, providers, usage, workspaces) is still the golden files'. A second one, "Just a conversation" (`chat-events-text.json`), is plain text: a question, an answer, the context it ends with and the message box, to look at those alone. Add what a view needs to be looked at to `AppFixture`, one thing at a time; the tests keep their own sessions and epics in `Tests/Fixtures`.
 The temporary folder is removed when the app quits.
 It holds a `projects.json` with four projects (a GitHub origin, a very long name, a folder that is not a repository and a folder that is not there) for the Projects page; to look at a file that does not match, change it by hand while the app runs and the page follows.
+The Dictation page has a history to look at (`Carrier/DictationFixtures.swift`, written into its own temporary folder, not the person's): today's four dictations (pasted, copied and cleaned, cancelled, failed) and a few a day for the 20 days before, so History and Statistics have rows, cards and charts.
 It combines with `--selftest`.
 `--fixture-long-transcript` (with `--fixture`) answers `events` with a made-up transcript of 3,600 events (edits with diffs, passing and failing commands with output) instead of the golden file, to scroll a long one, and every session of the chat host with a made-up conversation of 3,500 events (`longChatEvents`).
 

@@ -632,7 +632,9 @@ private func worktreeSession() throws -> ChatSession {
 
 @Test func theTitleBarSaysTheBranchOfAWorktreeSessionAndItsMenuCopiesIt() throws {
     let row = sessionRows([try worktreeSession()])[0]
-    #expect(conversationSubtitle(row) == "web")
+    // the project and, after it, the worktree's folder
+    #expect(conversationSubtitle(row) == "web · fix")
+    #expect(row.branchFrom == "main")
     #expect(openMenuItems(row) == [
         OpenItem(title: "Reveal in Finder", action: .reveal(path: "/w/fix")), OpenItem(title: "Copy path", action: .copy("/w/fix")),
         OpenItem(title: "Copy branch name", action: .copy("carrier/fix")),
@@ -941,7 +943,7 @@ private func preview(_ id: String, _ worktree: SessionDeletePreview.Worktree?) -
     let working = "5d1f7c3a-0b6e-4a52-9a1d-3c7e8b2f4a01"
     try await host.archive(idle, true)
     #expect(try await host.list(archived: true).count == 3)
-    #expect(try await host.list(archived: false).count == 16)
+    #expect(try await host.list(archived: false).count == 17)
     try await host.archive(idle, false)
     #expect(try await host.list(archived: true).count == 2)
     await #expect(throws: ControlError.remote("This session is working; interrupt or close it first, then archive it")) { try await host.archive(working, true) }
@@ -1105,4 +1107,15 @@ private func clockSession(_ extra: String) throws -> ChatSession {
         "kept": "Kept because its worktree has unsaved work",
     ])
     #expect(archivePage(activeSample, now: now).notes.isEmpty)
+}
+
+@Test func aRowHasEveryProviderTheSessionRanOnAndAHostThatDoesNotSayLeavesItsOwn() throws {
+    func decoded(_ extra: String) throws -> ChatSession {
+        try JSONDecoder().decode(ChatSession.self, from: Data(
+            """
+            {"id":"p","agent":"codex","harness":"codex","folder":"/w","title":"Hola","state":"idle","createdAt":1,"lastActiveAt":2,"archived":false,"live":false\(extra)}
+            """.utf8))
+    }
+    #expect(sessionRows([try decoded(#","providers":["claude","codex"]"#)])[0].providers == ["claude", "codex"])
+    #expect(sessionRows([try decoded("")])[0].providers == ["codex"])
 }

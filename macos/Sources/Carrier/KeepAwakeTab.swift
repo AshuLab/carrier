@@ -59,7 +59,7 @@ struct KeepAwakeTabView: View {
         }
     }
 
-    /// The state in a sentence, a chip with the word, and the button that does what the menu's first item does. The time left is read again every 20 seconds.
+    /// The state in a sentence (it says Paused and why when the battery holds it) and the switch that does what the menu's first item does. The time left is read again every 20 seconds.
     private var statusRow: some View {
         TimelineView(.periodic(from: .now, by: 20)) { context in
             let settings = controller.settings
@@ -68,18 +68,13 @@ struct KeepAwakeTabView: View {
             let _ = context.date
             let title = awakeStatus(decision, settings: settings, now: Date())
             SettingsTabRow(title: title, detail: "Closing the lid or choosing Sleep still puts the Mac to sleep", first: true) {
-                HStack(spacing: 8) {
-                    StatusChip(text: decision.holds ? "On" : decision.blocked == nil ? "Off" : "Paused", tint: decision.holds ? .green : decision.blocked == nil ? .secondary : .orange)
-                    Button {
+                Toggle("Keep awake", isOn: Binding(
+                    get: { decision.isManual },
+                    set: { _ in
                         controller.toggle()
                         AccessibilityNotification.Announcement(awakeStatus(controller.decision, settings: controller.settings, now: Date())).post()
-                    } label: {
-                        Label(
-                            decision.isManual ? "Stop" : awakeToggleTitle(manualActive: false, defaultMinutes: settings.defaultMinutes),
-                            icon: decision.isManual ? .stopFilled : .cup)
-                    }
-                    .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
-                }
+                    })
+                ).labelsHidden().toggleStyle(.switch)
             }
         }
     }

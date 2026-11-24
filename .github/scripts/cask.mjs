@@ -1,9 +1,12 @@
 #!/usr/bin/env node
 // The cask the release pushes to the tap, made to declare what the app needs (docs/specs/carrier-updates-itself.md, "The release").
 //   ensure <cask.rb>   adds `auto_updates true` and Sparkle's cache folder to `zap`, once each, whether or not the file had them
+//   release <cask.rb> <version> <arm64-sha256> <intel-sha256>   the version and, for each architecture, its zip and checksum (`on_arm` and `on_intel`), and no `depends_on arch:`;
+//                      it also turns the flat cask of the first releases (one url, one sha256, Apple Silicon only) into that shape
 // The tap's cask is rewritten from the tap's own copy, so this runs on that copy as well as on the seed in this repo. Node only.
 import { readFileSync, writeFileSync } from 'node:fs';
 
+const REPO = 'AshuLab/carrier';
 const BUNDLE_ID = 'dev.ashulab.carrier';
 const CACHE = `~/Library/Caches/${BUNDLE_ID}`;
 
@@ -47,9 +50,38 @@ function ensureZapCache(lines) {
 // Homebrew's style wants the list sorted and with a trailing comma.
 const zap = (paths) => ['  zap trash: [', ...paths.toSorted().map((path) => `    "${path}",`), '  ]'];
 
-const [command, file] = process.argv.slice(2);
-if (command !== 'ensure' || !file) fail('usage: cask.mjs ensure <cask.rb>');
+// The Intel app is its own zip (`Carrier-<version>-intel.zip`), as appcast.mjs names it. Rewritten whole each time, so a run never adds to the last one.
+function setRelease(lines, version, arm, intel) {
+  if (!/^\d+\.\d+\.\d+$/.test(version)) fail(`'${version}' is not X.Y.Z`);
+  for (const sha of [arm, intel]) if (!/^[0-9a-f]{64}$/.test(sha)) fail(`'${sha}' is not a sha256`);
+  const keep = [];
+  for (let i = 0; i < lines.length; i++) {
+    if (/^ {2}on_(arm|intel) do$/.test(lines[i])) {
+      i = lines.indexOf('  end', i);
+      if (i < 0) fail('an on_arm or on_intel block is not closed');
+    } else if (/^ {2}url\b.*,\s*$/.test(lines[i])) {
+      fail('the cask has a url with options: the script does not rewrite it');
+    } else if (!/^ {2}(sha256|url|depends_on arch:)/.test(lines[i])) {
+      keep.push(lines[i]);
+    }
+  }
+  const at = keep.findIndex((line) => /^ {2}version\b/.test(line));
+  if (at < 0) fail('the cask has no version stanza');
+  keep[at] = `  version "${version}"`;
+  while (keep[at + 1] === '') keep.splice(at + 1, 1);
+  const url = (suffix) => `    url "https://github.com/${REPO}/releases/download/v#{version}/Carrier-#{version}${suffix}.zip"`;
+  keep.splice(at + 1, 0, '', '  on_arm do', `    sha256 "${arm}"`, url(''), '  end', '  on_intel do', `    sha256 "${intel}"`, url('-intel'), '  end', '');
+  lines.splice(0, lines.length, ...keep);
+}
+
+const [command, file, ...rest] = process.argv.slice(2);
+if (!file || !(command === 'ensure' && rest.length === 0) && !(command === 'release' && rest.length === 3)) {
+  fail('usage: cask.mjs ensure <cask.rb> | release <cask.rb> <version> <arm64-sha256> <intel-sha256>');
+}
 const lines = readFileSync(file, 'utf8').split('\n');
-ensureAutoUpdates(lines);
-ensureZapCache(lines);
+if (command === 'release') setRelease(lines, ...rest);
+else {
+  ensureAutoUpdates(lines);
+  ensureZapCache(lines);
+}
 writeFileSync(file, lines.join('\n'));

@@ -20,6 +20,10 @@ export function boundEvent(event: ChatEvent | StepEvent): Record<string, unknown
       const { kind: _kind, text, agentType, lastTool, ...rest } = event;
       return { ...rest, ...(text !== undefined && { text: clean(text, chatCaps.arg) }), ...(agentType !== undefined && { agentType: clean(agentType, chatCaps.title) }), ...(lastTool !== undefined && { lastTool: clean(lastTool, chatCaps.title) }) };
     }
+    case 'compact': {
+      const { kind: _kind, error, ...rest } = event;
+      return { ...rest, ...(error !== undefined && { error: clean(error, chatCaps.error) }) };
+    }
     case 'error':
       return { text: clean(event.text, chatCaps.error), ...(event.reason !== undefined && { reason: event.reason }), ...(event.resetsAt !== undefined && { resetsAt: event.resetsAt }), ...(event.resetText !== undefined && { resetText: clean(event.resetText, chatCaps.error) }) };
     case 'tool_start':

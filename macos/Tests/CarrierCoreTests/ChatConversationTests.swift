@@ -21,8 +21,11 @@ private func texts(_ rows: [FeedRow]) -> [String] {
         case .approval(_, let card): "card: \(card.question) | \(card.arg ?? "") | \(card.choices.map(\.label).joined(separator: " / "))"
         case .decided(_, let text, let allow): "\(allow ? "allowed" : "declined"): \(text)"
         case .line(_, let text): "line: \(text)"
+        case .switched(_, let switched): "switched: \(switched.from) -> \(switched.to)"
         case .error(_, let text): "error: \(text)"
         case .stopped: "stopped"
+        case .cleared(_, let freed): "cleared: \(clearedFreedText(freed) ?? "")"
+        case .compacted(_, let cut): "compacted: \([cut.title, cut.sizes, cut.saved].compactMap { $0 }.joined(separator: " | "))"
         }
     }
 }
@@ -289,6 +292,16 @@ private func call(_ id: Int, _ tool: String, _ arg: String = "", output: [String
         ChatEvent(id: 2, at: 1, kind: "notice", text: "The agent could not find this conversation"),
     ])
     #expect(rows.last == .line(id: "e2", text: "The agent could not find this conversation"))
+    #expect(openOutcome(rows) == nil)
+}
+
+@Test func aChangeOfAgentIsItsOwnRowWithBothAgentsAndWordsOfWhatCarriedOver() {
+    let rows = chatFeed([
+        ChatEvent(id: 1, at: 0, kind: "user", text: "Hola"),
+        ChatEvent(id: 2, at: 1, kind: "notice", text: "The agent changed from claude-teams-lu to codex. ...", switched: .init(from: "claude-teams-lu", to: "codex", fromModel: "claude-sonnet-5-5", toModel: "gpt-5")),
+    ])
+    #expect(rows.last == .switched(id: "e2", .init(from: "claude-teams-lu", to: "codex", fromModel: "claude-sonnet-5-5", toModel: "gpt-5")) && rows.last?.id == "e2")
+    #expect(handoffDetail(to: "codex") == "codex goes on from a selection of the messages above and can read the rest. Reasoning and tool results did not carry over.")
     #expect(openOutcome(rows) == nil)
 }
 
@@ -1279,6 +1292,82 @@ private func runs(_ rows: [FeedRow]) -> [ToolGroup] { rows.compactMap { if case 
     #expect(workInProgress(in: answered) == "e2")
 }
 
+// MARK: /clear
+
+private func person(_ id: Int, _ text: String) -> ChatEvent { ChatEvent(id: id, at: id * 1000, kind: "user", text: text) }
+private func turnEnd(_ id: Int, _ usage: [String: Double]?, outcome: String = "ok") -> ChatEvent { ChatEvent(id: id, at: id * 1000, kind: "turn_end", outcome: outcome, model: "claude-sonnet-5-5", usage: usage) }
+
+@Test func aClearTheAgentAnsweredWithNothingIsADividerThatSaysWhatItFreedInPlaceOfTheEmptyTurnLine() {
+    let events = [
+        person(1, "hi"), say(2), turnEnd(3, ["context_tokens": 38_800, "output_tokens": 27]),
+        person(4, "/clear"), turnEnd(5, ["input_tokens": 0, "output_tokens": 0]),
+        person(6, "and now?"), say(7), turnEnd(8, ["context_tokens": 1_900, "output_tokens": 22]),
+    ]
+    let rows = texts(chatFeed(events))
+    #expect(rows == ["user: hi", "agent: m2", "end: sonnet 5.5 · 2s · 38.8k context · 27 out", "user: /clear", "cleared: 38.8k tokens freed", "user: and now?", "agent: m7", "end: sonnet 5.5 · 2s · 1.9k context · 22 out"])
+}
+
+@Test func theContextAfterAClearIsNoneUntilAnotherTurnTellsIt() {
+    let after = chatFeed([person(1, "hi"), turnEnd(2, ["context_tokens": 38_800]), person(3, "/clear"), turnEnd(4, nil)])
+    #expect(contextUse(after) == nil)
+    #expect(contextUse(chatFeed([person(1, "hi"), turnEnd(2, ["context_tokens": 38_800])]))?.tokens == 38_800)
+    // a second clear frees nothing and says so by saying nothing of it
+    let twice = texts(chatFeed([person(1, "a"), turnEnd(2, ["context_tokens": 5_000]), person(3, "/clear"), turnEnd(4, nil), person(5, "/clear"), turnEnd(6, nil)]))
+    #expect(twice.filter { $0.hasPrefix("cleared") } == ["cleared: 5.0k tokens freed", "cleared: "])
+}
+
+@Test func onlyTheWholeClearCommandAnsweredWithNothingMakesTheDivider() {
+    #expect(isClearCommand(" /clear\n") && isClearCommand("/clear now") == false && isClearCommand("please /clear") == false)
+    // an answer, a failed turn or a stopped one keep their lines
+    #expect(texts(chatFeed([person(1, "/clear"), say(2), turnEnd(3, ["output_tokens": 4])])).contains { $0.hasPrefix("cleared") } == false)
+    #expect(texts(chatFeed([person(1, "/clear"), turnEnd(2, nil, outcome: "error")])).contains { $0.hasPrefix("cleared") } == false)
+    #expect(texts(chatFeed([person(1, "/clear"), turnEnd(2, nil, outcome: "interrupted")])).contains { $0.hasPrefix("cleared") } == false)
+    #expect(clearedFreedText(nil) == nil && clearedFreedText(0) == nil)
+    #expect(clearedDetail(agent: "Lu").hasPrefix("The messages above stay here to read, but Lu no longer sees them"))
+}
+
+// MARK: /compact
+
+private func compact(_ id: Int, trigger: String? = "manual", before: Double? = nil, after: Double? = nil, ms: Int? = nil, error: String? = nil) -> ChatEvent {
+    ChatEvent(id: id, at: id * 1000, kind: "compact", ms: ms, trigger: trigger, before: before, after: after, error: error)
+}
+
+@Test func aCompactIsACutThatSaysTheSizesBeforeAndAfterInPlaceOfTheEmptyTurnLine() {
+    let events = [
+        person(1, "hi"), say(2), turnEnd(3, ["context_tokens": 142_300, "context_window": 200_000]),
+        person(4, "/compact"), compact(5, before: 142_300, after: 18_400, ms: 14_000), turnEnd(6, ["input_tokens": 0, "output_tokens": 0]),
+        person(7, "and now?"),
+    ]
+    #expect(texts(chatFeed(events)) == ["user: hi", "agent: m2", "end: sonnet 5.5 · 2s · 142.3k context", "user: /compact", "compacted: Context compacted | 142.3k → 18.4k tokens | −87%", "user: and now?"])
+}
+
+@Test func anAutoCompactInTheMiddleOfATurnCutsWithoutTheCommandAndTheTurnKeepsItsOwnLine() {
+    let events = [person(1, "go"), say(2), compact(3, trigger: "auto", before: 181_000, after: 22_000), say(4), turnEnd(5, ["context_tokens": 25_000])]
+    #expect(texts(chatFeed(events)) == ["user: go", "agent: m2", "compacted: Context compacted | auto · 181.0k → 22.0k tokens | −88%", "agent: m4", "end: sonnet 5.5 · 4s · 25.0k context"])
+}
+
+@Test func whatACompactDoesNotSayIsLeftOutAndAFailureSaysWhyAndChangesNothing() {
+    #expect(Compaction(auto: false).sizes == nil && Compaction(auto: false).saved == nil)
+    #expect(Compaction(auto: true).sizes == "auto")
+    #expect(Compaction(after: 18_400).sizes == "18.4k tokens left" && Compaction(before: 142_300).sizes == nil)
+    // nothing was freed: no percentage
+    #expect(Compaction(before: 10_000, after: 10_000).saved == nil)
+    let failed = Compaction(error: "Not enough room")
+    #expect(failed.title == "Compaction failed" && failed.sizes == nil && failed.detail(agent: "Lu") == "The context is unchanged. Not enough room")
+    #expect(Compaction(ms: 14_000).detail(agent: "Lu").hasSuffix("Took \(formatDuration(14_000))."))
+    #expect(Compaction(auto: true).detail(agent: "Lu").hasPrefix("The context filled up, so Lu summarized"))
+}
+
+@Test func theContextAfterACompactIsWhatItLeftInTheWindowOfTheTurnsBeforeAndAFailedOneChangesNothing() {
+    let before = [person(1, "hi"), turnEnd(2, ["context_tokens": 142_300, "context_window": 200_000]), person(3, "/compact")]
+    #expect(contextUse(chatFeed(before + [compact(4, before: 142_300, after: 18_400), turnEnd(5, nil)])) == ContextUse(tokens: 18_400, window: 200_000))
+    #expect(contextUse(chatFeed(before + [compact(4, error: "no room"), turnEnd(5, nil)]))?.tokens == 142_300)
+    // a summary that did not say what it left leaves nothing known, as a clear does
+    #expect(contextUse(chatFeed(before + [compact(4), turnEnd(5, nil)])) == nil)
+    // a later turn tells the context again
+    #expect(contextUse(chatFeed(before + [compact(4, after: 18_400), turnEnd(5, nil), person(6, "go"), turnEnd(7, ["context_tokens": 20_000])]))?.tokens == 20_000)
+}
+
 @Test func theContextInUseIsTheLastTurnThatToldItWithTheWindowItCameWith() {
     func end(_ usage: [String: Double]?, id: Int) -> ChatEvent { ChatEvent(id: id, at: id * 1000, kind: "turn_end", outcome: "ok", model: "m", usage: usage) }
     // Claude says it in snake case and Codex in camel case; the share is of the window the same turn reported
@@ -2124,24 +2213,41 @@ private final class Flag: @unchecked Sendable { var raised = false }
     #expect(model.rows.map(\.id).contains("e2"))
 }
 
-@MainActor @Test func aSessionOffersTheOtherAgentsAndSwitchesAnIdleOneButNotOneThatWorks() async throws {
+@MainActor @Test func aSessionOffersTheOtherAgentsAndChangesToThePickedOneWithTheNextMessageNotBefore() async throws {
     let server = try FixtureServer(fixtures: fixtures)
     defer { server.stop() }
     let host = SocketChatHost(socketPath: { server.chatSocketPath })
 
-    // an idle claude session: the panel lists the host's agents (the one not found is listed, off) and the switch goes through
+    // an idle claude session: the panel lists the host's agents (the one not found is listed, off)
     let idle = ConversationModel(host: host, sessionId: "c3d4e5f6-2a1b-4c8d-9e0f-1a2b3c4d5e03")
     await idle.poll()
     #expect(idle.canSwitchAgent && idle.canSwitchNow)
     #expect(idle.switchTargets.map(\.name) == ["claude", "codex", "claude-beta"] && idle.switchTargets.map(\.available) == [true, true, false])
-    await idle.switchAgent("claude")
-    #expect(idle.agent == "claude" && idle.optionRefusal == nil)
-    await idle.switchAgent("codex")
-    #expect(idle.agent == "codex" && idle.optionRefusal == nil)
+    // its own agent is no pick; another is only picked: the session keeps its agent, and the panel does not list options it cannot know yet
+    idle.chooseAgent("claude")
+    #expect(idle.pendingAgent == nil)
+    idle.chooseAgent("codex")
+    #expect(idle.pendingAgent == "codex" && idle.agent == "claude" && idle.shownOptions.isEmpty)
+    // changing one's mind costs nothing
+    idle.chooseAgent("claude")
+    #expect(idle.pendingAgent == nil)
+    // the message makes the change
+    idle.chooseAgent("codex")
+    idle.draft = "go on"
+    await idle.submit()
+    #expect(idle.agent == "codex" && idle.pendingAgent == nil && idle.refusal == nil && idle.optionRefusal == nil)
 
-    // one that works is refused in the host's words and keeps its agent; the panel's tabs are off while it answers
+    // an agent the host refuses stops the message, says why in words, keeps the text in the box and stays picked
+    let refused = ConversationModel(host: host, sessionId: "c3d4e5f6-2a1b-4c8d-9e0f-1a2b3c4d5e03")
+    await refused.poll()
+    refused.chooseAgent("claude-beta")
+    refused.draft = "go on"
+    await refused.submit()
+    #expect(refused.refusal?.contains("claude-beta") == true && refused.draft == "go on" && refused.pendingAgent == "claude-beta")
+
+    // one that works takes no pick: the panel's tabs are off while it answers
     let working = ConversationModel(host: host, sessionId: "5d1f7c3a-0b6e-4a52-9a1d-3c7e8b2f4a01")
     await working.poll()
-    await working.switchAgent("codex")
-    #expect(working.agent == "claude" && working.optionRefusal?.contains("working") == true)
+    working.chooseAgent("codex")
+    #expect(working.agent == "claude" && working.pendingAgent == nil)
 }

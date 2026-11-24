@@ -1,7 +1,7 @@
 import Foundation
 
 // The Carrier switch of a project (docs/specs/projects.md, "The watch"): watching a project is its `owner/name` in the `repos` of `engine.json`. The
-// writer, the rules and the words are the Repos page's (`applyingRepos`, `reposProblem`, `settingsNote`, `removalText`), so the two pages cannot disagree about the file.
+// writer, the rules and the words are the Watching page's (`applyingRepos`, `reposProblem`, `settingsNote`, `removalText`), so the two pages cannot disagree about the file.
 
 /// Whether `repo` is in `names`, compared as GitHub does, ignoring case.
 public func isWatched(_ repo: String, in names: [String]) -> Bool {
@@ -38,8 +38,8 @@ public func projectWatchRow(repo: String?, repos: [String]?, state: ConnectionSt
     return ProjectWatchRow(isOn: isOn, canChange: true, detail: detail, problem: failure ?? reposProblem(repos) ?? answer)
 }
 
-/// Watches or stops watching `repo` in the engine config at `path`, read just now and written like the Repos page does (every other key and every other repo's
-/// fields kept), then the engine is asked to reload. `.refused` carries the reason when the rules of the Repos page would not take the list (the same folder name
+/// Watches or stops watching `repo` in the engine config at `path`, read just now and written like the Watching page does (every other key and every other repo's
+/// fields kept), then the engine is asked to reload. `.refused` carries the reason when the rules of the Watching page would not take the list (the same folder name
 /// as a repo already watched), and nothing is written.
 public func saveWatch(_ on: Bool, repo: String, path: String, reload: AfterWrite = reloadInBackground) -> RoleSave {
     var refusal: String?

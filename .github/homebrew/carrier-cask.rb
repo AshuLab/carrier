@@ -1,15 +1,21 @@
 cask "carrier" do
   version "0.1.0"
-  sha256 "0000000000000000000000000000000000000000000000000000000000000000"
 
-  url "https://github.com/AshuLab/carrier/releases/download/v#{version}/Carrier-#{version}.zip"
+  on_arm do
+    sha256 "0000000000000000000000000000000000000000000000000000000000000000"
+    url "https://github.com/AshuLab/carrier/releases/download/v#{version}/Carrier-#{version}.zip"
+  end
+  on_intel do
+    sha256 "0000000000000000000000000000000000000000000000000000000000000000"
+    url "https://github.com/AshuLab/carrier/releases/download/v#{version}/Carrier-#{version}-intel.zip"
+  end
+
   name "Carrier"
   desc "Mac app for Carrier, the autonomous epic orchestrator"
   homepage "https://github.com/AshuLab/carrier"
 
   auto_updates true
   depends_on formula: "carrier"
-  depends_on arch: :arm64
   depends_on macos: :tahoe
 
   app "Carrier.app"

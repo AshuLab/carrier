@@ -42,12 +42,15 @@ struct ConsumptionSection: View {
     // MARK: filters
 
     private var filters: some View {
-        HStack(spacing: 8) {
-            SegmentedChoice(
-                options: [(UsageMetric.cost, "Cost", AppIcon.coin), (.tokens, "Tokens", .hash)], selection: $store.metric
-            )
-            .accessibilityLabel("Metric")
-            SegmentedChoice(options: [7, 14, 30, 90].map { ($0, "\($0)d", nil) }, selection: $store.days).accessibilityLabel("Range")
+        // the selects have no box, so their words need room of their own: 8 pt between the two segmented controls, 18 pt from them to the selects and between the selects
+        HStack(spacing: 18) {
+            HStack(spacing: 8) {
+                SegmentedChoice(
+                    options: [(UsageMetric.cost, "Cost", AppIcon.coin), (.tokens, "Tokens", .hash)], selection: $store.metric
+                )
+                .accessibilityLabel("Metric")
+                SegmentedChoice(options: [7, 14, 30, 90].map { ($0, "\($0)d", nil) }, selection: $store.days).accessibilityLabel("Range")
+            }
             ChoicePopUp(
                 label: "Provider",
                 options: [(.all, "All providers"), (.claude, "Claude"), (.codex, "Codex"), (.agy, "Antigravity"), (.local, "Local")],

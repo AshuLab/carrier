@@ -11,6 +11,8 @@ import SwiftUI
     static let shared = ForgeAvatarStore()
 
     private(set) var images: [String: NSImage] = [:]
+    /// The picture of the person's own gh login.
+    private(set) var userImage: NSImage?
     @ObservationIgnored private var failedAt: [String: Date] = [:]
     @ObservationIgnored private var inflight: Set<String> = []
     @ObservationIgnored private let fetches = CommandLine.arguments.contains("--fixture") == false
@@ -26,14 +28,8 @@ import SwiftUI
         inflight.insert(appId)
         Task {
             defer { inflight.remove(appId) }
-            let request = URLRequest(url: url, timeoutInterval: 10)
             do {
-                let (data, response) = try await URLSession.shared.data(for: request)
-                if (response as? HTTPURLResponse)?.statusCode == 200, data.count <= Self.largest, let image = NSImage(data: data) {
-                    images[appId] = image
-                } else {
-                    failed(appId, "it is not a usable picture")
-                }
+                if let image = try await Self.picture(url) { images[appId] = image } else { failed(appId, "it is not a usable picture") }
             } catch {
                 // a cancelled fetch is not the bot's fault: it is asked again the next time
                 if error is CancellationError || (error as? URLError)?.code == .cancelled { return }
@@ -42,13 +38,42 @@ import SwiftUI
         }
     }
 
+    /// The picture of the person's own `gh` login, for the roles that run as them. The chat host knows the login (it reads it for the repository list), the
+    /// picture is the public one of that account. Same rules as a bot's: once per run, a failure is tried again after ten minutes, nothing is shown as an error.
+    func fetchUser() {
+        let key = "gh login"
+        guard fetches, userImage == nil, inflight.contains(key) == false else { return }
+        if let last = failedAt[key], Date().timeIntervalSince(last) < Self.retryAfter { return }
+        inflight.insert(key)
+        Task {
+            defer { inflight.remove(key) }
+            do {
+                let host = SocketChatHost()
+                guard try await host.capabilities().contains(.githubRepos), let login = try await host.githubRepos(page: 1).login,
+                      isGithubLogin(login), let url = URL(string: "https://avatars.githubusercontent.com/\(login)?s=192")
+                else { return failed(key, "the host does not say the login") }
+                if let image = try await Self.picture(url) { userImage = image } else { failed(key, "it is not a usable picture") }
+            } catch {
+                if error is CancellationError || (error as? URLError)?.code == .cancelled { return }
+                failed(key, String(describing: error))
+            }
+        }
+    }
+
+    /// The image at `url`, nil when the reply is not a usable one.
+    private static func picture(_ url: URL) async throws -> NSImage? {
+        let (data, response) = try await URLSession.shared.data(for: URLRequest(url: url, timeoutInterval: 10))
+        guard (response as? HTTPURLResponse)?.statusCode == 200, data.count <= largest else { return nil }
+        return NSImage(data: data)
+    }
+
     private func failed(_ appId: String, _ reason: String) {
         failedAt[appId] = Date()
-        NSLog("Carrier: the avatar of GitHub App %@ could not be used: %@", appId, reason)
+        NSLog("Carrier: the avatar of %@ could not be used: %@", appId, reason)
     }
 }
 
-/// Who a role works as, as a picture: the bot's own (its GitHub App's logo) or, with none, its initials (of the bot's name) on a color; your gh login is a person; an
+/// Who a role works as, as a picture: the bot's own (its GitHub App's logo) or, with none, its initials (of the bot's name) on a color; your gh login is your own GitHub picture, a person while it is not there; an
 /// identity that is not there is a dashed square with a question mark. The corner wears the mark of the account the role runs on, as a session's
 /// avatar does (`AgentAvatar`), so which model is working is seen before it is read.
 struct RoleAvatar: View {
@@ -69,6 +94,7 @@ struct RoleAvatar: View {
             .overlay(alignment: .bottomTrailing) { if let account, off == false { corner(account).offset(x: size * 0.1, y: size * 0.1) } }
             .opacity(off ? 0.45 : 1)
             .task(id: appId) { store.fetch(appId) }
+            .task(id: identity) { if identity == .gh { store.fetchUser() } }
             .accessibilityHidden(true)
     }
 
@@ -84,7 +110,11 @@ struct RoleAvatar: View {
             }
             .clipShape(shape)
         case .gh:
-            Glyph(.user, size: size * 0.5, bold: true).foregroundStyle(.white).frame(width: size, height: size).background(shape.fill(Color.gray))
+            ZStack {
+                Glyph(.user, size: size * 0.5, bold: true).foregroundStyle(.white).frame(width: size, height: size).background(shape.fill(Color.gray))
+                if let image = store.userImage { Image(nsImage: image).resizable().scaledToFill().frame(width: size, height: size) }
+            }
+            .clipShape(shape)
         case .missing, .unset:
             Text("?").font(.scaled(size * 0.4, weight: .semibold)).foregroundStyle(.secondary)
                 .frame(width: size, height: size).overlay(shape.strokeBorder(Color.secondary.opacity(0.6), style: StrokeStyle(lineWidth: 1.5, dash: [3, 3])))

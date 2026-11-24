@@ -18,7 +18,7 @@ public struct CarrierPlaces: Sendable, Equatable {
     }
 
     // The files a person edits.
-    /// The engine's config, the file the Behavior and Repos tabs edit.
+    /// The engine's config, the file the Behavior and Watching tabs edit.
     public var engineConfig: String { folder + "/engine.json" }
     public var chatConfig: String { folder + "/chat.json" }
     public var providers: String { folder + "/providers.json" }

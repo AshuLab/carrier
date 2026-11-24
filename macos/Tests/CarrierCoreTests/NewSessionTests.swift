@@ -208,6 +208,27 @@ private func cleanRepo(_ folder: String) -> WorkspaceInfo {
     #expect(model.folder == nil)
 }
 
+@MainActor @Test func aSessionsNewSessionOnItsBranchOpensTheDraftWithAWorktreeCutFromThatBranch() async {
+    let host = FakeChat()
+    host.workspaces["/w/api"] = WorkspaceInfo(
+        folder: "/w/api", branch: "main", defaultBranch: "main",
+        branches: [.init(name: "main", remote: false), .init(name: "carrier/fix-x", remote: false), .init(name: "origin/carrier/only-remote", remote: true)])
+    let model = await draft(host)
+    model.start(in: "/w/api", branch: "carrier/fix-x")
+    await model.load()
+    #expect(model.folder == "/w/api" && model.worktree && model.startBranch == "carrier/fix-x" && model.startTab == .local)
+    // a branch only the remote has is cut from the remote side
+    model.start(in: "/w/api", branch: "carrier/only-remote")
+    await model.load()
+    #expect(model.worktree && model.startBranch == "carrier/only-remote" && model.startTab == .remote)
+    // a branch the folder no longer has leaves the draft as the project sets it, and the next load is blank
+    model.start(in: "/w/api", branch: "gone")
+    await model.load()
+    #expect(model.folder == "/w/api" && model.worktree == false && model.startBranch == "main")
+    await model.load()
+    #expect(model.folder == nil)
+}
+
 @MainActor @Test func theBoxCannotSendWithoutAWorkspaceAnAgentAndAMessage() async {
     let host = FakeChat()
     let model = await draft(host)
@@ -619,7 +640,7 @@ private func cleanRepo(_ folder: String) -> WorkspaceInfo {
     func plan(_ folder: String, _ worktree: WorktreeRequest?) -> SessionPlan { SessionPlan(agent: "claude", folder: folder, worktree: worktree, text: "hello") }
     let id = try await host.open(plan: plan("/Users/dev/carrier", WorktreeRequest(from: "origin/main", name: "my-fix")))
     let made = try #require(try await host.list(archived: false).first { $0.id == id })
-    #expect(made.workspace == ChatSession.Workspace(base: "/Users/dev/carrier", branch: "carrier/my-fix") && made.folder.hasSuffix("/my-fix"))
+    #expect(made.workspace == ChatSession.Workspace(base: "/Users/dev/carrier", branch: "carrier/my-fix", from: "origin/main") && made.folder.hasSuffix("/my-fix"))
     #expect(try await host.events(id, after: 0, limit: 10).events.map(\.kind) == ["step", "step", "user"])
     // refused as the host does
     await #expect(throws: ControlError.remote("The branch to start from is not one this repository lists")) {
@@ -2105,4 +2126,16 @@ private let freshInfo = WorkspaceInfo(
     let model = try await draft(defaults: #"{"agent":"gone","baseBranch":"deleted"}"#, host: host)
     await model.choose(folder: "/work/web")
     #expect(model.agent == "codex" && model.startBranch == "main")
+}
+
+@MainActor @Test func aProjectsModelReasoningAndAccessGoWithItsAgentOverWhatSettingsSessionsSays() async throws {
+    let host = FakeChat()
+    host.offered["claude"] = accessOptions
+    let model = try await draft(defaults: #"{"agent":"claude","model":"haiku","access":{"permissionMode":"acceptEdits"}}"#, host: host)
+    await model.choose(folder: "/work/web")
+    #expect(model.agent == "claude" && model.chosenOptions == ["model": "haiku", "permissionMode": "acceptEdits"])
+    // a project that names no agent leaves the options to Settings > Sessions
+    let plain = try await draft(defaults: #"{"model":"haiku"}"#, host: host)
+    await plain.choose(folder: "/work/web")
+    #expect(plain.chosenOptions.isEmpty)
 }

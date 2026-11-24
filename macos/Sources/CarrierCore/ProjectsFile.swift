@@ -40,20 +40,31 @@ public struct ProjectEntry: Equatable {
         let found = json["defaults"] as? [String: Any] ?? [:]
         return ProjectDefaults(
             agent: found["agent"] as? String,
+            model: found["model"] as? String,
+            effort: found["effort"] as? String,
+            access: found["access"] as? [String: String] ?? [:],
             workIn: (found["workIn"] as? String).flatMap { WorkIn(projectValue: $0) },
             baseBranch: found["baseBranch"] as? String
         )
     }
 }
 
-/// The agent, where to work and the base branch a new session in a project starts with (`defaults` of its entry); nil is the same as everywhere.
+/// The agent (with its model, reasoning and access), where to work and the base branch a new session in a project starts with (`defaults` of its
+/// entry); nil is the same as everywhere. The model, reasoning and access go with the agent: they are only read when it is named.
 public struct ProjectDefaults: Equatable, Sendable {
     public var agent: String?
+    public var model: String?
+    public var effort: String?
+    /// The provider's access options by their option id (Claude's permission mode, Codex's approvals and sandbox).
+    public var access: [String: String]
     public var workIn: WorkIn?
     public var baseBranch: String?
 
-    public init(agent: String? = nil, workIn: WorkIn? = nil, baseBranch: String? = nil) {
+    public init(agent: String? = nil, model: String? = nil, effort: String? = nil, access: [String: String] = [:], workIn: WorkIn? = nil, baseBranch: String? = nil) {
         self.agent = agent
+        self.model = model
+        self.effort = effort
+        self.access = access
         self.workIn = workIn
         self.baseBranch = baseBranch
     }
@@ -67,6 +78,8 @@ private struct Field {
 
 private indirect enum Kind {
     case path, text, nonEmpty, bool, tags
+    /// an object whose every value is a non-empty string, under any key
+    case stringMap
     case choice([String])
     case object([String: Field])
     case list(Kind)
@@ -80,7 +93,7 @@ private let entry: Kind = .object([
     "path": Field(.path, required: true), "name": Field(.text), "origin": Field(.choice(["cloned", "created", "added"]), required: true),
     "pinned": Field(.bool), "hidden": Field(.bool), "tags": Field(.tags),
     "icon": Field(.object(["color": Field(.nonEmpty), "mark": Field(.nonEmpty), "image": Field(.nonEmpty)])),
-    "defaults": Field(.object(["agent": Field(.nonEmpty), "workIn": Field(.choice(["baseFolder", "worktree"])), "baseBranch": Field(.nonEmpty)])),
+    "defaults": Field(.object(["agent": Field(.nonEmpty), "model": Field(.nonEmpty), "effort": Field(.nonEmpty), "access": Field(.stringMap), "workIn": Field(.choice(["baseFolder", "worktree"])), "baseBranch": Field(.nonEmpty)])),
     "actions": Field(.list(action)),
 ])
 private let file: Kind = .object(["projects": Field(.list(entry))])
@@ -116,6 +129,9 @@ private func problems(_ value: Any, _ kind: Kind, at path: String) -> [ProjectsP
         }
         let names = tags.compactMap { $0 as? String }
         return found.isEmpty && Set(names).count != names.count ? problem("must not repeat a tag") : found
+    case .stringMap:
+        guard let object = value as? [String: Any] else { return problem("must be an object") }
+        return object.keys.sorted().flatMap { problems(object[$0] as Any, .nonEmpty, at: child($0)) }
     case .object(let fields):
         guard let object = value as? [String: Any] else { return problem("must be an object") }
         var found = object.keys.sorted().filter { fields[$0] == nil }.map { ProjectsProblem(path: child($0), message: "is not a key of projects.json") }
@@ -185,11 +201,11 @@ public func applyingProjectIconEdit(path: String, changes: [String: String?], to
 
 /// `json` with the `defaults` sub-keys in `changes` set or removed (`nil` removes that key, and `defaults` is removed when no key remains), so a value
 /// left on the default writes nothing. Every other key of `defaults`, of the entry and of the file is kept.
-public func applyingProjectDefaultsEdit(path: String, changes: [String: String?], to json: Data?) throws -> Data {
+public func applyingProjectDefaultsEdit(path: String, changes: [String: Any?], to json: Data?) throws -> Data {
     try applyingProjectObjectEdit(path: path, object: "defaults", changes: changes, to: json)
 }
 
-private func applyingProjectObjectEdit(path: String, object key: String, changes: [String: String?], to json: Data?) throws -> Data {
+private func applyingProjectObjectEdit(path: String, object key: String, changes: [String: Any?], to json: Data?) throws -> Data {
     var object = try parse(json)
     var projects = object["projects"] as? [[String: Any]] ?? []
     guard let index = projects.firstIndex(where: { $0["path"] as? String == path }) else { throw ProjectsFileError.missing(path) }
@@ -305,7 +321,7 @@ public struct ProjectsFile {
     }
 
     /// Reads the file again now, changes one or more keys inside `defaults` of one project and writes the whole file atomically.
-    public func updateDefaults(path: String, changes: [String: String?]) throws {
+    public func updateDefaults(path: String, changes: [String: Any?]) throws {
         try applyingProjectDefaultsEdit(path: path, changes: changes, to: bytes()).write(to: url, options: .atomic)
     }
 

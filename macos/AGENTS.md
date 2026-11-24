@@ -64,7 +64,7 @@ What the person sees: [settings](../docs/macos/settings.md#projects-page).
 The pure rules live in `CarrierCore` (`ProjectsList`, `ProjectSheet`, `ProjectIcon`, `ProjectIconStore`, `ProjectActions`, `ProjectDeletion`, `ProjectWatch`, `ProjectWorktrees`, `ProjectDisk`, `WorkspaceSources`, `ProjectsFile`), each with a `*Tests` of its name; `ProjectsModel` follows the file (another process's write, a file that does not match, refused folders) and `ProjectsModel.shared` is the app's one reading of it.
 Gotchas:
 - An edit changes only its own key: `setDefault` writes `defaults` (`applyingProjectDefaultsEdit`, read by `NewSessionModel.projectDefaults`), `setHidden` `hidden`, `locate` only `path`, `remove` only the entry and its image copy.
-- The Carrier switch edits the Repos page's config (`saveWatch` over `applyingRepos`/`saveConfig`).
+- The Carrier switch edits Watching's config (`saveWatch` over `applyingRepos`/`saveConfig`).
 - Deleting what Carrier made goes to the Trash (`moveProjectToTrash`, tried by hand) after `projectDeletionCheck`.
 - `projectFolderRefusal` shares `Tests/Fixtures/project-folder.json` with `src/chat/folder.ts`.
 - `projectIdentity`/`projectTile` (`ProjectIcon.swift`) give the tile and title wherever a project shows; `retitled(_:projects:)` (`ChatSessions.swift`) does it for the sidebar.

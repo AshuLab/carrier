@@ -14,7 +14,13 @@ struct CardFactsGrid<Extra: View>: View {
             ForEach(facts.indices, id: \.self) { index in
                 GridRow(alignment: .firstTextBaseline) {
                     Text(facts[index].label).foregroundStyle(.secondary)
-                    value(facts[index]).frame(maxWidth: .infinity, alignment: .leading)
+                    VStack(alignment: .leading, spacing: 2) {
+                        value(facts[index])
+                        if let detail = facts[index].detail {
+                            Text(detail).font(.scaled(10, design: .monospaced)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
             extra()

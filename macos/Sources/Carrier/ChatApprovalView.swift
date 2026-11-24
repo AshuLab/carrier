@@ -11,6 +11,9 @@ struct ApprovalCardView: View {
     let behind: Int
     let answer: (String, String) -> Void
     @State private var hovered: String?
+    /// The height the tool's argument wants, to cap it (and scroll) when it would push the message box out of a short window.
+    @State private var argHeight: CGFloat = 0
+    @Environment(\.conversationHeight) private var paneHeight
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -21,7 +24,11 @@ struct ApprovalCardView: View {
                 Spacer(minLength: 0)
                 Text(behind > 0 ? "\(behind) more waiting" : "Waiting for you").font(.scaled(11)).foregroundStyle(.secondary)
             }
-            if let arg = card.arg { CodeBlockView(language: card.tool, code: arg) }
+            if let arg = card.arg {
+                ScrollView { CodeBlockView(language: card.tool, code: arg).onGeometryChange(for: CGFloat.self) { $0.size.height } action: { argHeight = $0 } }
+                    .scrollBounceBehavior(.basedOnSize)
+                    .frame(height: argHeight > 0 ? min(argHeight, cardRoom(in: paneHeight)) : nil)
+            }
             VStack(spacing: 2) {
                 ForEach(Array(card.choices.enumerated()), id: \.element.id) { index, choice in row(index, choice) }
             }
@@ -78,3 +85,12 @@ struct ApprovalDecidedView: View {
         .codeFont(12)
     }
 }
+
+extension EnvironmentValues {
+    /// The height of the conversation's pane, so what sits over the message box (an approval, a question) can leave the box room in a short window.
+    @Entry var conversationHeight: CGFloat = 0
+}
+
+/// How tall the long part of a card over the message box (a command, the options of a question) may be: a third of the pane, never less than a few lines,
+/// and a fixed height while the pane's is not known yet. Over it the part scrolls, so the card never covers the box.
+func cardRoom(in paneHeight: CGFloat) -> CGFloat { paneHeight > 0 ? max(120, paneHeight / 3) : 300 }

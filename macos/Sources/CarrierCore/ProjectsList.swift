@@ -701,6 +701,19 @@ public let projectRemovalWords = "Its folder and its worktrees stay where they a
         write { try file.updateDefaults(path: path, changes: [key.rawValue: value]) }
     }
 
+    /// Sets what a new session here starts with, as the picker of Settings > Sessions has it: the agent, its model and reasoning and its access, which
+    /// go together. An empty value, or no agent at all, is the same as everywhere and takes its key out.
+    @discardableResult public func setStart(_ start: NewSessionStart, path: String) -> Bool {
+        let named = start.agent.isEmpty == false
+        func own(_ value: String) -> String? { named && value.isEmpty == false ? value : nil }
+        let access = named ? start.access.filter { $0.value.isEmpty == false } : [:]
+        return write {
+            try file.updateDefaults(path: path, changes: [
+                "agent": own(start.agent), "model": own(start.model), "effort": own(start.effort), "access": access.isEmpty ? nil : access,
+            ])
+        }
+    }
+
     /// The branches `path` has, local first, as the host reads them; empty when it is not a git repository or the host did not answer.
     public func branches(of path: String) async -> [WorkspaceInfo.Branch] {
         (try? await host.workspace(path))?.branches ?? []

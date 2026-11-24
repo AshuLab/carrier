@@ -48,8 +48,14 @@ public func parseDetection(_ output: String) -> Detection? {
 
 let systemPath = "/usr/bin:/bin:/usr/sbin:/sbin"
 
+/// Where Homebrew lives: Apple Silicon's prefix, or Intel's for the Intel build of the app (one compile is one architecture, so this is decided at build time).
+#if arch(arm64)
+public let homebrewPrefix = "/opt/homebrew"
+#else
+public let homebrewPrefix = "/usr/local"
+#endif
 /// Where Homebrew puts `carrier` and the `gh` its formula depends on.
-public let homebrewBin = "/opt/homebrew/bin"
+public let homebrewBin = homebrewPrefix + "/bin"
 public let homebrewCarrier = homebrewBin + "/carrier"
 
 /// Where `carrier` is: the "use this carrier" value as the person typed it (trimmed; blank is not set), else the Homebrew one when
@@ -69,7 +75,7 @@ public func carrierProgram(carrier: String, node: String, arguments: [String]) -
 }
 
 /// The PATH the engine and the chat host run with, and so the tools they start: the detected one with the directory of `node` first,
-/// and `/opt/homebrew/bin` at the end when it is not in it, so the `gh` Homebrew installed is found from a shell that never loaded Homebrew.
+/// and Homebrew's `bin` at the end when it is not in it, so the `gh` Homebrew installed is found from a shell that never loaded Homebrew.
 /// With no detected PATH (the shell gave no answer) it starts from the system's, so `git` is still found.
 public func enginePath(detected: String, node: String) -> String {
     var entries = (detected.isEmpty ? systemPath : detected).split(separator: ":", omittingEmptySubsequences: true).map(String.init)

@@ -56,20 +56,26 @@ struct StatisticsGroup: View {
         let saved = StatisticsCard(
             title: "Time saved", value: statisticsDuration(now.saved(wpm: wpm).inSeconds),
             line: statisticsChange(now.saved(wpm: wpm).inSeconds, from: before.map { $0.saved(wpm: wpm).inSeconds }), highlighted: true)
-        // four in a row while each has the room its longest title and value need (equal shares, at the person's text size), two by two when the window is narrow
+        return cardGrid([dictations, words, speaking, saved])
+    }
+
+    /// The cards of a group, with no container behind them: four in a row while each has the room its longest title and value need (equal shares, at the
+    /// person's text size), two by two when the window is narrow. In the form the row has no background and no inset, so the cards are the group.
+    private func cardGrid(_ cards: [StatisticsCard]) -> some View {
         let four = cardsWidth >= 4 * 130 * CGFloat(TextSize.shared.percent) / 100 + 30
         return Group {
             if four {
-                HStack(alignment: .top, spacing: 10) { dictations; words; speaking; saved }
+                HStack(alignment: .top, spacing: 10) { ForEach(cards.indices, id: \.self) { cards[$0] } }
             } else {
                 VStack(spacing: 10) {
-                    HStack(alignment: .top, spacing: 10) { dictations; words }
-                    HStack(alignment: .top, spacing: 10) { speaking; saved }
+                    HStack(alignment: .top, spacing: 10) { cards[0]; cards[1] }
+                    HStack(alignment: .top, spacing: 10) { cards[2]; cards[3] }
                 }
             }
         }
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { cardsWidth = $0 }
-        .padding(.vertical, 6)
+        .padding(.vertical, 4)
+        .listRowInsets(EdgeInsets()).listRowBackground(Color.clear)
     }
 
     /// 24 cells, one per hour, as strong as the dictations of that hour, and the line that says the hour the person dictates most.
@@ -107,18 +113,12 @@ struct StatisticsGroup: View {
     private func recordsGroup(_ records: StatisticsRecords) -> some View {
         func on(_ day: Date?) -> String { day?.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day()) ?? "Nothing yet" }
         return SettingsGroup(title: "Records", footer: "The statistics are their own counters: they hold no text, and turning the history off or deleting entries does not change them.") {
-            SettingsTabRow(title: "Most dictations in a day", detail: on(records.mostDictations?.day), first: true) {
-                Text((records.mostDictations?.value ?? 0).formatted()).fontWeight(.semibold).monospacedDigit()
-            }
-            SettingsTabRow(title: "Most words in a day", detail: on(records.mostWords?.day)) {
-                Text((records.mostWords?.value ?? 0).formatted()).fontWeight(.semibold).monospacedDigit()
-            }
-            SettingsTabRow(title: "Longest dictation", detail: on(records.longest?.day)) {
-                Text(statisticsDuration(records.longest?.value ?? 0)).fontWeight(.semibold).monospacedDigit()
-            }
-            SettingsTabRow(title: "Longest streak", detail: "Days in a row with a dictation") {
-                Text("\(records.streak) \(records.streak == 1 ? "day" : "days")").fontWeight(.semibold).monospacedDigit()
-            }
+            cardGrid([
+                StatisticsCard(title: "Most dictations", value: (records.mostDictations?.value ?? 0).formatted(), line: on(records.mostDictations?.day)),
+                StatisticsCard(title: "Most words", value: (records.mostWords?.value ?? 0).formatted(), line: on(records.mostWords?.day)),
+                StatisticsCard(title: "Longest dictation", value: statisticsDuration(records.longest?.value ?? 0), line: on(records.longest?.day)),
+                StatisticsCard(title: "Longest streak", value: "\(records.streak) \(records.streak == 1 ? "day" : "days")", line: "Days in a row"),
+            ])
         }
     }
 

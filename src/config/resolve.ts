@@ -42,7 +42,8 @@ export type EffectiveRepoConfig = {
 export const sameAccount = (a: Config['profiles'][string], b: Config['profiles'][string]) => a.kind === b.kind && (a.kind === 'gh' || a.agent === (b as typeof a).agent);
 
 /** The steps a role moves through when its login runs out; none means no failover for it. */
-export const failoverStepsFor = (failover: Config['failover'], role: 'author' | 'reviewer' | 'leadReviewer') => failover?.roles?.[role] ?? [];
+export const failoverStepsFor = (failover: Config['failover'], role: 'author' | 'reviewer' | 'leadReviewer') =>
+  failover?.roles?.[role] ?? (role === 'leadReviewer' ? failover?.roles?.reviewer : undefined) ?? []; // the lead takes the reviewer's steps when it declares none
 
 // Each repo inherits the global value of every field it does not override.
 export function resolveRepoConfig(config: Config, repo: Config['repos'][number]): EffectiveRepoConfig {

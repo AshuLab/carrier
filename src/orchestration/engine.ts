@@ -318,7 +318,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
 
   // The stage a resume asked for, claimed like `launch` claims ship: the claim also clears the ask, and the stage runs with the epic's round, pull request,
   // worktree and session as they were. The new attempt (`startedAt`, set by the reserve) has its retries back.
-  async function launchResumed(epic: Epic, stage: 'review' | 'fix', epoch: number) {
+  async function launchResumed(epic: Epic, stage: 'review' | 'fix' | 'lead', epoch: number) {
     if (stopping || !unchanged(epic.id, epoch)) return;
     const claimed = db.update(epics).set({ stage, stageStartedAt: clock.now(), recoveries: 0, resumeStage: null, ...(stageLabelled() && { labelPending: true }) }).where(and(eq(epics.id, epic.id), isNull(epics.stage), eq(epics.status, 'running'))).returning().get();
     if (!claimed) return;
@@ -485,8 +485,8 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
   }
 
   async function wakeOne(epic: Epic) {
-    // A stop at the lead resumes at the reviewers' round, as a resume at a stage does: the lead's exchange starts over (the stage `lead` has no resume of its own).
-    const stage = epic.stage === 'review' || epic.stage === 'fix' ? epic.stage : epic.stage === 'lead' ? 'review' : null;
+    // A stop at the lead resumes at the lead's own stage, with its lead round kept: only the wake-up sets `lead` (a person's resume starts the lead's exchange over).
+    const stage = epic.stage === 'review' || epic.stage === 'fix' || epic.stage === 'lead' ? epic.stage : null;
     if (epic.autoResumes >= maxAutoResumes) return;
     // Like a resume from a stage: the pull request must be open with the head the epic stored, or the stage would work on something else.
     if (stage) {
@@ -500,7 +500,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       }
     }
     // Each slot is asked on its own last execution: the ones of the stage's slots that failed, else the epic's newest (a stop with no failure of its own to read).
-    const failed = lastBySlot(db, epic).filter((last) => (slotOf(last) !== null) === (epic.stage === 'review') && last.failureKind !== null);
+    const failed = lastBySlot(db, epic).filter((last) => (epic.stage === 'lead' ? slotOf(last) === 'lead' : (slotOf(last) !== null && slotOf(last) !== 'lead') === (epic.stage === 'review')) && last.failureKind !== null);
     const newest = db.select().from(executions).where(eq(executions.epicId, epic.id)).orderBy(desc(sql`rowid`)).get();
     let back: Awaited<ReturnType<typeof probeRanOut>>[number] | undefined;
     for (const last of failed.length > 0 ? failed : newest ? [newest] : []) {
@@ -514,14 +514,14 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     const woke = db.transaction((tx) => {
       const queuedAt = queuePosition(tx, clock.now()); // after the epics already waiting, and in this write so none enters between
       const moved = tx.update(epics)
-        .set({ ...(stage ? { ...requeueKeeping(queuedAt), resumeStage: stage } : restart(queuedAt)), autoResumes: epic.autoResumes + 1 })
+        .set({ ...(stage ? { ...requeueKeeping(queuedAt), ...(stage === 'lead' && { leadRound: epic.leadRound }), resumeStage: stage } : restart(queuedAt)), autoResumes: epic.autoResumes + 1 })
         .where(and(eq(epics.id, epic.id), eq(epics.status, 'needs_human'), eq(epics.resumeAt, epic.resumeAt!))) // a person resumed it, or it ended, while the probe answered
         .returning().get();
       if (moved) tx.insert(epicEvents).values({ epicId: epic.id, at: queuedAt, type: 'auto_resumed', data: { stage: epic.stage, option: back.run.option ?? null, resumeAt: epic.resumeAt, count: epic.autoResumes + 1 } }).run();
       return moved;
     });
     // The option that came back, always: the requeue freezes the repo's default again, so the one the role holds now (where failover left it) is not kept by itself.
-    if (woke && back.run.option && (woken === null || woken === 'reviewer')) restarts.set(epic.id, { [woken === null ? 'author' : 'reviewer']: back.run.option }); // the extra reviewers and the lead are put back on their option by the slices that run them
+    if (woke && back.run.option) restarts.set(epic.id, { [woken ?? 'author']: back.run.option }); // the role that ran out, the lead included, goes back on the option that came back
   }
 
   // A stage ended on its usage limit: another option of the failover list, or the epic stops for a person. The reason says how to go on
@@ -1182,7 +1182,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       // The verdict judged a head that is not the pull request's any more: kept as the execution it is, never read by a later round (a resume at review included).
       if (superseded) tx.update(callerResults).set({ outcome: supersededOutcome }).where(eq(callerResults.executionId, execution.executionId)).run();
       if (result.outcome === 'needs_human') {
-        if (!asNone) toNeedsHuman(tx, epic.id, 'agent_needs_human', result.reason);
+        if (!asNone) toNeedsHuman(tx, epic.id, 'agent_needs_human', execution.stage === 'lead' ? `the lead reviewer cannot conclude: ${result.reason}` : result.reason);
         else if (round && round.kind !== 'waiting') quotaStop = applyRound(tx, now, round, head);
       } else if (problem) toNeedsHuman(tx, epic.id, problem.kind, problem.text);
       else if (movedTo) {

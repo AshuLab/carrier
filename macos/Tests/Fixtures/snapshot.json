@@ -22,7 +22,10 @@
       "labels": [
         "solve:epic"
       ],
-      "executionId": "exec-ship-30"
+      "executionId": "exec-ship-30",
+      "reviewedSha": "e4f5a6b",
+      "approvedSha": "f7a8b9c",
+      "leadApproval": true
     },
     {
       "repo": "acme/api",
@@ -85,6 +88,11 @@
           "harness": "codex",
           "model": "gpt-5",
           "provider": "ollama"
+        },
+        "lead": {
+          "harness": "claude",
+          "model": "claude-opus-5",
+          "provider": null
         }
       }
     },
@@ -732,8 +740,9 @@
       "repo": "acme/api",
       "issue": 15,
       "status": "needs_human",
-      "stage": "ship",
-      "round": null,
+      "stage": "review",
+      "lead": true,
+      "round": 2,
       "maxReviews": 5,
       "blockers": 0,
       "stageSince": 3010,
@@ -765,8 +774,14 @@
           "harness": "codex",
           "model": "gpt-5",
           "provider": "ollama"
+        },
+        "lead": {
+          "harness": "claude",
+          "model": "claude-opus-5",
+          "provider": null
         }
-      }
+      },
+      "reviewedSha": "e4f5a6b"
     }
   ]
 }

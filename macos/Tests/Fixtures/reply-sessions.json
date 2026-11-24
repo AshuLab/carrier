@@ -172,6 +172,33 @@
       }
     },
     {
+      "executionId": "4a8e2c60-9d1b-4f37-a5c3-8b0e6d2f4a19",
+      "stage": "lead",
+      "role": "reviewer",
+      "reviewer": "lead",
+      "round": 3,
+      "agent": {
+        "harness": "claude",
+        "model": "claude-sonnet-5-5",
+        "provider": null
+      },
+      "profile": "acme-lead",
+      "status": "finished",
+      "startedAt": 86000,
+      "finishedAt": 95000,
+      "resume": null,
+      "result": {
+        "outcome": "completed",
+        "summary": "Final review of PR #12: no blockers, approval submitted.",
+        "verification": {
+          "ci": "passed",
+          "evidence": "CI run concluded success on the head commit."
+        },
+        "reason": null
+      },
+      "failure": null
+    },
+    {
       "executionId": "6d3c7a21-8e4b-4c19-b0f2-5a9d1e3c7b84",
       "stage": "review",
       "role": "reviewer",

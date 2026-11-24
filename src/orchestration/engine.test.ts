@@ -7068,3 +7068,244 @@ test('each extra reviewer keeps its own failover and retry state: a usage limit 
   expect(runner.tasks.filter((t) => t.reviewer === 'reviewer').map((t) => t.option)).toEqual(['codex', 'claude']); // never delayed or moved by the other's
   expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'review' });
 });
+
+// --- the lead reviewer: it reviews once after the reviewers agree, on the head they agreed on, and completes the epic ---
+
+const leadAgent = { profile: 'e', option: 'o', harness: 'claude' as const, model: 'm' };
+const leadSkills = { review: { name: 'my-lead', named: true }, publish: null };
+const withLead = (config: EffectiveRepoConfig = repos[0]!, lead: Partial<typeof leadAgent> & { sharedIdentity?: true } = leadAgent): EffectiveRepoConfig => ({
+  ...config,
+  skills: { ...resolveSkills(solveSkills), lead: leadSkills },
+  agents: { ...config.agents, leadReviewer: { ...leadAgent, ...lead } } as EffectiveRepoConfig['agents'],
+});
+const leadTasks = () => runner.tasks.filter((t) => t.stage === 'lead');
+// The lead answers on the head it was given with `verdict`.
+const leadSays = (verdict: object) => (task: AgentTask): Behavior => ({ write: result(task, { ...verdict, pr: { number: 50, headSha: task.context.pr!.headSha } }) });
+// ship -> the reviewers answer with `review` -> (a fix with `fix`) -> the lead answers with `lead`.
+async function leadFlow(review: (task: AgentTask) => Behavior, lead: (task: AgentTask) => Behavior, { config = withLead(twoReviewers()), fix = (() => ({ exit: 'stopped' })) as (task: AgentTask) => Behavior, labels = undefined as EngineSettings['labels'] | undefined } = {}) {
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50);
+  runner.behavior = (task) => (task.stage === 'ship' ? { write: completed(task) } : task.stage === 'review' ? review(task) : task.stage === 'lead' ? lead(task) : fix(task));
+  const engine = await start(1, [config]);
+  if (labels) settings.labels = labels;
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  return engine;
+}
+const bothAgree = verdictBy({ reviewer: { ...ok, summary: 'tickets covered' }, 'reviewer-2': { ...ok, summary: 'migration reversible' } });
+const hang = () => ({ exit: 'stopped' as const }); // the run ends interrupted: the epic stays where it is
+
+test('without a lead the agreed round goes to ready for test as before, with no lead round and no approved head', async () => {
+  const engine = await leadFlow(bothAgree, hang, { config: twoReviewers() });
+
+  expect(leadTasks()).toEqual([]);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'ready_for_test', stage: 'review', reviewedSha: SHA, leadRound: null, approvedSha: null });
+  expect(labelsOf(1)).toEqual(['carrier:status:ready-for-test']);
+});
+
+test('with a lead the agreed round sends the epic to the stage lead and launches one execution of the slot lead, in its own checkout, on the agreed head, with leadRound 1', async () => {
+  const engine = await leadFlow(bothAgree, hang);
+
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'lead', round: 1, leadRound: 1, reviewedSha: SHA, approvedSha: null, verification: ok.verification, finishedAt: null });
+  expect(leadTasks()).toHaveLength(1);
+  expect(leadTasks()[0]).toMatchObject({ stage: 'lead', reviewer: 'lead', profile: 'e', workspace: '/work/AshuLab/a/1/lead-50', context: { round: 1, pr: { number: 50, headSha: SHA } } });
+  expect(executionsOf(engine.db).filter((e) => e.stage === 'lead').map((e) => [e.reviewer, e.round, e.headSha, e.status])).toEqual([['lead', 1, SHA, 'interrupted']]);
+  expect(runner.tasks.filter((t) => t.stage === 'review')).toHaveLength(2); // no reviewer runs again
+});
+
+test('an epic with one reviewer and a lead goes to the lead too, and its checkout is the lead\'s own, not the reviewer\'s', async () => {
+  const engine = await leadFlow(verdictBy({ reviewer: ok }), hang, { config: withLead() });
+
+  expect(rows(engine.db)[0]).toMatchObject({ stage: 'lead', leadRound: 1, reviewedSha: SHA });
+  expect(leadTasks().map((t) => t.workspace)).toEqual(['/work/AshuLab/a/1/lead-50']);
+  expect(runner.tasks.find((t) => t.stage === 'review')!.workspace).toBe('/work/AshuLab/a/1/reviewer-50');
+});
+
+test('the observations pass that ends with the head the reviewers agreed on sends the epic to the lead, on that head', async () => {
+  const engine = await leadFlow(
+    verdictBy({ reviewer: { ...ok, observations: [{ title: 'rename it' }] }, 'reviewer-2': ok }),
+    hang,
+    { fix: (task) => fixDone(task, SHA) },
+  );
+
+  expect(runner.tasks.map((t) => t.stage)).toEqual(['ship', 'review', 'review', 'fix', 'lead']);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'lead', leadRound: 1, reviewedSha: SHA, observationsPassAt: 5 * MIN });
+  expect(leadTasks()[0]!.context.pr!.headSha).toBe(SHA);
+});
+
+test('the lead runs the skill resolved for it, with the shared-identity flag of its own profile, and is given the summaries of the reviewers that agreed', async () => {
+  await leadFlow(bothAgree, hang, { config: withLead(twoReviewers(), { sharedIdentity: true }) });
+
+  const [lead] = leadTasks();
+  expect(lead!.skills!.lead).toEqual(leadSkills);
+  expect(lead!.sharedIdentity).toBe(true); // the lead's profile is the author's, whatever the epic's own flag says
+  expect(lead!.context.reviewerSummaries).toEqual([{ reviewer: 'reviewer', summary: 'tickets covered' }, { reviewer: 'reviewer-2', summary: 'migration reversible' }]);
+  expect(lead!.context.previousSummaries).toEqual([]);
+  const prompt = buildPrompt(lead!);
+  expect(prompt).toContain('You are the lead reviewer');
+  expect(prompt).toContain('Invoke /my-lead');
+  expect(prompt).toContain('- reviewer-2: migration reversible');
+});
+
+test('a lead with a profile of its own is launched without the shared identity, even when the epic\'s author and reviewer share one', async () => {
+  await leadFlow(bothAgree, hang, { config: { ...withLead(twoReviewers()), sharedIdentity: true } });
+  expect(leadTasks()[0]!.sharedIdentity).toBe(false);
+});
+
+test('when the lead completes the epic is ready for test with the head it approved recorded, the head the reviewers agreed on kept, and its approval in an event', async () => {
+  const approval = { submitted: true, url: 'https://github.com/AshuLab/a/pull/50#pullrequestreview-1' };
+  const engine = await leadFlow(bothAgree, leadSays({ ...ok, approval }));
+
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'ready_for_test', reviewedSha: SHA, approvedSha: SHA, leadRound: 1, finishedAt: 5 * MIN, labelPending: false, needsHumanReason: null });
+  expect(labelsOf(1)).toEqual(['carrier:status:ready-for-test']);
+  expect(eventsOf(engine.db).filter((e) => e.type === 'lead_completed').map((e) => e.data)).toEqual([{ headSha: SHA, approval }]);
+});
+
+test.each([
+  ['a lead that did not submit one', { approval: { submitted: false } }, false],
+  ['a lead whose result carries none', {}, undefined],
+])('%s does not block the flow: the epic is ready for test all the same', async (_name, extra, submitted) => {
+  const engine = await leadFlow(bothAgree, leadSays({ ...ok, ...extra }));
+
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'ready_for_test', approvedSha: SHA });
+  expect(eventsOf(engine.db).filter((e) => e.type === 'lead_completed').map((e) => (e.data.approval as { submitted: boolean } | undefined)?.submitted)).toEqual([submitted]);
+});
+
+test('an approval on a result that is not a completed lead result is an invalid result, retried like any other, and records nothing', async () => {
+  let runs = 0;
+  const engine = await leadFlow(bothAgree, (task) => (++runs === 1 ? { write: result(task, { ...ok, stage: 'review', approval: { submitted: true }, pr: { number: 50, headSha: SHA } }) } : leadSays({ ...ok, approval: { submitted: true } })(task)));
+
+  expect(executionsOf(engine.db).filter((e) => e.stage === 'lead').map((e) => [e.status, e.failureKind])).toEqual([['invalid_result', 'invalid_result'], ['finished', null]]);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'ready_for_test', approvedSha: SHA });
+  expect(eventsOf(engine.db).filter((e) => e.type === 'lead_completed')).toHaveLength(1);
+});
+
+test('a head that moves while the lead reviews sets its verdict aside and launches the lead again on the new head, not counted: the head the reviewers agreed on stays', async () => {
+  const pushes = [HEAD2];
+  const engine = await leadFlow(bothAgree, (task) => {
+    const next = pushes.shift();
+    if (next) pull(50, { headSha: next });
+    return leadSays(ok)(task);
+  });
+
+  expect(leadTasks().map((t) => [t.context.round, t.context.pr!.headSha, t.workspace])).toEqual([[1, SHA, '/work/AshuLab/a/1/lead-50'], [1, HEAD2, '/work/AshuLab/a/1/lead-50']]);
+  expect(runner.tasks.filter((t) => t.stage === 'review')).toHaveLength(2); // the reviewers do not run again
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'ready_for_test', round: 1, leadRound: 1, prHeadSha: HEAD2, reviewedSha: SHA, approvedSha: HEAD2, headRepeats: 0 });
+  expect(eventsOf(engine.db).filter((e) => e.type === 'review_repeated').map((e) => e.data)).toMatchObject([{ stage: 'lead', round: 1, from: SHA, to: HEAD2, repeats: 1 }]);
+  expect(engine.db.select().from(callerResults).all().filter((r) => r.outcome === 'superseded')).toHaveLength(1);
+  expect(eventsOf(engine.db).filter((e) => e.type === 'lead_completed').map((e) => e.data.headSha)).toEqual([HEAD2]); // the verdict set aside records no approval
+});
+
+test('a third head that moves in a row while the lead reviews stops the epic in pr_invalid, with the two repeats counted by the lead\'s reviews and nothing approved', async () => {
+  const pushes = [HEAD2, HEAD3, HEAD4];
+  const engine = await leadFlow(bothAgree, (task) => {
+    const next = pushes.shift();
+    if (next) pull(50, { headSha: next });
+    return leadSays(ok)(task);
+  });
+
+  expect(leadTasks()).toHaveLength(3);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'pr_invalid', headRepeats: 2, reviewedSha: SHA, approvedSha: null });
+  expect(rows(engine.db)[0]!.needsHumanReason).toContain('changed during the review 3 times in a row');
+  expect(eventsOf(engine.db).filter((e) => e.type === 'lead_completed')).toEqual([]);
+});
+
+test('the lead\'s stage label is applied while the epic is in the stage lead, replaces the review\'s, and goes with the stage; the label is created like the others', async () => {
+  const labels = { ...defaultLabels, stages: { review: 'carrier:reviewing', lead: 'carrier:stage:lead-reviewing' } };
+  const engine = await leadFlow(bothAgree, hang, { labels });
+
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'lead', labelPending: false });
+  expect([...labelsOf(1)].sort()).toEqual(['carrier:stage:lead-reviewing', 'carrier:status:running']);
+  expect(github.repoLabels['AshuLab/a']).toContain('carrier:stage:lead-reviewing');
+});
+
+test('the lead\'s stage label goes when the lead completes: the epic shows only ready for test', async () => {
+  const labels = { ...defaultLabels, stages: { review: 'carrier:reviewing', lead: 'carrier:stage:lead-reviewing' } };
+  const engine = await leadFlow(bothAgree, leadSays(ok), { labels });
+
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'ready_for_test', labelPending: false });
+  expect(labelsOf(1)).toEqual(['carrier:status:ready-for-test']);
+});
+
+test('without a stage label for the lead the epic in the stage lead shows only running', async () => {
+  const engine = await leadFlow(bothAgree, hang, { labels: { ...defaultLabels, stages: { review: 'carrier:reviewing' } } });
+
+  expect(rows(engine.db)[0]).toMatchObject({ stage: 'lead' });
+  expect(labelsOf(1)).toEqual(['carrier:status:running']);
+});
+
+// Until the slices that follow, a lead that asks for changes, cannot conclude, fails or lacks a skill stops the epic.
+
+test('a lead that asks for changes stops the epic for a person with the kind lead_limit and its blockers in the reason, and no author fix is launched', async () => {
+  const engine = await leadFlow(bothAgree, leadSays({ outcome: 'changes_requested', blockers: [{ id: 'L1', title: 'the rollback is untested' }] }));
+
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'lead_limit', approvedSha: null, round: 1 });
+  expect(rows(engine.db)[0]!.needsHumanReason).toContain('the rollback is untested');
+  expect(runner.tasks.map((t) => t.stage)).toEqual(['ship', 'review', 'review', 'lead']);
+});
+
+test('a lead that cannot conclude stops the epic with agent_needs_human', async () => {
+  const engine = await leadFlow(bothAgree, (task) => ({ write: result(task, { outcome: 'needs_human', reason: 'the migration cannot be verified' }) }));
+
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'agent_needs_human', needsHumanReason: 'the migration cannot be verified' });
+});
+
+test('a technical failure of the lead is retried as the lead, in its own slot and checkout, and then completes the epic', async () => {
+  let runs = 0;
+  const engine = await leadFlow(bothAgree, (task) => (++runs === 1 ? { exit: 'failed' } : leadSays(ok)(task)));
+
+  expect(leadTasks().map((t) => [t.reviewer, t.workspace, t.context.verifyStateFirst ?? false])).toEqual([['lead', '/work/AshuLab/a/1/lead-50', false], ['lead', '/work/AshuLab/a/1/lead-50', true]]);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'ready_for_test', approvedSha: SHA });
+});
+
+test('a skill the person named for the lead that is absent stops the epic with skill_missing before a run is spent, and the lead\'s skills are the ones asked for', async () => {
+  skills.answers['my-lead'] = 'absent';
+  const engine = await leadFlow(bothAgree, hang);
+
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'skill_missing' });
+  expect(rows(engine.db)[0]!.needsHumanReason).toContain('skills.lead.review');
+  expect(leadTasks()).toEqual([]);
+});
+
+test('a restart that finds the epic in the stage lead with no lead execution launches the lead, never ship', async () => {
+  const db = open();
+  seedEpic(db, 1, { stage: 'lead', round: 1, prNumber: 50, prHeadSha: SHA, reviewedSha: SHA, leadRound: 1, config: withLead(twoReviewers()) });
+  pull(50);
+  runner.behavior = () => ({ exit: 'hang' });
+  await start(1);
+
+  expect(runner.tasks.map((t) => [t.stage, t.reviewer])).toEqual([['lead', 'lead']]);
+  expect(rows(db)[0]).toMatchObject({ stage: 'lead' });
+});
+
+test('a restart that finds the lead running when the engine died resumes its session in its own slot', async () => {
+  const db = open();
+  seedEpic(db, 1, { stage: 'lead', round: 1, prNumber: 50, prHeadSha: SHA, reviewedSha: SHA, leadRound: 1, config: withLead(twoReviewers()) });
+  seedExecution(db, 'l1', 1, { stage: 'lead', reviewer: 'lead', round: 1, headSha: SHA, status: 'running', startedAt: 1 });
+  pull(50);
+  runner.behavior = () => ({ exit: 'hang' });
+  await start(1);
+
+  expect(runner.tasks.map((t) => [t.stage, t.reviewer, t.resumeSession])).toEqual([['lead', 'lead', 's-l1']]);
+  expect(statusOf(db, 'l1')).toBe('interrupted');
+});
+
+test.each([
+  ['a restart from ship', undefined],
+  ['a resume at the reviewers\' round', 'review' as const],
+  ['a resume at the author\'s fix', 'fix' as const],
+])('%s of an epic that stopped at the lead clears its lead round and its approved head', async (_name, from) => {
+  const engine = await start(1);
+  stoppedAt(engine.db, 'review', { stage: 'lead' as never, leadRound: 1, approvedSha: SHA, needsHumanKind: 'lead_limit', config: withLead(twoReviewers()) });
+  await resumeFrom(engine, from);
+
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', leadRound: null, approvedSha: null });
+});
+
+test('the slot given back before an epic starts keeps no lead round: a requeue that keeps the work clears it while the epic waits', async () => {
+  const engine = await start(0);
+  stoppedAt(engine.db, 'review', { stage: 'lead' as never, leadRound: 1, approvedSha: SHA, needsHumanKind: 'lead_limit', config: withLead(twoReviewers()) });
+  await resumeFrom(engine, 'review');
+
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'queued', leadRound: null, approvedSha: null, resumeStage: 'review' });
+});

@@ -3,7 +3,7 @@ import type { CallerResult } from '../execution/caller-result.ts';
 import { callerResults, supersededOutcome } from '../storage/caller-results.ts';
 import type { Db } from '../storage/db.ts';
 import { epicEvents } from '../storage/events.ts';
-import { executions, slotOf, type Slot } from '../storage/executions.ts';
+import { executions, reviewerSlots, slotOf, type Slot } from '../storage/executions.ts';
 
 type Verdicts = Extract<CallerResult, { outcome: 'completed' | 'changes_requested' }>;
 /** What a slot of the round concluded: the stored result of its review on the round's head. */
@@ -100,4 +100,26 @@ export function latestRoundTally(db: Pick<Db, 'select'>, epic: { id: number; sta
     if (decideRound(slots, roundVerdicts(db, epic, { stage: 'review', ...on }, null, true), roundNones(db, epic, on)).kind !== 'waiting') return roundTally(db, epic, on, slots);
   }
   return undefined;
+}
+
+/** What each reviewer that gave a verdict on the head the reviewers agreed on said in its summary, in the order of the slots: what the lead reviewer is given. */
+export function agreedSummaries(db: Pick<Db, 'select'>, epic: { id: number; startedAt: number | null; round: number | null; reviewedSha: string | null }): { reviewer: Slot; summary: string }[] {
+  if (epic.round === null || epic.reviewedSha === null) return [];
+  const last = new Map<Slot, string>();
+  for (const row of db
+    .select({ reviewer: executions.reviewer, result: callerResults.result })
+    .from(callerResults)
+    .innerJoin(executions, eq(executions.executionId, callerResults.executionId))
+    .where(and(eq(executions.epicId, epic.id), eq(executions.stage, 'review'), eq(executions.round, epic.round), eq(executions.headSha, epic.reviewedSha), gte(executions.startedAt, epic.startedAt ?? Number.MAX_SAFE_INTEGER), inArray(callerResults.outcome, ['completed', 'changes_requested'])))
+    .orderBy(asc(sql`executions.rowid`))
+    .all()) last.set(slotOf({ stage: 'review', reviewer: row.reviewer })!, (JSON.parse(row.result) as Verdicts).summary);
+  return reviewerSlots.flatMap((reviewer) => (last.has(reviewer) ? [{ reviewer, summary: last.get(reviewer)! }] : []));
+}
+
+const leadCompletedEvent = 'lead_completed';
+
+/** Whether the lead's result of the epic's current attempt says it submitted the pull request's formal approval; read from the event the engine stored when it completed, undefined while it has not. Nothing is read from GitHub. */
+export function leadApproval(db: Pick<Db, 'select'>, epic: { id: number; startedAt: number | null }): boolean | undefined {
+  const event = db.select().from(epicEvents).where(and(eq(epicEvents.epicId, epic.id), eq(epicEvents.type, leadCompletedEvent), gte(epicEvents.at, epic.startedAt ?? Number.MAX_SAFE_INTEGER))).orderBy(desc(epicEvents.id)).get();
+  return event && (event.data.approval as { submitted: boolean } | undefined)?.submitted === true;
 }

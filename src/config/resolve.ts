@@ -16,6 +16,9 @@ export type Agent = {
   providerName?: string;
 } & AccountRuntime;
 
+/** The lead reviewer: an agent that also keeps whether its profile is the author's (`sharedIdentity`, saved only when it is). */
+export type LeadReviewer = Agent & { sharedIdentity?: true };
+
 /** A reviewer beyond the mandatory one, with the review skills it resolved, the failover steps it declared (none: the reviewer role's) and whether its profile is the author's (`sharedIdentity`, saved only when it is). */
 export type ExtraReviewer = Agent & { skills: ReviewSkills; failover?: NonNullable<NonNullable<Config['failover']>['roles']>['reviewer']; sharedIdentity?: true };
 
@@ -32,7 +35,7 @@ export type EffectiveRepoConfig = {
   /** Saved with the epic; absent on epics saved before it existed (`savedSkills` reads those as Solve's defaults). */
   skills?: ResolvedSkills;
   /** `extraReviewers` is absent on an epic saved before it existed: one reviewer. */
-  agents: { author: Agent; reviewer: Agent; leadReviewer?: Agent; extraReviewers?: ExtraReviewer[] };
+  agents: { author: Agent; reviewer: Agent; leadReviewer?: LeadReviewer; extraReviewers?: ExtraReviewer[] };
 };
 
 // Two names can point at the same bot or at the same `gh` login: what matters is the account that posts.
@@ -64,15 +67,17 @@ export function resolveRepoConfig(config: Config, repo: Config['repos'][number])
     const repoAgent = repo.agents?.[role];
     return base || repoAgent ? agentOf({ ...(base ?? {}), ...(repoAgent ?? {}) }) : undefined;
   };
-  const leadReviewer = roleOf('leadReviewer');
   const authorAgent = roleOf('author')!;
   const authorProfile = config.profiles[authorAgent?.profile];
+  const sharesAuthor = (profile: string) => authorProfile !== undefined && config.profiles[profile] !== undefined && sameAccount(authorProfile, config.profiles[profile]!);
+  const leadAgent = roleOf('leadReviewer');
+  const leadReviewer = leadAgent && { ...leadAgent, ...(sharesAuthor(leadAgent.profile) && { sharedIdentity: true as const }) };
   // A repo's list replaces the global one whole, an empty one included.
   const extraReviewers = (repo.agents?.extraReviewers ?? config.agents.extraReviewers ?? []).map((extra): ExtraReviewer => ({
     ...agentOf(extra)!,
     skills: resolveReviewSkills('review', config.skills, repo.skills, extra.skills?.review),
     ...(extra.failover && { failover: extra.failover }),
-    ...(authorProfile && config.profiles[extra.profile] && sameAccount(authorProfile, config.profiles[extra.profile]!) && { sharedIdentity: true as const }),
+    ...(sharesAuthor(extra.profile) && { sharedIdentity: true as const }),
   }));
   const agents = { author: authorAgent, reviewer: roleOf('reviewer')!, ...(leadReviewer ? { leadReviewer } : {}), ...(extraReviewers.length > 0 ? { extraReviewers } : {}) };
   const [author, reviewer] = [authorProfile, config.profiles[agents.reviewer?.profile]];

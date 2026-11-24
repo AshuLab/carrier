@@ -22,6 +22,11 @@
     {
       "stage": "fix",
       "startedAt": 60000,
+      "endedAt": 70000
+    },
+    {
+      "stage": "lead",
+      "startedAt": 70000,
       "endedAt": null
     }
   ],
@@ -330,6 +335,14 @@
   "unansweredObservations": {
     "count": 2,
     "reason": "already_taken"
+  },
+  "reviewedSha": "5555555eeeeeee",
+  "approvedSha": "7777777ggggggg",
+  "leadApproval": true,
+  "lead": {
+    "harness": "claude",
+    "model": "claude-sonnet-5-5",
+    "provider": null
   },
   "pr": {
     "number": 50,

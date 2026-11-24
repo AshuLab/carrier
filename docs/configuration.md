@@ -91,7 +91,7 @@ The accounts the roles name (`claude` and `codex` here) are declared in `provide
 | `profiles` | yes | | The GitHub identities you can use, by name (below). |
 | `orchestratorProfile` | no | the author's profile | Profile used to read issues and PRs and to change labels. Left out, it is `agents.author.profile`; set it only when the author's profile cannot read a repo, for instance a repo of another owner where the author's bot is not installed. `carrier init` asks for it, before the author and the reviewer. You can also choose it in the Mac app, under GitHub identity in Settings > Engine (the default takes the key out of the file). When a repo's read check fails with a 404, the doctor's fix names this key as the second way out, besides installing the App. |
 | `agents.author` / `agents.reviewer` | yes | | `{ profile, provider, model, persona? }` for each role: the GitHub identity it acts as, the AI provider it connects through, and the model it uses. |
-| `agents.leadReviewer` | no | none | Optional lead reviewer `{ profile, provider, model, effort?, persona?, skills? }`; its `skills` takes only `lead`. The engine does not run it yet: it is accepted, checked by `carrier doctor` and saved with the epic. See [Extra reviewers and the lead reviewer](#extra-reviewers-and-the-lead-reviewer). |
+| `agents.leadReviewer` | no | none | Optional lead reviewer `{ profile, provider, model, effort?, persona?, skills? }`; its `skills` takes only `lead`. The engine runs it once after the reviewers agree and before the epic is ready for test, and `carrier doctor` checks it. See [Extra reviewers and the lead reviewer](#extra-reviewers-and-the-lead-reviewer). |
 | `agents.extraReviewers` | no | none | Zero to three more reviewers beside `agents.reviewer`, each `{ profile, provider, model, effort?, persona?, skills?, failover? }`. The engine runs them with the mandatory reviewer in every review round, in parallel; they are checked by `carrier doctor` and saved with the epic. See [Extra reviewers and the lead reviewer](#extra-reviewers-and-the-lead-reviewer). |
 | `agents.<role>.effort` | no | none | How hard the model thinks: one of `low`, `medium`, `high`, `xhigh` or `max`, in the global role and in a repo's override of it. Passed as `--effort` to Claude and Antigravity and as `-c model_reasoning_effort=<level>` to Codex, in every run and resume. Without it nothing is passed and the CLI uses its own. Anything else is refused naming the key. |
 | `agents.<role>.persona` | no | none | `{ name?, prompt? }`: who the agent of that role is. `name` is one line of at most 40 characters; `prompt` is text of at most 4000 characters, given to the agent as you wrote it. See [Personas](#personas). |
@@ -129,7 +129,7 @@ A board or an automation keyed on an old name changes it, or you set the old nam
 
 Two more groups are off until you name them, so a Carrier that does not name them writes nothing more than the five above:
 
-- `labels.stages`: `{ ship, review, fix }`, each optional. While an epic runs, the issue carries the label of its stage beside `running`, and the next stage replaces it.
+- `labels.stages`: `{ ship, review, fix, lead }`, each optional. While an epic runs, the issue carries the label of its stage beside `running`, and the next stage replaces it.
 - `labels.reasons`: one optional label per kind of stop, `review_limit`, `agent_needs_human`, `retries_exhausted`, `timeout`, `auth`, `workspace`, `pr_invalid`, `usage_limit`, `engine_error`, `skill_missing`, `reviewers_failed` and `lead_limit`.
   While an epic waits for a person, the issue carries the label of its kind beside `needsHuman`.
   `reviewers_failed` and `lead_limit` are the two kinds of several reviewers and a lead, explained under [Extra reviewers and the lead reviewer](#extra-reviewers-and-the-lead-reviewer).
@@ -141,6 +141,7 @@ The names below are proposals you may copy into `labels`; none is on until you n
 | `labels.stages.ship` | `carrier:stage:building` |
 | `labels.stages.review` | `carrier:stage:reviewing` |
 | `labels.stages.fix` | `carrier:stage:fixing-review` |
+| `labels.stages.lead` | `carrier:stage:lead-reviewing` |
 | `labels.reasons.<kind>` | `carrier:reason:<kind>`, for example `carrier:reason:review_limit` |
 
 A stage label costs one more write to GitHub at each stage change, which is why it is opt-in.
@@ -268,7 +269,15 @@ The engine runs the extra reviewers: when the author's `ship` is validated it la
 The author's `fix` gets the open blockers of every reviewer, shown as `reviewer-2:B1` when the epic has several reviewers; a round counts once toward `limits.maxReviews` however many reviewers it has.
 A reviewer that gives no verdict does not stop the round: it answers `needs_human`, fails technically with its retries and failover steps out, runs out of usage with no failover step left, or, for an extra reviewer, lacks a skill you named for it.
 One verdict is enough for the round to count, and the mandatory reviewer's own missing skill still stops the epic with `skill_missing` before any reviewer is launched.
-The lead reviewer is not run yet.
+
+Once the reviewers agree (right after the round, or after the observations pass with the head unchanged) and a lead reviewer is configured, the epic goes to the stage `lead` instead of ready for test, and the engine launches one execution of the lead, in its own checkout, on the head the reviewers agreed on.
+The lead is the final reviewer: it runs the skill resolved for it (`skills.lead`, with the values of the review skill when none names it), invoked `/name` or `$name` by harness, it is given the summaries of the reviewers' results, and its prompt tells it to give the pull request its formal approval with its own identity when it finds no blocker.
+It is told that GitHub does not let an account approve its own pull request when its profile is the author's.
+When it completes the epic is ready for test with the head it approved recorded beside the head the reviewers agreed on, which the epic keeps and shows when they differ.
+Its result may say whether it submitted the approval (`approval` with `submitted` and a `url`): Carrier records that and shows it, and does not require it, so a lead that cannot approve does not block the epic.
+A head that moves while the lead reviews sets its verdict aside and repeats the lead's review on the new head, without counting a round, with the same two repeats in a row as a round and the same stop in `pr_invalid`.
+`labels.stages.lead` (proposed: `carrier:stage:lead-reviewing`) is applied while the epic is in that stage.
+A lead that cannot conclude, fails technically past its retries or lacks a skill you named stops the epic like any other role; one that asks for changes stops it in `lead_limit` for now, and the exchange between the author and the lead alone arrives with a later change.
 
 ```json
 {
@@ -307,7 +316,7 @@ Two kinds of stop belong to this, each with its optional label under `labels.rea
 - `lead_limit`: the lead reviewer asked for changes in each of the `limits.maxLeadRounds` reviews of its exchange with the author.
 
 Resume the epic after reading the reason, as for the other kinds.
-The engine does not run the lead yet, so no epic stops in `lead_limit` today; it is accepted so the label and the app's words are ready.
+Today the lead's first request for changes stops the epic in `lead_limit`, with its blockers in the reason; fix them and resume the epic.
 
 ### Starting an epic and restarting it
 
@@ -396,7 +405,7 @@ A role names only the stages it runs: the author `ship` and `fix`, the reviewer 
 The lead's skills are the lead's own, then the repo's `skills.lead`, then the global `skills.lead`; what none of them names is taken from the repo's or the global `skills.review` (never from another role's own `skills`) and then from Solve's defaults.
 An extra reviewer's `review` skills are its own entry's, then the repo's `skills.review`, the global one and Solve's defaults.
 A value taken from a `skills.review` you named counts as named, so it stops an epic when it is absent.
-Each extra reviewer invokes its own `review` skills; Carrier does not run the lead yet, so the lead's skills are saved and checked by `carrier doctor`, and no epic invokes them.
+Each extra reviewer invokes its own `review` skills, and the lead reviewer invokes its `lead` skills.
 
 The resolved skills are saved with an epic's configuration when it starts, so a reload changes nothing for a running epic, and an epic restarted from ship takes the skills of that moment.
 The extra reviewers and the resolved skills of each and of the lead are saved with it too.

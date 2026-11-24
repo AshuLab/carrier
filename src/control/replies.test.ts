@@ -56,6 +56,8 @@ test('the sessions reply equals reply-sessions.json', () => {
         failure: { kind: 'killed', detail: 'SIGKILL', exitCode: null, signal: 'SIGKILL', hostFreeMemMb: 812, hostLoad: 6.4 },
       },
       // a second reviewer of round 1, which gave no verdict (the sample's sessions are not all in order)
+      // the lead reviewer's: the replies name its stage and its slot `lead` as strings, and its role is the reviewer's
+      { executionId: '4a8e2c60-9d1b-4f37-a5c3-8b0e6d2f4a19', stage: 'lead', role: 'reviewer', reviewer: 'lead', round: 3, agent: claude, profile: 'acme-lead', status: 'finished', startedAt: 86_000, finishedAt: 95_000, resume: null, result: { outcome: 'completed', summary: 'Final review of PR #12: no blockers, approval submitted.', verification: { ci: 'passed', evidence: 'CI run concluded success on the head commit.' }, reason: null }, failure: null },
       { executionId: '6d3c7a21-8e4b-4c19-b0f2-5a9d1e3c7b84', stage: 'review', role: 'reviewer', reviewer: 'reviewer-2', round: 1, agent: claude, profile: 'acme-reviewer-2', status: 'finished', startedAt: 39_100, finishedAt: 44_000, resume: null, result: { outcome: 'needs_human', summary: 'Could not conclude.', verification: null, reason: 'cannot verify the migration' }, failure: null },
     ],
   };
@@ -109,7 +111,8 @@ test('the epic reply equals reply-epic.json', () => {
       { stage: 'queued', startedAt: 500, endedAt: 1_000 },
       { stage: 'ship', startedAt: 1_000, endedAt: 39_000 },
       { stage: 'review', startedAt: 39_000, endedAt: 60_000, reviewers: ['reviewer', 'reviewer-2'] },
-      { stage: 'fix', startedAt: 60_000, endedAt: null },
+      { stage: 'fix', startedAt: 60_000, endedAt: 70_000 },
+      { stage: 'lead', startedAt: 70_000, endedAt: null },
     ],
     rounds: [
       {
@@ -163,6 +166,11 @@ test('the epic reply equals reply-epic.json', () => {
     ],
     branch: 'feat/issue-12/epic',
     unansweredObservations: { count: 2, reason: 'already_taken' },
+    // the head the reviewers agreed on and the head the lead approved differ when the head moved while the lead reviewed
+    reviewedSha: '5555555eeeeeee',
+    approvedSha: '7777777ggggggg',
+    leadApproval: true,
+    lead: claude,
     pr: { number: 50, url: 'https://github.com/acme/web/pull/50', draft: false, mergeState: 'CLEAN', reviewDecision: null, checks: { passing: 3, failing: 1, pending: 0 } },
   };
   golden('epic', epic);

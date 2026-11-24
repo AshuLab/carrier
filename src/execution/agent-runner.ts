@@ -8,7 +8,7 @@ export interface AgentTask extends AccountRuntime {
   executionId: string;
   repo: string; // "owner/name"
   epic: number;
-  stage: 'ship' | 'review' | 'fix';
+  stage: 'ship' | 'review' | 'fix' | 'lead';
   reviewer?: Slot; // a review's slot; absent for ship and fix
   profile: string; // GitHub profile of the effective config
   harness: HarnessName;
@@ -36,6 +36,8 @@ export interface AgentTask extends AccountRuntime {
     observations?: { id?: string; title: string; url?: string; reviewer?: Slot }[];
     /** Review turn of an epic with several reviewers: other reviewers publish on the same pull request. */
     severalReviewers?: true;
+    /** Lead turn: what each reviewer that gave a verdict on the head they agreed on said in its summary. */
+    reviewerSummaries?: { reviewer: Slot; summary: string }[];
   };
 }
 

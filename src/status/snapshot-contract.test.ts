@@ -43,11 +43,13 @@ test('the snapshot JSON equals macos/Tests/Fixtures/snapshot.json (UPDATE_FIXTUR
   const inShip = add('acme/web', 13, 'running', { config, stage: 'ship', queuedAt: 600, startedAt: 7_000, stageStartedAt: 7_000, workspace: '/work/acme/web-13', retryAt: 100_030_000 });
   const waiting = add('acme/api', 4, 'needs_human', { config, stage: 'fix', round: 5, prNumber: 9, queuedAt: 700, startedAt: 2_000, stageStartedAt: 8_000, finishedAt: 60_000, needsHumanKind: 'review_limit', needsHumanReason: 'review limit' });
   for (const [i, kind] of (['agent_needs_human', 'retries_exhausted', 'timeout', 'auth', 'workspace', 'pr_invalid', 'usage_limit', 'engine_error', 'skill_missing', 'reviewers_failed', 'lead_limit'] as const).entries()) {
-    add('acme/api', 5 + i, 'needs_human', { config, stage: 'ship', queuedAt: 800 + i, startedAt: 3_000 + i, finishedAt: 61_000 + i, needsHumanKind: kind, needsHumanReason: kind.replace('_', ' '), ...(kind === 'usage_limit' && { resumeAt: 90_000_000 }) });
+    add('acme/api', 5 + i, 'needs_human', { ...(kind === 'lead_limit' ? { config: { ...config, agents: { ...config.agents, leadReviewer: agent('claude', 'claude-opus-5') } } as never, stage: 'lead' as const, round: 2, leadRound: 1, reviewedSha: 'e4f5a6b' } : { config, stage: 'ship' as const }), queuedAt: 800 + i, startedAt: 3_000 + i, finishedAt: 61_000 + i, needsHumanKind: kind, needsHumanReason: kind.replace('_', ' '), ...(kind === 'usage_limit' && { resumeAt: 90_000_000 }) });
   }
   add('acme/web', 20, 'queued', { queuedAt: 20_000 });
   add('acme/api', 21, 'queued', { queuedAt: 21_000 });
-  const shipped = add('acme/web', 30, 'ready_for_test', { prNumber: 77, finishedAt: 95_000 });
+  // Approved by the lead on another head than the reviewers agreed on: the head moved while the lead reviewed.
+  const shipped = add('acme/web', 30, 'ready_for_test', { prNumber: 77, finishedAt: 95_000, startedAt: 1_800, reviewedSha: 'e4f5a6b', approvedSha: 'f7a8b9c', leadRound: 1 });
+  db.insert(epicEvents).values({ epicId: shipped.id, at: 94_900, type: 'lead_completed', data: { headSha: 'f7a8b9c', approval: { submitted: true, url: 'https://github.com/acme/web/pull/77#pullrequestreview-1' } } }).run();
   add('acme/api', 31, 'ready_for_test', { finishedAt: 80_000, unansweredObservations: 2, unansweredReason: 'already_taken' });
   const merged = add('acme/web', 40, 'merged', { prNumber: 88, finishedAt: 98_000 });
   add('acme/api', 41, 'cancelled', { finishedAt: 90_000, cancelReason: 'final PR closed without merge' });
@@ -74,7 +76,7 @@ test('the snapshot JSON equals macos/Tests/Fixtures/snapshot.json (UPDATE_FIXTUR
     version: '0.1.0', pollIntervalMs: 300_000, labels: defaultLabels,
     rateLimit: { remaining: 4_812, limit: 5_000, resetAt: 130_000, profile: 'orchestrator' },
     watched: [
-      { repo: 'acme/web', lastCheckedAt: 98_000, ok: true, error: null, agents: { author: { harness: 'claude', model: 'claude-sonnet-5-5', provider: null }, reviewer: { harness: 'codex', model: 'gpt-5', provider: 'ollama' } } },
+      { repo: 'acme/web', lastCheckedAt: 98_000, ok: true, error: null, agents: { author: { harness: 'claude', model: 'claude-sonnet-5-5', provider: null }, reviewer: { harness: 'codex', model: 'gpt-5', provider: 'ollama' }, lead: { harness: 'claude', model: 'claude-opus-5', provider: null } } },
       { repo: 'acme/api', lastCheckedAt: 98_000, ok: false, error: 'GitHub answered 502', agents: { author: { harness: 'agy', model: 'gemini-3', provider: null }, reviewer: { harness: 'claude', model: 'claude-sonnet-5-5', provider: null } } },
     ],
     lastEvent: (id) => ({ 'exec-review-12': { kind: 'tool', text: 'Read src/auth/token.ts', at: 99_000 }, 'exec-ship-13': { kind: 'say', text: 'Writing the migration', at: 99_500 } })[id] ?? null,

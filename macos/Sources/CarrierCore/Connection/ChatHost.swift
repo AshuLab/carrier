@@ -369,6 +369,11 @@ public protocol ChatHost {
     /// Changes keys of `chat.json` and answers the keys as the file now has them; refused with a code and the key path and kind for a value the file's schema
     /// refuses, the file left as it was. Over the socket when the hello lists `config`, through `carrier config` otherwise.
     func editChatSettings(_ changes: ChatSettingChanges) async throws -> ChatSettingsSaved
+    /// Changes `providers.json` and answers what the running engine did with the file; refused with a code for a value the file's schema refuses, the file left as it was.
+    /// Over the socket when the hello lists `config`, through `carrier config` otherwise.
+    func changeProviders(_ request: ProvidersRequest) async throws -> ProvidersSaved
+    /// Changes `projects.json` or `projectsFolder` of `chat.json` (ProjectsRequests.swift); refused with a code, the file left as it was. Over the socket when the hello lists `config`, through `carrier config` otherwise.
+    func changeProjects(_ change: ProjectsChange) async throws -> ProjectsChanged
 }
 
 extension ChatHost {
@@ -424,6 +429,9 @@ extension ChatHost {
 
     /// A host that does not write config refuses; the real one always has a way.
     public func editChatSettings(_ changes: ChatSettingChanges) async throws -> ChatSettingsSaved { throw ControlError.remote(.hostLacks("editChatSettings")) }
+    public func changeProjects(_ change: ProjectsChange) async throws -> ProjectsChanged { throw ControlError.remote(.hostLacks(change.cmd)) }
+
+    public func changeProviders(_ request: ProvidersRequest) async throws -> ProvidersSaved { throw ControlError.remote(.hostLacks(request.command)) }
 
     /// A host that cannot list the AI tools refuses; the app only asks one that lists `providers`.
     public func providers() async throws -> HostProviders { throw ControlError.remote(.hostLacks("providers")) }
@@ -547,6 +555,25 @@ public struct SocketChatHost: ChatHost {
         }
         guard let configLauncher else { throw ControlError.remote(.hostLacks("editChatSettings")) }
         return try await configLauncher.run(changes.request, as: ChatSettingsSaved.self)
+    }
+
+    /// As `editChatSettings`; the host asks the engine to read the file before it answers, so the request waits longer.
+    public func changeProviders(_ request: ProvidersRequest) async throws -> ProvidersSaved {
+        let path = socketPath()
+        if (try? await capabilities())?.contains(.config) == true {
+            return try await Task.detached { try chatRequest(path, request.command, requires: .config, fields: request.fields, timeout: 15) }.value
+        }
+        guard let configLauncher else { throw ControlError.remote(.hostLacks(request.command)) }
+        return try await configLauncher.run(request.request, as: ProvidersSaved.self)
+    }
+
+    public func changeProjects(_ change: ProjectsChange) async throws -> ProjectsChanged {
+        let path = socketPath()
+        if (try? await capabilities())?.contains(.config) == true {
+            return try await Task.detached { try chatRequest(path, change.cmd, requires: .config, fields: change.fields) }.value
+        }
+        guard let configLauncher else { throw ControlError.remote(.hostLacks(change.cmd)) }
+        return try await configLauncher.run(change.request, as: ProjectsChanged.self)
     }
 
     /// From the hello of the connection the link keeps, which was read once.

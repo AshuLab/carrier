@@ -19,17 +19,17 @@ struct ConversationView: View {
     @State private var positioned = false
     /// The height of the conversation's pane, for what sits over the message box to leave it room (`cardRoom`).
     @State private var paneHeight: CGFloat = 0
-    @AppStorage(AppPreferences.toolOutputKey) private var toolOutput = AppPreferences.defaultToolOutput
-    @AppStorage(AppPreferences.chatMessageSpacingKey) private var messageSpacing = AppPreferences.defaultChatMessageSpacing
-    @AppStorage(AppPreferences.showsReasoningKey) private var showsReasoning = AppPreferences.defaultShowsReasoning
-    @AppStorage(AppPreferences.followsOutputKey) private var followsOutput = AppPreferences.defaultFollowsOutput
+    @AppStorage(Preference.chatToolOutput) private var toolOutput
+    @AppStorage(Preference.chatMessageSpacing) private var messageSpacing
+    @AppStorage(Preference.chatShowReasoning) private var showsReasoning
+    @AppStorage(Preference.chatFollowOutput) private var followsOutput
     /// Where the feed is scrolled to and which rows are on screen: in an object of their own, so the feed is not drawn again at each scroll
     /// (it would be at each poll, which scrolls to the end). Only the timeline reads which rows are on screen.
     @State private var scroll = ScrollState()
     /// One tick per turn for the timeline at the edge; see `onChange` of the feed's row count.
     @State private var markers: [TurnMarker] = []
     /// The feed's column; medium is the one of the mockups (chat-ui-conv2.html).
-    @AppStorage(AppPreferences.messageWidthKey) private var messageWidth = AppPreferences.defaultMessageWidth
+    @AppStorage(Preference.appearanceMessageWidth) private var messageWidth
 
     /// Where the first message of the session the draft opened is handed over, so it shows while the session is prepared.
     private let draft: NewSessionModel?
@@ -251,9 +251,9 @@ private struct ConversationBox: View {
     @Binding var boxFocused: Bool
     /// The times the global shortcut asked this box to dictate.
     var dictations: Int
-    @AppStorage(AppPreferences.whileWorkingKey) private var whileWorking = AppPreferences.defaultWhileWorking
-    @AppStorage(AppPreferences.messageWidthKey) private var messageWidth = AppPreferences.defaultMessageWidth
-    @AppStorage(AppPreferences.showsContextUsageKey) private var showsContextUsage = AppPreferences.defaultShowsContextUsage
+    @AppStorage(Preference.chatWhileWorking) private var whileWorking
+    @AppStorage(Preference.appearanceMessageWidth) private var messageWidth
+    @AppStorage(Preference.chatShowsContextUsage) private var showsContextUsage
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -343,7 +343,7 @@ struct FeedRowView: View, Equatable {
     /// What a run of the agent's work needs to know to draw itself: whether it is the one working now.
     let work: WorkState
     @Environment(\.feedActions) private var actions
-    @AppStorage(AppPreferences.messageTimesKey) private var messageTimes = AppPreferences.defaultMessageTimes
+    @AppStorage(Preference.chatMessageTimes) private var messageTimes
     @State private var hovering = false
     @State private var copied = false
     @State private var overCopy = false

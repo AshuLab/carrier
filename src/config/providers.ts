@@ -97,7 +97,7 @@ export const defaultAccounts: Providers = Object.fromEntries(harnessNames.map((h
 const textGenerator = z.strictObject({ kind: z.enum(localKinds), model: z.string().trim().min(1) });
 export type TextGenerator = z.infer<typeof textGenerator>;
 
-const providersFileSchema = z.strictObject({
+export const providersFileSchema = z.strictObject({
   providers: accounts.default(defaultAccounts),
   textGenerators: z.record(z.string(), textGenerator).default({}),
   /** The name of the generator in use. */

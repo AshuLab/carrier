@@ -1,0 +1,24 @@
+{
+  "request": {
+    "cmd": "addAccount",
+    "account": {
+      "name": "claude-work",
+      "harness": "claude",
+      "configDir": "~/.claude-work"
+    }
+  },
+  "reply": {
+    "ok": true,
+    "data": {
+      "saved": {
+        "providers": {
+          "claude-work": {
+            "harness": "claude",
+            "configDir": "~/.claude-work"
+          }
+        }
+      },
+      "engine": "applied"
+    }
+  }
+}

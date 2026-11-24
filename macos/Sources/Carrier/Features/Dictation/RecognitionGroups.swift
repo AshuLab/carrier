@@ -5,8 +5,8 @@ import SwiftUI
 struct LanguageGroup: View {
     var dictation = DictationController.shared
     // the choices are the controller's to read and write; these make the row redraw when they change, Reset included
-    @AppStorage(AppPreferences.dictationModelKey) private var savedModel: String?
-    @AppStorage(AppPreferences.dictationLanguageKey) private var savedLanguage: String?
+    @AppStorage(Preference.dictationModel) private var savedModel
+    @AppStorage(Preference.dictationLanguage) private var savedLanguage
 
     var body: some View {
         SettingsGroup(title: "") {
@@ -30,8 +30,8 @@ func dictationLanguageName(_ code: String) -> String {
 /// The Memory group: when the model is kept in memory. With Dictation off both rows are drawn at 40%.
 struct MemoryGroup: View {
     var dictation = DictationController.shared
-    @AppStorage(AppPreferences.dictationKeepReadyKey) private var savedKeepReady = AppPreferences.defaultDictationKeepReady
-    @AppStorage(AppPreferences.dictationReleaseAfterKey) private var savedReleaseAfter = AppPreferences.defaultDictationReleaseAfter
+    @AppStorage(Preference.dictationModelKeepReady) private var savedKeepReady
+    @AppStorage(Preference.dictationModelReleaseAfter) private var savedReleaseAfter
 
     var body: some View {
         let enabled = dictation.enabled

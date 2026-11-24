@@ -471,10 +471,10 @@ public struct WatchNote: Equatable {
         return projects.rows.contains { isSameFolder($0.path, folder) } == false
     }
 
-    /// Adds the folder as a project of origin `added`, with the writer the Projects page uses; `addProjectProblem` says why when it could not.
-    public func addAsProject() {
+    /// Adds the folder as a project of origin `added`, with the request the Projects page sends; `addProjectProblem` says why when it could not.
+    public func addAsProject() async {
         guard offersAddAsProject, let folder, let projects else { return }
-        addProjectProblem = projects.add(folder: folder) == nil ? projects.failure ?? projects.problems.first?.text ?? "That folder cannot be added" : nil
+        addProjectProblem = await projects.add(folder: folder) == nil ? projects.failure ?? projects.problems.first?.text ?? "That folder cannot be added" : nil
     }
 
     /// The line that says beforehand what sending will make, nil unless the workspace is a new project.

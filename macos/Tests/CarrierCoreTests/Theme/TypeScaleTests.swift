@@ -26,9 +26,9 @@ import Testing
     @Test func it_reads_the_percent_from_the_preferences() {
         let defaults = UserDefaults(suiteName: "TypeScaleTests-\(UUID().uuidString)")!
         #expect(TypeScale.stored(in: defaults).percent == 100)
-        defaults.set(120, forKey: TypeScale.percentKey)
+        defaults.set(120, forKey: Preference.appearanceTextSize.name)
         #expect(TypeScale.stored(in: defaults).percent == 120)
-        defaults.set("big", forKey: TypeScale.percentKey)
+        defaults.set("big", forKey: Preference.appearanceTextSize.name)
         #expect(TypeScale.stored(in: defaults).percent == 100)
     }
 }

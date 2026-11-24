@@ -9,7 +9,7 @@ import Testing
     private static let keys = [
         AppPreferences.monospaceFamilyKey, AppPreferences.monospaceSizeKey, AppPreferences.monospaceLineHeightKey,
         AppPreferences.monospaceLigaturesKey, AppPreferences.monospaceWrapKey, AppPreferences.monospaceLineNumbersKey,
-        TypeScale.percentKey,
+        Preference.appearanceTextSize.name,
     ]
 
     private func withSettings<T>(_ settings: MonospaceSettings, _ body: () throws -> T) rethrows -> T {
@@ -32,7 +32,7 @@ import Testing
         #expect(font.familyName == "Menlo")
         #expect(font.pointSize == 16)
         // the text size still multiplies it
-        UserDefaults.standard.set(125, forKey: TypeScale.percentKey)
+        UserDefaults.standard.set(125, forKey: Preference.appearanceTextSize.name)
         #expect(withSettings(MonospaceSettings(size: 16)) { NSFont.code(12) }.pointSize == 20)
         // and the block that draws the code gets taller with the size
         let small = try withSettings(MonospaceSettings(size: 10), codeBlockHeight)

@@ -6,8 +6,7 @@ import Foundation
 public enum IconSet: String, CaseIterable, Sendable {
     case tabler, lucide, sfSymbols
 
-    public static let key = "appearance.iconSet"
-    public static let defaultSet = IconSet.tabler
+    public static let defaultSet = Preference.appearanceIconSet.defaultValue
 
     public var title: String {
         switch self {
@@ -19,7 +18,7 @@ public enum IconSet: String, CaseIterable, Sendable {
 
     /// The saved set; the default while none was saved or the saved one is not one of these.
     public static func stored(in defaults: UserDefaults = .standard) -> IconSet {
-        defaults.string(forKey: key).flatMap(IconSet.init(rawValue:)) ?? defaultSet
+        AppPreferences(defaults: defaults).value(Preference.appearanceIconSet)
     }
 }
 

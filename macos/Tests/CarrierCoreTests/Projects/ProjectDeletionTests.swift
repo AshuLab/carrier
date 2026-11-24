@@ -185,27 +185,27 @@ private func exists(_ path: String) -> Bool { FileManager.default.fileExists(atP
 
 // The model: the project leaves the list only when its folders went to the Trash.
 
-@MainActor @Test func theProjectLeavesTheListOnlyWhenItsFoldersWentToTheTrash() throws {
+@MainActor @Test func theProjectLeavesTheListOnlyWhenItsFoldersWentToTheTrash() async throws {
     let scratch = try Scratch()
     defer { scratch.remove() }
     let project = try scratch.project(scratch.carrier + "/chat/projects/acme/app")
     let worktree = try scratch.project(scratch.carrier + "/chat/worktrees/acme/app/kerrigan")
     let file = ProjectsFile(folder: scratch.carrier)
-    let model = ProjectsModel(file: file, remote: { _ in nil }, home: scratch.home)
+    let model = ProjectsModel(host: CloneHost(writing: file.folder), file: file, remote: { _ in nil }, home: scratch.home)
     try FileManager.default.createDirectory(at: file.url.deletingLastPathComponent(), withIntermediateDirectories: true)
     try Data(#"{"projects":[{"path":"\#(project)","origin":"cloned"}]}"#.utf8).write(to: file.url, options: .atomic)
     model.reload()
     #expect(model.rows.map { $0.path } == [project])
 
     // the Trash refuses: the entry stays, so do the folders
-    #expect(throws: ProjectTrashError.self) { try model.deleteFromDisk(path: project, worktrees: [worktree], trash: scratch.fakeTrash(failing: "app")) }
+    await #expect(throws: ProjectTrashError.self) { try await model.deleteFromDisk(path: project, worktrees: [worktree], trash: scratch.fakeTrash(failing: "app")) }
     #expect(model.rows.map { $0.path } == [project] && exists(project) && exists(worktree))
 
-    try model.deleteFromDisk(path: project, worktrees: [worktree], trash: scratch.fakeTrash())
+    try await model.deleteFromDisk(path: project, worktrees: [worktree], trash: scratch.fakeTrash())
     #expect(model.rows.isEmpty && exists(project) == false && exists(worktree) == false)
 }
 
-@MainActor @Test func theRowsKnowHowTheProjectCameToBeSoTheDialogOffersDeletingOnlyForWhatCarrierMade() throws {
+@MainActor @Test func theRowsKnowHowTheProjectCameToBeSoTheDialogOffersDeletingOnlyForWhatCarrierMade() async throws {
     let folder = NSTemporaryDirectory() + "carrier-origin-\(UUID().uuidString)"
     try FileManager.default.createDirectory(atPath: folder, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(atPath: folder) }
@@ -217,9 +217,9 @@ private func exists(_ path: String) -> Bool { FileManager.default.fileExists(atP
     #expect(rows.map { $0.origin } == ["added"] && canDeleteFromDisk(origin: rows[0].origin) == false)
 
     // a project the person added is refused by the model too, whatever the dialog offered
-    let model = ProjectsModel(file: file, remote: { _ in nil })
+    let model = ProjectsModel(host: CloneHost(writing: file.folder), file: file, remote: { _ in nil })
     model.reload()
     var trashed = 0
-    #expect(throws: ProjectTrashError.self) { try model.deleteFromDisk(path: added, worktrees: [], trash: { trashed += 1; return $0 }) }
+    await #expect(throws: ProjectTrashError.self) { try await model.deleteFromDisk(path: added, worktrees: [], trash: { trashed += 1; return $0 }) }
     #expect(trashed == 0 && FileManager.default.fileExists(atPath: added))
 }

@@ -9,12 +9,14 @@ import { sweepPending } from './attachments.ts';
 import { claudeChatRunner } from './claude.ts';
 import { codexChatRunner } from './codex.ts';
 import { chatConfigProblem, editChatSettings, readChatConfig, type ChatSettings } from './config.ts';
+import { projectEdits } from './project-edits.ts';
 import { createDisk, measureWithDu, type Measure } from './disk.ts';
 import { realGit, type Git } from './git.ts';
 import { realShell, type Shell } from './shell.ts';
 import { createProjects, ghBranches, ghLogin, ghRepos, ghToken, type GithubRepos } from './projects.ts';
 import { ghPullRequests, type PullRequests } from './pull-requests.ts';
 import { openChatDatabase } from './db.ts';
+import { providersRequests } from './providers-requests.ts';
 import { idleExit } from './idle.ts';
 import { capabilities } from './mcp/capabilities.ts';
 import { agents } from './mcp/agents.ts';
@@ -176,7 +178,7 @@ export async function startChatHost(overrides: Partial<ChatHostDeps> = {}) {
       joined: () => void idle?.joined(),
       left: () => void idle?.left(),
     };
-    closeServer = (await startChatServer({ stateDir, startedAt: deps.clock.now(), controls: { ...sessions, ...usage, projectDisk: disk.projectDisk, cloneRepo: projects.cloneRepo, cloneProject: projects.cloneProject, projectClones: projects.projectClones, dismissClone: projects.dismissClone, newProject: projects.newProject, createProject: projects.createProject, githubRepos: projects.githubRepos, repoBranches: projects.repoBranches, editChatSettings: ({ changes }) => editChatSettings(changes) }, stop, clients })).close;
+    closeServer = (await startChatServer({ stateDir, startedAt: deps.clock.now(), controls: { ...sessions, ...usage, projectDisk: disk.projectDisk, cloneRepo: projects.cloneRepo, cloneProject: projects.cloneProject, projectClones: projects.projectClones, dismissClone: projects.dismissClone, newProject: projects.newProject, createProject: projects.createProject, githubRepos: projects.githubRepos, repoBranches: projects.repoBranches, editChatSettings: ({ changes }) => editChatSettings(changes), ...providersRequests(), ...projectEdits }, stop, clients })).close;
   } catch (error) {
     close();
     throw error;

@@ -140,13 +140,11 @@ public enum ShortcutCommand: String, CaseIterable {
 /// Each action's combination: the person's own where they set one, the default where not. A cleared one is none; a bad saved value reads
 /// as the default.
 public struct ShortcutTable {
-    public static let key = "keybindings"
-
     private let defaults: UserDefaults
 
     public init(defaults: UserDefaults = .standard) { self.defaults = defaults }
 
-    private var saved: [String: String] { defaults.dictionary(forKey: Self.key) as? [String: String] ?? [:] }
+    private var saved: [String: String] { defaults.dictionary(forKey: Preference.keybindings.name) as? [String: String] ?? [:] }
 
     public func combo(for command: ShortcutCommand) -> KeyCombo? {
         guard let value = saved[command.rawValue] else { return command.defaultCombo }
@@ -161,7 +159,7 @@ public struct ShortcutTable {
     public func set(_ combo: KeyCombo?, for command: ShortcutCommand) {
         var next = saved
         next[command.rawValue] = combo == command.defaultCombo ? nil : combo?.stored ?? ""
-        defaults.set(next, forKey: Self.key)
+        defaults.set(next, forKey: Preference.keybindings.name)
     }
 
     public func isDefault(_ command: ShortcutCommand) -> Bool { combo(for: command) == command.defaultCombo }

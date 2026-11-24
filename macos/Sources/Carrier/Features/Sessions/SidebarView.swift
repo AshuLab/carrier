@@ -566,7 +566,7 @@ struct SidebarSectionRow<Actions: View, HoverActions: View, Below: View>: View {
 
 struct SidebarRowView: View {
     let row: SidebarRow
-    @AppStorage(AppPreferences.densityKey) private var density = AppPreferences.defaultDensity
+    @AppStorage(Preference.appearanceDensity) private var density
     private static let titleLine: CGFloat = 17, detailLine: CGFloat = 15
 
     private var detailColor: Color {

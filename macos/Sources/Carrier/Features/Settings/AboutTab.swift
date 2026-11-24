@@ -41,7 +41,7 @@ import SwiftUI
 /// The About page: what this Carrier is (icon, version, links), how it updates and the engine's own update.
 struct AboutTabView: View {
     @State private var prefs = UpdatePrefs(updater: AppUpdater.updater)
-    @AppStorage(AppPreferences.updateDelayKey) private var delay = 0
+    @AppStorage(Preference.updatesDelayDays) private var delay
     /// The same model as the sidebar's pill: an update found keeps Sparkle's session open, so `canCheckForUpdates` is false until it is taken or dismissed.
     private let model = AppUpdater.model
     private var engine: EngineUpdateState { ChatHostStarter.shared.engineUpdate }

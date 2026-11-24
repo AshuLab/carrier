@@ -19,7 +19,7 @@ struct ArchiveSection: View {
     @State private var query: String?
     @State private var contentHeight: CGFloat = 0
     @FocusState private var searching: Bool
-    @AppStorage(SidebarStore.archiveListSortKey) private var sort = SessionSort.age
+    @AppStorage(Preference.sidebarArchiveListSort) private var sort
     @State private var sortOpen = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var scheme

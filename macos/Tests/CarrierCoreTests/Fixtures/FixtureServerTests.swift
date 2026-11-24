@@ -313,3 +313,133 @@ private func sameJSON(_ a: Data, _ b: Data) throws -> Bool {
     }
     #expect(try Data(contentsOf: URL(fileURLWithPath: file)) == before)
 }
+
+@Test func theFixtureChatHostAnswersTheFiveProvidersRequestsLikeTheRealOneWithTheEnginesAnswer() async throws {
+    let server = try FixtureServer(fixtures: testPaths().fixtures.path)
+    defer { server.stop() }
+    let host = SocketChatHost(socketPath: { server.chatSocketPath })
+    let file = ProvidersFile(folder: server.home)
+    func accounts() throws -> [String] {
+        let data = try #require(try file.read())
+        let json = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        return (json["providers"] as? [String: Any] ?? [:]).keys.sorted()
+    }
+    func refusal(_ request: ProvidersRequest) async throws -> Refusal {
+        do { _ = try await host.changeProviders(request) } catch ControlError.remote(let refusal) { return refusal }
+        throw FixtureError.socket("\(request) was not refused")
+    }
+
+    // set the detected accounts, add, edit: written to the scratch folder, with the engine's answer
+    #expect(try await host.changeProviders(.setAccounts([DetectedAccount(name: "agy", harness: "agy")])).outcome == .applied)
+    #expect(try await host.changeProviders(.addAccount(name: "spare", harness: "codex", configDir: "")).outcome == .applied)
+    var draft = AccountDraft()
+    draft.displayName = "Spare"
+    #expect(try await host.changeProviders(.editAccount(name: "spare", draft: draft)).outcome == .applied)
+    #expect(try accounts() == ["agy", "claude", "claude-work", "codex", "spare"])
+    #expect(try accountDraft(named: "spare", in: file.read())?.displayName == "Spare")
+    // and the page sees them
+    #expect(try await host.providers().accounts.first { $0.name == "spare" }?.displayName == "Spare")
+
+    // the refusals of the real host, with their codes
+    #expect(try await refusal(.addAccount(name: "spare", harness: "codex", configDir: "")).has("account.taken"))
+    #expect(try await refusal(.editAccount(name: "ghost", draft: draft)).has("account.missing"))
+    #expect(try await refusal(.removeAccount(name: "ghost")).has("account.missing"))
+    let inUse = try await refusal(.removeAccount(name: "claude-work"))
+    #expect(inUse.has("account.inUse") && inUse.text.hasPrefix("claude-work is used by ") && inUse.text.contains("Chat agent work") && inUse.text.hasSuffix(", so it stays. Point those at another account first."))
+    #expect(try await host.changeProviders(.removeAccount(name: "spare")).outcome == .applied)
+    #expect(try accounts() == ["agy", "claude", "claude-work", "codex"])
+
+    // the text generator: chosen, then cleared, and a server that is not one is refused
+    #expect(try await host.changeProviders(.setTextGenerator(TextGeneratorChoice(server: "ollama", model: "qwen3:8b"))).outcome == .applied)
+    #expect(try await host.providers().textGenerator == HostProviders.TextGenerator(name: "ollama", kind: "ollama", model: "qwen3:8b"))
+    #expect(try await host.changeProviders(.setTextGenerator(nil)).outcome == .applied)
+    #expect(try await host.providers().textGenerator == nil)
+    #expect(try await refusal(.setTextGenerator(TextGeneratorChoice(server: "openai", model: "m"))).has("config.problem"))
+}
+
+@MainActor @Test func theProvidersStoreChangesTheFixtureFolderThroughTheHostAndShowsWhyItWasRefused() async throws {
+    let server = try FixtureServer(fixtures: testPaths().fixtures.path)
+    defer { server.stop() }
+    let file = ProvidersFile(folder: server.home)
+    let store = ProvidersStore(host: SocketChatHost(socketPath: { server.chatSocketPath }), file: { file }, log: { _ in }, status: ReloadStatus())
+    await store.load()
+    #expect(await store.addAccount(name: "claude-two", harness: "claude", configDir: "~/.claude-two"))
+    await store.settled()
+    #expect(store.editProblem == nil && store.editNote == nil)
+    #expect(try accountDraft(named: "claude-two", in: file.read())?.configDir == "~/.claude-two")
+    #expect(await store.remove(name: "claude") == false)
+    #expect(store.editProblem?.hasPrefix("claude is used by ") == true && store.editProblem?.contains("Chat agent claude") == true)
+    #expect(await store.remove(name: "claude-two"))
+    #expect(try accountDraft(named: "claude-two", in: file.read()) == nil)
+}
+
+@Test func theFixtureChatHostAnswersTheNineProjectRequestsLikeTheRealOneAndWritesItsScratchFolder() async throws {
+    let server = try FixtureServer(fixtures: testPaths().fixtures.path)
+    defer { server.stop() }
+    let host = SocketChatHost(socketPath: { server.chatSocketPath })
+    let file = ProjectsFile(folder: server.home)
+    let first = try #require(try file.read().first)
+    let folder = server.home + "/elsewhere"
+    try FileManager.default.createDirectory(atPath: folder, withIntermediateDirectories: true)
+    func entry(_ path: String) throws -> ProjectEntry { try #require(try file.read().first { $0.path == path }) }
+
+    // added, then already one however the folder is written
+    let added = try await host.changeProjects(.add(folder: folder))
+    let made = try entry(folder)
+    #expect(added.added == true && added.saved?.path == folder && made.origin == "added" && made.name == "elsewhere")
+    let again = try await host.changeProjects(.add(folder: folder))
+    #expect(again.added == false)
+
+    // the keys of the entry the person wrote stay, a null takes one out
+    _ = try await host.changeProjects(.edit(path: folder, key: "name", value: .text("Else")))
+    _ = try await host.changeProjects(.edit(path: folder, key: "pinned", value: .flag(true)))
+    _ = try await host.changeProjects(.editTags(path: folder, add: ["B", " a "], remove: []))
+    _ = try await host.changeProjects(.editIcon(path: folder, changes: ["color": .text("teal"), "mark": .text("bolt")]))
+    _ = try await host.changeProjects(.editDefaults(path: folder, changes: ["agent": .text("claude"), "access": .map(["mode": "plan"])]))
+    _ = try await host.changeProjects(.setActions(path: folder, actions: [ProjectAction(name: "Setup", command: "make", when: .afterClone)]))
+    var written = try entry(folder)
+    #expect(written.name == "Else" && written.pinned && written.tags == ["b", "a"] && written.iconColor == "teal" && written.iconMark == "bolt")
+    #expect(written.defaults.agent == "claude" && written.defaults.access == ["mode": "plan"] && written.actions.map(\.name) == ["Setup"])
+    _ = try await host.changeProjects(.edit(path: folder, key: "pinned", value: .remove))
+    _ = try await host.changeProjects(.editTags(path: folder, add: [], remove: ["a", "B"]))
+    _ = try await host.changeProjects(.editIcon(path: folder, changes: ["color": .remove, "mark": .remove]))
+    _ = try await host.changeProjects(.setActions(path: folder, actions: []))
+    written = try entry(folder)
+    #expect(written.pinned == false && written.tags.isEmpty && written.json["icon"] == nil && written.json["actions"] == nil && written.defaults.agent == "claude")
+
+    // moved, then removed
+    let moved = folder + "-moved"
+    let movedTo = try await host.changeProjects(.move(path: folder, folder: moved))
+    #expect(movedTo.saved?.path == moved)
+    let removed = try await host.changeProjects(.remove(path: moved))
+    #expect(removed.removed == moved)
+    let left = try file.read().map(\.path)
+    #expect(left.first == first.path && left.contains(moved) == false && left.contains(folder) == false)
+
+    // refused with a code and the file left as it was
+    let before = try Data(contentsOf: file.url)
+    for (change, code) in [(ProjectsChange.remove(path: "/nowhere"), "project.missing"), (.edit(path: "/nowhere", key: "name", value: .text("x")), "project.missing"), (.move(path: first.path, folder: "relative"), "config.problem")] {
+        do {
+            _ = try await host.changeProjects(change)
+            Issue.record("\(change.cmd) was saved")
+        } catch ControlError.remote(let refusal) {
+            #expect(refusal.code == code, Comment(rawValue: change.cmd))
+        }
+    }
+    #expect(try Data(contentsOf: file.url) == before)
+
+    // the projects folder goes to chat.json, and Carrier's own folders are refused with the old one left
+    let chat = URL(fileURLWithPath: CarrierPlaces(folder: server.home).chatConfig)
+    let chatBefore = try Data(contentsOf: chat)
+    let set = try await host.changeProjects(.setFolder("/Users/demo/code"))
+    #expect(set.saved?.projectsFolder == "/Users/demo/code")
+    let after = try #require(JSONSerialization.jsonObject(with: Data(contentsOf: chat)) as? [String: Any])
+    let kept = try #require(JSONSerialization.jsonObject(with: chatBefore) as? [String: Any])
+    #expect(after["projectsFolder"] as? String == "/Users/demo/code" && after.count == kept.count + (kept["projectsFolder"] == nil ? 1 : 0))
+    do {
+        _ = try await host.changeProjects(.setFolder(server.home + "/engine/x"))
+        Issue.record("a folder inside engine was saved")
+    } catch ControlError.remote(let refusal) {
+        #expect(refusal.code == "folder.insideCarrier")
+    }
+}

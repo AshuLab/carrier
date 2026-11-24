@@ -36,12 +36,12 @@ private func freshTable() -> (ShortcutTable, UserDefaults) {
     #expect(table.combo(for: .search) == nil && table.isDefault(.search) == false)
     table.set(ShortcutCommand.search.defaultCombo, for: .search)
     #expect(table.combo(for: .search)?.text == "⌘F" && table.isDefault(.search))
-    #expect((defaults.dictionary(forKey: ShortcutTable.key) ?? [:]).isEmpty)
+    #expect((defaults.dictionary(forKey: Preference.keybindings.name) ?? [:]).isEmpty)
 }
 
 @Test func aBadSavedValueReadsAsTheDefault() {
     let (table, defaults) = freshTable()
-    defaults.set(["home": "garbage", "search": "0:f", "carrier": "1:"], forKey: ShortcutTable.key)
+    defaults.set(["home": "garbage", "search": "0:f", "carrier": "1:"], forKey: Preference.keybindings.name)
     #expect(table.combo(for: .home)?.text == "⌘1")
     #expect(table.combo(for: .search)?.text == "⌘F")
     #expect(table.combo(for: .carrier)?.text == "⌘3")

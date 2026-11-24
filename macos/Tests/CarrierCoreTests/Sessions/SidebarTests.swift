@@ -499,7 +499,7 @@ private func content(_ row: SessionRow = workRow, workspace: Bool = true, parts:
 @Test func theSidebarPreferencesKeepTheirKeysAndDefaultsAndSurviveARelaunch() {
     let name = "sidebar-prefs-\(UUID().uuidString)"
     let defaults = UserDefaults(suiteName: name)!
-    #expect(SidebarStore.groupByKey == "sidebar.groupBy" && SidebarStore.sessionSortKey == "sidebar.sessionSort" && SidebarStore.archiveSortKey == "sidebar.archiveSort")
+    #expect(Preference.sidebarGroupBy.name == "sidebar.groupBy" && Preference.sidebarSessionSort.name == "sidebar.sessionSort" && Preference.sidebarArchiveSort.name == "sidebar.archiveSort")
     let store = SidebarStore(defaults: defaults)
     #expect(store.groupBy == .status && store.sessionSort == .workspace && store.archiveSort == .dateArchived)
     store.groupBy = .repo
@@ -515,7 +515,7 @@ private func content(_ row: SessionRow = workRow, workspace: Bool = true, parts:
     store.groupBy = .repo
     store.sessionSort = .status
     store.archiveSort = .project
-    for key in [SidebarStore.showsIconKey, SidebarStore.showsBranchKey, SidebarStore.showsProvidersKey, SidebarStore.showsAgeKey] {
+    for key in [Preference.sidebarRowIcon.name, Preference.sidebarRowBranch.name, Preference.sidebarRowProviders.name, Preference.sidebarRowAge.name] {
         #expect(defaults.object(forKey: key) == nil)
         defaults.set(false, forKey: key)
     }
@@ -525,7 +525,7 @@ private func content(_ row: SessionRow = workRow, workspace: Bool = true, parts:
     AppPreferences(defaults: defaults).reset(.sidebar)
     #expect(store.width == SidebarStore.defaultWidth)
     #expect(store.groupBy == .status && store.sessionSort == .workspace && store.archiveSort == .dateArchived)
-    for key in [SidebarStore.showsIconKey, SidebarStore.showsBranchKey, SidebarStore.showsProvidersKey, SidebarStore.showsAgeKey] {
+    for key in [Preference.sidebarRowIcon.name, Preference.sidebarRowBranch.name, Preference.sidebarRowProviders.name, Preference.sidebarRowAge.name] {
         #expect(defaults.object(forKey: key) == nil)
     }
     // the unfolded section is not a setting of the page, and the General keys are another page's

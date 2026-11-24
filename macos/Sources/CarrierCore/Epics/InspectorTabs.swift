@@ -11,14 +11,13 @@ public enum InspectorTab: String, CaseIterable {
 
 /// The tab the person picked, kept in user defaults so it holds for every epic and survives a relaunch.
 public struct InspectorStore {
-    private let defaults: UserDefaults
-    private let key = "inspector.tab"
+    private let preferences: AppPreferences
 
-    public init(defaults: UserDefaults = .standard) { self.defaults = defaults }
+    public init(defaults: UserDefaults = .standard) { preferences = AppPreferences(defaults: defaults) }
 
     public var chosen: InspectorTab? {
-        get { defaults.string(forKey: key).flatMap(InspectorTab.init(rawValue:)) }
-        nonmutating set { defaults.set(newValue?.rawValue, forKey: key) }
+        get { preferences.value(Preference.inspectorTab) }
+        nonmutating set { preferences.store(newValue, for: Preference.inspectorTab) }
     }
 }
 

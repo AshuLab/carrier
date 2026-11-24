@@ -23,13 +23,13 @@ Its Swift twin is `macos/Sources/CarrierCore/CarrierPlaces.swift`, which also ha
 1. `src/config/providers.ts`: the `account` schema, plus `AccountRuntime` and `runtimeOf` if the field reaches the agent's process.
 2. Engine argv: `src/harnesses/claude.ts`, `src/harnesses/codex.ts`; a flag Carrier sets itself goes in `src/config/launch-args.ts`.
 3. Chat: the `ChatLaunch` `Pick` in `src/chat/runner.ts` (a second hand-written list), filled in `src/chat/account.ts`; argv in `src/chat/claude.ts` and `src/chat/codex.ts`.
-4. Swift: `macos/Sources/CarrierCore/ProvidersEdit.swift`, the `AccountDraft` property, `init(account:)`, `fields`, `draftProblems` and `applyingEdit`.
+4. Swift: `macos/Sources/CarrierCore/ProvidersEdit.swift`, the `AccountDraft` property, `init(account:)`, `fields`, `draftProblems` and the `changes` of `ProvidersRequest.editAccount` (`ProvidersRequests.swift`); `providers-edit.ts` writes the key, and `chat/server.ts` has it in the `editAccount` request.
 
 `projects.json`:
 
 1. `src/config/projects.ts`: the `projectEntry` schema, `updateProjectsFile` for every write (it reads again, checks and renames), and the table in `projects.test.ts`.
 2. `UPDATE_FIXTURES=1 pnpm test` rewrites `macos/Tests/Fixtures/projects.json`, and `ContractTests.swift` fails until `ProjectsFile.swift` repeats the rule.
-3. Both writers keep every entry and every key they do not touch; neither writes over a file that does not match.
+3. The only writer is Node's: `src/chat/project-edits.ts` (the chat host's requests and `carrier config`), which keeps every entry and every key it does not touch and never writes over a file that does not match; the app reads the file and asks for each change.
 
 `chat.json`:
 
@@ -38,4 +38,6 @@ Its Swift twin is `macos/Sources/CarrierCore/CarrierPlaces.swift`, which also ha
 2. Swift: `macos/Sources/CarrierCore/SessionAges.swift` for the ages it edits, `WorktreeStart.swift` for `worktreeStart` and `IdleClose.swift` for `idleCloseMinutes`; the row is also listed in `SettingsIndex.swift`, or the Settings search cannot find it.
 
 All four: `docs/configuration.md`, the Settings pages in `docs/macos/` if Settings shows it, and `CHANGELOG.md`.
-The app's writers keep keys they do not know, and send `reload` after saving `providers.json` or the parts of `engine.json` it still writes; `engine.json`'s watched repos and Behavior values are written by `engine-edit.ts` and followed by the engine's own reload.
+The app's writers keep keys they do not know, and send `reload` after saving the parts of `engine.json` it still writes; `engine.json`'s watched repos and Behavior values are written by `engine-edit.ts` and followed by the engine's own reload.
+`providers.json` is written by `providers-edit.ts` only ([ADR 0053](../../docs/adr/0053-a-carrier-config-file-has-one-owner-process-and-a-front-end-writes-it-through-that-process.md)): the chat host answers `setAccounts`, `addAccount`, `editAccount`, `removeAccount` and `setTextGenerator` and `carrier config` runs the same code, each reading the raw file again, keeping every key it does not touch, validating the whole result with `providersFileSchema` and renaming a temporary file over it; the one that wrote then asks the engine to reload (`chat/engine-reload.ts`) and the reply says what it did.
+`removeAccount` reads `engine.json` and `chat.json` for who uses the account (`accountUses`) and stops when one of them is there and cannot be read.

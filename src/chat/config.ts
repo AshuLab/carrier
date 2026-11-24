@@ -74,7 +74,7 @@ export function readChatConfig(folder = carrierHome()): ChatConfigResult {
 /** The error a person sees when `chat.json` is wrong: the file and each key with what is wrong with it. */
 export const chatConfigProblem = (folder: string, errors: ChatConfigError[]) => `Invalid chat config ${chatConfigPathOf(folder)}:\n${errors.map((e) => `  ${e.path}: ${e.message}`).join('\n')}`;
 
-/** The keys `editChatSettings` may change: the two ages of the session clock, where a worktree starts and when an idle session sleeps. */
+/** The keys the `editChatSettings` request may change: the two ages of the session clock, where a worktree starts and when an idle session sleeps (`setProjectsFolder` changes `projectsFolder` through the same function). */
 export const chatSettingKeys = ['archiveAfterDays', 'deleteAfterDays', 'worktreeStart', 'idleCloseMinutes'] as const;
 
 /**
@@ -82,7 +82,7 @@ export const chatSettingKeys = ['archiveAfterDays', 'deleteAfterDays', 'worktree
  * validates the whole result with the file's strict schema and writes it through a temporary file and a rename. Answers the saved part: the keys of `changes` as the file now has them.
  * A file that is not a JSON object, or a result the schema refuses, is a `ChatRefused` (`config.problem`: the key path and the kind, the schema's issue code, as parameters) and the file is left as it was.
  */
-export function editChatSettings(changes: Partial<Record<(typeof chatSettingKeys)[number], unknown>>, folder = carrierHome()): { saved: Record<string, unknown> } {
+export function editChatSettings(changes: Partial<Record<(typeof chatSettingKeys)[number] | 'projectsFolder', unknown>>, folder = carrierHome()): { saved: Record<string, unknown> } {
   const file = chatConfigPathOf(folder);
   let current: unknown = {};
   try {

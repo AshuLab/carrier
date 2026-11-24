@@ -5,9 +5,9 @@ import SwiftUI
 struct HistoryGroup: View {
     var dictation = DictationController.shared
     // the preference is read and written by the switch; this makes the group redraw when Reset changes it
-    @AppStorage(AppPreferences.dictationKeepTextKey) private var keep = AppPreferences.defaultDictationKeepText
-    @AppStorage(AppPreferences.dictationKeepAudioKey) private var keepAudio = AppPreferences.defaultDictationKeepAudio
-    @AppStorage(AppPreferences.dictationDeleteAudioAfterKey) private var days = AppPreferences.defaultDictationDeleteAudioAfter
+    @AppStorage(Preference.dictationHistoryKeepText) private var keep
+    @AppStorage(Preference.dictationHistoryKeepAudio) private var keepAudio
+    @AppStorage(Preference.dictationHistoryDeleteAudioAfter) private var days
     @State private var confirmingDelete = false
 
     var body: some View {

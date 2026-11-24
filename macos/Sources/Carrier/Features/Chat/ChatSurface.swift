@@ -5,7 +5,7 @@ import SwiftUI
 /// color under a quiet fill (`flat`) and a fine edge. The base is solid so what scrolls under the box or a card is not seen through it,
 /// as the glass blurs it. A new card, bubble or box of the chat wears this and does not call `glassEffect` itself.
 private struct ChatSurfaceModifier<S: InsettableShape>: ViewModifier {
-    @AppStorage(AppPreferences.chatSurfaceKey) private var surface = AppPreferences.defaultChatSurface
+    @AppStorage(Preference.chatSurface) private var surface
     let glass: Glass
     let flat: Color
     let shape: S

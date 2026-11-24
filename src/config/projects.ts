@@ -40,22 +40,23 @@ export type ProjectEntry = z.infer<typeof projectEntry>;
 
 const projectsFileSchema = z.strictObject({ projects: z.array(projectEntry).default([]) });
 
-export type ProjectsError = { path: string; message: string };
+/** `problem` is the kind of the failure: the schema's issue code, `notJson` and `unreadable` for the file, `custom` for a repeated path. */
+export type ProjectsError = { path: string; message: string; problem: string };
 export type ProjectsResult = { ok: true; projects: ProjectEntry[] } | { ok: false; errors: ProjectsError[] };
 
 /** The entries from the parsed contents of `projects.json` (`{}` is no projects). Each problem names its field; an unknown key is named as a field of its own. */
 export function loadProjects(json: unknown): ProjectsResult {
   const parsed = projectsFileSchema.safeParse(json);
   if (!parsed.success) {
-    const errors = parsed.error.issues.flatMap((issue) =>
+    const errors = parsed.error.issues.flatMap((issue): ProjectsError[] =>
       issue.code === 'unrecognized_keys'
-        ? issue.keys.map((key) => ({ path: [...issue.path, key].join('.'), message: 'is not a key of projects.json' }))
-        : [{ path: issue.path.join('.') || '(root)', message: issue.message }]);
+        ? issue.keys.map((key) => ({ path: [...issue.path, key].join('.'), message: 'is not a key of projects.json', problem: issue.code }))
+        : [{ path: issue.path.join('.') || '(root)', message: issue.message, problem: issue.code }]);
     return { ok: false, errors };
   }
   // ponytail: exact string compare, so `~/x` and its absolute form count as two projects; resolve both if that ever bites.
   const seen = new Set<string>();
-  const repeated = parsed.data.projects.flatMap((entry, index) => (seen.size === seen.add(entry.path).size ? [{ path: `projects.${index}.path`, message: `repeats the path of an earlier project (${entry.path})` }] : []));
+  const repeated = parsed.data.projects.flatMap((entry, index) => (seen.size === seen.add(entry.path).size ? [{ path: `projects.${index}.path`, message: `repeats the path of an earlier project (${entry.path})`, problem: 'custom' }] : []));
   return repeated.length > 0 ? { ok: false, errors: repeated } : { ok: true, projects: parsed.data.projects };
 }
 
@@ -65,7 +66,7 @@ export function readProjectsFile(folder = carrierHome()): ProjectsResult {
   try {
     json = JSON.parse(readFileSync(projectsPathOf(folder), 'utf8'));
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') return { ok: false, errors: [{ path: '(file)', message: error instanceof SyntaxError ? `is not valid JSON: ${error.message}` : 'cannot be read' }] };
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') return { ok: false, errors: [{ path: '(file)', message: error instanceof SyntaxError ? `is not valid JSON: ${error.message}` : 'cannot be read', problem: error instanceof SyntaxError ? 'notJson' : 'unreadable' }] };
   }
   return loadProjects(json);
 }

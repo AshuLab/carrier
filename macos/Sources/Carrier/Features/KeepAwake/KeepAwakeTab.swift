@@ -5,13 +5,13 @@ import SwiftUI
 /// notification do. Each setting is read by `KeepAwakeController` as it is changed; nothing is restarted.
 struct KeepAwakeTabView: View {
     var controller = KeepAwakeController.shared
-    @AppStorage(AppPreferences.awakeScreenKey) private var screen = false
-    @AppStorage(AppPreferences.awakeMinutesKey) private var minutes = AwakeLength.defaultMinutes
-    @AppStorage(AppPreferences.awakeAgentsKey) private var agents = false
-    @AppStorage(AppPreferences.awakeGraceKey) private var grace = AwakeSettings().graceMinutes
-    @AppStorage(AppPreferences.awakeBatteryKey) private var battery = BatteryRule.standard.rawValue
-    @AppStorage(AppPreferences.awakeNotifyKey) private var notifies = true
-    @AppStorage(AppPreferences.awakeShortcutKey) private var shortcutText = ""
+    @AppStorage(Preference.awakeScreen) private var screen
+    @AppStorage(Preference.awakeMinutes) private var minutes
+    @AppStorage(Preference.awakeAgents) private var agents
+    @AppStorage(Preference.awakeGrace) private var grace
+    @AppStorage(Preference.awakeBattery) private var battery
+    @AppStorage(Preference.awakeNotify) private var notifies
+    @AppStorage(Preference.awakeShortcut) private var shortcutText
 
     var body: some View {
         SettingsPageBody(reset: { AppPreferences().reset(.keepAwake) }) {
@@ -27,7 +27,7 @@ struct KeepAwakeTabView: View {
                     Toggle("Keep the screen on", isOn: $screen).labelsHidden().toggleStyle(.switch)
                 }
                 ShortcutRecorderRow(
-                    shortcutText: shortcutText, title: "Shortcut", detail: "Turns keep awake on or off from any app, with no window", name: "Keep awake shortcut",
+                    shortcutText: shortcutText ?? "", title: "Shortcut", detail: "Turns keep awake on or off from any app, with no window", name: "Keep awake shortcut",
                     emptyText: "None", problem: controller.shortcutProblem,
                     current: { AppPreferences().awakeShortcut }, save: { AppPreferences().awakeShortcut = $0 },
                     taken: { $0 == AppPreferences().dictationShortcut ? "Dictation uses these keys" : nil })
@@ -48,8 +48,8 @@ struct KeepAwakeTabView: View {
             SettingsGroup(title: "Battery and notices") {
                 SettingsTabRow(title: "On battery", detail: "It goes on by itself when the Mac is plugged in or charged again", first: true) {
                     ChoicePopUp(
-                        label: "On battery", options: BatteryRule.allCases.map { (value: $0.rawValue, title: $0.title) },
-                        selection: Binding(get: { BatteryRule(rawValue: battery)?.rawValue ?? BatteryRule.standard.rawValue }, set: { battery = $0 })
+                        label: "On battery", options: BatteryRule.allCases.map { (value: $0, title: $0.title) },
+                        selection: $battery
                     )
                 }
                 SettingsTabRow(title: "Tell me when it stops by itself", detail: "A notification when the time runs out or the battery ends it. Not when you turn it off") {

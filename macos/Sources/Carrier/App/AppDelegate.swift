@@ -51,7 +51,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         if isDevBuild { NSApp.dockTile.badgeLabel = "DEV" }
 
-        UserDefaults.standard.register(defaults: [showEpicsKey: true])
         let menu = NSMenu()
         menu.delegate = EpicMenuSection.shared
         // the groups (Sessions, Terminals, Dictation: StatusMenuGroups) go before the Sleep row
@@ -241,7 +240,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let tried = triedStartOnOpen
         triedStartOnOpen = true
         guard shouldStartOnOpen(
-            enabled: UserDefaults.standard.bool(forKey: startOnOpenKey), firstState: state,
+            enabled: AppPreferences().value(Preference.engineStartOnOpen), firstState: state,
             startReady: StartController.shared.missing.isEmpty && StartController.shared.refreshConfig(), fixture: fixtureServer != nil, alreadyTried: tried
         ) else { return }
         StartController.shared.start()
@@ -312,7 +311,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             var seen = SessionSeen.stored()
             seen.markUnread(server.unreadSessionIds)
             seen.store()
-            UserDefaults.standard.set(storedPins(Set(server.pinnedSessionIds)), forKey: SidebarStore.pinnedKey)
+            SidebarStore().pinned = Set(server.pinnedSessionIds)
             let recognizer = FixtureRecognizer(mode: Self.fixtureDictationMode)
             MainActor.assumeIsolated { RecognizerRegistry.shared.register(recognizer) }
         } catch {

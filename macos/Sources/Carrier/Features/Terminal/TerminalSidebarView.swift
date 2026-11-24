@@ -142,7 +142,7 @@ private struct TerminalSidebarRowView: View {
     let summary: StandaloneTerminalSummary
     let close: () -> Void
     @State private var hovered = false
-    @AppStorage(AppPreferences.densityKey) private var density = AppPreferences.defaultDensity
+    @AppStorage(Preference.appearanceDensity) private var density
     @Environment(\.rowActive) private var rowActive
     private static let titleLine: CGFloat = 17, detailLine: CGFloat = 15
 

@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-11-24
+
+Several reviewers and a lead reviewer, the skill of each stage named in `engine.json`, `carrier recover` and `carrier restart --from`, automatic resume after a usage limit, a Watching page for the repos Carrier takes epics from, and the Mac app for Intel Macs.
+
 ### Added
 
 - Settings > Carrier > Repos is now Watching: a list of rows, as Projects', of the repos Carrier takes epics from, each with the project's tile, the project's name and its last check, and what it has in flight (the ones GitHub refused first), Check now and Watch a project… in the toolbar (the old GitHub picker is gone). A row opens the repo's own screen, with its status, its project, whether Carrier can work in it, and Stop watching…; Open on GitHub and Check again are in the toolbar. Who works there is the rail of Agents, with a chip saying whether the repo has its own settings for each role, and a role opens its own screen, with its identity, model and persona saved as they change. When the engine refuses the saved settings and keeps the old ones, the page says so in words, with what is wrong and a button to Agents, instead of a cut line.

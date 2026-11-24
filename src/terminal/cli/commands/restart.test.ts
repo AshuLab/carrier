@@ -82,6 +82,57 @@ test('it asks nothing of an epic with a single option, none, or one Carrier does
   expect(asked).toEqual([]);
 });
 
+const several = { ...options, extraReviewers: ['claude', 'codex'], lead: 'claude' };
+
+test('it asks for each extra reviewer and the lead the epic has, and marks the role of the execution that failed', async () => {
+  const { ui, asked } = scripted({ 'Option for the reviewer 2': 'codex' });
+  expect(await askRestartOptions({ stage: 'review', options: { ...several, failed: 'reviewer-3' } }, ui)).toEqual({ author: 'claude', reviewer: 'codex', reviewer2: 'codex', reviewer3: 'codex', lead: 'claude' });
+  expect(asked.map((q) => [q.message, q.initialValue, q.hints])).toEqual([
+    ['Option for the author', 'claude', { claude: 'current', codex: undefined }],
+    ['Option for the reviewer', 'codex', { claude: undefined, codex: 'current' }],
+    ['Option for the reviewer 2', 'claude', { claude: 'current', codex: undefined }],
+    ['Option for the reviewer 3', 'codex', { claude: undefined, codex: 'current, failed' }],
+    ['Option for the lead', 'claude', { claude: 'current', codex: undefined }],
+  ]);
+});
+
+test('the lead is marked as failed, and a reviewer that ran out of usage is not preselected', async () => {
+  const { ui, asked } = scripted();
+  await askRestartOptions({ stage: 'review', needsHumanKind: 'usage_limit', options: { ...several, failed: 'lead' } }, ui);
+  expect(asked.at(-1)).toEqual({ message: 'Option for the lead', initialValue: 'codex', hints: { claude: 'ran out', codex: undefined } });
+  const second = scripted();
+  await askRestartOptions({ stage: 'review', needsHumanKind: 'usage_limit', options: { ...several, failed: 'reviewer-2' } }, second.ui);
+  expect(second.asked[2]).toEqual({ message: 'Option for the reviewer 2', initialValue: 'codex', hints: { claude: 'ran out', codex: undefined } });
+});
+
+test('an engine that does not take the extra roles is asked for the author and the reviewer only', async () => {
+  const { ui, asked } = scripted();
+  expect(await askRestartOptions({ stage: 'review', options: several }, ui, false)).toEqual({ author: 'claude', reviewer: 'codex' });
+  expect(asked).toHaveLength(2);
+});
+
+test('--reviewer-2 to --reviewer-4 and --lead are sent as reviewer2 to reviewer4 and lead when the engine lists resumeReviewerOptions', async () => {
+  const requests = await fakeCarrier(['resumeEpic', 'resumeReviewerOptions']);
+  vi.spyOn(process.stdout, 'write').mockReturnValue(true);
+  expect(await restartCommand(folder!, target, { reviewer2: 'a', reviewer3: 'b', reviewer4: 'c', lead: 'd' })).toBe(0);
+  expect(sent(requests)).toEqual([{ cmd: 'resumeEpic', ...target, reviewer2: 'a', reviewer3: 'b', reviewer4: 'c', lead: 'd' }]);
+});
+
+test('--lead against an engine that does not list resumeReviewerOptions says so and asks nothing', async () => {
+  const requests = await fakeCarrier(['resumeEpic', 'resumeFromStage']);
+  const run = restartCommand(folder!, target, { lead: 'claude' });
+  await expect(run).rejects.toThrow(CliError);
+  await expect(run).rejects.toThrow('too old to restart the extra reviewers and the lead');
+  expect(requests).toEqual([]);
+});
+
+test('--author alone against an engine without resumeReviewerOptions is sent as before', async () => {
+  const requests = await fakeCarrier(['resumeEpic']);
+  vi.spyOn(process.stdout, 'write').mockReturnValue(true);
+  expect(await restartCommand(folder!, target, { author: 'codex' })).toBe(0);
+  expect(sent(requests)).toEqual([{ cmd: 'resumeEpic', ...target, author: 'codex' }]);
+});
+
 test.each(['review', 'fix', 'ship'] as const)('--from %s sends the stage with the epic when the engine lists resumeFromStage', async (from) => {
   const requests = await fakeCarrier(['resumeEpic', 'resumeFromStage']);
   const out = vi.spyOn(process.stdout, 'write').mockReturnValue(true);
@@ -120,6 +171,7 @@ test('--from against an engine that does not list resumeFromStage says so and as
 
 test.each([
   ['no pull request', 'AshuLab/carrier#5 has no pull request yet, so it can only be restarted from ship.'],
+  ['no such role', 'AshuLab/carrier#5 does not have that reviewer or lead. Name only the roles its configuration has.'],
   ['extra rounds need a stage', '--extra-rounds needs --from review or --from fix: a restart from ship starts the rounds over.'],
   ['extra rounds need a review limit', '--extra-rounds grants rounds to an epic that stopped on the review limit, and AshuLab/carrier#5 stopped for another reason.'],
   ['pull request not open', "The epic's pull request is not open any more, so nothing was changed. Restart it from ship, or reopen the pull request."],

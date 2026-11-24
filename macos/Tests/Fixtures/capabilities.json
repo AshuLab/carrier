@@ -9,6 +9,7 @@
     "availableReposPaged",
     "resumeEpic",
     "resumeFromStage",
+    "resumeReviewerOptions",
     "recoverEpic",
     "reload"
   ],

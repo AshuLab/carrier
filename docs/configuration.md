@@ -264,9 +264,11 @@ Each role in `agents` (`author`, `reviewer`, and optional `leadReviewer`) specif
 
 `agents.extraReviewers` adds up to three reviewers beside `agents.reviewer`, and `agents.leadReviewer` is a final reviewer that runs after them.
 The keys are read, checked and saved with each epic, and `carrier doctor` checks them.
-The engine runs the extra reviewers: when the author's `ship` is validated it launches every reviewer at once on the same commit, each in its own checkout, and the round is settled when all of them have a verdict.
+The engine runs the extra reviewers: when the author's `ship` is validated it launches every reviewer at once on the same commit, each in its own checkout, and the round is settled when every reviewer has a verdict or has settled with none.
 The author's `fix` gets the open blockers of every reviewer, shown as `reviewer-2:B1` when the epic has several reviewers; a round counts once toward `limits.maxReviews` however many reviewers it has.
-The lead reviewer is not run yet, and a reviewer that gives no verdict still stops the epic as a single reviewer does.
+A reviewer that gives no verdict does not stop the round: it answers `needs_human`, fails technically with its retries and failover steps out, runs out of usage with no failover step left, or, for an extra reviewer, lacks a skill you named for it.
+One verdict is enough for the round to count, and the mandatory reviewer's own missing skill still stops the epic with `skill_missing` before any reviewer is launched.
+The lead reviewer is not run yet.
 
 ```json
 {
@@ -294,14 +296,14 @@ The lead reviewer is not run yet, and a reviewer that gives no verdict still sto
 
 Two kinds of stop belong to this, each with its optional label under `labels.reasons` (see [Labels](#labels)) and a line in `carrier status` and in the app:
 
-- `reviewers_failed`: a review round with several reviewers ended with no verdict at all, or a reviewer with blockers still open gave none in a later round and no other reviewer asked for changes.
+- `reviewers_failed`: a review round with several reviewers ended with no verdict at all.
   The reason names each reviewer and why it failed.
   A round whose every failure was a usage limit stops in `usage_limit` instead, so it wakes by itself when `limits.autoResume` is on; `reviewers_failed` never wakes by itself.
   An epic with one reviewer never stops in it.
 - `lead_limit`: the lead reviewer asked for changes in each of the `limits.maxLeadRounds` reviews of its exchange with the author.
 
 Resume the epic after reading the reason, as for the other kinds.
-The engine does not run several reviewers or the lead yet, so no epic stops in either today; both are accepted so the labels and the app's words are ready.
+The engine does not run the lead yet, so no epic stops in `lead_limit` today; it is accepted so the label and the app's words are ready.
 
 ### Starting an epic and restarting it
 

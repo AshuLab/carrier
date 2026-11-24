@@ -1,17 +1,17 @@
-import { and, asc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, ne, sql } from 'drizzle-orm';
 import type { CallerResult } from '../execution/caller-result.ts';
 import { callerResults } from '../storage/caller-results.ts';
 import type { Db } from '../storage/db.ts';
 import { executions, slotOf, type Slot } from '../storage/executions.ts';
 
-/** The newest review of each slot, in the order they came: the ones that gave a verdict only, or (`any`) whatever its outcome, a review of a head that moved included. */
+/** The newest review of each slot, in the order they came: the ones that gave a verdict only, or (`any`) whatever its outcome but an answer that it cannot conclude (a reviewer with no verdict is absent), a review of a head that moved included. */
 function lastReviews(db: Db, epicId: number, any = false) {
   const last = new Map<Slot, { outcome: string; result: CallerResult }>(); // the outcome is the column's: a result of a head that moved keeps its own in the JSON
   for (const row of db
     .select({ reviewer: executions.reviewer, outcome: callerResults.outcome, result: callerResults.result })
     .from(callerResults)
     .innerJoin(executions, eq(executions.executionId, callerResults.executionId))
-    .where(and(eq(executions.epicId, epicId), eq(executions.stage, 'review'), any ? undefined : inArray(callerResults.outcome, ['changes_requested', 'completed'])))
+    .where(and(eq(executions.epicId, epicId), eq(executions.stage, 'review'), any ? ne(callerResults.outcome, 'needs_human') : inArray(callerResults.outcome, ['changes_requested', 'completed'])))
     .orderBy(asc(sql`executions.rowid`))
     .all()) {
     last.set(slotOf({ stage: 'review', reviewer: row.reviewer })!, { outcome: row.outcome, result: JSON.parse(row.result) as CallerResult });

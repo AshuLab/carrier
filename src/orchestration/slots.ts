@@ -1,4 +1,4 @@
-import type { Agent, EffectiveRepoConfig, ExtraReviewer } from '../config/resolve.ts';
+import { failoverStepsFor, type Agent, type EffectiveRepoConfig, type ExtraReviewer } from '../config/resolve.ts';
 import { savedSkills, type ResolvedSkills } from '../config/skills.ts';
 import type { Slot } from '../storage/executions.ts';
 
@@ -31,7 +31,11 @@ export function withAgentOfSlot(config: EffectiveRepoConfig, slot: Slot | null, 
 }
 
 /** The role whose failover steps a slot takes: the extra reviewers take the reviewer's. */
-export const failoverRoleOf = (slot: Slot | null): 'author' | 'reviewer' | 'leadReviewer' => (slot === null ? 'author' : slot === 'lead' ? 'leadReviewer' : 'reviewer');
+const failoverRoleOf = (slot: Slot | null): 'author' | 'reviewer' | 'leadReviewer' => (slot === null ? 'author' : slot === 'lead' ? 'leadReviewer' : 'reviewer');
+
+/** The failover steps of a slot: an extra reviewer's own when it declares any, else its role's (the extra reviewers take the reviewer's). */
+export const failoverStepsOfSlot = (config: EffectiveRepoConfig | null, slot: Slot | null) =>
+  (slot === null || config === null ? undefined : (agentOfSlot(config, slot) as Partial<ExtraReviewer> | undefined)?.failover) ?? failoverStepsFor(config?.failover, failoverRoleOf(slot));
 
 /** The slots that review a round, the mandatory reviewer first: an epic saved before the extra reviewers has one. */
 export const roundSlots = (config: EffectiveRepoConfig | null): Slot[] => ['reviewer', ...(config?.agents.extraReviewers ?? []).map((_, i) => `reviewer-${i + 2}` as Slot)];

@@ -10,16 +10,8 @@ struct HealthTabView: View {
     private let doctor = AppHealth.doctor
     @ObservedObject private var start = StartController.shared
     @ObservedObject private var setup = SetupController.shared
-    @State private var probe = CarrierProbe()
+    @State private var probe = HostFacts()
     @State private var checking = false
-
-    /// What the app reads off the machine: the installed `carrier`'s version and the chat host's socket and version.
-    private struct CarrierProbe {
-        var installedVersion: String?
-        var hostRunning = false
-        var hostVersion: String?
-        var hostReportsHealth = true
-    }
 
     var body: some View {
         let facts = CarrierFacts(
@@ -72,21 +64,8 @@ struct HealthTabView: View {
     }
 
     private func read() async {
-        let settings = setup.settings, carrier = setup.carrier
-        let command = startChatHostCommand(settings: settings, carrier: carrier, environment: ProcessInfo.processInfo.environment)
-        let socket = command?.socketPath ?? chatSocketPath()
-        probe = await Task.detached { () -> CarrierProbe in
-            var result = CarrierProbe()
-            if let command { result.installedVersion = ChatHostStarter.installedVersion(command) }
-            if let client = ControlClient.connect(path: socket) {
-                result.hostRunning = true
-                let hello = try? client.hello()
-                result.hostVersion = hello?.version
-                result.hostReportsHealth = hello?.capabilities.contains(.health) ?? true
-                client.close()
-            }
-            return result
-        }.value
+        let command = startChatHostCommand(settings: setup.settings, carrier: setup.carrier, environment: ProcessInfo.processInfo.environment)
+        probe = await HostProbe.app.read(command)
     }
 }
 

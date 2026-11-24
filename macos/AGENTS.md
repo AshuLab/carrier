@@ -18,7 +18,7 @@ A test that scans the sources reads every subfolder and fails when it scans fewe
 
 What the person sees: [lifecycle](../docs/macos/lifecycle.md).
 
-The decision and command line are in `CarrierCore/StartCarrier.swift` (spawn and alert untested); the chat host's, with its notice, in `StartChatHost.swift`, and `Carrier/ChatHostStarter.swift` reuses the engine's spawn and alert. Tested on a real socket with a scripted engine (`EngineReplacementTests`).
+The decision and command line are in `CarrierCore/Lifecycle/StartCarrier.swift`; the chat host's, with its notice, in `StartChatHost.swift`. The start itself (one at a time, `engine.json`, the wait for the socket or the exit, the retry when a tool is not found, the log's tail) is `CarrierStart` and `CarrierLauncher` (`CarrierLauncherTests`, fake `ProcessRunner` and `HostSocket`); `Carrier/Platform/SystemProcessRunner.swift` does the spawn, and the alert stays in `StartController`. `Carrier/ChatHostStarter.swift` reuses the launcher and shows its alert. Tested on a real socket with a scripted engine (`EngineReplacementTests`).
 `CarrierCore/EngineLink.swift` reads the engine ([how](../docs/macos/app-shell.md#how-the-app-reads-the-engine); `EngineLinkTests`).
 
 ## Dev build and release build
@@ -85,7 +85,7 @@ Gotchas:
 
 What the person sees: [settings-carrier](../docs/macos/settings-carrier.md#agents).
 
-`agentsPage`, `agentsReadiness`, `AgentRole.stages` (`CarrierCore/AgentsPage.swift`, `AgentsReadiness.swift`; `AgentsPageTests`, `AgentsReadinessTests`); views untested.
+`agentsPage`, `agentsReadiness`, `AgentRole.stages` (`CarrierCore/AgentsPage.swift`, `AgentsReadiness.swift`; `AgentsPageTests`, `AgentsReadinessTests`); Antigravity's models are `AgyModels` (`AgyModelsTests`); views untested.
 
 ### Sessions page
 
@@ -97,7 +97,7 @@ Tested: `SessionAgesTests`, `IdleCloseTests`; the view not.
 
 What the person sees: [settings-health](../docs/macos/settings-health.md#health-tab).
 
-The rows are `healthSections(host:facts:)` (`HealthRows.swift`, `HealthRowsTests`); view untested. Decoding and outcomes: `DoctorChecksTests`.
+The rows are `healthSections(host:facts:)` (`HealthRows.swift`, `HealthRowsTests`); the socket and the installed version are read by `HostProbe` (`HostProbeTests`); view untested. Decoding and outcomes: `DoctorChecksTests`.
 
 ## New session
 
@@ -125,6 +125,7 @@ What the person sees: [dictation](../docs/macos/dictation.md).
 
 The logic: `CarrierCore/Dictation.swift`, `DictationSession.swift`, `TentativeText.swift`, `DictationPresentation.swift`, tested with `ScriptedDictation.swift`; `DictationController` holds the switch both boxes read; `LaunchPhases`: after the first frame.
 Readiness: `speechModelStep`, `ModelSlot`, run by `DictationController.warmUp`; `DictationSession.run` captures before `prepare`.
+The platform it needs is protocols in `CarrierCore/Platform/` (`Recognizer`, `AudioCapture`, `BatchTranscriber`, `ModelDownloader`, `TextModelClient`, `AudioPlayer`, `AccessibilityTrust`; `TerminalOpener` for Terminal), implemented in `Carrier/Platform/`; the models over them are `AudioPlayback` (`AudioPlaybackTests`) and `AccessibilityState` (`AccessibilityStateTests`), tested with a fake.
 Firm and tentative: `DictationEvent.partial`, `TentativeText.tentativeRange`, `GlobalDictation.split`.
 The page is `Carrier/DictationTab.swift` (`reset(.dictation)` restores the keys the schema (`design/preferences.json`) gives the page); views untested.
 

@@ -34,13 +34,13 @@ enum FocusedField {
             }.value
             if status != 0 { NSLog("Carrier: tccutil reset Accessibility %@ ended with %@", bundleId, String(describing: status)) }
             // macOS asks, and lists Carrier in Privacy & Security › Accessibility for the person to allow
-            _ = AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary)
+            SystemAccessibilityTrust().prompt()
         }
     }
 
     /// Where a dictation that ends now goes. Never reads the value of the field, which for a password holds the secret.
     static func decision() -> PasteDecision {
-        let trusted = AXIsProcessTrusted()
+        let trusted = SystemAccessibilityTrust().isTrusted()
         return pasteDecision(focus: trusted ? read() : nil, trusted: trusted)
     }
 

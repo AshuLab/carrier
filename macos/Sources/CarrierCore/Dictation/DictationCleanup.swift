@@ -30,12 +30,6 @@ public enum CleanupFailure: Error, Equatable, Sendable {
     }
 }
 
-/// What Cleanup needs from a model server: the models it lists and one completion with a system message and a user message, no tools.
-public protocol TextModelClient: Sendable {
-    func models(of server: CleanupServer) async throws -> [String]
-    func complete(server: CleanupServer, model: String, system: String, text: String, timeout: Duration) async throws -> String
-}
-
 public struct CleanupResult: Equatable, Sendable {
     public let text: String
     public let seconds: TimeInterval

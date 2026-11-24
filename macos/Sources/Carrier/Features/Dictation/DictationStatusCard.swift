@@ -1,4 +1,3 @@
-import ApplicationServices
 import CarrierCore
 import SwiftUI
 
@@ -10,11 +9,11 @@ struct DictationStatusCard: View {
     // the model in use is the controller's; this makes the card redraw when it changes, Reset included
     @AppStorage(Preference.dictationModel) private var savedModel
     /// What macOS says of Accessibility now; asked again each time Carrier comes back to the front, since it is allowed in System Settings.
-    @State private var trusted = AXIsProcessTrusted()
+    @State private var accessibility = AccessibilityState(trust: SystemAccessibilityTrust())
 
     var body: some View {
         let readiness = dictationReadiness(
-            enabled: dictation.enabled, microphone: dictation.microphone, accessibilityTrusted: trusted, globalOn: global, model: modelReadiness
+            enabled: dictation.enabled, microphone: dictation.microphone, accessibilityTrusted: accessibility.trusted, globalOn: global, model: modelReadiness
         )
         HStack(alignment: .top, spacing: 14) {
             Glyph(symbol(readiness.tone), size: 18, bold: true).foregroundStyle(.white)
@@ -45,7 +44,7 @@ struct DictationStatusCard: View {
             Toggle("Dictation", isOn: Binding(get: { dictation.enabled }, set: { dictation.setEnabled($0) })).labelsHidden().toggleStyle(.switch)
         }
         .padding(14).frame(maxWidth: .infinity, alignment: .leading)
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in trusted = AXIsProcessTrusted() }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in accessibility.refresh() }
         .accessibilityElement(children: .contain)
         // the search's "Microphone" lands on the card
         .settingsAnchored("Microphone", group: "Dictation")

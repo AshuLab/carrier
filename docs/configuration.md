@@ -323,6 +323,10 @@ Two kinds of stop belong to this, each with its optional label under `labels.rea
 Resume the epic after reading the reason, as for the other kinds.
 For `lead_limit`, read the lead's blockers in the reason, fix them yourself or raise `limits.maxLeadRounds`, and resume the epic.
 
+The other stops that name the lead are the ordinary kinds of any role: `agent_needs_human` when it cannot conclude (the reason begins "the lead reviewer cannot conclude"), `retries_exhausted` when its retries are out (counted for the lead alone) and `usage_limit` when its failover is.
+The lead moves through `failover.roles.leadReviewer` when its quota runs out, or through `failover.roles.reviewer` when it declares none, and a `usage_limit` stop of the lead wakes up by itself (see `limits.autoResume`) at the lead's stage, with its lead round kept and no review round repeated.
+`skill_missing` names the skill, the role `lead` and where its harness looked.
+
 ### Starting an epic and restarting it
 
 An epic starts at once on its roles: nothing waits for a provider to be chosen, however many accounts are declared. The account each role ran on is recorded, because resuming its session and moving the role on failover need it.
@@ -333,6 +337,7 @@ A config with `limits.optionChoiceSeconds`, or a `providers.json` account with `
 
 ### Failover
 
+The lead reviewer takes the steps of `failover.roles.reviewer` when `failover.roles.leadReviewer` is not declared (an empty list there is its own: no failover).
 A role has failover when its list of steps in `failover.roles` is not empty. There is no global switch and no default list: a missing or empty list (`[]`) means that role stops when its login runs out.
 
 A step is a provider, an account of `providers.json`, and optionally the model to run there and its `effort` (one of the five levels). Without a model the step uses the account's `model`, then the harness's default; without an `effort` it keeps the one the role was running with (the role's own for the first step).
@@ -411,6 +416,7 @@ The lead's skills are the lead's own, then the repo's `skills.lead`, then the gl
 An extra reviewer's `review` skills are its own entry's, then the repo's `skills.review`, the global one and Solve's defaults.
 A value taken from a `skills.review` you named counts as named, so it stops an epic when it is absent.
 Each extra reviewer invokes its own `review` skills, and the lead reviewer invokes its `lead` skills.
+Of the lead's skills only one you named stops an epic when it is absent (`skills.lead`, or a `skills.review` you named that the lead takes), checked before the lead's first launch, a resume, a wake-up, a failover and a `carrier restart --lead` that changes its option; a default skill that is absent, or an answer that cannot tell, never stops it.
 
 The resolved skills are saved with an epic's configuration when it starts, so a reload changes nothing for a running epic, and an epic restarted from ship takes the skills of that moment.
 The extra reviewers and the resolved skills of each and of the lead are saved with it too.

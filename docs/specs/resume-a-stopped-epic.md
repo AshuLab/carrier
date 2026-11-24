@@ -39,6 +39,7 @@ Every resume is an event of the epic, `resumed`, that says a command asked for i
 When the epic stopped with the kind `review_limit`, the resume grants more review rounds counted from the current one: `extraRounds` of them, `maxReviews` when none is named, saved with the epic as `roundLimit`, which is the cap of its rounds when set and the live `maxReviews` otherwise.
 `extraRounds` is a positive whole number and is refused when `from` is not `review` or `fix`, and when the epic did not stop with the kind `review_limit`.
 A resume at a stage starts the lead reviewer's exchange over ([several reviewers and a lead](several-reviewers-and-a-lead.md)): it clears the epic's `leadRound` and `approvedSha`, so the author's fix goes back to the reviewers' round and the lead gets its `limits.maxLeadRounds` again once the reviewers agree.
+The wake-up on quota is not a person's resume: an epic that stopped in `usage_limit` at the lead wakes at the stage `lead` (`resumeStage` gains `lead`, set only by the wake-up) with its `leadRound` kept and no review round repeated.
 At `fix`, after the epic stopped in `lead_limit`, the author is given the lead's latest blockers, not the reviewers'.
 The app does not send `from` yet: it is `carrier restart --from` for now.
 

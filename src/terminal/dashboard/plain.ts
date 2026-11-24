@@ -11,7 +11,7 @@ export function renderPanel(s: PanelSnapshot): string[] {
   for (const e of epics) {
     const parts = [
       `${e.repo}#${e.issue}`,
-      e.status === 'needs_human' ? 'NEEDS HUMAN' : (e.stage ?? 'starting'),
+      e.status === 'needs_human' ? 'NEEDS HUMAN' : e.lead ? 'lead' : (e.stage ?? 'starting'), // the stage lead is reported as `review` with `lead` set
       ...(e.round === null ? [] : [`round ${e.round}/${e.maxReviews}`]),
       ...(e.slices && e.slices.total > 0 ? [`slices ${e.slices.done}/${e.slices.total}`] : []),
       `blockers ${e.blockers}`,

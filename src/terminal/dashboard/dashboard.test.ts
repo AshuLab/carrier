@@ -66,6 +66,13 @@ test('a running epic shows its stage in the chain, rounds as dots, blockers, tim
   expect(out).toContain('┃ https://github.com/AshuLab/api/pull/9'); // the PR once there is one
 });
 
+test('an epic in the stage lead (reported as review with lead set) shows the lead as the active stage, and an epic in review does not show it', () => {
+  const lead = plain(snap({ epics: [epic({ stage: 'review', lead: true, round: 2 })] }));
+  expect(lead).toContain('┃ ship ▸ review ▸ fix ▸ [lead] · round ●●○○○');
+  expect(lead).not.toContain('[review]');
+  expect(plain(snap({ epics: [epic({ stage: 'review', round: 2 })] }))).not.toContain('lead');
+});
+
 test('a running epic shows its slices closed out of the total, and nothing when unknown or without sub-issues', () => {
   expect(plain(snap({ epics: [epic({ slices: { done: 3, total: 5 } })] }))).toContain('in stage · active 8s ago · slices 3/5');
   expect(plain(snap({ epics: [epic({ blockers: 1, slices: { done: 0, total: 2 } })] }))).toContain(' · blockers 1 · slices 0/2');

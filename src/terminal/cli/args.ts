@@ -26,7 +26,7 @@ export const usage = () => `Usage: carrier --config <path>          run the orch
 
 --config defaults to ${engineConfigPathOf()} (where init writes it) when that file exists.
 
-restart: with neither flag it asks for each role in a terminal and keeps the current options without one. --author, --reviewer, --reviewer-2 to --reviewer-4 and --lead name an option
+restart: with no option flag it asks for each role in a terminal and keeps the current options without one. --author, --reviewer, --reviewer-2 to --reviewer-4 and --lead name an option
 of the config here, not the <harness>:<model> of init.
 restart --from review or fix keeps the epic's round, pull request and worktree and starts at that stage; ship (the default) starts over with the rounds reset.
 restart --extra-rounds K, with --from review or fix, sets how many review rounds an epic that stopped on the review limit gets from its current one (default: limits.maxReviews).

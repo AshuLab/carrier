@@ -39,6 +39,9 @@ export const unansweredLine = ({ count, reason }: UnansweredObservations) =>
 export const reviewersLine = ({ given, of }: Pick<PanelReviewers, 'given' | 'of'>) => `${given} of ${of} gave a verdict`;
 
 const stages = ['ship', 'review', 'fix'] as const;
+/** The stage lead is `review` with `lead` set in the snapshot (the app's stage is a strict enum): the chain draws it as a stage of its own, after the others. */
+const chainOf = (e: Pick<PanelEpic, 'stage' | 'lead'>) => (e.lead ? [...stages, 'lead' as const] : stages);
+const activeOf = (e: Pick<PanelEpic, 'stage' | 'lead'>) => (e.lead ? 'lead' : e.stage);
 
 export type DashboardOptions = {
   columns?: number;
@@ -134,7 +137,7 @@ export function renderDashboard(s: PanelSnapshot, { columns = 80, color = true, 
   const card = (e: PanelEpic, first: boolean) => {
     const chosen = selected(e.repo, e.issue);
     const bar = chosen ? paint('▌', 'bold', 'cyan') : paint('┃', 'dim');
-    const chain = e.stage === null ? paint('starting', 'dim') : stages.map((st) => (st === e.stage ? paint(`[${st}]`, 'bold', 'cyan') : paint(st, 'dim'))).join(paint(' ▸ ', 'dim'));
+    const chain = e.stage === null ? paint('starting', 'dim') : chainOf(e).map((st) => (st === activeOf(e) ? paint(`[${st}]`, 'bold', 'cyan') : paint(st, 'dim'))).join(paint(' ▸ ', 'dim'));
     const round = e.round === null ? '' : ` · round ${Array.from({ length: e.maxReviews }, (_, i) => (i < e.round! ? '●' : '○')).join('')}`;
     if (!first) add();
     add(chosen ? ` ${pointer}${paint(` ${e.repo} #${e.issue} `, 'bold', 'inverse')}${titled(e.title)}` : ` ${bar} ${paint(`${e.repo} #${e.issue}`, 'bold')}${titled(e.title)}`); // the selected card's title is a highlighted label

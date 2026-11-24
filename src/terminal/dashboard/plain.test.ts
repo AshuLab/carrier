@@ -79,6 +79,12 @@ test('queued epics in order next to the busy slots', () => {
   `);
 });
 
+test('an epic in the stage lead is a line with the stage lead, not review', () => {
+  const line = renderPanel(snapshot({ epics: [epic({ stage: 'review', lead: true, round: 2 })] }))[1];
+  expect(line).toContain('acme/web#12  lead  round 2/5');
+  expect(line).not.toContain('review');
+});
+
 test('epic in review with blockers, round, PR link and no output yet', () => {
   const lines = renderPanel(
     snapshot({

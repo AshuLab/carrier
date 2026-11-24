@@ -1,5 +1,6 @@
 import { connect } from 'node:net';
 import { socketPathFits, type Hello } from '../../control/server.ts';
+import type { TextParams } from '../../orchestration/text-params.ts';
 
 /** Why there is no usable Carrier behind a socket path: nothing listens, it does not answer, or it speaks another protocol. */
 export type Unreachable = 'not-running' | 'no-answer' | 'incompatible';
@@ -17,16 +18,31 @@ export class ControlUnreachable extends Error {
   }
 }
 
+/** An `ok: false` reply: its words as the message, and the code and parameters beside them (no code when the engine predates the codes). Decide by `code`, print the words. */
+export class ControlRefused extends Error {
+  readonly code: string | undefined;
+  readonly params: TextParams;
+
+  constructor(words: string, code?: string, params: TextParams = {}) {
+    super(words);
+    this.code = code;
+    this.params = params;
+  }
+}
+
 export type CarrierClient = {
   /** Read when connecting: protocol, version, capabilities. */
   hello: Hello;
-  /** The `data` of the reply that carries this request's id; an `ok: false` reply rejects with its error text. */
+  /** The `data` of the reply that carries this request's id; an `ok: false` reply rejects with a `ControlRefused`. */
   request(cmd: string, fields?: Record<string, unknown>): Promise<unknown>;
   close(): void;
 };
 
 // Errors that mean no Carrier is listening there; any other one (a permission, say) is a socket that did not answer.
 const nobodyListening = new Set(['ENOENT', 'ECONNREFUSED', 'ENOTSOCK', 'ENAMETOOLONG']);
+
+const refusalOf = (message: { error?: unknown; code?: unknown; params?: unknown }) =>
+  new ControlRefused(String(message.error), typeof message.code === 'string' ? message.code : undefined, typeof message.params === 'object' && message.params !== null ? (message.params as TextParams) : {});
 
 /**
  * Connects to a running Carrier's control socket and reads its hello. `timeoutMs` bounds the hello and each request.
@@ -72,7 +88,7 @@ export function connectControl(path: string, { timeoutMs = 5000 }: { timeoutMs?:
       // the server answers in order, so a reply without an id (a request it could not read) belongs to the oldest one
       const id: number | undefined = message.id ?? pending.keys().next().value;
       if (id === undefined) return;
-      settle(id, (entry) => (message.ok === true ? entry.resolve(message.data) : entry.reject(new Error(String(message.error)))));
+      settle(id, (entry) => (message.ok === true ? entry.resolve(message.data) : entry.reject(refusalOf(message))));
     };
 
     socket.on('data', (chunk: string) => {

@@ -1,10 +1,11 @@
-import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { createServer, type Server } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterEach, expect, test, vi } from 'vitest';
 import { CliError } from '../cli-error.ts';
-import { recoverCommand } from './recover.ts';
+import { recoverCommand, refusals } from './recover.ts';
 
 let folder: string;
 let server: Server | undefined;
@@ -14,6 +15,10 @@ afterEach(() => {
   rmSync(folder, { recursive: true, force: true });
   vi.restoreAllMocks();
 });
+
+// A refusal as the engine words it: `words` are not the engine's today, so a table keyed by them would miss; `code` is absent for an engine that predates the codes.
+const refusal = (words: string, code?: string) => Object.assign(new Error(words), { code });
+const code = (error: Error) => (error as Error & { code?: string }).code;
 
 // A stand-in for a running Carrier: says hello with `capabilities`, records each request and answers `reply(request)`; an Error refuses it.
 async function fakeCarrier(capabilities: string[], reply: (request: any) => unknown = () => undefined) {
@@ -27,7 +32,7 @@ async function fakeCarrier(capabilities: string[], reply: (request: any) => unkn
         const request = JSON.parse(line);
         requests.push(request);
         const answer = reply(request);
-        connection.write(`${JSON.stringify(answer instanceof Error ? { id: request.id, ok: false, error: answer.message } : { id: request.id, ok: true, data: answer })}\n`);
+        connection.write(`${JSON.stringify(answer instanceof Error ? { id: request.id, ok: false, error: answer.message, ...(code(answer) && { code: code(answer), params: {} }) } : { id: request.id, ok: true, data: answer })}\n`);
       }
     });
   });
@@ -53,18 +58,29 @@ test('an engine that does not list recoverEpic is told so and is not asked', asy
 });
 
 test.each([
-  ['unknown epic', 'Carrier does not know AshuLab/carrier#5. Use the owner/repo#issue that carrier status shows.'],
-  ['not running', 'AshuLab/carrier#5 is not running, so there is nothing to recover. An epic that stopped for a person is resumed with carrier restart.'],
-  ['agent alive', 'An agent of AshuLab/carrier#5 is alive or about to start, so nothing was changed. If the epic does not move, try again in a moment.'],
-  ['not started', 'AshuLab/carrier#5 has not started its first stage yet: the next check launches it.'],
-  ['nothing to recover', 'AshuLab/carrier#5 is in a state a recovery does not move (a retry or the next check takes it from here), so nothing was changed.'],
-  ['engine unavailable', 'Carrier is stopping, still recovering its epics at start, or cannot act now (its agent profile was rejected), so nothing changed.'],
-  ['github unavailable', 'GitHub did not answer, so nothing changed. Try again in a moment.'],
-  ['internal error', 'Carrier refused: internal error'],
-])('a refusal as "%s" says what it means and exits 1', async (reason, words) => {
-  await fakeCarrier(['recoverEpic'], () => new Error(reason));
+  ['epic.unknown', 'Carrier does not know AshuLab/carrier#5. Use the owner/repo#issue that carrier status shows.'],
+  ['recover.notRunning', 'AshuLab/carrier#5 is not running, so there is nothing to recover. An epic that stopped for a person is resumed with carrier restart.'],
+  ['recover.agentAlive', 'An agent of AshuLab/carrier#5 is alive or about to start, so nothing was changed. If the epic does not move, try again in a moment.'],
+  ['recover.notStarted', 'AshuLab/carrier#5 has not started its first stage yet: the next check launches it.'],
+  ['recover.nothingToRecover', 'AshuLab/carrier#5 is in a state a recovery does not move (a retry or the next check takes it from here), so nothing was changed.'],
+  ['recover.engineUnavailable', 'Carrier is stopping, still recovering its epics at start, or cannot act now (its agent profile was rejected), so nothing changed.'],
+  ['github.unavailable', 'GitHub did not answer, so nothing changed. Try again in a moment.'],
+  ['request.internal', 'Carrier refused: refused in other words'],
+])('a refusal with the code %s, in whatever words, says what it means and exits 1', async (reason, words) => {
+  await fakeCarrier(['recoverEpic'], () => refusal('refused in other words', reason));
   const error = await refused();
   expect([error.code, error.message]).toEqual([1, words]);
+});
+
+test('a refusal without a code is printed with its words', async () => {
+  await fakeCarrier(['recoverEpic'], () => refusal('not running'));
+  const error = await refused();
+  expect([error.code, error.message]).toEqual([1, 'Carrier refused: not running']);
+});
+
+test('every code the table is keyed by is in the golden list of text codes', () => {
+  const codes = Object.keys(JSON.parse(readFileSync(fileURLToPath(new URL('../../../../macos/Tests/Fixtures/text-codes.json', import.meta.url)), 'utf8')));
+  expect(Object.keys(refusals).filter((code) => codes.includes(code) === false)).toEqual([]);
 });
 
 test('no Carrier running says so and exits 1', async () => {

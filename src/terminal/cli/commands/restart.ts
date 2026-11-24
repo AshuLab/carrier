@@ -4,7 +4,7 @@ import { cancelled, makeClackUi } from '../../prompts/clack.ts';
 import { Cancelled, type Ui } from '../../prompts/types.ts';
 import type { EpicTarget } from '../args.ts';
 import { CliError } from '../cli-error.ts';
-import { connectControl, ControlUnreachable, type CarrierClient } from '../control-client.ts';
+import { connectControl, ControlRefused, ControlUnreachable, type CarrierClient } from '../control-client.ts';
 
 // The engine waits up to 30 seconds for the epic to start again before it refuses.
 const RESTART_WAIT_MS = 40_000;
@@ -14,19 +14,19 @@ const roleKeys = ['author', 'reviewer', 'reviewer2', 'reviewer3', 'reviewer4', '
 type Chosen = Partial<Record<(typeof roleKeys)[number], string>>;
 type Flags = Chosen & { from?: 'ship' | 'review' | 'fix'; extraRounds?: number };
 
-// What the engine's short refusal means for the person, and what to do next.
-const refusals: Record<string, (target: string) => string> = {
-  'unknown epic': (target) => `Carrier does not know ${target}. Use the owner/repo#issue that carrier status shows.`,
-  'not stopped': (target) => `${target} is not stopped, so there is nothing to restart.`,
-  'github unavailable': () => 'GitHub did not answer, so nothing changed. Try again in a moment.',
-  'did not restart': () => 'The ready label is back on the issue, but the epic did not start within 30 seconds. The next check will take it.',
-  'unknown option': () => 'That account is not declared in providers.json. Use a name declared there.',
-  'no such role': (target) => `${target} does not have that reviewer or lead. Name only the roles its configuration has.`,
-  'no pull request': (target) => `${target} has no pull request yet, so it can only be restarted from ship.`,
-  'extra rounds need a stage': () => '--extra-rounds needs --from review or --from fix: a restart from ship starts the rounds over.',
-  'extra rounds need a review limit': (target) => `--extra-rounds grants rounds to an epic that stopped on the review limit, and ${target} stopped for another reason.`,
-  'pull request not open': () => 'The epic\'s pull request is not open any more, so nothing was changed. Restart it from ship, or reopen the pull request.',
-  'pull request head changed': () => 'The pull request has a different head than the one Carrier saved, so nothing was changed. Restart it with --from review to review the new head, or from ship to start over.',
+// What each refusal code means for the person, and what to do next.
+export const refusals: Record<string, (target: string) => string> = {
+  'epic.unknown': (target) => `Carrier does not know ${target}. Use the owner/repo#issue that carrier status shows.`,
+  'resume.notStopped': (target) => `${target} is not stopped, so there is nothing to restart.`,
+  'github.unavailable': () => 'GitHub did not answer, so nothing changed. Try again in a moment.',
+  'resume.didNotRestart': () => 'The ready label is back on the issue, but the epic did not start within 30 seconds. The next check will take it.',
+  'resume.optionUnknown': () => 'That account is not declared in providers.json. Use a name declared there.',
+  'resume.roleUnknown': (target) => `${target} does not have that reviewer or lead. Name only the roles its configuration has.`,
+  'resume.noPullRequest': (target) => `${target} has no pull request yet, so it can only be restarted from ship.`,
+  'resume.extraRoundsNeedStage': () => '--extra-rounds needs --from review or --from fix: a restart from ship starts the rounds over.',
+  'resume.extraRoundsNeedReviewLimit': (target) => `--extra-rounds grants rounds to an epic that stopped on the review limit, and ${target} stopped for another reason.`,
+  'resume.pullRequestNotOpen': () => 'The epic\'s pull request is not open any more, so nothing was changed. Restart it from ship, or reopen the pull request.',
+  'resume.pullRequestHeadChanged': () => 'The pull request has a different head than the one Carrier saved, so nothing was changed. Restart it with --from review to review the new head, or from ship to start over.',
 };
 
 /**
@@ -77,8 +77,8 @@ export async function restartCommand(folder: string, { repo, issue }: EpicTarget
       const { epics } = (await client.request('snapshot')) as ControlSnapshot;
       const epic = epics.find((e) => e.repo === repo && e.issue === issue);
       // Before any question: an epic the engine would refuse is not worth asking about.
-      if (epic === undefined) throw new CliError(1, refusals['unknown epic']!(`${repo}#${issue}`));
-      if (epic.status !== 'needs_human') throw new CliError(1, refusals['not stopped']!(`${repo}#${issue}`));
+      if (epic === undefined) throw new CliError(1, refusals['epic.unknown']!(`${repo}#${issue}`));
+      if (epic.status !== 'needs_human') throw new CliError(1, refusals['resume.notStopped']!(`${repo}#${issue}`));
       try {
         chosen = await askRestartOptions(epic, makeClackUi({ compact: true }), reviewers);
       } catch (error) {
@@ -92,8 +92,9 @@ export async function restartCommand(folder: string, { repo, issue }: EpicTarget
   } catch (error) {
     if (error instanceof CliError) throw error;
     if (error instanceof ControlUnreachable) throw new CliError(1, `Carrier does not answer on ${path}`);
-    const reason = error instanceof Error ? error.message : String(error);
-    throw new CliError(1, refusals[reason]?.(`${repo}#${issue}`) ?? `Carrier refused: ${reason}`);
+    const code = error instanceof ControlRefused ? error.code : undefined;
+    const words = error instanceof Error ? error.message : String(error);
+    throw new CliError(1, (code === undefined ? undefined : refusals[code]?.(`${repo}#${issue}`)) ?? `Carrier refused: ${words}`);
   } finally {
     client.close();
   }

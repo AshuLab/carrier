@@ -1,11 +1,12 @@
-import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { createServer, type Server } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterEach, expect, test, vi } from 'vitest';
 import type { Ui } from '../../prompts/types.ts';
 import { CliError } from '../cli-error.ts';
-import { askRestartOptions, restartCommand } from './restart.ts';
+import { askRestartOptions, refusals, restartCommand } from './restart.ts';
 
 let folder: string | undefined;
 let server: Server | undefined;
@@ -15,6 +16,10 @@ afterEach(() => {
   if (folder) rmSync(folder, { recursive: true, force: true });
   vi.restoreAllMocks();
 });
+
+// A refusal as the engine words it: `words` are not the engine's today, so a table keyed by them would miss; `code` is absent for an engine that predates the codes.
+const refusal = (words: string, code?: string) => Object.assign(new Error(words), { code });
+const code = (error: Error) => (error as Error & { code?: string }).code;
 
 // A stand-in for a running Carrier: says hello with `capabilities`, records each request and answers `reply(request)`; an Error refuses it.
 async function fakeCarrier(capabilities: string[], reply: (request: any) => unknown = () => undefined) {
@@ -28,7 +33,7 @@ async function fakeCarrier(capabilities: string[], reply: (request: any) => unkn
         const request = JSON.parse(line);
         requests.push(request);
         const answer = reply(request);
-        connection.write(`${JSON.stringify(answer instanceof Error ? { id: request.id, ok: false, error: answer.message } : { id: request.id, ok: true, data: answer })}\n`);
+        connection.write(`${JSON.stringify(answer instanceof Error ? { id: request.id, ok: false, error: answer.message, ...(code(answer) && { code: code(answer), params: {} }) } : { id: request.id, ok: true, data: answer })}\n`);
       }
     });
   });
@@ -170,14 +175,31 @@ test('--from against an engine that does not list resumeFromStage says so and as
 });
 
 test.each([
-  ['no pull request', 'AshuLab/carrier#5 has no pull request yet, so it can only be restarted from ship.'],
-  ['no such role', 'AshuLab/carrier#5 does not have that reviewer or lead. Name only the roles its configuration has.'],
-  ['extra rounds need a stage', '--extra-rounds needs --from review or --from fix: a restart from ship starts the rounds over.'],
-  ['extra rounds need a review limit', '--extra-rounds grants rounds to an epic that stopped on the review limit, and AshuLab/carrier#5 stopped for another reason.'],
-  ['pull request not open', "The epic's pull request is not open any more, so nothing was changed. Restart it from ship, or reopen the pull request."],
-  ['pull request head changed', 'The pull request has a different head than the one Carrier saved, so nothing was changed. Restart it with --from review to review the new head, or from ship to start over.'],
-])('a refusal as "%s" says what it means and exits 1', async (reason, words) => {
-  await fakeCarrier(['resumeEpic', 'resumeFromStage'], () => new Error(reason));
+  ['epic.unknown', 'Carrier does not know AshuLab/carrier#5. Use the owner/repo#issue that carrier status shows.'],
+  ['resume.notStopped', 'AshuLab/carrier#5 is not stopped, so there is nothing to restart.'],
+  ['github.unavailable', 'GitHub did not answer, so nothing changed. Try again in a moment.'],
+  ['resume.didNotRestart', 'The ready label is back on the issue, but the epic did not start within 30 seconds. The next check will take it.'],
+  ['resume.optionUnknown', 'That account is not declared in providers.json. Use a name declared there.'],
+  ['resume.noPullRequest', 'AshuLab/carrier#5 has no pull request yet, so it can only be restarted from ship.'],
+  ['resume.roleUnknown', 'AshuLab/carrier#5 does not have that reviewer or lead. Name only the roles its configuration has.'],
+  ['resume.extraRoundsNeedStage', '--extra-rounds needs --from review or --from fix: a restart from ship starts the rounds over.'],
+  ['resume.extraRoundsNeedReviewLimit', '--extra-rounds grants rounds to an epic that stopped on the review limit, and AshuLab/carrier#5 stopped for another reason.'],
+  ['resume.pullRequestNotOpen', "The epic's pull request is not open any more, so nothing was changed. Restart it from ship, or reopen the pull request."],
+  ['resume.pullRequestHeadChanged', 'The pull request has a different head than the one Carrier saved, so nothing was changed. Restart it with --from review to review the new head, or from ship to start over.'],
+  ['request.internal', 'Carrier refused: refused in other words'],
+])('a refusal with the code %s, in whatever words, says what it means and exits 1', async (reason, words) => {
+  await fakeCarrier(['resumeEpic', 'resumeFromStage'], () => refusal('refused in other words', reason));
   const error = (await restartCommand(folder!, target, { from: 'review' }).catch((e) => e)) as CliError;
   expect([error.code, error.message]).toEqual([1, words]);
+});
+
+test('a refusal without a code is printed with its words', async () => {
+  await fakeCarrier(['resumeEpic', 'resumeFromStage'], () => refusal('not stopped'));
+  const error = (await restartCommand(folder!, target, { from: 'review' }).catch((e) => e)) as CliError;
+  expect([error.code, error.message]).toEqual([1, 'Carrier refused: not stopped']);
+});
+
+test('every code the table is keyed by is in the golden list of text codes', () => {
+  const codes = Object.keys(JSON.parse(readFileSync(fileURLToPath(new URL('../../../../macos/Tests/Fixtures/text-codes.json', import.meta.url)), 'utf8')));
+  expect(Object.keys(refusals).filter((code) => codes.includes(code) === false)).toEqual([]);
 });

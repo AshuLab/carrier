@@ -52,14 +52,14 @@ private let hello = "{\"event\":\"hello\",\"protocol\":1,\"pid\":42,\"startedAt\
 }
 
 @Test func aCarrierOfAnotherProtocolGetsNoCommandAndTheSentenceSaysWhichSideToUpdate() {
-    for (version, sentence) in [(0, "carrier is older than this app. Run brew upgrade carrier in Terminal, then restart Carrier."), (2, "This app is older than carrier. It updates itself; if it has not, run brew upgrade --cask carrier in Terminal, then open the app again.")] {
+    for version in [0, 2] {
         var asked = false
         let server = TestServer { connection in
             connection.send("{\"event\":\"hello\",\"protocol\":\(version),\"pid\":42,\"startedAt\":1000}\n")
             asked = connection.readRequestId() != nil
         }
         defer { server.stop() }
-        #expect(throws: ControlError.remote(sentence)) { try send(.pause, socketPath: server.path) }
+        #expect(throws: ControlError.remote(version == 0 ? .carrierOlder : .appOlder)) { try send(.pause, socketPath: server.path) }
         #expect(asked == false)
     }
 }

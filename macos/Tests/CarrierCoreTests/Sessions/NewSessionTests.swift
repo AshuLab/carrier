@@ -260,14 +260,14 @@ private func cleanRepo(_ folder: String) -> WorkspaceInfo {
 
 @MainActor @Test func aRefusedOpenIsSaidInTheDraftAndKeepsTheMessage() async {
     let host = FakeChat()
-    host.refuse["open"] = ControlError.remote(.words("claude is not logged in; run claude once to log in"))
+    host.refuse["open"] = ControlError.remote(Refusal(code: "agent.notLoggedIn", params: ["agent": "claude"], text: "claude is not logged in; run claude once to log in"))
     let model = await draft(host)
     await model.choose(folder: "/w/api")
     model.text = "hello"
     #expect(await model.send() == nil)
-    #expect(model.refusal == "claude is not logged in; run claude once to log in" && model.text == "hello")
+    #expect(model.refusal?.text == "claude is not logged in; run claude once to log in" && model.text == "hello")
     #expect(host.calls == ["open claude /w/api"])
-    #expect(signInLine(refusal: model.refusal ?? "") != nil)
+    #expect(signInLine(refusal: model.refusal ?? .words("")) != nil)
 }
 
 @MainActor @Test func aHostThatDoesNotListPlanIsSaidToBeOlderAndSendsNothing() async {
@@ -298,7 +298,7 @@ private func cleanRepo(_ folder: String) -> WorkspaceInfo {
     await model.choose(folder: "/w/api")
     model.text = "hello"
     #expect(await model.send() == nil)
-    #expect(model.refusal == hostNotRunning && host.calls.isEmpty && model.text == "hello")
+    #expect(model.refusal == .hostNotRunning && host.calls.isEmpty && model.text == "hello")
 }
 
 @MainActor @Test func aHostThatGoesAwayIsLoggedAndSaidInWords() async {
@@ -309,7 +309,7 @@ private func cleanRepo(_ folder: String) -> WorkspaceInfo {
     await model.choose(folder: "/w/api")
     model.text = "hello"
     #expect(await model.send() == nil)
-    #expect(model.refusal == "The chat host is not answering" && logged.count == 1)
+    #expect(model.refusal == .hostNotAnswering && logged.count == 1)
 }
 
 @Test func theClientOpensWithThePlanInsideJSONStringsAndReadsTheNewId() async throws {
@@ -561,7 +561,7 @@ private func cleanRepo(_ folder: String) -> WorkspaceInfo {
     await model.useWorktree(true)
     model.text = "hello"
     #expect(await model.send() == nil)
-    #expect(model.refusal == "A folder for that worktree already exists" && model.text == "hello" && model.worktree && model.worktreeName == "brave-marine-aiur")
+    #expect(model.refusal?.text == "A folder for that worktree already exists" && model.text == "hello" && model.worktree && model.worktreeName == "brave-marine-aiur")
 }
 
 @MainActor @Test func choosingAnotherFolderStartsTheWorktreeChoiceOver() async {
@@ -1138,7 +1138,7 @@ private func listed(_ id: String, _ stage: String) -> ChatSession {
 @MainActor @Test func aRepositoryTheEngineRefusedToApplyIsInTheListAndTheNoteSaysWhatTheEngineAnswered() async {
     let config = FakeConfig()
     let host = FakeChat()
-    let model = await sentForRepo(host, config: config, reload: { .refused("repos.1.name: bad") })
+    let model = await sentForRepo(host, config: config, reload: { .refused(.words("repos.1.name: bad")) })
     host.active = [listed(opened, "answered")]
     await settle { model.watchNotes[opened] != nil }
     #expect(configRepoNames(json: config.json ?? Data()) == ["acme/web", "AshuLab/carrier"])

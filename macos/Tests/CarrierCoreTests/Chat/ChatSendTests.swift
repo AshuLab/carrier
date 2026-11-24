@@ -114,7 +114,7 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
     let chat = model(host, log: { logged.append($0) })
     chat.draft = "hi"
     await chat.submit()
-    #expect(host.calls == ["resume"] && chat.refusal == "The agent's folder is gone" && chat.draft == "hi" && logged.isEmpty)
+    #expect(host.calls == ["resume"] && chat.refusal?.text == "The agent's folder is gone" && chat.draft == "hi" && logged.isEmpty)
 }
 
 @MainActor @Test func aRefusedSendShowsTheReasonAndKeepsTheText() async {
@@ -123,7 +123,7 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
     let chat = model(host)
     chat.draft = "too long"
     await chat.submit()
-    #expect(chat.refusal?.hasPrefix("That message has 70000") == true && chat.draft == "too long" && chat.busy == false)
+    #expect(chat.refusal?.text.hasPrefix("That message has 70000") == true && chat.draft == "too long" && chat.busy == false)
     // the next send that works clears it
     host.refuse["send"] = nil
     await chat.submit()
@@ -137,7 +137,7 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
     let chat = model(host, log: { logged.append($0) })
     chat.draft = "hi"
     await chat.submit()
-    #expect(chat.refusal == "The chat host is not answering" && chat.draft == "hi" && logged.count == 1)
+    #expect(chat.refusal?.text == "The chat host is not answering" && chat.draft == "hi" && logged.count == 1)
 }
 
 @MainActor @Test func whatIsTypedWhileTheAgentAnswersIsHeldAsOneMessageAndReplacedByTheNext() async {
@@ -191,7 +191,7 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
     host.state = .idle
     host.refuse["send"] = ControlError.remote(.words("This session is closed"))
     await chat.poll()
-    #expect(chat.queued == nil && chat.draft == "next" && chat.refusal == "This session is closed")
+    #expect(chat.queued == nil && chat.draft == "next" && chat.refusal?.text == "This session is closed")
 }
 
 @MainActor @Test func aWaitingForApprovalSessionIsBusyToo() async {
@@ -287,7 +287,7 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
     host.refuse["interrupt"] = ControlError.remote(.words("This session is closed"))
     chat.draft = "instead"
     await chat.submit(whileWorking: .interrupt)
-    #expect(chat.queued == "instead" && chat.refusal == "This session is closed" && host.calls == ["send first", "interrupt"])
+    #expect(chat.queued == "instead" && chat.refusal?.text == "This session is closed" && host.calls == ["send first", "interrupt"])
 }
 
 @MainActor @Test func aLateEndOfTheStoppedTurnDoesNotEndTheNewTurn() async {
@@ -333,7 +333,7 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
     host.refuse["interrupt"] = ControlError.remote(.words("This session is closed"))
     let chat = model(host)
     await chat.stop()
-    #expect(chat.refusal == "This session is closed")
+    #expect(chat.refusal?.text == "This session is closed")
 }
 
 @MainActor @Test func aSecondMessageRightAfterASendIsQueuedWithoutWaitingForAPoll() async {
@@ -378,7 +378,7 @@ private let asked = ChatEvent(
     await chat.poll()
     host.refuse["answer"] = ControlError.remote(.words("That approval is not pending: it is unknown or was already answered"))
     await chat.answer("p", choice: "allow")
-    #expect(chat.refusal == "That approval is not pending: it is unknown or was already answered")
+    #expect(chat.refusal?.text == "That approval is not pending: it is unknown or was already answered")
     guard case .approval? = chat.rows.last else {
         Issue.record("the card went")
         return

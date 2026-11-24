@@ -68,24 +68,21 @@ private func group(_ rows: [FeedRow]) -> ToolGroup {
     #expect(failedTurnBanner(agent: "", error: "x").title == "The agent couldn't continue")
     // a label or display name the person wrote keeps its capitals
     #expect(failedTurnBanner(agent: "iOS", error: "x").title == "iOS couldn't continue" && failedTurnBanner(agent: "Claude Pro", error: "x").title == "Claude Pro couldn't continue")
-    let refused = refusalBanner(agent: "codex", reason: "The agent is still answering")
+    let refused = refusalBanner(agent: "codex", reason: .words("The agent is still answering"))
     #expect(refused == FailureBanner(title: "Codex couldn't continue", detail: "The agent is still answering", hint: nil))
-    let signedOut = refusalBanner(agent: "claude", reason: "Claude is not logged in; run \"claude\" once to log in")
+    let signedOut = refusalBanner(agent: "claude", reason: Refusal(code: "agent.notLoggedIn", params: ["agent": "claude"], text: "Claude is not logged in; run \"claude\" once to log in"))
     #expect(signedOut.title == "Claude isn't signed in" && signedOut.detail == "Claude is not logged in; run \"claude\" once to log in")
     #expect(signedOut.hint == "Sign in from a terminal; Carrier never asks for your password")
 }
 
-@Test func theSignInLineIsForTheSentencesOfTheAdaptersThatSayNotLoggedIn() {
+@Test func theSignInLineFollowsTheCodeAndNotTheWords() {
     let signIn = "Sign in from a terminal; Carrier never asks for your password"
-    // from the Claude and Codex adapters and the host's sessions
-    for reason in [
-        "Claude is not logged in; run \"claude\" once to log in", "Codex is not logged in; run \"codex login\" once to log in",
-        "claude is not logged in", "CODEX IS NOT LOGGED IN",
-    ] { #expect(signInLine(refusal: reason) == signIn, "\(reason)") }
-    for reason in [
-        "Claude is not installed", "The agent is still answering", "unknown session", "The chat host is not answering",
-        "Codex does not know the native id to resume", "",
-    ] { #expect(signInLine(refusal: reason) == nil, "\(reason)") }
+    // the words differ from today's: only the code says the provider is signed out
+    #expect(signInLine(refusal: Refusal(code: "agent.notLoggedIn", params: ["agent": "claude"], text: "Please sign in")) == signIn)
+    // a code that is not that one is not a sign-in, whatever the words say
+    #expect(signInLine(refusal: Refusal(code: "agent.notInstalled", params: ["agent": "claude"], text: "Claude is not logged in")) == nil)
+    // a reply without a code carries words only, and the words are not read
+    #expect(signInLine(refusal: .words("Claude is not logged in; run \"claude\" once to log in")) == nil)
 }
 
 @Test func anApprovalIsOneRowAtItsPlaceCompletedByItsAnswerAndEndsTheRunBeforeIt() {
@@ -652,7 +649,7 @@ private func say(_ id: Int) -> ChatEvent { ChatEvent(id: id, at: id, kind: "assi
     #expect(model.folderGone)
     model.draft = "hello"
     await model.submit()
-    #expect(model.refusal == folderGoneRefusal && model.draft == "hello")
+    #expect(model.refusal == .folderGone && model.draft == "hello")
     // nothing reached the host: not a resume, not a send
     #expect(host.sent.isEmpty && host.resumed == 0)
     #expect(folderGoneNotice.title.contains("folder was deleted"))
@@ -929,7 +926,7 @@ private func say(_ id: Int) -> ChatEvent { ChatEvent(id: id, at: id, kind: "assi
     await model.poll()
     model.draft = "hello again"
     await model.submit()
-    #expect(model.refusal == "Claude is not logged in; run \"claude\" once to log in" && model.refusedText == "hello again" && model.draft == "hello again")
+    #expect(model.refusal?.text == "Claude is not logged in; run \"claude\" once to log in" && model.refusedText == "hello again" && model.draft == "hello again")
     // signed in now: Try again sends the refused message, not the box's
     host.refusing = nil
     await model.retry()
@@ -2242,7 +2239,7 @@ private final class Flag: @unchecked Sendable { var raised = false }
     refused.chooseAgent("claude-beta")
     refused.draft = "go on"
     await refused.submit()
-    #expect(refused.refusal?.contains("claude-beta") == true && refused.draft == "go on" && refused.pendingAgent == "claude-beta")
+    #expect(refused.refusal?.text.contains("claude-beta") == true && refused.draft == "go on" && refused.pendingAgent == "claude-beta")
 
     // one that works takes no pick: the panel's tabs are off while it answers
     let working = ConversationModel(host: host, sessionId: "5d1f7c3a-0b6e-4a52-9a1d-3c7e8b2f4a01")

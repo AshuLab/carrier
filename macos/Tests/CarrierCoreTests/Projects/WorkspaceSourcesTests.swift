@@ -47,7 +47,7 @@ import Testing
 }
 
 @Test func theProjectsFolderMayNotBeTheEngineOrTheChatsStateLogsOrWorktreesOrInsideThem() throws {
-    func problem(_ folder: String) -> String? { projectsFolderRefusal(folder, carrierFolder: "/data/carrier") }
+    func problem(_ folder: String) -> String? { projectsFolderRefusal(folder, carrierFolder: "/data/carrier")?.text }
     for name in ["engine", "chat/state", "chat/logs", "chat/worktrees"] {
         #expect(problem("/data/carrier/\(name)")?.contains("Carrier's own \(name) folder") == true)
         #expect(problem("/data/carrier/\(name)/a/b") != nil)
@@ -110,7 +110,7 @@ private struct ProjectFolderFixture: Decodable {
     for entry in fixture.cases {
         let carrier = root + "/" + (entry.carrier ?? fixture.carrier)
         let target = entry.relative == true ? entry.path : root + "/" + entry.path
-        #expect(projectFolderRefusal(target, carrierFolder: carrier) == entry.refusal, Comment(rawValue: entry.name))
+        #expect(projectFolderRefusal(target, carrierFolder: carrier)?.text == entry.refusal, Comment(rawValue: entry.name))
     }
 }
 
@@ -137,6 +137,6 @@ private struct WorktreeClashFixture: Decodable {
     let fixture = try JSONDecoder().decode(WorktreeClashFixture.self, from: Data(contentsOf: url))
     for entry in fixture.cases {
         let others = entry.others.map { ProjectRow(path: $0.path, name: $0.name ?? projectFolderName($0.path), repo: $0.repo) }
-        #expect(worktreeClashRefusal(folder: entry.folder, repo: entry.repo, among: others) == entry.refusal, Comment(rawValue: entry.name))
+        #expect(worktreeClashRefusal(folder: entry.folder, repo: entry.repo, among: others)?.text == entry.refusal, Comment(rawValue: entry.name))
     }
 }

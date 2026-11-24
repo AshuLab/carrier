@@ -1,12 +1,14 @@
-import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { createServer, type Server } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { startControlServer } from '../../../control/server.ts';
 import type { SessionsReply } from '../../../control/replies.ts';
 import type { PanelEpic, PanelSnapshot } from '../../../status/types.ts';
-import { statusCommand } from './status.ts';
+import { ControlRefused } from '../control-client.ts';
+import { stagesOf, statusCommand, unknownEpic } from './status.ts';
 
 let root: string;
 let closers: (() => void)[];
@@ -125,4 +127,21 @@ test('status asks for the stages of the epics that need a person and the ones re
   expect(code).toBe(0);
   expect(asked).toEqual(['A/a#1', 'A/a#3']);
   expect(text.match(/ship ✓ 14m 00s/g)).toHaveLength(2);
+});
+
+// A client whose `sessions` request is refused as the engine would, in words that are not today's.
+const refusing = (error: Error) => ({ hello: { capabilities: ['sessions'] } as never, request: () => Promise.reject(error) });
+
+test('an epic is left without detail by the code epic.unknown, whatever the words', async () => {
+  expect(await stagesOf(refusing(new ControlRefused('there is no such epic', 'epic.unknown')), 'A/a', 1)).toBeNull();
+});
+
+test('a refusal with another code, or none, is a failure to ask again, whatever its words', async () => {
+  expect(await stagesOf(refusing(new ControlRefused('unknown epic', 'request.internal')), 'A/a', 1)).toBeUndefined();
+  expect(await stagesOf(refusing(new ControlRefused('unknown epic')), 'A/a', 1)).toBeUndefined();
+});
+
+test('the code status decides by is in the golden list of text codes', () => {
+  const codes = Object.keys(JSON.parse(readFileSync(fileURLToPath(new URL('../../../../macos/Tests/Fixtures/text-codes.json', import.meta.url)), 'utf8')));
+  expect(codes).toContain(unknownEpic);
 });

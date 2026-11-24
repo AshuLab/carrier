@@ -3,7 +3,10 @@ import type { PanelSnapshot } from '../../../status/types.ts';
 import type { SessionsReply } from '../../../control/replies.ts';
 import { renderDashboard } from '../../dashboard/dashboard.ts';
 import type { Sessions } from '../../dashboard/history.ts';
-import { connectControl, ControlUnreachable, type CarrierClient } from '../control-client.ts';
+import { connectControl, ControlRefused, ControlUnreachable, type CarrierClient } from '../control-client.ts';
+
+/** The one code `status` decides by. */
+export const unknownEpic = 'epic.unknown';
 
 const out = (text: string) => process.stdout.write(`${text}\n`);
 const err = (text: string) => process.stderr.write(`${text}\n`);
@@ -25,7 +28,7 @@ export async function attach(folder: string): Promise<CarrierClient | number> {
 
 /**
  * An epic's stages over the socket; null when there are none to know (the engine's hello does not list `sessions` and nothing is sent,
- * or it answers `unknown epic`) and undefined when the request failed this time. Either way the epic is drawn without detail, which
+ * or it refuses with `epic.unknown`) and undefined when the request failed this time. Either way the epic is drawn without detail, which
  * never breaks the panel; only the failure is worth asking again.
  */
 export async function stagesOf(client: Pick<CarrierClient, 'hello' | 'request'>, repo: string, issue: number): Promise<Sessions | null | undefined> {
@@ -33,7 +36,7 @@ export async function stagesOf(client: Pick<CarrierClient, 'hello' | 'request'>,
   try {
     return ((await client.request('sessions', { repo, issue })) as SessionsReply).sessions;
   } catch (error) {
-    return error instanceof Error && error.message === 'unknown epic' ? null : undefined;
+    return error instanceof ControlRefused && error.code === unknownEpic ? null : undefined;
   }
 }
 

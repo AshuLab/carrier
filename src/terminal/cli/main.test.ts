@@ -411,7 +411,7 @@ async function fakeCarrier(home: string, { capabilities = ['resumeEpic'], reply 
         const request = JSON.parse(line);
         requests.push(request);
         const answer = reply(request);
-        connection.write(`${JSON.stringify(answer instanceof Error ? { id: request.id, ok: false, error: answer.message } : { id: request.id, ok: true, data: answer })}\n`);
+        connection.write(`${JSON.stringify(answer instanceof Error ? { id: request.id, ok: false, error: answer.message, code: (answer as Error & { code?: string }).code, params: {} } : { id: request.id, ok: true, data: answer })}\n`);
       }
     });
   });
@@ -448,15 +448,15 @@ test('restart asks a running Carrier to resume the epic on the options named, pr
 });
 
 test.each([
-  ['unknown epic', 'Carrier does not know AshuLab/carrier#5. Use the owner/repo#issue that carrier status shows.'],
-  ['not stopped', 'AshuLab/carrier#5 is not stopped, so there is nothing to restart.'],
-  ['github unavailable', 'GitHub did not answer, so nothing changed. Try again in a moment.'],
-  ['did not restart', 'The ready label is back on the issue, but the epic did not start within 30 seconds. The next check will take it.'],
-  ['unknown option', 'That account is not declared in providers.json. Use a name declared there.'],
+  ['epic.unknown', 'Carrier does not know AshuLab/carrier#5. Use the owner/repo#issue that carrier status shows.'],
+  ['resume.notStopped', 'AshuLab/carrier#5 is not stopped, so there is nothing to restart.'],
+  ['github.unavailable', 'GitHub did not answer, so nothing changed. Try again in a moment.'],
+  ['resume.didNotRestart', 'The ready label is back on the issue, but the epic did not start within 30 seconds. The next check will take it.'],
+  ['resume.optionUnknown', 'That account is not declared in providers.json. Use a name declared there.'],
   ['internal error', 'Carrier refused: internal error'],
-])('restart refused as "%s" says what it means and exits 1', async (reason, words) => {
+])('restart refused with the code %s says what it means and exits 1', async (code, words) => {
   home = withAccounts(join(dir, 'r2'));
-  const carrier = await fakeCarrier(home, { reply: () => new Error(reason) });
+  const carrier = await fakeCarrier(home, { reply: () => Object.assign(new Error('internal error'), { code }) });
   try {
     const result = await runAsync('restart', 'AshuLab/carrier#5');
     expect([result.status, result.stdout, result.stderr]).toEqual([1, 'Restarting AshuLab/carrier#5…\n', `${words}\n`]);

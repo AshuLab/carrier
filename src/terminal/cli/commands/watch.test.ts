@@ -3,7 +3,7 @@ import { expect, test, vi } from 'vitest';
 import type { PanelEpic, PanelSnapshot } from '../../../status/types.ts';
 import { renderDashboard } from '../../dashboard/dashboard.ts';
 import { startInteractivePanel } from '../../dashboard/interactive.ts';
-import { ControlUnreachable } from '../control-client.ts';
+import { ControlRefused, ControlUnreachable } from '../control-client.ts';
 import { socketPanel } from './watch.ts';
 
 const epic: PanelEpic = {
@@ -139,7 +139,7 @@ test('an engine whose hello does not list sessions is never asked and its epics 
 
 test('a sessions request that errors leaves that epic without detail while the others show theirs', async () => {
   const { draw } = stagePanel(['sessions'], (issue) => {
-    if (issue === 1) throw new Error('unknown epic');
+    if (issue === 1) throw new ControlRefused('unknown epic', 'epic.unknown');
     return reply('e2');
   });
   const two = { ...epic, issue: 2, repo: 'A/a' };
@@ -153,8 +153,8 @@ test('a sessions request that errors leaves that epic without detail while the o
 test('a sessions request that failed this time is asked again at the next draw, and an unknown epic is not', async () => {
   let failures = 1;
   const { draw, sessionsAsked } = stagePanel(['sessions'], (issue) => {
-    if (issue === 2) throw new Error('unknown epic');
-    if (failures-- > 0) throw new Error('internal error');
+    if (issue === 2) throw new ControlRefused('unknown epic', 'epic.unknown');
+    if (failures-- > 0) throw new ControlRefused('internal error', 'request.internal');
     return reply('e1');
   });
   const two = { ...epic, issue: 2 };

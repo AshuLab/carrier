@@ -8,10 +8,10 @@ import SwiftUI
 struct GlobalDictationGroup: View {
     var dictation = DictationController.shared
     // the preference is read and written by the switch; this makes the group redraw when Reset changes it
-    @AppStorage(AppPreferences.dictationGlobalKey) private var global = AppPreferences.defaultDictationGlobal
-    @AppStorage(AppPreferences.dictationAccessibilityExplainedKey) private var explained = false
-    @AppStorage(AppPreferences.dictationShortcutKey) private var shortcutText = ""
-    @AppStorage(AppPreferences.dictationActivationKey) private var activation = DictationActivation.toggle
+    @AppStorage(Preference.dictationGlobal) private var global
+    @AppStorage(Preference.dictationAccessibilityExplained) private var explained
+    @AppStorage(Preference.dictationShortcut) private var shortcutText
+    @AppStorage(Preference.dictationActivation) private var activation
     @State private var explaining = false
     /// What macOS says now; it is asked again each time Carrier comes back to the front, since the person allows it in System Settings.
     @State private var trusted = AXIsProcessTrusted()
@@ -89,14 +89,14 @@ struct GlobalDictationGroup: View {
 /// any app is off.
 struct WidgetGroup: View {
     var dictation = DictationController.shared
-    @AppStorage(AppPreferences.dictationGlobalKey) private var global = AppPreferences.defaultDictationGlobal
-    @AppStorage(AppPreferences.dictationActivationKey) private var activation = DictationActivation.toggle
-    @AppStorage(AppPreferences.dictationWidgetStyleKey) private var widgetStyle = DictationWidgetStyle.medium
-    @AppStorage(AppPreferences.dictationWidgetPositionKey) private var widgetPosition = DictationWidgetPosition.bottom
-    @AppStorage(AppPreferences.dictationWidgetThemeKey) private var widgetTheme = DictationWidgetTheme.accent
-    @AppStorage(AppPreferences.dictationWidgetPreviewKey) private var livePreview = true
-    @AppStorage(AppPreferences.dictationWidgetSpotKey) private var spotText = ""
-    @AppStorage(AppPreferences.dictationShortcutKey) private var shortcutText = ""
+    @AppStorage(Preference.dictationGlobal) private var global
+    @AppStorage(Preference.dictationActivation) private var activation
+    @AppStorage(Preference.dictationWidgetStyle) private var widgetStyle
+    @AppStorage(Preference.dictationWidgetPosition) private var widgetPosition
+    @AppStorage(Preference.dictationWidgetTheme) private var widgetTheme
+    @AppStorage(Preference.dictationWidgetPreview) private var livePreview
+    @AppStorage(Preference.dictationWidgetSpot) private var spotText
+    @AppStorage(Preference.dictationShortcut) private var shortcutText
 
     /// What the Position row chooses among: the two places, and Custom while the person has dragged the widget somewhere.
     private enum Place: Hashable { case top, bottom, custom }
@@ -124,20 +124,20 @@ struct WidgetGroup: View {
     }
 
     private var places: [(Place, String, AppIcon?)] {
-        [(.top, "Top", nil), (.bottom, "Bottom", nil)] + (DictationWidgetSpot(text: spotText) == nil ? [] : [(.custom, "Custom", nil)])
+        [(.top, "Top", nil), (.bottom, "Bottom", nil)] + (DictationWidgetSpot(text: spotText ?? "") == nil ? [] : [(.custom, "Custom", nil)])
     }
 
     /// Choosing Top or Bottom lets go of the spot the widget was dragged to; Custom is only what it reads while there is one.
     private var place: Binding<Place> {
         Binding(
-            get: { DictationWidgetSpot(text: spotText) == nil ? (widgetPosition == .top ? .top : .bottom) : .custom },
+            get: { DictationWidgetSpot(text: spotText ?? "") == nil ? (widgetPosition == .top ? .top : .bottom) : .custom },
             set: {
                 switch $0 {
                 case .top: widgetPosition = .top
                 case .bottom: widgetPosition = .bottom
                 case .custom: return
                 }
-                spotText = ""
+                spotText = nil
             })
     }
 }

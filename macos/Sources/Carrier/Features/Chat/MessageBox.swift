@@ -52,10 +52,10 @@ struct MessageBox<Selects: View>: View {
     @State private var dictated: String?
     /// Whether the popover of a blocked microphone is open.
     @State private var microphoneBlocked = false
-    @AppStorage(AppPreferences.sendKeyKey) private var sendKey = AppPreferences.defaultSendKey
-    @AppStorage(AppPreferences.writingToolsKey) private var writingTools = AppPreferences.defaultWritingTools
-    @AppStorage(AppPreferences.checksSpellingKey) private var checksSpelling = AppPreferences.defaultChecksSpelling
-    @AppStorage(AppPreferences.correctsSpellingKey) private var correctsSpelling = AppPreferences.defaultCorrectsSpelling
+    @AppStorage(Preference.chatSendKey) private var sendKey
+    @AppStorage(Preference.chatWritingTools) private var writingTools
+    @AppStorage(Preference.chatCheckSpelling) private var checksSpelling
+    @AppStorage(Preference.chatCorrectSpelling) private var correctsSpelling
 
     /// The message `fire` wrote into the box to send it, so that the box does not take its pasted blocks for a message that came back and turn
     /// them into cards again before the send has read it (the card stayed and nothing was sent).

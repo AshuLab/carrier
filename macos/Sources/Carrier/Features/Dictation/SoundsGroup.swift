@@ -4,11 +4,11 @@ import SwiftUI
 /// The Sounds group of the page: a start and an end sound of the global dictation, each on or off, one of macOS's own and a play button, and one volume
 /// for both. With Dictation off the group is drawn at 40%.
 struct SoundsGroup: View {
-    @AppStorage(AppPreferences.dictationStartSoundOnKey) private var startOn = DictationSounds().startOn
-    @AppStorage(AppPreferences.dictationStartSoundKey) private var start = DictationSounds.defaultStart
-    @AppStorage(AppPreferences.dictationEndSoundOnKey) private var endOn = DictationSounds().endOn
-    @AppStorage(AppPreferences.dictationEndSoundKey) private var end = DictationSounds.defaultEnd
-    @AppStorage(AppPreferences.dictationSoundVolumeKey) private var volume = DictationSounds.defaultVolume
+    @AppStorage(Preference.dictationSoundStartOn) private var startOn
+    @AppStorage(Preference.dictationSoundStart) private var start
+    @AppStorage(Preference.dictationSoundEndOn) private var endOn
+    @AppStorage(Preference.dictationSoundEnd) private var end
+    @AppStorage(Preference.dictationSoundVolume) private var volume
 
     var body: some View {
         SettingsGroup(title: "Sounds", footer: "Tink, Pop or Glass. The play button always plays, at the volume set; the message boxes stay silent.") {

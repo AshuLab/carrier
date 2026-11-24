@@ -805,20 +805,19 @@ struct GeneralTabView: View {
         }
     }
 
-    @AppStorage(AppPreferences.styleKey) private var style = AppPreferences.defaultStyle.rawValue
-    @AppStorage(AppPreferences.animatesKey) private var animates = AppPreferences.defaultAnimates
-    @AppStorage(showEpicsKey) private var showsEpics = AppPreferences.defaultShowsEpics
-    @AppStorage(AppPreferences.timeStyleKey) private var timeStyle = TimeStyle.relative.rawValue
-    @AppStorage(AppPreferences.clockHoursKey) private var clockHours = ClockHours.system.rawValue
+    @AppStorage(Preference.menuIconStyle) private var style
+    @AppStorage(Preference.menuAnimate) private var animates
+    @AppStorage(Preference.menuShowEpics) private var showsEpics
+    @AppStorage(Preference.displayTimeStyle) private var timeStyle
+    @AppStorage(Preference.displayClock) private var clockHours
 
     var body: some View {
         SettingsPageBody(reset: { AppPreferences().reset(.general) }) {
             SettingsGroup(title: "Menu bar") {
                 SettingsTabRow(title: "Icon style", detail: "What the icon in the menu bar shows", first: true) {
-                    // a saved value that is not a style reads as the default, as the icon does
                     ChoicePopUp(
                         label: "Icon style", options: IconStyle.allCases.map { (value: $0, title: $0.title) },
-                        selection: Binding(get: { IconStyle(rawValue: style) ?? AppPreferences.defaultStyle }, set: { style = $0.rawValue })
+                        selection: $style
                     )
                 }
                 SettingsTabRow(title: "Animate the icon", detail: "A segment moves over the bar while epics run, except in Low Power Mode") {
@@ -830,16 +829,15 @@ struct GeneralTabView: View {
             }
             SettingsGroup(title: "Display") {
                 SettingsTabRow(title: "Time format", detail: "Ages read \"11m\" or as a time, \"14:32\"", first: true) {
-                    // a saved value that is not a choice reads as the default, as the formatter does
                     ChoicePopUp(
                         label: "Time format", options: [(value: TimeStyle.relative, title: "Relative"), (value: .clock, title: "Clock")],
-                        selection: Binding(get: { TimeStyle(rawValue: timeStyle) ?? .relative }, set: { timeStyle = $0.rawValue })
+                        selection: $timeStyle
                     )
                 }
                 SettingsTabRow(title: "Clock", detail: "How clock times count the hours") {
                     ChoicePopUp(
                         label: "Clock", options: [(value: ClockHours.system, title: "System"), (value: .h12, title: "12 hours"), (value: .h24, title: "24 hours")],
-                        selection: Binding(get: { ClockHours(rawValue: clockHours) ?? .system }, set: { clockHours = $0.rawValue })
+                        selection: $clockHours
                     )
                 }
                 displayPreview()
@@ -851,23 +849,27 @@ struct GeneralTabView: View {
 /// How the app looks: the color scheme of every window, the theme, the text size of the whole interface, how tight the rows are, and the
 /// font of code and output with a sample that follows each choice.
 struct AppearanceTabView: View {
-    @AppStorage(AppPreferences.colorSchemeKey) private var colorScheme = AppPreferences.defaultColorScheme
-    @AppStorage(AppPreferences.themeKey) private var theme = AppPreferences.defaultTheme
-    @AppStorage(AppPreferences.accentKey) private var accent: AccentColor?
-    @AppStorage(AppPreferences.tintKey) private var tint = AppPreferences.defaultTint
-    @AppStorage(AppPreferences.translucentKey) private var translucentChoice: Bool?
+    @AppStorage(Preference.appearanceColorScheme) private var colorScheme
+    @AppStorage(Preference.appearanceTheme) private var theme
+    @AppStorage(Preference.appearanceAccent) private var accentName
+    @AppStorage(Preference.appearanceTint) private var tint
+    @AppStorage(Preference.appearanceTranslucent) private var translucentChoice
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.colorScheme) private var scheme
-    @AppStorage(TypeScale.percentKey) private var textSize = 100
-    @AppStorage(IconWeight.key) private var iconWeight = IconWeight.defaultWeight
-    @AppStorage(IconSet.key) private var iconSet = IconSet.defaultSet.rawValue
-    @AppStorage(AppPreferences.densityKey) private var density = AppPreferences.defaultDensity
-    @AppStorage(AppPreferences.monospaceFamilyKey) private var family = MonospaceSettings.systemFamily
-    @AppStorage(AppPreferences.monospaceSizeKey) private var codeSize = Double(MonospaceSettings.defaultSize)
-    @AppStorage(AppPreferences.monospaceLineHeightKey) private var lineHeight = LineHeight.normal
-    @AppStorage(AppPreferences.monospaceLigaturesKey) private var ligatures = true
-    @AppStorage(AppPreferences.monospaceWrapKey) private var wrapLongLines = true
-    @AppStorage(AppPreferences.monospaceLineNumbersKey) private var lineNumbers = false
+    @AppStorage(Preference.appearanceTextSize) private var textSize
+    @AppStorage(Preference.appearanceIconWeight) private var iconWeight
+    @AppStorage(Preference.appearanceIconSet) private var iconSet
+    @AppStorage(Preference.appearanceDensity) private var density
+    @AppStorage(Preference.appearanceMonoFamily) private var family
+    @AppStorage(Preference.appearanceMonoSize) private var codeSize
+    @AppStorage(Preference.appearanceMonoLineHeight) private var lineHeight
+    @AppStorage(Preference.appearanceMonoLigatures) private var ligatures
+    @AppStorage(Preference.appearanceMonoWrap) private var wrapLongLines
+    @AppStorage(Preference.appearanceMonoLineNumbers) private var lineNumbers
+
+    private var accent: Binding<AccentColor?> {
+        Binding(get: { accentName.flatMap(AccentColor.init(rawValue:)) }, set: { accentName = $0?.rawValue })
+    }
 
     /// A few lines of code under the settings: a long line to wrap, and the pairs of characters a ligature joins.
     private static let sample = """
@@ -892,7 +894,7 @@ struct AppearanceTabView: View {
         }
     }
 
-    @AppStorage(AppPreferences.statesByShapeKey) private var statesByShape = false
+    @AppStorage(Preference.appearanceStatesByShape) private var statesByShape
     /// The four states as the app draws them now, with or without their symbols, larger than they are in a row so the mark inside reads.
     private var statesPreview: some View {
         SettingsPreview {
@@ -934,8 +936,8 @@ struct AppearanceTabView: View {
                 }
                 SettingsTabRow(title: "Icon set", detail: "The look of the icons of the app: SF Symbols are the Mac's own") {
                     ChoicePopUp(
-                        label: "Icon set", options: IconSet.allCases.map { (value: $0.rawValue, title: $0.title) },
-                        selection: Binding(get: { IconSet(rawValue: iconSet)?.rawValue ?? IconSet.defaultSet.rawValue }, set: { iconSet = $0 })
+                        label: "Icon set", options: IconSet.allCases.map { (value: $0, title: $0.title) },
+                        selection: $iconSet
                     )
                 }
                 SettingsTabRow(title: "Icon weight", detail: "How thick the strokes of the icons are, \(iconWeight.formatted(.number.precision(.fractionLength(0...2))))") {
@@ -954,7 +956,7 @@ struct AppearanceTabView: View {
             }
             SettingsGroup(title: "Color") {
                 SettingsTabRow(title: "Accent color", detail: "Buttons, switches and the selection", first: true) {
-                    AccentSwatches(theme: theme, scheme: scheme == .dark ? .dark : .light, accent: $accent)
+                    AccentSwatches(theme: theme, scheme: scheme == .dark ? .dark : .light, accent: accent)
                 }
                 SettingsTabRow(title: "Tint the windows", detail: "A touch of the theme's own color on the backgrounds") {
                     ChoicePopUp(label: "Tint the windows", options: Tint.allCases.map { (value: $0, title: $0.title) }, selection: $tint)
@@ -1148,15 +1150,15 @@ private struct AccentSwatches: View {
 
 /// The sidebar's grouping and sorts, which its own menus change too (one preference, two controls), and what each session row shows.
 struct SidebarTabView: View {
-    @AppStorage(SidebarStore.groupByKey) private var groupBy = GroupBy.status
-    @AppStorage(SidebarStore.sessionSortKey) private var sessionSort = SessionSort.workspace
-    @AppStorage(SidebarStore.archiveSortKey) private var archiveSort = ArchiveSort.dateArchived
-    @AppStorage(SidebarStore.showsIconKey) private var showsIcon = true
-    @AppStorage(SidebarStore.showsBranchKey) private var showsBranch = true
-    @AppStorage(SidebarStore.showsPullRequestKey) private var showsPullRequest = true
-    @AppStorage(SidebarStore.showsDiffKey) private var showsDiff = true
-    @AppStorage(SidebarStore.showsProvidersKey) private var showsProviders = true
-    @AppStorage(SidebarStore.showsAgeKey) private var showsAge = true
+    @AppStorage(Preference.sidebarGroupBy) private var groupBy
+    @AppStorage(Preference.sidebarSessionSort) private var sessionSort
+    @AppStorage(Preference.sidebarArchiveSort) private var archiveSort
+    @AppStorage(Preference.sidebarRowIcon) private var showsIcon
+    @AppStorage(Preference.sidebarRowBranch) private var showsBranch
+    @AppStorage(Preference.sidebarRowPullRequest) private var showsPullRequest
+    @AppStorage(Preference.sidebarRowDiff) private var showsDiff
+    @AppStorage(Preference.sidebarRowProviders) private var showsProviders
+    @AppStorage(Preference.sidebarRowAge) private var showsAge
 
     /// Sessions of the preview: each has a branch, two providers and an age, so each switch has something to hide; one is finished and one waits,
     /// which is where "Done" and "Needs you" take the age's place, and one has a pull request and one only the lines it changed: each gives the row its third line.
@@ -1220,24 +1222,24 @@ struct SidebarTabView: View {
 
 /// How the message box behaves (the key that sends and what the system does to the text) and what the conversation does and shows.
 struct ChatTabView: View {
-    @AppStorage(AppPreferences.sendKeyKey) private var sendKey = AppPreferences.defaultSendKey
-    @AppStorage(AppPreferences.whileWorkingKey) private var whileWorking = AppPreferences.defaultWhileWorking
-    @AppStorage(AppPreferences.writingToolsKey) private var writingTools = AppPreferences.defaultWritingTools
-    @AppStorage(AppPreferences.checksSpellingKey) private var checksSpelling = AppPreferences.defaultChecksSpelling
-    @AppStorage(AppPreferences.correctsSpellingKey) private var correctsSpelling = AppPreferences.defaultCorrectsSpelling
-    @AppStorage(AppPreferences.showsContextUsageKey) private var showsContextUsage = AppPreferences.defaultShowsContextUsage
-    @AppStorage(AppPreferences.followsOutputKey) private var followsOutput = AppPreferences.defaultFollowsOutput
-    @AppStorage(AppPreferences.messageTimesKey) private var messageTimes = AppPreferences.defaultMessageTimes
-    @AppStorage(AppPreferences.toolOutputKey) private var toolOutput = AppPreferences.defaultToolOutput
-    @AppStorage(AppPreferences.opensFailedCallsKey) private var opensFailedCalls = AppPreferences.defaultOpensFailedCalls
-    @AppStorage(AppPreferences.diffStyleKey) private var diffStyle = AppPreferences.defaultDiffStyle
-    @AppStorage(AppPreferences.outputLengthKey) private var outputLength = AppPreferences.defaultOutputLength
-    @AppStorage(AppPreferences.showsReasoningKey) private var showsReasoning = AppPreferences.defaultShowsReasoning
-    @AppStorage(AppPreferences.messageWidthKey) private var messageWidth = AppPreferences.defaultMessageWidth
-    @AppStorage(AppPreferences.chatSurfaceKey) private var chatSurface = AppPreferences.defaultChatSurface
-    @AppStorage(AppPreferences.chatTextSizeKey) private var textSize = Double(ChatText.defaultSize)
-    @AppStorage(AppPreferences.chatLineSpacingKey) private var lineSpacing = AppPreferences.defaultChatLineSpacing
-    @AppStorage(AppPreferences.chatMessageSpacingKey) private var messageSpacing = AppPreferences.defaultChatMessageSpacing
+    @AppStorage(Preference.chatSendKey) private var sendKey
+    @AppStorage(Preference.chatWhileWorking) private var whileWorking
+    @AppStorage(Preference.chatWritingTools) private var writingTools
+    @AppStorage(Preference.chatCheckSpelling) private var checksSpelling
+    @AppStorage(Preference.chatCorrectSpelling) private var correctsSpelling
+    @AppStorage(Preference.chatShowsContextUsage) private var showsContextUsage
+    @AppStorage(Preference.chatFollowOutput) private var followsOutput
+    @AppStorage(Preference.chatMessageTimes) private var messageTimes
+    @AppStorage(Preference.chatToolOutput) private var toolOutput
+    @AppStorage(Preference.chatOpensFailedCalls) private var opensFailedCalls
+    @AppStorage(Preference.chatDiffStyle) private var diffStyle
+    @AppStorage(Preference.chatOutputLength) private var outputLines
+    @AppStorage(Preference.chatShowReasoning) private var showsReasoning
+    @AppStorage(Preference.appearanceMessageWidth) private var messageWidth
+    @AppStorage(Preference.chatSurface) private var chatSurface
+    @AppStorage(Preference.chatTextSize) private var textSize
+    @AppStorage(Preference.chatLineSpacing) private var lineSpacing
+    @AppStorage(Preference.chatMessageSpacing) private var messageSpacing
     @State private var previewRoom: CGFloat = 0
     @State private var flipped: Set<String> = []
 
@@ -1302,7 +1304,7 @@ struct ChatTabView: View {
                     ChoicePopUp(label: "Diff style", options: DiffStyle.allCases.map { (value: $0, title: $0.title) }, selection: $diffStyle)
                 }
                 SettingsTabRow(title: "Output length", detail: "How many lines of an output show before Show more") {
-                    ChoicePopUp(label: "Output length", options: OutputLength.allCases.map { (value: $0, title: $0.title) }, selection: $outputLength)
+                    ChoicePopUp(label: "Output length", options: OutputLength.allCases.map { (value: $0, title: $0.title) }, selection: Binding(get: { OutputLength(rawValue: outputLines) ?? AppPreferences.defaultOutputLength }, set: { outputLines = $0.rawValue }))
                 }
                 SettingsTabRow(title: "Show reasoning", detail: "The agent's reasoning, folded under its message, when its host sends it") {
                     Toggle("Show reasoning", isOn: $showsReasoning).labelsHidden().toggleStyle(.switch)
@@ -1333,18 +1335,18 @@ struct ChatTabView: View {
 }
 
 struct NotificationsTabView: View {
-    @AppStorage(notifyNeedsYouKey) private var needsYou = true
-    @AppStorage(notifyReadyForTestKey) private var readyForTest = true
-    @AppStorage(notifyProblemKey) private var problem = false
-    @AppStorage(notifyChatNeedsAttentionKey) private var chatNeedsAttention = true
-    @AppStorage(notifyChatDoneKey) private var chatDone = false
-    @AppStorage(notifyOnlyWhenAwayKey) private var onlyWhenAway = true
-    @AppStorage(notifyDockBadgeKey) private var dockBadge = true
-    @AppStorage(notifySoundKey) private var sound = true
-    @AppStorage(notifyReminderKey) private var reminder = ReminderInterval.never.rawValue
-    @AppStorage(notifyQuietKey) private var quiet = false
-    @AppStorage(notifyQuietStartKey) private var quietStart = QuietHours.defaultStart
-    @AppStorage(notifyQuietEndKey) private var quietEnd = QuietHours.defaultEnd
+    @AppStorage(Preference.notifyNeedsYou) private var needsYou
+    @AppStorage(Preference.notifyReadyForTest) private var readyForTest
+    @AppStorage(Preference.notifyProblem) private var problem
+    @AppStorage(Preference.notifyChatNeedsAttention) private var chatNeedsAttention
+    @AppStorage(Preference.notifyChatDone) private var chatDone
+    @AppStorage(Preference.notifyOnlyWhenAway) private var onlyWhenAway
+    @AppStorage(Preference.notifyDockBadge) private var dockBadge
+    @AppStorage(Preference.notifySound) private var sound
+    @AppStorage(Preference.notifyReminder) private var reminder
+    @AppStorage(Preference.notifyQuiet) private var quiet
+    @AppStorage(Preference.notifyQuietStart) private var quietStart
+    @AppStorage(Preference.notifyQuietEnd) private var quietEnd
     @State private var permission: NotificationPermission?
     @State private var testAdvice: String?
 

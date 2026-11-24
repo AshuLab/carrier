@@ -7,7 +7,6 @@ import SwiftUI
 
 /// Which page Settings is on and the pages it has been on; the page is remembered for the next time the window opens.
 @MainActor @Observable final class SettingsNavigator {
-    static let lastPageKey = "settingsLastPage"
     private(set) var history: SettingsHistory
     /// The place the search took the person to: its page scrolls to it and shows it for a moment, and then lets it go.
     var target: SettingsEntry?
@@ -17,7 +16,7 @@ import SwiftUI
     var place: SettingsPlace { history.current }
 
     init() {
-        history = SettingsHistory(UserDefaults.standard.string(forKey: Self.lastPageKey).flatMap(SettingsPage.init(rawValue:)) ?? .general)
+        history = SettingsHistory(AppPreferences().lastSettingsPage)
     }
 
     func go(_ page: SettingsPage) { go(SettingsPlace(page)) }
@@ -46,7 +45,7 @@ import SwiftUI
         remember()
     }
 
-    private func remember() { UserDefaults.standard.set(page.rawValue, forKey: Self.lastPageKey) }
+    private func remember() { AppPreferences().lastSettingsPage = page }
 }
 
 /// The one Settings window: made the first time it is asked for and kept, so it comes back where it was (its place, its size, its page).
@@ -341,8 +340,8 @@ struct SettingsPages: View {
     @Binding var title: SettingsTitle?
     @ObservedObject var setup: SetupController = .shared
     @ObservedObject private var start = StartController.shared
-    @AppStorage(startOnOpenKey) private var startOnOpen = false
-    @AppStorage(AppPreferences.confirmStopKey) private var confirmStop = AppPreferences.defaultConfirmStop
+    @AppStorage(Preference.engineStartOnOpen) private var startOnOpen
+    @AppStorage(Preference.stopConfirm) private var confirmStop
     @StateObject private var github = EngineIdentityStore()
     /// What `carrier --version` and `node --version` printed for the programs the page shows; nil while they are being read.
     @State private var versions: ProgramVersions?

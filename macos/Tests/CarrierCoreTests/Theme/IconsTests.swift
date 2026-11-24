@@ -54,19 +54,19 @@ func everyIconIsInEverySetWithItsFileOrItsSymbol(set: IconSet) throws {
 @Test func theSavedSetAndWeightAreReadWithTheirDefaults() throws {
     let defaults = try #require(UserDefaults(suiteName: "icons-\(UUID().uuidString)"))
     #expect(IconSet.stored(in: defaults) == .tabler && IconWeight.stored(in: defaults) == 1.5)
-    defaults.set("lucide", forKey: IconSet.key)
-    defaults.set(2.25, forKey: IconWeight.key)
+    defaults.set("lucide", forKey: Preference.appearanceIconSet.name)
+    defaults.set(2.25, forKey: Preference.appearanceIconWeight.name)
     #expect(IconSet.stored(in: defaults) == .lucide && IconWeight.stored(in: defaults) == 2.25)
     // a set that is not one of ours, and a weight past the range
-    defaults.set("phosphor", forKey: IconSet.key)
-    defaults.set(7.0, forKey: IconWeight.key)
+    defaults.set("phosphor", forKey: Preference.appearanceIconSet.name)
+    defaults.set(7.0, forKey: Preference.appearanceIconWeight.name)
     #expect(IconSet.stored(in: defaults) == .tabler && IconWeight.stored(in: defaults) == IconWeight.range.upperBound)
 }
 
 @Test func resetOfAppearanceTakesTheSetAndTheWeightBackToTheirDefaults() throws {
     let defaults = try #require(UserDefaults(suiteName: "icons-reset-\(UUID().uuidString)"))
-    defaults.set("sfSymbols", forKey: IconSet.key)
-    defaults.set(2.0, forKey: IconWeight.key)
+    defaults.set("sfSymbols", forKey: Preference.appearanceIconSet.name)
+    defaults.set(2.0, forKey: Preference.appearanceIconWeight.name)
     AppPreferences(defaults: defaults).reset(.appearance)
     #expect(IconSet.stored(in: defaults) == IconSet.defaultSet && IconWeight.stored(in: defaults) == IconWeight.defaultWeight)
 }

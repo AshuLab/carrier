@@ -4,43 +4,38 @@ import SwiftUI
 
 /// Settings page for the embedded Ghostty terminal: theme, minimum contrast, padding, typography overrides, cursor and Zsh behavior.
 struct TerminalTabView: View {
-    @AppStorage(AppPreferences.colorSchemeKey) private var colorScheme = AppPreferences.defaultColorScheme
-    @AppStorage(AppPreferences.themeKey) private var appTheme = AppPreferences.defaultTheme
-    @AppStorage(AppPreferences.accentKey) private var accent: AccentColor?
-    @AppStorage(AppPreferences.tintKey) private var tint = AppPreferences.defaultTint
-    @AppStorage(AppPreferences.translucentKey) private var translucentChoice: Bool?
-    @AppStorage(AppPreferences.monospaceFamilyKey) private var appFontFamily = MonospaceSettings.systemFamily
-    @AppStorage(AppPreferences.monospaceSizeKey) private var appFontSize = Double(MonospaceSettings.defaultSize)
-    @AppStorage(AppPreferences.monospaceLigaturesKey) private var appLigatures = true
+    @AppStorage(Preference.appearanceColorScheme) private var colorScheme
+    @AppStorage(Preference.appearanceTheme) private var appTheme
+    @AppStorage(Preference.appearanceAccent) private var accentName
+    @AppStorage(Preference.appearanceTint) private var tint
+    @AppStorage(Preference.appearanceTranslucent) private var translucentChoice
+    @AppStorage(Preference.appearanceMonoFamily) private var appFontFamily
+    @AppStorage(Preference.appearanceMonoSize) private var appFontSize
+    @AppStorage(Preference.appearanceMonoLigatures) private var appLigatures
 
-    @AppStorage(AppPreferences.terminalThemeKey) private var themeOverrideRaw: String?
-    @AppStorage(AppPreferences.terminalFontFamilyKey) private var fontFamilyOverride: String?
-    @AppStorage(AppPreferences.terminalFontLigaturesKey) private var fontLigaturesOverride: Bool?
-    @AppStorage(AppPreferences.terminalFontThickenKey) private var fontThicken = TerminalSettings.defaultFontThicken
-    @AppStorage(AppPreferences.terminalCursorStyleKey) private var cursorStyleRaw = TerminalSettings.defaultCursorStyle.rawValue
-    @AppStorage(AppPreferences.terminalCursorBlinkKey) private var cursorBlink = TerminalSettings.defaultCursorBlink
-    @AppStorage(AppPreferences.terminalPaddingXKey) private var paddingX = TerminalSettings.defaultPaddingX
-    @AppStorage(AppPreferences.terminalPaddingYKey) private var paddingY = TerminalSettings.defaultPaddingY
-    @AppStorage(AppPreferences.terminalMinimumContrastKey) private var minimumContrast = TerminalSettings.defaultMinimumContrast
-    @AppStorage(AppPreferences.terminalDimInactivePanesKey) private var dimInactivePanes = TerminalSettings.defaultDimInactivePanes
-    @AppStorage(AppPreferences.terminalFocusFollowsMouseKey) private var focusFollowsMouse = TerminalSettings.defaultFocusFollowsMouse
-    @AppStorage(AppPreferences.terminalOptionAsAltKey) private var optionAsAltRaw = TerminalSettings.defaultOptionAsAlt.rawValue
-    @AppStorage(AppPreferences.terminalCopyOnSelectKey) private var copyOnSelect = TerminalSettings.defaultCopyOnSelect
-    @AppStorage(AppPreferences.terminalScrollbackLimitKey) private var scrollbackLimitRaw = TerminalSettings.defaultScrollbackLimit.rawValue
-    @AppStorage(AppPreferences.terminalConfirmCloseKey) private var confirmCloseRunningProcess = TerminalSettings.defaultConfirmCloseRunningProcess
-    @AppStorage(AppPreferences.terminalPinPromptToBottomKey) private var pinPromptToBottom = TerminalSettings.defaultPinPromptToBottom
+    @AppStorage(Preference.terminalTheme) private var themeOverride
+    @AppStorage(Preference.terminalFontFamily) private var fontFamilyOverride
+    @AppStorage(Preference.terminalFontLigatures) private var fontLigaturesOverride
+    @AppStorage(Preference.terminalFontThicken) private var fontThicken
+    @AppStorage(Preference.terminalCursorStyle) private var cursorStyle
+    @AppStorage(Preference.terminalCursorBlink) private var cursorBlink
+    @AppStorage(Preference.terminalPaddingX) private var paddingX
+    @AppStorage(Preference.terminalPaddingY) private var paddingY
+    @AppStorage(Preference.terminalMinimumContrast) private var minimumContrast
+    @AppStorage(Preference.terminalPanesDimInactive) private var dimInactivePanes
+    @AppStorage(Preference.terminalPanesFocusFollowsMouse) private var focusFollowsMouse
+    @AppStorage(Preference.terminalInputOptionAsAlt) private var optionAsAlt
+    @AppStorage(Preference.terminalInputCopyOnSelect) private var copyOnSelect
+    @AppStorage(Preference.terminalScrollbackLimit) private var scrollbackLimitRaw
+    @AppStorage(Preference.terminalConfirmCloseRunningProcess) private var confirmCloseRunningProcess
+    @AppStorage(Preference.terminalPinPromptToBottom) private var pinPromptToBottom
 
-    @State private var fontSizeOverride: Double? = UserDefaults.standard.object(forKey: AppPreferences.terminalFontSizeKey) as? Double
+    @State private var fontSizeOverride = AppPreferences().value(Preference.terminalFontSize)
 
     @Environment(\.colorScheme) private var systemColorScheme
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
-    private var themeSelection: Binding<Theme?> {
-        Binding(
-            get: { themeOverrideRaw.flatMap(Theme.init(rawValue:)) },
-            set: { themeOverrideRaw = $0?.rawValue }
-        )
-    }
+    private var accent: AccentColor? { accentName.flatMap(AccentColor.init(rawValue:)) }
 
     private var fontFamilySelection: Binding<String?> {
         Binding(
@@ -58,10 +53,10 @@ struct TerminalTabView: View {
             set: { newValue in
                 if let newValue {
                     let clamped = TerminalSettings.clampFontSize(Double(newValue))
-                    UserDefaults.standard.set(clamped, forKey: AppPreferences.terminalFontSizeKey)
+                    AppPreferences().store(clamped, for: Preference.terminalFontSize)
                     fontSizeOverride = clamped
                 } else {
-                    UserDefaults.standard.removeObject(forKey: AppPreferences.terminalFontSizeKey)
+                    AppPreferences().store(nil, for: Preference.terminalFontSize)
                     fontSizeOverride = nil
                 }
             }
@@ -89,20 +84,6 @@ struct TerminalTabView: View {
         )
     }
 
-    private var cursorStyleSelection: Binding<TerminalCursorStyleChoice> {
-        Binding(
-            get: { TerminalCursorStyleChoice(rawValue: cursorStyleRaw) ?? TerminalSettings.defaultCursorStyle },
-            set: { cursorStyleRaw = $0.rawValue }
-        )
-    }
-
-    private var optionAsAltSelection: Binding<TerminalOptionAsAlt> {
-        Binding(
-            get: { TerminalOptionAsAlt(rawValue: optionAsAltRaw) ?? TerminalSettings.defaultOptionAsAlt },
-            set: { optionAsAltRaw = $0.rawValue }
-        )
-    }
-
     private var scrollbackLimitSelection: Binding<TerminalScrollbackLimit> {
         Binding(
             get: { TerminalScrollbackLimit(rawValue: scrollbackLimitRaw) ?? TerminalSettings.defaultScrollbackLimit },
@@ -116,19 +97,19 @@ struct TerminalTabView: View {
 
     private var currentSettings: TerminalSettings {
         TerminalSettings(
-            themeOverride: themeSelection.wrappedValue,
+            themeOverride: themeOverride,
             fontFamilyOverride: fontFamilyOverride,
             fontSizeOverride: fontSizeOverride,
             fontLigaturesOverride: fontLigaturesOverride,
             fontThicken: fontThicken,
-            cursorStyle: cursorStyleSelection.wrappedValue,
+            cursorStyle: cursorStyle,
             cursorBlink: cursorBlink,
             paddingX: paddingX,
             paddingY: paddingY,
             minimumContrast: minimumContrast,
             dimInactivePanes: dimInactivePanes,
             focusFollowsMouse: focusFollowsMouse,
-            optionAsAlt: optionAsAltSelection.wrappedValue,
+            optionAsAlt: optionAsAlt,
             copyOnSelect: copyOnSelect,
             scrollbackLimit: scrollbackLimitSelection.wrappedValue,
             confirmCloseRunningProcess: confirmCloseRunningProcess,
@@ -202,7 +183,7 @@ struct TerminalTabView: View {
         SettingsPageBody(reset: resetTerminalSettings) {
             SettingsGroup(title: "Appearance") {
                 SettingsTabRow(title: "Theme", detail: "Color palette for panes; inherits the app theme by default", first: true) {
-                    ChoicePopUp(label: "Theme", options: themeOptions, selection: themeSelection)
+                    ChoicePopUp(label: "Theme", options: themeOptions, selection: $themeOverride)
                 }
                 SettingsTabRow(
                     title: "Minimum contrast",
@@ -257,7 +238,7 @@ struct TerminalTabView: View {
 
             SettingsGroup(title: "Cursor") {
                 SettingsTabRow(title: "Cursor style", detail: "Shape of the text cursor inside terminal panes", first: true) {
-                    SegmentedChoice(options: cursorStyleOptions, selection: cursorStyleSelection)
+                    SegmentedChoice(options: cursorStyleOptions, selection: $cursorStyle)
                 }
                 SettingsTabRow(title: "Blink cursor", detail: "Animates the cursor when the pane is focused") {
                     Toggle("Blink cursor", isOn: $cursorBlink).labelsHidden().toggleStyle(.switch)
@@ -286,7 +267,7 @@ struct TerminalTabView: View {
                     detail: "Sends Option key presses as Meta/Alt escape sequences in shells",
                     first: true
                 ) {
-                    ChoicePopUp(label: "Option as Alt", options: optionAsAltOptions, selection: optionAsAltSelection)
+                    ChoicePopUp(label: "Option as Alt", options: optionAsAltOptions, selection: $optionAsAlt)
                 }
                 SettingsTabRow(
                     title: "Copy on select",
@@ -320,7 +301,7 @@ struct TerminalTabView: View {
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)) { _ in
-            fontSizeOverride = UserDefaults.standard.object(forKey: AppPreferences.terminalFontSizeKey) as? Double
+            fontSizeOverride = AppPreferences().value(Preference.terminalFontSize)
         }
     }
 

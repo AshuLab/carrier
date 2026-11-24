@@ -6,7 +6,7 @@ import SwiftUI
 /// against the one before, the records, and the settings (typing speed, Reset statistics).
 struct StatisticsGroup: View {
     var dictation = DictationController.shared
-    @AppStorage(AppPreferences.dictationTypingSpeedKey) private var wpm = AppPreferences.defaultDictationTypingSpeed
+    @AppStorage(Preference.dictationStatisticsWpm) private var wpm
     @State private var range = StatisticsRange.month
     @State private var metric = StatisticsMetric.words
     @State private var confirmingReset = false

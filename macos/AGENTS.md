@@ -49,6 +49,13 @@ Interface icons: `AppIcon` in three sets (`IconSets.swift`, `IconsTests`), drawn
 
 The window is `Carrier/SettingsWindow.swift`, a page's shared pieces `SettingsTabs.swift` ([settings](../docs/macos/settings.md)); `SettingsIndexDriftTests` keeps the search's `settingsIndex` in step with them.
 
+### Preferences
+
+The keys, their types and defaults are `design/preferences.json`, generated into `CarrierCore/Settings/Preferences.generated.swift` (`pnpm design`).
+Views read and write a preference with `@AppStorage(Preference.<name>)`, the initializers of `Carrier/UI/Modifiers/PreferenceStorage.swift` (`PreferenceStorageTests`); code that is not a view uses `AppPreferences`.
+`CarrierCore/Settings/` is the only place that touches user defaults: `scripts/check-structure.sh` fails on `UserDefaults.standard` or a literal `forKey:` anywhere else, and lists the state it leaves out (the per-session `chat.*.<id>` keys).
+`PreferenceKey` is named `CarrierCore.PreferenceKey` in a file that imports SwiftUI, which has a protocol of that name.
+
 ### Providers page
 
 What the person sees: [settings-app](../docs/macos/settings-app.md#providers).

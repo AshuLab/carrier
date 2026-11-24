@@ -5,51 +5,34 @@ import Foundation
 // the app's (not while its window is in front). Sound and banner style are macOS's, per app, in System Settings. The system's
 // notification centre is read through a protocol.
 
-public let notifyNeedsYouKey = "notify.needsYou"
-public let notifyReadyForTestKey = "notify.readyForTest"
-public let notifyProblemKey = "notify.problem"
-public let notifyChatNeedsAttentionKey = "notify.chatNeedsAttention"
-public let notifyChatDoneKey = "notify.chatDone"
-public let notifyOnlyWhenAwayKey = "notify.onlyWhenAway"
-public let notifyDockBadgeKey = "notify.dockBadge"
-public let notifySoundKey = "notify.sound"
-public let notifyReminderKey = "notify.reminder"
-public let notifyQuietKey = "notify.quiet"
-public let notifyQuietStartKey = "notify.quietStart"
-public let notifyQuietEndKey = "notify.quietEnd"
-
-extension UserDefaults {
+extension AppPreferences {
     /// The switches: needs attention and ready for test are on until the person turns them off, a problem is off until turned on; in Chat, needs attention is on and done is off. The
     /// defaults are not registered here: an unset key reads as its default.
     public var notificationKinds: NotificationKinds {
         NotificationKinds(
-            needsYou: object(forKey: notifyNeedsYouKey) as? Bool ?? true,
-            readyForTest: object(forKey: notifyReadyForTestKey) as? Bool ?? true,
-            problem: object(forKey: notifyProblemKey) as? Bool ?? false,
-            chatNeedsAttention: object(forKey: notifyChatNeedsAttentionKey) as? Bool ?? true,
-            chatDone: object(forKey: notifyChatDoneKey) as? Bool ?? false
+            needsYou: value(Preference.notifyNeedsYou),
+            readyForTest: value(Preference.notifyReadyForTest),
+            problem: value(Preference.notifyProblem),
+            chatNeedsAttention: value(Preference.notifyChatNeedsAttention),
+            chatDone: value(Preference.notifyChatDone)
         )
     }
 
     /// No banner while the app's window is in front; on until turned off.
-    public var notifiesOnlyWhenAway: Bool { object(forKey: notifyOnlyWhenAwayKey) as? Bool ?? true }
+    public var notifiesOnlyWhenAway: Bool { value(Preference.notifyOnlyWhenAway) }
 
     /// The Dock icon shows the count of what needs a person; on until turned off.
-    public var showsDockBadge: Bool { object(forKey: notifyDockBadgeKey) as? Bool ?? true }
+    public var showsDockBadge: Bool { value(Preference.notifyDockBadge) }
 
     /// A banner plays a sound; on until turned off.
-    public var notifiesWithSound: Bool { object(forKey: notifySoundKey) as? Bool ?? true }
+    public var notifiesWithSound: Bool { value(Preference.notifySound) }
 
     /// How long before a Needs attention that still stands notifies again; never until the person picks one, and a saved value that is not a choice reads as never.
-    public var reminderInterval: ReminderInterval { ReminderInterval(rawValue: integer(forKey: notifyReminderKey)) ?? .never }
+    public var reminderInterval: ReminderInterval { ReminderInterval(rawValue: value(Preference.notifyReminder)) ?? .never }
 
     /// Quiet hours: off until turned on, from 22:00 to 08:00 until the person picks others.
     public var quietHours: QuietHours {
-        QuietHours(
-            enabled: object(forKey: notifyQuietKey) as? Bool ?? false,
-            start: object(forKey: notifyQuietStartKey) as? Int ?? QuietHours.defaultStart,
-            end: object(forKey: notifyQuietEndKey) as? Int ?? QuietHours.defaultEnd
-        )
+        QuietHours(enabled: value(Preference.notifyQuiet), start: value(Preference.notifyQuietStart), end: value(Preference.notifyQuietEnd))
     }
 }
 

@@ -5,7 +5,7 @@ import SwiftUI
 struct SpeechModelsGroup: View {
     var dictation = DictationController.shared
     // the chosen model is the controller's; this makes the table redraw when it changes, Reset included
-    @AppStorage(AppPreferences.dictationModelKey) private var savedModel: String?
+    @AppStorage(Preference.dictationModel) private var savedModel
     @State private var filter: RecognizerID?
     /// The id of the model the trash asked to delete, while the confirmation is open.
     @State private var deleting: String?

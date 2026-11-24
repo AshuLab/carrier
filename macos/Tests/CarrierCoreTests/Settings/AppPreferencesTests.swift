@@ -68,12 +68,12 @@ private let idle = PanelSnapshot(
     store.animates = false
     store.showsEpics = false
     store.confirmStop = false
-    defaults.set(false, forKey: notifyProblemKey)
+    defaults.set(false, forKey: Preference.notifyProblem.name)
     store.reset(.general)
     // the stop confirmation is the Engine page's now: General's Reset leaves it as the person set it
     #expect(store.style == .countAndBar && store.animates && store.showsEpics && store.confirmStop == false)
     #expect(defaults.object(forKey: AppPreferences.styleKey) == nil)
-    #expect(defaults.object(forKey: notifyProblemKey) as? Bool == false)
+    #expect(defaults.object(forKey: Preference.notifyProblem.name) as? Bool == false)
 }
 
 @Test func aBadSavedDisplayValueReadsAsTheDefault() {
@@ -457,8 +457,8 @@ private let idle = PanelSnapshot(
     let defaults = UserDefaults(suiteName: "prefs-\(UUID().uuidString)")!
     let store = AppPreferences(defaults: defaults)
     let keys = [
-        notifyNeedsYouKey, notifyReadyForTestKey, notifyProblemKey, notifyChatNeedsAttentionKey, notifyChatDoneKey, notifyOnlyWhenAwayKey,
-        notifyDockBadgeKey, notifySoundKey, notifyReminderKey, notifyQuietKey, notifyQuietStartKey, notifyQuietEndKey,
+        Preference.notifyNeedsYou.name, Preference.notifyReadyForTest.name, Preference.notifyProblem.name, Preference.notifyChatNeedsAttention.name, Preference.notifyChatDone.name, Preference.notifyOnlyWhenAway.name,
+        Preference.notifyDockBadge.name, Preference.notifySound.name, Preference.notifyReminder.name, Preference.notifyQuiet.name, Preference.notifyQuietStart.name, Preference.notifyQuietEnd.name,
     ]
     for key in keys { defaults.set(1, forKey: key) }
     store.confirmStop = false

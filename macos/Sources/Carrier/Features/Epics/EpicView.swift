@@ -24,7 +24,7 @@ struct EpicView: View {
     var fileDiffs: FileDiffs?
     var onContinueInTerminal: (SessionSection, ValidResume) -> Void = { _, _ in }
     /// The width the person chose for the chat's column: the Agent output and the pipeline follow it.
-    @AppStorage(AppPreferences.messageWidthKey) private var messageWidth = AppPreferences.defaultMessageWidth
+    @AppStorage(Preference.appearanceMessageWidth) private var messageWidth
     @State private var tab = EpicTab.agentOutput
     /// Whether the page is at its end: a session that starts scrolls it into view only then, so reading further up is not interrupted.
     @State private var atEnd = true
@@ -179,7 +179,7 @@ private struct HeaderGlyph: View {
 private struct StatePill: View {
     let state: EpicMenuState
     let text: String
-    @AppStorage(AppPreferences.statesByShapeKey) private var byShape = false
+    @AppStorage(Preference.appearanceStatesByShape) private var byShape
 
     var body: some View {
         let color: Color = switch state {

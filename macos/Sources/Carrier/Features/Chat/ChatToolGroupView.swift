@@ -510,8 +510,8 @@ private struct CallRowView: View {
     let key: String
     let call: ToolCall
     @Binding var flipped: Set<String>
-    @AppStorage(AppPreferences.toolOutputKey) private var mode = AppPreferences.defaultToolOutput
-    @AppStorage(AppPreferences.opensFailedCallsKey) private var opensFailed = AppPreferences.defaultOpensFailedCalls
+    @AppStorage(Preference.chatToolOutput) private var mode
+    @AppStorage(Preference.chatOpensFailedCalls) private var opensFailed
 
     var body: some View {
         let open = call.opensByDefault(mode, opensFailed: opensFailed) != flipped.contains(key)
@@ -561,8 +561,8 @@ private struct CallRowView: View {
 private struct CallDetailView: View {
     let call: ToolCall
     @State private var showAll = false
-    @AppStorage(AppPreferences.outputLengthKey) private var length = AppPreferences.defaultOutputLength
-    @AppStorage(AppPreferences.diffStyleKey) private var diffStyle = AppPreferences.defaultDiffStyle
+    @AppStorage(Preference.chatOutputLength) private var lines
+    @AppStorage(Preference.chatDiffStyle) private var diffStyle
 
     var body: some View {
         if call.diff.isEmpty == false {
@@ -577,7 +577,7 @@ private struct CallDetailView: View {
                 if call.output.isEmpty {
                     Text(call.status == .running ? "running…" : "no output").font(.scaled(11.5)).foregroundStyle(.secondary).padding(.horizontal, 6)
                 } else {
-                    CodeBlockView(language: "Output", code: call.output.joined(separator: "\n"), foldAfter: length.rawValue, spare: 0)
+                    CodeBlockView(language: "Output", code: call.output.joined(separator: "\n"), foldAfter: OutputLength(rawValue: lines)?.rawValue ?? AppPreferences.defaultOutputLength.rawValue, spare: 0)
                 }
             }
         }

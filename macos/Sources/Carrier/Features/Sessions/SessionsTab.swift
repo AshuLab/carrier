@@ -22,12 +22,12 @@ struct SessionsTabView: View {
     private let host = SocketChatHost(configLauncher: .app)
     /// chat.json could not be read: the ages cannot be changed until it can
     @State private var unreadable = false
-    @AppStorage(AppPreferences.confirmDeleteKey) private var confirmDelete = AppPreferences.defaultConfirmDelete
-    @AppStorage(AppPreferences.newSessionAgentKey) private var startAgent = ""
-    @AppStorage(AppPreferences.newSessionModelKey) private var startModel = ""
-    @AppStorage(AppPreferences.newSessionEffortKey) private var startEffort = ""
-    @AppStorage(AppPreferences.newSessionAccessKey) private var startAccess = ""
-    @AppStorage(AppPreferences.workInKey) private var workIn = AppPreferences.defaultWorkIn
+    @AppStorage(Preference.chatConfirmDelete) private var confirmDelete
+    @AppStorage(Preference.chatNewSessionAgent) private var startAgent
+    @AppStorage(Preference.chatNewSessionModel) private var startModel
+    @AppStorage(Preference.chatNewSessionEffort) private var startEffort
+    @AppStorage(Preference.chatNewSessionAccess) private var startAccess
+    @AppStorage(Preference.chatNewSessionWorkIn) private var workIn
     private let catalog = ModelCatalog.shared
 
     private var startAccounts: [PickerAccount] { startPickerAccounts(catalog) }

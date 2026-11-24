@@ -18,7 +18,7 @@ private struct SessionContextMenu: ViewModifier {
     let filterWorkspace: ((String) -> Void)?
     let inWindow: Bool
     @Environment(SessionActions.self) private var actions
-    @AppStorage(SidebarStore.pinnedKey) private var pinnedStored = ""
+    @AppStorage(Preference.sidebarPinned) private var pinnedStored
 
     func body(content: Content) -> some View {
         content.overlay(RightClickMenu(menu: menu))

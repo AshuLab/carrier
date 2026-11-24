@@ -4,9 +4,9 @@ import UserNotifications
 
 extension NotificationWatcher {
     /// The app's watcher, fed from the main queue.
-    static let app = NotificationWatcher(centre: SystemNotificationCentre.shared, kinds: { UserDefaults.standard.notificationKinds }, sound: { UserDefaults.standard.notifiesWithSound }, quietHours: { UserDefaults.standard.quietHours },
-        showsBadge: { UserDefaults.standard.showsDockBadge }, setBadge: { NSApp.dockTile.badgeLabel = $0 > 0 ? "\($0)" : nil },
-        reminder: { UserDefaults.standard.reminderInterval })
+    static let app = NotificationWatcher(centre: SystemNotificationCentre.shared, kinds: { AppPreferences().notificationKinds }, sound: { AppPreferences().notifiesWithSound }, quietHours: { AppPreferences().quietHours },
+        showsBadge: { AppPreferences().showsDockBadge }, setBadge: { NSApp.dockTile.badgeLabel = $0 > 0 ? "\($0)" : nil },
+        reminder: { AppPreferences().reminderInterval })
 }
 
 /// The system's notification centre. `UNUserNotificationCenter.current()` aborts a process that is not inside a bundle with an
@@ -38,8 +38,8 @@ final class SystemNotificationCentre: NSObject, NotificationCentre, Notification
     /// Settings' "Send a test": asks again even after a denial, since the person may have just allowed it in System Settings.
     func sendTest() {
         denied = false
-        let quiet = UserDefaults.standard.quietHours.contains(Date())
-        post([EpicNotification(title: "Carrier test", body: "Notifications work", isTest: true, sound: UserDefaults.standard.notifiesWithSound && quiet == false, quiet: quiet)])
+        let quiet = AppPreferences().quietHours.contains(Date())
+        post([EpicNotification(title: "Carrier test", body: "Notifications work", isTest: true, sound: AppPreferences().notifiesWithSound && quiet == false, quiet: quiet)])
     }
 
     /// Takes the clicks on notifications, also those of ones shown before the app was last started. Needs a bundle.
@@ -115,7 +115,7 @@ final class SystemNotificationCentre: NSObject, NotificationCentre, Notification
         if info["quiet"] as? Bool == true { return done([.list]) }
         let isTest = info["test"] as? Bool ?? false
         let always = info["always"] as? Bool ?? false
-        let show = shouldPresent(onlyWhenAway: UserDefaults.standard.notifiesOnlyWhenAway, appIsActive: NSApp.isActive, isTest: isTest, always: always)
+        let show = shouldPresent(onlyWhenAway: AppPreferences().notifiesOnlyWhenAway, appIsActive: NSApp.isActive, isTest: isTest, always: always)
         done(show ? [.banner, .sound] : [])
     }
 

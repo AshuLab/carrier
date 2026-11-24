@@ -11,10 +11,10 @@ struct SubagentView: View {
     let backToChat: () -> Void
     var backTitle = "Back to chat"
     @State private var flipped: Set<String> = []
-    @AppStorage(AppPreferences.toolOutputKey) private var mode = AppPreferences.defaultToolOutput
-    @AppStorage(AppPreferences.showsReasoningKey) private var showsReasoning = AppPreferences.defaultShowsReasoning
-    @AppStorage(AppPreferences.chatMessageSpacingKey) private var messageSpacing = AppPreferences.defaultChatMessageSpacing
-    @AppStorage(AppPreferences.messageWidthKey) private var messageWidth = AppPreferences.defaultMessageWidth
+    @AppStorage(Preference.chatToolOutput) private var mode
+    @AppStorage(Preference.chatShowReasoning) private var showsReasoning
+    @AppStorage(Preference.chatMessageSpacing) private var messageSpacing
+    @AppStorage(Preference.appearanceMessageWidth) private var messageWidth
 
     var body: some View {
         ScrollView {

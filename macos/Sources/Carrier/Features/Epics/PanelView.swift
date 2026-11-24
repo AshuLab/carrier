@@ -6,10 +6,10 @@ struct PanelView: View {
     private let timeChanges = TimeFormatChanges()
     let model: PanelModel
     // the sidebar's preferences are read from the defaults, so the sidebar's menus and the Sidebar page of Settings change one value
-    @AppStorage(SidebarStore.groupByKey) private var groupBy = GroupBy.status
-    @AppStorage(SidebarStore.sessionSortKey) private var sessionSort = SessionSort.workspace
-    @AppStorage(SidebarStore.archiveSortKey) private var archiveSort = ArchiveSort.dateArchived
-    @AppStorage(AppPreferences.terminalDrawerHeightKey) private var terminalDrawerHeight: Double = AppPreferences.defaultTerminalDrawerHeight
+    @AppStorage(Preference.sidebarGroupBy) private var groupBy
+    @AppStorage(Preference.sidebarSessionSort) private var sessionSort
+    @AppStorage(Preference.sidebarArchiveSort) private var archiveSort
+    @AppStorage(Preference.terminalDrawerHeight) private var terminalDrawerHeight
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private let terminalStore = CarrierTerminalStore.shared
     /// The last Check now pressed from the toolbar, for the button to say it is checking.

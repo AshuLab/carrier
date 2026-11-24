@@ -88,8 +88,8 @@ extension View {
 private struct ChatTextStyle: ViewModifier {
     /// The person's bubble (and the brief a subagent was given) has no room between its lines at Normal: only the font and a Loose.
     let bubble: Bool
-    @AppStorage(AppPreferences.chatTextSizeKey) private var size = Double(ChatText.defaultSize)
-    @AppStorage(AppPreferences.chatLineSpacingKey) private var spacing = AppPreferences.defaultChatLineSpacing
+    @AppStorage(Preference.chatTextSize) private var size
+    @AppStorage(Preference.chatLineSpacing) private var spacing
 
     func body(content: Content) -> some View {
         let points = ChatText.clamped(CGFloat(size))

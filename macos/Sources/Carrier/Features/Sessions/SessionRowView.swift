@@ -19,14 +19,14 @@ struct SessionRowView: View {
     @State private var hovered = false
     @Environment(SessionActions.self) private var actions
     private let titles = TitleRegeneration.shared
-    @AppStorage(SidebarStore.pinnedKey) private var pinnedStored = ""
-    @AppStorage(SidebarStore.showsIconKey) private var showsIcon = true
-    @AppStorage(SidebarStore.showsBranchKey) private var showsBranch = true
-    @AppStorage(SidebarStore.showsPullRequestKey) private var showsPullRequest = true
-    @AppStorage(SidebarStore.showsDiffKey) private var showsDiff = true
-    @AppStorage(SidebarStore.showsProvidersKey) private var showsProviders = true
-    @AppStorage(SidebarStore.showsAgeKey) private var showsAge = true
-    @AppStorage(AppPreferences.densityKey) private var density = AppPreferences.defaultDensity
+    @AppStorage(Preference.sidebarPinned) private var pinnedStored
+    @AppStorage(Preference.sidebarRowIcon) private var showsIcon
+    @AppStorage(Preference.sidebarRowBranch) private var showsBranch
+    @AppStorage(Preference.sidebarRowPullRequest) private var showsPullRequest
+    @AppStorage(Preference.sidebarRowDiff) private var showsDiff
+    @AppStorage(Preference.sidebarRowProviders) private var showsProviders
+    @AppStorage(Preference.sidebarRowAge) private var showsAge
+    @AppStorage(Preference.appearanceDensity) private var density
     private static let titleLine: CGFloat = 17, detailLine: CGFloat = 15, metaLine: CGFloat = 17
     /// Two buttons of 22 points and the gap between them.
     private static let actionsWidth: CGFloat = 46

@@ -571,7 +571,12 @@ describe('the tokens', () => {
   });
 
   it('are in the output table with the Swift written and the TypeScript and CSS written nowhere', () => {
-    expect(outputs.map((output) => output.path)).toContain('macos/Sources/CarrierCore/Theme/Tokens.generated.swift');
+    expect(outputs.map((output) => output.path)).toEqual([
+      'macos/Sources/CarrierCore/Theme/Tokens.generated.swift',
+      'macos/Sources/CarrierCore/Settings/Preferences.generated.swift',
+      'macos/Sources/CarrierCore/Copy/Copy.generated.swift',
+      'macos/Sources/CarrierCore/Resources/Localizable.xcstrings',
+    ]);
   });
 
   it('commit the nine themes and the seven accent presets', () => {

@@ -56,6 +56,27 @@ export const editAccountRequest = z.strictObject({
 });
 export const removeAccountRequest = z.strictObject({ id, cmd: z.literal('removeAccount'), name: accountName });
 export const setTextGeneratorRequest = z.strictObject({ id, cmd: z.literal('setTextGenerator'), choice: z.strictObject({ server: z.string().max(40), model: z.string().max(200) }).nullable() });
+// `projects.json` and `projectsFolder` of `chat.json` (the same capability). The file's schema refuses a wrong value with its key path and kind; these only bound what a client may send.
+const folderPath = z.string().min(1).max(4096);
+const projectText = z.string().max(4096).nullable();
+const projectAction = z.strictObject({ name: z.string().max(4096), command: z.string().max(65_536), when: z.string().max(100), on: z.boolean().optional(), onFail: z.string().max(100).optional() });
+const tagList = z.array(z.string().max(200)).max(200);
+export const projectRequests = [
+  z.strictObject({ id, cmd: z.literal('addProject'), folder: folderPath }),
+  z.strictObject({ id, cmd: z.literal('removeProject'), path: folderPath }),
+  z.strictObject({ id, cmd: z.literal('editProject'), path: folderPath, key: z.enum(['name', 'pinned', 'hidden']), value: z.union([z.string().max(4096), z.boolean(), z.null()]) }),
+  z.strictObject({ id, cmd: z.literal('moveProject'), path: folderPath, folder: folderPath }),
+  z.strictObject({ id, cmd: z.literal('editProjectIcon'), path: folderPath, changes: z.strictObject({ color: projectText.optional(), mark: projectText.optional(), image: projectText.optional() }) }),
+  z.strictObject({
+    id,
+    cmd: z.literal('editProjectDefaults'),
+    path: folderPath,
+    changes: z.strictObject({ agent: projectText.optional(), model: projectText.optional(), effort: projectText.optional(), access: z.record(z.string().max(200), z.string().max(200)).nullable().optional(), workIn: projectText.optional(), baseBranch: projectText.optional() }),
+  }),
+  z.strictObject({ id, cmd: z.literal('editProjectTags'), path: folderPath, add: tagList, remove: tagList }),
+  z.strictObject({ id, cmd: z.literal('setProjectActions'), path: folderPath, actions: z.array(projectAction).max(100) }),
+  z.strictObject({ id, cmd: z.literal('setProjectsFolder'), folder: folderPath }),
+] as const;
 export const usageRequest = z.strictObject({
   id,
   cmd: z.literal('usage'),
@@ -118,6 +139,7 @@ export const chatRequest = z.union([
   editAccountRequest,
   removeAccountRequest,
   setTextGeneratorRequest,
+  ...projectRequests,
   z.strictObject({ id, cmd: z.literal('stop') }),
 ]);
 type Request = z.infer<typeof chatRequest>;
@@ -197,6 +219,16 @@ export type ChatControls = {
   editAccount(args: Args<'editAccount'>): Promise<unknown>;
   removeAccount(args: Args<'removeAccount'>): Promise<unknown>;
   setTextGenerator(args: Args<'setTextGenerator'>): Promise<unknown>;
+  /** The changes to `projects.json` and `projectsFolder` (`projectEdits`, `project-edits.ts`): each answers the saved part of the file and is refused with `config.problem` or `project.missing`, the file left as it was. */
+  addProject(args: Args<'addProject'>): unknown;
+  removeProject(args: Args<'removeProject'>): unknown;
+  editProject(args: Args<'editProject'>): unknown;
+  moveProject(args: Args<'moveProject'>): unknown;
+  editProjectIcon(args: Args<'editProjectIcon'>): unknown;
+  editProjectDefaults(args: Args<'editProjectDefaults'>): unknown;
+  editProjectTags(args: Args<'editProjectTags'>): unknown;
+  setProjectActions(args: Args<'setProjectActions'>): unknown;
+  setProjectsFolder(args: Args<'setProjectsFolder'>): unknown;
 };
 
 async function run(request: Exclude<Request, { cmd: 'stop' }>, controls: ChatControls, gone: AbortSignal): Promise<unknown> {
@@ -295,6 +327,24 @@ async function run(request: Exclude<Request, { cmd: 'stop' }>, controls: ChatCon
       return controls.removeAccount({ name: request.name });
     case 'setTextGenerator':
       return controls.setTextGenerator({ choice: request.choice });
+    case 'addProject':
+      return controls.addProject({ folder: request.folder });
+    case 'removeProject':
+      return controls.removeProject({ path: request.path });
+    case 'editProject':
+      return controls.editProject({ path: request.path, key: request.key, value: request.value });
+    case 'moveProject':
+      return controls.moveProject({ path: request.path, folder: request.folder });
+    case 'editProjectIcon':
+      return controls.editProjectIcon({ path: request.path, changes: request.changes });
+    case 'editProjectDefaults':
+      return controls.editProjectDefaults({ path: request.path, changes: request.changes });
+    case 'editProjectTags':
+      return controls.editProjectTags({ path: request.path, add: request.add, remove: request.remove });
+    case 'setProjectActions':
+      return controls.setProjectActions({ path: request.path, actions: request.actions });
+    case 'setProjectsFolder':
+      return controls.setProjectsFolder({ folder: request.folder });
   }
 }
 

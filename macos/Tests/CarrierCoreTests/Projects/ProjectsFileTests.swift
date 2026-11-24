@@ -113,27 +113,27 @@ private let twoProjects = #"""
     #expect(throws: ProjectsFileError.self) { try applyingProjectDefaultsEdit(path: "/a", changes: ["workIn": "elsewhere"], to: Data(twoProjects.utf8)) }
 }
 
-@MainActor @Test func theModelWritesADefaultAndTakesItOutAgain() throws {
+@MainActor @Test func theModelWritesADefaultAndTakesItOutAgain() async throws {
     let folder = try temporaryFolder()
     defer { try? FileManager.default.removeItem(atPath: folder) }
     try Data(twoProjects.utf8).write(to: URL(fileURLWithPath: folder + "/projects.json"))
-    let model = ProjectsModel(file: ProjectsFile(folder: folder)) { _ in nil }
+    let model = ProjectsModel(host: CloneHost(writing: folder), file: ProjectsFile(folder: folder)) { _ in nil }
     model.reload()
-    #expect(model.setDefault(.agent, "claude", path: "/a") && model.rows[0].defaults.agent == "claude" && model.rows[0].defaults.workIn == .newWorktree)
-    #expect(model.setDefault(.agent, nil, path: "/a") && model.rows[0].defaults.agent == nil)
+    #expect(await model.setDefault(.agent, "claude", path: "/a") && model.rows[0].defaults.agent == "claude" && model.rows[0].defaults.workIn == .newWorktree)
+    #expect(await model.setDefault(.agent, nil, path: "/a") && model.rows[0].defaults.agent == nil)
 }
 
-@MainActor @Test func theStartOfAProjectIsWrittenWithItsAgentAndTakenOutWithoutOne() throws {
+@MainActor @Test func theStartOfAProjectIsWrittenWithItsAgentAndTakenOutWithoutOne() async throws {
     let folder = try temporaryFolder()
     defer { try? FileManager.default.removeItem(atPath: folder) }
     try Data(twoProjects.utf8).write(to: URL(fileURLWithPath: folder + "/projects.json"))
-    let model = ProjectsModel(file: ProjectsFile(folder: folder)) { _ in nil }
+    let model = ProjectsModel(host: CloneHost(writing: folder), file: ProjectsFile(folder: folder)) { _ in nil }
     model.reload()
     let start = NewSessionStart(agent: "claude", model: "haiku", effort: "high", access: ["permissionMode": "acceptEdits"])
-    #expect(model.setStart(start, path: "/a"))
+    #expect(await model.setStart(start, path: "/a"))
     #expect(model.rows[0].defaults == ProjectDefaults(agent: "claude", model: "haiku", effort: "high", access: ["permissionMode": "acceptEdits"], workIn: .newWorktree))
     // another provider's values are not kept; with no agent nothing of the start is, and workIn stays
-    #expect(model.setStart(NewSessionStart(agent: "", model: "haiku", effort: "high"), path: "/a"))
+    #expect(await model.setStart(NewSessionStart(agent: "", model: "haiku", effort: "high"), path: "/a"))
     #expect(model.rows[0].defaults == ProjectDefaults(workIn: .newWorktree))
     // an access value that is empty is refused by the file's check before it is written
     #expect(throws: ProjectsFileError.self) { try applyingProjectDefaultsEdit(path: "/a", changes: ["access": ["permissionMode": ""]], to: Data(twoProjects.utf8)) }

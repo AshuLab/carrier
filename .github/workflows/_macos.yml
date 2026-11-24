@@ -31,7 +31,7 @@ jobs:
         run: xcodebuild -version
       - name: Build
         working-directory: macos
-        run: swift build
+        run: swift build --build-system swiftbuild
       - name: Test
         working-directory: macos
         run: scripts/test-ci.sh

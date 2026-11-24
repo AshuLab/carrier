@@ -643,6 +643,11 @@ public final class FixtureServer {
             case .data(let data): return Self.answer(id, data)
             case .refused(let reason): return Self.refused(id, reason.code ?? "request.invalid", reason.text, reason.params)
             }
+        case "addProject", "removeProject", "editProject", "moveProject", "editProjectIcon", "editProjectDefaults", "editProjectTags", "setProjectActions", "setProjectsFolder":
+            guard let cmd = request?["cmd"] as? String, let request, let change = ProjectsChange(cmd: cmd, request: request) else { break }
+            let (data, refusal) = applyProjectsChange(change, home: home)
+            if let refusal { return Self.refused(id, refusal.code ?? "request.internal", refusal.text, refusal.params) }
+            return Self.answer(id, data ?? [:])
         case "archive", "delete":
             let verb = request?["cmd"] as? String ?? ""
             guard let session = request?["sessionId"] as? String, let archived = verb == "delete" ? false : request?["archived"] as? Bool else { break }

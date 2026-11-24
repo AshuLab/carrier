@@ -5,7 +5,7 @@ import UniformTypeIdentifiers
 
 extension ProjectsModel {
     /// The app's one reading of `projects.json`: the Projects page edits it and the sidebar, the lists and the cards draw from it.
-    static let shared = ProjectsModel()
+    static let shared = ProjectsModel(host: SocketChatHost(configLauncher: .app))
 }
 
 /// The Projects page of Settings (docs/specs/projects.md): the person's projects, one row each, and Add project, which takes a folder of the Mac. A row opens
@@ -45,7 +45,7 @@ struct ProjectsTabView: View {
                         if let failure = model.failure { ProblemLine(text: failure) }
                         ProjectActionsView(
                             savedActions: chosen.actions,
-                            save: { model.saveActions(path: chosen.path, actions: $0) }
+                            save: { await model.saveActions(path: chosen.path, actions: $0) }
                         )
                         .id(chosen.path)
                     } else {
@@ -327,7 +327,7 @@ struct ProjectsTabView: View {
         panel.directoryURL = URL(fileURLWithPath: model.projectsPath)
         panel.prompt = "Choose"
         if panel.runModal() == .OK, let url = panel.url {
-            model.changeProjectsFolder(to: url.path)
+            Task { await model.changeProjectsFolder(to: url.path) }
         }
     }
 
@@ -414,7 +414,7 @@ private struct ProjectDetailView: View {
             }
             SettingsGroup(title: "Identity") {
                 SettingsTabRow(title: "Name", detail: "Empty uses the folder's name", first: true) {
-                    ProjectNameField(stored: row.customName ?? "", prompt: row.folderName) { model.setName($0, path: row.path) }
+                    ProjectNameField(stored: row.customName ?? "", prompt: row.folderName) { await model.setName($0, path: row.path) }
                 }
                 SettingsTabRow(title: "Icon", detail: "Color and mark, or an image; initials when none is chosen") {
                     HStack(spacing: 10) {
@@ -428,10 +428,10 @@ private struct ProjectDetailView: View {
                                     selectedColor: row.iconColor,
                                     selectedMark: row.iconMark,
                                     hasImage: row.iconImage != nil,
-                                    setColor: { model.setIconColor($0, path: row.path) },
-                                    setMark: { model.setIconMark($0, path: row.path) },
+                                    setColor: { color in Task { await model.setIconColor(color, path: row.path) } },
+                                    setMark: { mark in Task { await model.setIconMark(mark, path: row.path) } },
                                     chooseImage: chooseImage,
-                                    reset: { model.resetIcon(path: row.path) }
+                                    reset: { Task { await model.resetIcon(path: row.path) } }
                                 )
                                 .padding(14)
                             }
@@ -447,7 +447,7 @@ private struct ProjectDetailView: View {
                         if row.tags.isEmpty == false {
                             FlowLayout(spacing: 6) {
                                 ForEach(row.tags, id: \.self) { tag in
-                                    ProjectTagChip(tag: tag) { model.removeTag(tag, path: row.path) }
+                                    ProjectTagChip(tag: tag) { Task { await model.removeTag(tag, path: row.path) } }
                                 }
                             }
                             .frame(width: settingsSelectWidth, alignment: .leading)
@@ -463,7 +463,7 @@ private struct ProjectDetailView: View {
                         : "\(row.name) is listed when you choose where to work in a new session",
                     first: true
                 ) {
-                    Toggle("Show when starting a session", isOn: Binding(get: { row.hidden == false }, set: { model.setHidden($0 == false, path: row.path) }))
+                    Toggle("Show when starting a session", isOn: Binding(get: { row.hidden == false }, set: { hidden in Task { await model.setHidden(hidden == false, path: row.path) } }))
                         .labelsHidden().toggleStyle(.switch).controlSize(.mini)
                 }
                 SettingsTabRow(title: "Starts with", detail: "Provider, model and reasoning; Same as everywhere is Settings > Sessions") {
@@ -510,12 +510,12 @@ private struct ProjectDetailView: View {
         // the ellipsis of Remove… is this question
         .alert("Remove \(row.name) from Carrier?", isPresented: $confirmingRemove) {
             Button("Cancel", role: .cancel) {}
-            Button("Remove", role: .destructive) { if model.remove(path: row.path) { close() } }
+            Button("Remove", role: .destructive) { Task { if await model.remove(path: row.path) { close() } } }
         } message: {
             Text(projectRemovalWords)
         }
         .confirmationDialog("Remove \(row.name)?", isPresented: $choosingRemove, titleVisibility: .visible) {
-            Button("Remove from Carrier") { if model.remove(path: row.path) { close() } }
+            Button("Remove from Carrier") { Task { if await model.remove(path: row.path) { close() } } }
             Button("Also delete from disk", role: .destructive) { Task { await deleteFromDisk(confirmed: false) } }
             Button("Cancel", role: .cancel) {}
         } message: {
@@ -669,7 +669,7 @@ private struct ProjectDetailView: View {
             } else if check.needsConfirmation && confirmed == false {
                 deletionAsk = DeletionAsk(title: "\(row.name) has work that is not saved", message: "\(check.unsaved.joined(separator: "\n"))\n\nMoving it to the Trash keeps it there until the Trash is emptied.", canConfirm: true)
             } else {
-                try model.deleteFromDisk(path: row.path, worktrees: folders)
+                try await model.deleteFromDisk(path: row.path, worktrees: folders)
                 close()
             }
         } catch ControlError.remote(let refusal) {
@@ -683,7 +683,7 @@ private struct ProjectDetailView: View {
 
     /// A value of `defaults` as a select's: nil is the first entry, and choosing it takes the key out of the file.
     private func defaultBinding(_ key: ProjectDefaultKey, _ value: String?) -> Binding<String?> {
-        Binding(get: { value }, set: { _ = model.setDefault(key, $0, path: row.path) })
+        Binding(get: { value }, set: { new in Task { await model.setDefault(key, new, path: row.path) } })
     }
 
     /// What a new session here starts with, as the project's entry has it; no agent is the same as everywhere.
@@ -703,7 +703,7 @@ private struct ProjectDetailView: View {
             chooseAccess: { option, value in
                 var start = namedStart()
                 start.access[option] = value
-                _ = model.setStart(start, path: row.path)
+                Task { await model.setStart(start, path: row.path) }
             },
             effortFallback: (label: "Same as everywhere", detail: "Follows Settings > Sessions."), inherited: PickerInherited(
                 provider: everywhereAgent.isEmpty ? nil : everywhereAgent, model: everywhereModel.isEmpty ? nil : everywhereModel,
@@ -723,7 +723,7 @@ private struct ProjectDetailView: View {
                 start.effort = level
             case .inherit, .none: start = NewSessionStart()
             }
-            _ = model.setStart(start, path: row.path)
+            Task { await model.setStart(start, path: row.path) }
         }
         .task { await catalog.load() }
     }
@@ -811,7 +811,8 @@ private struct ProjectDetailView: View {
         panel.prompt = "Locate"
         panel.message = "Choose the new place of \(row.name)"
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        if model.locate(path: row.path, to: url.path) { moved(url.path) }
+        let path = row.path
+        Task { if await model.locate(path: path, to: url.path) { moved(url.path) } }
     }
 
     private func publishPin() {
@@ -823,7 +824,7 @@ private struct ProjectDetailView: View {
             active: pinned,
             help: pinned ? "Unpin project" : "Pin project"
         ) {
-            model.setPinned(!pinned, path: path)
+            Task { await model.setPinned(!pinned, path: path) }
         }
     }
 
@@ -831,7 +832,8 @@ private struct ProjectDetailView: View {
         let candidate = newTag
         newTag = ""
         guard addingProjectTag(candidate, to: row.tags) != row.tags else { return }
-        model.addTag(candidate, path: row.path)
+        let path = row.path
+        Task { await model.addTag(candidate, path: path) }
     }
 
     private var iconSummary: String {
@@ -853,12 +855,9 @@ private struct ProjectDetailView: View {
             panel.prompt = "Choose"
             panel.message = "Choose an image for the project's icon"
             guard panel.runModal() == .OK, let url = panel.url else { return }
-            if ProjectIconStore.canRead(url) {
-                model.setIconImage(from: url, path: path)
-            } else if let rasterized = rasterizedImage(at: url) {
-                model.setIconImage(cgImage: rasterized, path: path)
-            } else {
-                model.setIconImage(from: url, path: path)
+            let rasterized = ProjectIconStore.canRead(url) ? nil : rasterizedImage(at: url)
+            Task {
+                if let rasterized { await model.setIconImage(cgImage: rasterized, path: path) } else { await model.setIconImage(from: url, path: path) }
             }
         }
     }
@@ -880,11 +879,11 @@ private struct ProjectDetailView: View {
 private struct ProjectNameField: View {
     let stored: String
     let prompt: String
-    let commit: (String) -> Bool
+    let commit: (String) async -> Bool
     @State private var draft: String
     @FocusState private var focused: Bool
 
-    init(stored: String, prompt: String, commit: @escaping (String) -> Bool) {
+    init(stored: String, prompt: String, commit: @escaping (String) async -> Bool) {
         self.stored = stored
         self.prompt = prompt
         self.commit = commit
@@ -908,10 +907,13 @@ private struct ProjectNameField: View {
             draft = current
             return
         }
-        if commit(draft) {
-            draft = next
-        } else {
-            draft = stored
+        let written = draft
+        Task {
+            if await commit(written) {
+                draft = next
+            } else {
+                draft = stored
+            }
         }
     }
 }
@@ -1007,13 +1009,13 @@ private struct ProjectIconPopover: View {
 /// its actions and ending in Add action. Valid edits write at once to `projects.json`; a blank name or command is not written and shows as a problem.
 private struct ProjectActionsView: View {
     let savedActions: [ProjectAction]
-    let save: ([ProjectAction]) -> Bool
+    let save: ([ProjectAction]) async -> Bool
 
     @State private var drafts: [ProjectActionDraft]
     @State private var savedById: [UUID: ProjectAction]
     @State private var lastWritten: [ProjectAction]
 
-    init(savedActions: [ProjectAction], save: @escaping ([ProjectAction]) -> Bool) {
+    init(savedActions: [ProjectAction], save: @escaping ([ProjectAction]) async -> Bool) {
         self.savedActions = savedActions
         self.save = save
         let initial = savedActions.map { ProjectActionDraft(action: $0) }
@@ -1107,12 +1109,14 @@ private struct ProjectActionsView: View {
     private func commit() {
         let toWrite = mergedProjectActions(drafts: drafts, saved: savedById)
         guard toWrite != lastWritten else { return }
-        if save(toWrite) {
-            lastWritten = toWrite
-            let liveIds = Set(drafts.map(\.id))
-            savedById = savedById.filter { liveIds.contains($0.key) }
-            for draft in drafts where projectActionProblems(draft.action).isEmpty {
-                savedById[draft.id] = draft.action
+        Task {
+            if await save(toWrite) {
+                lastWritten = toWrite
+                let liveIds = Set(drafts.map(\.id))
+                savedById = savedById.filter { liveIds.contains($0.key) }
+                for draft in drafts where projectActionProblems(draft.action).isEmpty {
+                    savedById[draft.id] = draft.action
+                }
             }
         }
     }

@@ -3,8 +3,9 @@ import type { z } from 'zod';
 import { chatPlacesOf } from '../../../config/places.ts';
 import { editChatSettings } from '../../../chat/config.ts';
 import { ChatRefused } from '../../../chat/runner.ts';
+import { projectEdits } from '../../../chat/project-edits.ts';
 import { providersRequests } from '../../../chat/providers-requests.ts';
-import { addAccountRequest, editAccountRequest, editChatSettingsRequest, removeAccountRequest, setAccountsRequest, setTextGeneratorRequest } from '../../../chat/server.ts';
+import { addAccountRequest, editAccountRequest, editChatSettingsRequest, projectRequests, removeAccountRequest, setAccountsRequest, setTextGeneratorRequest } from '../../../chat/server.ts';
 import { refused } from '../../../control/server.ts';
 import { connectControl, ControlRefused, ControlUnreachable } from '../control-client.ts';
 
@@ -20,6 +21,11 @@ const requests: Record<string, { schema: z.ZodType; run: (request: any, folder: 
   removeAccount: { schema: removeAccountRequest, run: (request, folder) => providersRequests(folder).removeAccount(request) },
   setTextGenerator: { schema: setTextGeneratorRequest, run: (request, folder) => providersRequests(folder).setTextGenerator(request) },
 };
+// the nine requests that write projects.json and projectsFolder: the owner's code takes the fields, not the socket's `id` and `cmd`
+for (const schema of projectRequests) {
+  const cmd = schema.shape.cmd.value;
+  requests[cmd] = { schema, run: ({ id, cmd: _, ...fields }, folder) => (projectEdits as Record<string, (fields: never, folder: string) => unknown>)[cmd]!(fields as never, folder) };
+}
 
 /** The reply of the host that answers on `chat.sock` and lists `config`; null when none does, so the caller writes the file itself. */
 async function askOwner(folder: string, cmd: string, fields: Record<string, unknown>): Promise<Printed | null> {

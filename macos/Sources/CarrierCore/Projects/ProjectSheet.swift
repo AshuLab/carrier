@@ -428,7 +428,7 @@ public enum ProjectDropOutcome: Equatable, Sendable {
 
 /// Adds each unique dropped path through `addFolder`, returning whether to open, close, or show a refusal.
 @MainActor
-public func applyDroppedProjectPaths(_ paths: [String], addFolder: (String) -> (outcome: ProjectAdd?, error: String?)) -> ProjectDropOutcome {
+public func applyDroppedProjectPaths(_ paths: [String], addFolder: (String) async -> (outcome: ProjectAdd?, error: String?)) async -> ProjectDropOutcome {
     var unique: [String] = []
     for path in paths {
         guard unique.contains(where: { isSameSheetFolder($0, path) }) == false else { continue }
@@ -439,7 +439,7 @@ public func applyDroppedProjectPaths(_ paths: [String], addFolder: (String) -> (
     var addedPaths: [String] = []
     var refusals: [(path: String, reason: String)] = []
     for path in unique {
-        let result = addFolder(path)
+        let result = await addFolder(path)
         switch result.outcome {
         case .added(let p), .existing(let p):
             addedPaths.append(p)

@@ -24,7 +24,7 @@ export function withAgentOfSlot(config: EffectiveRepoConfig, slot: Slot | null, 
   const agents = config.agents as SavedAgents;
   if (slot === null) return withAgents(config, { ...agents, author: agent });
   if (slot === 'reviewer') return withAgents(config, { ...agents, reviewer: agent });
-  if (slot === 'lead') return withAgents(config, { ...agents, leadReviewer: agent });
+  if (slot === 'lead') return withAgents(config, { ...agents, leadReviewer: { ...agents.leadReviewer, ...agent } }); // keeps what the lead has besides an agent
   const extraReviewers = [...(agents.extraReviewers ?? [])];
   extraReviewers[extraIndex(slot)] = { ...extraReviewers[extraIndex(slot)], ...agent }; // keeps what the extra reviewer has besides an agent
   return withAgents(config, { ...agents, extraReviewers });

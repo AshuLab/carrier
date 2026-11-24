@@ -4673,6 +4673,57 @@ test('resumeEpic with an option that is not declared is refused and changes noth
   expect(labelsOf(1)).toEqual(labels);
 });
 
+// An epic with two extra reviewers and a lead, every role on codex.
+const everyRole = (lead = true): EffectiveRepoConfig[] => {
+  const on = (profile: string) => ({ profile, option: 'codex', ...codexOption });
+  const dflt = { review: { name: 'code-review', named: false }, publish: null };
+  const [base] = choosing();
+  return [{ ...base!, agents: { author: on('a'), reviewer: on('b'), extraReviewers: [{ ...on('c'), skills: dflt }, { ...on('d'), skills: dflt }], ...(lead && { leadReviewer: on('e') }) } as unknown as EffectiveRepoConfig['agents'] }];
+};
+
+test('resumeEpic with an option for an extra reviewer and the lead runs that slot on it, records it in the event and keeps every other role of the epic', async () => {
+  const engine = await start(1, everyRole());
+  stoppedAt(engine.db, 'review', { config: everyRole()[0], authorOption: 'codex', reviewerOption: 'codex' });
+  runner.behavior = () => ({ exit: 'stopped' }); // each reviewer is launched, so the whole round is seen
+  const resumed = engine.resumeEpic('AshuLab/a', 1, { from: 'review', reviewer3: 'claude', lead: 'claude' });
+  await flush();
+  await clock.advance(1000);
+  await resumed;
+
+  const { agents } = rows(engine.db)[0]!.config!;
+  expect([agents.author.option, agents.reviewer.option, ...agents.extraReviewers!.map((r) => r.option), agents.leadReviewer?.option]).toEqual(['codex', 'codex', 'codex', 'claude', 'claude']);
+  expect(agents.extraReviewers!.map((r) => r.profile)).toEqual(['c', 'd']); // the profile of each role is its own
+  expect(agents.leadReviewer).toMatchObject({ profile: 'e', harness: 'claude', model: 'opus' });
+  await vi.waitFor(() => expect(runner.tasks.map((t) => [t.reviewer, t.option])).toEqual([['reviewer', 'codex'], ['reviewer-2', 'codex'], ['reviewer-3', 'claude']]));
+  expect(eventsOf(engine.db).filter((e) => e.type === 'resumed').map((e) => e.data)).toEqual([{ from: 'review', by: 'command', options: { 'reviewer-3': 'claude', lead: 'claude' } }]);
+});
+
+test('resumeEpic that changes the author only still keeps the extra reviewers and the lead', async () => {
+  const engine = await start(1, everyRole());
+  stoppedAt(engine.db, 'fix', { config: everyRole()[0], authorOption: 'codex', reviewerOption: 'codex' });
+  const resumed = engine.resumeEpic('AshuLab/a', 1, { author: 'claude' });
+  await flush();
+  await clock.advance(1000);
+  await resumed;
+
+  const { agents } = rows(engine.db)[0]!.config!;
+  expect(agents.author).toMatchObject({ option: 'claude', harness: 'claude' });
+  expect(agents.extraReviewers).toHaveLength(2);
+  expect(agents.leadReviewer).toMatchObject({ profile: 'e', option: 'codex' });
+});
+
+test('resumeEpic refuses a slot the epic does not have and an option the repo does not declare, for each extra role, and changes nothing', async () => {
+  const engine = await start(1, everyRole(false));
+  stoppedAt(engine.db, 'review', { config: everyRole(false)[0] });
+  const before = rows(engine.db);
+  expect(await refusal(engine.resumeEpic('AshuLab/a', 1, { reviewer4: 'claude' }))).toBe('no such role');
+  expect(await refusal(engine.resumeEpic('AshuLab/a', 1, { lead: 'claude' }))).toBe('no such role');
+  expect(await refusal(engine.resumeEpic('AshuLab/a', 1, { reviewer2: 'nope' }))).toBe('unknown option');
+  expect(await refusal(engine.resumeEpic('AshuLab/a', 1, { reviewer2: 'claude', lead: 'nope' }))).toBe('unknown option'); // the name is checked first
+  expect(rows(engine.db)).toEqual(before);
+  expect(runner.tasks).toEqual([]);
+});
+
 // --- Reload ---
 
 const reload = (engine: { reload: (swap: () => void) => void }, { repos: next, ...change }: Partial<EngineSettings> & { repos?: EffectiveRepoConfig[] }) =>
@@ -6389,7 +6440,7 @@ test('the quota probe and the wake-up read the slot: the options another slot ra
 
   expect(fakeQuota.asked).toEqual([{ provider: 'codex', configDir: '/cfg/spare' }]);
   expect(eventsOf(db).filter((e) => e.type === 'auto_resumed').map((e) => e.data)).toMatchObject([{ stage: 'review', option: 'spare' }]);
-  await vi.waitFor(() => expect(runner.tasks.at(-1)).toMatchObject({ stage: 'review', reviewer: 'reviewer', option: 'spare' }));
+  await vi.waitFor(() => expect(runner.tasks.find((task) => task.reviewer === 'reviewer')).toMatchObject({ stage: 'review', option: 'spare' })); // the extra reviewer is kept, it runs again as well
 });
 
 test('a restart recovers each review slot from its own last execution: the slot whose agent was lost runs again, the one with a result is left alone', async () => {

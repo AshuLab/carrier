@@ -3,6 +3,7 @@ import type { EffectiveRepoConfig } from '../config/resolve.ts';
 import { latestBlockers } from '../orchestration/blockers.ts';
 import { agentOfSlot } from '../orchestration/slots.ts';
 import type { Labels } from '../orchestration/github.ts';
+import { lastBySlot } from '../orchestration/retry.ts';
 import { queueOrder } from '../orchestration/reserve.ts';
 import type { Db } from '../storage/db.ts';
 import { executions, slotOf } from '../storage/executions.ts';
@@ -15,7 +16,8 @@ const agentsOf = (config: EffectiveRepoConfig): PanelAgents => ({ author: agentO
 /** The options of an epic as the panel and the epic's reply list them; undefined for one saved before options existed. */
 export const optionsOf = ({ config, authorOption, reviewerOption }: { config: EffectiveRepoConfig | null; authorOption: string | null; reviewerOption: string | null }): EpicOptions | undefined => {
   const directory = config?.providers ?? config?.options;
-  return directory && { names: Object.keys(directory), author: authorOption, reviewer: reviewerOption };
+  const { extraReviewers = [], leadReviewer } = config?.agents ?? {};
+  return directory && { names: Object.keys(directory), author: authorOption, reviewer: reviewerOption, ...(extraReviewers.length > 0 && { extraReviewers: extraReviewers.map((extra) => extra.option ?? null) }), ...(leadReviewer && { lead: leadReviewer.option ?? null }) };
 };
 
 /** One row per watched repo: the agents it resolves to and its last poll (not checked yet: null and ok). */
@@ -61,6 +63,15 @@ export function buildSnapshot(
   const finished = db.select({ id: epics.id, repo: epics.repo, issue: epics.issue, title: epics.title, labels: epics.labels, prNumber: epics.prNumber, finishedAt: epics.finishedAt, status: epics.status, cancelReason: epics.cancelReason }).from(epics)
     .where(and(inArray(epics.status, ['merged', 'cancelled']), gte(epics.finishedAt, now - finishedWindowDays * 86_400_000))).orderBy(desc(epics.finishedAt)).all()
     .map(({ id, labels, finishedAt, status, cancelReason, ...rest }) => ({ ...rest, labels: labels ?? [], finishedAt: finishedAt!, status: status as 'merged' | 'cancelled', cancelReason: status === 'cancelled' ? cancelReason : null, executionId: lastExecution(id) }));
+  // A restart marks the role that failed, which says more than the stage when the review had several: the slot of the execution of the attempt that failed, else the last one.
+  const optionsWithFailed = (e: Parameters<typeof optionsOf>[0] & { id: number; status: string; startedAt: number | null }) => {
+    const options = optionsOf(e);
+    if (e.status !== 'needs_human' || (options?.extraReviewers === undefined && options?.lead === undefined)) return options;
+    const lasts = lastBySlot(db, e).sort((a, b) => b.startedAt - a.startedAt);
+    const stopped = lasts.find((last) => last.failureKind !== null) ?? lasts[0];
+    const failed: EpicOptions['failed'] = (stopped && slotOf(stopped)) || 'author';
+    return { ...options!, failed };
+  };
   const epicAgents = (e: { config: EffectiveRepoConfig | null }): PanelAgents | null => e.config && agentsOf(e.config);
   const sessions = shown.flatMap((e) => {
     const running = db.select({ executionId: executions.executionId, stage: executions.stage, reviewer: executions.reviewer, startedAt: executions.startedAt }).from(executions)
@@ -113,7 +124,7 @@ export function buildSnapshot(
         needsHumanKind: e.needsHumanKind,
         blockerTitles: blockers.slice(0, maxBlockerTitles).map((b) => b.title.slice(0, maxBlockerTitleLength)),
         agents: epicAgents(e),
-        options: optionsOf(e),
+        options: optionsWithFailed(e),
         ...(e.resumeAt !== null && { resumeAt: e.resumeAt }),
         ...(e.status === 'running' && e.retryAt !== null && { retryAt: e.retryAt }),
       };

@@ -62,13 +62,15 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"", protocol vers
 }
 
 @Test func theFixtureListIsRelativeToTheLaunchAndMarksWhatTheAppSeedsAsUnreadAndPinned() async throws {
+    let beforeMs = Int(Date().timeIntervalSince1970 * 1000)
     let server = try FixtureServer(fixtures: fixtures)
     defer { server.stop() }
     let host = SocketChatHost(socketPath: { server.chatSocketPath })
     let active = try await host.list(archived: false)
-    let nowMs = Int(Date().timeIntervalSince1970 * 1000)
-    // "5 seconds ago" in the golden list, and the three tasks of the build session, started minutes before
-    #expect(abs(nowMs - active[0].lastActiveAt - 5_000) < 10_000)
+    let afterMs = Int(Date().timeIntervalSince1970 * 1000)
+    // "5 seconds ago" in the golden list is made when the server starts, so it lies between the two readings whatever the load of the run,
+    // and the three tasks of the build session started minutes before
+    #expect(active[0].lastActiveAt + 5_000 >= beforeMs && active[0].lastActiveAt + 5_000 <= afterMs)
     #expect(active[4].background.allSatisfy { ($0.startedAt.map { Date().timeIntervalSince($0) } ?? 0) > 90 })
     #expect(server.unreadSessionIds == ["a1000000-0000-4000-8000-000000000001"] && server.pinnedSessionIds == ["a1000000-0000-4000-8000-000000000004"])
 }

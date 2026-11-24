@@ -347,3 +347,45 @@ test('the agents of the extra reviewers come with the epic, and an epic with non
   expect(several!.agents).toEqual({ author: { harness: 'claude', model: 'opus', provider: null }, reviewer: { harness: 'codex', model: 'gpt', provider: null }, extraReviewers: [{ harness: 'agy', model: 'flash', provider: null }, { harness: 'claude', model: 'sonnet', provider: 'ollama' }] });
   expect(single!.agents).toEqual({ author: { harness: 'claude', model: 'opus', provider: null }, reviewer: { harness: 'codex', model: 'gpt', provider: null } });
 });
+
+// --- the lead reviewer: the app's stage has no `lead`, so the snapshot reports a review with a flag ---
+
+const leadConfig = { ...severalConfig, agents: { ...severalConfig.agents, leadReviewer: agentOf('claude', 'opus-lead') } } as unknown as NonNullable<(typeof epics.$inferInsert)['config']>;
+
+test('the stage lead is reported as review with a lead flag, never as lead, in the epic and in the session of the lead', () => {
+  const { id } = add(1, 'running', { stage: 'lead', round: 2, leadRound: 1, startedAt: 500, config: leadConfig, reviewedSha: 'H1' });
+  run(id, 'lead-run', 2_000, { stage: 'lead', reviewer: 'lead', status: 'running', harness: 'claude', model: 'opus-lead' });
+  add(2, 'running', { stage: 'review', round: 1, config: leadConfig });
+
+  const s = snapshot();
+  expect(s.epics[0]).toMatchObject({ issue: 1, stage: 'review', lead: true, round: 2, reviewedSha: 'H1' });
+  expect(s.epics[1]).not.toHaveProperty('lead');
+  expect(s.sessions).toEqual([{ executionId: 'lead-run', repo: 'acme/web', issue: 1, stage: 'review', lead: true, round: 2, harness: 'claude', model: 'opus-lead', startedAt: 2_000, last: null, reviewer: 'lead' }]);
+  expect(JSON.stringify(s)).not.toContain('"stage":"lead"');
+  expect(renderPanel(s).join('\n')).toContain('#1'); // the terminal panel reads the same stage
+});
+
+test('the agent of the lead is listed with those of the epic, and only when the epic has one', () => {
+  add(1, 'running', { stage: 'lead', config: leadConfig });
+  add(2, 'running', { stage: 'review', config: severalConfig });
+  const [withLead, without] = snapshot().epics;
+  expect(withLead!.agents).toMatchObject({ lead: { harness: 'claude', model: 'opus-lead', provider: null } });
+  expect(without!.agents).not.toHaveProperty('lead');
+});
+
+test('an epic that was approved carries the head the lead approved beside the head the reviewers agreed on, and whether its result says it submitted an approval; one without a lead carries none of them', () => {
+  const approved = add(1, 'ready_for_test', { finishedAt: 90_000, startedAt: 500, reviewedSha: 'H1', approvedSha: 'H2' });
+  const quiet = add(2, 'ready_for_test', { finishedAt: 80_000, startedAt: 500, reviewedSha: 'H1', approvedSha: 'H1' });
+  add(3, 'ready_for_test', { finishedAt: 70_000 });
+  db.insert(epicEvents).values({ epicId: approved.id, at: 89_000, type: 'lead_completed', data: { headSha: 'H2', approval: { submitted: true, url: 'https://github.com/acme/web/pull/1#pullrequestreview-1' } } }).run();
+  db.insert(epicEvents).values({ epicId: quiet.id, at: 79_000, type: 'lead_completed', data: { headSha: 'H1', approval: { submitted: false } } }).run();
+
+  const [first, second, third] = snapshot().done;
+  expect(first).toMatchObject({ issue: 1, reviewedSha: 'H1', approvedSha: 'H2', leadApproval: true });
+  expect(second).toMatchObject({ approvedSha: 'H1', leadApproval: false });
+  for (const field of ['reviewedSha', 'approvedSha', 'leadApproval']) expect(third).not.toHaveProperty(field);
+  const running = add(4, 'running', { stage: 'review', reviewedSha: 'H3' });
+  db.update(epics).set({ approvedSha: 'H3' }).where(eq(epics.id, running.id)).run();
+  expect(snapshot().epics.find((e) => e.issue === 4)).toMatchObject({ reviewedSha: 'H3', approvedSha: 'H3' }); // no event yet: the flag is absent
+  expect(snapshot().epics.find((e) => e.issue === 4)).not.toHaveProperty('leadApproval');
+});

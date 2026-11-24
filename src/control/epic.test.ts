@@ -12,7 +12,7 @@ import { createEngine } from '../orchestration/engine.ts';
 import { FakeClock, FakeGitHub, FakeQuota } from '../orchestration/fake.ts';
 import { callerResults } from '../storage/caller-results.ts';
 import { openDatabase, type Db } from '../storage/db.ts';
-import { executionEvents } from '../storage/events.ts';
+import { epicEvents, executionEvents } from '../storage/events.ts';
 import { executions } from '../storage/executions.ts';
 import { epicSlices } from '../storage/epic-slices.ts';
 import { epics } from '../storage/schema.ts';
@@ -509,4 +509,36 @@ test('git starts the binary the machine hands over', async () => {
     handed.binary = undefined;
   }
   expect(await engineGit(dir, ['--version'])).toMatch(/^git version /);
+});
+
+// --- the lead reviewer: its stage is a string of the replies, its review is no round, and the heads it kept are fields of the epic ---
+
+const leadConfig = { name: 'AshuLab/a', agents: { ...agents, leadReviewer: { profile: 'e', option: 'o', harness: 'claude' as const, model: 'opus-lead' } } } as unknown as EffectiveRepoConfig;
+function leadRun(epicId: number, headSha: string, startedAt: number, result: object | null) {
+  const executionId = `lead-${startedAt}`;
+  db.insert(executions).values({ executionId, epicId, stage: 'lead', reviewer: 'lead', status: 'finished', resultPath: '/r.json', startedAt, finishedAt: startedAt + 5, round: 1, headSha, workspace: '/reviews/lead' }).run();
+  if (result) db.insert(callerResults).values({ executionId, outcome: (result as { outcome: string }).outcome, result: JSON.stringify(result) }).run();
+}
+
+test('the lead\'s review is no round, its stage is `lead` in the timeline, and the epic carries the heads, the approval and the lead\'s agent', async () => {
+  const id = epicRow({ config: leadConfig, startedAt: 50, reviewedSha: SHA, approvedSha: 'b'.repeat(40), status: 'ready_for_test', finishedAt: 5_000 });
+  slotReview(id, 'reviewer', 1, SHA, { outcome: 'completed', ...pr(SHA) });
+  leadRun(id, 'b'.repeat(40), 1_000, { outcome: 'completed', ...pr('b'.repeat(40)), approval: { submitted: true } });
+  db.insert(epicEvents).values({ epicId: id, at: 1_100, type: 'lead_completed', data: { headSha: 'b'.repeat(40), approval: { submitted: true } } }).run();
+
+  const r = await reply();
+  expect(r.rounds.map((round) => [round.round, round.reviewedSha])).toEqual([[1, SHA]]); // the lead's review adds none
+  expect(r.stages.map((s) => s.stage)).toEqual(['queued', 'review', 'lead', 'ready']);
+  expect(r).toMatchObject({ reviewedSha: SHA, approvedSha: 'b'.repeat(40), leadApproval: true, lead: { harness: 'claude', model: 'opus-lead', provider: null } });
+});
+
+test('an epic with no lead carries none of the lead\'s fields, and one still in the stage lead has no approval yet', async () => {
+  const plain = epicRow();
+  expect(await reply()).not.toHaveProperty('lead');
+  expect(await reply()).not.toHaveProperty('approvedSha');
+  db.update(epics).set({ config: leadConfig, stage: 'lead', reviewedSha: SHA }).where(eq(epics.id, plain)).run();
+  const r = await reply();
+  expect(r).toMatchObject({ reviewedSha: SHA, lead: { model: 'opus-lead' } });
+  expect(r).not.toHaveProperty('approvedSha');
+  expect(r).not.toHaveProperty('leadApproval');
 });

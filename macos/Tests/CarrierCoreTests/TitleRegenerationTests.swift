@@ -7,6 +7,15 @@ private actor Sleeps {
     func add(_ duration: Duration) { asked.append(duration) }
 }
 
+/// Waits for `condition` as long as it takes up to five seconds, so a slow machine only makes a test slower, never wrong: a fixed sleep that a loaded runner overruns is how these tests failed.
+@MainActor private func eventually(_ condition: @MainActor () async -> Bool) async -> Bool {
+    for _ in 0..<500 {
+        if await condition() { return true }
+        try? await Task.sleep(for: .milliseconds(10))
+    }
+    return false
+}
+
 private func row(_ id: String, _ title: String) -> SessionRow {
     SessionRow(id: id, title: title, workspace: "w", agent: "claude", state: .idle, updatedAt: Date())
 }
@@ -36,8 +45,8 @@ private func row(_ id: String, _ title: String) -> SessionRow {
         return ("Slow", nil)
     }
     #expect(titles.title(of: row("a", "Old")) == "Slow")
-    try? await Task.sleep(for: .milliseconds(60))
-    #expect(await sleeps.asked == [.seconds(10)]) // only the hold of the new title, no wait of its own
+    // only the hold of the new title, no wait of its own
+    #expect(await eventually { await sleeps.asked == [.seconds(10)] })
 }
 
 @MainActor @Test func aRefusalStopsTheWaitKeepsTheOldTitleAndSaysWhy() async {
@@ -57,11 +66,10 @@ private func row(_ id: String, _ title: String) -> SessionRow {
 }
 
 @MainActor @Test func theNewTitleIsLetGoOnceTheListHasHadTimeToCatchUp() async {
-    let titles = TitleRegeneration(minimum: .milliseconds(1), keeps: .milliseconds(20), sleep: { try? await Task.sleep(for: $0) })
+    let titles = TitleRegeneration(minimum: .milliseconds(1), keeps: .milliseconds(300), sleep: { try? await Task.sleep(for: $0) })
     _ = await titles.regenerate("a", showing: "Old title") { ("New", nil) }
     #expect(titles.title(of: row("a", "Old")) == "New")
-    try? await Task.sleep(for: .milliseconds(120))
-    #expect(titles.title(of: row("a", "Renamed by hand")) == "Renamed by hand")
+    #expect(await eventually { titles.title(of: row("a", "Renamed by hand")) == "Renamed by hand" })
 }
 
 @MainActor @Test func theOldTitleStaysUnderTheShimmerEvenWhenTheListBringsTheNewOneBeforeTheWaitEnds() async {

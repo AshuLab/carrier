@@ -1,4 +1,4 @@
-import { carrierHome } from '../config/places.ts';
+import { carrierHome, providersPathOf } from '../config/places.ts';
 import { providersProblem, readProvidersFile, runtimeOf, type Providers } from '../config/providers.ts';
 import { configDirVariable } from '../harnesses/names.ts';
 import type { ChatAgent } from './config.ts';
@@ -7,7 +7,7 @@ import { ChatRefused } from './runner.ts';
 /** `providers.json` as it is now: the chat host reads it each time it needs an account, so an edit reaches it with no restart (ADR 0020). */
 export function readAccounts(folder = carrierHome()): Providers {
   const read = readProvidersFile(folder);
-  if (read.ok === false) throw new ChatRefused(providersProblem(folder, read.errors));
+  if (read.ok === false) throw new ChatRefused('providers.invalid', providersProblem(folder, read.errors), { path: providersPathOf(folder) });
   return read.providers;
 }
 
@@ -26,8 +26,8 @@ export function chatAgentsOf(configured: ChatAgent[] | undefined): ChatAgent[] {
 /** What a chat agent runs with: its account's harness, binary, compaction and launch arguments, and login, the login as the environment the CLI reads it from. Refuses, naming the account, one that is missing or Antigravity's. */
 export function chatAccount(providers: Providers, agent: ChatAgent, env: NodeJS.ProcessEnv = {}) {
   const found = providers[agent.account];
-  if (found === undefined) throw new ChatRefused(`The chat agent "${agent.name}" names the account "${agent.account}", which is not in providers.json`);
-  if (found.harness === 'agy') throw new ChatRefused(`The chat agent "${agent.name}" names the account "${agent.account}", which is Antigravity's: a chat does not offer it`);
+  if (found === undefined) throw new ChatRefused('providers.accountMissing', `The chat agent "${agent.name}" names the account "${agent.account}", which is not in providers.json`, { agent: agent.name, account: agent.account });
+  if (found.harness === 'agy') throw new ChatRefused('providers.accountNotOffered', `The chat agent "${agent.name}" names the account "${agent.account}", which is Antigravity's: a chat does not offer it`, { agent: agent.name, account: agent.account });
   const { harness, configDir } = found;
   const { command, ...launch } = runtimeOf(found);
   return { harness, command, launch, configDir, env: configDir === undefined ? env : { ...env, [configDirVariable[harness]]: configDir } };

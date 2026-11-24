@@ -1,0 +1,599 @@
+{
+  "agent.approval.answersNeeded": {
+    "params": {}
+  },
+  "agent.approval.choiceUnknown": {
+    "params": {}
+  },
+  "agent.approval.notPending": {
+    "params": {}
+  },
+  "agent.commandNotRunnable": {
+    "params": {
+      "agent": "example",
+      "command": "example"
+    }
+  },
+  "agent.effort.turning": {
+    "params": {}
+  },
+  "agent.launchArg.notFlag": {
+    "params": {
+      "entry": "example"
+    }
+  },
+  "agent.modelUnknown": {
+    "params": {
+      "agent": "example",
+      "model": "example",
+      "offers": "example"
+    }
+  },
+  "agent.modelsUnlisted": {
+    "params": {
+      "agent": "example",
+      "model": "example"
+    }
+  },
+  "agent.noRunner": {
+    "params": {
+      "harness": "example"
+    }
+  },
+  "agent.notFound": {
+    "params": {
+      "agent": "example"
+    }
+  },
+  "agent.notInstalled": {
+    "params": {
+      "agent": "example"
+    }
+  },
+  "agent.notLoggedIn": {
+    "params": {
+      "agent": "example"
+    }
+  },
+  "agent.option.unknown": {
+    "params": {
+      "option": "example"
+    }
+  },
+  "agent.option.valueUnknown": {
+    "params": {
+      "option": "example",
+      "value": "example"
+    }
+  },
+  "agent.resumeFailed": {
+    "params": {
+      "agent": "example"
+    }
+  },
+  "agent.signedOut": {
+    "params": {
+      "agent": "example"
+    }
+  },
+  "agent.startFailed": {
+    "params": {
+      "agent": "example"
+    }
+  },
+  "agent.unknown": {
+    "params": {
+      "agent": "example"
+    }
+  },
+  "fake.refused": {
+    "params": {}
+  },
+  "folder.insideCarrier": {
+    "params": {
+      "folder": "example"
+    }
+  },
+  "folder.linkedWorktree": {
+    "params": {}
+  },
+  "folder.missing": {
+    "params": {}
+  },
+  "folder.notAbsolute": {
+    "params": {}
+  },
+  "folder.notDirectory": {
+    "params": {}
+  },
+  "folder.projectInsideCarrier": {
+    "params": {
+      "folder": "example"
+    }
+  },
+  "folder.projectsNotAbsolute": {
+    "params": {}
+  },
+  "folder.unreadable": {
+    "params": {}
+  },
+  "github.cliNotInstalled": {
+    "params": {}
+  },
+  "github.cliTimedOut": {
+    "params": {}
+  },
+  "github.noAnswer": {
+    "params": {}
+  },
+  "github.notSignedIn": {
+    "params": {}
+  },
+  "github.repoNotFound": {
+    "params": {
+      "repo": "example"
+    }
+  },
+  "github.timedOut": {
+    "params": {}
+  },
+  "github.unreachable": {
+    "params": {}
+  },
+  "history.noItem": {
+    "params": {}
+  },
+  "history.noSession": {
+    "params": {}
+  },
+  "project.cancelled": {
+    "params": {
+      "step": "example"
+    }
+  },
+  "project.chatConfigInvalid": {
+    "params": {
+      "path": "example",
+      "problem": "example"
+    }
+  },
+  "project.clone.fileInvalid": {
+    "params": {
+      "folder": "example",
+      "path": "example",
+      "problem": "example",
+      "repo": "example"
+    }
+  },
+  "project.clone.folderFailed": {
+    "params": {
+      "repo": "example"
+    }
+  },
+  "project.clone.folderTaken": {
+    "params": {
+      "folder": "example",
+      "repo": "example"
+    }
+  },
+  "project.fileInvalid": {
+    "params": {
+      "path": "example",
+      "problem": "example"
+    }
+  },
+  "project.gitFailed": {
+    "params": {
+      "repo": "example",
+      "step": "example"
+    }
+  },
+  "project.initFailed": {
+    "params": {
+      "name": "example"
+    }
+  },
+  "project.nameInvalid": {
+    "params": {
+      "name": "example"
+    }
+  },
+  "project.nameTaken": {
+    "params": {
+      "name": "example"
+    }
+  },
+  "project.repoInvalid": {
+    "params": {
+      "repo": "example"
+    }
+  },
+  "project.repoTaken": {
+    "params": {
+      "repo": "example"
+    }
+  },
+  "project.timedOut": {
+    "params": {
+      "step": "example"
+    }
+  },
+  "providers.accountMissing": {
+    "params": {
+      "account": "example",
+      "agent": "example"
+    }
+  },
+  "providers.accountNotOffered": {
+    "params": {
+      "account": "example",
+      "agent": "example"
+    }
+  },
+  "providers.invalid": {
+    "params": {
+      "path": "example"
+    }
+  },
+  "session.agentRemoved": {
+    "params": {
+      "agent": "example"
+    }
+  },
+  "session.answering": {
+    "params": {}
+  },
+  "session.approval.choiceUnknown": {
+    "params": {
+      "choice": "example",
+      "offers": "example"
+    }
+  },
+  "session.approval.deliveryFailed": {
+    "params": {}
+  },
+  "session.approval.needsAnswers": {
+    "params": {}
+  },
+  "session.approval.noQuestions": {
+    "params": {}
+  },
+  "session.approval.notPending": {
+    "params": {}
+  },
+  "session.approval.questionUnknown": {
+    "params": {
+      "question": "example"
+    }
+  },
+  "session.busy": {
+    "params": {
+      "action": "example",
+      "state": "example"
+    }
+  },
+  "session.cancel.notPreparing": {
+    "params": {}
+  },
+  "session.child.cannotDelegate": {
+    "params": {}
+  },
+  "session.child.owned": {
+    "params": {
+      "action": "example"
+    }
+  },
+  "session.childBusy": {
+    "params": {
+      "action": "example",
+      "state": "example"
+    }
+  },
+  "session.childStarting": {
+    "params": {
+      "action": "example"
+    }
+  },
+  "session.childTasksRunning": {
+    "params": {
+      "action": "example",
+      "count": "example"
+    }
+  },
+  "session.childrenLimit": {
+    "params": {
+      "limit": "example"
+    }
+  },
+  "session.closed": {
+    "params": {}
+  },
+  "session.command.unknown": {
+    "params": {}
+  },
+  "session.delegation.offScale": {
+    "params": {}
+  },
+  "session.delegation.refused": {
+    "params": {}
+  },
+  "session.deleting": {
+    "params": {}
+  },
+  "session.deliveryFailed": {
+    "params": {}
+  },
+  "session.gone": {
+    "params": {}
+  },
+  "session.message.tooLong": {
+    "params": {
+      "length": "example",
+      "max": "example"
+    }
+  },
+  "session.option.changeFailed": {
+    "params": {
+      "option": "example"
+    }
+  },
+  "session.option.unknown": {
+    "params": {
+      "offers": "example",
+      "option": "example"
+    }
+  },
+  "session.option.valueUnknown": {
+    "params": {
+      "offers": "example",
+      "option": "example",
+      "value": "example"
+    }
+  },
+  "session.parentGone": {
+    "params": {}
+  },
+  "session.preparationUnfinished": {
+    "params": {}
+  },
+  "session.preparing": {
+    "params": {
+      "action": "example"
+    }
+  },
+  "session.restoreActionFailed": {
+    "params": {}
+  },
+  "session.restoreCancelled": {
+    "params": {}
+  },
+  "session.resumedMeanwhile": {
+    "params": {}
+  },
+  "session.retry.notFailed": {
+    "params": {}
+  },
+  "session.retry.preparing": {
+    "params": {}
+  },
+  "session.switchAgent.archived": {
+    "params": {}
+  },
+  "session.switchAgent.archivedMeanwhile": {
+    "params": {}
+  },
+  "session.switchAgent.busy": {
+    "params": {
+      "state": "example"
+    }
+  },
+  "session.switchAgent.noTools": {
+    "params": {
+      "agent": "example",
+      "current": "example"
+    }
+  },
+  "session.switchAgent.preparing": {
+    "params": {}
+  },
+  "session.switchAgent.same": {
+    "params": {
+      "agent": "example"
+    }
+  },
+  "session.switching": {
+    "params": {}
+  },
+  "session.task.notRunning": {
+    "params": {}
+  },
+  "session.task.stopFailed": {
+    "params": {}
+  },
+  "session.task.stopUnsupported": {
+    "params": {}
+  },
+  "session.tasksRunning": {
+    "params": {
+      "action": "example",
+      "count": "example"
+    }
+  },
+  "session.unknown": {
+    "params": {}
+  },
+  "title.empty": {
+    "params": {}
+  },
+  "title.noGenerator": {
+    "params": {}
+  },
+  "title.noMessage": {
+    "params": {}
+  },
+  "title.writeAllFailed": {
+    "params": {}
+  },
+  "title.writeFailed": {
+    "params": {}
+  },
+  "usage.priceInvalid": {
+    "params": {}
+  },
+  "workspace.branchNotListed": {
+    "params": {}
+  },
+  "workspace.checkoutFailed": {
+    "params": {
+      "branch": "example"
+    }
+  },
+  "workspace.dirty": {
+    "params": {
+      "branch": "example",
+      "count": "example"
+    }
+  },
+  "workspace.fetchFailed": {
+    "params": {}
+  },
+  "workspace.fetchStopped": {
+    "params": {}
+  },
+  "workspace.fetchTimedOut": {
+    "params": {}
+  },
+  "workspace.noOrigin": {
+    "params": {}
+  },
+  "workspace.noWorkingFolder": {
+    "params": {}
+  },
+  "workspace.notGit": {
+    "params": {}
+  },
+  "workspace.unreadable": {
+    "params": {}
+  },
+  "worktree.bare": {
+    "params": {}
+  },
+  "worktree.baseGone": {
+    "params": {}
+  },
+  "worktree.branchGone": {
+    "params": {
+      "branch": "example"
+    }
+  },
+  "worktree.branchMissing": {
+    "params": {}
+  },
+  "worktree.branchesUnreadable": {
+    "params": {}
+  },
+  "worktree.cleanedUp": {
+    "params": {}
+  },
+  "worktree.clearFailed": {
+    "params": {}
+  },
+  "worktree.createCancelled": {
+    "params": {}
+  },
+  "worktree.createFailed": {
+    "params": {}
+  },
+  "worktree.createTimedOut": {
+    "params": {}
+  },
+  "worktree.deleteBranchFailed": {
+    "params": {}
+  },
+  "worktree.folderNotRemoved": {
+    "params": {}
+  },
+  "worktree.folderShared": {
+    "params": {
+      "directory": "example",
+      "project": "example"
+    }
+  },
+  "worktree.listFailed": {
+    "params": {}
+  },
+  "worktree.name.badCharacters": {
+    "params": {}
+  },
+  "worktree.name.badStart": {
+    "params": {}
+  },
+  "worktree.name.branchExists": {
+    "params": {
+      "branch": "example"
+    }
+  },
+  "worktree.name.doubleDot": {
+    "params": {}
+  },
+  "worktree.name.empty": {
+    "params": {}
+  },
+  "worktree.name.endsWithDot": {
+    "params": {}
+  },
+  "worktree.name.endsWithLock": {
+    "params": {}
+  },
+  "worktree.name.folderExists": {
+    "params": {}
+  },
+  "worktree.name.remoteBranchExists": {
+    "params": {
+      "branch": "example"
+    }
+  },
+  "worktree.name.tooLong": {
+    "params": {
+      "max": "example"
+    }
+  },
+  "worktree.namesTaken": {
+    "params": {
+      "tried": "example"
+    }
+  },
+  "worktree.notGit": {
+    "params": {}
+  },
+  "worktree.notMade": {
+    "params": {}
+  },
+  "worktree.outsideFolder": {
+    "params": {}
+  },
+  "worktree.projectUnreadable": {
+    "params": {}
+  },
+  "worktree.removeFailed": {
+    "params": {}
+  },
+  "worktree.restoreFailed": {
+    "params": {}
+  },
+  "worktree.sessionOpen": {
+    "params": {}
+  },
+  "worktree.startNotListed": {
+    "params": {}
+  },
+  "worktree.uncommitted": {
+    "params": {}
+  },
+  "worktree.unknown": {
+    "params": {}
+  },
+  "worktree.unreadable": {
+    "params": {}
+  }
+}

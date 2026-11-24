@@ -128,7 +128,7 @@ test('a failed fetch keeps the clone and says so in words', async () => {
 test('gh missing or signed out is a refusal with its own sentence, before git runs', async () => {
   const client = await connect();
   token = async () => {
-    throw new ChatRefused('gh is not signed in to GitHub; run "gh auth login"');
+    throw new ChatRefused('github.notSignedIn', 'gh is not signed in to GitHub; run "gh auth login"');
   };
   await expect(client.request('cloneRepo', { repo: 'acme/app' })).rejects.toThrow('gh is not signed in');
   expect(clones()).toHaveLength(0);

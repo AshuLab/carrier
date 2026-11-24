@@ -3,7 +3,7 @@ import { connect, type Socket } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-import { ChatRefused } from './runner.ts';
+import { ChatRefused, textCode } from './runner.ts';
 import { startChatServer, type ChatControls } from './server.ts';
 
 let dir: string;
@@ -25,12 +25,12 @@ const controls = (): ChatControls => ({
   agents: () => [],
   list: () => ({ sessions: [] }),
   open: async () => {
-    throw new ChatRefused('That folder does not exist');
+    throw new ChatRefused('folder.notFound', 'That folder does not exist');
   },
   openPlan: async ({ plan }) => ({ session: { agent: plan.agent, state: 'preparing' } }),
   retryPreparation: async ({ sessionId }) => ({ retried: sessionId }),
   cancelPreparation: async ({ sessionId }) => {
-    if (sessionId === '00000000-0000-4000-8000-000000000000') throw new ChatRefused('This session is not being prepared, so there is nothing to cancel');
+    if (sessionId === '00000000-0000-4000-8000-000000000000') throw new ChatRefused('session.notPreparing', 'This session is not being prepared, so there is nothing to cancel');
     return { plan: { text: 'hi' } };
   },
   resume: async () => ({}),
@@ -40,7 +40,7 @@ const controls = (): ChatControls => ({
   answer: ({ approvalId, choiceId }) => ({ approvalId, choiceId }),
   interrupt: async () => ({}),
   switchAgent: async ({ sessionId, agent }) => {
-    if (agent === 'busy') throw new ChatRefused('This session is working; interrupt it or wait, then switch its agent');
+    if (agent === 'busy') throw new ChatRefused('session.busy', 'This session is working; interrupt it or wait, then switch its agent');
     return { session: { id: sessionId, agent }, options: [] };
   },
   stopTask: async ({ sessionId, taskId }) => ({ sessionId, taskId }),
@@ -52,11 +52,11 @@ const controls = (): ChatControls => ({
   delete: async () => ({}),
   rename: ({ title }) => ({ title }),
   regenerateTitle: async ({ sessionId }) => {
-    if (sessionId === '00000000-0000-4000-8000-000000000000') throw new ChatRefused('Could not write a title: no text generator is chosen; choose one in Providers');
+    if (sessionId === '00000000-0000-4000-8000-000000000000') throw new ChatRefused('title.noGenerator', 'Could not write a title: no text generator is chosen; choose one in Providers');
     return { title: 'A generated title' };
   },
   regenerateTitles: () => {
-    if (refuseBulkTitles) throw new ChatRefused('Could not write titles: no text generator is chosen; choose one in Providers');
+    if (refuseBulkTitles) throw new ChatRefused('title.noGenerator', 'Could not write titles: no text generator is chosen; choose one in Providers');
     return { started: 3 };
   },
   deletePreview: async ({ sessionIds }) => ({ sessionIds }),
@@ -69,23 +69,23 @@ const controls = (): ChatControls => ({
     return { repo };
   },
   cloneProject: ({ repo, parent }) => {
-    if (repo === 'acme/missing') throw new ChatRefused('acme/missing is already a project');
+    if (repo === 'acme/missing') throw new ChatRefused('project.exists', 'acme/missing is already a project', { repo: 'acme/missing' });
     return { repo, folder: `${parent ?? '/projects'}/${repo}`, state: 'cloning' };
   },
   projectClones: () => ({ clones: [{ repo: 'acme/app', folder: '/projects/acme/app', state: 'cloning', progress: 'Receiving objects: 45%' }] }),
   projectWorktrees: async ({ folder }) => {
-    if (folder === '/gone') throw new ChatRefused('That folder does not exist');
+    if (folder === '/gone') throw new ChatRefused('folder.notFound', 'That folder does not exist');
     return { main: { path: folder, branch: 'main', state: 'clean' }, worktrees: [{ path: '/home/chat/worktrees/acme/app/kerrigan', branch: 'carrier/kerrigan', session: null, lastActiveAt: 1000, state: 'clean' }] };
   },
   projectDisk: ({ folders, refresh }) => ({ projects: folders.map((folder) => ({ folder, bytes: 2048, measuredAt: 5, parts: { [folder]: 2048 } })), measuring: refresh === 'now' ? folders : [] }),
   removeProjectWorktree: async ({ path }) => {
-    if (path === '/open') throw new ChatRefused('Its session is open');
+    if (path === '/open') throw new ChatRefused('worktree.sessionOpen', 'Its session is open');
     return {};
   },
   cleanProjectWorktrees: async ({ run }) => ({ removed: [{ path: '/w/a', bytes: run ? 2048 : 1024 }], skipped: [{ path: '/w/b', reason: 'It has uncommitted changes' }] }),
   dismissClone: () => ({ clones: [] }),
   newProject: async ({ name, parent }) => {
-    if (name === 'taken') throw new ChatRefused('taken is already a project; choose another name');
+    if (name === 'taken') throw new ChatRefused('project.nameTaken', 'taken is already a project; choose another name', { name: 'taken' });
     return { folder: `${parent ?? '/projects'}/local/${name}` };
   },
   createProject: async ({ name }) => ({ folder: `/projects/local/${name}` }),
@@ -95,7 +95,7 @@ const controls = (): ChatControls => ({
   providers: async () => ({ accounts: [] }),
   usage: async (args) => ({ args }),
   usageOverride: (args) => {
-    if (args.model === 'refused') throw new ChatRefused('That price cannot be saved');
+    if (args.model === 'refused') throw new ChatRefused('usage.priceInvalid', 'That price cannot be saved', { model: 'refused' });
     return { args };
   },
 });
@@ -210,7 +210,7 @@ test('usage passes its filters on, and an override reaches the controls with the
   expect(await c.ask('{"id":3,"cmd":"usageOverride","model":"qwen","action":"local"}')).toEqual({ id: 3, ok: true, data: { args: { model: 'qwen', action: 'local' } } });
   expect(await c.ask('{"id":4,"cmd":"usageOverride","model":"qwen","action":"alias","aliasTo":"gpt-5"}')).toMatchObject({ ok: true, data: { args: { aliasTo: 'gpt-5' } } });
   expect(await c.ask('{"id":5,"cmd":"usageOverride","model":"qwen","action":"custom","inputPerMillionUsd":0,"outputPerMillionUsd":2.5,"cacheWritePerMillionUsd":1}')).toMatchObject({ ok: true, data: { args: { inputPerMillionUsd: 0, outputPerMillionUsd: 2.5, cacheWritePerMillionUsd: 1 } } });
-  expect(await c.ask('{"id":6,"cmd":"usageOverride","model":"refused","action":"clear"}')).toEqual({ id: 6, ok: false, error: 'That price cannot be saved' });
+  expect(await c.ask('{"id":6,"cmd":"usageOverride","model":"refused","action":"clear"}')).toEqual({ id: 6, ok: false, error: 'That price cannot be saved', code: 'usage.priceInvalid', params: { model: 'refused' } });
 });
 
 test('stopTask passes the session and the task on', async () => {
@@ -275,7 +275,7 @@ test('switchAgent takes a session and the name of an agent, strict, and a refusa
   await open();
   const c = await client();
   expect(await c.ask(`{"id":1,"cmd":"switchAgent","sessionId":"${uuid}","agent":"codex"}`)).toEqual({ id: 1, ok: true, data: { session: { id: uuid, agent: 'codex' }, options: [] } });
-  expect(await c.ask(`{"id":2,"cmd":"switchAgent","sessionId":"${uuid}","agent":"busy"}`)).toEqual({ id: 2, ok: false, error: 'This session is working; interrupt it or wait, then switch its agent' });
+  expect(await c.ask(`{"id":2,"cmd":"switchAgent","sessionId":"${uuid}","agent":"busy"}`)).toEqual({ id: 2, ok: false, error: 'This session is working; interrupt it or wait, then switch its agent', code: 'session.busy', params: {} });
   expect(await c.ask(`{"id":3,"cmd":"switchAgent","sessionId":"${uuid}"}`)).toEqual({ id: 3, ok: false, error: 'invalid request' });
   expect(await c.ask(`{"id":4,"cmd":"switchAgent","sessionId":"${uuid}","agent":""}`)).toEqual({ id: 4, ok: false, error: 'invalid request' });
   expect(await c.ask('{"id":5,"cmd":"switchAgent","sessionId":"../x","agent":"codex"}')).toEqual({ id: 5, ok: false, error: 'invalid request' });
@@ -294,7 +294,7 @@ test('regenerateTitle takes a session id, strict, and a refusal reaches the clie
   await open();
   const c = await client();
   expect(await c.ask(`{"id":1,"cmd":"regenerateTitle","sessionId":"${uuid}"}`)).toEqual({ id: 1, ok: true, data: { title: 'A generated title' } });
-  expect(await c.ask('{"id":2,"cmd":"regenerateTitle","sessionId":"00000000-0000-4000-8000-000000000000"}')).toEqual({ id: 2, ok: false, error: 'Could not write a title: no text generator is chosen; choose one in Providers' });
+  expect(await c.ask('{"id":2,"cmd":"regenerateTitle","sessionId":"00000000-0000-4000-8000-000000000000"}')).toEqual({ id: 2, ok: false, error: 'Could not write a title: no text generator is chosen; choose one in Providers', code: 'title.noGenerator', params: {} });
   expect(await c.ask('{"id":3,"cmd":"regenerateTitle"}')).toEqual({ id: 3, ok: false, error: 'invalid request' });
   expect(await c.ask('{"id":4,"cmd":"regenerateTitle","sessionId":"../x"}')).toEqual({ id: 4, ok: false, error: 'invalid request' });
   expect(await c.ask(`{"id":5,"cmd":"regenerateTitle","sessionId":"${uuid}","title":"x"}`)).toEqual({ id: 5, ok: false, error: 'invalid request' });
@@ -306,7 +306,7 @@ test('regenerateTitles takes no fields, answers how many it started, and a refus
   expect(await c.ask('{"id":1,"cmd":"regenerateTitles"}')).toEqual({ id: 1, ok: true, data: { started: 3 } });
   expect(await c.ask(`{"id":2,"cmd":"regenerateTitles","sessionId":"${uuid}"}`)).toEqual({ id: 2, ok: false, error: 'invalid request' });
   refuseBulkTitles = true;
-  expect(await c.ask('{"id":3,"cmd":"regenerateTitles"}')).toEqual({ id: 3, ok: false, error: 'Could not write titles: no text generator is chosen; choose one in Providers' });
+  expect(await c.ask('{"id":3,"cmd":"regenerateTitles"}')).toEqual({ id: 3, ok: false, error: 'Could not write titles: no text generator is chosen; choose one in Providers', code: 'title.noGenerator', params: {} });
 });
 
 test('deletePreview takes one to 500 session ids and nothing else', async () => {
@@ -384,7 +384,7 @@ test('the projects requests: a clone starts and answers at once, the clones in f
   const c = await client();
   expect(await c.ask('{"id":1,"cmd":"cloneProject","repo":"acme/app"}')).toEqual({ id: 1, ok: true, data: { repo: 'acme/app', folder: '/projects/acme/app', state: 'cloning' } });
   expect(await c.ask('{"id":2,"cmd":"cloneProject","repo":"acme/app","parent":"/work"}')).toMatchObject({ ok: true, data: { folder: '/work/acme/app' } });
-  expect(await c.ask('{"id":3,"cmd":"cloneProject","repo":"acme/missing"}')).toEqual({ id: 3, ok: false, error: 'acme/missing is already a project' });
+  expect(await c.ask('{"id":3,"cmd":"cloneProject","repo":"acme/missing"}')).toEqual({ id: 3, ok: false, error: 'acme/missing is already a project', code: 'project.exists', params: { repo: 'acme/missing' } });
   expect(await c.ask('{"id":4,"cmd":"projectClones"}')).toEqual({ id: 4, ok: true, data: { clones: [{ repo: 'acme/app', folder: '/projects/acme/app', state: 'cloning', progress: 'Receiving objects: 45%' }] } });
   expect(await c.ask('{"id":5,"cmd":"dismissClone","repo":"acme/app"}')).toEqual({ id: 5, ok: true, data: { clones: [] } });
   const bad = [
@@ -403,7 +403,7 @@ test('projectWorktrees takes a folder and nothing else, and answers the main clo
   await open();
   const c = await client();
   expect(await c.ask('{"id":1,"cmd":"projectWorktrees","folder":"/work/app"}')).toEqual({ id: 1, ok: true, data: { main: { path: '/work/app', branch: 'main', state: 'clean' }, worktrees: [{ path: '/home/chat/worktrees/acme/app/kerrigan', branch: 'carrier/kerrigan', session: null, lastActiveAt: 1000, state: 'clean' }] } });
-  expect(await c.ask('{"id":2,"cmd":"projectWorktrees","folder":"/gone"}')).toEqual({ id: 2, ok: false, error: 'That folder does not exist' });
+  expect(await c.ask('{"id":2,"cmd":"projectWorktrees","folder":"/gone"}')).toEqual({ id: 2, ok: false, error: 'That folder does not exist', code: 'folder.notFound', params: {} });
   const bad = ['{"id":10,"cmd":"projectWorktrees"}', '{"id":11,"cmd":"projectWorktrees","folder":""}', '{"id":12,"cmd":"projectWorktrees","folder":"/a","force":true}', `{"id":13,"cmd":"projectWorktrees","folder":"/${'a'.repeat(4096)}"}`];
   for (const line of bad) expect(await c.ask(line)).toMatchObject({ ok: false, error: 'invalid request' });
 });
@@ -423,7 +423,7 @@ test('removeProjectWorktree takes a project folder and a worktree path, and clea
   await open();
   const c = await client();
   expect(await c.ask('{"id":1,"cmd":"removeProjectWorktree","folder":"/work/app","path":"/w/a"}')).toEqual({ id: 1, ok: true, data: {} });
-  expect(await c.ask('{"id":2,"cmd":"removeProjectWorktree","folder":"/work/app","path":"/open"}')).toEqual({ id: 2, ok: false, error: 'Its session is open' });
+  expect(await c.ask('{"id":2,"cmd":"removeProjectWorktree","folder":"/work/app","path":"/open"}')).toEqual({ id: 2, ok: false, error: 'Its session is open', code: 'worktree.sessionOpen', params: {} });
   const removed = [{ path: '/w/a', bytes: 1024 }];
   const skipped = [{ path: '/w/b', reason: 'It has uncommitted changes' }];
   // asking without `run` only says what would go; the answer to `run` is what went
@@ -447,7 +447,7 @@ test('newProject takes a plain folder name and an optional parent, and nothing e
   const c = await client();
   expect(await c.ask('{"id":1,"cmd":"newProject","name":"my-app"}')).toEqual({ id: 1, ok: true, data: { folder: '/projects/local/my-app' } });
   expect(await c.ask('{"id":2,"cmd":"newProject","name":"my-app","parent":"/work"}')).toEqual({ id: 2, ok: true, data: { folder: '/work/local/my-app' } });
-  expect(await c.ask('{"id":3,"cmd":"newProject","name":"taken"}')).toEqual({ id: 3, ok: false, error: 'taken is already a project; choose another name' });
+  expect(await c.ask('{"id":3,"cmd":"newProject","name":"taken"}')).toEqual({ id: 3, ok: false, error: 'taken is already a project; choose another name', code: 'project.nameTaken', params: { name: 'taken' } });
   const bad = [
     '{"id":10,"cmd":"newProject"}',
     '{"id":11,"cmd":"newProject","name":"a/b"}',
@@ -487,7 +487,7 @@ test('open takes a plan, strictly: what it refuses and what it accepts', async (
   ];
   for (const [what, line] of bad) expect(await c.ask(line), what).toEqual({ id: 1, ok: false, error: 'invalid request' });
   // the old open is still the old open
-  expect(await c.ask('{"id":2,"cmd":"open","agent":"claude","folder":"/nope"}')).toEqual({ id: 2, ok: false, error: 'That folder does not exist' });
+  expect(await c.ask('{"id":2,"cmd":"open","agent":"claude","folder":"/nope"}')).toEqual({ id: 2, ok: false, error: 'That folder does not exist', code: 'folder.notFound', params: {} });
 });
 
 test('retryPreparation and cancelPreparation take a session id and nothing else, and a refusal reaches the client in words', async () => {
@@ -496,7 +496,7 @@ test('retryPreparation and cancelPreparation take a session id and nothing else,
   const sessionId = '11111111-1111-4111-8111-111111111111';
   expect(await c.ask(`{"id":1,"cmd":"retryPreparation","sessionId":"${sessionId}"}`)).toEqual({ id: 1, ok: true, data: { retried: sessionId } });
   expect(await c.ask(`{"id":2,"cmd":"cancelPreparation","sessionId":"${sessionId}"}`)).toEqual({ id: 2, ok: true, data: { plan: { text: 'hi' } } });
-  expect(await c.ask('{"id":3,"cmd":"cancelPreparation","sessionId":"00000000-0000-4000-8000-000000000000"}')).toEqual({ id: 3, ok: false, error: 'This session is not being prepared, so there is nothing to cancel' });
+  expect(await c.ask('{"id":3,"cmd":"cancelPreparation","sessionId":"00000000-0000-4000-8000-000000000000"}')).toEqual({ id: 3, ok: false, error: 'This session is not being prepared, so there is nothing to cancel', code: 'session.notPreparing', params: {} });
   for (const cmd of ['retryPreparation', 'cancelPreparation']) {
     for (const [what, fields] of [['no id', ''], ['an id that is not a UUID', ',"sessionId":"x"'], ['an extra field', `,"sessionId":"${sessionId}","force":true`]] as const) {
       expect(await c.ask(`{"id":9,"cmd":"${cmd}"${fields}}`), `${cmd} with ${what}`).toEqual({ id: 9, ok: false, error: 'invalid request' });
@@ -546,9 +546,31 @@ test('a refusal reaches the client in words, any other failure is only "internal
   await open();
   const c = await client();
   c.socket.write(`${JSON.stringify({ id: 1, cmd: 'open', agent: 'claude', folder: '/nope' })}\n${JSON.stringify({ id: 2, cmd: 'send', sessionId: uuid, text: 'hi' })}\n${JSON.stringify({ id: 3, cmd: 'events', sessionId: uuid, after: 5, limit: 10 })}\n`);
-  expect(await c.next()).toEqual({ id: 1, ok: false, error: 'That folder does not exist' });
+  expect(await c.next()).toEqual({ id: 1, ok: false, error: 'That folder does not exist', code: 'folder.notFound', params: {} });
   expect(await c.next()).toEqual({ id: 2, ok: false, error: 'internal error' });
   expect(await c.next()).toEqual({ id: 3, ok: true, data: { after: 5 } });
+});
+
+test('a refusal answers its code and params beside its words, and the fixed errors carry none', async () => {
+  await open();
+  const c = await client();
+  const refusals = [
+    '{"id":1,"cmd":"open","agent":"claude","folder":"/nope"}',
+    '{"id":2,"cmd":"cloneProject","repo":"acme/missing"}',
+    '{"id":3,"cmd":"newProject","name":"taken"}',
+    '{"id":4,"cmd":"usageOverride","model":"refused","action":"clear"}',
+    `{"id":5,"cmd":"switchAgent","sessionId":"${uuid}","agent":"busy"}`,
+  ];
+  for (const line of refusals) {
+    const reply = (await c.ask(line)) as { ok: boolean; error: string; code: string; params: Record<string, unknown> };
+    expect(reply.ok).toBe(false);
+    expect(reply.code).toMatch(textCode);
+    for (const value of Object.values(reply.params)) expect(['string', 'number']).toContain(typeof value);
+  }
+  // the replies of the socket itself keep their words and gain nothing
+  expect(await c.ask('not json')).toEqual({ id: null, ok: false, error: 'invalid JSON' });
+  expect(await c.ask('{"id":6,"cmd":"nope"}')).toEqual({ id: 6, ok: false, error: 'invalid request' });
+  expect(await c.ask(`{"id":7,"cmd":"send","sessionId":"${uuid}","text":"hi"}`)).toEqual({ id: 7, ok: false, error: 'internal error' });
 });
 
 test('stop replies ok and then runs the stop', async () => {

@@ -19,23 +19,24 @@ export const realOfNearest = (path: string): string => {
 
 /** The real path of the folder a session may work in, or a `ChatRefused` saying why not. A symlink into an engine folder is refused too. */
 export function checkFolder(folder: string, home: string): string {
-  if (isAbsolute(folder) === false) throw new ChatRefused('The folder must be an absolute path');
+  if (isAbsolute(folder) === false) throw new ChatRefused('folder.notAbsolute', 'The folder must be an absolute path');
   let real: string;
   try {
     real = realpathSync(folder);
   } catch {
-    throw new ChatRefused('That folder does not exist');
+    throw new ChatRefused('folder.missing', 'That folder does not exist');
   }
-  if (statSync(real).isDirectory() === false) throw new ChatRefused('That path is not a folder');
-  refuseInside(real, home, engineFolders, 'a chat never works there');
+  if (statSync(real).isDirectory() === false) throw new ChatRefused('folder.notDirectory', 'That path is not a folder');
+  const inside = insideCarrier(real, home, engineFolders);
+  if (inside !== undefined) throw new ChatRefused('folder.insideCarrier', `That folder is inside Carrier's own ${inside} folder; a chat never works there`, { folder: inside });
   return real;
 }
 
-function refuseInside(real: string, home: string, folders: (home: string) => string[], why: string) {
+/** The Carrier folder (relative to the home) that `real` lies in, if any. */
+function insideCarrier(real: string, home: string, folders: (home: string) => string[]): string | undefined {
   const realHome = realOfNearest(home);
-  for (const refused of folders(realHome)) {
-    if (real === refused || real.startsWith(refused + sep)) throw new ChatRefused(`That folder is inside Carrier's own ${relative(realHome, refused)} folder; ${why}`);
-  }
+  const refused = folders(realHome).find((folder) => real === folder || real.startsWith(folder + sep));
+  return refused === undefined ? undefined : relative(realHome, refused);
 }
 
 /** Whether `folder` (an existing, readable real path) is inside a git worktree linked to another repository. */
@@ -71,29 +72,31 @@ function isLinkedWorktree(folder: string): boolean {
  * Refuses relative paths, missing paths, files, unreadable folders, Carrier's own folders (symlinks resolved), and worktrees linked to another project.
  */
 export function checkProjectFolder(folder: string, home: string): string {
-  if (isAbsolute(folder) === false) throw new ChatRefused('The folder must be an absolute path');
+  if (isAbsolute(folder) === false) throw new ChatRefused('folder.notAbsolute', 'The folder must be an absolute path');
   let real: string;
   try {
     real = realpathSync(folder);
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code;
-    throw new ChatRefused(code === 'EACCES' || code === 'EPERM' ? 'That folder cannot be read' : 'That folder does not exist');
+    throw code === 'EACCES' || code === 'EPERM' ? new ChatRefused('folder.unreadable', 'That folder cannot be read') : new ChatRefused('folder.missing', 'That folder does not exist');
   }
-  if (statSync(real).isDirectory() === false) throw new ChatRefused('That path is not a folder');
+  if (statSync(real).isDirectory() === false) throw new ChatRefused('folder.notDirectory', 'That path is not a folder');
   try {
     accessSync(real, constants.R_OK | constants.X_OK);
   } catch {
-    throw new ChatRefused('That folder cannot be read');
+    throw new ChatRefused('folder.unreadable', 'That folder cannot be read');
   }
-  refuseInside(real, home, chatOwnFolders, 'a project cannot live there');
-  if (isLinkedWorktree(real)) throw new ChatRefused('That folder is a worktree linked to another project');
+  const inside = insideCarrier(real, home, chatOwnFolders);
+  if (inside !== undefined) throw new ChatRefused('folder.projectInsideCarrier', `That folder is inside Carrier's own ${inside} folder; a project cannot live there`, { folder: inside });
+  if (isLinkedWorktree(real)) throw new ChatRefused('folder.linkedWorktree', 'That folder is a worktree linked to another project');
   return real;
 }
 
 /** The projects folder as the host will use it (it may not exist yet), or a `ChatRefused` saying why not. The engine-folder rule of `checkFolder` plus the chat's own state, logs and worktrees, with symlinks resolved. */
 export function checkProjectsFolder(folder: string, home: string): string {
-  if (isAbsolute(folder) === false) throw new ChatRefused('The projects folder must be an absolute path');
+  if (isAbsolute(folder) === false) throw new ChatRefused('folder.projectsNotAbsolute', 'The projects folder must be an absolute path');
   const real = realOfNearest(folder);
-  refuseInside(real, home, chatOwnFolders, 'a chat never works there');
+  const inside = insideCarrier(real, home, chatOwnFolders);
+  if (inside !== undefined) throw new ChatRefused('folder.insideCarrier', `That folder is inside Carrier's own ${inside} folder; a chat never works there`, { folder: inside });
   return folder;
 }

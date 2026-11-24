@@ -23,7 +23,7 @@ import type { Git } from './git.ts';
 import { type ActionWhen, newProjectKind, type Plan, type Step, type StepEvent } from './plan.ts';
 import { realShell, type Shell } from './shell.ts';
 import { redact } from '../logging/redact.ts';
-import { ChatRefused, type BackgroundTask, type ChatChoice, type ChatCommand, type ChatConversation, type ChatEvent, type ChatOption, type ChatQuestion, type ChatRunner } from './runner.ts';
+import { ChatRefused, refusedFor, type Reason, type BackgroundTask, type ChatChoice, type ChatCommand, type ChatConversation, type ChatEvent, type ChatOption, type ChatQuestion, type ChatRunner } from './runner.ts';
 import { clean } from '../execution/events.ts';
 import { chatEvents, chatTurns, sessions } from './schema.ts';
 import { noTextGenerator, TEXT_GENERATOR_LIMIT_MS, TextGeneratorFailed, type TextGenerator } from './text-generator.ts';
@@ -158,8 +158,14 @@ const MCP_SERVER_NAME = 'carrier-chat';
 /** Refuses, naming the option, one the provider does not list or a value it does not offer for it. */
 function checkOption(options: ChatOption[], id: string, value: string) {
   const option = options.find((candidate) => candidate.id === id);
-  if (option === undefined) throw new ChatRefused(`This agent has no option "${id}"; it offers: ${options.map((o) => o.id).join(', ') || 'none'}`);
-  if (option.values.some((offered) => offered.id === value) === false) throw new ChatRefused(`"${value}" is not a value of the option "${id}"; it offers: ${option.values.map((v) => v.id).join(', ')}`);
+  if (option === undefined) {
+    const offers = options.map((o) => o.id).join(', ') || 'none';
+    throw new ChatRefused('session.option.unknown', `This agent has no option "${id}"; it offers: ${offers}`, { option: id, offers });
+  }
+  if (option.values.some((offered) => offered.id === value) === false) {
+    const offers = option.values.map((v) => v.id).join(', ');
+    throw new ChatRefused('session.option.valueUnknown', `"${value}" is not a value of the option "${id}"; it offers: ${offers}`, { option: id, value, offers });
+  }
 }
 
 export function binaryFound(command: string): boolean {
@@ -190,18 +196,19 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
   // Sessions whose worktree folder the clock's cleanup is reading or removing, until it is done: an agent about to open in the folder waits for it.
   const clearing = new Map<string, Promise<void>>();
   const notSwitching = (sessionId: string) => {
-    if (switching.has(sessionId)) throw new ChatRefused('This session is switching to another agent; try again in a moment');
+    if (switching.has(sessionId)) throw new ChatRefused('session.switching', 'This session is switching to another agent; try again in a moment');
   };
 
   const exists = (sessionId: string) => db.select({ id: sessions.id }).from(sessions).where(eq(sessions.id, sessionId)).get() !== undefined;
   const row = (sessionId: string) => {
     const found = db.select().from(sessions).where(eq(sessions.id, sessionId)).get();
-    if (found === undefined) throw new ChatRefused('There is no such session');
+    if (found === undefined) throw new ChatRefused('session.unknown', 'There is no such session');
     return found;
   };
+  const childActions = { switchAgent: 'switched to another agent', resume: 'resumed', send: 'sent a message', setOption: 'given other options', archive: 'archived', restore: 'restored', rename: 'renamed', retitle: 'retitled', delete: 'deleted' };
   /** Refuses, in words, a request that treats a child as a conversation of the person's: it belongs to its parent session (ADR 0033). An unknown session is refused as `row` does. */
-  const refuseChild = (sessionId: string, verb: string) => {
-    if (row(sessionId).parentSessionId !== null) throw new ChatRefused(`This session belongs to its parent session and cannot be ${verb}`);
+  const refuseChild = (sessionId: string, action: keyof typeof childActions) => {
+    if (row(sessionId).parentSessionId !== null) throw new ChatRefused('session.child.owned', `This session belongs to its parent session and cannot be ${childActions[action]}`, { action });
   };
   /** The options a session has now: its live conversation's, else the ones stored. */
   const optionsOf = (sessionId: string, stored: Record<string, string> | null) => {
@@ -248,7 +255,7 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
     const there = existsSync(found.worktreePath!);
     const unfinished = there ? unfinishedRestore(found.id) : undefined;
     if (there && unfinished === undefined) return restoreWorktree(git, worktreeOf(found)); // checks the record only
-    if (deleting.has(found.id)) throw new ChatRefused('This session is being deleted');
+    if (deleting.has(found.id)) throw new ChatRefused('session.deleting', 'This session is being deleted');
     const entry = { abort: new AbortController(), done: Promise.resolve() };
     restoring.set(found.id, entry);
     entry.done = bringBack(found, entry.abort.signal, unfinished).finally(() => {
@@ -280,7 +287,9 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
     const after = unfinished ?? db.select({ id: chatEvents.id }).from(chatEvents).where(eq(chatEvents.sessionId, found.id)).orderBy(desc(chatEvents.id)).limit(1).get()?.id ?? 0;
     if (await runActions(found.id, file, found.worktreeBase!, 'newWorktree', found.worktreePath!, signal, after)) return;
     const stopped = db.select().from(chatEvents).where(and(eq(chatEvents.sessionId, found.id), eq(chatEvents.kind, 'step'), gt(chatEvents.id, after))).orderBy(desc(chatEvents.id)).limit(1).get()?.data;
-    throw new ChatRefused(signal.aborted ? 'Setting up the worktree was cancelled; open the session again to go on from where it stopped' : `${stopped?.detail ?? 'An action failed'}. Open the session again to go on from that action`);
+    throw signal.aborted
+      ? new ChatRefused('session.restoreCancelled', 'Setting up the worktree was cancelled; open the session again to go on from where it stopped')
+      : new ChatRefused('session.restoreActionFailed', `${stopped?.detail ?? 'An action failed'}. Open the session again to go on from that action`); // the step's detail is a sentence of its own, so it is not a parameter
   };
 
   /** The cleanup of `chat.json`'s `worktreeCleanup`: removes the folder of an idle session's worktree whose PR is merged or that is archived and has had no activity for `afterInactiveDays`, never one with uncommitted work, and keeps its branch. */
@@ -322,6 +331,7 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
       }
     }
   };
+  const sessionOpen: Reason = { code: 'worktree.sessionOpen', words: 'Its session is open' };
   /** What `projectWorktrees` reads of each worktree, with what removing it needs: its session's row and whether it is open. */
   type Entry = { worktree: ProjectWorktree; found: typeof sessions.$inferSelect | undefined; live: boolean; dirty: number };
   const readProjectWorktrees = async (folder: string) => {
@@ -344,17 +354,17 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
     return { base, main: { path: base, branch: main?.branch ?? null }, entries };
   };
   /** Why a worktree cannot be removed now, or null. */
-  const blockOf = ({ live, dirty, found }: Entry) =>
-    live || (found !== undefined && (switching.has(found.id) || deleting.has(found.id) || restoring.has(found.id))) ? 'Its session is open' : dirty > 0 ? 'It has uncommitted changes' : null;
+  const blockOf = ({ live, dirty, found }: Entry): Reason | null =>
+    live || (found !== undefined && (switching.has(found.id) || deleting.has(found.id) || restoring.has(found.id))) ? sessionOpen : dirty > 0 ? { code: 'worktree.uncommitted', words: 'It has uncommitted changes' } : null;
   /** Removes the folder of one worktree, as the clock's cleanup does: its session waits for it before opening the folder, and it is checked again just before git is asked. */
   const removeProjectEntry = async (base: string, entry: Entry) => {
     const { worktree, found } = entry;
     const reason = blockOf(entry);
-    if (reason !== null) throw new ChatRefused(reason);
+    if (reason !== null) throw refusedFor(reason);
     const made = { path: worktree.path, branch: worktree.branch ?? '', from: '', base };
     const clear = async () => {
       // taken up while git read it
-      if (found !== undefined && (familyClock(found).live || switching.has(found.id) || deleting.has(found.id) || restoring.has(found.id))) throw new ChatRefused('Its session is open');
+      if (found !== undefined && (familyClock(found).live || switching.has(found.id) || deleting.has(found.id) || restoring.has(found.id))) throw refusedFor(sessionOpen);
       await clearWorktree(git, made);
       log.info('removed the folder of a worktree by request, its branch is kept', { branch: worktree.branch });
     };
@@ -660,21 +670,25 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
    * An archive does not wait for the agent to end, which can take seconds (the person is watching the row go); a delete does, as its worktree cannot be removed under a running agent. */
   async function settle(sessionId: string, verb: 'archive' | 'delete') {
     notSwitching(sessionId);
-    if (row(sessionId).state === 'preparing' || restoring.has(sessionId)) throw new ChatRefused(`This session is being prepared; wait for it to finish, then ${verb} it`);
+    if (row(sessionId).state === 'preparing' || restoring.has(sessionId)) throw new ChatRefused('session.preparing', `This session is being prepared; wait for it to finish, then ${verb} it`, { action: verb });
     const family = [sessionId, ...kidsOf(sessionId)];
-    if (family.some((id) => opening.has(id))) throw new ChatRefused(`A child of this session is starting; try again in a moment, then ${verb} it`);
+    if (family.some((id) => opening.has(id))) throw new ChatRefused('session.childStarting', `A child of this session is starting; try again in a moment, then ${verb} it`, { action: verb });
     for (const id of family) {
       const waiting = lives.get(id)?.background.length ?? 0;
-      if (waiting > 0) throw new ChatRefused(`${id === sessionId ? 'This session is' : 'A child of this session is'} waiting for ${waiting === 1 ? 'a background task' : 'background tasks'}; stop ${waiting === 1 ? 'it' : 'them'} first, then ${verb} ${id === sessionId ? 'it' : 'the session'}`);
+      if (waiting > 0) {
+        const tasks = waiting === 1 ? ['a background task', 'it'] : ['background tasks', 'them'];
+        if (id === sessionId) throw new ChatRefused('session.tasksRunning', `This session is waiting for ${tasks[0]}; stop ${tasks[1]} first, then ${verb} it`, { count: waiting, action: verb });
+        throw new ChatRefused('session.childTasksRunning', `A child of this session is waiting for ${tasks[0]}; stop ${tasks[1]} first, then ${verb} the session`, { count: waiting, action: verb });
+      }
     }
     for (const id of family) {
       const state = lives.get(id)?.state;
-      if (state !== undefined && state !== 'idle') throw new ChatRefused(`${id === sessionId ? 'This session' : 'A child of this session'} is ${state === 'working' ? 'working' : 'waiting for an approval'}; interrupt or close it first, then ${verb} ${id === sessionId ? 'it' : 'the session'}`);
+      if (state !== undefined && state !== 'idle') throw new ChatRefused(id === sessionId ? 'session.busy' : 'session.childBusy', `${id === sessionId ? 'This session' : 'A child of this session'} is ${state === 'working' ? 'working' : 'waiting for an approval'}; interrupt or close it first, then ${verb} ${id === sessionId ? 'it' : 'the session'}`, { state, action: verb });
     }
     for (const id of family) {
       if (lives.has(id) === false) continue;
       await close({ sessionId: id }, { wait: verb === 'delete' });
-      if (lives.has(id)) throw new ChatRefused('This session was resumed meanwhile; close it first'); // a resume that finished during the close
+      if (lives.has(id)) throw new ChatRefused('session.resumedMeanwhile', 'This session was resumed meanwhile; close it first'); // a resume that finished during the close
     }
   }
 
@@ -682,7 +696,7 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
   const launchOf = (chosen: ChatAgent) => {
     const { harness, command, launch, env: accountEnv } = chatAccount(readAccounts(), chosen, env);
     const runner = runners[harness];
-    if (runner === undefined) throw new ChatRefused(`This host has no chat runner for ${harness}`);
+    if (runner === undefined) throw new ChatRefused('agent.noRunner', `This host has no chat runner for ${harness}`, { harness });
     return { chosen, harness, runner, command, launch, env: accountEnv };
   };
   type Launch = ReturnType<typeof launchOf>;
@@ -702,7 +716,7 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
     } catch (error) {
       if (error instanceof ChatRefused) throw error;
       log.error('a chat runner failed to open', error);
-      throw new ChatRefused(`${chosen.name} could not be started`);
+      throw new ChatRefused('agent.startFailed', `${chosen.name} could not be started`, { agent: chosen.name });
     }
   }
 
@@ -746,7 +760,7 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
       log.error('a message could not be sent to the agent', error);
       live.turn = undefined;
       touch(sessionId, live, 'idle');
-      throw new ChatRefused('The message could not be delivered to the agent');
+      throw new ChatRefused('session.deliveryFailed', 'The message could not be delivered to the agent');
     }
   };
 
@@ -846,7 +860,7 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
     stepEvent(sessionId, step, 'running');
     try {
       if (worktree !== undefined) {
-        if (branch === undefined) throw new ChatRefused('A worktree needs the branch it starts from');
+        if (branch === undefined) throw new ChatRefused('worktree.branchMissing', 'A worktree needs the branch it starts from');
         // an empty name is the host's to generate
         const made = await exclusive(async () => createWorktree(git, folder, { from: await listedAs(folder, plan, branch), startFrom, ...(worktree.name !== undefined && worktree.name !== '' && { name: worktree.name }) }, signal));
         db.update(sessions).set({ folder: made.path, workspaceKind: 'worktree', worktreeBranch: made.branch, worktreeFrom: made.from, worktreeBase: made.base, worktreePath: made.path }).where(eq(sessions.id, sessionId)).run();
@@ -908,7 +922,7 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
       const listed = readProjectsFile();
       if (listed.ok) await checkWorktreeClash(git, folder, listed.projects);
       const written = updateProjectsFile((current) => (current.some((entry) => samePath(entry.path, folder)) ? current : [...current, { path: folder, origin }]));
-      if (written.ok === false) throw new ChatRefused(`projects.json ${written.errors[0]!.path} ${written.errors[0]!.message}`);
+      if (written.ok === false) throw new ChatRefused('project.fileInvalid', `projects.json ${written.errors[0]!.path} ${written.errors[0]!.message}`, { path: written.errors[0]!.path, problem: written.errors[0]!.message });
     } catch (error) {
       if (error instanceof ChatRefused === false) log.error('registering the project of a session failed', error, { folder });
       store(sessionId, { kind: 'notice', text: `${basename(folder)} was not added to your projects: ${error instanceof ChatRefused ? error.message : 'projects.json could not be written'}.` });
@@ -1015,7 +1029,7 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
   /** What a plan needs to run, refusing in words one that cannot. A project's or a repository's folder is the one it will be made or cloned at. */
   const targetOf = (plan: Plan) => {
     const chosen = listed().find((candidate) => candidate.name === plan.agent);
-    if (chosen === undefined) throw new ChatRefused(`There is no chat agent named "${plan.agent}"`);
+    if (chosen === undefined) throw new ChatRefused('agent.unknown', `There is no chat agent named "${plan.agent}"`, { agent: plan.agent });
     return { launch: launchOf(chosen), folder: plan.workspace.kind === newProjectKind ? projectFolder(plan.workspace.name) : plan.workspace.kind === 'repo' ? projects.repoFolder(plan.workspace.repo) : checkFolder(plan.workspace.folder, carrierHome()) };
   };
   /** Runs the steps of a plan in the background. */
@@ -1034,7 +1048,7 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
    */
   const offerOf = async ({ agent }: { agent: string }) => {
     const chosen = listed().find((candidate) => candidate.name === agent);
-    if (chosen === undefined) throw new ChatRefused(`There is no chat agent named "${agent}"`);
+    if (chosen === undefined) throw new ChatRefused('agent.unknown', `There is no chat agent named "${agent}"`, { agent });
     const launch = launchOf(chosen);
     const known = offered.get(agent);
     if (known !== undefined && clock.now() - known.at < 10 * 60_000) return await known.offer;
@@ -1061,10 +1075,13 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
       ({ options }) => options.find((option) => option.id === 'model')?.values.map((value) => value.id),
       (error) => {
         log.error(`listing the models of the agent ${agent} failed`, error);
-        throw new ChatRefused(`The models of the agent "${agent}" could not be listed, so "${model}" cannot be checked`);
+        throw new ChatRefused('agent.modelsUnlisted', `The models of the agent "${agent}" could not be listed, so "${model}" cannot be checked`, { agent, model });
       },
     );
-    if (listedModels?.includes(model) !== true) throw new ChatRefused(`"${model}" is not a model of the agent "${agent}"; it lists: ${listedModels?.join(', ') || 'none'}`);
+    if (listedModels?.includes(model) !== true) {
+      const offers = listedModels?.join(', ') || 'none';
+      throw new ChatRefused('agent.modelUnknown', `"${model}" is not a model of the agent "${agent}"; it lists: ${offers}`, { agent, model, offers });
+    }
   };
 
   /** Each agent with its account's harness and whether that account's binary is found; one whose account is missing or Antigravity's is not found, and `unknown` for its harness when it has none. */
@@ -1097,12 +1114,14 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
   };
 
   /** Why a session may not delegate now, in words (its options as they are now, so a change of mode counts). */
-  const delegationRefusalOf = (sessionId: string) => {
-    if (!exists(sessionId)) return 'This session no longer exists';
+  const delegationReasonOf = (sessionId: string): Reason | undefined => {
+    if (!exists(sessionId)) return { code: 'session.gone', words: 'This session no longer exists' };
     const found = row(sessionId);
-    if (found.parentSessionId !== null) return 'A child session cannot start children of its own';
-    return delegationRefusal(found.harness, optionsOf(sessionId, found.options), lives.get(sessionId)?.conversation.appServerVersion);
+    if (found.parentSessionId !== null) return { code: 'session.child.cannotDelegate', words: 'A child session cannot start children of its own' };
+    const words = delegationRefusal(found.harness, optionsOf(sessionId, found.options), lives.get(sessionId)?.conversation.appServerVersion);
+    return words === undefined ? undefined : { code: 'session.delegation.refused', words }; // levels.ts words it for the agent and carries no code or parameters yet
   };
+  const delegationRefusalOf = (sessionId: string) => delegationReasonOf(sessionId)?.words;
 
   /**
    * Starts a child session of `parentId` for a configured agent and sends it the task (ADR 0033). The child is a session of its own agent in the parent's folder,
@@ -1121,28 +1140,31 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
     if (seen !== undefined) return answer(seen.id);
 
     const parent = row(parentId);
-    const refused = delegationRefusalOf(parentId);
-    if (refused !== undefined) throw new ChatRefused(refused);
+    const refused = delegationReasonOf(parentId);
+    if (refused !== undefined) throw refusedFor(refused);
     const chosen = listed().find((candidate) => candidate.name === agent);
-    if (chosen === undefined) throw new ChatRefused(`There is no chat agent named "${agent}"`);
-    if (listAgents().find((candidate) => candidate.name === agent)?.found !== true) throw new ChatRefused(`The agent "${agent}" is not found on this machine`);
+    if (chosen === undefined) throw new ChatRefused('agent.unknown', `There is no chat agent named "${agent}"`, { agent });
+    if (listAgents().find((candidate) => candidate.name === agent)?.found !== true) throw new ChatRefused('agent.notFound', `The agent "${agent}" is not found on this machine`, { agent });
     const launch = launchOf(chosen);
     const folder = await folderOf(parent);
     const verdict = (await health({})).agents.find((candidate) => candidate.name === agent)?.state;
-    if (verdict === 'signedOut') throw new ChatRefused(`The agent "${agent}" is signed out`);
-    if (verdict === 'missing') throw new ChatRefused(`The agent "${agent}" is not found on this machine`);
+    if (verdict === 'signedOut') throw new ChatRefused('agent.signedOut', `The agent "${agent}" is signed out`, { agent });
+    if (verdict === 'missing') throw new ChatRefused('agent.notFound', `The agent "${agent}" is not found on this machine`, { agent });
     if (model !== undefined) await checkModel(agent, model);
 
     // no await from here to the insert
     const again = earlier();
     if (again !== undefined) return answer(again.id);
     const current = row(parentId);
-    if (deleting.has(parentId)) throw new ChatRefused('This session is being deleted');
+    if (deleting.has(parentId)) throw new ChatRefused('session.deleting', 'This session is being deleted');
     // the mode may have changed while the awaits above ran
     const plan = delegationRefusalOf(parentId) === undefined ? childPlan(parentId, chosen, launch.harness) : undefined;
-    if (plan === undefined) throw new ChatRefused(delegationRefusalOf(parentId) ?? 'This session\'s options are off the permission scale, so a child cannot be given a level');
+    if (plan === undefined) {
+      const refused = delegationReasonOf(parentId);
+      throw refused === undefined ? new ChatRefused('session.delegation.offScale', 'This session\'s options are off the permission scale, so a child cannot be given a level') : refusedFor(refused);
+    }
     const running = db.select({ n: count() }).from(sessions).where(and(eq(sessions.parentSessionId, parentId), inArray(sessions.state, ['working', 'waiting_approval']))).get()?.n ?? 0;
-    if (running >= MAX_RUNNING_CHILDREN) throw new ChatRefused(`This session already has ${MAX_RUNNING_CHILDREN} children working or waiting for an approval; start another when one of them has finished`);
+    if (running >= MAX_RUNNING_CHILDREN) throw new ChatRefused('session.childrenLimit', `This session already has ${MAX_RUNNING_CHILDREN} children working or waiting for an approval; start another when one of them has finished`, { limit: MAX_RUNNING_CHILDREN });
     const options = { ...plan.options, ...(model !== undefined && { model }) };
     const now = clock.now();
     const childId = randomUUID();
@@ -1154,7 +1176,7 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
       try {
         conversation = await openConversation(launch, { folder, options, child: true, mcp: issued.args });
         for (const [id, value] of Object.entries(options)) checkOption(conversation.options, id, value);
-        if (!exists(parentId) || deleting.has(parentId) || row(parentId).archived) throw new ChatRefused('The session that asked for this child no longer exists');
+        if (!exists(parentId) || deleting.has(parentId) || row(parentId).archived) throw new ChatRefused('session.parentGone', 'The session that asked for this child no longer exists');
         deliver(childId, attach(childId, conversation, issued.invocationId), task, task);
       } catch (error) {
         if (lives.has(childId)) await close({ sessionId: childId }); // attached, and the task could not be sent
@@ -1176,7 +1198,7 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
   /** How a child of `parentId` stands, from its live state and, once it is not working, from how its one turn (after its last user message) ended; refuses an id that is not that parent's child like one that does not exist. */
   function childReport(parentId: string, childId: string): ChildReport {
     const child = db.select().from(sessions).where(and(eq(sessions.id, childId), eq(sessions.parentSessionId, parentId))).get();
-    if (child === undefined) throw new ChatRefused('There is no such session');
+    if (child === undefined) throw new ChatRefused('session.unknown', 'There is no such session');
     const report = { childId, agent: child.agent };
     const live = lives.get(childId);
     if (live?.state === 'working') return { ...report, state: 'working' };
@@ -1243,25 +1265,25 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
   async function switchAgent({ sessionId, agent }: { sessionId: string; agent: string }) {
     notSwitching(sessionId);
     const current = row(sessionId);
-    if (deleting.has(sessionId)) throw new ChatRefused('This session is being deleted');
-    refuseChild(sessionId, 'switched to another agent');
-    if (current.archived) throw new ChatRefused('This session is archived; restore it first, then switch its agent');
-    if (current.plan !== null) throw new ChatRefused('This session did not finish preparing');
+    if (deleting.has(sessionId)) throw new ChatRefused('session.deleting', 'This session is being deleted');
+    refuseChild(sessionId, 'switchAgent');
+    if (current.archived) throw new ChatRefused('session.switchAgent.archived', 'This session is archived; restore it first, then switch its agent');
+    if (current.plan !== null) throw new ChatRefused('session.preparationUnfinished', 'This session did not finish preparing');
     const busy = lives.get(sessionId)?.state ?? current.state;
-    if (busy === 'preparing') throw new ChatRefused('This session is being prepared; wait for it to finish, then switch its agent');
-    if (busy !== 'idle') throw new ChatRefused(`This session is ${busy === 'working' ? 'working' : 'waiting for an approval'}; interrupt it or wait, then switch its agent`);
-    if (agent === current.agent) throw new ChatRefused(`This session already has the agent "${agent}"`);
+    if (busy === 'preparing') throw new ChatRefused('session.switchAgent.preparing', 'This session is being prepared; wait for it to finish, then switch its agent');
+    if (busy !== 'idle') throw new ChatRefused('session.switchAgent.busy', `This session is ${busy === 'working' ? 'working' : 'waiting for an approval'}; interrupt it or wait, then switch its agent`, { state: busy });
+    if (agent === current.agent) throw new ChatRefused('session.switchAgent.same', `This session already has the agent "${agent}"`, { agent });
     const chosen = listed().find((candidate) => candidate.name === agent);
-    if (chosen === undefined) throw new ChatRefused(`There is no chat agent named "${agent}"`);
+    if (chosen === undefined) throw new ChatRefused('agent.unknown', `There is no chat agent named "${agent}"`, { agent });
     const launch = launchOf(chosen);
-    if (listAgents().find((candidate) => candidate.name === agent)?.found !== true) throw new ChatRefused(`The agent "${agent}" is not found on this machine`);
+    if (listAgents().find((candidate) => candidate.name === agent)?.found !== true) throw new ChatRefused('agent.notFound', `The agent "${agent}" is not found on this machine`, { agent });
 
     switching.add(sessionId);
     lives.get(sessionId)?.cancelIdle?.(); // the new agent is being opened: the old one may not close under it, and a refused switch leaves the session as it was
     try {
       const verdict = (await health({})).agents.find((candidate) => candidate.name === agent)?.state;
-      if (verdict === 'signedOut') throw new ChatRefused(`The agent "${agent}" is signed out`);
-      if (verdict === 'missing') throw new ChatRefused(`The agent "${agent}" is not found on this machine`);
+      if (verdict === 'signedOut') throw new ChatRefused('agent.signedOut', `The agent "${agent}" is signed out`, { agent });
+      if (verdict === 'missing') throw new ChatRefused('agent.notFound', `The agent "${agent}" is not found on this machine`, { agent });
       const folder = await folderOf(current);
       const options = { ...(chosen.model && { model: chosen.model }), ...chosen.options };
       if (options.model !== undefined) await checkModel(agent, options.model);
@@ -1274,9 +1296,9 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
       try {
         conversation = await openConversation(launch, { folder, options, mcp: issued.args, ...(handoff !== undefined && { instructions: handoff }) });
         for (const [id, value] of Object.entries(options)) checkOption(conversation.options, id, value);
-        if (mcp !== undefined && (mcp.url() === undefined || conversation.mcpProblem !== undefined)) throw new ChatRefused(`The agent "${agent}" could not get Carrier's own tools, so the session keeps "${current.agent}"`);
-        if (!exists(sessionId) || deleting.has(sessionId)) throw new ChatRefused('This session is being deleted');
-        if (row(sessionId).archived) throw new ChatRefused('This session was archived meanwhile; restore it first, then switch its agent');
+        if (mcp !== undefined && (mcp.url() === undefined || conversation.mcpProblem !== undefined)) throw new ChatRefused('session.switchAgent.noTools', `The agent "${agent}" could not get Carrier's own tools, so the session keeps "${current.agent}"`, { agent, current: current.agent });
+        if (!exists(sessionId) || deleting.has(sessionId)) throw new ChatRefused('session.deleting', 'This session is being deleted');
+        if (row(sessionId).archived) throw new ChatRefused('session.switchAgent.archivedMeanwhile', 'This session was archived meanwhile; restore it first, then switch its agent');
       } catch (error) {
         revoke(issued.invocationId);
         await conversation?.close().catch((closing) => log.error('closing a refused conversation failed', closing));
@@ -1330,7 +1352,7 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
       related: (sessionId: string, otherId: string) => row(sessionId).parentSessionId === otherId || db.select({ id: sessions.id }).from(sessions).where(and(eq(sessions.id, otherId), eq(sessions.parentSessionId, sessionId))).get() !== undefined,
       agentOptions: (name: string) => {
         const chosen = listed().find((candidate) => candidate.name === name);
-        if (chosen === undefined) throw new ChatRefused(`There is no chat agent named "${name}"`);
+        if (chosen === undefined) throw new ChatRefused('agent.unknown', `There is no chat agent named "${name}"`, { agent: name });
         return { ...chosen.options };
       },
       offer: async (name: string) => (await offerOf({ agent: name })).options,
@@ -1376,7 +1398,7 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
 
     async open({ agent, folder, options, worktree }: { agent: string; folder: string; options?: Record<string, string>; worktree?: { from: string; name?: string } }) {
       const chosen = listed().find((candidate) => candidate.name === agent);
-      if (chosen === undefined) throw new ChatRefused(`There is no chat agent named "${agent}"`);
+      if (chosen === undefined) throw new ChatRefused('agent.unknown', `There is no chat agent named "${agent}"`, { agent });
       const real = checkFolder(folder, carrierHome());
       const launch = launchOf(chosen);
       const chosenOptions = { ...(chosen.model && { model: chosen.model }), ...chosen.options, ...options };
@@ -1419,7 +1441,7 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
      * Opens a session from a plan: it exists at once as `preparing`, and the steps run in the background and record their events.
      */
     async openPlan({ plan: asked }: { plan: Plan }) {
-      if (asked.text.length > chatCaps.message) throw new ChatRefused(`That message has ${asked.text.length} characters; the most a message can have is ${chatCaps.message}`);
+      if (asked.text.length > chatCaps.message) throw new ChatRefused('session.message.tooLong', `That message has ${asked.text.length} characters; the most a message can have is ${chatCaps.message}`, { length: asked.text.length, max: chatCaps.message });
       const target = targetOf(asked);
       const now = clock.now();
       const id = randomUUID();
@@ -1436,9 +1458,9 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
     /** Repeats the steps of a failed preparation that did not finish; what was made (the worktree, the checkout) is reused. */
     async retryPreparation({ sessionId }: { sessionId: string }) {
       const current = row(sessionId);
-      if (current.state === 'preparing') throw new ChatRefused('This session is still being prepared, so there is nothing to try again');
-      if (current.plan === null || preparing.has(sessionId)) throw new ChatRefused('This session is not in a failed preparation, so there is nothing to try again');
-      if (deleting.has(sessionId)) throw new ChatRefused('This session is being deleted');
+      if (current.state === 'preparing') throw new ChatRefused('session.retry.preparing', 'This session is still being prepared, so there is nothing to try again');
+      if (current.plan === null || preparing.has(sessionId)) throw new ChatRefused('session.retry.notFailed', 'This session is not in a failed preparation, so there is nothing to try again');
+      if (deleting.has(sessionId)) throw new ChatRefused('session.deleting', 'This session is being deleted');
       const target = targetOf(current.plan);
       const updated = db.update(sessions).set({ state: 'preparing', lastActiveAt: clock.now() }).where(eq(sessions.id, sessionId)).returning().get();
       begin(sessionId, target, current.plan);
@@ -1454,7 +1476,7 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
         return { plan: null };
       }
       const { state, plan } = row(sessionId);
-      if (state !== 'preparing') throw new ChatRefused('This session is not being prepared, so there is nothing to cancel');
+      if (state !== 'preparing') throw new ChatRefused('session.cancel.notPreparing', 'This session is not being prepared, so there is nothing to cancel');
       deleting.add(sessionId); // a retry or a resume that comes in meanwhile is refused
       let released = plan;
       try {
@@ -1475,17 +1497,17 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
 
     /** Opens a closed session again from its stored native id, folder and options; a live one is just attached to. */
     async resume({ sessionId }: { sessionId: string }) {
-      refuseChild(sessionId, 'resumed');
+      refuseChild(sessionId, 'resume');
       notSwitching(sessionId);
       const current = row(sessionId);
       const inFlight = closing.get(sessionId);
       if (inFlight !== undefined) await inFlight; // an agent of this session that is still ending; with none, nothing awaits and the checks below run in the same turn
-      if (current.plan !== null) throw new ChatRefused('This session did not finish preparing');
+      if (current.plan !== null) throw new ChatRefused('session.preparationUnfinished', 'This session did not finish preparing');
       const present = lives.get(sessionId);
       if (present !== undefined) return { session: summary(current), options: present.conversation.options };
-      if (deleting.has(sessionId)) throw new ChatRefused('This session is being deleted');
+      if (deleting.has(sessionId)) throw new ChatRefused('session.deleting', 'This session is being deleted');
       const chosen = listed().find((candidate) => candidate.name === current.agent);
-      if (chosen === undefined) throw new ChatRefused(`The agent "${current.agent}" of this session is not configured any more`);
+      if (chosen === undefined) throw new ChatRefused('session.agentRemoved', `The agent "${current.agent}" of this session is not configured any more`, { agent: current.agent });
       const launch = launchOf(chosen);
       const folder = await folderOf(current);
       // a session that never got a native id (nothing was said) has nothing to resume: it starts again, as it was opened
@@ -1509,13 +1531,13 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
         // the session was deleted (or is being) while this one waited for the provider: nothing may stay attached to its folder
         revoke(issued.invocationId);
         await conversation.close();
-        throw new ChatRefused('This session is being deleted');
+        throw new ChatRefused('session.deleting', 'This session is being deleted');
       }
       if (current.workspaceKind === 'worktree' && (clearing.has(sessionId) || existsSync(folder) === false)) {
         // the clock's cleanup took the worktree folder while the provider opened: the agent may not stay in a folder that is going
         revoke(issued.invocationId);
         await conversation.close();
-        throw new ChatRefused('This session\'s worktree folder was being cleaned up; open it again to bring it back');
+        throw new ChatRefused('worktree.cleanedUp', 'This session\'s worktree folder was being cleaned up; open it again to bring it back');
       }
       attach(sessionId, conversation, issued.invocationId);
       if (conversation.startedOver) {
@@ -1529,19 +1551,19 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
 
     send({ sessionId, text: written, command }: { sessionId: string; text: string; command?: string }) {
       let text = written;
-      refuseChild(sessionId, 'sent a message');
-      if (text.length > chatCaps.message) throw new ChatRefused(`That message has ${text.length} characters; the most a message can have is ${chatCaps.message}`);
+      refuseChild(sessionId, 'send');
+      if (text.length > chatCaps.message) throw new ChatRefused('session.message.tooLong', `That message has ${text.length} characters; the most a message can have is ${chatCaps.message}`, { length: text.length, max: chatCaps.message });
       notSwitching(sessionId);
       const current = row(sessionId);
       const live = lives.get(sessionId);
-      if (live === undefined) throw new ChatRefused('This session is closed');
-      if (live.state !== 'idle') throw new ChatRefused('The agent is still answering');
+      if (live === undefined) throw new ChatRefused('session.closed', 'This session is closed');
+      if (live.state !== 'idle') throw new ChatRefused('session.answering', 'The agent is still answering');
       // a command is named by the id the session listed; what the person sees of it is a slash and its name, whatever the provider does with it
       const invoked = command === undefined ? undefined : live.conversation.commands.find((candidate) => candidate.id === command);
-      if (command !== undefined && invoked === undefined) throw new ChatRefused('This session does not list that command');
+      if (command !== undefined && invoked === undefined) throw new ChatRefused('session.command.unknown', 'This session does not list that command');
       text = claimAttachments(text, sessionId);
       const shown = invoked === undefined ? text : `/${invoked.name}${text === '' ? '' : ` ${text}`}`;
-      if (shown.length > chatCaps.message) throw new ChatRefused(`That message has ${shown.length} characters; the most a message can have is ${chatCaps.message}`);
+      if (shown.length > chatCaps.message) throw new ChatRefused('session.message.tooLong', `That message has ${shown.length} characters; the most a message can have is ${chatCaps.message}`, { length: shown.length, max: chatCaps.message });
       if (current.title === null) db.update(sessions).set({ title: titleOf(shown), titleSource: 'first_line' }).where(eq(sessions.id, sessionId)).run();
       deliver(sessionId, live, shown, text, invoked);
       return {};
@@ -1552,15 +1574,18 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
       notSwitching(sessionId);
       row(sessionId);
       const live = lives.get(sessionId);
-      if (live === undefined) throw new ChatRefused('This session is closed');
+      if (live === undefined) throw new ChatRefused('session.closed', 'This session is closed');
       const approval = live.approvals.get(approvalId);
-      if (approval === undefined) throw new ChatRefused('That approval is not pending: it is unknown or was already answered');
-      if (approval.choices.some((choice) => choice.id === choiceId) === false) throw new ChatRefused(`"${choiceId}" is not one of the choices: ${approval.choices.map((choice) => choice.id).join(', ')}`);
-      if (approval.questions === undefined && answers !== undefined) throw new ChatRefused('That approval asks no questions, so it takes no answers');
+      if (approval === undefined) throw new ChatRefused('session.approval.notPending', 'That approval is not pending: it is unknown or was already answered');
+      if (approval.choices.some((choice) => choice.id === choiceId) === false) {
+      const offers = approval.choices.map((choice) => choice.id).join(', ');
+      throw new ChatRefused('session.approval.choiceUnknown', `"${choiceId}" is not one of the choices: ${offers}`, { choice: choiceId, offers });
+    }
+      if (approval.questions === undefined && answers !== undefined) throw new ChatRefused('session.approval.noQuestions', 'That approval asks no questions, so it takes no answers');
       if (approval.questions !== undefined && choiceId === 'allow') {
-        if (answers === undefined) throw new ChatRefused('Answer the questions first');
+        if (answers === undefined) throw new ChatRefused('session.approval.needsAnswers', 'Answer the questions first');
         const stray = Object.keys(answers).find((key) => approval.questions!.some((q) => q.question === key) === false);
-        if (stray !== undefined) throw new ChatRefused(`"${stray}" is not one of the questions`);
+        if (stray !== undefined) throw new ChatRefused('session.approval.questionUnknown', `"${stray}" is not one of the questions`, { question: stray });
       }
       live.approvals.delete(approvalId); // before the agent hears it, so a second answer finds nothing
       try {
@@ -1569,7 +1594,7 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
         live.approvals.set(approvalId, approval);
         if (error instanceof ChatRefused) throw error;
         log.error('an answer could not be delivered to the agent', error);
-        throw new ChatRefused('The answer could not be delivered to the agent');
+        throw new ChatRefused('session.approval.deliveryFailed', 'The answer could not be delivered to the agent');
       }
       return {};
     },
@@ -1598,23 +1623,23 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
     async stopTask({ sessionId, taskId }: { sessionId: string; taskId: string }) {
       row(sessionId);
       const live = lives.get(sessionId);
-      if (live === undefined) throw new ChatRefused('This session is closed');
-      if (live.conversation.stopTask === undefined) throw new ChatRefused('This session cannot stop a task');
-      if (live.tasks.has(taskId) === false && live.background.some((task) => task.id === taskId) === false) throw new ChatRefused('That task is not running');
+      if (live === undefined) throw new ChatRefused('session.closed', 'This session is closed');
+      if (live.conversation.stopTask === undefined) throw new ChatRefused('session.task.stopUnsupported', 'This session cannot stop a task');
+      if (live.tasks.has(taskId) === false && live.background.some((task) => task.id === taskId) === false) throw new ChatRefused('session.task.notRunning', 'That task is not running');
       try {
         await live.conversation.stopTask(taskId);
       } catch (error) {
         log.error('stopping a task failed', error);
-        throw new ChatRefused('The task could not be stopped');
+        throw new ChatRefused('session.task.stopFailed', 'The task could not be stopped');
       }
       return {};
     },
 
     async setOption({ sessionId, option, value }: { sessionId: string; option: string; value: string }) {
-      refuseChild(sessionId, 'given other options');
+      refuseChild(sessionId, 'setOption');
       notSwitching(sessionId);
       const live = lives.get(sessionId);
-      if (live === undefined) throw new ChatRefused('This session is closed');
+      if (live === undefined) throw new ChatRefused('session.closed', 'This session is closed');
       checkOption(live.conversation.options, option, value);
       renew(sessionId);
       try {
@@ -1622,7 +1647,7 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
       } catch (error) {
         if (error instanceof ChatRefused) throw error;
         log.error('an option could not be changed', error);
-        throw new ChatRefused(`The option "${option}" could not be changed`);
+        throw new ChatRefused('session.option.changeFailed', `The option "${option}" could not be changed`, { option });
       }
       return { options: live.conversation.options };
     },
@@ -1664,7 +1689,7 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
 
     /** Sets or clears the archived mark. A live idle session is closed first; a working or waiting one is refused. */
     async archive({ sessionId, archived }: { sessionId: string; archived: boolean }) {
-      refuseChild(sessionId, archived ? 'archived' : 'restored');
+      refuseChild(sessionId, archived ? 'archive' : 'restore');
       if (archived) await settle(sessionId, 'archive');
       else row(sessionId);
       db.update(sessions).set({ archived, ...(archived === false && { lastActiveAt: clock.now(), keptAt: null }) }).where(eq(sessions.id, sessionId)).run();
@@ -1673,23 +1698,23 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
 
     /** Sets the title (first line, cut like an automatic one); fine while the session works. The first message only names an untitled session, so it never replaces this. */
     rename({ sessionId, title }: { sessionId: string; title: string }) {
-      refuseChild(sessionId, 'renamed');
+      refuseChild(sessionId, 'rename');
       const named = titleOf(title);
-      if (named === '') throw new ChatRefused('A title cannot be empty');
+      if (named === '') throw new ChatRefused('title.empty', 'A title cannot be empty');
       db.update(sessions).set({ title: named, titleSource: 'renamed' }).where(eq(sessions.id, sessionId)).run();
       return {};
     },
 
     /** Writes the session's title again from its first message and first reply with the chosen text generator, over any title (the person asked); answers it. Refused in words, with the title as it was, when the generator gives none. */
     async regenerateTitle({ sessionId }: { sessionId: string }) {
-      refuseChild(sessionId, 'retitled');
+      refuseChild(sessionId, 'retitle');
       const first = firstMessage(sessionId);
-      if (first === undefined || first.text.trim() === '') throw new ChatRefused('This session has no message to write a title from yet');
+      if (first === undefined || first.text.trim() === '') throw new ChatRefused('title.noMessage', 'This session has no message to write a title from yet');
       let title: string;
       try {
         title = await generateTitle(sessionId, first.text, firstReply(sessionId, first.id));
       } catch (error) {
-        throw new ChatRefused(`Could not write a title: ${error instanceof TextGeneratorFailed ? error.message : 'the text generator failed'}`);
+        throw new ChatRefused('title.writeFailed', `Could not write a title: ${error instanceof TextGeneratorFailed ? error.message : 'the text generator failed'}`);
       }
       db.update(sessions).set({ title, titleSource: 'generated' }).where(eq(sessions.id, sessionId)).run();
       return { title };
@@ -1700,7 +1725,7 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
       try {
         textGenerator.chosen?.();
       } catch (error) {
-        throw new ChatRefused(`Could not write titles: ${error instanceof TextGeneratorFailed ? error.message : 'no text generator is chosen; choose one in Providers'}`);
+        throw new ChatRefused(error instanceof TextGeneratorFailed ? 'title.writeAllFailed' : 'title.noGenerator', `Could not write titles: ${error instanceof TextGeneratorFailed ? error.message : 'no text generator is chosen; choose one in Providers'}`);
       }
       const candidates: { id: string; first: { id: number; text: string } }[] = [];
       for (const found of db.select().from(sessions).where(isNull(sessions.parentSessionId)).orderBy(desc(sessions.lastActiveAt)).all()) {
@@ -1777,7 +1802,7 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
 
     /** Removes the session with all its events and turns. A live idle session is closed first; a working or waiting one is refused. */
     async delete(args: { sessionId: string }) {
-      refuseChild(args.sessionId, 'deleted');
+      refuseChild(args.sessionId, 'delete');
       return deleteSession(args);
     },
 
@@ -1814,7 +1839,7 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
     async removeProjectWorktree({ folder, path }: { folder: string; path: string }) {
       const { base, entries } = await readProjectWorktrees(folder);
       const entry = entries.find((candidate) => candidate.worktree.path === path);
-      if (entry === undefined) throw new ChatRefused('That is not a worktree of this project');
+      if (entry === undefined) throw new ChatRefused('worktree.unknown', 'That is not a worktree of this project');
       await removeProjectEntry(base, entry);
       return {};
     },
@@ -1831,7 +1856,7 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
         const { path } = entry.worktree;
         const reason = blockOf(entry);
         if (reason !== null) {
-          skipped.push({ path, reason });
+          skipped.push({ path, reason: reason.words });
           continue;
         }
         const bytes = await folderBytes(path);

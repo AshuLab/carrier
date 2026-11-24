@@ -262,7 +262,7 @@ async function answer(line: string, controls: ChatControls, gone: AbortSignal, s
   try {
     return { id: parsed.data.id, ok: true, data: await run(parsed.data, controls, gone) };
   } catch (error) {
-    if (error instanceof ChatRefused) return { id: parsed.data.id, ok: false, error: error.message };
+    if (error instanceof ChatRefused) return { id: parsed.data.id, ok: false, error: error.message, code: error.code, params: error.params };
     log.error(`${parsed.data.cmd} failed`, error);
     return { id: parsed.data.id, ok: false, error: 'internal error' };
   }

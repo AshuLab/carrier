@@ -5,7 +5,7 @@ import { createScopedLogger } from '@ashulab/universal-logger';
 import type { Git, GitResult } from './git.ts';
 import { realOfNearest } from './folder.ts';
 import { BRANCH_PREFIX, invalidReason, repository, worktreePath, worktreesDir } from './names.ts';
-import { ChatRefused } from './runner.ts';
+import { ChatRefused, refusedFor } from './runner.ts';
 import { countPorcelain } from './workspace.ts';
 
 const log = createScopedLogger('chat');
@@ -32,10 +32,10 @@ export async function createWorktree(git: Git, folder: string, request: { from: 
   const { info, takenBecause, freeName } = await repository(git, folder);
   const listed = (name: string) => info.branches.find((branch) => branch.name === name);
   const start = request.startFrom === 'remote' && request.from.startsWith('origin/') === false ? (listed(`origin/${request.from}`) ?? listed(request.from)) : listed(request.from);
-  if (start === undefined) throw new ChatRefused('The branch to start from is not one this repository lists');
+  if (start === undefined) throw new ChatRefused('worktree.startNotListed', 'The branch to start from is not one this repository lists');
   if (request.name !== undefined) {
     const refusal = invalidReason(request.name) ?? takenBecause(request.name);
-    if (refusal !== null) throw new ChatRefused(refusal);
+    if (refusal !== null) throw refusedFor(refusal);
   }
   const name = request.name ?? freeName();
   const made = { path: worktreePath(info, name), branch: `${BRANCH_PREFIX}${name}`, from: start.name, base: folder };
@@ -50,7 +50,9 @@ export async function createWorktree(git: Git, folder: string, request: { from: 
     if (added.aborted === true) log.info('git worktree add stopped'); // the person left: not a failure of git
     else log.error('git worktree add failed', { code: added.code, timedOut: added.timedOut === true });
     await removeWorktree(git, made, mine);
-    throw new ChatRefused(added.aborted === true ? 'Creating the worktree was cancelled' : added.timedOut === true ? 'Creating the worktree took too long and was stopped' : 'Git could not create the worktree');
+    if (added.aborted === true) throw new ChatRefused('worktree.createCancelled', 'Creating the worktree was cancelled');
+    if (added.timedOut === true) throw new ChatRefused('worktree.createTimedOut', 'Creating the worktree took too long and was stopped');
+    throw new ChatRefused('worktree.createFailed', 'Git could not create the worktree');
   }
   return made;
 }
@@ -61,7 +63,7 @@ async function branchExists(git: Git, base: string, branch: string): Promise<boo
   if (found.ok) return true;
   if (found.code === 1) return false;
   log.error('git could not tell whether a branch exists', { code: found.code, timedOut: found.timedOut === true });
-  throw new ChatRefused('Git could not read the branches of the repository');
+  throw new ChatRefused('worktree.branchesUnreadable', 'Git could not read the branches of the repository');
 }
 
 /** Removes a folder Carrier made. One that cannot be removed is logged and left, and `false` says so. */
@@ -112,7 +114,7 @@ export async function listWorktrees(git: Git, folder: string): Promise<ListedWor
   const listed = await git.run(folder, ['worktree', 'list', '--porcelain']);
   if (listed.ok === false) {
     log.error('git could not list the worktrees of a folder', { code: listed.code, timedOut: listed.timedOut === true });
-    throw new ChatRefused('Git could not list the worktrees of this folder');
+    throw new ChatRefused('worktree.listFailed', 'Git could not list the worktrees of this folder');
   }
   return parseWorktreeList(listed.out);
 }
@@ -145,7 +147,7 @@ function recorded({ path, branch }: MadeWorktree): string {
   const real = realOfNearest(target);
   const root = realOfNearest(resolve(worktreesDir()));
   const [owner, repo, name, ...deeper] = real.startsWith(root + sep) ? real.slice(root.length + 1).split(sep) : [];
-  if (owner === undefined || repo === undefined || name === undefined || deeper.length > 0 || invalidReason(name) !== null || branch !== `${BRANCH_PREFIX}${name}`) throw new ChatRefused('This session\'s worktree is not one Carrier made, so nothing was removed');
+  if (owner === undefined || repo === undefined || name === undefined || deeper.length > 0 || invalidReason(name) !== null || branch !== `${BRANCH_PREFIX}${name}`) throw new ChatRefused('worktree.notMade', 'This session\'s worktree is not one Carrier made, so nothing was removed');
   return target;
 }
 
@@ -161,7 +163,7 @@ export async function previewWorktree(git: Git, made: MadeWorktree, batch: strin
   ]);
   if (status.ok === false || ahead.ok === false) {
     log.error('git could not read a worktree to preview its deletion', { status: status.ok ? 0 : status.code, ahead: ahead.ok ? 0 : ahead.code });
-    throw new ChatRefused('Git could not read the worktree of a session');
+    throw new ChatRefused('worktree.unreadable', 'Git could not read the worktree of a session');
   }
   return { dirty: countPorcelain(status.out), unpushed: parseCount(ahead.out) };
 }
@@ -175,7 +177,7 @@ export async function previewMain(git: Git, folder: string, branch: string | nul
   ]);
   if (status.ok === false || ahead.ok === false) {
     log.error('git could not read a project folder to preview its deletion', { status: status.ok ? 0 : status.code, ahead: ahead.ok ? 0 : ahead.code });
-    throw new ChatRefused('Git could not read the folder of this project');
+    throw new ChatRefused('worktree.projectUnreadable', 'Git could not read the folder of this project');
   }
   return { dirty: countPorcelain(status.out), unpushed: parseCount(ahead.out) };
 }
@@ -189,7 +191,7 @@ export async function headDetached(git: Git, made: MadeWorktree): Promise<boolea
   if (head.ok) return false;
   if (head.code === 1) return true; // `-q` exits 1 when HEAD is not a symbolic ref
   log.error('git could not tell where the HEAD of a worktree is', { code: head.code, timedOut: head.timedOut === true });
-  throw new ChatRefused('Git could not read the worktree of a session');
+  throw new ChatRefused('worktree.unreadable', 'Git could not read the worktree of a session');
 }
 
 /** Whether a folder has the `.git` link git works through. One without it is not a worktree git can read, whatever it holds: a removal that was killed halfway can leave one. */
@@ -215,7 +217,7 @@ export async function hiddenWork(git: Git, made: MadeWorktree): Promise<string |
   const path = recorded(made);
   const unread = (what: string, result: Extract<GitResult, { ok: false }>) => {
     log.error(`git could not read a worktree to look for ${what}`, { code: result.code, timedOut: result.timedOut === true });
-    return new ChatRefused('Git could not read the worktree of a session');
+    return new ChatRefused('worktree.unreadable', 'Git could not read the worktree of a session');
   };
   // the worktree's own git dir: where its submodules' repositories live
   const gitDir = /^gitdir: (.+)$/m.exec(readText(join(path, '.git')))?.[1]?.trim();
@@ -252,7 +254,7 @@ export async function clearWorktree(git: Git, made: MadeWorktree, timeoutMs?: nu
   const removed = await git.run(made.base, ['worktree', 'remove', '--force', path], { timeoutMs });
   if (removed.ok === false) {
     log.error('git could not remove the folder of a cleaned-up worktree', { code: removed.code, timedOut: removed.timedOut === true });
-    throw new ChatRefused('Git could not remove the worktree folder');
+    throw new ChatRefused('worktree.clearFailed', 'Git could not remove the worktree folder');
   }
 }
 
@@ -260,14 +262,14 @@ export async function clearWorktree(git: Git, made: MadeWorktree, timeoutMs?: nu
 export async function restoreWorktree(git: Git, made: MadeWorktree): Promise<void> {
   const path = recorded(made);
   if (existsSync(path)) return;
-  if (existsSync(made.base) === false) throw new ChatRefused('This session\'s worktree was cleaned up and the folder it was made from is gone, so it cannot be opened again');
-  if ((await branchExists(git, made.base, made.branch)) === false) throw new ChatRefused(`This session's worktree was cleaned up and its branch ${made.branch} is gone, so it cannot be opened again`);
+  if (existsSync(made.base) === false) throw new ChatRefused('worktree.baseGone', 'This session\'s worktree was cleaned up and the folder it was made from is gone, so it cannot be opened again');
+  if ((await branchExists(git, made.base, made.branch)) === false) throw new ChatRefused('worktree.branchGone', `This session's worktree was cleaned up and its branch ${made.branch} is gone, so it cannot be opened again`, { branch: made.branch });
   await git.run(made.base, ['worktree', 'prune']);
   // recorded() checked the branch is `carrier/<a valid name>`, so it cannot read as an option
   const added = await git.run(made.base, ['worktree', 'add', path, made.branch], { timeoutMs: ADD_TIMEOUT_MS });
   if (added.ok === false) {
     log.error('git could not bring back a cleaned-up worktree', { code: added.code, timedOut: added.timedOut === true });
-    throw new ChatRefused('Git could not bring back the worktree of this session');
+    throw new ChatRefused('worktree.restoreFailed', 'Git could not bring back the worktree of this session');
   }
 }
 
@@ -278,12 +280,12 @@ export async function restoreWorktree(git: Git, made: MadeWorktree): Promise<voi
 export async function deleteWorktree(git: Git, made: MadeWorktree): Promise<void> {
   const path = recorded(made);
   if (existsSync(made.base) === false) {
-    if (removeFolder(path) === false) throw new ChatRefused('Its folder could not be removed, so the session was kept');
+    if (removeFolder(path) === false) throw new ChatRefused('worktree.folderNotRemoved', 'Its folder could not be removed, so the session was kept');
     return;
   }
   const cannot = (what: string, result: Extract<GitResult, { ok: false }>) => {
     log.error(`git ${what} failed while deleting a worktree`, { code: result.code, timedOut: result.timedOut === true });
-    return new ChatRefused(`Git could not ${what === 'branch' ? 'delete the branch of' : 'remove'} the worktree, so the session was kept`);
+    return what === 'branch' ? new ChatRefused('worktree.deleteBranchFailed', 'Git could not delete the branch of the worktree, so the session was kept') : new ChatRefused('worktree.removeFailed', 'Git could not remove the worktree, so the session was kept');
   };
   // a folder that is already gone only leaves its entry for git to forget
   const removed = await git.run(made.base, existsSync(path) ? ['worktree', 'remove', '--force', path] : ['worktree', 'prune'], { timeoutMs: REMOVE_TIMEOUT_MS });

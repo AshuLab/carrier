@@ -2,7 +2,7 @@ import { lstatSync, realpathSync } from 'node:fs';
 import { basename, join, sep } from 'node:path';
 import { chatPlacesOf, expandHome } from '../config/places.ts';
 import type { Git } from './git.ts';
-import { ChatRefused } from './runner.ts';
+import { ChatRefused, type Reason } from './runner.ts';
 import { adjectives, places, units } from './words.ts';
 import { inspectFolder, type WorkspaceInfo } from './workspace.ts';
 
@@ -14,15 +14,15 @@ export const BRANCH_PREFIX = 'carrier/';
 const MAX_NAME = 60;
 const ROLLS = 50;
 
-/** Why `name` cannot be one, in words, or null when it can: lowercase letters, digits, `-`, `_` and `.`, starting with a letter or a digit, at most 60 characters, and a valid git ref name. */
-export function invalidReason(name: string): string | null {
-  if (name === '') return 'The name is empty';
-  if (name.length > MAX_NAME) return `The name is longer than ${MAX_NAME} characters`;
-  if (/^[a-z0-9]/.test(name) === false) return 'The name must start with a lowercase letter or a digit';
-  if (/^[a-z0-9._-]+$/.test(name) === false) return 'The name may only have lowercase letters, digits, hyphens, underscores and dots';
-  if (name.includes('..')) return 'The name cannot have two dots in a row';
-  if (name.endsWith('.')) return 'The name cannot end with a dot';
-  if (name.endsWith('.lock')) return 'The name cannot end with .lock';
+/** Why `name` cannot be one, with its code and words, or null when it can: lowercase letters, digits, `-`, `_` and `.`, starting with a letter or a digit, at most 60 characters, and a valid git ref name. */
+export function invalidReason(name: string): Reason | null {
+  if (name === '') return { code: 'worktree.name.empty', words: 'The name is empty' };
+  if (name.length > MAX_NAME) return { code: 'worktree.name.tooLong', words: `The name is longer than ${MAX_NAME} characters`, params: { max: MAX_NAME } };
+  if (/^[a-z0-9]/.test(name) === false) return { code: 'worktree.name.badStart', words: 'The name must start with a lowercase letter or a digit' };
+  if (/^[a-z0-9._-]+$/.test(name) === false) return { code: 'worktree.name.badCharacters', words: 'The name may only have lowercase letters, digits, hyphens, underscores and dots' };
+  if (name.includes('..')) return { code: 'worktree.name.doubleDot', words: 'The name cannot have two dots in a row' };
+  if (name.endsWith('.')) return { code: 'worktree.name.endsWithDot', words: 'The name cannot end with a dot' };
+  if (name.endsWith('.lock')) return { code: 'worktree.name.endsWithLock', words: 'The name cannot end with .lock' };
   return null;
 }
 
@@ -41,7 +41,7 @@ export const worktreeDirectory = (info: WorkspaceInfo) => (info.repo === null ? 
 /** Where a worktree called `name` of this repository lives: `<CARRIER_HOME>/chat/worktrees/<owner>/<repo>/<name>`, or `local/<folder name>` without a GitHub origin. A path that would lie anywhere else is refused. */
 export function worktreePath(info: WorkspaceInfo, name: string): string {
   const path = join(worktreesDir(), worktreeDirectory(info), name);
-  if (path.startsWith(worktreesDir() + sep) === false) throw new ChatRefused('That worktree would not be inside Carrier\'s worktrees folder');
+  if (path.startsWith(worktreesDir() + sep) === false) throw new ChatRefused('worktree.outsideFolder', 'That worktree would not be inside Carrier\'s worktrees folder');
   return path;
 }
 
@@ -66,7 +66,10 @@ export async function checkWorktreeClash(git: Git, folder: string, projects: { p
     const path = real(expandHome(project.path));
     if (path === folder) continue; // already a project, not a clash
     const other = await inspectFolder(git, path).catch(() => null);
-    if (other !== null && worktreeDirectory(other).toLowerCase() === mine) throw new ChatRefused(`The worktrees of ${project.name ?? basename(path)} already use the folder ${worktreeDirectory(other)}; two projects cannot share it`);
+    if (other !== null && worktreeDirectory(other).toLowerCase() === mine) {
+      const [name, directory] = [project.name ?? basename(path), worktreeDirectory(other)];
+      throw new ChatRefused('worktree.folderShared', `The worktrees of ${name} already use the folder ${directory}; two projects cannot share it`, { project: name, directory });
+    }
   }
 }
 
@@ -84,14 +87,15 @@ const exists = (path: string) => {
 /** What a name is up against in a repository: the three places where `carrier/<name>` must not exist yet. */
 export async function repository(git: Git, folder: string) {
   const info = await inspectFolder(git, folder);
-  if (info.git === false) throw new ChatRefused('Worktrees need a git repository');
-  if (info.bare) throw new ChatRefused('Worktrees need a git repository with a working folder, and this one is bare');
+  if (info.git === false) throw new ChatRefused('worktree.notGit', 'Worktrees need a git repository');
+  if (info.bare) throw new ChatRefused('worktree.bare', 'Worktrees need a git repository with a working folder, and this one is bare');
   const has = (branch: string) => info.branches.some((candidate) => candidate.name === branch);
-  /** Why a valid name is taken, in words, or null when it is free. */
-  const takenBecause = (name: string) => {
-    if (has(`${BRANCH_PREFIX}${name}`)) return `A branch called ${BRANCH_PREFIX}${name} already exists`;
-    if (has(`origin/${BRANCH_PREFIX}${name}`)) return `The remote already has a branch called ${BRANCH_PREFIX}${name}`;
-    if (exists(worktreePath(info, name))) return 'A folder for that worktree already exists';
+  /** Why a valid name is taken, with its code and words, or null when it is free. */
+  const takenBecause = (name: string): Reason | null => {
+    const branch = `${BRANCH_PREFIX}${name}`;
+    if (has(branch)) return { code: 'worktree.name.branchExists', words: `A branch called ${branch} already exists`, params: { branch } };
+    if (has(`origin/${branch}`)) return { code: 'worktree.name.remoteBranchExists', words: `The remote already has a branch called ${branch}`, params: { branch } };
+    if (exists(worktreePath(info, name))) return { code: 'worktree.name.folderExists', words: 'A folder for that worktree already exists' };
     return null;
   };
   /** A generated name that is free, rolled again while it is taken and never numbered. */
@@ -100,7 +104,7 @@ export async function repository(git: Git, folder: string) {
       const name = generateName(random);
       if (takenBecause(name) === null) return name;
     }
-    throw new ChatRefused(`Every name that was tried (${ROLLS}) is already taken; type one instead`);
+    throw new ChatRefused('worktree.namesTaken', `Every name that was tried (${ROLLS}) is already taken; type one instead`, { tried: ROLLS });
   };
   return { info, takenBecause, freeName };
 }
@@ -114,7 +118,7 @@ export async function suggestName(git: Git, folder: string, random?: () => numbe
 export async function checkName(git: Git, folder: string, name: string): Promise<NameCheck> {
   const { takenBecause } = await repository(git, folder);
   const invalid = invalidReason(name);
-  if (invalid !== null) return { valid: false, free: false, reason: invalid };
+  if (invalid !== null) return { valid: false, free: false, reason: invalid.words };
   const taken = takenBecause(name);
-  return taken === null ? { valid: true, free: true } : { valid: true, free: false, reason: taken };
+  return taken === null ? { valid: true, free: true } : { valid: true, free: false, reason: taken.words };
 }

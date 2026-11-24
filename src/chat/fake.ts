@@ -87,8 +87,8 @@ export class FakeChatRunner implements ChatRunner {
 
   async open(args: Parameters<ChatRunner['open']>[0]) {
     this.opened.push(args);
-    if (this.refuseWith !== undefined) throw new ChatRefused(this.refuseWith);
-    if (this.refuseOpen?.nth === this.opened.length) throw new ChatRefused(this.refuseOpen.with);
+    if (this.refuseWith !== undefined) throw new ChatRefused('fake.refused', this.refuseWith);
+    if (this.refuseOpen?.nth === this.opened.length) throw new ChatRefused('fake.refused', this.refuseOpen.with);
     const conversation = new FakeConversation();
     this.setup(conversation);
     this.conversations.push(conversation);

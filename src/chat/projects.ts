@@ -29,10 +29,10 @@ export const GIT_TIMEOUT_MS = 10 * 60_000;
 export const ghToken = (): Promise<string> =>
   new Promise((resolve, reject) => {
     execFile('gh', ['auth', 'token'], { encoding: 'utf8', timeout: 15_000 }, (error, stdout) => {
-      if ((error as NodeJS.ErrnoException | null)?.code === 'ENOENT') return reject(new ChatRefused('The GitHub CLI (gh) is not installed'));
-      if ((error as { killed?: boolean } | null)?.killed === true) return reject(new ChatRefused('The GitHub CLI took too long to answer'));
+      if ((error as NodeJS.ErrnoException | null)?.code === 'ENOENT') return reject(new ChatRefused('github.cliNotInstalled', 'The GitHub CLI (gh) is not installed'));
+      if ((error as { killed?: boolean } | null)?.killed === true) return reject(new ChatRefused('github.cliTimedOut', 'The GitHub CLI took too long to answer'));
       const token = stdout.trim();
-      if (error !== null || token === '') return reject(new ChatRefused('gh is not signed in to GitHub; run "gh auth login"'));
+      if (error !== null || token === '') return reject(new ChatRefused('github.notSignedIn', 'gh is not signed in to GitHub; run "gh auth login"'));
       resolve(token);
     });
   });
@@ -42,11 +42,11 @@ export function ghRefusal(error: unknown, did: string): ChatRefused {
   const { code, killed, stderr } = error as { code?: unknown; killed?: boolean; stderr?: unknown };
   const said = typeof stderr === 'string' ? stderr : '';
   log.error(`gh ${did} failed`, { code: typeof code === 'number' || typeof code === 'string' ? code : null, killed: killed === true });
-  if (code === 'ENOENT') return new ChatRefused('The GitHub CLI (gh) is not installed');
-  if (killed === true) return new ChatRefused('GitHub took too long to answer');
-  if (/gh auth login|not logged in|http 401|bad credentials/i.test(said)) return new ChatRefused('gh is not signed in to GitHub; run "gh auth login"');
-  if (/error connecting|could not resolve|no such host|dial tcp|network is unreachable|timed out/i.test(said)) return new ChatRefused('GitHub could not be reached; check the network connection');
-  return new ChatRefused(`GitHub did not answer; check "gh auth status"`);
+  if (code === 'ENOENT') return new ChatRefused('github.cliNotInstalled', 'The GitHub CLI (gh) is not installed');
+  if (killed === true) return new ChatRefused('github.timedOut', 'GitHub took too long to answer');
+  if (/gh auth login|not logged in|http 401|bad credentials/i.test(said)) return new ChatRefused('github.notSignedIn', 'gh is not signed in to GitHub; run "gh auth login"');
+  if (/error connecting|could not resolve|no such host|dial tcp|network is unreachable|timed out/i.test(said)) return new ChatRefused('github.unreachable', 'GitHub could not be reached; check the network connection');
+  return new ChatRefused('github.noAnswer', 'GitHub did not answer; check "gh auth status"');
 }
 
 /** One page of every repository the person's `gh` login can read, thirty at a time, newest push first. */
@@ -80,7 +80,7 @@ export async function ghBranches(repo: string, timeoutMs: number): Promise<RepoB
     const said = (error as { stderr?: unknown }).stderr;
     if (typeof said === 'string' && /http 404|not found/i.test(said)) {
       log.info('gh branches: repository not found or not visible', { repo });
-      throw new ChatRefused(notFoundSentence(repo));
+      throw new ChatRefused('github.repoNotFound', notFoundSentence(repo), { repo });
     }
     throw ghRefusal(error, 'branches');
   }
@@ -96,26 +96,26 @@ const notFoundSentence = (repo: string) => `${repo} was not found, or your GitHu
 function refusal(result: Extract<GitResult, { ok: false }>, did: 'clone' | 'fetch', repo: string) {
   if (result.aborted === true) {
     log.info(`git ${did} stopped`, { repo }); // the person left: not a failure of git
-    return new ChatRefused(`The ${did} was cancelled`);
+    return new ChatRefused('project.cancelled', `The ${did} was cancelled`, { step: did });
   }
   log.error(`git ${did} failed`, { repo, code: result.code, timedOut: result.timedOut === true });
-  if (result.timedOut === true) return new ChatRefused(`The ${did} took more than ten minutes and was stopped`);
-  if (notVisible.test(result.stderr)) return new ChatRefused(notFoundSentence(repo));
-  if (offline.test(result.stderr)) return new ChatRefused('GitHub could not be reached; check the network connection');
-  return new ChatRefused(`git could not ${did} ${repo}`);
+  if (result.timedOut === true) return new ChatRefused('project.timedOut', `The ${did} took more than ten minutes and was stopped`, { step: did });
+  if (notVisible.test(result.stderr)) return new ChatRefused('github.repoNotFound', notFoundSentence(repo), { repo });
+  if (offline.test(result.stderr)) return new ChatRefused('github.unreachable', 'GitHub could not be reached; check the network connection');
+  return new ChatRefused('project.gitFailed', `git could not ${did} ${repo}`, { step: did, repo });
 }
 
 /** The projects folder of `chat.json`, read at each call. `inside` is a path below it that is checked again: a projects folder that is the Carrier folder itself would put `engine/x` in the engine's own folder. */
 const projectsFolder = (inside?: string): string => {
   const loaded = readChatConfig();
-  if (loaded.ok === false) throw new ChatRefused(`chat.json is not valid: ${loaded.errors[0]!.path}: ${loaded.errors[0]!.message}`);
+  if (loaded.ok === false) throw new ChatRefused('project.chatConfigInvalid', `chat.json is not valid: ${loaded.errors[0]!.path}: ${loaded.errors[0]!.message}`, { path: loaded.errors[0]!.path, problem: loaded.errors[0]!.message });
   const folder = checkProjectsFolder(loaded.settings.projectsFolder, carrierHome());
   return inside === undefined ? folder : checkProjectsFolder(join(folder, inside), carrierHome());
 };
 
 /** Where a new project of this name is made: `<projects folder>/local/<name>`, or `<parent>/local/<name>` for a project that goes elsewhere. */
 export function projectFolder(name: string, parent?: string): string {
-  if (projectNamePattern.test(name) === false) throw new ChatRefused(`"${name}" is not a plain folder name`);
+  if (projectNamePattern.test(name) === false) throw new ChatRefused('project.nameInvalid', `"${name}" is not a plain folder name`, { name });
   return parent === undefined ? join(projectsFolder(), 'local', name) : checkProjectsFolder(join(parent, 'local', name), carrierHome());
 }
 
@@ -126,14 +126,14 @@ export async function createProject(git: Git, name: string, parent?: string): Pr
   try {
     await mkdir(dest); // not recursive: it fails when anything is there, and what is there is not ours to touch
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'EEXIST') throw new ChatRefused(`${name} is already a project; choose another name`);
+    if ((error as NodeJS.ErrnoException).code === 'EEXIST') throw new ChatRefused('project.nameTaken', `${name} is already a project; choose another name`, { name });
     throw error;
   }
   const init = await git.run(dest, ['init', '-b', 'main']);
   if (init.ok === false) {
     log.error('git init failed', { name, code: init.code });
     await rm(dest, { recursive: true, force: true });
-    throw new ChatRefused(`git could not start the project ${name}`);
+    throw new ChatRefused('project.initFailed', `git could not start the project ${name}`, { name });
   }
   return { folder: dest };
 }
@@ -165,7 +165,7 @@ export function createProjects({ git, token, github, clock, onCloneChange }: { g
     if (existsSync(dest)) {
       const origin = existsSync(join(dest, '.git')) ? await git.run(dest, ['config', '--get', 'remote.origin.url']) : undefined;
       const found = origin?.ok === true ? parseOrigin(origin.out) : null;
-      if (found === null || `${found.owner}/${found.name}`.toLowerCase() !== repo.toLowerCase()) throw new ChatRefused(`${dest} is already there and is not a clone of ${repo}; it was left as it is`);
+      if (found === null || `${found.owner}/${found.name}`.toLowerCase() !== repo.toLowerCase()) throw new ChatRefused('project.clone.folderTaken', `${dest} is already there and is not a clone of ${repo}; it was left as it is`, { folder: dest, repo });
       const fetched = await git.run(dest, ['fetch', 'origin', '--prune'], { timeoutMs: GIT_TIMEOUT_MS, env: await authEnv(), signal });
       if (fetched.ok === false) throw refusal(fetched, 'fetch', repo);
       return { folder: dest, repo, fetched: true };
@@ -175,9 +175,9 @@ export function createProjects({ git, token, github, clock, onCloneChange }: { g
     try {
       await mkdir(dest); // not recursive: it fails if something appeared since the check, and what is there now is ours to remove only if we made it
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'EEXIST') throw new ChatRefused(`${dest} is already there and is not a clone of ${repo}; it was left as it is`);
+      if ((error as NodeJS.ErrnoException).code === 'EEXIST') throw new ChatRefused('project.clone.folderTaken', `${dest} is already there and is not a clone of ${repo}; it was left as it is`, { folder: dest, repo });
       log.error('could not make the folder of a clone', error, { repo });
-      throw new ChatRefused(`The folder for ${repo} could not be made`);
+      throw new ChatRefused('project.clone.folderFailed', `The folder for ${repo} could not be made`, { repo });
     }
     try {
       const cloned = await git.run(dirname(dest), ['clone', '--', `https://github.com/${repo}.git`, dest], { timeoutMs: GIT_TIMEOUT_MS, env, signal, onProgress });
@@ -192,7 +192,7 @@ export function createProjects({ git, token, github, clock, onCloneChange }: { g
 
   /** `<projects folder>/<owner>/<name>`, where `repo` is or would be cloned; `parent` stands for the projects folder in a clone that goes elsewhere. */
   const repoFolder = (repo: string, parent?: string): string => {
-    if (repoNamePattern.test(repo) === false) throw new ChatRefused(`"${repo}" is not a repository; write it as owner/name`);
+    if (repoNamePattern.test(repo) === false) throw new ChatRefused('project.repoInvalid', `"${repo}" is not a repository; write it as owner/name`, { repo });
     return parent === undefined ? projectsFolder(repo) : checkProjectsFolder(join(parent, repo), carrierHome());
   };
 
@@ -208,12 +208,12 @@ export function createProjects({ git, token, github, clock, onCloneChange }: { g
       const listed = readProjectsFile();
       if (listed.ok) {
         await checkWorktreeClash(git, reply.folder, listed.projects).catch((error: unknown) => {
-          if (error instanceof ChatRefused) throw new ChatRefused(`${error.message}; ${reply.folder} was left as it is`);
+          if (error instanceof ChatRefused) throw new ChatRefused(error.code, `${error.message}; ${reply.folder} was left as it is`, { ...error.params, folder: reply.folder });
           throw error;
         });
       }
       const written = updateProjectsFile((current) => (current.some((entry) => samePath(entry.path, reply.folder)) ? current : [...current, { path: reply.folder, origin }]));
-      if (written.ok === false) throw new ChatRefused(`${clone.repo} was cloned to ${reply.folder}, but projects.json ${written.errors[0]!.path} ${written.errors[0]!.message}; fix the file and add the folder again`);
+      if (written.ok === false) throw new ChatRefused('project.clone.fileInvalid', `${clone.repo} was cloned to ${reply.folder}, but projects.json ${written.errors[0]!.path} ${written.errors[0]!.message}; fix the file and add the folder again`, { repo: clone.repo, folder: reply.folder, path: written.errors[0]!.path, problem: written.errors[0]!.message });
       clones.delete(clone.repo.toLowerCase());
     } catch (error) {
       if (error instanceof ChatRefused === false) log.error('a clone from Settings failed', error, { repo: clone.repo });
@@ -268,7 +268,7 @@ export function createProjects({ git, token, github, clock, onCloneChange }: { g
           joined.abort.abort();
           await joined.done.catch(() => {});
         }
-        reject(new ChatRefused('The clone was cancelled'));
+        reject(new ChatRefused('project.cancelled', 'The clone was cancelled', { step: 'clone' }));
       };
       if (signal.aborted) return leave();
       signal.addEventListener('abort', leave, { once: true });
@@ -293,7 +293,7 @@ export function createProjects({ git, token, github, clock, onCloneChange }: { g
 
     /** The default branch and the branches of a repository that need not be on disk, read from GitHub with the person's login. */
     repoBranches({ repo }: { repo: string }): Promise<RepoBranches> {
-      if (repoNamePattern.test(repo) === false) throw new ChatRefused(`"${repo}" is not a repository; write it as owner/name`);
+      if (repoNamePattern.test(repo) === false) throw new ChatRefused('project.repoInvalid', `"${repo}" is not a repository; write it as owner/name`, { repo });
       return github.branches(repo);
     },
 
@@ -316,13 +316,13 @@ export function createProjects({ git, token, github, clock, onCloneChange }: { g
     async newProject({ name, parent }: { name: string; parent?: string }): Promise<{ folder: string }> {
       const dest = projectFolder(name, parent);
       const listed = readProjectsFile();
-      if (listed.ok === false) throw new ChatRefused(`projects.json ${listed.errors[0]!.path} ${listed.errors[0]!.message}; fix the file and try again`);
-      if (listed.projects.some((entry) => samePath(entry.path, dest))) throw new ChatRefused(`${name} is already a project; choose another name`);
+      if (listed.ok === false) throw new ChatRefused('project.fileInvalid', `projects.json ${listed.errors[0]!.path} ${listed.errors[0]!.message}; fix the file and try again`, { path: listed.errors[0]!.path, problem: listed.errors[0]!.message });
+      if (listed.projects.some((entry) => samePath(entry.path, dest))) throw new ChatRefused('project.nameTaken', `${name} is already a project; choose another name`, { name });
       const { folder } = await createProject(git, name, parent);
       const written = updateProjectsFile((current) => (current.some((entry) => samePath(entry.path, folder)) ? current : [...current, { path: folder, origin: 'created' }]));
       if (written.ok === false) {
         await rm(folder, { recursive: true, force: true }); // this call made it, and it is empty
-        throw new ChatRefused(`projects.json ${written.errors[0]!.path} ${written.errors[0]!.message}; fix the file and try again`);
+        throw new ChatRefused('project.fileInvalid', `projects.json ${written.errors[0]!.path} ${written.errors[0]!.message}; fix the file and try again`, { path: written.errors[0]!.path, problem: written.errors[0]!.message });
       }
       return { folder };
     },
@@ -337,8 +337,8 @@ export function createProjects({ git, token, github, clock, onCloneChange }: { g
       if (known?.state === 'cloning') return { ...known };
       const folder = repoFolder(repo, parent);
       const listed = readProjectsFile();
-      if (listed.ok === false) throw new ChatRefused(`projects.json ${listed.errors[0]!.path} ${listed.errors[0]!.message}; fix the file and try again`);
-      if (listed.projects.some((entry) => samePath(entry.path, folder))) throw new ChatRefused(`${repo} is already a project`);
+      if (listed.ok === false) throw new ChatRefused('project.fileInvalid', `projects.json ${listed.errors[0]!.path} ${listed.errors[0]!.message}; fix the file and try again`, { path: listed.errors[0]!.path, problem: listed.errors[0]!.message });
+      if (listed.projects.some((entry) => samePath(entry.path, folder))) throw new ChatRefused('project.repoTaken', `${repo} is already a project`, { repo });
       const clone: ProjectClone = { repo, folder, state: 'cloning' };
       clones.set(repo.toLowerCase(), clone);
       const abort = new AbortController();

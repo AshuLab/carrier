@@ -777,7 +777,7 @@ describe.skipIf(!enabled)('cloneRepo, with the real git', () => {
     await new Promise((resolve) => setTimeout(resolve, 500));
     expect(existsSync(join(work, 'projects', 'acme', 'hang'))).toBe(true);
     abort.abort();
-    await expect(cloning).rejects.toThrow(new ChatRefused('The clone was cancelled'));
+    await expect(cloning).rejects.toThrow(new ChatRefused('project.cancelled', 'The clone was cancelled', { step: 'clone' }));
     await vi.waitFor(() => expect(existsSync(join(work, 'projects', 'acme', 'hang'))).toBe(false), { timeout: 3000 });
     expect(Date.now() - started).toBeLessThan(4000);
   });

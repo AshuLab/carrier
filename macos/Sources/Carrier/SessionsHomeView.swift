@@ -36,12 +36,13 @@ struct SessionsHomeView: View {
     @ViewBuilder private func sessionsContent(page: SessionsPage, searched: Bool) -> some View {
         Group {
             if let notice = chatHostNotice(missing: ChatHostStarter.shared.missing) {
-                EmptyStateView(icon: .warning, title: notice.title, line: notice.line)
+                EmptyStateView(icon: .warning, title: notice.title, line: notice.line).inPageScroll()
             } else if let empty = page.emptyState {
                 VStack(alignment: .leading, spacing: 0) {
                     if filter.chips.isEmpty == false { chips.padding(.horizontal, 20).padding(.vertical, 8) }
                     EmptyStateView(state: empty, action: empty == .noSessionsMatch ? ("Clear filters", clear) : nil)
                 }
+                .inPageScroll()
             } else {
                 // the scroll view is the page, so the list runs up under the toolbar as Carrier's does and the bar is the system's
                 let ids = page.groups.flatMap { $0.rows.map(\.id) }

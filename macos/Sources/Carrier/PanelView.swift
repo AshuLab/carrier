@@ -257,7 +257,7 @@ struct PanelView: View {
                         } else if shell.selection == .newSession {
                             NewSessionView(model: model.newSession, openHealth: { WindowController.shared.showSettings(.health) }, opened: { shell.selection = .session(id: $0) }, request: shell.conversationRequest)
                         } else if let emptyPage {
-                            EmptyStateView(state: emptyPage)
+                            EmptyStateView(state: emptyPage).inPageScroll()
                         } else if case .session(let id) = shell.selection {
                             ConversationView(sessionId: id, draft: model.newSession, request: shell.conversationRequest, subagents: $shell.subagents, header: $shell.subagentHeader) { plan in
                                 model.newSession.restore(plan)

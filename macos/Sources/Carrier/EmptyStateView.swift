@@ -101,3 +101,12 @@ struct LoadingStateView: View {
         .accessibilityElement(children: .combine)
     }
 }
+
+extension View {
+    /// An empty state that is the whole page, in a scroll view that has nothing to scroll. With nothing scrolling under it the system draws the
+    /// toolbar's own grey band over the page; a page that scrolls lets its colour through to the top of the window, and this one is then as the rest.
+    /// (`.toolbarBackgroundVisibility(.hidden, for: .windowToolbar)` does not remove the band here, and the empty state no longer asks for it.)
+    func inPageScroll() -> some View {
+        ScrollView { containerRelativeFrame(.vertical) }.scrollBounceBehavior(.basedOnSize)
+    }
+}

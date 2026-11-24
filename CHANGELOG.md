@@ -51,7 +51,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
-- The window's title bar no longer shows a flat grey band over the page's colour on Home and on every page or tab that shows an empty state: the empty state stopped hiding the toolbar's background, as New session did already.
+- The window's title bar no longer shows a flat grey band over the page's colour on Home and on the empty Sessions, Archive and Terminal pages: the empty state is now in a scroll view with nothing to scroll, as the pages that have content, and the system lets the page's colour through to the top of the window.
 - Moving a role to the provider and model its first failover step names (for example from one account to the other one that was its fallback) no longer leaves a config the engine refuses: that step is dropped, since falling back to the account that ran out is no fallback.
 - The switches and sliders of Settings take the accent the person picks, also after the window was opened; they kept the one it was opened with.
 - A long command in an approval, or many options in a question, no longer push the message box out of a short window: they scroll inside the card, which takes at most a third of the window.

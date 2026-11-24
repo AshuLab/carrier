@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { loadProviders } from '../config/providers.ts';
 import type { EffectiveRepoConfig } from '../config/resolve.ts';
-import { defaultSkills, resolveSkills, savedSkills, solveSkills } from '../config/skills.ts';
+import { defaultSkills, resolveReviewSkills, resolveSkills, savedSkills, solveSkills } from '../config/skills.ts';
 import { openDatabase, type Db } from '../storage/db.ts';
 import { eq } from 'drizzle-orm';
 import { epics } from '../storage/schema.ts';
@@ -2257,6 +2257,33 @@ test('the skills of the repo are saved with the epic when it is reserved; a row 
   expect(savedSkills(withSkills!.config).fix).toEqual({ name: 'my-fix', named: true });
   expect(without!.config!.skills).toBeUndefined();
   expect(savedSkills(without!.config)).toEqual(defaultSkills);
+});
+
+test('the extra reviewers and the lead\'s skills are saved with the epic when it is reserved, a reload changes nothing for it, and an epic saved before reads one reviewer and no lead', async () => {
+  const extra = { profile: 'c', option: 'o', harness: 'claude' as const, model: 'm', skills: resolveReviewSkills('review', solveSkills, undefined, { review: 'my-review' }) };
+  const withExtras = (extraReviewers: (typeof extra)[], lead = resolveReviewSkills('lead', solveSkills, undefined, { review: 'my-lead' })): EffectiveRepoConfig => ({
+    ...repos[0]!,
+    agents: { ...agents, leadReviewer: { profile: 'd', option: 'o', harness: 'claude', model: 'm' }, extraReviewers },
+    skills: { ...resolveSkills(solveSkills), lead },
+  });
+  github.ready = { 'AshuLab/a': ready(1), 'AshuLab/b': ready(2) };
+  runner.behavior = () => ({ exit: 'stopped' });
+  const engine = await start(2, [withExtras([extra]), repos[1]!]);
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  const saved = () => Object.fromEntries(rows(engine.db).map((row) => [row.repo, row.config!]));
+
+  expect(saved()['AshuLab/a']!.agents.extraReviewers).toEqual([extra]);
+  expect(saved()['AshuLab/a']!.skills!.lead).toEqual({ review: { name: 'my-lead', named: true }, publish: { name: 'code-post', named: false } });
+  const before = structuredClone(saved()['AshuLab/a']);
+
+  reload(engine, { repos: [withExtras([], resolveReviewSkills('lead', solveSkills, undefined, { review: 'other' })), repos[1]!] });
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(saved()['AshuLab/a']).toEqual(before);
+
+  expect(saved()['AshuLab/b']!.agents.extraReviewers).toBeUndefined();
+  expect(savedSkills(saved()['AshuLab/b']!).lead).toBeUndefined();
 });
 
 test('the tasks carry the skills the epic was saved with: a reload while it runs changes nothing, a restart from ship takes the new ones', async () => {

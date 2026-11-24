@@ -337,6 +337,8 @@ func interventionLine(_ epic: PanelEpic) -> String {
     case "workspace": "workspace problem"
     case "pr_invalid": "pull request invalid"
     case "skill_missing": "skill missing"
+    case "reviewers_failed": "no reviewer gave a verdict"
+    case "lead_limit": "lead review limit reached"
     default: epic.needsHumanReason ?? "needs you"
     }
 }

@@ -5,10 +5,13 @@ export const solveSkills = { ship: 'ship', review: { review: 'code-review', publ
 
 /** `named` is true when the person wrote the skill at some level of the config, false when it is Solve's default. */
 export type StageSkill = { name: string; named: boolean };
-export type ResolvedSkills = { ship: StageSkill; review: { review: StageSkill; publish: StageSkill | null }; fix: StageSkill };
+export type ReviewSkills = { review: StageSkill; publish: StageSkill | null };
+/** `lead` is the lead reviewer's, saved only when the epic has one; an epic saved before it existed has none. */
+export type ResolvedSkills = { ship: StageSkill; review: ReviewSkills; fix: StageSkill; lead?: ReviewSkills };
 
+type ReviewLevel = { review?: string; publish?: string | null };
 /** A level of the config that may name some of the skills: a repo's, or a role's own. */
-export type SkillsLevel = { ship?: string; review?: { review?: string; publish?: string | null }; fix?: string };
+export type SkillsLevel = { ship?: string; review?: ReviewLevel; lead?: ReviewLevel; fix?: string };
 
 export const defaultSkills: ResolvedSkills = {
   ship: { name: solveSkills.ship, named: false },
@@ -45,6 +48,30 @@ export function resolveSkills(global: Config['skills'], ...overrides: (SkillsLev
     },
     fix: stage((level) => level.fix, solveSkills.fix),
   };
+}
+
+/**
+ * The review skills of the lead (`stage` `lead`) or of an extra reviewer (`review`).
+ * `own` are the levels of the role's own entry, from the weakest to the strongest; then the repo's and the global `skills.lead` (the lead only), then the repo's and the global `skills.review`, never another role's own skills, then Solve's defaults.
+ * `global.review` always holds a value (the loader merges the defaults in), so only one that differs from Solve's counts as named; any other level was written by the person.
+ */
+export function resolveReviewSkills(stage: 'review' | 'lead', global: Config['skills'], repo: SkillsLevel | undefined, ...own: (ReviewLevel | undefined)[]): ReviewSkills {
+  const levels: { level: ReviewLevel | undefined; written: boolean }[] = [
+    ...own.reverse().map((level) => ({ level, written: true })),
+    ...(stage === 'lead' ? [{ level: repo?.lead, written: true }, { level: global.lead, written: true }] : []),
+    { level: repo?.review, written: true },
+    { level: global.review, written: false },
+  ];
+  const pick = <T extends string | null>(of: (level: ReviewLevel) => T | undefined, base: T): { value: T; named: boolean } => {
+    for (const { level, written } of levels) {
+      const value = level === undefined ? undefined : of(level);
+      if (value !== undefined) return { value, named: written || value !== base };
+    }
+    return { value: base, named: false };
+  };
+  const review = pick((level) => level.review, solveSkills.review.review as string);
+  const publish = pick((level) => level.publish, solveSkills.review.publish as string | null);
+  return { review: { name: review.value, named: review.named }, publish: publish.value === null ? null : { name: publish.value, named: publish.named } };
 }
 
 /** The skills saved with an epic; an epic saved before they existed has none and reads Solve's, none of them named. */

@@ -170,7 +170,7 @@ export async function runDoctor(config: Config, folder: string, overrides: Parti
 
   const repos = config.repos.map((repo) => resolveRepoConfig(config, repo));
   const orchestrator = config.profiles[config.orchestratorProfile]!;
-  const rolesOf = (repo: (typeof repos)[number]) => [repo.agents.author, repo.agents.reviewer, ...(repo.agents.leadReviewer ? [repo.agents.leadReviewer] : [])];
+  const rolesOf = (repo: (typeof repos)[number]) => [repo.agents.author, repo.agents.reviewer, ...(repo.agents.extraReviewers ?? []), ...(repo.agents.leadReviewer ? [repo.agents.leadReviewer] : [])];
   const profiles = [orchestrator, ...repos.flatMap((repo) => rolesOf(repo).map((agent) => config.profiles[agent.profile]!))];
 
   // Only a path that does not fit is reported: Carrier works without the socket, it just has none for the app to use.
@@ -288,7 +288,10 @@ export async function runDoctor(config: Config, folder: string, overrides: Parti
     const invoked = [
       { role: 'author', agent: repo.agents.author, skills: [repo.skills!.ship, repo.skills!.fix] },
       { role: 'reviewer', agent: repo.agents.reviewer, skills: [repo.skills!.review.review, repo.skills!.review.publish] },
-    ] as const;
+      // The slots the engine names them by: `reviewer-2` to `reviewer-4`, and `lead`.
+      ...(repo.agents.extraReviewers ?? []).map((agent, i) => ({ role: `reviewer-${i + 2}`, agent, skills: [agent.skills.review, agent.skills.publish] })),
+      ...(repo.agents.leadReviewer && repo.skills!.lead ? [{ role: 'lead', agent: repo.agents.leadReviewer, skills: [repo.skills!.lead.review, repo.skills!.lead.publish] }] : []),
+    ];
     for (const { role, agent, skills } of invoked) {
       for (const skill of skills) {
         if (skill === null) continue;

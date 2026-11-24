@@ -656,6 +656,86 @@
           "provider": "ollama"
         }
       }
+    },
+    {
+      "repo": "acme/api",
+      "issue": 14,
+      "status": "needs_human",
+      "stage": "ship",
+      "round": null,
+      "maxReviews": 5,
+      "blockers": 0,
+      "stageSince": 3009,
+      "lastActivityAt": null,
+      "issueUrl": "https://github.com/acme/api/issues/14",
+      "prUrl": null,
+      "lastError": null,
+      "needsHumanReason": "reviewers failed",
+      "slices": null,
+      "executionId": null,
+      "title": "Issue 14 of acme/api",
+      "labels": [
+        "solve:epic"
+      ],
+      "queuedAt": 809,
+      "startedAt": 3009,
+      "finishedAt": 61009,
+      "branch": "feat/issue-14/epic",
+      "workspace": null,
+      "needsHumanKind": "reviewers_failed",
+      "blockerTitles": [],
+      "agents": {
+        "author": {
+          "harness": "claude",
+          "model": "claude-sonnet-5-5",
+          "provider": null
+        },
+        "reviewer": {
+          "harness": "codex",
+          "model": "gpt-5",
+          "provider": "ollama"
+        }
+      }
+    },
+    {
+      "repo": "acme/api",
+      "issue": 15,
+      "status": "needs_human",
+      "stage": "ship",
+      "round": null,
+      "maxReviews": 5,
+      "blockers": 0,
+      "stageSince": 3010,
+      "lastActivityAt": null,
+      "issueUrl": "https://github.com/acme/api/issues/15",
+      "prUrl": null,
+      "lastError": null,
+      "needsHumanReason": "lead limit",
+      "slices": null,
+      "executionId": null,
+      "title": "Issue 15 of acme/api",
+      "labels": [
+        "solve:epic"
+      ],
+      "queuedAt": 810,
+      "startedAt": 3010,
+      "finishedAt": 61010,
+      "branch": "feat/issue-15/epic",
+      "workspace": null,
+      "needsHumanKind": "lead_limit",
+      "blockerTitles": [],
+      "agents": {
+        "author": {
+          "harness": "claude",
+          "model": "claude-sonnet-5-5",
+          "provider": null
+        },
+        "reviewer": {
+          "harness": "codex",
+          "model": "gpt-5",
+          "provider": "ollama"
+        }
+      }
     }
   ]
 }

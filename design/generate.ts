@@ -31,11 +31,14 @@ export function copyOutputs(paths: { swift: string; catalog: string; typescript:
 
 /**
  * The output table: every emitter registers the files it writes here.
- * The tokens' Swift is written; the tokens' TypeScript and CSS are emitted and tested but written nowhere until a web front-end exists.
- * The other Swift outputs (the copy accessor and catalog, the preferences) arrive with the changes that use them;
- * the copy source is still parsed and checked on every run.
+ * The tokens' and the copy's Swift are written, with the catalog; the TypeScript and CSS are emitted and tested but written nowhere until a web front-end exists.
+ * The other Swift output (the preferences) arrives with the change that uses it.
  */
-export const outputs: Output[] = [{ path: 'macos/Sources/CarrierCore/Theme/Tokens.generated.swift', render: (sources) => emitTokensSwift(sources.tokens) }];
+export const outputs: Output[] = [
+  { path: 'macos/Sources/CarrierCore/Theme/Tokens.generated.swift', render: (sources) => emitTokensSwift(sources.tokens) },
+  { path: 'macos/Sources/CarrierCore/Copy/Copy.generated.swift', render: (sources) => emitSwift(sources.copy) },
+  { path: 'macos/Sources/CarrierCore/Resources/Localizable.xcstrings', render: (sources) => emitCatalog(sources.copy) },
+];
 
 export const REPOSITORY_ROOT = join(import.meta.dirname, '..');
 

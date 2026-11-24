@@ -9,7 +9,9 @@ import { connectControl, ControlUnreachable, type CarrierClient } from '../contr
 // The engine waits up to 30 seconds for the epic to start again before it refuses.
 const RESTART_WAIT_MS = 40_000;
 
-type Chosen = { author?: string; reviewer?: string };
+// What the request names for each role: the extra reviewers are `reviewer2` to `reviewer4`, as the request spells them.
+const roleKeys = ['author', 'reviewer', 'reviewer2', 'reviewer3', 'reviewer4', 'lead'] as const;
+type Chosen = Partial<Record<(typeof roleKeys)[number], string>>;
 type Flags = Chosen & { from?: 'ship' | 'review' | 'fix'; extraRounds?: number };
 
 // What the engine's short refusal means for the person, and what to do next.
@@ -19,6 +21,7 @@ const refusals: Record<string, (target: string) => string> = {
   'github unavailable': () => 'GitHub did not answer, so nothing changed. Try again in a moment.',
   'did not restart': () => 'The ready label is back on the issue, but the epic did not start within 30 seconds. The next check will take it.',
   'unknown option': () => 'That account is not declared in providers.json. Use a name declared there.',
+  'no such role': (target) => `${target} does not have that reviewer or lead. Name only the roles its configuration has.`,
   'no pull request': (target) => `${target} has no pull request yet, so it can only be restarted from ship.`,
   'extra rounds need a stage': () => '--extra-rounds needs --from review or --from fix: a restart from ship starts the rounds over.',
   'extra rounds need a review limit': (target) => `--extra-rounds grants rounds to an epic that stopped on the review limit, and ${target} stopped for another reason.`,
@@ -27,20 +30,22 @@ const refusals: Record<string, (target: string) => string> = {
 };
 
 /**
- * One question per role with the role's current option preselected, and the option of the role that stopped the epic marked.
+ * One question per role the epic has (the author, the reviewer, each extra reviewer and the lead, the last two only with `reviewers`, which says the engine takes them),
+ * with the role's current option preselected, and the option of the role of the execution that stopped the epic marked.
  * When that role ran out of usage its option is not preselected: two Enters would run the same option again.
  * Nothing is asked of an epic that has fewer than two options to choose from (or predates options).
  */
-export async function askRestartOptions(epic: (Pick<PanelEpic, 'stage' | 'options'> & Partial<Pick<EpicAdditions, 'needsHumanKind'>>) | undefined, ui: Pick<Ui, 'select'>): Promise<Chosen> {
+export async function askRestartOptions(epic: (Pick<PanelEpic, 'stage' | 'options'> & Partial<Pick<EpicAdditions, 'needsHumanKind'>>) | undefined, ui: Pick<Ui, 'select'>, reviewers = true): Promise<Chosen> {
   const options = epic?.options;
   if (!options || options.names.length < 2) return {};
-  const failed = epic.stage === 'review' ? 'reviewer' : 'author';
+  const failed = (options.failed ?? (epic.stage === 'review' ? 'reviewer' : 'author')).replace('-', '');
+  const roles = roleKeys.filter((role) => role === 'author' || role === 'reviewer' || (reviewers && (role === 'lead' ? options.lead !== undefined : options.extraReviewers?.[Number(role.slice(-1)) - 2] !== undefined)));
   const chosen: Chosen = {};
-  for (const role of ['author', 'reviewer'] as const) {
-    const current = options[role];
+  for (const role of roles) {
+    const current = (role === 'lead' ? options.lead : role === 'author' || role === 'reviewer' ? options[role] : options.extraReviewers![Number(role.slice(-1)) - 2]) ?? null;
     const ranOut = role === failed && epic.needsHumanKind === 'usage_limit';
     chosen[role] = await ui.select({
-      message: `Option for the ${role}`,
+      message: `Option for the ${role.replace(/(\d)$/, ' $1')}`,
       initialValue: (ranOut ? options.names.find((name) => name !== current) : current) ?? undefined,
       options: options.names.map((name) => ({ value: name, label: name, ...(name === current && { hint: ranOut ? 'ran out' : role === failed ? 'current, failed' : 'current' }) })),
     });
@@ -63,15 +68,19 @@ export async function restartCommand(folder: string, { repo, issue }: EpicTarget
   try {
     // an engine that does not list `resumeFromStage` would only answer "invalid request"
     if ((flags.from !== undefined || flags.extraRounds !== undefined) && client.hello.capabilities.includes('resumeFromStage') === false) throw new CliError(1, 'The running Carrier is too old to resume from a stage: restart it to get --from.');
-    let chosen: Chosen = { ...(flags.author && { author: flags.author }), ...(flags.reviewer && { reviewer: flags.reviewer }) };
-    if (flags.author === undefined && flags.reviewer === undefined && process.stdin.isTTY && process.stdout.isTTY) {
+    const named = roleKeys.filter((role) => flags[role] !== undefined);
+    // an engine that does not list `resumeReviewerOptions` would only answer "invalid request"
+    const reviewers = client.hello.capabilities.includes('resumeReviewerOptions');
+    if (reviewers === false && named.some((role) => role !== 'author' && role !== 'reviewer')) throw new CliError(1, 'The running Carrier is too old to restart the extra reviewers and the lead on an option: restart it to get --reviewer-2, --reviewer-3, --reviewer-4 and --lead.');
+    let chosen: Chosen = Object.fromEntries(named.map((role) => [role, flags[role]!]));
+    if (named.length === 0 && process.stdin.isTTY && process.stdout.isTTY) {
       const { epics } = (await client.request('snapshot')) as ControlSnapshot;
       const epic = epics.find((e) => e.repo === repo && e.issue === issue);
       // Before any question: an epic the engine would refuse is not worth asking about.
       if (epic === undefined) throw new CliError(1, refusals['unknown epic']!(`${repo}#${issue}`));
       if (epic.status !== 'needs_human') throw new CliError(1, refusals['not stopped']!(`${repo}#${issue}`));
       try {
-        chosen = await askRestartOptions(epic, makeClackUi({ compact: true }));
+        chosen = await askRestartOptions(epic, makeClackUi({ compact: true }), reviewers);
       } catch (error) {
         if (error instanceof Cancelled === false) throw error;
         cancelled();

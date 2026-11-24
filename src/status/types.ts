@@ -1,11 +1,15 @@
 import type { Labels } from '../orchestration/github.ts';
+import type { Slot } from '../storage/executions.ts';
 import type { needsHumanKinds, unansweredReasons } from '../storage/schema.ts';
 
 /** The observations an epic went to ready for test with because no pass would answer them (glossary: Unanswered observations). */
 export type UnansweredObservations = { count: number; reason: (typeof unansweredReasons)[number] };
 
-/** The agent options of an epic: the accounts it can restart on, the option each role runs on. */
-export type EpicOptions = { names: string[]; author: string | null; reviewer: string | null };
+/**
+ * The agent options of an epic: the accounts it can restart on, the option each role runs on.
+ * `extraReviewers` (the option of each, `reviewer-2` first) and `lead` are there only when the epic has them, and `failed`, the role of the execution that stopped a stopped epic with either.
+ */
+export type EpicOptions = { names: string[]; author: string | null; reviewer: string | null; extraReviewers?: (string | null)[]; lead?: string | null; failed?: 'author' | Slot };
 
 // What the panel shows, whatever draws it: read from SQLite by snapshot.ts, drawn by dashboard.ts (a terminal) or plain.ts (a pipe).
 export type PanelEpic = {

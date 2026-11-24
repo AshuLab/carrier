@@ -332,27 +332,31 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
 
   // The options a person picked when restarting a stopped epic, by epic id, until the poll that requeues it reserves it again.
   // ponytail: in memory, an engine restart in between falls back to the roles as saved; persist it if that bites.
-  const restarts = new Map<number, Partial<Record<'author' | 'reviewer', string>>>();
-  const declaredOnly = ({ id, config }: Epic, chosen: Partial<Record<'author' | 'reviewer', string>>) =>
+  type Chosen = Partial<Record<'author' | Slot, string>>;
+  const restarts = new Map<number, Chosen>();
+  const declaredOnly = ({ id, config }: Epic, chosen: Chosen) =>
     Object.fromEntries(
       Object.entries(chosen).filter(([role, name]) => {
         const declared = Object.hasOwn((config?.providers ?? config?.options) ?? {}, name);
         if (!declared) log.warn('the option chosen at the restart is not declared any more, the role starts on its default', { epicId: id, role, option: name });
-        return declared;
+        // the requeue froze the roles again: a slot the configuration has no more has nothing to put the option on
+        const has = config !== null && agentOfSlot(config, role === 'author' ? null : (role as Slot)) !== undefined;
+        if (!has) log.warn('the role the restart chose an option for is not configured any more, it is left out', { epicId: id, role });
+        return declared && has;
       }),
     );
 
-  // Puts each role on the option chosen at the restart (a role left out keeps its saved one), records them, and returns the epic as saved.
-  function onChosen(id: number, chosen: Partial<Record<'author' | 'reviewer', string>>) {
-    const { config } = fresh(id);
-    const roleOn = (role: 'author' | 'reviewer') => {
-      const name = chosen[role];
-      return name === undefined ? config!.agents[role] : onOption(config!, role === 'author' ? null : 'reviewer', name);
-    };
-    const agents = { author: roleOn('author'), reviewer: roleOn('reviewer') };
+  // Puts each role on the option chosen at the restart (a role left out keeps its saved one, the extra reviewers and the lead included), and returns the epic as saved.
+  function onChosen(id: number, chosen: Chosen) {
+    let { config } = fresh(id);
+    for (const [role, name] of Object.entries(chosen)) {
+      const slot = role === 'author' ? null : (role as Slot);
+      config = withAgentOfSlot(config!, slot, onOption(config!, slot, name));
+    }
+    const { agents } = config!;
     return db
       .update(epics)
-      .set({ config: { ...config!, agents }, authorOption: agents.author.option ?? null, reviewerOption: agents.reviewer.option ?? null })
+      .set({ config, authorOption: agents.author.option ?? null, reviewerOption: agents.reviewer.option ?? null })
       .where(eq(epics.id, id))
       .returning()
       .get();
@@ -1764,7 +1768,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
      * One that stopped on the review limit then gets `extraRounds` more rounds from the current one, `maxReviews` when none is named.
      * Rejects with ResumeRefused: nothing was changed unless it is `did not restart`, which leaves the label for the next check.
      */
-    async resumeEpic(repo: string, issue: number, chosen: { author?: string; reviewer?: string; from?: 'ship' | 'review' | 'fix'; extraRounds?: number } = {}) {
+    async resumeEpic(repo: string, issue: number, chosen: { author?: string; reviewer?: string; reviewer2?: string; reviewer3?: string; reviewer4?: string; lead?: string; from?: 'ship' | 'review' | 'fix'; extraRounds?: number } = {}) {
       // The socket answers while the start recovers, and the recovery is not the epic's wait: it is waited for on its own, up to the same 30 seconds, and
       // refused before anything is touched when it takes longer (the label is not put, the chosen options are not kept), so the client has not given up first.
       if (recovering) {
@@ -1782,7 +1786,11 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       // The requeue freezes the epic's options again from the configuration the engine runs with, so that is what the names are checked against.
       const repoConfig = repos().find((r) => r.name === repo);
       const declared = (repoConfig?.providers ?? repoConfig?.options) ?? {};
-      if ([chosen.author, chosen.reviewer].some((name) => name !== undefined && !Object.hasOwn(declared, name))) throw new ResumeRefused('unknown option');
+      const picked = Object.entries({ author: chosen.author, reviewer: chosen.reviewer, 'reviewer-2': chosen.reviewer2, 'reviewer-3': chosen.reviewer3, 'reviewer-4': chosen.reviewer4, lead: chosen.lead }).filter((pick): pick is [string, string] => pick[1] !== undefined);
+      if (picked.some(([, name]) => !Object.hasOwn(declared, name))) throw new ResumeRefused('unknown option');
+      // The roles the epic will run with are the ones the requeue freezes again, from the configuration the engine runs with.
+      const slots = roundSlots(repoConfig ?? null);
+      if (picked.some(([role]) => role === 'lead' ? !repoConfig?.agents.leadReviewer : role.startsWith('reviewer-') && !slots.includes(role as Slot))) throw new ResumeRefused('no such role');
       const keeping = chosen.from === 'review' || chosen.from === 'fix' ? chosen.from : null;
       if (chosen.extraRounds !== undefined && !keeping) throw new ResumeRefused('extra rounds need a stage');
       if (chosen.extraRounds !== undefined && epic.needsHumanKind !== 'review_limit') throw new ResumeRefused('extra rounds need a review limit');
@@ -1797,9 +1805,6 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
         }
         if (refusal) throw new ResumeRefused(refusal);
       }
-      // A role left out keeps the option it has: the epic is not asked again.
-      const author = chosen.author ?? epic.authorOption;
-      const reviewer = chosen.reviewer ?? epic.reviewerOption;
       // Saved with the epic before the label goes on: a restart of the engine, or a check that finds the label later, takes the same stage. Any resume sets it, so an old ask never lingers.
       // The rounds granted go with it, counted from the round the epic is at; a resume that grants none leaves the cap as it was.
       // It also takes the wake-up's time away now: a poll that probes while the label is put must not resume the epic itself over what was asked here.
@@ -1808,7 +1813,8 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       // `labelPending` goes too: the poll takes the `ready` of a stopped epic with a write still pending for Carrier's own, and this one is a person's.
       const saved = db.update(epics).set({ labelPending: false, resumeStage: keeping, resumeAt: null, prHeadSha: adopted ?? epic.prHeadSha, roundLimit: keeping && grant !== undefined ? (epic.round ?? 0) + grant : epic.roundLimit }).where(and(eq(epics.id, epic.id), eq(epics.status, 'needs_human'))).returning().get();
       if (!saved) throw new ResumeRefused('not stopped');
-      restarts.set(epic.id, { ...(author && { author }), ...(reviewer && { reviewer }) });
+      // A role left out keeps the option it has: the epic is not asked again. The extra reviewers and the lead are put back on theirs by the slices that run them.
+      restarts.set(epic.id, { ...(epic.authorOption && { author: epic.authorOption }), ...(epic.reviewerOption && { reviewer: epic.reviewerOption }), ...Object.fromEntries(picked) });
       try {
         await github.setLabels(repo, issue, { add: [settings().labels.ready], remove: [] });
       } catch (e) {
@@ -1836,7 +1842,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
         await new Promise<void>((resolve) => clock.after(resumeTickMs, async () => resolve()));
       }
       // Every resume says what asked for it, as `recover` does; a plain one is from ship.
-      db.insert(epicEvents).values({ epicId: epic.id, at: clock.now(), type: 'resumed', data: { from: chosen.from ?? 'ship', by: 'command', ...(adopted && { headAdopted: { from: epic.prHeadSha, to: adopted } }) } }).run();
+      db.insert(epicEvents).values({ epicId: epic.id, at: clock.now(), type: 'resumed', data: { from: chosen.from ?? 'ship', by: 'command', ...(picked.length > 0 && { options: Object.fromEntries(picked) }), ...(adopted && { headAdopted: { from: epic.prHeadSha, to: adopted } }) } }).run();
     },
     /**
      * Continues one running epic whose agent is not alive, from its real state, through the code of the poll's recovery (ADR 0044); resolves once it was continued.

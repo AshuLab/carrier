@@ -180,3 +180,29 @@ private func decode<T: Decodable>(_ json: String, as type: T.Type = T.self) thro
     let null: EpicReply = try decode(#"{"stages":[],"rounds":[],"slices":["# + slice + #","prState":null,"prMergedAt":null}],"worktrees":[]}"#)
     #expect(null.slices[0].prState == nil && null.slices[0].prMergedAt == nil)
 }
+
+@Test func theTextsNodeSendsDecodeTheirCodeAndParamsAndAGoldenWrittenBeforeTheCodesStillDecodes() throws {
+    let check: DoctorCheck = try decode(#"{"name":"x","status":"fail","detail":"d","detailCode":"doctor.mintFailed","detailParams":{"error":"d","n":2},"fix":"f","fixCode":"doctor.fix.skill","fixParams":{"skill":"s"}}"#)
+    #expect(check.detailCode == "doctor.mintFailed" && check.detailParams == ["error": "d", "n": 2] && check.fixCode == "doctor.fix.skill" && check.fixParams == ["skill": "s"])
+    let oldCheck: DoctorCheck = try decode(#"{"name":"x","status":"fail","detail":"d","fix":"f"}"#)
+    #expect(oldCheck.detailCode == nil && oldCheck.detailParams == nil && oldCheck.fixCode == nil && oldCheck.detail == "d")
+
+    let notice: ChatEvent = try decode(#"{"id":1,"at":0,"kind":"notice","text":"t","code":"session.notice.actionWentOn","params":{"reason":"r"}}"#)
+    #expect(notice.code == "session.notice.actionWentOn" && notice.params == ["reason": "r"])
+    let oldNotice: ChatEvent = try decode(#"{"id":1,"at":0,"kind":"notice","text":"t"}"#)
+    #expect(oldNotice.code == nil && oldNotice.params == nil && oldNotice.text == "t")
+
+    let quota: UsageQuota = try decode(#"{"account":"a","provider":"claude","status":"error","message":"m","messageCode":"usage.probe.failed","messageParams":{}}"#)
+    #expect(quota.messageCode == "usage.probe.failed" && quota.messageParams == [:])
+    let oldQuota: UsageQuota = try decode(#"{"account":"a","provider":"claude","status":"error","message":"m"}"#)
+    #expect(oldQuota.messageCode == nil && oldQuota.message == "m")
+
+    let problem: HostProviders.Problem = try decode(#"{"path":"accounts.0","message":"m","code":"providers.keyInvalid","params":{"path":"accounts.0"}}"#)
+    #expect(problem.code == "providers.keyInvalid" && problem.params == ["path": "accounts.0"])
+    let oldProblem: HostProviders.Problem = try decode(#"{"path":"accounts.0","message":"m"}"#)
+    #expect(oldProblem.code == nil && oldProblem.params == nil)
+
+    let skipped: ProjectCleanup.Skipped = try decode(#"{"path":"/p","reason":"r","code":"worktree.uncommitted","params":{}}"#)
+    #expect(skipped.code == "worktree.uncommitted")
+    #expect(try decode(#"{"path":"/p","reason":"r"}"# as String, as: ProjectCleanup.Skipped.self).code == nil)
+}

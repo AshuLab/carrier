@@ -50,6 +50,8 @@ export type EngineSettings = {
   maxExecutionRetries: number;
   /** Reviews of the final PR before the epic goes to a person; fix turns do not count. */
   maxReviews: number;
+  /** Reviews of the lead reviewer's exchange with the author before the epic goes to a person (`lead_limit`); the engine does not read it yet. */
+  maxLeadRounds: number;
   /** The labels by role: `ready` queues an epic (Carrier takes it off when the epic starts and puts it back to restart a stopped one), `running`, `readyForTest` and `needsHuman` are the ones Carrier writes. */
   labels: Labels;
 };

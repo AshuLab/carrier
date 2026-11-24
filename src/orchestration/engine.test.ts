@@ -75,7 +75,7 @@ function open() {
 }
 async function start(maxConcurrentEpics = 0, config = repos, maxExecutionHours: number | 'unlimited' = 4, maxExecutionRetries = 3, maxReviews = 5) {
   const db = open();
-  settings = { pollIntervalMs: 5 * MIN, labels: defaultLabels, maxConcurrentEpics, maxExecutionHours, maxExecutionRetries, maxReviews, autoResume: false, autoResumeMaxHours: 12 };
+  settings = { pollIntervalMs: 5 * MIN, labels: defaultLabels, maxConcurrentEpics, maxExecutionHours, maxExecutionRetries, maxReviews, maxLeadRounds: 3, autoResume: false, autoResumeMaxHours: 12 };
   watched = config;
   const engine = createEngine({ db, github, clock, repos: () => watched, settings: () => settings, profileDeclared: (name) => declaredProfile(name), runner, workspaces, quota: fakeQuota.read, places: enginePlacesOf(dir), skills });
   await engine.start();
@@ -3320,7 +3320,7 @@ async function startWhileRecovering() {
   const gate = new Promise<void>((resolve) => (open1 = resolve));
   workspaces.prepareAuthor = async (repo, epic) => (await gate, `/work/${repo}/${epic}/author`);
   runner.behavior = () => ({ exit: 'hang' });
-  settings = { pollIntervalMs: 5 * MIN, labels: defaultLabels, maxConcurrentEpics: 1, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews: 5, autoResume: false, autoResumeMaxHours: 12 };
+  settings = { pollIntervalMs: 5 * MIN, labels: defaultLabels, maxConcurrentEpics: 1, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews: 5, maxLeadRounds: 3, autoResume: false, autoResumeMaxHours: 12 };
   watched = repos;
   const engine = createEngine({ db, github, clock, repos: () => watched, settings: () => settings, profileDeclared: () => true, runner, workspaces, quota: fakeQuota.read, places: enginePlacesOf(dir), skills: new FakeSkills() });
   const started = engine.start();
@@ -3727,7 +3727,7 @@ test('purges expired logs and sessions when the engine starts and every 24 hours
   db.insert(executions).values({ executionId: 'x-old', epicId: old.id, stage: 'ship', sessionId: 's-old', resultPath: 'r', startedAt: 0 }).run();
   const logs = join(dir, 'engine', 'logs', 'executions', 'x-old');
   mkdirSync(logs, { recursive: true });
-  const engine = createEngine({ db, github, clock, profileDeclared: () => true, repos: () => repos, settings: () => ({ pollIntervalMs: 5 * MIN, labels: defaultLabels, maxConcurrentEpics: 0, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews: 5, autoResume: false, autoResumeMaxHours: 12 }), runner, workspaces, quota: fakeQuota.read, places: enginePlacesOf(dir), skills: new FakeSkills() });
+  const engine = createEngine({ db, github, clock, profileDeclared: () => true, repos: () => repos, settings: () => ({ pollIntervalMs: 5 * MIN, labels: defaultLabels, maxConcurrentEpics: 0, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews: 5, maxLeadRounds: 3, autoResume: false, autoResumeMaxHours: 12 }), runner, workspaces, quota: fakeQuota.read, places: enginePlacesOf(dir), skills: new FakeSkills() });
   await engine.start();
   expect(existsSync(logs)).toBe(false);
   mkdirSync(logs, { recursive: true });
@@ -4350,7 +4350,7 @@ test('a resume asked while the start recovers waits for it up to thirty seconds,
   workspaces.prepareAuthor = async (repo, epic) => (await gate, `/work/${repo}/${epic}/author`);
   runner.behavior = () => ({ exit: 'hang' });
   github.ready = { 'AshuLab/a': ready(2) };
-  settings = { pollIntervalMs: 5 * MIN, labels: defaultLabels, maxConcurrentEpics: 2, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews: 5, autoResume: false, autoResumeMaxHours: 12 };
+  settings = { pollIntervalMs: 5 * MIN, labels: defaultLabels, maxConcurrentEpics: 2, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews: 5, maxLeadRounds: 3, autoResume: false, autoResumeMaxHours: 12 };
   watched = repos;
   const engine = createEngine({ db, github, clock, repos: () => watched, settings: () => settings, profileDeclared: () => true, runner, workspaces, quota: fakeQuota.read, places: enginePlacesOf(dir), skills: new FakeSkills() });
   const setLabels = vi.spyOn(github, 'setLabels');
@@ -6063,7 +6063,7 @@ test('recoverEpic asked while the start recovers is refused: the start launches 
   const gate = new Promise<void>((resolve) => (opens = resolve));
   workspaces.prepareAuthor = async (repo, epic) => (await gate, `/work/${repo}/${epic}/author`);
   runner.behavior = () => ({ exit: 'hang' });
-  settings = { pollIntervalMs: 5 * MIN, labels: defaultLabels, maxConcurrentEpics: 1, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews: 5, autoResume: false, autoResumeMaxHours: 12 };
+  settings = { pollIntervalMs: 5 * MIN, labels: defaultLabels, maxConcurrentEpics: 1, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews: 5, maxLeadRounds: 3, autoResume: false, autoResumeMaxHours: 12 };
   watched = repos;
   const engine = createEngine({ db, github, clock, repos: () => watched, settings: () => settings, profileDeclared: () => true, runner, workspaces, quota: fakeQuota.read, places: enginePlacesOf(dir), skills: new FakeSkills() });
   const started = engine.start();

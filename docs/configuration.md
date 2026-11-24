@@ -132,6 +132,7 @@ Two more groups are off until you name them, so a Carrier that does not name the
 - `labels.stages`: `{ ship, review, fix }`, each optional. While an epic runs, the issue carries the label of its stage beside `running`, and the next stage replaces it.
 - `labels.reasons`: one optional label per kind of stop, `review_limit`, `agent_needs_human`, `retries_exhausted`, `timeout`, `auth`, `workspace`, `pr_invalid`, `usage_limit`, `engine_error`, `skill_missing`, `reviewers_failed` and `lead_limit`.
   While an epic waits for a person, the issue carries the label of its kind beside `needsHuman`.
+  `reviewers_failed` and `lead_limit` are the two kinds of several reviewers and a lead, explained under [Extra reviewers and the lead reviewer](#extra-reviewers-and-the-lead-reviewer).
 
 The names below are proposals you may copy into `labels`; none is on until you name it:
 
@@ -288,6 +289,17 @@ Today the keys are read, checked and saved with each epic, and `carrier doctor` 
   Every reviewer publishes its comments on the pull request with its own account, so with one bot per reviewer the pull request shows who said what, and a reviewer re-reviewing never takes another's open threads for its own.
   A profile may be shared, since the id of each blocker, not the account, tells reviewers apart, but then the comments of several reviewers come from one login.
 
+Two kinds of stop belong to this, each with its optional label under `labels.reasons` (see [Labels](#labels)) and a line in `carrier status` and in the app:
+
+- `reviewers_failed`: a review round with several reviewers ended with no verdict at all, or a reviewer with blockers still open gave none in a later round and no other reviewer asked for changes.
+  The reason names each reviewer and why it failed.
+  A round whose every failure was a usage limit stops in `usage_limit` instead, so it wakes by itself when `limits.autoResume` is on; `reviewers_failed` never wakes by itself.
+  An epic with one reviewer never stops in it.
+- `lead_limit`: the lead reviewer asked for changes in each of the `limits.maxLeadRounds` reviews of its exchange with the author.
+
+Resume the epic after reading the reason, as for the other kinds.
+The engine does not run several reviewers or the lead yet, so no epic stops in either today; both are accepted so the labels and the app's words are ready.
+
 ### Starting an epic and restarting it
 
 An epic starts at once on its roles: nothing waits for a provider to be chosen, however many accounts are declared. The account each role ran on is recorded, because resuming its session and moving the role on failover need it.
@@ -357,10 +369,9 @@ By default they are Solve's: `ship` for the ship stage, `code-review` (and `code
   "skills": {
     "ship": "ship",
     "review": { "review": "code-review", "publish": "code-post" },
-    "fix": "code-resolve",
-    "lead": { "review": "code-review", "publish": null }
+    "fix": "code-resolve"
   },
-  "repos": [{ "name": "owner/repo", "skills": { "review": { "review": "my-review", "publish": null } } }],
+  "repos": [{ "name": "owner/repo", "skills": { "review": { "review": "my-review", "publish": null }, "lead": { "review": "my-lead-review" } } }],
   "agents": { "reviewer": { "profile": "reviewer-bot", "provider": "claude", "model": "<model>", "skills": { "review": { "review": "my-review" } } } }
 }
 ```

@@ -2101,7 +2101,7 @@ test('the review that hits the cap of repeats is superseded too: a resume at rev
   const engine = await reviewing(reviewedWhile([HEAD2, HEAD3, HEAD4], () => ({ outcome: 'changes_requested', blockers: [{ title: 'about a head that is gone' }] })));
   expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'pr_invalid', headRepeats: 2 });
   expect(engine.db.select().from(callerResults).all().map((r) => r.outcome)).toEqual(['completed', 'superseded', 'superseded', 'superseded']); // the ship result, then the three reviews
-  expect(latestBlockers(engine.db, 1)).toEqual([]);
+  expect(latestBlockers(engine.db, rows(engine.db)[0]!)).toEqual([]);
   expect((await epicOf(engine.db, 'AshuLab/a', 1))?.rounds).toEqual([]); // no round of its own either
 });
 

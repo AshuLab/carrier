@@ -120,7 +120,7 @@ export function buildSnapshot(
     sessions,
     finished,
     epics: shown.map((e) => {
-      const blockers = [...latestBlockers(db, e.id), ...latestLeadBlockers(db, e.id)]; // the lead's open ones too, while the author fixes them
+      const blockers = [...latestBlockers(db, e), ...latestLeadBlockers(db, e.id)]; // the lead's open ones too, while the author fixes them
       return {
         repo: e.repo,
         issue: e.issue,

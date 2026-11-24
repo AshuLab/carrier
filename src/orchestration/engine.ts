@@ -748,7 +748,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     // A fix right after a review that completed is the observations pass; after one that asked for changes, it answers the blockers.
     // The fix of the lead's exchange (or resumed after it) answers the lead's blockers alone: the lead's observations never go to the author, and the reviewers' are not asked again.
     const leadBlockers = stage === 'fix' ? latestLeadBlockers(db, epic.id) : [];
-    const observations = stage === 'fix' && leadBlockers.length === 0 ? latestObservations(db, epic.id, { tagged: several }) : null;
+    const observations = stage === 'fix' && leadBlockers.length === 0 ? latestObservations(db, epic, { tagged: several }) : null;
     const found = agentOfSlot(epic.config!, slot);
     if (!found) throw new Error(`the epic's saved configuration has no agent for ${slot}`);
     // What an extra reviewer keeps besides an agent (its review skills, its failover steps, whether it shares the author's account) is not part of the task's agent.
@@ -771,7 +771,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       context: {
         previousSummaries: leading ? [] : reviewing || rebuild ? previousSummaries(epic.id) : [], // the lead is given what the reviewers said, by reviewer
         ...(leading && { reviewerSummaries: agreedSummaries(db, epic) }),
-        ...(observations ? { observations } : leadBlockers.length > 0 ? { blockers: leadBlockers } : (stage === 'fix' || (reviewing && (epic.round ?? 0) > 1)) && { blockers: latestBlockers(db, epic.id, reviewing ? { slot: slot! } : { tagged: several }) }),
+        ...(observations ? { observations } : leadBlockers.length > 0 ? { blockers: leadBlockers } : (stage === 'fix' || (reviewing && (epic.round ?? 0) > 1)) && { blockers: latestBlockers(db, epic, reviewing ? { slot: slot! } : { tagged: several }) }),
         ...(reviewing && several && { severalReviewers: true as const }),
         ...(retryOf && { verifyStateFirst: true }),
         ...(pr && { pr }),
@@ -1199,7 +1199,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       // The fix of the lead's exchange: only the lead reviews again, on the head after the fix, with one more round of its own.
       else if (execution.stage === 'fix' && now.leadRound !== null) updateOf(tx, epic.id)({ stage: 'lead', stageStartedAt: clock.now(), leadRound: now.leadRound + 1, prHeadSha: result.pr.headSha });
       // The pass ended with the head that was reviewed: nothing to review again, the reviewer's verification stands (a fix of the lead's blockers resumed after it stopped is no pass).
-      else if (execution.stage === 'fix' && latestLeadBlockers(db, epic.id).length === 0 && latestObservations(db, epic.id) && result.pr.headSha === now.reviewedSha) agreed(tx, now, {});
+      else if (execution.stage === 'fix' && latestLeadBlockers(db, epic.id).length === 0 && latestObservations(db, now) && result.pr.headSha === now.reviewedSha) agreed(tx, now, {});
       else updateOf(tx, epic.id)({ stage: 'review', stageStartedAt: clock.now(), round: (now.round ?? 0) + 1, prHeadSha: result.pr.headSha }); // a fix: the review numbers the following round
     });
     // The last error is cleared by a result, unless another slot's failure is still being recovered: it is that error.

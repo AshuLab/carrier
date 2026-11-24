@@ -72,7 +72,7 @@ test('an epic carries its stage, round, links, activity, error and the blockers 
   const epic = add(12, 'running', {
     stage: 'fix', round: 2, prNumber: 50, startedAt: 1_000, stageStartedAt: 40_000, lastActivityAt: 90_000, lastError: 'the agent process ended with an error',
   });
-  const base = { epicId: epic.id, stage: 'review' as const, resultPath: '/r', startedAt: 0 };
+  const base = { epicId: epic.id, stage: 'review' as const, resultPath: '/r', startedAt: 1_000 };
   const review = (executionId: string, outcome: string, result: object) => {
     db.insert(executions).values({ ...base, executionId }).run();
     db.insert(callerResults).values({ executionId, outcome, result: JSON.stringify(result) }).run();
@@ -121,7 +121,7 @@ test('watched lists every repo with the agents it resolves to and its last check
 test('a running epic with a frozen config lists its running execution as a session, without the profile; blocker titles are capped', () => {
   const agent = { profile: 'secret-profile', option: 'o', harness: 'claude' as const, model: 'm-author' };
   const config = { name: 'acme/web', agents: { author: agent, reviewer: { profile: 'other', option: 'o', harness: 'codex' as const, model: 'm-review', provider: 'ollama' as const } } };
-  const epic = add(7, 'running', { config, round: 2 });
+  const epic = add(7, 'running', { config, round: 2, startedAt: 5 });
   db.insert(executions).values({ executionId: 'e1', epicId: epic.id, stage: 'review', status: 'finished', resultPath: '/r', startedAt: 10 }).run();
   db.insert(callerResults).values({ executionId: 'e1', outcome: 'changes_requested', result: JSON.stringify({ blockers: Array.from({ length: 12 }, () => ({ title: 'x'.repeat(300) })) }) }).run();
   db.insert(executions).values({ executionId: 'e2', epicId: epic.id, stage: 'fix', resultPath: '/r', startedAt: 20 }).run();

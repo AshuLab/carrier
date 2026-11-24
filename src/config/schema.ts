@@ -18,9 +18,11 @@ const skillNamePattern = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$/;
 const skillName = z.string().regex(skillNamePattern, 'must be a skill name: letters, digits, "_", ".", ":" or "-", at most 64 characters, starting with a letter or a digit');
 
 const shipSkills = { ship: skillName.optional(), fix: skillName.optional() };
-const reviewSkills = { review: z.strictObject({ review: skillName.optional(), publish: skillName.nullable().optional() }).optional() };
+const reviewSkill = z.strictObject({ review: skillName.optional(), publish: skillName.nullable().optional() }).optional();
+const reviewSkills = { review: reviewSkill };
+const leadSkills = { lead: reviewSkill };
 /** The skills of a repo, merged by key onto the global ones. */
-const skillsLevel = z.strictObject({ ...shipSkills, ...reviewSkills });
+const skillsLevel = z.strictObject({ ...shipSkills, ...reviewSkills, ...leadSkills });
 
 export const efforts = ['low', 'medium', 'high', 'xhigh', 'max'] as const;
 
@@ -32,10 +34,10 @@ const agentFields = {
   model: z.string().min(1),
   effort: z.enum(efforts).optional(),
 };
-const agent = z.strictObject(agentFields);
 // A role names only the stages it runs.
 const author = z.strictObject({ ...agentFields, skills: z.strictObject(shipSkills).optional() });
 const reviewer = z.strictObject({ ...agentFields, skills: z.strictObject(reviewSkills).optional() });
+const leadReviewer = z.strictObject({ ...agentFields, skills: z.strictObject(leadSkills).optional() });
 
 // The two shapes the spike fixed (docs/research/agent-forge.md): a bot through Agent Forge, or the user's own `gh` login. No secrets here.
 const profile = z.discriminatedUnion('kind', [
@@ -66,6 +68,10 @@ const step = z.strictObject(
   { provider: z.string().min(1), model: z.string().min(1).optional(), effort: z.enum(efforts).optional() },
   { error: (issue) => (issue.code === 'invalid_type' && issue.expected === 'object' ? `a failover step is { "provider": "<account>", "model": "<optional>", "effort": "<optional>" }, not a name` : undefined) },
 );
+
+/** A reviewer beyond the mandatory one: the fields of any agent, the review skills and its own failover steps. A repo's list replaces the whole list, so each entry carries profile, provider and model. */
+const extraReviewer = z.strictObject({ ...agentFields, skills: z.strictObject(reviewSkills).optional(), failover: z.array(step).optional() });
+const extraReviewers = z.array(extraReviewer).max(3, 'at most three extra reviewers: a fourth is refused');
 
 const failoverSchema = z.strictObject(
   {
@@ -99,7 +105,7 @@ export const configSchema = z
       .array(
         z.strictObject({
           name: z.string().regex(repoNamePattern, 'must be owner/name'),
-          agents: z.strictObject({ author: author.partial(), reviewer: reviewer.partial(), leadReviewer: agent.partial().optional() }).partial().optional(),
+          agents: z.strictObject({ author: author.partial(), reviewer: reviewer.partial(), extraReviewers, leadReviewer: leadReviewer.partial().optional() }).partial().optional(),
           skills: skillsLevel.optional(),
         }),
       ),
@@ -108,18 +114,22 @@ export const configSchema = z
     orchestratorProfile: z.string().min(1).optional(),
     /** Not a key of `engine.json`: the loader puts here what `providers.json` declares (ADR 0020). */
     providers: accounts,
-    agents: z.strictObject({ author, reviewer, leadReviewer: agent.optional() }),
+    agents: z.strictObject({ author, reviewer, extraReviewers: extraReviewers.optional(), leadReviewer: leadReviewer.optional() }),
     /** The skill each stage runs: ship, review (with the one that publishes, or `null` for a review skill that publishes by itself) and fix. */
     skills: z.strictObject({
       ship: skillName,
       review: z.strictObject({ review: skillName, publish: skillName.nullable() }),
       fix: skillName,
+      /** The lead reviewer's skill; what it leaves out is taken from `review`. */
+      lead: reviewSkill,
     }),
     /** A role with a non-empty list of steps moves to the next one upon usage_limit, rate_limit, or service_down. */
     failover: failoverSchema.optional(),
     limits: z.strictObject({
       maxConcurrentEpics: z.int().positive(),
       maxReviews: z.int().positive(),
+      /** Reviews of the lead reviewer's own exchange with the author before the epic goes to a person. */
+      maxLeadRounds: z.int().positive(),
       maxExecutionRetries: z.int().nonnegative(),
       maxExecutionHours: z.union([z.literal('unlimited'), z.int().positive()]),
       githubCallTimeoutSeconds: z.int().positive(),
@@ -147,11 +157,13 @@ export const configSchema = z
       [['agents', 'reviewer', 'profile'], config.agents.reviewer.profile],
     ];
     if (config.agents.leadReviewer) refs.push([['agents', 'leadReviewer', 'profile'], config.agents.leadReviewer.profile]);
+    config.agents.extraReviewers?.forEach((extra, j) => refs.push([['agents', 'extraReviewers', j, 'profile'], extra.profile]));
     config.repos.forEach((repo, i) => {
       for (const role of ['author', 'reviewer', 'leadReviewer'] as const) {
         const profile = repo.agents?.[role]?.profile;
         if (profile !== undefined) refs.push([['repos', i, 'agents', role, 'profile'], profile]);
       }
+      repo.agents?.extraReviewers?.forEach((extra, j) => refs.push([['repos', i, 'agents', 'extraReviewers', j, 'profile'], extra.profile]));
     });
     for (const [path, name] of refs) {
       if (!(name in config.profiles)) {
@@ -164,11 +176,13 @@ export const configSchema = z
       [['agents', 'reviewer', 'provider'], config.agents.reviewer.provider],
     ];
     if (config.agents.leadReviewer) providerRefs.push([['agents', 'leadReviewer', 'provider'], config.agents.leadReviewer.provider]);
+    config.agents.extraReviewers?.forEach((extra, j) => providerRefs.push([['agents', 'extraReviewers', j, 'provider'], extra.provider]));
     config.repos.forEach((repo, i) => {
       for (const role of ['author', 'reviewer', 'leadReviewer'] as const) {
         const provider = repo.agents?.[role]?.provider;
         if (provider !== undefined) providerRefs.push([['repos', i, 'agents', role, 'provider'], provider]);
       }
+      repo.agents?.extraReviewers?.forEach((extra, j) => providerRefs.push([['repos', i, 'agents', 'extraReviewers', j, 'provider'], extra.provider]));
     });
     for (const [path, name] of providerRefs) {
       if (!Object.hasOwn(config.providers, name)) {
@@ -176,20 +190,22 @@ export const configSchema = z
       }
     }
 
-    for (const role of ['author', 'reviewer', 'leadReviewer'] as const) {
-      const own = config.agents[role];
-      const label = `failover.roles.${role}`;
+    // The steps of a list, each against the account it moves from: `path` is where the list is, `label` how the message names it.
+    const checkSteps = (steps: z.infer<typeof step>[] | undefined, own: { provider: string; model: string } | undefined, path: (string | number)[], label: string) => {
       const seen = new Set<string>();
-      config.failover?.roles?.[role]?.forEach(({ provider, model }, i) => {
+      steps?.forEach(({ provider, model }, i) => {
         if (provider === '') return; // already refused by the step's own shape
         const key = JSON.stringify([provider, model]);
-        const path = ['failover', 'roles', role, i];
-        if (!Object.hasOwn(config.providers, provider)) ctx.addIssue({ code: 'custom', path: [...path, 'provider'], message: `${label}.${i}.provider: "${provider}" is not declared in providers` });
-        else if (seen.has(key)) ctx.addIssue({ code: 'custom', path, message: `${label}.${i}: step repeats another step of the list` });
-        else if (own?.provider === provider && own.model === model) ctx.addIssue({ code: 'custom', path, message: `${label}.${i}: step is the role's own provider and model, so it would move nowhere` });
+        const at = [...path, i];
+        if (!Object.hasOwn(config.providers, provider)) ctx.addIssue({ code: 'custom', path: [...at, 'provider'], message: `${label}.${i}.provider: "${provider}" is not declared in providers` });
+        else if (seen.has(key)) ctx.addIssue({ code: 'custom', path: at, message: `${label}.${i}: step repeats another step of the list` });
+        else if (own?.provider === provider && own.model === model) ctx.addIssue({ code: 'custom', path: at, message: `${label}.${i}: step is the role's own provider and model, so it would move nowhere` });
         seen.add(key);
       });
-    }
+    };
+    for (const role of ['author', 'reviewer', 'leadReviewer'] as const) checkSteps(config.failover?.roles?.[role], config.agents[role], ['failover', 'roles', role], `failover.roles.${role}`);
+    config.agents.extraReviewers?.forEach((extra, j) => checkSteps(extra.failover, extra, ['agents', 'extraReviewers', j, 'failover'], `agents.extraReviewers.${j}.failover`));
+    config.repos.forEach((repo, i) => repo.agents?.extraReviewers?.forEach((extra, j) => checkSteps(extra.failover, extra, ['repos', i, 'agents', 'extraReviewers', j, 'failover'], `repos.${i}.agents.extraReviewers.${j}.failover`)));
 
     // Solve's worktrees are `worktrees/<repo>/<feature>`, with no owner: same-name repos would share paths.
     const seen = new Map<string, string>();

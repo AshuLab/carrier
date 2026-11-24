@@ -401,12 +401,12 @@ See [ADR 0048](adr/0048-a-review-round-has-several-reviewers-in-parallel-and-a-l
 _Avoid_: review (that is one reviewer's execution), turn.
 
 **Lead reviewer** - The optional role (`leadReviewer`) that reviews last, once the reviewers and the author agree on a head, and gives or withholds the approval of the pull request.
-Planned, not built yet: this belongs to a later epic of [the spec of several reviewers and a lead](specs/several-reviewers-and-a-lead.md), so the config it names does not exist today.
+Not run yet: the config it names (`agents.leadReviewer`, `skills.lead`, `limits.maxLeadRounds`) is accepted, checked by `carrier doctor` and saved with the epic, and the engine runs it in a later slice of [the spec of several reviewers and a lead](specs/several-reviewers-and-a-lead.md).
 It has its own skill (`skills.lead`) and exchanges with the author alone, one lead round at a time.
 _Avoid_: tech lead, final reviewer, approver.
 
 **Lead round** - One exchange of the lead reviewer asking for changes and the author fixing them, up to `limits.maxLeadRounds` (3 by default).
-Planned, not built yet: this belongs to a later epic of [the spec of several reviewers and a lead](specs/several-reviewers-and-a-lead.md), so the config it names does not exist today.
+Not run yet: the config it names (`agents.leadReviewer`, `skills.lead`, `limits.maxLeadRounds`) is accepted, checked by `carrier doctor` and saved with the epic, and the engine runs it in a later slice of [the spec of several reviewers and a lead](specs/several-reviewers-and-a-lead.md).
 It does not count toward `maxReviews`, and the other reviewers do not see the commits it makes.
 _Avoid_: round (that is a review round).
 

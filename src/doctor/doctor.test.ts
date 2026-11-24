@@ -577,3 +577,70 @@ test('a review that does not publish with another skill has no check for it', as
   expect(skillChecks(checks).map((check) => check.name)).not.toContain('AshuLab/carrier reviewer can use the skill code-post');
   expect(skillChecks(checks)).toHaveLength(3);
 });
+
+// --- extra reviewers and the lead ---
+
+const withExtras = (extra: Record<string, unknown>[], more: Record<string, unknown> = {}) => config({
+  profiles: { ...base.profiles, c: { kind: 'forge', agent: 'rev-two' } },
+  providers: { ...base.providers, second: { harness: 'claude', configDir: '/tmp/second' }, local: { harness: 'codex', provider: 'lmstudio' }, agy: { harness: 'agy' } },
+  agents: { ...base.agents, extraReviewers: extra },
+  ...more,
+});
+
+test('each extra reviewer of each repo has its harness, local model, login and token checked as the other roles do', async () => {
+  const cfg = withExtras([{ profile: 'c', provider: 'agy', model: 'g' }, { profile: 'c', provider: 'local', model: 'gemma' }, { profile: 'b', provider: 'second', model: 'm' }], { repos: [{ name: 'AshuLab/one' }, { name: 'AshuLab/two' }] });
+  const mint = vi.fn(async (_profile: unknown, _repo: string) => 't');
+  const checks = await doctor(cfg, deps({ mint, localModels: async () => ['gemma'], loggedIn: async (_harness, dir) => dir !== '/tmp/second' }));
+  const names = checks.map((check) => check.name);
+  expect(names).toContain('agy installed');
+  expect(names).toContain('LM Studio has gemma');
+  expect(names).toContain('forge agent rev-two can mint a token for AshuLab/one');
+  expect(names).toContain('forge agent rev-two can mint a token for AshuLab/two');
+  expect(names).toContain('agy provider agy is logged in');
+  // the account only an extra reviewer uses is a role's provider: not logged in is a failure, not a warning
+  expect(failed(checks)).toMatchObject([{ name: 'claude provider second is logged in', status: 'fail' }]);
+});
+
+test('an extra reviewer\'s missing harness, token and local model fail', async () => {
+  const cfg = withExtras([{ profile: 'c', provider: 'agy', model: 'g' }, { profile: 'c', provider: 'local', model: 'gemma' }]);
+  const mint = async (profile: { kind: string; agent?: string }) => { if (profile.agent === 'rev-two') throw new Error('Agent not found: rev-two'); return 't'; };
+  const checks = await doctor(cfg, deps({ which: (command) => command !== 'agy', mint, localModels: async () => ['other'] }));
+  expect(failed(checks).map((check) => check.name)).toEqual(['agy installed', 'LM Studio has gemma', 'forge agent rev-two can mint a token for AshuLab/carrier']);
+});
+
+test('the skills each extra reviewer and the lead invoke are asked of their own harness, the lead\'s lead skills included', async () => {
+  const skills = new FakeSkills();
+  const cfg = withExtras([], {
+    skills: { review: { publish: 'g-post' }, lead: { review: 'my-lead', publish: null } },
+    agents: { ...base.agents, extraReviewers: [{ profile: 'c', provider: 'second', model: 'm', skills: { review: { review: 'my-review', publish: null } } }, { profile: 'b', provider: 'codex', model: 'm' }], leadReviewer: { profile: 'c', provider: 'agy', model: 'g' } },
+  });
+  const checks = skillChecks(await doctor(cfg, deps({ skills })));
+  expect(checks.map((check) => [check.name, check.status])).toEqual([
+    ['AshuLab/carrier author can use the skill ship', 'ok'],
+    ['AshuLab/carrier author can use the skill code-resolve', 'ok'],
+    ['AshuLab/carrier reviewer can use the skill code-review', 'ok'],
+    ['AshuLab/carrier reviewer can use the skill g-post', 'ok'],
+    ['AshuLab/carrier reviewer-2 can use the skill my-review', 'ok'],
+    ['AshuLab/carrier reviewer-3 can use the skill code-review', 'ok'],
+    ['AshuLab/carrier reviewer-3 can use the skill g-post', 'ok'],
+    ['AshuLab/carrier lead can use the skill my-lead', 'ok'],
+  ]);
+  expect(skills.asked.map((asked) => [asked.harness, asked.configDir, asked.name]).slice(4)).toEqual([
+    ['claude', '/tmp/second', 'my-review'], ['codex', undefined, 'code-review'], ['codex', undefined, 'g-post'], ['agy', undefined, 'my-lead'],
+  ]);
+});
+
+test('a skill an extra reviewer or the lead named that is absent fails, and a default that is absent only warns', async () => {
+  const skills = new FakeSkills();
+  skills.answers['my-review'] = 'absent';
+  skills.answers['my-lead'] = 'absent';
+  skills.answers['code-post'] = 'absent';
+  const cfg = withExtras([], {
+    agents: { ...base.agents, extraReviewers: [{ profile: 'c', provider: 'second', model: 'm', skills: { review: { review: 'my-review' } } }], leadReviewer: { profile: 'c', provider: 'claude', model: 'm', skills: { lead: { review: 'my-lead' } } } },
+  });
+  const checks = skillChecks(await doctor(cfg, deps({ skills })));
+  const byStatus = (status: string) => checks.filter((check) => check.status === status).map((check) => check.name);
+  expect(byStatus('fail')).toEqual(['AshuLab/carrier reviewer-2 can use the skill my-review', 'AshuLab/carrier lead can use the skill my-lead']);
+  expect(byStatus('warn')).toEqual(['AshuLab/carrier reviewer can use the skill code-post', 'AshuLab/carrier reviewer-2 can use the skill code-post', 'AshuLab/carrier lead can use the skill code-post']);
+  expect(checks.find((check) => check.status === 'fail')).toMatchObject({ detail: expect.stringContaining('does not find it for the account of the reviewer-2'), fix: expect.stringContaining('my-review') });
+});

@@ -60,6 +60,7 @@ private func queued(_ repo: String, _ issue: Int) -> PanelSnapshot.QueuedEpic { 
         sidebarGroups(snapshot([epic("a/b", 1, .needsHuman, kind: kind, reason: reason)]), by: .status)[0].rows[0].detail
     }
     #expect(line("timeout") == "timed out" && line("auth") == "authentication failed" && line("pr_invalid") == "pull request invalid")
+    #expect(line("reviewers_failed") == "no reviewer gave a verdict" && line("lead_limit") == "lead review limit reached")
     #expect(line("something_new", "the engine's words") == "the engine's words")
     #expect(line(nil) == "needs you")
 }

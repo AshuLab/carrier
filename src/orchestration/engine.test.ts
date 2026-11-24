@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { loadProviders } from '../config/providers.ts';
 import type { EffectiveRepoConfig } from '../config/resolve.ts';
-import { defaultSkills, resolveSkills, savedSkills, solveSkills } from '../config/skills.ts';
+import { defaultSkills, resolveReviewSkills, resolveSkills, savedSkills, solveSkills } from '../config/skills.ts';
 import { openDatabase, type Db } from '../storage/db.ts';
 import { eq } from 'drizzle-orm';
 import { epics } from '../storage/schema.ts';
@@ -75,7 +75,7 @@ function open() {
 }
 async function start(maxConcurrentEpics = 0, config = repos, maxExecutionHours: number | 'unlimited' = 4, maxExecutionRetries = 3, maxReviews = 5) {
   const db = open();
-  settings = { pollIntervalMs: 5 * MIN, labels: defaultLabels, maxConcurrentEpics, maxExecutionHours, maxExecutionRetries, maxReviews, autoResume: false, autoResumeMaxHours: 12 };
+  settings = { pollIntervalMs: 5 * MIN, labels: defaultLabels, maxConcurrentEpics, maxExecutionHours, maxExecutionRetries, maxReviews, maxLeadRounds: 3, autoResume: false, autoResumeMaxHours: 12 };
   watched = config;
   const engine = createEngine({ db, github, clock, repos: () => watched, settings: () => settings, profileDeclared: (name) => declaredProfile(name), runner, workspaces, quota: fakeQuota.read, places: enginePlacesOf(dir), skills });
   await engine.start();
@@ -2259,6 +2259,33 @@ test('the skills of the repo are saved with the epic when it is reserved; a row 
   expect(savedSkills(without!.config)).toEqual(defaultSkills);
 });
 
+test('the extra reviewers and the lead\'s skills are saved with the epic when it is reserved, a reload changes nothing for it, and an epic saved before reads one reviewer and no lead', async () => {
+  const extra = { profile: 'c', option: 'o', harness: 'claude' as const, model: 'm', skills: resolveReviewSkills('review', solveSkills, undefined, { review: 'my-review' }) };
+  const withExtras = (extraReviewers: (typeof extra)[], lead = resolveReviewSkills('lead', solveSkills, undefined, { review: 'my-lead' })): EffectiveRepoConfig => ({
+    ...repos[0]!,
+    agents: { ...agents, leadReviewer: { profile: 'd', option: 'o', harness: 'claude', model: 'm' }, extraReviewers },
+    skills: { ...resolveSkills(solveSkills), lead },
+  });
+  github.ready = { 'AshuLab/a': ready(1), 'AshuLab/b': ready(2) };
+  runner.behavior = () => ({ exit: 'stopped' });
+  const engine = await start(2, [withExtras([extra]), repos[1]!]);
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  const saved = () => Object.fromEntries(rows(engine.db).map((row) => [row.repo, row.config!]));
+
+  expect(saved()['AshuLab/a']!.agents.extraReviewers).toEqual([extra]);
+  expect(saved()['AshuLab/a']!.skills!.lead).toEqual({ review: { name: 'my-lead', named: true }, publish: { name: 'code-post', named: false } });
+  const before = structuredClone(saved()['AshuLab/a']);
+
+  reload(engine, { repos: [withExtras([], resolveReviewSkills('lead', solveSkills, undefined, { review: 'other' })), repos[1]!] });
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(saved()['AshuLab/a']).toEqual(before);
+
+  expect(saved()['AshuLab/b']!.agents.extraReviewers).toBeUndefined();
+  expect(savedSkills(saved()['AshuLab/b']!).lead).toBeUndefined();
+});
+
 test('the tasks carry the skills the epic was saved with: a reload while it runs changes nothing, a restart from ship takes the new ones', async () => {
   const before = resolveSkills(solveSkills, { ship: 'build', fix: 'my-fix' });
   const after = resolveSkills(solveSkills, { ship: 'build-two', review: { review: 'my-review', publish: null } });
@@ -3293,7 +3320,7 @@ async function startWhileRecovering() {
   const gate = new Promise<void>((resolve) => (open1 = resolve));
   workspaces.prepareAuthor = async (repo, epic) => (await gate, `/work/${repo}/${epic}/author`);
   runner.behavior = () => ({ exit: 'hang' });
-  settings = { pollIntervalMs: 5 * MIN, labels: defaultLabels, maxConcurrentEpics: 1, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews: 5, autoResume: false, autoResumeMaxHours: 12 };
+  settings = { pollIntervalMs: 5 * MIN, labels: defaultLabels, maxConcurrentEpics: 1, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews: 5, maxLeadRounds: 3, autoResume: false, autoResumeMaxHours: 12 };
   watched = repos;
   const engine = createEngine({ db, github, clock, repos: () => watched, settings: () => settings, profileDeclared: () => true, runner, workspaces, quota: fakeQuota.read, places: enginePlacesOf(dir), skills: new FakeSkills() });
   const started = engine.start();
@@ -3700,7 +3727,7 @@ test('purges expired logs and sessions when the engine starts and every 24 hours
   db.insert(executions).values({ executionId: 'x-old', epicId: old.id, stage: 'ship', sessionId: 's-old', resultPath: 'r', startedAt: 0 }).run();
   const logs = join(dir, 'engine', 'logs', 'executions', 'x-old');
   mkdirSync(logs, { recursive: true });
-  const engine = createEngine({ db, github, clock, profileDeclared: () => true, repos: () => repos, settings: () => ({ pollIntervalMs: 5 * MIN, labels: defaultLabels, maxConcurrentEpics: 0, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews: 5, autoResume: false, autoResumeMaxHours: 12 }), runner, workspaces, quota: fakeQuota.read, places: enginePlacesOf(dir), skills: new FakeSkills() });
+  const engine = createEngine({ db, github, clock, profileDeclared: () => true, repos: () => repos, settings: () => ({ pollIntervalMs: 5 * MIN, labels: defaultLabels, maxConcurrentEpics: 0, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews: 5, maxLeadRounds: 3, autoResume: false, autoResumeMaxHours: 12 }), runner, workspaces, quota: fakeQuota.read, places: enginePlacesOf(dir), skills: new FakeSkills() });
   await engine.start();
   expect(existsSync(logs)).toBe(false);
   mkdirSync(logs, { recursive: true });
@@ -4323,7 +4350,7 @@ test('a resume asked while the start recovers waits for it up to thirty seconds,
   workspaces.prepareAuthor = async (repo, epic) => (await gate, `/work/${repo}/${epic}/author`);
   runner.behavior = () => ({ exit: 'hang' });
   github.ready = { 'AshuLab/a': ready(2) };
-  settings = { pollIntervalMs: 5 * MIN, labels: defaultLabels, maxConcurrentEpics: 2, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews: 5, autoResume: false, autoResumeMaxHours: 12 };
+  settings = { pollIntervalMs: 5 * MIN, labels: defaultLabels, maxConcurrentEpics: 2, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews: 5, maxLeadRounds: 3, autoResume: false, autoResumeMaxHours: 12 };
   watched = repos;
   const engine = createEngine({ db, github, clock, repos: () => watched, settings: () => settings, profileDeclared: () => true, runner, workspaces, quota: fakeQuota.read, places: enginePlacesOf(dir), skills: new FakeSkills() });
   const setLabels = vi.spyOn(github, 'setLabels');
@@ -6036,7 +6063,7 @@ test('recoverEpic asked while the start recovers is refused: the start launches 
   const gate = new Promise<void>((resolve) => (opens = resolve));
   workspaces.prepareAuthor = async (repo, epic) => (await gate, `/work/${repo}/${epic}/author`);
   runner.behavior = () => ({ exit: 'hang' });
-  settings = { pollIntervalMs: 5 * MIN, labels: defaultLabels, maxConcurrentEpics: 1, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews: 5, autoResume: false, autoResumeMaxHours: 12 };
+  settings = { pollIntervalMs: 5 * MIN, labels: defaultLabels, maxConcurrentEpics: 1, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews: 5, maxLeadRounds: 3, autoResume: false, autoResumeMaxHours: 12 };
   watched = repos;
   const engine = createEngine({ db, github, clock, repos: () => watched, settings: () => settings, profileDeclared: () => true, runner, workspaces, quota: fakeQuota.read, places: enginePlacesOf(dir), skills: new FakeSkills() });
   const started = engine.start();

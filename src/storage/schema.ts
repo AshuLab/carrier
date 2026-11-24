@@ -2,7 +2,7 @@ import type { EffectiveRepoConfig } from '../config/resolve.ts';
 import type { PullRequestBlock } from '../orchestration/github.ts';
 import { integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
 
-export const needsHumanKinds = ['review_limit', 'agent_needs_human', 'retries_exhausted', 'timeout', 'auth', 'workspace', 'pr_invalid', 'usage_limit', 'engine_error', 'skill_missing'] as const;
+export const needsHumanKinds = ['review_limit', 'agent_needs_human', 'retries_exhausted', 'timeout', 'auth', 'workspace', 'pr_invalid', 'usage_limit', 'engine_error', 'skill_missing', 'reviewers_failed', 'lead_limit'] as const;
 export const unansweredReasons = ['already_taken', 'last_round'] as const;
 // Why an epic was cancelled; the poll decides by it. `ready_removed` and `issue_closed` before any execution go back to the queue when `ready` returns. A cancel with no kind is never requeued.
 export const cancelKinds = ['ready_removed', 'issue_closed', 'pr_closed', 'issue_gone'] as const;

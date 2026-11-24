@@ -12,6 +12,7 @@ export const defaults = {
   limits: {
     maxConcurrentEpics: 3,
     maxReviews: 5,
+    maxLeadRounds: 3,
     maxExecutionRetries: 3,
     maxExecutionHours: 4,
     githubCallTimeoutSeconds: 30,

@@ -144,6 +144,7 @@ export async function startCarrier(started: Config, folder: string, loadConfig: 
       pollIntervalMs: config.pollIntervalMinutes * 60_000,
       maxConcurrentEpics: config.limits.maxConcurrentEpics,
       maxReviews: config.limits.maxReviews,
+      maxLeadRounds: config.limits.maxLeadRounds,
       maxExecutionRetries: config.limits.maxExecutionRetries,
       maxExecutionHours: config.limits.maxExecutionHours,
       idleMinutes: config.limits.idleMinutes,

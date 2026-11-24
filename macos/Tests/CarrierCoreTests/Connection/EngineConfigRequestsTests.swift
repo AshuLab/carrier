@@ -47,6 +47,8 @@ private final class FakeRunner: ProcessRunner, @unchecked Sendable {
         lock.withLock { commands.append(command) }
         return try result.get()
     }
+    func spawnDetached(_ command: ProcessCommand, log: String) throws -> any SpawnedProcess { throw ControlError.closed }
+    func detectShell() async -> Detection? { nil }
 }
 
 private let launched = ProcessCommand(program: "/usr/local/bin/carrier", arguments: ["config"], environment: ["CARRIER_HOME": "/scratch"], limit: 30)

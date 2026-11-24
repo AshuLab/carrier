@@ -94,31 +94,33 @@ private func scratchDefaults() -> (UserDefaults, () -> Void) {
     return (defaults, { defaults.removePersistentDomain(forName: name) })
 }
 
-@Test func theVersionIsReadOnceWhileTheStampIsTheSameAndAgainWhenItChanges() {
+@Test func theVersionIsReadOnceWhileTheStampIsTheSameAndAgainWhenItChanges() async {
     let (defaults, clean) = scratchDefaults()
     defer { clean() }
     var stamp = "a", runs = 0
-    func ask() -> String? { rememberedVersion(stamp: { stamp }, defaults: defaults) { runs += 1; return stamp == "a" ? "0.1.0" : "0.2.0" } }
-    #expect(ask() == "0.1.0" && ask() == "0.1.0" && runs == 1)
+    func ask() async -> String? { await rememberedVersion(stamp: { stamp }, defaults: defaults) { runs += 1; return stamp == "a" ? "0.1.0" : "0.2.0" } }
+    let (a, b) = (await ask(), await ask())
+    #expect(a == "0.1.0" && b == "0.1.0" && runs == 1)
     stamp = "b" // the Homebrew file is another one
-    #expect(ask() == "0.2.0" && ask() == "0.2.0" && runs == 2)
+    let (c, d) = (await ask(), await ask())
+    #expect(c == "0.2.0" && d == "0.2.0" && runs == 2)
 }
 
-@Test func aRunThatFailedOrHasNoStampKeepsNothing() {
+@Test func aRunThatFailedOrHasNoStampKeepsNothing() async {
     let (defaults, clean) = scratchDefaults()
     defer { clean() }
     var runs = 0
-    #expect(rememberedVersion(stamp: { "a" }, defaults: defaults) { runs += 1; return nil } == nil)
-    #expect(rememberedVersion(stamp: { "a" }, defaults: defaults) { runs += 1; return "0.1.0" } == "0.1.0") // the failure was not kept: it runs again
-    #expect(rememberedVersion(stamp: { nil }, defaults: defaults) { runs += 1; return "9.9.9" } == "9.9.9" && runs == 3)
-    #expect(rememberedVersion(stamp: { "a" }, defaults: defaults) { runs += 1; return "x" } == "0.1.0" && runs == 3) // what no stamp ran left the kept one alone
+    #expect(await rememberedVersion(stamp: { "a" }, defaults: defaults) { runs += 1; return nil } == nil)
+    #expect(await rememberedVersion(stamp: { "a" }, defaults: defaults) { runs += 1; return "0.1.0" } == "0.1.0") // the failure was not kept: it runs again
+    #expect(await rememberedVersion(stamp: { nil }, defaults: defaults) { runs += 1; return "9.9.9" } == "9.9.9" && runs == 3)
+    #expect(await rememberedVersion(stamp: { "a" }, defaults: defaults) { runs += 1; return "x" } == "0.1.0" && runs == 3) // what no stamp ran left the kept one alone
 }
 
-@Test func aStampThatChangedWhileItRanKeepsNothing() {
+@Test func aStampThatChangedWhileItRanKeepsNothing() async {
     let (defaults, clean) = scratchDefaults()
     defer { clean() }
     var calls = 0
     // the first stamp is "a" and the second "b": the file was swapped under the run
-    let first = rememberedVersion(stamp: { calls += 1; return calls == 1 ? "a" : "b" }, defaults: defaults) { "0.2.0" }
+    let first = await rememberedVersion(stamp: { calls += 1; return calls == 1 ? "a" : "b" }, defaults: defaults) { "0.2.0" }
     #expect(first == "0.2.0" && defaults.dictionary(forKey: "carrier.installedVersion") == nil)
 }

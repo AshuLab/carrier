@@ -31,10 +31,10 @@ public func programStamp(_ paths: [String]) -> String? {
 /// The version `run` reads, kept in `defaults` with the stamp of the files that printed it and given back without running while the stamp is the
 /// same. Nothing is kept for a run that failed (nil), for no stamp (a program that is not remembered), or when the stamp changed while it ran:
 /// what was read may belong to the new file, and the next look reads it again.
-public func rememberedVersion(stamp: () -> String?, defaults: UserDefaults = .standard, run: () -> String?) -> String? {
+public func rememberedVersion(stamp: () -> String?, defaults: UserDefaults = .standard, run: () async -> String?) async -> String? {
     let before = stamp()
     if let before, let kept = defaults.dictionary(forKey: Preference.carrierInstalledVersion.name) as? [String: String], kept["stamp"] == before, let version = kept["version"] { return version }
-    guard let version = run() else { return nil }
+    guard let version = await run() else { return nil }
     if let before, stamp() == before { defaults.set(["stamp": before, "version": version], forKey: Preference.carrierInstalledVersion.name) }
     return version
 }

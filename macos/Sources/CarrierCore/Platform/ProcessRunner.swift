@@ -28,7 +28,17 @@ public struct ProcessResult: Equatable, Sendable {
     }
 }
 
-/// Runs a program to its end. Throws when it cannot start.
+/// A program started by `spawnDetached`: its exit code once it has ended, nil while it runs.
+public protocol SpawnedProcess: Sendable {
+    var exitCode: Int32? { get }
+}
+
 public protocol ProcessRunner: Sendable {
+    /// Runs a program to its end, or to its time limit. Throws when it cannot start.
     func run(_ command: ProcessCommand) async throws -> ProcessResult
+    /// Starts a program in a session of its own, so it outlives the app and has no terminal, with nothing on its standard input and its standard
+    /// output and standard error going to the file `log` (made and emptied). Does not wait for it. Throws when it cannot start.
+    func spawnDetached(_ command: ProcessCommand, log: String) throws -> any SpawnedProcess
+    /// What the user's login shell finds (`node`, the `PATH`); nil when it gave no complete answer in time.
+    func detectShell() async -> Detection?
 }

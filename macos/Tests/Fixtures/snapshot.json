@@ -15,20 +15,6 @@
   "done": [
     {
       "repo": "acme/web",
-      "issue": 32,
-      "title": "Issue 32 of acme/web",
-      "prNumber": 78,
-      "finishedAt": 96000,
-      "labels": [
-        "solve:epic"
-      ],
-      "executionId": null,
-      "reviewedSha": "e4f5a6b",
-      "approvedSha": "f7a8b9c",
-      "leadApproval": true
-    },
-    {
-      "repo": "acme/web",
       "issue": 30,
       "title": "Issue 30 of acme/web",
       "prNumber": 77,
@@ -36,7 +22,10 @@
       "labels": [
         "solve:epic"
       ],
-      "executionId": "exec-ship-30"
+      "executionId": "exec-ship-30",
+      "reviewedSha": "e4f5a6b",
+      "approvedSha": "f7a8b9c",
+      "leadApproval": true
     },
     {
       "repo": "acme/api",
@@ -55,7 +44,7 @@
     }
   ],
   "slots": {
-    "busy": 3,
+    "busy": 2,
     "total": 3
   },
   "queue": [
@@ -153,19 +142,6 @@
       "model": "gemini-3",
       "reviewer": "reviewer-2",
       "startedAt": 40100,
-      "last": null
-    },
-    {
-      "executionId": "exec-lead-14",
-      "repo": "acme/web",
-      "issue": 14,
-      "stage": "review",
-      "lead": true,
-      "round": 2,
-      "harness": "claude",
-      "model": "claude-opus-5",
-      "reviewer": "lead",
-      "startedAt": 45100,
       "last": null
     },
     {
@@ -277,53 +253,6 @@
         ]
       },
       "reviewedSha": "a1b2c3d"
-    },
-    {
-      "repo": "acme/web",
-      "issue": 14,
-      "status": "running",
-      "stage": "review",
-      "lead": true,
-      "round": 2,
-      "maxReviews": 5,
-      "blockers": 0,
-      "stageSince": 45000,
-      "lastActivityAt": null,
-      "issueUrl": "https://github.com/acme/web/issues/14",
-      "prUrl": "https://github.com/acme/web/pull/51",
-      "lastError": null,
-      "needsHumanReason": null,
-      "slices": null,
-      "executionId": null,
-      "title": "Issue 14 of acme/web",
-      "labels": [
-        "solve:epic"
-      ],
-      "queuedAt": 550,
-      "startedAt": 1500,
-      "finishedAt": null,
-      "branch": "feat/issue-14/epic",
-      "workspace": "/work/acme/web-14",
-      "needsHumanKind": null,
-      "blockerTitles": [],
-      "agents": {
-        "author": {
-          "harness": "claude",
-          "model": "claude-sonnet-5-5",
-          "provider": null
-        },
-        "reviewer": {
-          "harness": "codex",
-          "model": "gpt-5",
-          "provider": "ollama"
-        },
-        "lead": {
-          "harness": "claude",
-          "model": "claude-opus-5",
-          "provider": null
-        }
-      },
-      "reviewedSha": "e4f5a6b"
     },
     {
       "repo": "acme/web",
@@ -811,8 +740,9 @@
       "repo": "acme/api",
       "issue": 15,
       "status": "needs_human",
-      "stage": "ship",
-      "round": null,
+      "stage": "review",
+      "lead": true,
+      "round": 2,
       "maxReviews": 5,
       "blockers": 0,
       "stageSince": 3010,
@@ -844,8 +774,14 @@
           "harness": "codex",
           "model": "gpt-5",
           "provider": "ollama"
+        },
+        "lead": {
+          "harness": "claude",
+          "model": "claude-opus-5",
+          "provider": null
         }
-      }
+      },
+      "reviewedSha": "e4f5a6b"
     }
   ]
 }

@@ -40,18 +40,16 @@ const config = { name: 'acme', agents: { author: agent('claude', 'claude-sonnet-
 // Every field of the snapshot has a value somewhere in this sample, so the app can be built against it.
 test('the snapshot JSON equals macos/Tests/Fixtures/snapshot.json (UPDATE_FIXTURES=1 rewrites it)', () => {
   const inReview = add('acme/web', 12, 'running', { config: { ...config, agents: { ...config.agents, extraReviewers: [agent('agy', 'gemini-3')] } } as never, reviewedSha: 'a1b2c3d', stage: 'review', round: 2, prNumber: 50, queuedAt: 500, startedAt: 1_000, stageStartedAt: 40_000, lastActivityAt: 90_000, lastError: 'the agent process ended with an error', workspace: '/work/acme/web-epic' });
-  // The lead reviewer reviews the head the reviewers agreed on: the stage is reported as `review`, flagged `lead`, and the lead's agent is listed.
-  const inLead = add('acme/web', 14, 'running', { config: { ...config, agents: { ...config.agents, leadReviewer: agent('claude', 'claude-opus-5') } } as never, reviewedSha: 'e4f5a6b', stage: 'lead', round: 2, leadRound: 1, prNumber: 51, queuedAt: 550, startedAt: 1_500, stageStartedAt: 45_000, workspace: '/work/acme/web-14' });
   const inShip = add('acme/web', 13, 'running', { config, stage: 'ship', queuedAt: 600, startedAt: 7_000, stageStartedAt: 7_000, workspace: '/work/acme/web-13', retryAt: 100_030_000 });
   const waiting = add('acme/api', 4, 'needs_human', { config, stage: 'fix', round: 5, prNumber: 9, queuedAt: 700, startedAt: 2_000, stageStartedAt: 8_000, finishedAt: 60_000, needsHumanKind: 'review_limit', needsHumanReason: 'review limit' });
   for (const [i, kind] of (['agent_needs_human', 'retries_exhausted', 'timeout', 'auth', 'workspace', 'pr_invalid', 'usage_limit', 'engine_error', 'skill_missing', 'reviewers_failed', 'lead_limit'] as const).entries()) {
-    add('acme/api', 5 + i, 'needs_human', { config, stage: 'ship', queuedAt: 800 + i, startedAt: 3_000 + i, finishedAt: 61_000 + i, needsHumanKind: kind, needsHumanReason: kind.replace('_', ' '), ...(kind === 'usage_limit' && { resumeAt: 90_000_000 }) });
+    add('acme/api', 5 + i, 'needs_human', { ...(kind === 'lead_limit' ? { config: { ...config, agents: { ...config.agents, leadReviewer: agent('claude', 'claude-opus-5') } } as never, stage: 'lead' as const, round: 2, leadRound: 1, reviewedSha: 'e4f5a6b' } : { config, stage: 'ship' as const }), queuedAt: 800 + i, startedAt: 3_000 + i, finishedAt: 61_000 + i, needsHumanKind: kind, needsHumanReason: kind.replace('_', ' '), ...(kind === 'usage_limit' && { resumeAt: 90_000_000 }) });
   }
   add('acme/web', 20, 'queued', { queuedAt: 20_000 });
   add('acme/api', 21, 'queued', { queuedAt: 21_000 });
-  const shipped = add('acme/web', 30, 'ready_for_test', { prNumber: 77, finishedAt: 95_000 });
-  const approved = add('acme/web', 32, 'ready_for_test', { prNumber: 78, finishedAt: 96_000, startedAt: 1_800, reviewedSha: 'e4f5a6b', approvedSha: 'f7a8b9c', leadRound: 1 });
-  db.insert(epicEvents).values({ epicId: approved.id, at: 95_900, type: 'lead_completed', data: { headSha: 'f7a8b9c', approval: { submitted: true, url: 'https://github.com/acme/web/pull/78#pullrequestreview-1' } } }).run();
+  // Approved by the lead on another head than the reviewers agreed on: the head moved while the lead reviewed.
+  const shipped = add('acme/web', 30, 'ready_for_test', { prNumber: 77, finishedAt: 95_000, startedAt: 1_800, reviewedSha: 'e4f5a6b', approvedSha: 'f7a8b9c', leadRound: 1 });
+  db.insert(epicEvents).values({ epicId: shipped.id, at: 94_900, type: 'lead_completed', data: { headSha: 'f7a8b9c', approval: { submitted: true, url: 'https://github.com/acme/web/pull/77#pullrequestreview-1' } } }).run();
   add('acme/api', 31, 'ready_for_test', { finishedAt: 80_000, unansweredObservations: 2, unansweredReason: 'already_taken' });
   const merged = add('acme/web', 40, 'merged', { prNumber: 88, finishedAt: 98_000 });
   add('acme/api', 41, 'cancelled', { finishedAt: 90_000, cancelReason: 'final PR closed without merge' });
@@ -67,7 +65,6 @@ test('the snapshot JSON equals macos/Tests/Fixtures/snapshot.json (UPDATE_FIXTUR
   db.insert(epicEvents).values({ epicId: inReview.id, at: 39_900, type: 'reviewer_no_verdict', data: { round: 1, headSha: 'a1b2c3d', none: { slot: 'reviewer-2', kind: 'agent_needs_human', why: 'cannot verify the migration' } } }).run();
   exec('exec-review-12', inReview.id, 'review', 40_000);
   db.insert(executions).values({ executionId: 'exec-review-12-2', epicId: inReview.id, stage: 'review', reviewer: 'reviewer-2', status: 'running', harness: 'agy', model: 'gemini-3', round: 2, headSha: 'e4f5a6b', resultPath: '/r', startedAt: 40_100 }).run();
-  db.insert(executions).values({ executionId: 'exec-lead-14', epicId: inLead.id, stage: 'lead', reviewer: 'lead', status: 'running', harness: 'claude', model: 'claude-opus-5', round: 2, headSha: 'e4f5a6b', resultPath: '/r', startedAt: 45_100 }).run();
   exec('exec-ship-13', inShip.id, 'ship', 7_000);
   exec('exec-fix-4', waiting.id, 'fix', 8_000);
   exec('exec-ship-30', shipped.id, 'ship', 2_000);

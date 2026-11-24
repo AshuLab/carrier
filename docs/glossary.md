@@ -400,9 +400,10 @@ It is not a lead round.
 See [ADR 0048](adr/0048-a-review-round-has-several-reviewers-in-parallel-and-a-lead-reviewer-closes-it.md).
 _Avoid_: review (that is one reviewer's execution), turn.
 
-**Lead reviewer** - The optional role (`leadReviewer`) that reviews last, once the reviewers and the author agree on a head, and gives or withholds the approval of the pull request.
-Not run yet: the config it names (`agents.leadReviewer`, `skills.lead`, `limits.maxLeadRounds`) is accepted, checked by `carrier doctor` and saved with the epic, and the engine runs it in a later slice of [the spec of several reviewers and a lead](specs/several-reviewers-and-a-lead.md).
-It has its own skill (`skills.lead`) and exchanges with the author alone, one lead round at a time.
+**Lead reviewer** - The optional role (`leadReviewer`) that reviews last, once, after the reviewers agree, on the head they agreed on and in its own checkout, and gives the pull request its formal approval when it finds no blocker.
+The engine runs it: the epic goes to the stage `lead` and, when the lead completes, to ready for test with the head the lead approved kept beside the head the reviewers agreed on; a head that moves while it reviews repeats its review.
+It has its own skill (`skills.lead`), and the approval it says it submitted is recorded and shown, never required.
+The exchange with the author alone, one lead round at a time, is still to come in [the spec of several reviewers and a lead](specs/several-reviewers-and-a-lead.md): today a lead that asks for changes stops the epic in `lead_limit`.
 _Avoid_: tech lead, final reviewer, approver.
 
 **Lead round** - One exchange of the lead reviewer asking for changes and the author fixing them, up to `limits.maxLeadRounds` (3 by default).

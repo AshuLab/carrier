@@ -7,6 +7,7 @@ import { promisify } from 'node:util';
 import type { EnginePlaces } from '../config/places.ts';
 import { repoNamePattern } from '../config/schema.ts';
 import type { GitHubProfile } from '../integrations/github.ts';
+import { reviewerSlots } from '../storage/executions.ts';
 import type { Workspaces } from './workspaces.ts';
 
 const execFileAsync = promisify(execFile);
@@ -30,9 +31,6 @@ export interface GitWorkspacesOptions {
   /** Per git command; the process is killed when it passes. */
   timeoutMs?: number;
 }
-
-/** The reviewers of an epic by slot: the mandatory one, up to three more, and the lead. A slot is the only thing that names a checkout. */
-const reviewerSlots = ['reviewer', 'reviewer-2', 'reviewer-3', 'reviewer-4', 'lead'];
 
 const defaultRemoteUrl = (repo: string) => `https://github.com/${repo}.git`;
 
@@ -208,7 +206,7 @@ export class GitWorkspaces implements Workspaces {
     const { slot = 'reviewer', commit } = options;
     assertCount(epic, 'epic');
     assertCount(pr, 'pr');
-    if (!reviewerSlots.includes(slot)) throw new Error(`invalid slot ${slot}`);
+    if (!(reviewerSlots as readonly string[]).includes(slot)) throw new Error(`invalid slot ${slot}`);
     if (commit !== undefined && !/^[0-9a-f]{40}$/.test(commit)) throw new Error(`invalid commit ${commit}`);
     return this.serial(repo, async () => {
       const clone = await this.ensureClone(repo);

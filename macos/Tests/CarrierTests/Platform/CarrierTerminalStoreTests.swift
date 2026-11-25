@@ -359,7 +359,7 @@ struct CarrierTerminalStoreTests {
         #expect(rendered.contains("cursor-text = #"))
         #expect(rendered.contains("palette = 0=#"))
         #expect(rendered.contains("palette = 15=#"))
-        #expect(rendered.contains("background-opacity = 1"))
+        #expect(rendered.contains("background-opacity = 0"))
     }
 
     @Test(.enabled(if: ProcessInfo.processInfo.environment["CARRIER_IT_TERMINAL"] != nil))

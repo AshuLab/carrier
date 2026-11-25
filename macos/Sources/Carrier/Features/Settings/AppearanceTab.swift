@@ -92,7 +92,7 @@ struct AppearanceTabView: View {
                 }
                 SettingsTabRow(id: "icon-set", title: page.iconSet.title, detail: page.iconSet.detail) {
                     ChoicePopUp(
-                        label: page.iconSet.title, options: IconSet.allCases.map { (value: $0, title: $0.title) },
+                        label: page.iconSet.title, options: IconSet.allCases.map { (value: $0, title: $0.title()) },
                         selection: $iconSet
                     )
                 }
@@ -115,7 +115,7 @@ struct AppearanceTabView: View {
                     AccentSwatches(theme: theme, scheme: scheme == .dark ? .dark : .light, accent: accent)
                 }
                 SettingsTabRow(id: "tint-the-windows", title: page.tint.title, detail: page.tint.detail) {
-                    ChoicePopUp(label: page.tint.title, options: Tint.allCases.map { (value: $0, title: $0.title) }, selection: $tint)
+                    ChoicePopUp(label: page.tint.title, options: Tint.allCases.map { (value: $0, title: $0.title()) }, selection: $tint)
                 }
                 SettingsTabRow(id: "translucent-windows", title: page.translucent.title, detail: page.translucent.detail) {
                     Toggle(page.translucent.title, isOn: Binding(
@@ -140,7 +140,7 @@ struct AppearanceTabView: View {
                         .labelsHidden().frame(width: settingsSliderWidth).accessibilityLabel(page.codeSize).accessibilityValue(page.codeSizeValue)
                 }
                 SettingsTabRow(id: "line-height", title: page.lineHeight.title, detail: page.lineHeight.detail) {
-                    ChoicePopUp(label: page.lineHeight.title, options: LineHeight.allCases.map { (value: $0, title: $0.title) }, selection: $lineHeight)
+                    ChoicePopUp(label: page.lineHeight.title, options: LineHeight.allCases.map { (value: $0, title: $0.title()) }, selection: $lineHeight)
                 }
                 SettingsTabRow(id: "ligatures", title: page.ligatures.title, detail: page.ligatures.detail) {
                     Toggle(page.ligatures.title, isOn: $ligatures).labelsHidden().toggleStyle(.switch)

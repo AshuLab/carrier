@@ -50,12 +50,12 @@ public struct KeyCombo: Equatable {
 public enum ShortcutGroup: String, CaseIterable {
     case goTo = "go-to", sessions, conversation, carrier
 
-    public var title: String {
+    public func title(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         switch self {
-        case .goTo: "Go to"
-        case .sessions: "Sessions"
-        case .conversation: "Conversation"
-        case .carrier: "Carrier"
+        case .goTo: Copy.shortcutGroupGoTo(bundle: bundle, locale: locale)
+        case .sessions: Copy.shortcutGroupSessions(bundle: bundle, locale: locale)
+        case .conversation: Copy.shortcutGroupConversation(bundle: bundle, locale: locale)
+        case .carrier: Copy.shortcutGroupCarrier(bundle: bundle, locale: locale)
         }
     }
 }
@@ -66,27 +66,27 @@ public enum ShortcutCommand: String, CaseIterable {
     case focusBox, stopAgent, latestMessage, foldTools, copyAnswer
     case startOrStop, pauseOrResume, checkNow
 
-    public var title: String {
+    public func title(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         switch self {
-        case .home: "Home"
-        case .sessions: "Sessions"
-        case .carrier: "Carrier"
-        case .archive: "Archive"
-        case .back: "Back"
-        case .forward: "Forward"
-        case .newSession: "New session"
-        case .search: "Search"
-        case .nextSession: "Next session"
-        case .previousSession: "Previous session"
-        case .archiveSession: "Archive the session"
-        case .focusBox: "Focus the message box"
-        case .stopAgent: "Stop the agent"
-        case .latestMessage: "Jump to the latest message"
-        case .foldTools: "Fold or unfold the tool calls"
-        case .copyAnswer: "Copy the last answer"
-        case .startOrStop: "Start or stop Carrier"
-        case .pauseOrResume: "Pause or resume intake"
-        case .checkNow: "Look for ready epics now"
+        case .home: Copy.shortcutHome(bundle: bundle, locale: locale)
+        case .sessions: Copy.shortcutSessions(bundle: bundle, locale: locale)
+        case .carrier: Copy.shortcutCarrier(bundle: bundle, locale: locale)
+        case .archive: Copy.shortcutArchive(bundle: bundle, locale: locale)
+        case .back: Copy.shortcutBack(bundle: bundle, locale: locale)
+        case .forward: Copy.shortcutForward(bundle: bundle, locale: locale)
+        case .newSession: Copy.shortcutNewSession(bundle: bundle, locale: locale)
+        case .search: Copy.shortcutSearch(bundle: bundle, locale: locale)
+        case .nextSession: Copy.shortcutNextSession(bundle: bundle, locale: locale)
+        case .previousSession: Copy.shortcutPreviousSession(bundle: bundle, locale: locale)
+        case .archiveSession: Copy.shortcutArchiveSession(bundle: bundle, locale: locale)
+        case .focusBox: Copy.shortcutFocusBox(bundle: bundle, locale: locale)
+        case .stopAgent: Copy.shortcutStopAgent(bundle: bundle, locale: locale)
+        case .latestMessage: Copy.shortcutLatestMessage(bundle: bundle, locale: locale)
+        case .foldTools: Copy.shortcutFoldTools(bundle: bundle, locale: locale)
+        case .copyAnswer: Copy.shortcutCopyAnswer(bundle: bundle, locale: locale)
+        case .startOrStop: Copy.shortcutStartOrStop(bundle: bundle, locale: locale)
+        case .pauseOrResume: Copy.shortcutPauseOrResume(bundle: bundle, locale: locale)
+        case .checkNow: Copy.shortcutCheckNow(bundle: bundle, locale: locale)
         }
     }
 

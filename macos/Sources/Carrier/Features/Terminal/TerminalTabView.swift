@@ -136,8 +136,8 @@ struct TerminalTabView: View {
     }
 
     private var themeOptions: [(value: Theme?, title: String)] {
-        [(value: nil, title: Copy.terminalSameAsApp(theme: appTheme.title))]
-            + Theme.allCases.map { (value: $0, title: $0.title) }
+        [(value: nil, title: Copy.terminalSameAsApp(theme: appTheme.title()))]
+            + Theme.allCases.map { (value: $0, title: $0.title()) }
     }
 
     private var appFontDisplayName: String {

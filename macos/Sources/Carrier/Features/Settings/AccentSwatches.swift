@@ -44,10 +44,10 @@ struct AccentSwatches: View {
 
     var body: some View {
         HStack(spacing: Tokens.Space.s8) {
-            swatch(Copy.appearanceAccentName(theme: theme.title), color: themeSurfaces(theme, scheme: scheme, translucent: false).accent.map(Color.init) ?? .accentColor, chosen: accent == nil) { accent = nil }
+            swatch(Copy.appearanceAccentName(theme: theme.title()), color: themeSurfaces(theme, scheme: scheme, translucent: false).accent.map(Color.init) ?? .accentColor, chosen: accent == nil) { accent = nil }
             SettingsDivider(vertical: true).frame(height: 18).padding(.horizontal, Tokens.Space.s4)
             ForEach(AccentColor.allCases, id: \.self) { option in
-                swatch(option.title, color: Color(option.color), chosen: accent == option) { accent = option }
+                swatch(option.title(), color: Color(option.color), chosen: accent == option) { accent = option }
             }
             customSwatch
         }

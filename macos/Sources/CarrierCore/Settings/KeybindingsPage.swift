@@ -1,6 +1,6 @@
 import Foundation
 
-/// What a row of the Keybindings page says for one action, from what the page knows of it. `command.title` and the group titles are the Shell's words.
+/// What a row of the Keybindings page says for one action, from what the page knows of it. The titles of a command and of its group are keys the Shell's enums read.
 public struct ShortcutRowText: Equatable, Sendable {
     /// The label of the key cap: the keys, or that it waits for them, or None.
     public let keys: String
@@ -25,10 +25,10 @@ public func shortcutRowText(
     if let refused {
         warning = Copy.keybindingsSystems(combo: refused.text, bundle: bundle, locale: locale)
     } else if let clash {
-        warning = Copy.keybindingsAlso(action: clash.title, bundle: bundle, locale: locale)
+        warning = Copy.keybindingsAlso(action: clash.title(bundle: bundle, locale: locale), bundle: bundle, locale: locale)
     }
     return ShortcutRowText(
         keys: keys, detail: detail, warning: warning, defaultButton: Copy.keybindingsDefaultButton(bundle: bundle, locale: locale),
-        backToDefault: Copy.keybindingsBackToDefault(action: command.title, bundle: bundle, locale: locale),
-        label: Copy.keybindingsShortcutFor(action: command.title, bundle: bundle, locale: locale), value: combo?.text ?? none)
+        backToDefault: Copy.keybindingsBackToDefault(action: command.title(bundle: bundle, locale: locale), bundle: bundle, locale: locale),
+        label: Copy.keybindingsShortcutFor(action: command.title(bundle: bundle, locale: locale), bundle: bundle, locale: locale), value: combo?.text ?? none)
 }

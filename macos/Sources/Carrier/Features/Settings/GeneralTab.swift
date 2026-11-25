@@ -32,7 +32,7 @@ struct GeneralTabView: View {
             SettingsGroup(id: "menu-bar", title: page.menuBar) {
                 SettingsTabRow(id: "icon-style", title: page.iconStyle.title, detail: page.iconStyle.detail, first: true) {
                     ChoicePopUp(
-                        label: page.iconStyle.title, options: IconStyle.allCases.map { (value: $0, title: $0.title) },
+                        label: page.iconStyle.title, options: IconStyle.allCases.map { (value: $0, title: $0.title()) },
                         selection: $style
                     )
                 }

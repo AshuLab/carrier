@@ -138,13 +138,13 @@ private struct IndexBuilder {
                     ("from", "notificationsFrom", "notificationsFromDetail"), ("until", "notificationsUntil", "settingsIndexNotificationsUntilDetail"),
                 ]) + page(.notifications, "permission", "notificationsGroupPermission", [("system-permission", "notificationsPermission", "settingsIndexNotificationsSystemPermissionDetail")])
         case .keybindings:
-            // the titles of the shortcuts and of their groups are the enums' own words (the step of the app shell gives them keys); the line under each is a key
+            // the titles of the shortcuts and of their groups are keys the enums read; the line under each is a key
             return ShortcutGroup.allCases.flatMap { group in
                 ShortcutCommand.allCases.filter { $0.group == group }.map { command in
                     let combo = command.defaultCombo?.text
                     let detail = combo.map { Copy.settingsIndexShortcutDefault(combo: $0, bundle: bundle, locale: locale) } ?? Copy.settingsIndexShortcutNone(bundle: bundle, locale: locale)
                     return SettingsEntry(
-                        page: .keybindings, groupID: group.rawValue, group: group.title, rowID: command.rawValue, title: command.title, detail: detail,
+                        page: .keybindings, groupID: group.rawValue, group: group.title(bundle: bundle, locale: locale), rowID: command.rawValue, title: command.title(bundle: bundle, locale: locale), detail: detail,
                         copyKeys: [combo == nil ? "settingsIndexShortcutNone" : "settingsIndexShortcutDefault"])
                 }
             }

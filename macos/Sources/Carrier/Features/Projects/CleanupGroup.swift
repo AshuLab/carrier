@@ -51,7 +51,7 @@ struct CleanupGroup: View {
                 }
                 ChoicePopUp(
                     label: Copy.cleanupGroupServer(),
-                    options: [(value: "", title: Copy.projectsChooseEllipsis())] + CleanupServer.allCases.map { (value: $0.rawValue, title: $0.title) },
+                    options: [(value: "", title: Copy.projectsChooseEllipsis())] + CleanupServer.allCases.map { (value: $0.rawValue, title: $0.title()) },
                     selection: Binding(get: { cleanup.server?.rawValue ?? "" }, set: { cleanup.choose(server: CleanupServer(rawValue: $0)) })
                 )
             }

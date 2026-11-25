@@ -1,7 +1,9 @@
 # A tag vX.Y.Z publishes @ashulab/carrier at X.Y.Z, puts the app's zips (Apple Silicon and Intel, each with its dSYM) on the GitHub Release and rewrites the formula and the cask in the tap.
 # The versions stay in sync (one tag), but the work is split in jobs that run side by side:
-#   verify (engine checks) and pack (the tarball)  ->  formula (tried in a throwaway tap)  ->  npm
-#   verify  ->  app (check, build, sign, appcast; once for Apple Silicon and once for Intel), and app-tests (the app's unit tests, the ones a PR runs)
+#   pack (the tarball)  ->  formula (tried in a throwaway tap)  ->  npm (which also waits for verify, the engine checks)
+#   pack  ->  app (check, build, sign, appcast; once for Apple Silicon and once for Intel), and app-tests (the app's unit tests, the ones a PR runs) on their own
+# The macOS jobs do not wait for verify: macOS runners queue (10 minutes in the run of 0.19.0), so they start at once and the queue overlaps verify.
+# verify gates what publishes (npm, and `release` below); a macOS job that runs while it fails only wastes minutes.
 #   release (the cask, the Release as a draft, the tap, the appcasts, publish) waits for all of them.
 # npm publishes as soon as the engine's checks and the formula pass; it does not wait for the app. If the app then fails, the version is on npm and the run is
 # finished by a re-run (or by a new version if the app needs a fix). Nothing reaches the tap or `releases/latest` (the app's update feed) before everything is green.
@@ -42,7 +44,6 @@ jobs:
   # The app's unit tests, which a pull request runs (and a push to main when the app changed), here from a cold build: what is released has passed them.
   app-tests:
     name: App tests
-    needs: verify
     uses: ./.github/workflows/_macos.yml
 
   # The version (the tag) and the tarball npm will serve: every other job takes both from here.
@@ -106,7 +107,7 @@ jobs:
   # The formula, tried in a throwaway tap against the tarball, before anything is published.
   formula:
     name: Formula
-    needs: [pack, verify]
+    needs: pack
     runs-on: macos-26
     timeout-minutes: 20
     env:
@@ -219,7 +220,7 @@ jobs:
   # Apple Silicon builds natively, and Intel is cross-compiled to an x86_64-only binary (no universal one) with its own zip, appcast and feed (ADR 0051).
   app:
     name: App (${{ matrix.arch }})
-    needs: [pack, verify]
+    needs: pack
     runs-on: macos-26
     timeout-minutes: 40
     strategy:

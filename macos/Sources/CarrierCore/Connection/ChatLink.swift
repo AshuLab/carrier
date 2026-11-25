@@ -48,7 +48,7 @@ final class SessionsReader: Sendable {
     private let now: @Sendable () -> Date
     private let state = Mutex(State())
 
-    init(archivedEvery: TimeInterval = 60, now: @escaping @Sendable () -> Date = Date.init) {
+    init(archivedEvery: TimeInterval = 60, now: @escaping @Sendable () -> Date = { Date() }) {
         self.archivedEvery = archivedEvery
         self.now = now
     }
@@ -197,7 +197,7 @@ public actor ChatLink {
 
     /// `sleep` replaces the wait between two reads of the sessions (the tests'); without it the wait is a nap that `refresh` cuts short.
     init(
-        path: String, archivedEvery: TimeInterval = 60, now: @escaping @Sendable () -> Date = Date.init,
+        path: String, archivedEvery: TimeInterval = 60, now: @escaping @Sendable () -> Date = { Date() },
         pace: @escaping @Sendable () -> TimeInterval = { PollPace.shared.seconds }, looking: @escaping @Sendable () -> Bool = { PollPace.shared.looking },
         sleep: (@Sendable (TimeInterval) async -> Void)? = nil,
         log: @escaping @Sendable (String) -> Void = { NSLog("Carrier: %@", $0) }

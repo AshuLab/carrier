@@ -49,7 +49,7 @@ public func chatFeed(
                 run.subagents[spot.index].apply(task: event)
                 rows[spot.row] = .tools(id: group, run)
             } else {
-                subagents[call] = place(Subagent(task: event), in: &rows, id: id, held: &held)
+                subagents[call] = place(Subagent(task: event, bundle: bundle, locale: locale), in: &rows, id: id, held: &held)
             }
         case "tool_start" where event.callId.map(launching.contains) == true, "tool_end" where event.callId.map(launching.contains) == true:
             continue

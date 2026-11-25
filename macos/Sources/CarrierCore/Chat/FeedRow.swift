@@ -168,7 +168,6 @@ public func closedSessionNotice(bundle: Bundle? = nil, locale: Locale = .current
 public func folderGoneNotice(bundle: Bundle? = nil, locale: Locale = .current) -> (title: String, detail: String) {
     (Copy.chatFolderGoneTitle(bundle: bundle, locale: locale), Copy.chatFolderGoneDetail(bundle: bundle, locale: locale))
 }
-public let folderGoneRefusal = "Its folder was deleted, so it cannot go on"
 
 /// The line under a refusal when the provider is not signed in (`agent.notLoggedIn`), nil for any other.
 public func signInLine(refusal reason: Refusal, bundle: Bundle? = nil, locale: Locale = .current) -> String? {

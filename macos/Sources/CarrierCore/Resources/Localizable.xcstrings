@@ -627,13 +627,13 @@
                   "one": {
                     "stringUnit": {
                       "state": "translated",
-                      "value": "%arg de ellas trabaja en un worktree que perdería trabajo: %2$@ se eliminará con él."
+                      "value": "%arg de ellas trabaja en un worktree que perdería trabajo; al eliminarlo se perderá: %2$@."
                     }
                   },
                   "other": {
                     "stringUnit": {
                       "state": "translated",
-                      "value": "%arg de ellas trabajan en worktrees que perderían trabajo: %2$@ se eliminará con ellos."
+                      "value": "%arg de ellas trabajan en worktrees que perderían trabajo; al eliminarlos se perderá: %2$@."
                     }
                   }
                 }
@@ -950,7 +950,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "%1$@ se eliminará con su worktree. Su transcripción se elimina y no se puede recuperar."
+            "value": "Su worktree se eliminará y se perderá: %1$@. Su transcripción se elimina y no se puede recuperar."
           }
         }
       }
@@ -7631,6 +7631,23 @@
         }
       }
     },
+    "chatSubagentTypeDefault": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agent"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agente"
+          }
+        }
+      }
+    },
     "chatSummaryCommands %lld": {
       "extractionState": "manual",
       "localizations": {
@@ -8221,6 +8238,23 @@
         }
       }
     },
+    "chatToolDoingLive %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@…"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@…"
+          }
+        }
+      }
+    },
     "chatToolEarlierSteps %lld": {
       "extractionState": "manual",
       "localizations": {
@@ -8424,6 +8458,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Pensando…"
+          }
+        }
+      }
+    },
+    "chatToolUnnamed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "tool"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "herramienta"
           }
         }
       }

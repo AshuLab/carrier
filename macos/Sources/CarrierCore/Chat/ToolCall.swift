@@ -92,7 +92,7 @@ public struct ToolCall: Equatable, Identifiable {
     /// What the call is named in a row: the tool, and for an MCP call the tool without its server (`create_issue`, not `mcp__linear__create_issue`).
     public var label: String {
         if case .mcp(_, let name) = kind { return name }
-        return tool
+        return tool.isEmpty ? Copy.chatToolUnnamed() : tool
     }
 
     /// What the row says the call is on: its argument, and for an MCP call its server, never the JSON of its arguments (those open with the step).
@@ -105,6 +105,7 @@ public struct ToolCall: Equatable, Identifiable {
     func doing(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         if case .mcp(_, let name) = kind { return name }
         if arg.isEmpty {
+            let name = tool.isEmpty ? Copy.chatToolUnnamed(bundle: bundle, locale: locale) : tool
             let verb: Copy.ChatDoing = switch kind {
             case .read: .read
             case .search: .search
@@ -112,8 +113,9 @@ public struct ToolCall: Equatable, Identifiable {
             case .shell: .shell
             case .other, .mcp: .other
             }
-            return Copy.chatDoing(kind: verb, tool: tool, bundle: bundle, locale: locale)
+            return Copy.chatDoing(kind: verb, tool: name, bundle: bundle, locale: locale)
         }
+        let name = tool.isEmpty ? Copy.chatToolUnnamed(bundle: bundle, locale: locale) : tool
         let verb: Copy.ChatDoingOn = switch kind {
         case .read: .read
         case .search: .search
@@ -121,7 +123,7 @@ public struct ToolCall: Equatable, Identifiable {
         case .shell: .shell
         case .other, .mcp: .other
         }
-        return Copy.chatDoingOn(kind: verb, arg: arg, tool: tool, bundle: bundle, locale: locale)
+        return Copy.chatDoingOn(kind: verb, arg: arg, tool: name, bundle: bundle, locale: locale)
     }
 
     private mutating func readDiff() {

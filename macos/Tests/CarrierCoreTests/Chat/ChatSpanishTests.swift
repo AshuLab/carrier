@@ -60,11 +60,11 @@ private func group(_ events: [ChatEvent]) -> ToolGroup {
     let clean = deleteSessionQuestion(r, worktree: .init(path: "/w", branch: "b", dirty: 0, unpushed: 0), bundle: es.bundle, locale: es.locale)
     #expect(clean.message == "Su worktree se eliminará. Su transcripción se elimina y no se puede recuperar.")
     let files = deleteSessionQuestion(r, worktree: .init(path: "/w", branch: "b", dirty: 1, unpushed: 0), bundle: es.bundle, locale: es.locale)
-    #expect(files.message == "1 archivo sin confirmar se eliminará con su worktree. Su transcripción se elimina y no se puede recuperar.")
+    #expect(files.message == "Su worktree se eliminará y se perderá: 1 archivo sin confirmar. Su transcripción se elimina y no se puede recuperar.")
     let commits = deleteSessionQuestion(r, worktree: .init(path: "/w", branch: "b", dirty: 0, unpushed: 3), bundle: es.bundle, locale: es.locale)
-    #expect(commits.message.hasPrefix("3 commits que no existen en ningún otro lugar se eliminará con su worktree."))
+    #expect(commits.message.hasPrefix("Su worktree se eliminará y se perderá: 3 commits que no existen en ningún otro lugar."))
     let one = deleteSessionQuestion(r, worktree: .init(path: "/w", branch: "b", dirty: 3, unpushed: 1), bundle: es.bundle, locale: es.locale)
-    #expect(one.message.hasPrefix("3 archivos sin confirmar y 1 commit que no existe en ningún otro lugar se eliminará con su worktree."))
+    #expect(one.message.hasPrefix("Su worktree se eliminará y se perderá: 3 archivos sin confirmar y 1 commit que no existe en ningún otro lugar."))
 }
 
 @Test func theQuestionBeforeClearingTheArchiveIsSpanishInItsSingularAndPluralCases() {
@@ -78,9 +78,9 @@ private func group(_ events: [ChatEvent]) -> ToolGroup {
     let keptMany = clearSessionsQuestion(count: 3, previews: [worktree(0, 0), worktree(0, 0)], bundle: es.bundle, locale: es.locale)
     #expect(keptMany.message.hasSuffix("2 de ellas trabajan en worktrees, que también se eliminarán."))
     let losing = clearSessionsQuestion(count: 2, previews: [worktree(2, 0)], bundle: es.bundle, locale: es.locale)
-    #expect(losing.message.hasSuffix("1 de ellas trabaja en un worktree que perdería trabajo: 2 archivos sin confirmar se eliminará con él."))
+    #expect(losing.message.hasSuffix("1 de ellas trabaja en un worktree que perdería trabajo; al eliminarlo se perderá: 2 archivos sin confirmar."))
     let losingMany = clearSessionsQuestion(count: 3, previews: [worktree(1, 1), worktree(0, 2)], bundle: es.bundle, locale: es.locale)
-    #expect(losingMany.message.hasSuffix("2 de ellas trabajan en worktrees que perderían trabajo: 1 archivo sin confirmar y 3 commits que no existen en ningún otro lugar se eliminará con ellos."))
+    #expect(losingMany.message.hasSuffix("2 de ellas trabajan en worktrees que perderían trabajo; al eliminarlos se perderá: 1 archivo sin confirmar y 3 commits que no existen en ningún otro lugar."))
 }
 
 @Test func whyASessionCannotBeArchivedOrDeletedIsSaidInSpanish() {
@@ -346,4 +346,20 @@ private func group(_ events: [ChatEvent]) -> ToolGroup {
     #expect(TurnSummary(output: 5).breakdown(bundle: es.bundle, locale: es.locale) == "Todas las llamadas al modelo del turno:\nSalida: 5")
     #expect(ContextUse(tokens: 45_700, window: 1_000_000).text(bundle: es.bundle, locale: es.locale) == "45.7k de 1M")
     #expect(ContextUse(tokens: 900).text(bundle: es.bundle, locale: es.locale) == "900")
+}
+
+@Test func theKeysViewsCallDirectlyAreSpanishInEveryPluralBranch() {
+    #expect(Copy.chatBackgroundSpoken(count: 1, names: "npm test", bundle: es.bundle, locale: es.locale) == "Esperando una tarea en segundo plano, npm test")
+    #expect(Copy.chatBackgroundSpoken(count: 3, names: "a, b, c", bundle: es.bundle, locale: es.locale) == "Esperando 3 tareas en segundo plano, a, b, c")
+    #expect(Copy.chatToolFailedCount(count: 1, bundle: es.bundle, locale: es.locale) == "1 falló" && Copy.chatToolFailedCount(count: 2, bundle: es.bundle, locale: es.locale) == "2 fallaron")
+    #expect(Copy.chatToolEarlierSteps(count: 1, bundle: es.bundle, locale: es.locale) == "1 paso anterior")
+    #expect(Copy.chatToolEarlierSteps(count: 5, bundle: es.bundle, locale: es.locale) == "5 pasos anteriores")
+    #expect(Copy.chatDiffShowMore(count: 1, bundle: es.bundle, locale: es.locale) == "Mostrar 1 línea más")
+    #expect(Copy.chatDiffShowMore(count: 40, bundle: es.bundle, locale: es.locale) == "Mostrar 40 líneas más")
+    #expect(Copy.chatSettingsTextSizeValue(size: 1, bundle: es.bundle, locale: es.locale) == "1 punto")
+    #expect(Copy.chatSettingsTextSizeValue(size: 14, bundle: es.bundle, locale: es.locale) == "14 puntos")
+    #expect(Copy.chatSubagentSteps(count: 1, bundle: es.bundle, locale: es.locale) == "1 paso" && Copy.chatSubagentSteps(count: 7, bundle: es.bundle, locale: es.locale) == "7 pasos")
+    #expect(Copy.chatToolDoingLive(doing: "Leyendo a.ts", bundle: es.bundle, locale: es.locale) == "Leyendo a.ts…")
+    #expect(Copy.chatContextTokens(count: "900", bundle: es.bundle, locale: es.locale) == "900 de contexto")
+    #expect(Copy.chatToolUnnamed(bundle: es.bundle, locale: es.locale) == "herramienta" && Copy.chatSubagentTypeDefault(bundle: es.bundle, locale: es.locale) == "Agente")
 }

@@ -908,6 +908,14 @@ private func preview(_ id: String, _ worktree: SessionDeletePreview.Worktree?) -
     #expect(said == "Deleted 2 of 3 archived sessions. This session was resumed meanwhile; close it first")
 }
 
+@MainActor @Test func clearSaysHowManyWentInSpanishInItsSingularAndPluralCases() async {
+    let host = FakeHost()
+    host.refuse["a"] = ControlError.closed
+    let actions = SessionActions(host: host, log: { _ in })
+    #expect(await actions.clear(["a"], bundle: spanish.bundle, locale: spanish.locale) == "Se eliminaron 0 de 1 sesión archivada. The chat host is not answering")
+    #expect(await actions.clear(["a", "b"], bundle: spanish.bundle, locale: spanish.locale) == "Se eliminaron 0 de 2 sesiones archivadas. The chat host is not answering")
+}
+
 @MainActor @Test func clearStopsWhenTheHostStopsAnswering() async {
     let host = FakeHost()
     host.refuse["a"] = ControlError.closed

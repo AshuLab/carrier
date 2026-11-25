@@ -2486,6 +2486,10 @@ public enum Copy {
         String(localized: "chatSubagentOf \(session)", bundle: bundle ?? carrierResources, locale: locale)
     }
 
+    public static func chatSubagentTypeDefault(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSubagentTypeDefault", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
     public static func chatStateRunning(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         String(localized: "chatStateRunning", bundle: bundle ?? carrierResources, locale: locale)
     }
@@ -2836,6 +2840,14 @@ public enum Copy {
 
     public static func chatToolThinking(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         String(localized: "chatToolThinking", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatToolUnnamed(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatToolUnnamed", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatToolDoingLive(doing: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatToolDoingLive \(doing)", bundle: bundle ?? carrierResources, locale: locale)
     }
 
     public static func chatToolEarlierSteps(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {

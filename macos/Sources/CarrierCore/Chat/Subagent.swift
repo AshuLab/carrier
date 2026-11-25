@@ -45,10 +45,10 @@ public struct Subagent: Equatable, Identifiable {
     private var ownCalls = 0
     private var reported = 0
 
-    init(task event: ChatEvent) {
+    init(task event: ChatEvent, bundle: Bundle? = nil, locale: Locale = .current) {
         id = event.callId ?? "e\(event.id)"
         taskId = event.taskId
-        type = event.agentType ?? "Agent"
+        type = event.agentType ?? Copy.chatSubagentTypeDefault(bundle: bundle, locale: locale)
         title = event.state == "started" ? (event.text ?? "") : ""
         startedAt = event.at
         apply(task: event)

@@ -70,7 +70,7 @@ public struct SubagentWork: Equatable {
 public func subagentWork(in events: [ChatEvent], call: String, working: Bool = true, bundle: Bundle? = nil, locale: Locale = .current) -> SubagentWork? {
     var subagent: Subagent?
     for event in events where event.kind == "task" && event.callId == call {
-        if subagent == nil { subagent = Subagent(task: event) } else { subagent?.apply(task: event) }
+        if subagent == nil { subagent = Subagent(task: event, bundle: bundle, locale: locale) } else { subagent?.apply(task: event) }
     }
     guard var subagent else { return nil }
     // the subagent's own events and those of the subagents it launched, which `chatFeed` joins to their rows as it does for the main agent's

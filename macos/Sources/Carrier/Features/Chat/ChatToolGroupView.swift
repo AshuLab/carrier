@@ -129,7 +129,7 @@ struct ChatToolGroupView: View {
 
     private var liveLabel: String {
         if waiting { return Copy.chatToolWaitingForAnswer() }
-        return group.doing().map { "\($0)…" } ?? Copy.chatToolThinking()
+        return group.doing().map { Copy.chatToolDoingLive(doing: $0) } ?? Copy.chatToolThinking()
     }
 
     @ViewBuilder private var words: some View {

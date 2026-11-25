@@ -46,7 +46,7 @@ public struct RefusalBanner: Equatable {
     /// After the detail: what the refusal means for what was just saved.
     public static let consequence = "Carrier kept the settings it had: what you saved waits until this is fixed."
 
-    public var fixTitle: String? { fix.map { "Open \($0.rawValue)" } }
+    public var fixTitle: String? { fix.map { "Open \($0.title)" } }
 }
 
 /// The banner for the engine's refusal of the saved file. A `config.problem` about a failover step of a role is told in words, from its `path` and `problem`,

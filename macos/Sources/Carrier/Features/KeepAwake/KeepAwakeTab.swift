@@ -15,28 +15,28 @@ struct KeepAwakeTabView: View {
 
     var body: some View {
         SettingsPageBody(reset: { AppPreferences().reset(.keepAwake) }) {
-            SettingsGroup(title: "Now") { statusRow }
-            SettingsGroup(title: "By hand") {
-                SettingsTabRow(title: "Length", detail: "What the menu's Keep awake item and the shortcut start", first: true) {
+            SettingsGroup(id: "now", title: "Now") { statusRow }
+            SettingsGroup(id: "by-hand", title: "By hand") {
+                SettingsTabRow(id: "length", title: "Length", detail: "What the menu's Keep awake item and the shortcut start", first: true) {
                     ChoicePopUp(
                         label: "Length", options: AwakeLength.choices.map { (value: $0, title: AwakeLength.title($0)) },
                         selection: Binding(get: { AwakeLength.valid(minutes) }, set: { minutes = $0 })
                     )
                 }
-                SettingsTabRow(title: "Keep the screen on", detail: "Off lets the screen sleep while the Mac stays awake: enough for agents, and it saves power") {
+                SettingsTabRow(id: "keep-the-screen-on", title: "Keep the screen on", detail: "Off lets the screen sleep while the Mac stays awake: enough for agents, and it saves power") {
                     Toggle("Keep the screen on", isOn: $screen).labelsHidden().toggleStyle(.switch)
                 }
                 ShortcutRecorderRow(
-                    shortcutText: shortcutText ?? "", title: "Shortcut", detail: "Turns keep awake on or off from any app, with no window", name: "Keep awake shortcut",
+                    id: "shortcut", shortcutText: shortcutText ?? "", title: "Shortcut", detail: "Turns keep awake on or off from any app, with no window", name: "Keep awake shortcut",
                     emptyText: "None", problem: controller.shortcutProblem,
                     current: { AppPreferences().awakeShortcut }, save: { AppPreferences().awakeShortcut = $0 },
                     taken: { $0 == AppPreferences().dictationShortcut ? "Dictation uses these keys" : nil })
             }
-            SettingsGroup(title: "With agents") {
-                SettingsTabRow(title: "Keep awake while agents work", detail: "While an epic runs or a session works, so a long job is not cut by sleep", first: true) {
+            SettingsGroup(id: "with-agents", title: "With agents") {
+                SettingsTabRow(id: "keep-awake-while-agents-work", title: "Keep awake while agents work", detail: "While an epic runs or a session works, so a long job is not cut by sleep", first: true) {
                     Toggle("Keep awake while agents work", isOn: $agents).labelsHidden().toggleStyle(.switch)
                 }
-                SettingsTabRow(title: "Stay awake after they finish", detail: "Time to read the result before the Mac may sleep") {
+                SettingsTabRow(id: "stay-awake-after-they-finish", title: "Stay awake after they finish", detail: "Time to read the result before the Mac may sleep") {
                     ChoicePopUp(
                         label: "Stay awake after they finish",
                         options: AwakeSettings.graceChoices.map { (value: $0, title: $0 == 0 ? "Right away" : "\($0) min") },
@@ -45,14 +45,14 @@ struct KeepAwakeTabView: View {
                     .disabled(agents == false)
                 }
             }
-            SettingsGroup(title: "Battery and notices") {
-                SettingsTabRow(title: "On battery", detail: "It goes on by itself when the Mac is plugged in or charged again", first: true) {
+            SettingsGroup(id: "battery-and-notices", title: "Battery and notices") {
+                SettingsTabRow(id: "on-battery", title: "On battery", detail: "It goes on by itself when the Mac is plugged in or charged again", first: true) {
                     ChoicePopUp(
                         label: "On battery", options: BatteryRule.allCases.map { (value: $0, title: $0.title) },
                         selection: $battery
                     )
                 }
-                SettingsTabRow(title: "Tell me when it stops by itself", detail: "A notification when the time runs out or the battery ends it. Not when you turn it off") {
+                SettingsTabRow(id: "tell-me-when-it-stops-by-itself", title: "Tell me when it stops by itself", detail: "A notification when the time runs out or the battery ends it. Not when you turn it off") {
                     Toggle("Tell me when it stops by itself", isOn: $notifies).labelsHidden().toggleStyle(.switch)
                 }
             }

@@ -130,8 +130,8 @@ struct AgentsTabView: View {
     @ViewBuilder private func first(_ page: AgentsPage) -> some View {
         let readiness = agentsReadiness(page)
         SettingsGroup(title: "") { AgentsStatusCard(readiness: readiness, open: open) }
-        SettingsGroup(title: EpicRail.group) { EpicRail(page: page, readiness: readiness, icons: icons, open: open) }
-        SettingsGroup(title: "Identities", footer: page.bots.note ?? "A bot is the GitHub account a role works as. Every role can pick one.") {
+        SettingsGroup(id: EpicRail.groupID, title: EpicRail.group) { EpicRail(page: page, readiness: readiness, icons: icons, open: open) }
+        SettingsGroup(id: "identities", title: "Identities", footer: page.bots.note ?? "A bot is the GitHub account a role works as. Every role can pick one.") {
             CreateBotRow()
         }
     }
@@ -141,7 +141,7 @@ struct AgentsTabView: View {
         Group {
             if row.hasSwitch {
                 SettingsGroup(title: "", footer: turningOnLead ? leadDraft.hint : nil) {
-                    SettingsTabRow(title: "Use a lead reviewer", detail: row.switchDetail, first: true) {
+                    SettingsTabRow(id: "use-a-lead-reviewer", title: "Use a lead reviewer", detail: row.switchDetail, first: true) {
                         Toggle("Use a lead reviewer", isOn: Binding(get: { row.usable(turningOn: turningOnLead) }, set: { setLeadSwitch(on: $0, row: row) }))
                             .labelsHidden().toggleStyle(.switch)
                     }
@@ -152,9 +152,9 @@ struct AgentsTabView: View {
                 RoleFlowStrip(current: row.role, rows: page.rows, open: open)
             }
             Group {
-                SettingsGroup(title: "Who", footer: identityFooter(row, page: page)) {
-                    SettingsTabRow(title: "Identity", detail: row.identityDetail, first: true) { identityPicker(row, page: page) }
-                    SettingsTabRow(title: "Model", detail: row.providerMissing ? "Not an account of providers.json" : "Provider, model and how hard it thinks") {
+                SettingsGroup(id: "who", title: "Who", footer: identityFooter(row, page: page)) {
+                    SettingsTabRow(id: "identity", title: "Identity", detail: row.identityDetail, first: true) { identityPicker(row, page: page) }
+                    SettingsTabRow(id: "model", title: "Model", detail: row.providerMissing ? "Not an account of providers.json" : "Provider, model and how hard it thinks") {
                         ModelPickerButton(
                             provider: row.fields.provider, model: row.fields.model, effort: row.fields.effort,
                             accounts: pickerAccounts(page: page, current: [row.fields.provider]), catalog: catalog
@@ -171,14 +171,14 @@ struct AgentsTabView: View {
                     }
                     if let problem { ProblemLine(text: problem, font: .scaled(11)).textSelection(.enabled).padding(.vertical, 8) }
                 }
-                SettingsGroup(title: "Persona") {
-                    SettingsTabRow(title: "Persona name", detail: "Optional, one line up to 40 characters", first: true) {
+                SettingsGroup(id: "persona", title: "Persona") {
+                    SettingsTabRow(id: "persona-name", title: "Persona name", detail: "Optional, one line up to 40 characters", first: true) {
                         CommitField(label: "Persona name", text: row.fields.persona?.name ?? "", width: settingsSelectWidth, mono: false, prompt: "None") {
                             await saveDetails(.persona(role: row.role, name: blankIsNil($0), prompt: row.fields.persona?.prompt))
                         }
                         .id(row.role)
                     }
-                    SettingsStackedRow(title: "Persona prompt", detail: "Optional instructions") {
+                    SettingsStackedRow(id: "persona-prompt", title: "Persona prompt", detail: "Optional instructions") {
                         CommitEditor(label: "Persona prompt", text: row.fields.persona?.prompt ?? "", prompt: "None") {
                             await saveDetails(.persona(role: row.role, name: row.fields.persona?.name, prompt: blankIsNil($0)))
                         }
@@ -186,9 +186,9 @@ struct AgentsTabView: View {
                     }
                 }
                 skills(row)
-                SettingsGroup(title: "When it runs out of tokens") {
+                SettingsGroup(id: "when-it-runs-out-of-tokens", title: "When it runs out of tokens") {
                     let on = row.steps.isEmpty == false || switchedOn.contains(row.role)
-                    SettingsTabRow(title: "Switch automatically", detail: "Usage limit, rate limit or service down", first: true) {
+                    SettingsTabRow(id: "switch-automatically", title: "Switch automatically", detail: "Usage limit, rate limit or service down", first: true) {
                         Toggle("Switch automatically", isOn: Binding(get: { on }, set: { now in
                             if now { switchedOn.insert(row.role) } else {
                                 switchedOn.remove(row.role)
@@ -215,16 +215,16 @@ struct AgentsTabView: View {
     /// it from the config). `AgentsReadinessTests` keeps `AgentRole.stages` equal to what `src/prompts` invokes.
     @ViewBuilder private func skills(_ row: RoleRow) -> some View {
         if row.role.stages.isEmpty {
-            SettingsGroup(title: "Skills") {
-                SettingsTabRow(title: "Not used by the engine yet", detail: "The Lead reviewer has no stage today, so there is no skill to choose.", first: true) {
+            SettingsGroup(id: "skills", title: "Skills") {
+                SettingsTabRow(id: "not-used-by-the-engine-yet", title: "Not used by the engine yet", detail: "The Lead reviewer has no stage today, so there is no skill to choose.", first: true) {
                     StatusChip(text: "Soon", tint: .secondary)
                 }
             }
         } else {
-            SettingsGroup(title: "Skills", footer: "Each stage runs the skill shown. Choosing another one comes with a later version of the engine.") {
+            SettingsGroup(id: "skills", title: "Skills", footer: "Each stage runs the skill shown. Choosing another one comes with a later version of the engine.") {
                 ForEach(row.role.stages) { stage in
                     SettingsTabRow(
-                        title: stage.title, detail: stage.detail,
+                        id: stage.id, title: stage.title, detail: stage.detail,
                         note: "Runs as \(skillInvocation(stage.skill, icon: row.fields.provider.flatMap { icons[$0] }))"
                     ) {
                         SkillValue(skill: stage.skill)

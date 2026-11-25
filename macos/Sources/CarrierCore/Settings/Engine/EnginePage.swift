@@ -5,7 +5,8 @@ import Foundation
 
 /// The row a view has to draw for. The Starting rows are switches over an app preference; the Programs rows are `carrier`, `node`, the `PATH`
 /// and the button that looks for the tools again; `orchestratorProfile` is a choice written to `engine.json`, the Files rows a button over a path.
-public enum EngineRowID: Equatable {
+/// The raw value is what the row is known by in Settings (its anchor), whatever its title says.
+public enum EngineRowID: String, CaseIterable, Equatable {
     case startOnOpen, confirmStop
     case carrier, node, path, lookAgain
     case orchestratorProfile, carrierFolder, logs, startLog
@@ -63,6 +64,7 @@ public struct EnginePrograms: Equatable {
 }
 
 public struct EngineGroup: Equatable {
+    public let id: String
     public let title: String
     public let rows: [EngineRow]
 }
@@ -81,22 +83,22 @@ public func engineGroups(
     }
     let places = ["CARRIER_HOME": folder]
     return [
-        EngineGroup(title: "Starting", rows: [
+        EngineGroup(id: "starting", title: "Starting", rows: [
             EngineRow(
                 id: .startOnOpen, title: "Start Carrier when the app opens",
                 detail: configured ? "Carrier starts working on ready epics as soon as the app opens" : "Does nothing until the engine is configured"
             ),
             EngineRow(id: .confirmStop, title: "Ask before stopping Carrier", detail: "Only when stopping would interrupt epics that are running"),
         ]),
-        EngineGroup(title: "Programs", rows: programRows(programs)),
-        EngineGroup(title: "GitHub identity", rows: [
+        EngineGroup(id: "programs", title: "Programs", rows: programRows(programs)),
+        EngineGroup(id: "github-identity", title: "GitHub identity", rows: [
             EngineRow(
                 id: .orchestratorProfile, title: "Carrier acts on GitHub as",
                 detail: configured ? "Reads issues and PRs and changes labels. Default is the author's identity" : "Available once the engine is configured",
                 problem: identityFailure ?? identityProblem(configured: configured, identity: identity)
             ),
         ]),
-        EngineGroup(title: "Files", rows: [
+        EngineGroup(id: "files", title: "Files", rows: [
             file(.carrierFolder, "Carrier folder", "Where Carrier keeps its config, clones and logs", folder, .reveal),
             file(.logs, "Logs", "What Carrier wrote while it ran", CarrierPlaces(environment: places, home: home).engineLogs, .reveal),
             file(.startLog, "Start log", "What the app saw the last time it started Carrier", CarrierPlaces(environment: places, home: home).engineStartLog, .open),

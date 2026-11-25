@@ -59,7 +59,7 @@ private func health(git: ToolState = .ready, gh: ToolState = .ready, claude: Too
 
 @Test func theChatHostRunsStaleOrNot() {
     func host(_ facts: CarrierFacts) -> HealthRow { healthSections(host: nil, facts: facts)[1].rows[1] }
-    #expect(host(allWell) == HealthRow(title: "Chat host", mark: .ok, detail: "Running · version 1.4.0"))
+    #expect(host(allWell) == HealthRow(id: "chat-host", title: "Chat host", mark: .ok, detail: "Running · version 1.4.0"))
     var older = allWell
     older.hostVersion = "1.3.0"
     #expect(host(older).mark == .problem && host(older).detail.contains("Restart it"))
@@ -68,15 +68,15 @@ private func health(git: ToolState = .ready, gh: ToolState = .ready, claude: Too
     #expect(host(unreadable).mark == .ok)
     var stopped = allWell
     stopped.hostRunning = false
-    #expect(host(stopped) == HealthRow(title: "Chat host", mark: .problem, detail: "Not running"))
+    #expect(host(stopped) == HealthRow(id: "chat-host", title: "Chat host", mark: .problem, detail: "Not running"))
 }
 
 @Test func theEngineIsNotConfiguredStoppedOrRunning() {
     func engine(_ facts: CarrierFacts) -> HealthRow { healthSections(host: nil, facts: facts)[1].rows[2] }
     var facts = allWell
-    #expect(engine(facts) == HealthRow(title: "Engine", mark: .ok, detail: "Running"))
+    #expect(engine(facts) == HealthRow(id: "engine", title: "Engine", mark: .ok, detail: "Running"))
     facts.engineRunning = false
-    #expect(engine(facts) == HealthRow(title: "Engine", mark: .neutral, detail: "Configured, stopped"))
+    #expect(engine(facts) == HealthRow(id: "engine", title: "Engine", mark: .neutral, detail: "Configured, stopped"))
     facts.configExists = false
     #expect(engine(facts).mark == .problem && engine(facts).detail.contains("not configured"))
 }

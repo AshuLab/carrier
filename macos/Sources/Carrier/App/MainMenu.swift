@@ -11,9 +11,18 @@ extension AppDelegate {
         shortcutsInMenu = table.combos
         let main = makeMainMenu(shortcuts: table)
         NSApp.mainMenu = main
-        NSApp.servicesMenu = main.item(withTitle: "Carrier")?.submenu?.item(withTitle: "Services")?.submenu
-        NSApp.windowsMenu = main.item(withTitle: "Window")?.submenu
-        NSApp.helpMenu = main.item(withTitle: "Help")?.submenu
+        setSystemMenus(of: main)
+    }
+
+    /// Hands macOS the three menus it asks the app for by role (the Services, Window and Help menus): each is found by its identifier, so a
+    /// title that is changed or translated does not lose it.
+    func setSystemMenus(of main: NSMenu) {
+        func menu(_ role: NSUserInterfaceItemIdentifier) -> NSMenu? {
+            (main.items + (main.items.first?.submenu?.items ?? [])).first { $0.identifier == role }?.submenu
+        }
+        NSApp.servicesMenu = menu(.servicesMenu)
+        NSApp.windowsMenu = menu(.windowMenu)
+        NSApp.helpMenu = menu(.helpMenu)
     }
 
     /// Builds it again when a combination of the table is not the one the menu carries.
@@ -37,6 +46,7 @@ extension AppDelegate {
         item(app, "Settings…", #selector(openSettings), key: ",", target: self)
         app.addItem(.separator())
         let services = NSMenuItem(title: "Services", action: nil, keyEquivalent: "")
+        services.identifier = .servicesMenu
         services.submenu = NSMenu(title: "Services")
         app.addItem(services)
         app.addItem(.separator())
@@ -118,14 +128,14 @@ extension AppDelegate {
         item(terminal, "Close Pane", #selector(TerminalMenuControls.closePane), key: "w", modifiers: [.command, .shift], target: terminalControls)
 
         // Window
-        let window = submenu(of: main, title: "Window")
+        let window = submenu(of: main, title: "Window", role: .windowMenu)
         item(window, "Minimize", #selector(NSWindow.performMiniaturize(_:)), key: "m")
         item(window, "Zoom", #selector(NSWindow.performZoom(_:)))
         window.addItem(.separator())
         item(window, "Bring All to Front", #selector(NSApplication.arrangeInFront(_:)))
 
         // Help
-        let help = submenu(of: main, title: "Help")
+        let help = submenu(of: main, title: "Help", role: .helpMenu)
         item(help, "Carrier on GitHub", #selector(openHelp), target: self)
         return main
     }
@@ -138,8 +148,9 @@ extension AppDelegate {
         return menu
     }
 
-    private func submenu(of main: NSMenu, title: String) -> NSMenu {
+    private func submenu(of main: NSMenu, title: String, role: NSUserInterfaceItemIdentifier? = nil) -> NSMenu {
         let holder = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+        holder.identifier = role
         let menu = NSMenu(title: title)
         holder.submenu = menu
         main.addItem(holder)
@@ -362,4 +373,11 @@ final class TerminalMenuControls: NSObject, NSMenuItemValidation {
             }
         }
     }
+}
+
+extension NSUserInterfaceItemIdentifier {
+    /// The roles of the menus `NSApp` is handed (`setSystemMenus(of:)`).
+    static let servicesMenu = NSUserInterfaceItemIdentifier("carrier.menu.services")
+    static let windowMenu = NSUserInterfaceItemIdentifier("carrier.menu.window")
+    static let helpMenu = NSUserInterfaceItemIdentifier("carrier.menu.help")
 }

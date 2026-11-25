@@ -11,18 +11,18 @@ struct SoundsGroup: View {
     @AppStorage(Preference.dictationSoundVolume) private var volume
 
     var body: some View {
-        SettingsGroup(title: "Sounds", footer: "Tink, Pop or Glass. The play button always plays, at the volume set; the message boxes stay silent.") {
-            soundRow("Start sound", detail: "Plays when it begins to listen", on: $startOn, name: $start, first: true)
-            soundRow("End sound", detail: "Plays when it stops listening and goes on to clean and paste", on: $endOn, name: $end)
-            SettingsTabRow(title: "Volume", detail: "For both sounds, in the global dictation only; \(volume)%") {
+        SettingsGroup(id: "sounds", title: "Sounds", footer: "Tink, Pop or Glass. The play button always plays, at the volume set; the message boxes stay silent.") {
+            soundRow(id: "start-sound", "Start sound", detail: "Plays when it begins to listen", on: $startOn, name: $start, first: true)
+            soundRow(id: "end-sound", "End sound", detail: "Plays when it stops listening and goes on to clean and paste", on: $endOn, name: $end)
+            SettingsTabRow(id: "volume", title: "Volume", detail: "For both sounds, in the global dictation only; \(volume)%") {
                 Slider(value: Binding(get: { Double(volume) }, set: { volume = Int($0.rounded()) }), in: 0...100)
                     .labelsHidden().frame(width: settingsSliderWidth).accessibilityLabel("Volume").accessibilityValue("\(volume) percent")
             }
         }
     }
 
-    private func soundRow(_ title: String, detail: String, on: Binding<Bool>, name: Binding<String>, first: Bool = false) -> some View {
-        SettingsTabRow(title: title, detail: detail, first: first) {
+    private func soundRow(id: String, _ title: String, detail: String, on: Binding<Bool>, name: Binding<String>, first: Bool = false) -> some View {
+        SettingsTabRow(id: id, title: title, detail: detail, first: first) {
             HStack(spacing: 8) {
                 IconButton(icon: .playFilled, name: "Play \(title)") { DictationSoundPlayer.play(SoundToPlay(name: name.wrappedValue, volume: Double(volume) / 100)) }
                 ChoicePopUp(label: title, options: dictationSoundChoices.map { (value: $0, title: $0) }, selection: name)

@@ -27,19 +27,19 @@ struct RepoRoleScreen: View {
                 RoleHero(row: row, page: page, icons: icons)
                 RoleFlowStrip(current: row.role, rows: page.rows, open: open)
             }
-            SettingsGroup(title: "Who", footer: mine.isOwn ? nil : "Nothing here is set for this repository: the \(row.title) follows Agents.") {
+            SettingsGroup(id: "who", title: "Who", footer: mine.isOwn ? nil : "Nothing here is set for this repository: the \(row.title) follows Agents.") {
                 SettingsTabRow(title: "Identity", detail: "The GitHub account it signs as", first: true) { identityPicker }
-                SettingsTabRow(title: "Model", detail: "Provider, model and how hard it thinks") { modelPicker }
+                SettingsTabRow(id: "model", title: "Model", detail: "Provider, model and how hard it thinks") { modelPicker }
                 if let problem { ProblemLine(text: problem, font: .scaled(11)).textSelection(.enabled).padding(.vertical, 8) }
             }
-            SettingsGroup(title: "Persona") {
-                SettingsTabRow(title: "Persona name", detail: "Optional, one line up to 40 characters", first: true) {
+            SettingsGroup(id: "persona", title: "Persona") {
+                SettingsTabRow(id: "persona-name", title: "Persona name", detail: "Optional, one line up to 40 characters", first: true) {
                     CommitField(label: "Persona name", text: mine.own.persona?.name ?? "", width: settingsSelectWidth, mono: false, prompt: mine.inherited.persona?.name ?? "Same as everywhere") {
                         await commit(persona: RolePersona(name: blankIsNil($0), prompt: mine.own.persona?.prompt))
                     }
                     .id(row.role)
                 }
-                SettingsStackedRow(title: "Persona prompt", detail: "Optional instructions") {
+                SettingsStackedRow(id: "persona-prompt", title: "Persona prompt", detail: "Optional instructions") {
                     CommitEditor(label: "Persona prompt", text: mine.own.persona?.prompt ?? "", prompt: mine.inherited.persona?.prompt ?? "Same as everywhere") {
                         await commit(persona: RolePersona(name: mine.own.persona?.name, prompt: blankIsNil($0)))
                     }

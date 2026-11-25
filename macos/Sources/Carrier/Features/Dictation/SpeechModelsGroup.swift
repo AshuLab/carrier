@@ -11,7 +11,7 @@ struct SpeechModelsGroup: View {
     @State private var deleting: String?
 
     var body: some View {
-        SettingsGroup(title: "Speech models", footer: "The model in use is the one with its radio lit. A model on disk can be chosen; one that is not has to be downloaded first.", accessory: {
+        SettingsGroup(id: "speech-models", title: "Speech models", footer: "The model in use is the one with its radio lit. A model on disk can be chosen; one that is not has to be downloaded first.", accessory: {
             SegmentedChoice(options: [(value: RecognizerID?.none, title: "All", icon: nil)] + RecognizerID.allCases.map { (value: Optional($0), title: $0.title, icon: nil) }, selection: $filter)
                 .accessibilityLabel("Recognizer")
         }, content: {

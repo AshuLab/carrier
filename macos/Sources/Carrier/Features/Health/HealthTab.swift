@@ -36,9 +36,10 @@ struct HealthTabView: View {
                     }
                     // cards side by side: as many as fit, so the tab stays short
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 170), spacing: 10, alignment: .top)], alignment: .leading, spacing: 10) {
-                        ForEach(Array(section.rows.enumerated()), id: \.offset) { _, row in HealthCardView(row: row) }
+                        ForEach(Array(section.rows.enumerated()), id: \.offset) { _, row in HealthCardView(row: row).settingsAnchored(row.id, group: section.id) }
                     }
                 }
+                .settingsAnchored(section.id, group: section.id)
             }
         }
         .task {

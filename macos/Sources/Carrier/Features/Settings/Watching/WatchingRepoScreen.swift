@@ -21,37 +21,37 @@ struct RepoScreen: View {
     let stop: () -> Void
 
     var body: some View {
-        SettingsGroup(title: "Status") {
+        SettingsGroup(id: "status", title: "Status") {
             if let note = status.note {
-                SettingsTabRow(title: "Epics", detail: note, first: true) { EmptyView() }
+                SettingsTabRow(id: "epics", title: "Epics", detail: note, first: true) { EmptyView() }
             } else {
-                SettingsTabRow(title: "Epics", detail: epics, first: true) { EmptyView() }
-                SettingsTabRow(title: "Last check", detail: row.health == .error ? "" : status.lastCheck ?? "", problem: row.health == .error ? status.lastCheck : nil) { EmptyView() }
+                SettingsTabRow(id: "epics", title: "Epics", detail: epics, first: true) { EmptyView() }
+                SettingsTabRow(id: "last-check", title: "Last check", detail: row.health == .error ? "" : status.lastCheck ?? "", problem: row.health == .error ? status.lastCheck : nil) { EmptyView() }
             }
         }
-        SettingsGroup(title: "Ready for Carrier", footer: checking ? nil : checks.note) {
+        SettingsGroup(id: "ready-for-carrier", title: "Ready for Carrier", footer: checking ? nil : checks.note) {
             ForEach(Array(checks.rows.enumerated()), id: \.element.id) { index, check in
                 checkRow(check, first: index == 0)
             }
         }
         if let roles {
-            SettingsGroup(title: "Who works here", footer: refusal ?? "Every repository follows the roles of Agents unless it has its own settings.") {
+            SettingsGroup(id: "who-works-here", title: "Who works here", footer: refusal ?? "Every repository follows the roles of Agents unless it has its own settings.") {
                 EpicRail(page: roles.page, readiness: agentsReadiness(roles.page), icons: icons, own: roles.own, open: openRole)
             }
         }
-        SettingsGroup(title: "Repository") {
-            SettingsTabRow(title: "Project", detail: project ?? "Not a project yet", first: true) {
+        SettingsGroup(id: "repository", title: "Repository") {
+            SettingsTabRow(id: "project", title: "Project", detail: project ?? "Not a project yet", first: true) {
                 Button(project == nil ? "Add project…" : "Open project", action: openProject).controlSize(.small)
             }
-            SettingsTabRow(title: "Clone", detail: tildePath(status.clonePath), mono: true) {
+            SettingsTabRow(id: "clone", title: "Clone", detail: tildePath(status.clonePath), mono: true) {
                 if status.canRevealClone {
                     Button("Reveal") { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: status.clonePath)]) }.controlSize(.small)
                 }
             }
-            SettingsTabRow(title: "On GitHub", detail: status.gitHubURL.map { "github.com\($0.path)" } ?? "", mono: true) { EmptyView() }
+            SettingsTabRow(id: "on-github", title: "On GitHub", detail: status.gitHubURL.map { "github.com\($0.path)" } ?? "", mono: true) { EmptyView() }
         }
         SettingsGroup(title: "") {
-            SettingsTabRow(title: "Stop watching", detail: "Its epics stop where they are and continue if you watch it again. Nothing is deleted.", first: true) {
+            SettingsTabRow(id: "stop-watching", title: "Stop watching", detail: "Its epics stop where they are and continue if you watch it again. Nothing is deleted.", first: true) {
                 Button(role: .destructive, action: stop) { Label("Stop watching…", icon: .trash) }.controlSize(.small)
             }
         }

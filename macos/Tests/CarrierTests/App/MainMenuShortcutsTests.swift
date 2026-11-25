@@ -38,6 +38,30 @@ private let fixtures = testPaths().fixtures
         #expect(check.target == nil && NSApp.target(forAction: check.action!, to: nil, from: check) == nil)
     }
 
+    /// macOS is handed the Services, Window and Help menus by role: with every title changed (as a translation does) the three are still set.
+    @Test func theSystemMenusAreSetWithoutLookingAnyUpByItsTitle() throws {
+        let app = AppDelegate()
+        let menu = app.makeMainMenu(shortcuts: table())
+        let services = try item(menu, "Carrier", "Services").submenu
+        let window = menu.item(withTitle: "Window")?.submenu
+        let help = menu.item(withTitle: "Help")?.submenu
+        #expect(services != nil && window != nil && help != nil)
+        func retitle(_ menu: NSMenu) {
+            menu.title = "Otro"
+            for item in menu.items {
+                item.title = "Otro \(item.title)"
+                if let submenu = item.submenu { retitle(submenu) }
+            }
+        }
+        retitle(menu)
+        let shared = NSApplication.shared
+        shared.servicesMenu = nil
+        shared.windowsMenu = nil
+        shared.helpMenu = nil
+        app.setSystemMenus(of: menu)
+        #expect(shared.servicesMenu === services && shared.windowsMenu === window && shared.helpMenu === help)
+    }
+
     @Test func theItemsCarryTheTablesKeys() throws {
         let table = table()
         let menu = AppDelegate().makeMainMenu(shortcuts: table)

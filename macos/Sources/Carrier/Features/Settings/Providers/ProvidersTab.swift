@@ -124,7 +124,7 @@ struct ProvidersTabView: View {
         }
         if list.attention.isEmpty == false {
             let shown = showsAllAttention ? list.attention : Array(list.attention.prefix(Self.attentionShown))
-            SettingsGroup(title: "Accounts that need attention") {
+            SettingsGroup(id: "accounts-that-need-attention", title: "Accounts that need attention") {
                 ForEach(shown) { item in
                     NavigationRow(
                         title: item.account.title, detail: item.toolTitle, leading: AccountTile(account: item.account.name, icon: item.icon),
@@ -143,7 +143,7 @@ struct ProvidersTabView: View {
             }
         }
         if list.providers.isEmpty == false {
-            SettingsGroup(title: "AI providers") {
+            SettingsGroup(id: "ai-providers", title: "AI providers") {
                 ForEach(list.providers) { provider in
                     NavigationRow(
                         title: provider.tool.title, detail: provider.accounts == 1 ? "1 account" : "\(provider.accounts) accounts",
@@ -155,7 +155,7 @@ struct ProvidersTabView: View {
             }
         }
         if list.servers.isEmpty == false {
-            SettingsGroup(title: "Local servers") {
+            SettingsGroup(id: "local-servers", title: "Local servers") {
                 ForEach(list.servers) { server in
                     NavigationRow(
                         title: server.title, detail: "", leading: ProviderTile(icon: nil, symbol: server.id == "ollama" ? .server : .desktop),
@@ -175,7 +175,7 @@ struct ProvidersTabView: View {
     /// The model that writes text for Carrier, chosen among the models the local servers list; `ProvidersStore.chooseTextGenerator` writes it. A server
     /// that does not answer or has no model says so and cannot be chosen; a host that does not list `textGenerators` is told to update and offers nothing.
     @ViewBuilder private func textGeneratorsGroup(_ page: ProvidersPage) -> some View {
-        SettingsGroup(title: "Text generators", footer: "A model that turns text into text, with no tools. It runs on a server of this Mac, and Carrier asks it for the text it needs.") {
+        SettingsGroup(id: "text-generators", title: "Text generators", footer: "A model that turns text into text, with no tools. It runs on a server of this Mac, and Carrier asks it for the text it needs.") {
             SettingsTabRow(title: "In use", detail: page.generatorInUse ?? "None chosen", first: true) {
                 if page.textGenerator != nil, store.generatorEditable {
                     Button { Task { await store.chooseTextGenerator(nil) } } label: { Label("Clear", icon: .close) }
@@ -228,7 +228,7 @@ struct ProvidersTabView: View {
         case .refused?, nil: "Sessions whose title is still their first line"
         }
         let problem: String? = if case .refused(let reason) = store.retitleOutcome { reason } else { nil }
-        return SettingsTabRow(title: "Titles of earlier sessions", detail: detail, problem: problem) {
+        return SettingsTabRow(id: "titles-of-earlier-sessions", title: "Titles of earlier sessions", detail: detail, problem: problem) {
             HStack(spacing: 8) {
                 if store.retitling {
                     ProgressView().controlSize(.small).accessibilityLabel("Starting")

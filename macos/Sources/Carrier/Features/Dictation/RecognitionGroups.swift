@@ -11,7 +11,7 @@ struct LanguageGroup: View {
     var body: some View {
         SettingsGroup(title: "") {
             if let choices = dictation.languages {
-                SettingsTabRow(title: "Language", detail: choices.hint, first: true) {
+                SettingsTabRow(id: "language", title: "Language", detail: choices.hint, first: true) {
                     ChoicePopUp(
                         label: "Language", options: choices.offered.map { (value: $0, title: dictationLanguageName($0)) },
                         selection: Binding(get: { choices.selected }, set: { dictation.choose(language: $0) })
@@ -35,13 +35,13 @@ struct MemoryGroup: View {
 
     var body: some View {
         let enabled = dictation.enabled
-        SettingsGroup(title: "Memory", footer: "It is released 5, 15, 30 or 60 minutes after the last dictation, or never.") {
-            SettingsTabRow(title: "Keep the speech model ready", detail: "Loads it when Carrier opens, so the first dictation does not wait for it", first: true) {
+        SettingsGroup(id: "memory", title: "Memory", footer: "It is released 5, 15, 30 or 60 minutes after the last dictation, or never.") {
+            SettingsTabRow(id: "keep-the-speech-model-ready", title: "Keep the speech model ready", detail: "Loads it when Carrier opens, so the first dictation does not wait for it", first: true) {
                 Toggle("Keep the speech model ready", isOn: Binding(get: { AppPreferences().dictationKeepReady }, set: { dictation.setKeepReady($0) }))
                     .labelsHidden().toggleStyle(.switch)
             }
             .live(.keepReady, enabled: enabled)
-            SettingsTabRow(title: "Release the model after", detail: "Without dictating, to give its memory back; the next dictation loads it again") {
+            SettingsTabRow(id: "release-the-model-after", title: "Release the model after", detail: "Without dictating, to give its memory back; the next dictation loads it again") {
                 ChoicePopUp(
                     label: "Release the model after", options: dictationReleaseChoices.map { (value: $0.minutes, title: $0.title) },
                     selection: Binding(get: { AppPreferences().dictationReleaseAfter }, set: { dictation.setReleaseAfter($0) })

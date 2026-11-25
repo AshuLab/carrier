@@ -46,9 +46,18 @@ public struct KeyCombo: Equatable {
     }
 }
 
-/// A group of the Keybindings page.
+/// A group of the Keybindings page; the raw value is its identifier.
 public enum ShortcutGroup: String, CaseIterable {
-    case goTo = "Go to", sessions = "Sessions", conversation = "Conversation", carrier = "Carrier"
+    case goTo = "go-to", sessions, conversation, carrier
+
+    public var title: String {
+        switch self {
+        case .goTo: "Go to"
+        case .sessions: "Sessions"
+        case .conversation: "Conversation"
+        case .carrier: "Carrier"
+        }
+    }
 }
 
 /// An action that has a shortcut; the raw value is its id.

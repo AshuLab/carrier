@@ -120,7 +120,7 @@ struct SettingsRoot: View {
             SettingsPages(
                 state: model.state, canReload: model.epics.canReload, sessions: model.sessions.rows, navigator: navigator, target: $navigator.target, headerNote: $headerNote, title: $title
             )
-                .navigationTitle(title?.text ?? navigator.page.rawValue)
+                .navigationTitle(title?.text ?? navigator.page.title)
                 .navigationSubtitle(title?.subtitle ?? navigator.page.detail)
                 .toolbar {
                     ToolbarItemGroup(placement: .navigation) {
@@ -182,7 +182,7 @@ struct SettingsRoot: View {
         .environment(\.settingsHeaderButtons, headerButtons)
         // the session rows of the Sidebar page's preview read what the main window gives its own
         .environment(model.actions)
-        .alert("Reset \(navigator.page.rawValue)?", isPresented: $confirmingReset) {
+        .alert("Reset \(navigator.page.title)?", isPresented: $confirmingReset) {
             Button("Cancel", role: .cancel) {}
             Button("Reset", role: .destructive) { resetter.action?() }
         } message: {
@@ -255,7 +255,7 @@ struct SettingsSidebar: View {
                             .buttonStyle(.plain)
                         }
                     } header: {
-                        Label { Text(page.rawValue) } icon: { SettingsTile(page: page) }
+                        Label { Text(page.title) } icon: { SettingsTile(page: page) }
                     }
                 }
             }
@@ -279,7 +279,7 @@ struct SettingsSidebar: View {
 
     private func rows(_ group: SettingsPage.Group) -> some View {
         ForEach(SettingsPage.pages(in: group), id: \.self) { page in
-            Label { Text(page.rawValue) } icon: { SettingsTile(page: page) }.tag(page).help(page.detail)
+            Label { Text(page.title) } icon: { SettingsTile(page: page) }.tag(page).help(page.detail)
                 // what Carrier is missing is fixed on these two pages: the sidebar says so, and the banner is on them alone
                 .badge(page == .engine || page == .health ? missing : 0)
         }
@@ -462,9 +462,9 @@ struct SettingsPages: View {
             ),
             id: \.title
         ) { group in
-            SettingsGroup(title: group.title) {
+            SettingsGroup(id: group.id, title: group.title) {
                 ForEach(Array(group.rows.enumerated()), id: \.element.title) { index, row in
-                    SettingsTabRow(title: row.title, detail: row.detail, first: index == 0, note: row.note ?? row.file?.shown, problem: row.problem) {
+                    SettingsTabRow(id: row.id.rawValue, title: row.title, detail: row.detail, first: index == 0, note: row.note ?? row.file?.shown, problem: row.problem) {
                         switch row.id {
                         case .startOnOpen: Toggle(row.title, isOn: $startOnOpen).labelsHidden().toggleStyle(.switch).disabled(notConfigured != nil)
                         case .confirmStop: Toggle(row.title, isOn: $confirmStop).labelsHidden().toggleStyle(.switch)

@@ -466,10 +466,10 @@ private struct ProjectDetailView: View {
                     Toggle("Show when starting a session", isOn: Binding(get: { row.hidden == false }, set: { hidden in Task { await model.setHidden(hidden == false, path: row.path) } }))
                         .labelsHidden().toggleStyle(.switch).controlSize(.mini)
                 }
-                SettingsTabRow(title: "Starts with", detail: "Provider, model and reasoning; Same as everywhere is Settings > Sessions") {
+                SettingsTabRow(id: "starts-with", title: "Starts with", detail: "Provider, model and reasoning; Same as everywhere is Settings > Sessions") {
                     startPicker
                 }
-                SettingsTabRow(title: "Work in", detail: "The base folder or a new worktree; Default is Settings > Sessions") {
+                SettingsTabRow(id: "work-in", title: "Work in", detail: "The base folder or a new worktree; Default is Settings > Sessions") {
                     ChoicePopUp(label: "Work in", options: workInOptions, selection: defaultBinding(.workIn, row.defaults.workIn?.projectValue))
                 }
                 if page.baseBranch {
@@ -561,7 +561,7 @@ private struct ProjectDetailView: View {
     /// The Carrier group: the one switch that makes Carrier watch the project's repository (its `owner/name` in the engine config's repos).
     private var carrierGroup: some View {
         let watch = projectWatchRow(repo: row.repo, repos: watchedRepos, state: state, canReload: canReload, outcome: reloaded.outcome, failure: watchFailure)
-        return SettingsGroup(title: "Carrier") {
+        return SettingsGroup(id: "carrier", title: "Carrier") {
             SettingsTabRow(title: "Let Carrier watch this project", detail: watch.detail, first: true, problem: watch.problem) {
                 Toggle("Let Carrier watch this project", isOn: Binding(get: { watch.isOn }, set: { $0 ? setWatching(true) : (confirmingStop = true) }))
                     .labelsHidden().toggleStyle(.switch).controlSize(.mini).disabled(watch.canChange == false)

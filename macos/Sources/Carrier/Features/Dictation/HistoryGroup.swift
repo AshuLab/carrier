@@ -11,21 +11,21 @@ struct HistoryGroup: View {
     @State private var confirmingDelete = false
 
     var body: some View {
-        SettingsGroup(title: "History") {
+        SettingsGroup(id: "history", title: "History") {
             SettingsTabRow(
-                title: "Keep the text of my dictations",
+                id: "keep-the-text-of-my-dictations", title: "Keep the text of my dictations",
                 detail: "The list below, with search, copy and delete, in plain text on this Mac. Off: nothing new is saved and what is there stays",
                 first: true
             ) {
                 Toggle("Keep the text of my dictations", isOn: $keep).labelsHidden().toggleStyle(.switch)
             }
-            SettingsTabRow(title: "Keep the audio", detail: "Off by default. Each dictation that is recorded then has its audio to play back") {
+            SettingsTabRow(id: "keep-the-audio", title: "Keep the audio", detail: "Off by default. Each dictation that is recorded then has its audio to play back") {
                 Toggle("Keep the audio", isOn: $keepAudio).labelsHidden().toggleStyle(.switch)
             }
-            SettingsTabRow(title: "Delete audio older than", detail: "The transcripts stay") {
+            SettingsTabRow(id: "delete-audio-older-than", title: "Delete audio older than", detail: "The transcripts stay") {
                 ChoicePopUp(label: "Delete audio older than", options: dictationAudioLimits.map { (value: $0.days, title: $0.title) }, selection: $days)
             }
-            SettingsTabRow(title: "Audio on disk", detail: formatAudioOnDisk(bytes: dictation.records.audioBytes, files: dictation.records.audioIDs.count)) {
+            SettingsTabRow(id: "audio-on-disk", title: "Audio on disk", detail: formatAudioOnDisk(bytes: dictation.records.audioBytes, files: dictation.records.audioIDs.count)) {
                 Button(role: .destructive) { confirmingDelete = true } label: { Label("Delete all audio", icon: .trash) }
                     .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).disabled(dictation.records.audioIDs.isEmpty)
             }

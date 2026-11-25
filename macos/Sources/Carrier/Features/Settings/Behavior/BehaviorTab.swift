@@ -44,7 +44,7 @@ struct BehaviorTabView: View {
     var body: some View {
         SettingsPageBody(reset: { if unreadable == false { draft = EngineConfig(); unparsable = [] } }) {
             ForEach(behaviorGroups, id: \.title) { page in
-                SettingsGroup(title: page.title) {
+                SettingsGroup(id: page.id, title: page.title) {
                     ForEach(Array(page.rows.enumerated()), id: \.element.key) { index, item in
                         row(item, first: index == 0)
                     }
@@ -73,7 +73,7 @@ struct BehaviorTabView: View {
     }
 
     private func row(_ item: BehaviorRow, first: Bool) -> some View {
-        SettingsTabRow(title: item.title, detail: item.detail, first: first, problem: problems[item.key]) { control(item) }
+        SettingsTabRow(id: item.key, title: item.title, detail: item.detail, first: first, problem: problems[item.key]) { control(item) }
     }
 
     @ViewBuilder private func control(_ item: BehaviorRow) -> some View {

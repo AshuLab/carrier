@@ -14,13 +14,13 @@ struct CleanupGroup: View {
 
     var body: some View {
         SettingsGroup(
-            title: "Cleanup",
+            id: "cleanup", title: "Cleanup",
             footer: cleanup.enabled
                 ? "In a message box and in the widget the raw text is used when the server is down, the model is missing or it does not answer in 30 seconds."
                 : "The server, the model, the prompt and the test appear when it is on."
         ) {
             SettingsTabRow(
-                title: "Clean the text with a model",
+                id: "clean-the-text-with-a-model", title: "Clean the text with a model",
                 detail: cleanup.enabled && cleanup.canBeOn == false ? "Choose a server and a model below; until then the text stays as dictated" : "After you dictate, a model on this Mac rewrites the text with your prompt",
                 first: true
             ) {
@@ -44,7 +44,7 @@ struct CleanupGroup: View {
     }
 
     private var serverRow: some View {
-        SettingsTabRow(title: "Server", detail: "Runs on this Mac; nothing leaves it") {
+        SettingsTabRow(id: "server", title: "Server", detail: "Runs on this Mac; nothing leaves it") {
             HStack(spacing: 8) {
                 switch cleanup.serverState {
                 case .running: StatusChip(text: "Running", tint: .green)
@@ -66,7 +66,7 @@ struct CleanupGroup: View {
         // the saved model stays on the list when the server is down or no longer lists it, so the popup still shows what is chosen
         let kept = cleanup.model.flatMap { listed.contains($0) ? nil : [$0] } ?? []
         let detail = cleanup.server == nil ? "Choose a server first" : cleanup.serverState == .notRunning ? "Start the server to see its models" : "Small models are faster; the paste waits for it"
-        return SettingsTabRow(title: "Model", detail: detail) {
+        return SettingsTabRow(id: "model", title: "Model", detail: detail) {
             ChoicePopUp(
                 label: "Model", options: [(value: "", title: "Choose…")] + (kept + listed).map { (value: $0, title: $0) },
                 selection: Binding(get: { cleanup.model ?? "" }, set: { cleanup.choose(model: $0.isEmpty ? nil : $0) })
@@ -76,7 +76,7 @@ struct CleanupGroup: View {
     }
 
     private var promptRow: some View {
-        SettingsStackedRow(title: "Prompt", detail: "What you ask the model to do with every dictation: drop filler words, translate, make it technical…") {
+        SettingsStackedRow(id: "prompt", title: "Prompt", detail: "What you ask the model to do with every dictation: drop filler words, translate, make it technical…") {
             TextEditor(text: Binding(get: { cleanup.prompt }, set: { cleanup.set(prompt: $0) }))
                 .font(.scaled(13)).scrollContentBackground(.hidden).frame(height: 96).settingsField()
                 .writingToolsBehavior(.disabled).accessibilityLabel("Cleanup prompt")
@@ -85,7 +85,7 @@ struct CleanupGroup: View {
 
     /// The test: the sample the model gets, then what it gives back, each under its own label, so it is plain which text is cleaned and what came out.
     private var tryRow: some View {
-        SettingsStackedRow(title: "Try it", detail: "Runs the prompt above on this sample dictation, as the model will get it") {
+        SettingsStackedRow(id: "try-it", title: "Try it", detail: "Runs the prompt above on this sample dictation, as the model will get it") {
             VStack(alignment: .leading, spacing: 20) {
                 testPanel("Dictated", text: cleanupSample, tint: .secondary)
                 HStack {

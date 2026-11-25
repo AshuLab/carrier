@@ -53,6 +53,7 @@ struct EpicRail: View {
 
     /// The title of the group the rows are in, which the search finds them by.
     static let group = "How an epic runs"
+    static let groupID = "how-an-epic-runs"
 
     var body: some View {
         VStack(spacing: 0) {
@@ -111,7 +112,7 @@ private struct RoleRailRow: View {
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
         .accessibilityElement(children: .combine)
-        .settingsAnchored(row.title, group: EpicRail.group)
+        .settingsAnchored(row.role.rawValue, group: EpicRail.groupID)
     }
 
     @ViewBuilder private var trailing: some View {

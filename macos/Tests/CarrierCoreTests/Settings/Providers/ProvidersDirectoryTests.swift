@@ -116,9 +116,9 @@ private func quota(_ account: String, five: Double, provider: String = "claude")
 }
 
 @Test func twoAccountsThatShareATitleAreTwoEntriesOfTheList() {
-    let one = SettingsEntry(page: .providers, group: "Claude Code", title: "Work", path: ["claude", "work-1"])
-    let two = SettingsEntry(page: .providers, group: "Claude Code", title: "Work", path: ["claude", "work-2"])
+    let one = SettingsEntry(page: .providers, groupID: "claude", group: "Claude Code", rowID: "work", title: "Work", path: ["claude", "work-1"])
+    let two = SettingsEntry(page: .providers, groupID: "claude", group: "Claude Code", rowID: "work", title: "Work", path: ["claude", "work-2"])
     #expect(one.id != two.id)
     // a row of the page keeps its anchor, and a path does not change what the page scrolls to
-    #expect(SettingsEntry(page: .general, group: "Display", title: "Clock").id == "general.display.clock")
+    #expect(SettingsEntry(page: .general, groupID: "display", group: "Display", rowID: "clock", title: "Clock").id == "general.display.clock")
 }

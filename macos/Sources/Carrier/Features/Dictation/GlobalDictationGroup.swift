@@ -16,9 +16,9 @@ struct GlobalDictationGroup: View {
     @State private var accessibility = AccessibilityState(trust: SystemAccessibilityTrust())
 
     var body: some View {
-        SettingsGroup(title: "Global dictation", footer: "The first time you turn it on, Carrier explains what Accessibility is for before macOS asks.") {
+        SettingsGroup(id: "global-dictation", title: "Global dictation", footer: "The first time you turn it on, Carrier explains what Accessibility is for before macOS asks.") {
             SettingsTabRow(
-                title: "Dictate in any app",
+                id: "dictate-in-any-app", title: "Dictate in any app",
                 detail: "\(AppPreferences().dictationShortcut.text) opens a widget in any app, and pastes what you said at the cursor",
                 first: true
             ) {
@@ -28,11 +28,11 @@ struct GlobalDictationGroup: View {
             Group {
                 accessibilityRow
                 ShortcutRecorderRow(
-                    shortcutText: shortcutText, title: "Shortcut", detail: "With Carrier in front on a session it dictates into the message box, with no widget",
+                    id: "shortcut", shortcutText: shortcutText, title: "Shortcut", detail: "With Carrier in front on a session it dictates into the message box, with no widget",
                     name: "Dictation shortcut",
                     current: { AppPreferences().dictationShortcut }, save: { AppPreferences().dictationShortcut = $0 ?? .standard },
                     taken: { $0 == AppPreferences().awakeShortcut ? "Keep awake uses these keys" : nil })
-                SettingsTabRow(title: "Activation", detail: "Toggle: press to start, press again to finish. Hold: speak while the keys are down") {
+                SettingsTabRow(id: "activation", title: "Activation", detail: "Toggle: press to start, press again to finish. Hold: speak while the keys are down") {
                     SegmentedChoice(options: [(DictationActivation.toggle, "Toggle", nil), (.hold, "Hold", nil)], selection: $activation).accessibilityLabel("Activation")
                 }
             }
@@ -55,7 +55,7 @@ struct GlobalDictationGroup: View {
 
     private var accessibilityRow: some View {
         SettingsTabRow(
-            title: "Accessibility",
+            id: "accessibility", title: "Accessibility",
             detail: accessibility.trusted
                 ? "Carrier can see which field has the cursor and paste into it"
                 : "Without it the text goes on the clipboard instead of being pasted. Already allowed? macOS drops it when Carrier updates: reset it"
@@ -101,17 +101,17 @@ struct WidgetGroup: View {
     private enum Place: Hashable { case top, bottom, custom }
 
     var body: some View {
-        SettingsGroup(title: "Widget") {
-            SettingsStackedRow(title: "Widget style", detail: "Pill is a badge with a microphone and no text; Small, Medium and Large are a box of 2, 3 and 4 lines", first: true) {
+        SettingsGroup(id: "widget", title: "Widget") {
+            SettingsStackedRow(id: "widget-style", title: "Widget style", detail: "Pill is a badge with a microphone and no text; Small, Medium and Large are a box of 2, 3 and 4 lines", first: true) {
                 WidgetStylePicker(selection: $widgetStyle)
             }
-            SettingsStackedRow(title: "Widget theme", detail: "Default takes the app's accent. Theme glow wears the colours of the dictation line") {
+            SettingsStackedRow(id: "widget-theme", title: "Widget theme", detail: "Default takes the app's accent. Theme glow wears the colours of the dictation line") {
                 WidgetThemePicker(selection: $widgetTheme)
             }
-            SettingsTabRow(title: "Live text", detail: "Show the words as you say them. Off, the widget keeps its box with the time and the keys, and no words") {
+            SettingsTabRow(id: "live-text", title: "Live text", detail: "Show the words as you say them. Off, the widget keeps its box with the time and the keys, and no words") {
                 Toggle("Live text", isOn: $livePreview).labelsHidden().toggleStyle(.switch)
             }
-            SettingsTabRow(title: "Position", detail: "Top or bottom centre, on the display of the window in front. Drag the widget while you dictate to leave it anywhere") {
+            SettingsTabRow(id: "position", title: "Position", detail: "Top or bottom centre, on the display of the window in front. Drag the widget while you dictate to leave it anywhere") {
                 SegmentedChoice(options: places, selection: place).accessibilityLabel("Widget position")
             }
             SettingsPreview {
@@ -222,6 +222,7 @@ private struct WidgetStylePicker: View {
 /// so pressing either records it instead of running it. `shortcutText` makes the row draw again when the saved shortcut changes; `problem` is why a recorded
 /// shortcut is not registered; `taken` says why a combination is refused because another feature has it.
 struct ShortcutRecorderRow: View {
+    var id: String?
     let shortcutText: String
     let title: String
     let detail: String
@@ -238,7 +239,7 @@ struct ShortcutRecorderRow: View {
 
     var body: some View {
         let shown = current()?.text ?? emptyText ?? ""
-        SettingsTabRow(title: title, detail: detail, problem: refusal ?? problem) {
+        SettingsTabRow(id: id, title: title, detail: detail, problem: refusal ?? problem) {
             HStack(spacing: 8) {
                 Text(recording ? "Press the keys…" : shown)
                     .font(.scaled(12, weight: .semibold, design: .monospaced))

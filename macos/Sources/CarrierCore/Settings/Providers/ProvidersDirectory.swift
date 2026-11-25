@@ -117,14 +117,14 @@ public func providersDirectory(_ page: ProvidersPage, quotas: [UsageQuota], filt
 public func providersSearchEntries(_ page: ProvidersPage) -> [SettingsEntry] {
     page.tools.flatMap { tool in
         [SettingsEntry(
-            page: .providers, group: "AI providers", title: tool.title,
+            page: .providers, groupID: "ai-providers", group: "AI providers", rowID: tool.id, title: tool.title,
             detail: tool.accounts.isEmpty || tool.status == .missing ? tool.status.text : "\(tool.accounts.count) \(tool.accounts.count == 1 ? "account" : "accounts")", path: [tool.id]
         )]
             + tool.accounts.map {
                 SettingsEntry(
-                    page: .providers, group: tool.title, title: $0.title,
+                    page: .providers, groupID: tool.id, group: tool.title, rowID: $0.name, title: $0.title,
                     detail: "Account of \(tool.title)" + ($0.name == $0.title ? "" : " · \($0.name)"), path: [tool.id, $0.name]
                 )
             }
-    } + page.servers.map { SettingsEntry(page: .providers, group: "Local servers", title: $0.title, detail: $0.status, path: [$0.id]) }
+    } + page.servers.map { SettingsEntry(page: .providers, groupID: "local-servers", group: "Local servers", rowID: $0.id, title: $0.title, detail: $0.status, path: [$0.id]) }
 }

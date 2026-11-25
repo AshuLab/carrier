@@ -4,7 +4,7 @@ An epic in the window: its resume card, its pipeline, its slices and findings, a
 
 ## Resume card
 
-An epic stopped in needs-human shows a notice as the last element of its Agent output tab, after the sessions (or the empty or starting state), in the same column (the width the person chose for the chat, Settings › Chat › Message width) (`CarrierCore/Resume.swift` builds it from the stuck kind, `Carrier/Features/Epics/ResumeCardView.swift` draws it as a `NoticeCard`, `Carrier/UI/Cards/NoticeCard.swift`): the reason as the title, one line of what resuming does for that kind, tinted orange when a person's input is needed and red when something failed.
+An epic stopped in needs-human shows a notice as the last element of its Agent output tab, after the sessions (or the empty or starting state), in the same column (the width the person chose for the chat, Settings › Chat › Message width) (`CarrierCore/Epics/Resume.swift` builds it from the stuck kind, `Carrier/Features/Epics/ResumeCardView.swift` draws it as a `NoticeCard`, `Carrier/UI/Cards/NoticeCard.swift`): the reason as the title, one line of what resuming does for that kind, tinted orange when a person's input is needed and red when something failed.
 The pipeline above does not say why a step stopped; the notice does.
 It has a Resume button only when the engine's hello lists `resumeEpic` (`EpicStore.canResume`, read from the connection the epic poller uses); against any other engine the card shows the reason and the words with no button.
 Resume opens a sheet saying what will happen; confirming sends `resumeEpic` with the epic's repository and number on a connection of its own (the engine answers when the epic has started, up to 30 seconds), the button reads "Resuming…" until then and until the snapshot shows the epic out of needs-human, or stopped again after the answer (kept in `EpicStore.resuming`, so selecting another epic and coming back does not lose it), and a refusal (`unknown epic`, `not stopped`, `github unavailable`, `did not restart`) is shown in words, in orange, under the notice's line.
@@ -28,7 +28,7 @@ How they are drawn is in [the look of the app](../ui.md#cards-in-the-feed).
 
 ## Agent output
 
-An epic's Agent output tab lists its sessions oldest first, the newest last, as centered rows with no card (how they are drawn is in [the UI guide](../ui.md#rows-of-a-feed); the words are `sessionRowText` and `sessionSummary` in `CarrierCore/SessionRowText.swift`, `earlierSessions` in `CarrierCore/SessionSections.swift`).
+An epic's Agent output tab lists its sessions oldest first, the newest last, as centered rows with no card (how they are drawn is in [the UI guide](../ui.md#rows-of-a-feed); the words are `sessionRowText` and `sessionSummary` in `CarrierCore/Sessions/SessionRowText.swift`, `earlierSessions` in `CarrierCore/Sessions/SessionSections.swift`).
 A row says who acted (the GitHub profile, an Agent Forge bot, or the tool's name when none is known), the role and place ("Builder · Ship", "Reviewer · Round 2"), and on a second line the tool, the account, the model and the effort that are known.
 The engine's `sessions` reply gives the key of `profiles` the session acted as (`profile`), and the app reads `engine.json` when the tab opens to say whose account that is: a `forge` profile is named by its Agent Forge bot, a `gh` profile has no name in the file, so such a session shows the tool's name, and a key the file does not have stays as sent.
 An engine that sends no key (an epic frozen before it was kept) gets the bot of `agents.author` (builder and fixer) or `agents.reviewer`, and the role's `effort` when the session ran on the role's model.
@@ -40,7 +40,7 @@ Above five sessions the oldest ones are one row ("3 earlier sessions · Builder,
 ## The epic's Agent output
 
 The Agent output tab of an epic draws the agent's work with these same views.
-The engine's events (`ExecEvent`, from the harness parser) are turned into the chat's `ToolCall`s and `ToolGroup`s by `Transcript` and `flowItems` (`CarrierCore/TranscriptItems.swift`, `TranscriptFlow.swift`), so a run reads the same as in a session: one work card per run of calls, folded until opened (open already when Settings has Tool output on expanded), the agent's text as markdown, an error as the red banner.
+The engine's events (`ExecEvent`, from the harness parser) are turned into the chat's `ToolCall`s and `ToolGroup`s by `Transcript` and `flowItems` (`CarrierCore/Chat/TranscriptItems.swift`, `CarrierCore/Dictation/TranscriptFlow.swift`), so a run reads the same as in a session: one work card per run of calls, folded until opened (open already when Settings has Tool output on expanded), the agent's text as markdown, an error as the red banner.
 An edit with a diff shows as a call with its diff inside the card, as in a session.
 The newest run of a running session is live (shimmer, ring, glow), and a call that never ended in a session that is over shows as stopped.
 A thought is drawn if the events carry one (`reasoning`; today's parsers send none) and follows Settings, Show reasoning.

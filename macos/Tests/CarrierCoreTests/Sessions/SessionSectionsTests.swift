@@ -140,12 +140,12 @@ func everySessionIsShownOldestFirstAndOnlyTheNewestIsOpen(total: Int) {
         "c": transcript(call(1, "a", "Read") + call(3, "b", "Read")),
         "b": transcript(call(1, "a", "Read"), structured: false),
     ], bundle: english.bundle, locale: english.locale)
-    #expect(list.sections.map { $0.counts.map(countsLine) } == [nil, nil, "2 tool calls"])
+    #expect(list.sections.map { $0.counts.map { countsLine($0, bundle: english.bundle, locale: english.locale) } } == [nil, nil, "2 tool calls"])
 }
 
 @Test func anEmptyTranscriptShowsZeroToolCalls() {
     let list = sessionList(reply(session("c", "fix", status: "running")), transcripts: ["c": transcript([])], bundle: english.bundle, locale: english.locale)
-    #expect(list.sections[0].counts.map(countsLine) == "0 tool calls")
+    #expect(list.sections[0].counts.map { countsLine($0, bundle: english.bundle, locale: english.locale) } == "0 tool calls")
 }
 
 // MARK: folding

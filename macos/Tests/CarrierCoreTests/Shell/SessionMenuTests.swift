@@ -91,7 +91,7 @@ private func titles(_ sections: [[SessionMenuItem]]) -> [[String]] { sections.ma
 @Test func aWorkspaceFilterKeepsThatWorkspaceAndHasAChip() {
     let filter = SessionFilter(workspaces: ["web"])
     #expect(filter.matches(row("a")) && filter.matches(row("b", workspace: "api")) == false)
-    #expect(filter.chips.map(\.title) == ["web"] && filter.count == 1)
+    #expect(filter.chips.map { $0.title(bundle: english.bundle, locale: english.locale) } == ["web"] && filter.count == 1)
 }
 
 @Test func aSessionThatWorksOrWaitsCannotBeArchivedAndSaysWhy() {

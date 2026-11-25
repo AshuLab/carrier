@@ -31,13 +31,13 @@ Creating a session while it is missing keeps the alert, which says the same as t
 
 ### Version checks and replacement
 
-When a host answers, the app asks the installed `carrier` for its version (`carrier --version`) once per launch, and not again while the Homebrew `carrier` file is the same one (`programStamp`: its path through the links, modification date and size, kept in the app's defaults with the version it printed), and compares it with the version in the host's hello (`CarrierCore/HostReplacement.swift`, `hostReplacement`).
+When a host answers, the app asks the installed `carrier` for its version (`carrier --version`) once per launch, and not again while the Homebrew `carrier` file is the same one (`programStamp`: its path through the links, modification date and size, kept in the app's defaults with the version it printed), and compares it with the version in the host's hello (`CarrierCore/Lifecycle/HostReplacement.swift`, `hostReplacement`).
 If the host is older, no session is working or waiting for an approval and the sessions could be listed, the app stops it, waits up to 15 seconds for its socket to go and starts the installed one.
 If a session is working or waiting, it leaves the host running and the Sessions section and the Sessions home say "The chat host is older than Carrier", to restart it when the session finishes, because stopping a host closes its agents' processes and the work in them.
 A version that cannot be read on either side leaves the host alone and writes why to the app's stderr.
 A build under development keeps the same version, so there the host is restarted by hand (`carrier chat --stop`).
 
-The engine gets the same comparison (`engineReplacement`, and the sequence `replaceEngine` in `CarrierCore/EngineReplacement.swift`), right after the host, with the version read after any Homebrew upgrade.
+The engine gets the same comparison (`engineReplacement`, and the sequence `replaceEngine` in `CarrierCore/Lifecycle/EngineReplacement.swift`), right after the host, with the version read after any Homebrew upgrade.
 It is replaced only if it was running: a stopped engine stays stopped.
 With no execution in flight (the snapshot's `sessions`) the app stops it, waits for its socket to go and starts the installed `carrier` with the Start Carrier path (a failed start keeps its alert).
 With executions in flight the app pauses intake, reads the snapshot every 5 seconds without blocking, and replaces the engine when the last one ends; intake the person had paused is paused again on the new engine, intake the person resumes during the wait is left resumed, and an engine that stops answering ends the wait.

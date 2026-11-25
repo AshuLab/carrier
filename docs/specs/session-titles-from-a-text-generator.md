@@ -58,7 +58,7 @@ The app already reads the list of sessions every few seconds, so the new titles 
 
 **The app.**
 The Providers page gets a group "Text generators" with the servers it already reads from the host (running or not, and their models, with the embedding models of LM Studio left out as the host's list already does), a choice of the server and model in use, a way to clear it, and, once one is chosen, a row "Titles of earlier sessions" with a button that sends `regenerateTitles` and says how many it started.
-The app writes the two keys with the rest of the file kept as it was and the whole file written in one step ([`ProvidersFile`](../../macos/Sources/CarrierCore/ProvidersFile.swift)), asks the engine to reload as it does after any save, and does it only while the host's hello lists `textGenerators`, since a host that does not know the keys refuses the file.
+The app writes the two keys with the rest of the file kept as it was and the whole file written in one step ([`ProvidersFile`](../../macos/Sources/CarrierCore/Settings/Providers/ProvidersFile.swift)), asks the engine to reload as it does after any save, and does it only while the host's hello lists `textGenerators`, since a host that does not know the keys refuses the file.
 The session menu's Regenerate title is offered while the hello lists `regenerateTitle`, and the bulk row while it lists `regenerateTitles`.
 `providers` of the host also answers the generator in use, so the page shows it without reading the file twice.
 

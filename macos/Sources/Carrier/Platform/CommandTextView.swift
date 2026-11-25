@@ -36,11 +36,11 @@ struct CommandTextView: NSViewRepresentable {
     var writingTools = AppPreferences.defaultWritingTools
     var checksSpelling = AppPreferences.defaultChecksSpelling
     var correctsSpelling = AppPreferences.defaultCorrectsSpelling
-    /// The text size the box is drawn at: read when the box is built, so a change of it reaches `updateNSView`.
-    var textSize = TextSize.shared.percent
+    /// The text size the box is drawn at, the environment's when a view builds it (the saved one otherwise), so a change of it reaches `updateNSView`.
+    var textSize = TypeScale.stored().percent
 
     static var font: NSFont { NSFont.scaled(14) }
-    static var lineHeight: CGFloat { TextSize.shared.scale.size(22) }
+    static var lineHeight: CGFloat { TypeScale.stored().size(22) }
     static var attributes: [NSAttributedString.Key: Any] {
         let style = NSMutableParagraphStyle()
         style.minimumLineHeight = lineHeight

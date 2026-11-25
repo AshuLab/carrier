@@ -7,6 +7,7 @@ import UniformTypeIdentifiers
 /// and Shift+Return add a line.
 struct MessageBox<Selects: View>: View {
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.textScale) private var textScale
     @Binding var text: String
     var placeholder: String
     var minLines = 3
@@ -110,7 +111,8 @@ struct MessageBox<Selects: View>: View {
                 }
                 CommandTextView(
                     text: $text, cursor: $cursor, tentative: tentative, dictated: dictated, focus: focus, placeholder: placeholder, minLines: minLines, commands: commands, onKey: handle, onTyped: { dictation.stop(ownedBy: dictationOwner) }, onFiles: attach, onFileDrag: { dropping = $0 }, onLargePaste: keep,
-                    sendKey: sendKey, writingTools: writingTools, checksSpelling: checksSpelling, correctsSpelling: correctsSpelling
+                    sendKey: sendKey, writingTools: writingTools, checksSpelling: checksSpelling, correctsSpelling: correctsSpelling,
+                    textSize: textScale.percent
                 )
                 .onChange(of: text) { _, now in
                     highlighted = 0

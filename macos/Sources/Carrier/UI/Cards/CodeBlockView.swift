@@ -50,10 +50,10 @@ struct CodeBlockView: View {
     private var header: some View {
         HStack(spacing: 8) {
             if let file {
-                Text(file).font(.scaled(11.5, weight: .medium)).lineLimit(1).truncationMode(.head)
-                Text(codeLanguageName(language, resolved: resolved)).font(.scaled(11)).foregroundStyle(.tertiary)
+                Text(file).scaledFont(11.5, weight: .medium).lineLimit(1).truncationMode(.head)
+                Text(codeLanguageName(language, resolved: resolved)).scaledFont(11).foregroundStyle(.tertiary)
             } else {
-                Text(codeLanguageName(language, resolved: resolved)).font(.scaled(11.5)).foregroundStyle(.secondary)
+                Text(codeLanguageName(language, resolved: resolved)).scaledFont(11.5).foregroundStyle(.secondary)
             }
             Spacer(minLength: 0)
             CodeCopyButton(text: codeCopyText(code, language: resolved), visible: hovering)
@@ -153,7 +153,7 @@ struct CodeBlockView: View {
     private var foldButton: some View {
         Button { withAnimation(.smooth(duration: 0.2)) { expanded.toggle() } } label: {
             Text(expanded ? "Show less" : "Show \(lines.count - foldAfter) more \(lines.count - foldAfter == 1 ? "line" : "lines")")
-                .font(.scaled(11.5)).foregroundStyle(.secondary).frame(maxWidth: .infinity).padding(.vertical, 7).contentShape(Rectangle())
+                .scaledFont(11.5).foregroundStyle(.secondary).frame(maxWidth: .infinity).padding(.vertical, 7).contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .background(Color.primary.opacity(0.04))

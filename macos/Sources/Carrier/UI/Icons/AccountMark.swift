@@ -68,9 +68,9 @@ struct AccountMark: View {
 
     @ViewBuilder private func mark(_ identity: ProviderIdentity) -> some View {
         if let symbol = identity.icon?.symbol {
-            Image(systemName: symbol).font(.scaled(size * 0.86, weight: .medium)).frame(width: size, height: size)
+            Image(systemName: symbol).scaledFont(size * 0.86, weight: .medium).frame(width: size, height: size)
         } else if identity.icon == .letter {
-            Text(String(account.prefix(1)).uppercased()).font(.scaled(size * 0.8, weight: .bold)).frame(width: size, height: size)
+            Text(String(account.prefix(1)).uppercased()).scaledFont(size * 0.8, weight: .bold).frame(width: size, height: size)
         } else {
             ProviderMark(name: icon ?? AgentAccounts.harness(of: account), size: size)
         }

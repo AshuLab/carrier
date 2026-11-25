@@ -52,23 +52,23 @@ struct NoticeCard<Actions: View, Below: View>: View {
         VStack(alignment: .leading, spacing: 3) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 if let account { AccountMark(account: account, size: 13).alignmentGuide(.firstTextBaseline) { $0[.bottom] - 2 } }
-                Text(title).font(.scaled(13.5, weight: .semibold)).multilineTextAlignment(.leading).fixedSize(horizontal: false, vertical: true)
+                Text(title).scaledFont(13.5, weight: .semibold).multilineTextAlignment(.leading).fixedSize(horizontal: false, vertical: true)
             }
             if tag != nil || detail != nil {
                 HStack(alignment: .firstTextBaseline, spacing: 7) {
                     if let tag {
-                        Text(tag).font(.scaled(11)).foregroundStyle(.secondary).padding(.horizontal, 7).padding(.vertical, 1)
+                        Text(tag).scaledFont(11).foregroundStyle(.secondary).padding(.horizontal, 7).padding(.vertical, 1)
                             .background(Capsule().fill(Color.primary.opacity(0.1)))
                     }
                     if let detail {
-                        let line = Text(detail).font(.scaled(11.5)).foregroundStyle(Color.primary.opacity(0.78)).lineSpacing(1.5).lineLimit(detailLines).multilineTextAlignment(.leading)
+                        let line = Text(detail).scaledFont(11.5).foregroundStyle(Color.primary.opacity(0.78)).lineSpacing(1.5).lineLimit(detailLines).multilineTextAlignment(.leading)
                             .fixedSize(horizontal: false, vertical: true)
                         // a text that is a button is not selectable: the click is the point
                         if onTap == nil { line.textSelection(.enabled) } else { line }
                     }
                 }
             }
-            if let hint { Text(hint).font(.scaled(11.5)).foregroundStyle(Color.primary.opacity(0.78)).fixedSize(horizontal: false, vertical: true) }
+            if let hint { Text(hint).scaledFont(11.5).foregroundStyle(Color.primary.opacity(0.78)).fixedSize(horizontal: false, vertical: true) }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
@@ -112,7 +112,7 @@ struct NoticeActionStyle: ButtonStyle {
             let words = quiet ? Color.primary.opacity(0.78) : tint.mix(with: scheme == .dark ? .white : .black, by: scheme == .dark ? 0.4 : 0.45)
             let pill = quiet ? Color.primary.opacity(configuration.isPressed ? 0.2 : hovered ? 0.14 : 0) : tint.opacity(configuration.isPressed ? 0.46 : hovered ? 0.38 : 0.24)
             configuration.label
-                .font(.scaled(12, weight: .medium)).foregroundStyle(words)
+                .scaledFont(12, weight: .medium).foregroundStyle(words)
                 .padding(.horizontal, 10).frame(minWidth: 26, minHeight: 26)
                 .background(Capsule().fill(pill))
                 .opacity(enabled ? 1 : 0.4)
@@ -134,7 +134,7 @@ struct HoverTextButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.scaled(12, weight: .medium))
+            .scaledFont(12, weight: .medium)
             .foregroundStyle(danger && hovered ? Color.red : tint ?? (hovered ? Color.primary : Color.secondary))
             .padding(.horizontal, 10).frame(minWidth: 26, minHeight: 26)
             .background(Capsule().fill(danger && hovered ? Color.red.opacity(0.14) : Color.primary.opacity(configuration.isPressed ? 0.16 : hovered ? 0.09 : 0)))

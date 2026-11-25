@@ -117,14 +117,35 @@ It exits 0 on success and 1 on a refusal, with no Carrier running, or when the r
 
 `carrier usage [--json] [--refresh] [--days <7|14|30>] [--provider <all|claude|codex|agy|local>] [--source <all|epic|chat|external>]` asks the chat host (started on demand, like `carrier chat`; no engine is needed or started) for the live quotas of each account in `providers.json` (the windows used and when they reset, extra credits where the provider shows them) and for what was used over the last 7, 14 or 30 days (default 30): the total, then by model and by workspace, from epic runs, Carrier chats and the sessions the agent CLIs wrote on their own. Quotas are kept for a minute; `--refresh` asks again. Costs are the API price estimated from a bundled table, not what a plan charges, `$0.00` for local servers; a model with no price shows `unpriced` (the Mac app can map or price it). `--json` prints the host's answer as is. It takes no `--config`.
 
-`carrier config` reads one request on standard input as one line of JSON, the request of the chat host's socket without its `id`, and prints the reply the socket would give, without its `id`, as one line of JSON.
-It takes `editChatSettings` (`{"cmd":"editChatSettings","changes":{"archiveAfterDays":7,"idleCloseMinutes":null}}`): the two ages of the session clock, `worktreeStart` and `idleCloseMinutes` of `chat.json`, where `null` removes a key.
-It also takes the nine requests that change `projects.json` and `projectsFolder` of `chat.json`: `addProject { folder }`, `removeProject { path }`, `editProject { path, key, value }` (`key` is `name`, `pinned` or `hidden`), `moveProject { path, folder }`, `editProjectIcon { path, changes }`, `editProjectDefaults { path, changes }`, `editProjectTags { path, add, remove }`, `setProjectActions { path, actions }` and `setProjectsFolder { folder }`.
-Each answers the saved part of the file (`addProject` also says `added`, `removeProject` answers `removed`) and is refused with `config.problem` (the key path and kind), `project.missing` or a folder code.
-It also takes the five requests that change `providers.json`: `setAccounts` (`{"accounts":[{"name":"agy","harness":"agy"}]}`, adds each account), `addAccount` (`{"account":{"name":"claude-work","harness":"claude","configDir":"~/.claude-work"}}`), `editAccount` (`{"name":"claude-work","changes":{"displayName":"Work","icon":null}}`, where `null` removes a key of the account), `removeAccount` (`{"name":"claude-work"}`, refused while a role, a repo override, a failover list or a chat agent names it) and `setTextGenerator` (`{"choice":{"server":"ollama","model":"qwen3:8b"}}`, `{"choice":null}` clears it).
-The reply of those five has `saved`, the part of the file it changed, and `engine`: `applied` when the running engine read the file again, `refused` (with `engineReason`, its words, code and params) when it kept its settings, and `notRunning` when no engine answers.
-It sends the request to the chat host when one answers and otherwise writes the file itself with the same code, which edits the file as it is, checks the whole result and renames a temporary file over it, so a refused change leaves the file as it was; for `providers.json` whoever wrote the file then asks the engine to read it.
-It exits 0 when it saved, 1 when it refused (the reply has the `code` and the key path and kind as `params`) and 2 when standard input is not a request.
+`carrier config` changes one setting of a Carrier folder file from one line of JSON: see [`carrier config`](#carrier-config).
+
+## `carrier config`
+
+`carrier config` changes one setting of the Carrier folder (`CARRIER_HOME`, else `~/.carrier`; it takes no `--config`).
+It is how the Mac app saves when the process that owns the file is not running, and it works from a terminal too ([who writes each file](configuration.md#who-writes-each-file), [ADR 0053](adr/0053-a-carrier-config-file-has-one-owner-process-and-a-front-end-writes-it-through-that-process.md)).
+
+- The request is one line of JSON on standard input: the request of the owner's socket without its `id`, such as `{"cmd":"editChatSettings","changes":{"archiveAfterDays":7,"idleCloseMinutes":null}}` (`null` removes a key).
+- The reply is one line of JSON on standard output, the one the socket would give without its `id`: `{"ok":true,"data":{...}}`, or `{"ok":false,"error":"...","code":"...","params":{...}}` for a refusal.
+- It forwards the request to the process that owns the file when that one answers its socket and lists the `config` capability, and otherwise writes the file itself with the same code: it edits the raw file, validates the whole result with the file's strict schema and renames a temporary file over it, so a refused change leaves the file as it was.
+- The exit code is 0 when it saved, 1 when it refused (`code` and `params` say what: `config.problem` carries the key path and the kind of problem) and 2 when it could not run (standard input is not JSON, or not a request of the list below: `request.invalidJson` or `request.invalid`).
+- `carrier init` writes `engine.json` and `providers.json` through the same code.
+
+The chat host owns the files of its fifteen requests.
+For `chat.json`: `editChatSettings` (`archiveAfterDays`, `deleteAfterDays`, `worktreeStart`, `idleCloseMinutes`) and `setProjectsFolder { folder }`.
+For `providers.json`:
+`setAccounts` (`{"accounts":[{"name":"agy","harness":"agy"}]}`, adds each account),
+`addAccount` (`{"account":{"name":"claude-work","harness":"claude","configDir":"~/.claude-work"}}`),
+`editAccount` (`{"name":"claude-work","changes":{"displayName":"Work","icon":null}}`),
+`removeAccount` (`{"name":"claude-work"}`, refused while a role, a repo override, a failover list or a chat agent names it) and
+`setTextGenerator` (`{"choice":{"server":"ollama","model":"qwen3:8b"}}`, `{"choice":null}` clears it).
+For `projects.json`:
+`addProject { folder }`, `removeProject { path }`, `editProject { path, key, value }` (`key` is `name`, `pinned` or `hidden`), `moveProject { path, folder }`, `editProjectIcon { path, changes }`, `editProjectDefaults { path, changes }`, `editProjectTags { path, add, remove }` and `setProjectActions { path, actions }`.
+
+The engine owns `engine.json`, through its eight requests:
+`setWatchedRepos { repos }`, `editBehavior { changes }`, `editRole { role, changes }`, `editRepoRole { repo, role, fields }` (`fields: null` removes the override), `editPersona { role, name, prompt }`, `editFailover { role, first, second }`, `setLeadReviewer { draft }` (`draft: null` turns it off) and `setOrchestratorProfile { name }`.
+
+A reply that saved has `saved`, the part of the file it changed (`addProject` also says `added`, `removeProject` says `removed`).
+For `engine.json` and `providers.json` it also has `engine`: `applied` when the running engine read the file again, `refused` (with its `reason` for `engine.json`, `engineReason` for `providers.json`: words, code and params) when it kept its settings and the file is saved all the same, and `notRunning` when no engine answers.
 
 ## What the engine does
 

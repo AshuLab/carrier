@@ -42,3 +42,8 @@ It is replaced only if it was running: a stopped engine stays stopped.
 With no execution in flight (the snapshot's `sessions`) the app stops it, waits for its socket to go and starts the installed `carrier` with the Start Carrier path (a failed start keeps its alert).
 With executions in flight the app pauses intake, reads the snapshot every 5 seconds without blocking, and replaces the engine when the last one ends; intake the person had paused is paused again on the new engine, intake the person resumes during the wait is left resumed, and an engine that stops answering ends the wait.
 Known edges: an execution that starts between the last read and the stop is closed with the engine, and an app that quits during the wait leaves intake paused (the next launch reads that as the person's).
+
+## Where it lives in the code
+
+The decision and command line are in `CarrierCore/Lifecycle/StartCarrier.swift`; the chat host's, with its notice, in `StartChatHost.swift`. The start itself (one at a time, `engine.json`, the wait for the socket or the exit, the retry when a tool is not found, the log's tail) is `CarrierStart` and `CarrierLauncher` (`CarrierLauncherTests`, fake `ProcessRunner` and `HostSocket`); `Carrier/Platform/SystemProcessRunner.swift` does the spawn, and the alert stays in `StartController`. `Carrier/Features/Lifecycle/ChatHostStarter.swift` reuses the launcher and shows its alert. Tested on a real socket with a scripted engine (`EngineReplacementTests`).
+`CarrierCore/Connection/EngineLink.swift` reads the engine ([how](app-shell.md#how-the-app-reads-the-engine); `EngineLinkTests`).

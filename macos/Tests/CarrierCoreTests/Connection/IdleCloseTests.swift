@@ -13,6 +13,7 @@ import Testing
 
 @Test func theChoicesAreTheThreeTheHostAcceptsInOrderWithTheirWords() {
     #expect(IdleClose.allCases.map(\.rawValue) == [10, 30, 60])
-    #expect(IdleClose.allCases.map(\.title) == ["10 minutes", "30 minutes", "1 hour"])
+    #expect(IdleClose.allCases.map { $0.title(bundle: english.bundle, locale: english.locale) } == ["10 minutes", "30 minutes", "1 hour"])
+    #expect(IdleClose.allCases.map { $0.title(bundle: spanish.bundle, locale: spanish.locale) } == ["10 minutos", "30 minutos", "1 hora"])
 }
 

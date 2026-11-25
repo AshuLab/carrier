@@ -103,7 +103,7 @@ public func worktreeRows(
             id: worktree.path,
             branch: branchWords(worktree.branch, bundle: bundle, locale: locale),
             session: worktree.session.map { $0.title ?? Copy.projectsWorktreeUntitled(bundle: bundle, locale: locale) } ?? Copy.projectsWorktreeNoSession(bundle: bundle, locale: locale),
-            age: timeText(Date(timeIntervalSince1970: worktree.lastActiveAt / 1000), now: now, format: format),
+            age: timeText(Date(timeIntervalSince1970: worktree.lastActiveAt / 1000), now: now, format: format, bundle: bundle),
             state: stateWords(worktree.state, bundle: bundle, locale: locale),
             kind: worktree.state,
             bytes: sizes[worktree.path]

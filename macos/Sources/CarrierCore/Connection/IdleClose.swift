@@ -8,11 +8,11 @@ import Foundation
 public enum IdleClose: Int, CaseIterable, Equatable {
     case tenMinutes = 10, thirtyMinutes = 30, oneHour = 60
 
-    public var title: String {
+    public func title(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         switch self {
-        case .tenMinutes: "10 minutes"
-        case .thirtyMinutes: "30 minutes"
-        case .oneHour: "1 hour"
+        case .tenMinutes: Copy.choiceIdleCloseTenMinutes(bundle: bundle, locale: locale)
+        case .thirtyMinutes: Copy.choiceIdleCloseThirtyMinutes(bundle: bundle, locale: locale)
+        case .oneHour: Copy.choiceIdleCloseOneHour(bundle: bundle, locale: locale)
         }
     }
 }

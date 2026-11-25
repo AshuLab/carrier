@@ -54,7 +54,7 @@ extension AppDelegate {
 
     /// Chooses "About Carrier" in the menu as a click would, and reports whether the About panel came up.
     private func chooseAbout() -> String {
-        guard let menu = statusItem?.menu, let index = menu.items.firstIndex(where: { $0.title == "About Carrier" }) else { return "no About item" }
+        guard let menu = statusItem?.menu, let index = menu.items.firstIndex(where: { $0.title == Copy.menuItem(which: .aboutCarrier) }) else { return "no About item" }
         menu.performActionForItem(at: index)
         return "about panel \(NSApp.windows.contains { $0.className.contains("About") && $0.isVisible } ? "shown" : "hidden")"
     }
@@ -116,7 +116,7 @@ extension AppDelegate {
         // every page of Settings is drawn, a second each: a page that cannot be drawn (a missing environment object) ends the process here
         if let opened = steps.firstIndex(where: { $0.0 == "open settings" }) {
             let pages: [(String, () -> String)] = SettingsPage.allCases.map { page in
-                ("settings page \(page.title())", { WindowController.shared.showSettings(page); return WindowController.shared.settingsStatus })
+                ("settings page \(page.title(bundle: Copy.bundle("en")))", { WindowController.shared.showSettings(page); return WindowController.shared.settingsStatus })
             }
             // and every screen of the Dictation page, which is a place of its own
             let screens: [(String, () -> String)] = DictationScreen.allCases.map { screen in

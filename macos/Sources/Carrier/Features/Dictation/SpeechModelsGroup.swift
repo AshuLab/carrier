@@ -12,7 +12,7 @@ struct SpeechModelsGroup: View {
 
     var body: some View {
         SettingsGroup(id: "speech-models", title: Copy.dictationGroupModels(), footer: Copy.dictationModelsFooter(), accessory: {
-            SegmentedChoice(options: [(value: RecognizerID?.none, title: Copy.dictationFilterAll(), icon: nil)] + RecognizerID.allCases.map { (value: Optional($0), title: $0.title, icon: nil) }, selection: $filter)
+            SegmentedChoice(options: [(value: RecognizerID?.none, title: Copy.dictationFilterAll(), icon: nil)] + RecognizerID.allCases.map { (value: Optional($0), title: $0.title(), icon: nil) }, selection: $filter)
                 .accessibilityLabel(Copy.dictationRecognizerName())
         }, content: {
             if let missing = speechModelChoice(models: dictation.models, chosen: dictation.chosenModel, state: dictation.store.state(of:)).missing {

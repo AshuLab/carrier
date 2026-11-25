@@ -57,6 +57,6 @@ public func sessionPeek(_ row: SessionRow, now: Date, bundle: Bundle? = nil, loc
     }
     return SessionPeek(
         title: row.title, name: row.workspace, subtitle: subtitle, tone: tone, lastMessage: row.lastMessage?.isEmpty == false ? row.lastMessage : nil,
-        facts: facts, timeline: Copy.chatPeekUpdated(age: spokenAge(row.updatedAt, now: now), bundle: bundle, locale: locale), pullRequest: row.pullRequest, diff: row.diff, background: row.background, base: row.base
+        facts: facts, timeline: Copy.chatPeekUpdated(age: spokenAge(row.updatedAt, now: now, locale: locale), bundle: bundle, locale: locale), pullRequest: row.pullRequest, diff: row.diff, background: row.background, base: row.base
     )
 }

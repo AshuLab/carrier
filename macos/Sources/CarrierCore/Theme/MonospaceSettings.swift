@@ -4,7 +4,13 @@ import Foundation
 public enum LineHeight: String, CaseIterable {
     case tight, normal, loose
 
-    public var title: String { rawValue.capitalized }
+    public func title(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch self {
+        case .tight: Copy.choiceHeightTight(bundle: bundle, locale: locale)
+        case .normal: Copy.choiceHeightNormal(bundle: bundle, locale: locale)
+        case .loose: Copy.choiceHeightLoose(bundle: bundle, locale: locale)
+        }
+    }
 
     public var multiple: CGFloat {
         switch self {

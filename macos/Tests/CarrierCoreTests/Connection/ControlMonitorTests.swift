@@ -98,9 +98,21 @@ private func observe(path: String, waits: Int) -> (states: [ConnectionState], in
 
 @Test func theMenuLineSaysWhatCarrierIsDoing() throws {
     let snapshot = try decodeSnapshot(fixture())
-    #expect(ConnectionState.stopped.menuLine == "Carrier is stopped")
-    #expect(ConnectionState.incompatible(update: nil).menuLine == "Carrier is an incompatible version")
-    #expect(ConnectionState.running(snapshot).menuLine == "Carrier running · \(snapshot.epics.count) epics · 2/3 slots")
+    #expect(ConnectionState.stopped.menuLine(bundle: english.bundle, locale: english.locale) == "Carrier is stopped")
+    #expect(ConnectionState.incompatible(update: nil).menuLine(bundle: english.bundle, locale: english.locale) == "Carrier is an incompatible version")
+    #expect(ConnectionState.running(snapshot).menuLine(bundle: english.bundle, locale: english.locale) == "Carrier running · \(snapshot.epics.count) epics · 2/3 slots")
+}
+
+@Test func theMenuLineAndHeadingReadInSpanish() throws {
+    var snapshot = try decodeSnapshot(fixture())
+    snapshot.paused = false
+    #expect(ConnectionState.stopped.menuLine(bundle: spanish.bundle, locale: spanish.locale) == "Carrier está detenido")
+    #expect(ConnectionState.incompatible(update: nil).menuLine(bundle: spanish.bundle, locale: spanish.locale) == "Carrier es de una versión incompatible")
+    #expect(ConnectionState.running(snapshot).menuLine(bundle: spanish.bundle, locale: spanish.locale) == "Carrier en marcha · \(snapshot.epics.count) epics · 2/3 slots")
+    #expect(ConnectionState.running(snapshot).menuStatus(bundle: spanish.bundle, locale: spanish.locale).title == "Carrier en marcha")
+    #expect(ConnectionState.running(snapshot).menuStatus(bundle: spanish.bundle, locale: spanish.locale).detail == "\(snapshot.epics.count) epics · 2/3 slots")
+    snapshot.paused = true
+    #expect(ConnectionState.running(snapshot).menuStatus(bundle: spanish.bundle, locale: spanish.locale).title == "Admisión en pausa")
 }
 
 @Test func theMenuHeadingTellsWhenToLookAtIt() throws {
@@ -108,13 +120,13 @@ private func observe(path: String, waits: Int) -> (states: [ConnectionState], in
     snapshot.paused = false
     snapshot.problem = nil
     snapshot.epics = snapshot.epics.map { var epic = $0; epic.status = .running; return epic }
-    #expect(ConnectionState.stopped.menuStatus.tone == .stopped)
-    #expect(ConnectionState.incompatible(update: nil).menuStatus.tone == .attention)
-    #expect(ConnectionState.running(snapshot).menuStatus.title == "Carrier running")
-    #expect(ConnectionState.running(snapshot).menuStatus.tone == .running)
+    #expect(ConnectionState.stopped.menuStatus(bundle: english.bundle, locale: english.locale).tone == .stopped)
+    #expect(ConnectionState.incompatible(update: nil).menuStatus(bundle: english.bundle, locale: english.locale).tone == .attention)
+    #expect(ConnectionState.running(snapshot).menuStatus(bundle: english.bundle, locale: english.locale).title == "Carrier running")
+    #expect(ConnectionState.running(snapshot).menuStatus(bundle: english.bundle, locale: english.locale).tone == .running)
     snapshot.paused = true
-    #expect(ConnectionState.running(snapshot).menuStatus.title == "Intake paused")
-    #expect(ConnectionState.running(snapshot).menuStatus.tone == .attention)
+    #expect(ConnectionState.running(snapshot).menuStatus(bundle: english.bundle, locale: english.locale).title == "Intake paused")
+    #expect(ConnectionState.running(snapshot).menuStatus(bundle: english.bundle, locale: english.locale).tone == .attention)
 }
 
 @Test func theTickRunsAfterEachSnapshotOnTheSameConnection() throws {
@@ -171,8 +183,8 @@ private func observe(path: String, waits: Int) -> (states: [ConnectionState], in
 
 @Test func theMenuAndTheCardShowTheSentenceOfTheSideToUpdate() {
     let state = ConnectionState.incompatible(update: "carrier is older than this app. Run brew upgrade carrier in Terminal, then restart Carrier.")
-    #expect(state.menuStatus.detail == "carrier is older than this app. Run brew upgrade carrier in Terminal, then restart Carrier.")
-    #expect(ConnectionState.incompatible(update: nil).menuStatus.detail == nil)
+    #expect(state.menuStatus(bundle: english.bundle, locale: english.locale).detail == "carrier is older than this app. Run brew upgrade carrier in Terminal, then restart Carrier.")
+    #expect(ConnectionState.incompatible(update: nil).menuStatus(bundle: english.bundle, locale: english.locale).detail == nil)
 }
 
 @Test func whatAPollAutoreleasesIsFreedBeforeTheNextWaitNotWhenTheThreadEnds() throws {

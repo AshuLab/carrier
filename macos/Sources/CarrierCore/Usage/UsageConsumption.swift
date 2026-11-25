@@ -44,7 +44,7 @@ private func usageSourceTitle(_ source: String, bundle: Bundle?, locale: Locale)
     case "epic": Copy.usageSourceName(which: .epic, bundle: bundle, locale: locale)
     case "chat": Copy.usageSourceName(which: .chat, bundle: bundle, locale: locale)
     case "external": Copy.usageSourceName(which: .external, bundle: bundle, locale: locale)
-    default: source.prefix(1).uppercased() + source.dropFirst()
+    default: capitalizingFirst(source)
     }
 }
 
@@ -98,7 +98,7 @@ public struct UsageSegment: Equatable, Identifiable {
 public struct UsageBar: Equatable, Identifiable {
     /// `YYYY-MM-DD`.
     public var date: String
-    /// `Nov 7`.
+    /// `Nov 7`, in the person's language.
     public var label: String
     public var segments: [UsageSegment]
     public var total: Double
@@ -107,14 +107,28 @@ public struct UsageBar: Equatable, Identifiable {
     public var id: String { date }
 }
 
-/// 1 is Sunday and 7 Saturday; the date is the host's `YYYY-MM-DD`.
-private func weekday(_ date: String) -> Int? {
-    let parts = date.split(separator: "-").compactMap { Int($0) }
-    guard parts.count == 3 else { return nil }
+private let utcCalendar: Calendar = {
     var calendar = Calendar(identifier: .gregorian)
     calendar.timeZone = TimeZone(identifier: "UTC") ?? .gmt
-    guard let day = calendar.date(from: DateComponents(year: parts[0], month: parts[1], day: parts[2])) else { return nil }
-    return calendar.component(.weekday, from: day)
+    return calendar
+}()
+
+/// The host's `YYYY-MM-DD` as its day in UTC, where the host counted it.
+private func day(_ date: String) -> Date? {
+    let parts = date.split(separator: "-").compactMap { Int($0) }
+    guard parts.count == 3 else { return nil }
+    return utcCalendar.date(from: DateComponents(year: parts[0], month: parts[1], day: parts[2]))
+}
+
+/// 1 is Sunday and 7 Saturday; the date is the host's `YYYY-MM-DD`.
+private func weekday(_ date: String) -> Int? { day(date).map { utcCalendar.component(.weekday, from: $0) } }
+
+/// A formatter of `template` ("MMMd", "EEEE") for the days of `day(_:)`, in `locale`.
+private func dayFormatter(_ template: String, locale: Locale) -> DateFormatter {
+    let formatter = DateFormatter()
+    (formatter.locale, formatter.calendar, formatter.timeZone) = (locale, utcCalendar, utcCalendar.timeZone)
+    formatter.setLocalizedDateFormatFromTemplate(template)
+    return formatter
 }
 
 private func isWeekend(_ date: String) -> Bool { [1, 7].contains(weekday(date) ?? 0) }
@@ -127,20 +141,15 @@ public func usageFormat(_ value: Double, _ metric: UsageMetric, bundle: Bundle? 
     metric == .cost ? usageMoney(value, locale: locale) : usageCount(Int(value.rounded()), bundle: bundle, locale: locale)
 }
 
-private func dayLabel(_ date: String) -> String {
-    let parts = date.split(separator: "-")
-    let months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-    guard parts.count == 3, let month = Int(parts[1]), months.indices.contains(month - 1), let day = Int(parts[2]) else { return date }
-    return "\(months[month - 1]) \(day)"
-}
-
-public func usageBars(_ snapshot: UsageSnapshot, metric: UsageMetric) -> [UsageBar] {
-    snapshot.daily.map { day in
+public func usageBars(_ snapshot: UsageSnapshot, metric: UsageMetric, locale: Locale = .current) -> [UsageBar] {
+    let dayLabel = dayFormatter("MMMd", locale: locale)
+    return snapshot.daily.map { daily in
         let segments = usageChartProviders.compactMap { provider -> UsageSegment? in
-            guard let row = day.providers[provider], row.turns > 0 else { return nil }
+            guard let row = daily.providers[provider], row.turns > 0 else { return nil }
             return UsageSegment(provider: provider, value: usageValue(row, metric), turns: row.turns)
         }
-        return UsageBar(date: day.date, label: dayLabel(day.date), segments: segments, total: segments.map(\.value).reduce(0, +), weekend: isWeekend(day.date))
+        let label = day(daily.date).map(dayLabel.string(from:)) ?? daily.date
+        return UsageBar(date: daily.date, label: label, segments: segments, total: segments.map(\.value).reduce(0, +), weekend: isWeekend(daily.date))
     }
 }
 
@@ -162,8 +171,9 @@ public struct UsageTooltip: Equatable {
 
 /// What the tooltip of a day says: its providers and their share in the metric, and the total; a day with no work says so in `lines`.
 public func usageTooltip(_ bar: UsageBar, metric: UsageMetric, bundle: Bundle? = nil, locale: Locale = .current) -> UsageTooltip {
-    UsageTooltip(
-        title: bar.label, weekday: weekday(bar.date).map { ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][$0 - 1] } ?? "",
+    let weekdayName = dayFormatter("EEEE", locale: locale)
+    return UsageTooltip(
+        title: bar.label, weekday: day(bar.date).map(weekdayName.string(from:)) ?? "",
         lines: bar.segments.map {
             UsageTooltipLine(provider: usageProviderTitle($0.provider, bundle: bundle, locale: locale), providerId: $0.provider, value: usageFormat($0.value, metric, bundle: bundle, locale: locale))
         },

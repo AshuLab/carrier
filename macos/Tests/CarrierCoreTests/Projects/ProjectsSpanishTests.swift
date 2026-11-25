@@ -140,7 +140,7 @@ private func temporaryFolder() throws -> String {
     let fresh = ProjectDiskFigure(folder: "/p", bytes: 1, measuredAt: now.timeIntervalSince1970 * 1000)
     #expect(diskTotalWords(fresh, measuring: false, now: now, format: utc, bundle: b, locale: l) == "Medido ahora mismo")
     let old = ProjectDiskFigure(folder: "/p", bytes: 1, measuredAt: ms(daysAgo: 3))
-    #expect(diskTotalWords(old, measuring: false, now: now, format: utc, bundle: b, locale: l) == "Medido hace \(timeText(Date(timeIntervalSince1970: ms(daysAgo: 3) / 1000), now: now, format: utc))")
+    #expect(diskTotalWords(old, measuring: false, now: now, format: utc, bundle: b, locale: l) == "Medido hace \(timeText(Date(timeIntervalSince1970: ms(daysAgo: 3) / 1000), now: now, format: utc, bundle: b))")
 }
 
 @Test func theOfferToDeleteAndItsRefusalsAreSaidInSpanish() throws {

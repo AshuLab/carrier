@@ -18,7 +18,7 @@ struct PiecesGalleryIcons: View {
                         ForEach(IconSet.allCases, id: \.self) { set in
                             VStack(spacing: Tokens.Space.s3) {
                                 Image(nsImage: IconImages.image(.search, set: set, weight: theme.iconWeight, bold: false, pointSize: 26)).renderingMode(.template).resizable().scaledToFit().frame(width: 26, height: 26)
-                                Text(set.title).scaledFont(10).foregroundStyle(.tertiary)
+                                Text(set.title()).scaledFont(10).foregroundStyle(.tertiary)
                             }
                         }
                     }

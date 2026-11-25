@@ -372,6 +372,6 @@ public func dictationDayTitle(_ day: Date, now: Date, calendar: Calendar = .curr
     if let yesterday = calendar.date(byAdding: .day, value: -1, to: now), calendar.isDate(day, inSameDayAs: yesterday) {
         return Copy.dictationDayYesterday(bundle: bundle, locale: locale)
     }
-    let style = Date.FormatStyle(locale: Locale(identifier: "en_US"), calendar: calendar, timeZone: calendar.timeZone)
+    let style = Date.FormatStyle(locale: locale, calendar: calendar, timeZone: calendar.timeZone)
     return day.formatted(style.weekday(.wide).month(.abbreviated).day())
 }

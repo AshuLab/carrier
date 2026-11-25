@@ -7,7 +7,12 @@ import Foundation
 public enum CleanupServer: String, CaseIterable, Sendable {
     case lmStudio, ollama
 
-    public var title: String { self == .lmStudio ? "LM Studio" : "Ollama" }
+    public func title(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch self {
+        case .lmStudio: Copy.choiceCleanupLmStudio(bundle: bundle, locale: locale)
+        case .ollama: Copy.choiceCleanupOllama(bundle: bundle, locale: locale)
+        }
+    }
     /// Where the server listens by default. Always the loopback: nothing goes off this Mac.
     public var baseURL: URL { URL(string: self == .lmStudio ? "http://127.0.0.1:1234" : "http://127.0.0.1:11434")! }
 }
@@ -30,11 +35,11 @@ public enum CleanupFailure: Error, Equatable, Sendable {
         case .emptyPrompt: Copy.dictationCleanupEmptyPrompt(bundle: bundle, locale: locale)
         case .timeout: Copy.dictationCleanupTimeout(bundle: bundle, locale: locale)
         case .emptyAnswer: Copy.dictationCleanupEmptyAnswer(bundle: bundle, locale: locale)
-        case .serverDown(let server): Copy.dictationCleanupServerDown(server: server.title, bundle: bundle, locale: locale)
-        case .noModelList(let server): Copy.dictationCleanupNoModelList(server: server.title, bundle: bundle, locale: locale)
-        case .notAModelList(let server): Copy.dictationCleanupNotAModelList(server: server.title, bundle: bundle, locale: locale)
-        case .notACompletion(let server): Copy.dictationCleanupNotACompletion(server: server.title, bundle: bundle, locale: locale)
-        case .httpStatus(let server, let status): Copy.dictationCleanupHttpStatus(server: server.title, status: String(status), bundle: bundle, locale: locale)
+        case .serverDown(let server): Copy.dictationCleanupServerDown(server: server.title(bundle: bundle, locale: locale), bundle: bundle, locale: locale)
+        case .noModelList(let server): Copy.dictationCleanupNoModelList(server: server.title(bundle: bundle, locale: locale), bundle: bundle, locale: locale)
+        case .notAModelList(let server): Copy.dictationCleanupNotAModelList(server: server.title(bundle: bundle, locale: locale), bundle: bundle, locale: locale)
+        case .notACompletion(let server): Copy.dictationCleanupNotACompletion(server: server.title(bundle: bundle, locale: locale), bundle: bundle, locale: locale)
+        case .httpStatus(let server, let status): Copy.dictationCleanupHttpStatus(server: server.title(bundle: bundle, locale: locale), status: String(status), bundle: bundle, locale: locale)
         case .badReply(let cause): cause
         }
     }

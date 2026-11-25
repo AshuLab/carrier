@@ -5,6 +5,8 @@ import Testing
 @testable import Carrier
 
 private let fixtures = testPaths().fixtures
+private let english = (bundle: Copy.bundle("en"), locale: Locale(identifier: "en_US"))
+private let spanish = (bundle: Copy.bundle("es"), locale: Locale(identifier: "es_AR"))
 
 /// The main menu is built from the shortcut table: its items carry the table's keys, and another table gives other keys.
 @MainActor @Suite struct MainMenuShortcutsTests {
@@ -31,7 +33,7 @@ private let fixtures = testPaths().fixtures
 
     /// The updater is not started in a test, so nothing answers the item: it is there under About and stays dimmed, as in a fixture.
     @Test func theAppMenuHasCheckForUpdatesUnderAboutAndDimmedWithNoUpdater() throws {
-        let menu = AppDelegate().makeMainMenu(shortcuts: table())
+        let menu = AppDelegate().makeMainMenu(shortcuts: table(), bundle: english.bundle, locale: english.locale)
         let app = try #require(menu.item(withTitle: "Carrier")?.submenu)
         #expect(app.items.prefix(2).map(\.title) == ["About Carrier", "Check for Updates…"])
         let check = try item(menu, "Carrier", "Check for Updates…")
@@ -41,7 +43,7 @@ private let fixtures = testPaths().fixtures
     /// macOS is handed the Services, Window and Help menus by role: with every title changed (as a translation does) the three are still set.
     @Test func theSystemMenusAreSetWithoutLookingAnyUpByItsTitle() throws {
         let app = AppDelegate()
-        let menu = app.makeMainMenu(shortcuts: table())
+        let menu = app.makeMainMenu(shortcuts: table(), bundle: english.bundle, locale: english.locale)
         let services = try item(menu, "Carrier", "Services").submenu
         let window = menu.item(withTitle: "Window")?.submenu
         let help = menu.item(withTitle: "Help")?.submenu
@@ -64,7 +66,7 @@ private let fixtures = testPaths().fixtures
 
     @Test func theItemsCarryTheTablesKeys() throws {
         let table = table()
-        let menu = AppDelegate().makeMainMenu(shortcuts: table)
+        let menu = AppDelegate().makeMainMenu(shortcuts: table, bundle: english.bundle, locale: english.locale)
         for entry in Self.items {
             let made = try item(menu, entry.menu, entry.title)
             let combo = try #require(table.combo(for: entry.command))
@@ -77,7 +79,7 @@ private let fixtures = testPaths().fixtures
         let table = table()
         table.set(KeyCombo(key: "j", modifiers: [.command, .option]), for: .search)
         table.set(nil, for: .home)
-        let menu = AppDelegate().makeMainMenu(shortcuts: table)
+        let menu = AppDelegate().makeMainMenu(shortcuts: table, bundle: english.bundle, locale: english.locale)
         let find = try item(menu, "Edit", "Find…")
         #expect(find.keyEquivalent == "j" && find.keyEquivalentModifierMask == [.command, .option])
         #expect(try item(menu, "View", "Home").keyEquivalent == "")
@@ -91,7 +93,7 @@ private let fixtures = testPaths().fixtures
         let suite = "menu-controls-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
         defaults.removePersistentDomain(forName: suite)
-        let controls = MenuControls()
+        let controls = MenuControls(bundle: english.bundle, locale: english.locale)
         controls.preferences = AppPreferences(defaults: defaults)
         controls.preferences.confirmStop = confirmStop
         controls.deliver = { box.sent.append($0) }
@@ -113,7 +115,7 @@ private let fixtures = testPaths().fixtures
 
     @Test func theCarrierControlsAreInTheMenuWithoutAKeyAndRunFromIt() throws {
         let (controls, box) = try controls(running: true)
-        let menu = AppDelegate().makeMainMenu(shortcuts: table(), controls: controls)
+        let menu = AppDelegate().makeMainMenu(shortcuts: table(), controls: controls, bundle: english.bundle, locale: english.locale)
         let pause = try item(menu, "Engine", "Pause or resume intake")
         let check = try item(menu, "Engine", "Look for ready epics now")
         let startStop = try item(menu, "Engine", "Start or stop Carrier")
@@ -128,7 +130,7 @@ private let fixtures = testPaths().fixtures
         let (controls, box) = try controls(running: true)
         let table = table()
         table.set(KeyCombo(key: "p", modifiers: [.command, .option]), for: .pauseOrResume)
-        let pause = try item(AppDelegate().makeMainMenu(shortcuts: table, controls: controls), "Engine", "Pause or resume intake")
+        let pause = try item(AppDelegate().makeMainMenu(shortcuts: table, controls: controls, bundle: english.bundle, locale: english.locale), "Engine", "Pause or resume intake")
         #expect(pause.keyEquivalent == "p" && pause.keyEquivalentModifierMask == [.command, .option])
         var snapshot = try decodeSnapshot(Data(contentsOf: fixtures.appendingPathComponent("snapshot.json")))
         snapshot.paused = true
@@ -139,7 +141,7 @@ private let fixtures = testPaths().fixtures
 
     @Test func theControlsAreOffWhileCarrierIsStoppedExceptStartOrStop() throws {
         let (controls, box) = try controls(running: false)
-        let menu = AppDelegate().makeMainMenu(shortcuts: table(), controls: controls)
+        let menu = AppDelegate().makeMainMenu(shortcuts: table(), controls: controls, bundle: english.bundle, locale: english.locale)
         #expect(controls.validateMenuItem(try item(menu, "Engine", "Pause or resume intake")) == false)
         #expect(controls.validateMenuItem(try item(menu, "Engine", "Look for ready epics now")) == false)
         #expect(box.sent.isEmpty)
@@ -187,9 +189,10 @@ private let fixtures = testPaths().fixtures
                     drawerOpen.toggle()
                     drawerToggles += 1
                 })
-            }
+            },
+            bundle: english.bundle, locale: english.locale
         )
-        let menu = AppDelegate().makeMainMenu(shortcuts: table(), terminalControls: terminalControls)
+        let menu = AppDelegate().makeMainMenu(shortcuts: table(), terminalControls: terminalControls, bundle: english.bundle, locale: english.locale)
         let newTerminalItem = try item(menu, "Terminal", "New Terminal")
         let toggleDrawerItem = try item(menu, "Terminal", "Show or Hide Terminal")
         let newTabItem = try item(menu, "Terminal", "New Tab")
@@ -322,8 +325,8 @@ private let fixtures = testPaths().fixtures
 
     @Test func terminalMenuValidationNeverEagerlyInitializesSharedStore() throws {
         let wasInitializedBefore = CarrierTerminalStore.sharedIfInitialized != nil
-        let controls = TerminalMenuControls()
-        let menu = AppDelegate().makeMainMenu(shortcuts: table(), terminalControls: controls)
+        let controls = TerminalMenuControls(bundle: english.bundle, locale: english.locale)
+        let menu = AppDelegate().makeMainMenu(shortcuts: table(), terminalControls: controls, bundle: english.bundle, locale: english.locale)
         let newTabItem = try item(menu, "Terminal", "New Tab")
         let toggleDrawerItem = try item(menu, "Terminal", "Show or Hide Terminal")
         let splitRightItem = try item(menu, "Terminal", "Split Right")

@@ -10,29 +10,28 @@ public enum ConnectionState: Equatable, Sendable {
     case running(PanelSnapshot)
 
     /// The one line the menu shows.
-    public var menuLine: String {
+    public func menuLine(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         switch self {
-        case .stopped: return "Carrier is stopped"
-        case .incompatible: return "Carrier is an incompatible version"
+        case .stopped: return Copy.connectionStopped(bundle: bundle, locale: locale)
+        case .incompatible: return Copy.connectionIncompatible(bundle: bundle, locale: locale)
         case .running(let snapshot):
-            let epics = snapshot.epics.count
-            return "Carrier running · \(epics) \(epics == 1 ? "epic" : "epics") · \(snapshot.slots.busy)/\(snapshot.slots.total) slots"
+            return Copy.connectionRunningLine(epics: snapshot.epics.count, busy: snapshot.slots.busy, total: snapshot.slots.total, bundle: bundle, locale: locale)
         }
     }
 
     public enum MenuTone: Equatable { case stopped, running, attention }
 
     /// The menu's heading: a bold title, a quieter detail, and the colour of the dot beside them.
-    public var menuStatus: (title: String, detail: String?, tone: MenuTone) {
+    public func menuStatus(bundle: Bundle? = nil, locale: Locale = .current) -> (title: String, detail: String?, tone: MenuTone) {
         switch self {
-        case .stopped: return ("Carrier is stopped", nil, .stopped)
-        case .incompatible(let update): return ("Carrier is an incompatible version", update, .attention)
+        case .stopped: return (Copy.connectionStopped(bundle: bundle, locale: locale), nil, .stopped)
+        case .incompatible(let update): return (Copy.connectionIncompatible(bundle: bundle, locale: locale), update, .attention)
         case .running(let snapshot):
-            let epics = snapshot.epics.count
-            let detail = "\(epics) \(epics == 1 ? "epic" : "epics") · \(snapshot.slots.busy)/\(snapshot.slots.total) slots"
+            let detail = Copy.connectionCounts(epics: snapshot.epics.count, busy: snapshot.slots.busy, total: snapshot.slots.total, bundle: bundle, locale: locale)
             let needsYou = snapshot.epics.contains { $0.status == .needsHuman }
             let attention = snapshot.paused || needsYou || snapshot.problem != nil
-            return (snapshot.paused ? "Intake paused" : "Carrier running", detail, attention ? .attention : .running)
+            let title = snapshot.paused ? Copy.connectionPaused(bundle: bundle, locale: locale) : Copy.connectionRunning(bundle: bundle, locale: locale)
+            return (title, detail, attention ? .attention : .running)
         }
     }
 }

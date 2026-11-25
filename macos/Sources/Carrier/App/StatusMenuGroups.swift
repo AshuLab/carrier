@@ -13,6 +13,14 @@ import CarrierCore
     private static let tag = 0x5347
 
     private var sessions: [SessionRow] = []
+    /// The language of the rows' words: the app's, and a test's own.
+    var bundle: Bundle?
+    var locale = Locale.current
+    /// What the groups are fed from, the app's own state; a test puts its own.
+    var terminals: () -> [StandaloneTerminalSummary] = { CarrierTerminalStore.shared.standaloneTerminals() }
+    var seen: () -> SessionSeen = { SessionSeen.stored() }
+    var entries: () -> [DictationEntry] = { DictationController.shared.records.entries }
+    var preferences: () -> AppPreferences = { AppPreferences() }
 
     /// The latest list of the chat host's sessions, from the app's own poll.
     func react(toSessions rows: [SessionRow]) { sessions = rows }
@@ -32,21 +40,22 @@ import CarrierCore
     private func sessionItems() -> [NSMenuItem] {
         // what the window would call unread, worked out here from what the person has seen, without writing it back
         var rows = sessions
-        var seen = SessionSeen.stored()
+        var seen = self.seen()
         _ = seen.apply(to: &rows, viewing: nil)
         let waiting = rows.filter { $0.state == .waiting && $0.archived == false }.count
         let (shown, more) = menuSessions(rows)
-        var items = [NSMenuItem.sectionHeader(title: waiting > 0 ? "Sessions · \(waiting) need you" : "Sessions")]
+        var items = [NSMenuItem.sectionHeader(title: Copy.statusSessionsHeader(waiting: waiting, bundle: bundle, locale: locale))]
         items += shown.map(sessionItem)
-        if shown.isEmpty { items.append(disabled("No sessions")) }
+        if shown.isEmpty { items.append(disabled(Copy.statusNoSessions(bundle: bundle, locale: locale))) }
         if more.isEmpty == false {
-            let parent = NSMenuItem(title: "More sessions", action: nil, keyEquivalent: "")
-            let submenu = NSMenu(title: "More sessions")
+            let moreSessions = Copy.statusMoreSessions(bundle: bundle, locale: locale)
+            let parent = NSMenuItem(title: moreSessions, action: nil, keyEquivalent: "")
+            let submenu = NSMenu(title: moreSessions)
             for row in more { submenu.addItem(sessionItem(row)) }
             parent.submenu = submenu
             items.append(parent)
         }
-        items.append(plain("New session", symbol: "plus", action: #selector(newSession)))
+        items.append(plain(Copy.statusNewSession(bundle: bundle, locale: locale), symbol: "plus", action: #selector(newSession)))
         items.append(.separator())
         return items
     }
@@ -73,18 +82,19 @@ import CarrierCore
 
     private func terminalItems() -> [NSMenuItem] {
         // the store is alive while the app is, window or not; it is only started here if nothing has touched it yet
-        let terminals = CarrierTerminalStore.shared.standaloneTerminals()
-        var items = [NSMenuItem.sectionHeader(title: terminals.isEmpty ? "Terminals" : "Terminals · \(terminals.count)")]
+        let terminals = self.terminals()
+        var items = [NSMenuItem.sectionHeader(title: Copy.statusTerminalsHeader(count: terminals.count, bundle: bundle, locale: locale))]
         items += terminals.prefix(5).map(terminalItem)
         if terminals.count > 5 {
-            let parent = NSMenuItem(title: "More terminals", action: nil, keyEquivalent: "")
-            let submenu = NSMenu(title: "More terminals")
+            let moreTerminals = Copy.statusMoreTerminals(bundle: bundle, locale: locale)
+            let parent = NSMenuItem(title: moreTerminals, action: nil, keyEquivalent: "")
+            let submenu = NSMenu(title: moreTerminals)
             for terminal in terminals.dropFirst(5).prefix(12) { submenu.addItem(terminalItem(terminal)) }
             parent.submenu = submenu
             items.append(parent)
         }
-        if terminals.isEmpty { items.append(disabled("No terminals")) }
-        items.append(plain("New terminal", symbol: "plus", action: #selector(newTerminal)))
+        if terminals.isEmpty { items.append(disabled(Copy.statusNoTerminals(bundle: bundle, locale: locale))) }
+        items.append(plain(Copy.statusNewTerminal(bundle: bundle, locale: locale), symbol: "plus", action: #selector(newTerminal)))
         items.append(.separator())
         return items
     }
@@ -104,30 +114,33 @@ import CarrierCore
     // MARK: dictation
 
     private func dictationItems() -> [NSMenuItem] {
-        let preferences = AppPreferences()
+        let preferences = self.preferences()
         let now = Date()
-        var items = [NSMenuItem.sectionHeader(title: "Dictation")]
-        let dictate = rowItem("Dictate now", secondary: preferences.dictationShortcut.text, symbol: "mic", action: #selector(dictateNow))
+        var items = [NSMenuItem.sectionHeader(title: Copy.statusDictationHeader(bundle: bundle, locale: locale))]
+        let dictate = rowItem(Copy.statusDictateNow(bundle: bundle, locale: locale), secondary: preferences.dictationShortcut.text, symbol: "mic", action: #selector(dictateNow))
         items.append(dictate)
 
         // what the person said and kept: only what ended in a paste or a copy, the newest first; with the text not kept there is none to offer
-        let kept = DictationController.shared.records.entries.filter { $0.outcome == .pasted || $0.outcome == .copied }.prefix(5)
+        let kept = entries().filter { $0.outcome == .pasted || $0.outcome == .copied }.prefix(5)
+        let lastAge: String? = kept.first.map { spokenAge($0.started, now: now, locale: locale) }
+        let notKept: String? = preferences.dictationKeepText ? nil : Copy.statusTextNotKept(bundle: bundle, locale: locale)
         let last = rowItem(
-            "Copy last transcript", secondary: kept.first.map { spokenAge($0.started, now: now) } ?? (preferences.dictationKeepText ? nil : "text is not kept"),
+            Copy.statusCopyLastTranscript(bundle: bundle, locale: locale), secondary: lastAge ?? notKept,
             symbol: "doc.on.doc", action: #selector(copyTranscript(_:)))
         last.representedObject = kept.first?.shown
         items.append(last)
 
-        let parent = NSMenuItem(title: "Last transcripts", action: nil, keyEquivalent: "")
+        let lastTranscripts = Copy.statusLastTranscripts(bundle: bundle, locale: locale)
+        let parent = NSMenuItem(title: lastTranscripts, action: nil, keyEquivalent: "")
         showIcon("clock.arrow.circlepath", on: parent)
-        let submenu = NSMenu(title: "Last transcripts")
+        let submenu = NSMenu(title: lastTranscripts)
         for entry in kept {
-            let item = rowItem(entry.shown, secondary: spokenAge(entry.started, now: now), symbol: "text.quote", action: #selector(copyTranscript(_:)))
+            let item = rowItem(entry.shown, secondary: spokenAge(entry.started, now: now, locale: locale), symbol: "text.quote", action: #selector(copyTranscript(_:)))
             item.representedObject = entry.shown
             submenu.addItem(item)
         }
         if kept.isEmpty == false { submenu.addItem(.separator()) }
-        submenu.addItem(plain("Open history…", symbol: "list.bullet", action: #selector(openHistory)))
+        submenu.addItem(plain(Copy.statusOpenHistory(bundle: bundle, locale: locale), symbol: "list.bullet", action: #selector(openHistory)))
         parent.submenu = submenu
         items.append(parent)
         items.append(.separator())
@@ -140,7 +153,7 @@ import CarrierCore
         guard let text = item.representedObject as? String else { return }
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
-        AccessibilityNotification.Announcement("Copied").post()
+        AccessibilityNotification.Announcement(Copy.statusCopied(bundle: bundle, locale: locale)).post()
     }
 
     @objc private func openHistory() {
@@ -151,7 +164,7 @@ import CarrierCore
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
         switch item.action {
         case #selector(dictateNow):
-            let preferences = AppPreferences()
+            let preferences = self.preferences()
             return globalDictationIsOn(dictation: preferences.dictationEnabled, global: preferences.dictationGlobal)
         case #selector(copyTranscript(_:)): return item.representedObject is String
         default: return true

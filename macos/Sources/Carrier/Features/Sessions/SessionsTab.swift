@@ -80,7 +80,7 @@ struct SessionsTabView: View {
                 footer: Copy.sessionsSettingsIdleFooter()
             ) {
                 SettingsTabRow(id: "sleep-after", title: Copy.sessionsSettingsSleepAfter(), detail: Copy.sessionsSettingsSleepAfterDetail(), first: true) {
-                    ChoicePopUp(label: Copy.sessionsSettingsSleepAfter(), options: IdleClose.allCases.map { (value: $0, title: $0.title) }, selection: $idle)
+                    ChoicePopUp(label: Copy.sessionsSettingsSleepAfter(), options: IdleClose.allCases.map { (value: $0, title: $0.title()) }, selection: $idle)
                         .disabled(unreadable)
                 }
             }

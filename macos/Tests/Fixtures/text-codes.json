@@ -68,12 +68,12 @@
   },
   "agent.notInstalled": {
     "params": {
-      "agent": "example"
+      "agent": "Claude"
     }
   },
   "agent.notLoggedIn": {
     "params": {
-      "agent": "example"
+      "agent": "Claude"
     }
   },
   "agent.option.unknown": {
@@ -113,7 +113,7 @@
   "config.problem": {
     "params": {
       "path": "example",
-      "problem": "example"
+      "problem": "notJson"
     }
   },
   "doctor.agyLoginUnknown": {
@@ -143,7 +143,7 @@
   },
   "doctor.fix.install": {
     "params": {
-      "tool": "example"
+      "tool": "git"
     }
   },
   "doctor.fix.installApp": {
@@ -153,7 +153,7 @@
   },
   "doctor.fix.login": {
     "params": {
-      "harness": "example"
+      "harness": "claude"
     }
   },
   "doctor.fix.loginAgy": {
@@ -162,7 +162,7 @@
   "doctor.fix.loginAt": {
     "params": {
       "configDir": "example",
-      "harness": "example",
+      "harness": "claude",
       "variable": "example"
     }
   },
@@ -178,7 +178,7 @@
   },
   "doctor.fix.ownLabels": {
     "params": {
-      "count": "example",
+      "count": 2,
       "epic": "example",
       "labels": "example",
       "ready": "example"
@@ -206,7 +206,7 @@
   },
   "doctor.fix.socketPath": {
     "params": {
-      "max": "example"
+      "max": 2
     }
   },
   "doctor.fix.solveSetup": {
@@ -283,8 +283,8 @@
   },
   "doctor.socketPathTooLong": {
     "params": {
-      "bytes": "example",
-      "max": "example",
+      "bytes": 2,
+      "max": 2,
       "path": "example"
     }
   },
@@ -312,7 +312,7 @@
   "epic.stop.headChangedRepeatedly": {
     "params": {
       "pr": "example",
-      "times": "example"
+      "times": 2
     }
   },
   "epic.stop.leadCannotConclude": {
@@ -323,7 +323,7 @@
   "epic.stop.leadLimit": {
     "params": {
       "blockers": "example",
-      "limit": "example"
+      "limit": 2
     }
   },
   "epic.stop.pullRequestHeadMismatch": {
@@ -351,9 +351,9 @@
   },
   "epic.stop.retriesExhausted": {
     "params": {
-      "attempts": "example",
+      "attempts": 2,
       "failure": "example",
-      "idle": "example",
+      "idle": 1,
       "stage": "example"
     }
   },
@@ -389,14 +389,14 @@
   },
   "epic.stop.usageLimitWakeRefused": {
     "params": {
-      "cause": "example",
+      "cause": "serverError",
       "detail": "example",
       "issue": "example",
       "option": "example",
       "ranOut": "example",
       "repo": "example",
       "role": "example",
-      "runs": "example",
+      "runs": 2,
       "stage": "example",
       "why": "example"
     }
@@ -408,7 +408,7 @@
   },
   "epic.stop.worktreeListFailed": {
     "params": {
-      "attempts": "example",
+      "attempts": 2,
       "error": "example",
       "repo": "example"
     }
@@ -493,7 +493,7 @@
   },
   "project.cancelled": {
     "params": {
-      "step": "example"
+      "step": "clone"
     }
   },
   "project.chatConfigInvalid": {
@@ -533,7 +533,7 @@
   "project.gitFailed": {
     "params": {
       "repo": "example",
-      "step": "example"
+      "step": "clone"
     }
   },
   "project.initFailed": {
@@ -568,7 +568,7 @@
   },
   "project.timedOut": {
     "params": {
-      "step": "example"
+      "step": "clone"
     }
   },
   "providers.accountMissing": {
@@ -700,7 +700,7 @@
   "session.busy": {
     "params": {
       "action": "example",
-      "state": "example"
+      "state": "working"
     }
   },
   "session.cancel.notPreparing": {
@@ -711,29 +711,29 @@
   },
   "session.child.owned": {
     "params": {
-      "action": "example"
+      "action": "switchAgent"
     }
   },
   "session.childBusy": {
     "params": {
       "action": "example",
-      "state": "example"
+      "state": "working"
     }
   },
   "session.childStarting": {
     "params": {
-      "action": "example"
+      "action": "archive"
     }
   },
   "session.childTasksRunning": {
     "params": {
-      "action": "example",
-      "count": "example"
+      "action": "archive",
+      "count": 2
     }
   },
   "session.childrenLimit": {
     "params": {
-      "limit": "example"
+      "limit": 2
     }
   },
   "session.closed": {
@@ -767,8 +767,8 @@
   },
   "session.message.tooLong": {
     "params": {
-      "length": "example",
-      "max": "example"
+      "length": 2,
+      "max": 2
     }
   },
   "session.notice.actionWentOn": {
@@ -816,7 +816,7 @@
   },
   "session.notice.startedFromLocal": {
     "params": {
-      "behind": "example",
+      "behind": 2,
       "branch": "example",
       "reason": "example",
       "reasonCode": "example",
@@ -849,7 +849,7 @@
   },
   "session.preparing": {
     "params": {
-      "action": "example"
+      "action": "archive"
     }
   },
   "session.restoreActionFailed": {
@@ -875,7 +875,7 @@
   },
   "session.step.couldNotBeDone": {
     "params": {
-      "step": "example"
+      "step": "clone"
     }
   },
   "session.step.interrupted": {
@@ -898,7 +898,7 @@
   },
   "session.switchAgent.busy": {
     "params": {
-      "state": "example"
+      "state": "working"
     }
   },
   "session.switchAgent.noTools": {
@@ -929,8 +929,8 @@
   },
   "session.tasksRunning": {
     "params": {
-      "action": "example",
-      "count": "example"
+      "action": "archive",
+      "count": 2
     }
   },
   "session.unknown": {
@@ -1053,7 +1053,7 @@
   "workspace.dirty": {
     "params": {
       "branch": "example",
-      "count": "example"
+      "count": 2
     }
   },
   "workspace.fetchFailed": {
@@ -1157,12 +1157,12 @@
   },
   "worktree.name.tooLong": {
     "params": {
-      "max": "example"
+      "max": 2
     }
   },
   "worktree.namesTaken": {
     "params": {
-      "tried": "example"
+      "tried": 2
     }
   },
   "worktree.notGit": {

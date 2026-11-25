@@ -25,14 +25,16 @@ private func literals(in folder: String) throws -> [String: Set<String>] {
     return found
 }
 
+/// Every refusal the app raises itself, each with a code of its own (`app.`); the copy of each is checked in `ContractTests`.
+let appRefusals: [Refusal] = [
+    .hostLacks("stopTask"), .projectsNeedNewerHost, .usageNeedsNewerHost, .folderGone, .hostNotRunning, .hostNotAnswering, .hostTookTooLong, .hostNotUnderstood,
+    .folderUnusable, .sessionIdInvalid, .rangeInvalid, .fileInvalid, .epicInvalid, .executionInvalid, .projectNameEmpty, .projectNameTooLong, .projectNameBadStart,
+    .projectNameBadCharacters, .carrierOlder, .appOlder, .carrierNotFound, .configNotRun,
+]
+
 @Test func theAppsOwnRefusalsEachHaveACodeOfTheirOwnThatMatchesThePattern() throws {
-    let own: [Refusal] = [
-        .hostLacks("stopTask"), .projectsNeedNewerHost, .usageNeedsNewerHost, .folderGone, .hostNotRunning, .hostNotAnswering, .hostTookTooLong, .hostNotUnderstood,
-        .folderUnusable, .sessionIdInvalid, .rangeInvalid, .fileInvalid, .epicInvalid, .executionInvalid, .projectNameEmpty, .projectNameTooLong, .projectNameBadStart,
-        .projectNameBadCharacters, .carrierOlder, .appOlder, .carrierNotFound, .configNotRun,
-    ]
-    let codes = own.compactMap(\.code)
-    #expect(codes.count == own.count && Set(codes).count == own.count)
+    let codes = appRefusals.compactMap(\.code)
+    #expect(codes.count == appRefusals.count && Set(codes).count == appRefusals.count)
     for code in codes {
         #expect(isTextCode(code) && code.hasPrefix("app."), "\(code)")
     }

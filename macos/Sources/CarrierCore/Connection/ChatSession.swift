@@ -1,10 +1,10 @@
 import Foundation
 
 /// A session as the host's `list` carries it: times are milliseconds since the epoch.
-public struct ChatSession: Decodable, Equatable {
-    public enum State: String, Decodable { case working, waitingApproval = "waiting_approval", idle, preparing }
+public struct ChatSession: Decodable, Equatable, Sendable {
+    public enum State: String, Decodable, Sendable { case working, waitingApproval = "waiting_approval", idle, preparing }
     /// Whether the host is preparing the session from its plan, or a step failed; nil for a session that is not (or a host that does not say).
-    public enum Preparation: String, Decodable { case running, failed }
+    public enum Preparation: String, Decodable, Sendable { case running, failed }
 
     public let id: String
     public let agent: String
@@ -46,7 +46,7 @@ public struct ChatSession: Decodable, Equatable {
     public let providers: [String]
 
     /// A child session as its parent lists it. `level` is the permission level it runs at (0 reads only, 1 asks before each change, 2 edits without asking), nil when the host does not say.
-    public struct Child: Decodable, Equatable {
+    public struct Child: Decodable, Equatable, Sendable {
         public let id: String
         public let agent: String
         public let harness: String
@@ -56,7 +56,7 @@ public struct ChatSession: Decodable, Equatable {
         public let needsPerson: Bool
     }
 
-    public struct Workspace: Decodable, Equatable {
+    public struct Workspace: Decodable, Equatable, Sendable {
         public let base: String
         public let branch: String?
         /// The branch the worktree was cut from.

@@ -179,8 +179,10 @@ public struct OptionsMemory: Sendable {
     /// and a write to the defaults tells every observer of them (the terminals' appearance among them) at every key.
     public static let userDefaults = stored(in: .standard)
 
-    public static func stored(in defaults: UserDefaults) -> OptionsMemory {
-        func list<T: Decodable>(_ kind: SessionKey, _ id: String, as: T.Type) -> [T] {
+    public static func stored(in suite: UserDefaults) -> OptionsMemory {
+        // `UserDefaults` is documented thread-safe but the SDK does not say it is `Sendable`.
+        nonisolated(unsafe) let defaults = suite
+        @Sendable func list<T: Decodable>(_ kind: SessionKey, _ id: String, as: T.Type) -> [T] {
             defaults.data(forKey: kind.key(id)).flatMap { try? JSONDecoder().decode([T].self, from: $0) } ?? []
         }
         return OptionsMemory(

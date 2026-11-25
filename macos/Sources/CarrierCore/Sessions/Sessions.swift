@@ -26,7 +26,7 @@ public enum SessionStatus: CaseIterable, Hashable {
 }
 
 /// The lines a session changed, counted by git on this Mac.
-public struct SessionDiff: Equatable, Decodable {
+public struct SessionDiff: Equatable, Decodable, Sendable {
     public var added: Int
     public var removed: Int
 
@@ -34,11 +34,11 @@ public struct SessionDiff: Equatable, Decodable {
 }
 
 /// A pull request's state on GitHub, and how its checks went (nil when it has none).
-public enum PullRequestState: String, Equatable, Decodable { case open, draft, merged, closed }
-public enum PullRequestChecks: String, Equatable, Decodable { case passing, failing, pending }
+public enum PullRequestState: String, Equatable, Decodable, Sendable { case open, draft, merged, closed }
+public enum PullRequestChecks: String, Equatable, Decodable, Sendable { case passing, failing, pending }
 
 /// The pull request of the branch a session works on.
-public struct SessionPullRequest: Equatable, Decodable {
+public struct SessionPullRequest: Equatable, Decodable, Sendable {
     public var number: Int
     public var url: String
     public var state: PullRequestState
@@ -95,7 +95,7 @@ extension SessionPullRequest {
 }
 
 /// Something the agent started and waits for after its turn ended: a command, a monitor, a subagent.
-public struct BackgroundTask: Equatable, Decodable {
+public struct BackgroundTask: Equatable, Decodable, Sendable {
     public var id: String
     public var kind: String
     public var description: String

@@ -4582,7 +4582,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ajustes de mantener despierto…"
+            "value": "Ajustes para mantener despierto…"
           }
         }
       }
@@ -32327,7 +32327,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Archivo"
+            "value": "Archivadas"
           }
         }
       }
@@ -54061,7 +54061,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Archivo"
+            "value": "Archivadas"
           }
         }
       }
@@ -54163,7 +54163,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ir al cuadro de mensaje"
+            "value": "Enfocar la caja de mensajes"
           }
         }
       }

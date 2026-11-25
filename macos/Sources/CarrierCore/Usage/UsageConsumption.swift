@@ -44,7 +44,7 @@ private func usageSourceTitle(_ source: String, bundle: Bundle?, locale: Locale)
     case "epic": Copy.usageSourceName(which: .epic, bundle: bundle, locale: locale)
     case "chat": Copy.usageSourceName(which: .chat, bundle: bundle, locale: locale)
     case "external": Copy.usageSourceName(which: .external, bundle: bundle, locale: locale)
-    default: source.prefix(1).uppercased() + source.dropFirst()
+    default: capitalizingFirst(source)
     }
 }
 

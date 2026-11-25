@@ -96,7 +96,7 @@ public struct AccentColor: RawRepresentable, CaseIterable, Hashable, Sendable {
         case "orange": Copy.choiceAccentOrange(bundle: bundle, locale: locale)
         case "green": Copy.choiceAccentGreen(bundle: bundle, locale: locale)
         case "graphite": Copy.choiceAccentGraphite(bundle: bundle, locale: locale)
-        default: isCustom ? Copy.choiceAccentCustom(bundle: bundle, locale: locale) : rawValue.prefix(1).uppercased() + rawValue.dropFirst()
+        default: isCustom ? Copy.choiceAccentCustom(bundle: bundle, locale: locale) : capitalizingFirst(rawValue)
         }
     }
 

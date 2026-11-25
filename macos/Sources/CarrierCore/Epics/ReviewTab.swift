@@ -354,6 +354,6 @@ func agentLabel(_ agent: PanelSnapshot.Agent) -> String {
     case "claude": "Claude"
     case "codex": "Codex"
     case "agy": "Antigravity"
-    default: agent.harness.prefix(1).uppercased() + agent.harness.dropFirst()
+    default: capitalizingFirst(agent.harness)
     }
 }

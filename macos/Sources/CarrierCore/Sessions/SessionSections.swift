@@ -98,7 +98,7 @@ public func resultCard(_ result: SessionResult?, bundle: Bundle? = nil, locale: 
     case "completed": (Copy.sessionOutcomeCompleted(bundle: bundle, locale: locale), .good)
     case "changes_requested": (Copy.sessionOutcomeChangesRequested(bundle: bundle, locale: locale), .warning)
     case "needs_human": (Copy.sessionOutcomeNeedsHuman(bundle: bundle, locale: locale), .stop)
-    default: (result.outcome.replacingOccurrences(of: "_", with: " ").capitalized, .warning) // a value added later still shows
+    default: (capitalizingFirst(result.outcome.replacingOccurrences(of: "_", with: " ")), .warning) // a value added later still shows
     }
     return ResultCard(
         outcome: outcome.0, tone: outcome.1,
@@ -161,7 +161,7 @@ private func stageRole(_ stage: String, bundle: Bundle?, locale: Locale) -> Stri
     case "ship": Copy.sessionRoleShip(bundle: bundle, locale: locale)
     case "review": Copy.sessionRoleReview(bundle: bundle, locale: locale)
     case "fix": Copy.sessionRoleFix(bundle: bundle, locale: locale)
-    default: stage.capitalized
+    default: capitalizingFirst(stage)
     }
 }
 
@@ -171,7 +171,7 @@ private func stagePlace(_ stage: String, bundle: Bundle?, locale: Locale) -> Str
     case "ship": Copy.sessionPlaceShip(bundle: bundle, locale: locale)
     case "review": Copy.sessionPlaceReview(bundle: bundle, locale: locale)
     case "fix": Copy.sessionPlaceFix(bundle: bundle, locale: locale)
-    default: stage.capitalized
+    default: capitalizingFirst(stage)
     }
 }
 

@@ -108,7 +108,8 @@ rm -f /tmp/check-structure-gallery.$$
 
 # Rule: no user-facing string literal in the areas whose texts are copy keys.
 # A literal passed to `Text`, `Label`, `Button`, `Toggle`, `TextField` or `SecureField`, to `.help`, `.accessibilityLabel`, `.accessibilityValue`, `.accessibilityHint`,
-# `.navigationTitle`, `.alert` or `.confirmationDialog`, or given to a `title:` label, the call possibly over several lines. Looks at the files of COPY_AREAS, and says
+# `.navigationTitle`, `.alert`, `.confirmationDialog` or `setAccessibilityLabel`, given to a `title:` or `withTitle:` label, or assigned to `.title`, `.messageText`,
+# `.informativeText`, `.toolTip`, `.subtitle`, `.placeholderString` or `.accessibilityLabel`, the call possibly over several lines. Looks at the files of COPY_AREAS, and says
 # which literal and where; a text is a key of design/copy/ read through `Copy` (docs/adr/0054).
 # Ignores: comments (from `//` to the end of the line), the empty string, and a string with no letter once its interpolations are taken out (spaces, punctuation, `"\(x)"`).
 # COPY_AREAS is the whole of Sources/Carrier and Sources/CarrierCore: no file or folder is left out, the two fixture galleries and the generated files included.
@@ -120,7 +121,8 @@ find "${COPY_AREAS[@]}" -name '*.swift' | sort |
       my $str = qr/"(?:[^"\\\n]|\\\($inner\)|\\.)*"/;
       my $s = $_;
       $s =~ s{($str)|(//[^\n]*)}{defined $1 ? $1 : ""}ge;
-      my $call = qr/(?:\b(?:Text|Label|Button|Toggle|TextField|SecureField)|\.(?:help|accessibilityLabel|accessibilityValue|accessibilityHint|navigationTitle|alert|confirmationDialog))\(\s*|\btitle:\s*/;
+      # the AppKit calls: withTitle labels, setAccessibilityLabel, and a literal assigned to title, messageText, informativeText, toolTip, subtitle, placeholderString or an accessibility text
+      my $call = qr/(?:\b(?:Text|Label|Button|Toggle|TextField|SecureField)|\.(?:help|accessibilityLabel|accessibilityValue|accessibilityHint|navigationTitle|alert|confirmationDialog)|\bset(?:AccessibilityLabel|AccessibilityHelp|AccessibilityValueDescription))\(\s*|\b(?:title|withTitle):\s*|\.(?:title|messageText|informativeText|toolTip|subtitle|placeholderString|accessibilityLabel|accessibilityHint)\s*=\s*/;
       while ($s =~ /$call($str)/g) {
         my ($text, $at) = ($1, $-[0]);
         (my $words = $text) =~ s/\\\($inner\)//g;

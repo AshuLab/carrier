@@ -16,6 +16,11 @@ import CarrierCore
     /// The language of the rows' words: the app's, and a test's own.
     var bundle: Bundle?
     var locale = Locale.current
+    /// What the groups are fed from, the app's own state; a test puts its own.
+    var terminals: () -> [StandaloneTerminalSummary] = { CarrierTerminalStore.shared.standaloneTerminals() }
+    var seen: () -> SessionSeen = { SessionSeen.stored() }
+    var entries: () -> [DictationEntry] = { DictationController.shared.records.entries }
+    var preferences: () -> AppPreferences = { AppPreferences() }
 
     /// The latest list of the chat host's sessions, from the app's own poll.
     func react(toSessions rows: [SessionRow]) { sessions = rows }
@@ -35,7 +40,7 @@ import CarrierCore
     private func sessionItems() -> [NSMenuItem] {
         // what the window would call unread, worked out here from what the person has seen, without writing it back
         var rows = sessions
-        var seen = SessionSeen.stored()
+        var seen = self.seen()
         _ = seen.apply(to: &rows, viewing: nil)
         let waiting = rows.filter { $0.state == .waiting && $0.archived == false }.count
         let (shown, more) = menuSessions(rows)
@@ -77,7 +82,7 @@ import CarrierCore
 
     private func terminalItems() -> [NSMenuItem] {
         // the store is alive while the app is, window or not; it is only started here if nothing has touched it yet
-        let terminals = CarrierTerminalStore.shared.standaloneTerminals()
+        let terminals = self.terminals()
         var items = [NSMenuItem.sectionHeader(title: Copy.statusTerminalsHeader(count: terminals.count, bundle: bundle, locale: locale))]
         items += terminals.prefix(5).map(terminalItem)
         if terminals.count > 5 {
@@ -109,15 +114,15 @@ import CarrierCore
     // MARK: dictation
 
     private func dictationItems() -> [NSMenuItem] {
-        let preferences = AppPreferences()
+        let preferences = self.preferences()
         let now = Date()
         var items = [NSMenuItem.sectionHeader(title: Copy.statusDictationHeader(bundle: bundle, locale: locale))]
         let dictate = rowItem(Copy.statusDictateNow(bundle: bundle, locale: locale), secondary: preferences.dictationShortcut.text, symbol: "mic", action: #selector(dictateNow))
         items.append(dictate)
 
         // what the person said and kept: only what ended in a paste or a copy, the newest first; with the text not kept there is none to offer
-        let kept = DictationController.shared.records.entries.filter { $0.outcome == .pasted || $0.outcome == .copied }.prefix(5)
-        let lastAge: String? = kept.first.map { spokenAge($0.started, now: now) }
+        let kept = entries().filter { $0.outcome == .pasted || $0.outcome == .copied }.prefix(5)
+        let lastAge: String? = kept.first.map { spokenAge($0.started, now: now, locale: locale) }
         let notKept: String? = preferences.dictationKeepText ? nil : Copy.statusTextNotKept(bundle: bundle, locale: locale)
         let last = rowItem(
             Copy.statusCopyLastTranscript(bundle: bundle, locale: locale), secondary: lastAge ?? notKept,
@@ -130,7 +135,7 @@ import CarrierCore
         showIcon("clock.arrow.circlepath", on: parent)
         let submenu = NSMenu(title: lastTranscripts)
         for entry in kept {
-            let item = rowItem(entry.shown, secondary: spokenAge(entry.started, now: now), symbol: "text.quote", action: #selector(copyTranscript(_:)))
+            let item = rowItem(entry.shown, secondary: spokenAge(entry.started, now: now, locale: locale), symbol: "text.quote", action: #selector(copyTranscript(_:)))
             item.representedObject = entry.shown
             submenu.addItem(item)
         }
@@ -159,7 +164,7 @@ import CarrierCore
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
         switch item.action {
         case #selector(dictateNow):
-            let preferences = AppPreferences()
+            let preferences = self.preferences()
             return globalDictationIsOn(dictation: preferences.dictationEnabled, global: preferences.dictationGlobal)
         case #selector(copyTranscript(_:)): return item.representedObject is String
         default: return true

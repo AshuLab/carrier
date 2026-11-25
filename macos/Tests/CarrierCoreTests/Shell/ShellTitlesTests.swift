@@ -14,8 +14,8 @@ private let el = english.locale
 @Test func theShortcutsAndTheirGroupsAreInSpanish() {
     #expect(ShortcutGroup.allCases.map { $0.title(bundle: b, locale: l) } == ["Ir a", "Sesiones", "Conversación", "Carrier"])
     #expect(ShortcutCommand.allCases.map { $0.title(bundle: b, locale: l) } == [
-        "Inicio", "Sesiones", "Carrier", "Archivo", "Atrás", "Adelante", "Nueva sesión", "Buscar", "Sesión siguiente", "Sesión anterior", "Archivar la sesión",
-        "Ir al cuadro de mensaje", "Detener al agente", "Ir al último mensaje", "Plegar o desplegar las llamadas a herramientas", "Copiar la última respuesta",
+        "Inicio", "Sesiones", "Carrier", "Archivadas", "Atrás", "Adelante", "Nueva sesión", "Buscar", "Sesión siguiente", "Sesión anterior", "Archivar la sesión",
+        "Enfocar la caja de mensajes", "Detener al agente", "Ir al último mensaje", "Plegar o desplegar las llamadas a herramientas", "Copiar la última respuesta",
         "Iniciar o detener Carrier", "Pausar o reanudar la admisión", "Buscar epics listos ahora",
     ])
 }

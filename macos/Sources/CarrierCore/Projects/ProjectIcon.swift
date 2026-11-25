@@ -51,7 +51,7 @@ public func projectMarkTitle(_ mark: AppIcon, bundle: Bundle? = nil, locale: Loc
     case .bolt: Copy.choiceProjectMarkBolt(bundle: bundle, locale: locale)
     case .brain: Copy.choiceProjectMarkBrain(bundle: bundle, locale: locale)
     case .star: Copy.choiceProjectMarkStar(bundle: bundle, locale: locale)
-    default: mark.rawValue.prefix(1).uppercased() + mark.rawValue.dropFirst()
+    default: capitalizingFirst(mark.rawValue)
     }
 }
 

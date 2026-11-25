@@ -93,7 +93,7 @@ func agentName(_ harness: String) -> String {
     case "claude": "Claude"
     case "codex": "Codex"
     case "agy": "Antigravity"
-    default: harness.prefix(1).uppercased() + harness.dropFirst()
+    default: capitalizingFirst(harness)
     }
 }
 

@@ -95,3 +95,60 @@ private func golden(_ name: String) throws -> [String: Any] {
     let all = Set((listed["chat"] as? [String] ?? []) + (listed["engine"] as? [String] ?? []))
     #expect(all.isEmpty == false && built == all, "built \(built.subtracting(all).sorted()), not built \(all.subtracting(built).sorted())")
 }
+
+// The words of every text code (ADR 0055, ADR 0054): `text.<code>` in the generated catalog, in English and in Spanish.
+// The codes of Node are the golden list; the ones the app raises itself are `appRefusals`. A code with no key in either language fails here.
+// What the key takes as arguments, and the plural forms, are checked on the source of the copy (design/generate.test.ts).
+
+/// The catalog's strings, by key: the languages each one has words in.
+private func catalogLanguages() throws -> [String: [String: String]] {
+    let file = testPaths().sources.appendingPathComponent("CarrierCore/Resources/Localizable.xcstrings")
+    let catalog = try #require(JSONSerialization.jsonObject(with: Data(contentsOf: file)) as? [String: Any])
+    let strings = try #require(catalog["strings"] as? [String: [String: Any]])
+    return strings.mapValues { entry in
+        let languages = entry["localizations"] as? [String: [String: Any]] ?? [:]
+        return languages.compactMapValues { ($0["stringUnit"] as? [String: Any])?["value"] as? String }
+    }
+}
+
+/// The catalog keys that hold the words of `code`: `text.<code>` and its arguments, or one key per branch of a select, `text.<code>.<branch>` and its arguments.
+private func keys(of code: String, in catalog: [String: [String: String]]) -> [String] {
+    catalog.keys.filter { key in
+        let name = key.split(separator: " ", maxSplits: 1)[0]
+        return name == "text.\(code)" || name.hasPrefix("text.\(code).")
+    }
+}
+
+private func expectWords(forCodes codes: [String]) throws {
+    let catalog = try catalogLanguages()
+    for code in codes {
+        let found = keys(of: code, in: catalog)
+        #expect(found.isEmpty == false, "text.\(code) is not in the catalog")
+        for key in found {
+            for language in ["en", "es"] {
+                #expect(catalog[key]?[language]?.isEmpty == false, "\(key) has no words in \(language)")
+            }
+        }
+    }
+}
+
+@Test func everyCodeOfNodeHasItsWordsInEnglishAndSpanish() throws {
+    let codes = try golden("text-codes.json").keys.sorted()
+    #expect(codes.count > 100)
+    try expectWords(forCodes: codes)
+}
+
+@Test func everyCodeTheAppRaisesItselfHasItsWordsInEnglishAndSpanish() throws {
+    let codes = appRefusals.compactMap(\.code)
+    #expect(codes.count == appRefusals.count)
+    try expectWords(forCodes: codes)
+}
+
+@Test func aCodeWithNoKeyInTheCatalogIsFound() throws {
+    let catalog = try catalogLanguages()
+    #expect(keys(of: "session.noSuchCode", in: catalog).isEmpty)
+    // a branch of a select is a key of the code, a longer code that starts the same is not
+    #expect(keys(of: "session.busy", in: catalog).allSatisfy { $0.hasPrefix("text.session.busy.") })
+    #expect(keys(of: "session.busy", in: catalog).isEmpty == false)
+    #expect(keys(of: "session.bus", in: catalog).isEmpty)
+}

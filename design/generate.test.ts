@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterAll, describe, expect, it } from 'vitest';
-import { compileCopy, CopyError, emitCatalog, emitSwift, emitTypeScript, GENERATED_HEADER, parseMessage, analyze } from './copy.ts';
+import { compileCopy, CopyError, emitCatalog, emitSwift, emitTypeScript, GENERATED_HEADER, parseMessage, analyze, type Node } from './copy.ts';
 import { check, copyOutputs, generate, loadSources, outputs, REPOSITORY_ROOT } from './generate.ts';
 import { compilePreferences, emitPreferencesSwift, emitPreferencesTypeScript, PreferenceError } from './preferences.ts';
 import { compileTokens, emitTokensCss, emitTokensSwift, emitTokensTypeScript, TokenError } from './tokens.ts';
@@ -34,6 +34,7 @@ describe('the ICU subset', () => {
     'a select inside a plural': '{count, plural, one {{kind, select, a {# a} other {# b}}} other {# c}}',
     'a plural inside a plural': '{a, plural, one {{b, plural, one {x} other {y}}} other {z}}',
     'a # outside a plural is text': 'Issue #12',
+    'an apostrophe inside a word is text': "Carrier's own tools, {name}'s too",
   };
   for (const [name, message] of Object.entries(accepted)) {
     it(`accepts ${name}`, () => {
@@ -50,7 +51,8 @@ describe('the ICU subset', () => {
     offset: ['{n, plural, offset:1 one {a} other {b}}', 'plural offset is not supported'],
     'zero as a category': ['{n, plural, zero {none} other {some}}', 'use =0'],
     'an unknown category': ['{n, plural, several {x} other {y}}', 'unknown plural category'],
-    'apostrophe quoting': ["It's here", 'apostrophe quoting is not supported'],
+    'an apostrophe that quotes a brace': ["It's '{here}", 'apostrophe quoting is not supported'],
+    'an escaped apostrophe': ["It''s here", 'apostrophe quoting is not supported'],
     'nesting deeper than one level': [
       '{a, select, x {{b, plural, one {{c, plural, one {1} other {2}}} other {3}}} other {4}}',
       'nesting deeper than one level',
@@ -102,6 +104,13 @@ describe('English is the source', () => {
 
   it('fails a key that is not lowerCamelCase', () => {
     expect(() => compile({ 'a.b': 'A' }, { 'a.b': 'A' })).toThrow('copy key "a.b" is not lowerCamelCase');
+  });
+
+  it('accepts text.<code> for the words of a text code and fails one that is not', () => {
+    expect(() => compile({ 'text.session.busy': 'A' }, { 'text.session.busy': 'B' })).not.toThrow();
+    for (const key of ['text.busy', 'text.Session.busy', 'text.session.busy2', 'text.session..busy']) {
+      expect(() => compile({ [key]: 'A' }, { [key]: 'B' })).toThrow(`copy key "${key}" is not text.<code>`);
+    }
   });
 });
 
@@ -774,5 +783,89 @@ describe('the committed copy', () => {
       const text = Object.keys(fixture.args).length === 0 ? render!(locale) : render!(locale, fixture.args);
       expect(text, `${fixture.key} in ${locale}`).toBe(fixture.text);
     }
+  });
+});
+
+describe('the words of the text codes', () => {
+  type Golden = Record<string, { params: Record<string, string | number> }>;
+  const golden = JSON.parse(readFileSync(join(REPOSITORY_ROOT, 'macos', 'Tests', 'Fixtures', 'text-codes.json'), 'utf8')) as Golden;
+  const sources = Object.fromEntries(['en', 'es'].map((language) => [language, JSON.parse(readFileSync(join(REPOSITORY_ROOT, 'design', 'copy', `${language}.json`), 'utf8')) as Record<string, string>]));
+  const copy = loadSources(REPOSITORY_ROOT).copy;
+  const keys = new Map(copy.keys.map((compiled) => [compiled.key, compiled]));
+
+  // A param whose words are in the sentence already, or that is the code of another text, is not an argument of the key.
+  // Each one is here on purpose: a param that is missing from a key and not named here fails.
+  const unused: Record<string, string[]> = {
+    'account.harnessTakesOne': ['harness'],
+    'doctor.labelsMissing': ['count'],
+    'epic.stop.usageLimitWakeRefused': ['ranOut'],
+    'session.notice.actionWentOn': ['reasonCode'],
+    'session.notice.projectNotAdded': ['reasonCode'],
+    'session.notice.startedFromFetched': ['reasonCode'],
+    'session.notice.startedFromLocal': ['reasonCode'],
+  };
+
+  const plurals = (nodes: Node[]): { name: string; selectors: string[] }[] =>
+    nodes.flatMap((node) => {
+      if (node.type === 'plural') return [{ name: node.name, selectors: node.cases.map((branch) => branch.selector) }, ...node.cases.flatMap((branch) => plurals(branch.nodes))];
+      if (node.type === 'select') return node.cases.flatMap((branch) => plurals(branch.nodes));
+      return [];
+    });
+
+  it('has text.<code> in English and in Spanish for every code of text-codes.json', () => {
+    expect(Object.keys(golden).length).toBeGreaterThan(100);
+    for (const code of Object.keys(golden)) {
+      for (const language of ['en', 'es']) expect(sources[language]![`text.${code}`], `text.${code} in ${language}`).toBeTypeOf('string');
+    }
+  });
+
+  it('takes as arguments the params of the code, none that it does not carry', () => {
+    for (const [code, { params }] of Object.entries(golden)) {
+      const args = [...(keys.get(`text.${code}`)?.analysis.args.keys() ?? [])].sort();
+      const left = unused[code] ?? [];
+      expect(args, `text.${code}`).toEqual(Object.keys(params).filter((name) => !left.includes(name)).sort());
+    }
+    for (const [code, left] of Object.entries(unused)) expect(Object.keys(golden[code]!.params), code).toEqual(expect.arrayContaining(left));
+  });
+
+  it('types the arguments as the example of the params does: a number where the example is one, a branch where the key selects', () => {
+    for (const [code, { params }] of Object.entries(golden)) {
+      const { analysis } = keys.get(`text.${code}`)!;
+      for (const [name, value] of Object.entries(params)) {
+        const kind = analysis.args.get(name);
+        if (kind === undefined) continue;
+        expect(kind === 'number', `text.${code} ${name}`).toBe(typeof value === 'number');
+        if (kind === 'select') expect([...analysis.branches.keys()], `text.${code} ${name}`).toContain(value);
+      }
+    }
+  });
+
+  it('has the plural forms of both languages for each plural', () => {
+    let count = 0;
+    for (const compiled of copy.keys.filter((candidate) => candidate.key.startsWith('text.'))) {
+      for (const language of ['en', 'es'] as const) {
+        for (const { name, selectors } of plurals(compiled.messages[language])) {
+          // `{idle, plural, =0 {} other {...}}` says a clause or none, it is not a count of things
+          if (selectors.length === 2 && selectors.includes('=0')) continue;
+          count++;
+          expect(selectors, `${compiled.key} ${name} in ${language}`).toEqual(expect.arrayContaining(['one', 'other']));
+        }
+      }
+    }
+    expect(count).toBeGreaterThan(10);
+  });
+
+  it('holds a plural of a code in the generated catalog, with the forms of both languages', () => {
+    const catalog = JSON.parse(emitCatalog(copy)) as { strings: Record<string, { localizations: Record<string, { stringUnit: { value: string }; substitutions?: Record<string, { variations: { plural: Record<string, { stringUnit: { value: string } }> } }> }> }> };
+    const entry = catalog.strings['text.workspace.dirty %lld %@']!;
+    const forms = (language: string) => Object.fromEntries(Object.entries(Object.values(entry.localizations[language]!.substitutions!)[0]!.variations.plural).map(([form, unit]) => [form, unit.stringUnit.value]));
+    expect(forms('en')).toEqual({ one: '%arg uncommitted file', other: '%arg uncommitted files' });
+    expect(forms('es')).toEqual({ one: '%arg archivo sin confirmar', other: '%arg archivos sin confirmar' });
+    expect(entry.localizations.en!.stringUnit.value).toBe('The folder has %#@count@, so its branch was not changed to %2$@. Save the work and try again.');
+  });
+
+  it('has no function in the Swift or the TypeScript, which find the words by the code they receive', () => {
+    expect(emitSwift(copy)).not.toContain('text.');
+    expect(emitTypeScript(copy)).not.toContain('text.');
   });
 });

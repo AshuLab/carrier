@@ -28,6 +28,10 @@ export class CopyError extends Error {}
 
 const IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const KEY = /^[a-z][A-Za-z0-9]*$/;
+// The words of a text code ([ADR 0055](../docs/adr/0055-a-refusal-carries-a-code-and-its-parameters-and-its-english-words-are-the-fallback.md)): `text.` and the code, which has dots.
+// A front-end finds it by the code it receives, so it has no function of its own; only the catalog holds it.
+const TEXT_KEY = /^text(\.[a-z][A-Za-z]*){2,}$/;
+const isTextKey = (key: string) => key.startsWith('text.');
 const PLURAL_CATEGORIES = ['one', 'two', 'few', 'many', 'other'];
 const UNSUPPORTED_TYPES = ['selectordinal', 'date', 'time'];
 
@@ -83,7 +87,9 @@ class Parser {
         nodes.push(this.argument(depth, inPlural));
         continue;
       } else if (char === "'") {
-        this.fail('apostrophe quoting is not supported');
+        // An apostrophe is text ("Carrier's"); before another or before a brace it would be ICU's quoting, which the subset does not have.
+        if ("'{}".includes(this.src[this.pos + 1] ?? ' ')) this.fail('apostrophe quoting is not supported');
+        text += char;
       } else if (char === '#' && inPlural) {
         flush();
         nodes.push({ type: 'pound' });
@@ -235,7 +241,9 @@ export function compileCopy(sources: Record<Language, Record<string, string>>): 
     }
   }
   for (const key of Object.keys(source)) {
-    if (!KEY.test(key)) throw new CopyError(`copy key "${key}" is not lowerCamelCase`);
+    if (isTextKey(key)) {
+      if (!TEXT_KEY.test(key)) throw new CopyError(`copy key "${key}" is not text.<code> with a code of lowerCamelCase parts`);
+    } else if (!KEY.test(key)) throw new CopyError(`copy key "${key}" is not lowerCamelCase`);
     const messages = {} as Record<Language, Node[]>;
     const analyses = {} as Record<Language, Analysis>;
     for (const language of LANGUAGES) {
@@ -357,7 +365,7 @@ const swiftType = (compiled: CompiledKey, name: string) => {
   return kind === 'number' ? 'Int' : kind === 'select' ? pascal(compiled.key) : 'String';
 };
 
-/** Copy.generated.swift: a typed function per key, reading `carrierResources` and never `Bundle.module`. */
+/** Copy.generated.swift: a typed function per key (a text code's words have none, only the catalog), reading `carrierResources` and never `Bundle.module`. */
 export function emitSwift(copy: CompiledCopy): string {
   const lines = [
     GENERATED_HEADER,
@@ -370,7 +378,7 @@ export function emitSwift(copy: CompiledCopy): string {
     '        carrierResources.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:)) ?? carrierResources',
     '    }',
   ];
-  for (const compiled of copy.keys) {
+  for (const compiled of copy.keys.filter((compiled) => !isTextKey(compiled.key))) {
     const { key, analysis } = compiled;
     lines.push('');
     if (analysis.select !== null) {
@@ -436,7 +444,7 @@ function tsExpression(nodes: Node[], pluralArg: string | null): string {
 /** copy.ts for the web: a typed function per key; numbers go through Intl.NumberFormat and plurals through Intl.PluralRules. */
 export function emitTypeScript(copy: CompiledCopy): string {
   const blocks = [TYPESCRIPT_PRELUDE];
-  for (const compiled of copy.keys) {
+  for (const compiled of copy.keys.filter((compiled) => !isTextKey(compiled.key))) {
     const { key, analysis } = compiled;
     const types = [...analysis.args].map(([name, kind]) => {
       if (kind === 'number') return `${name}: number`;

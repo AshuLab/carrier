@@ -65,6 +65,18 @@ struct CopyTests {
         #expect(render(unknown) == nil)
     }
 
+    /// The words of a text code are looked up by the code, with the arguments in the order of the key: a plural takes the forms of each language.
+    @Test func aTextCodeWithACountSaysItsPluralInEnglishAndSpanish() {
+        func dirty(_ count: Int, _ language: String) -> String {
+            let branch = "main"
+            return String(localized: "text.workspace.dirty \(count) \(branch)", bundle: Copy.bundle(language), locale: Locale(identifier: language))
+        }
+        #expect(dirty(1, "en") == "The folder has 1 uncommitted file, so its branch was not changed to main. Save the work and try again.")
+        #expect(dirty(2, "en") == "The folder has 2 uncommitted files, so its branch was not changed to main. Save the work and try again.")
+        #expect(dirty(1, "es") == "La carpeta tiene 1 archivo sin confirmar, así que su rama no se cambió a main. Guarda el trabajo e inténtalo de nuevo.")
+        #expect(dirty(2, "es") == "La carpeta tiene 2 archivos sin confirmar, así que su rama no se cambió a main. Guarda el trabajo e inténtalo de nuevo.")
+    }
+
     @Test func aLanguageWithNoCatalogFallsBackToCarrierResources() {
         #expect(Copy.bundle("fr") == carrierResources)
         #expect(Copy.bundle("es") != carrierResources)

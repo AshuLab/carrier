@@ -1,6 +1,6 @@
 import Foundation
 
-// The icon sets the person can choose in Appearance (docs/macos-ui.md, Icons). SF Symbols are the system's own; Tabler Icons and Lucide are bundled as SVGs
+// The icon sets the person can choose in Appearance (docs/ui.md, Icons). SF Symbols are the system's own; Tabler Icons and Lucide are bundled as SVGs
 // (`Resources/TablerIcons`, `Resources/LucideIcons`, each with its licence) and drawn as template images, with the stroke rewritten to the weight chosen.
 
 public enum IconSet: String, CaseIterable, Sendable {

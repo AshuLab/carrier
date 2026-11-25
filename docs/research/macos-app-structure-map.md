@@ -259,4 +259,4 @@ The areas follow `docs/macos/`, but the docs were written by screen, so three ar
 | Usage | `usage.md` | `usage.md` |
 | Keep awake | `keep-awake.md` | `keep-awake.md` |
 | Settings | `settings.md`, `settings-app.md`, `settings-carrier.md`, `settings-health.md` | the same, each page pointing at its area's doc when the page belongs to an area |
-| The look, for every front-end | `docs/macos-ui.md` | `docs/ui.md`, with the pieces' catalog |
+| The look, for every front-end | the macOS-only look guide | `docs/ui.md`, with the pieces' catalog |

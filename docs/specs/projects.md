@@ -137,7 +137,7 @@ The dialog's words are a pure function of that answer and the project's `origin`
 **Where the identity shows.** A pure function gives a tile from a path and the list (`ProjectIcon.swift`, `ChatSessions.swift`'s group title, the new session picker, and the epic row by the `origin` of the repository); two projects with one name keep the parent folder added to the group title, as the sidebar does for folders.
 The image is copied by the app, reduced to 256 points, into `<folder>/app/project-icons/<random>.png`, and the entry names the file; it is removed with the project, and a missing file draws the colour and mark.
 
-**What the page is.** `SettingsPage.projects` with `usesForm` and `isColumn` false, as Repos and Health, and a project and its Actions are places of Settings with a path (`SettingsPlace`, `SettingsTitle`), as Providers and Agents have; a list row, a tile, a chip, a select and a sort title reuse the pieces of [macos-ui](../macos-ui.md), and a piece that is missing is added there.
+**What the page is.** `SettingsPage.projects` with `usesForm` and `isColumn` false, as Repos and Health, and a project and its Actions are places of Settings with a path (`SettingsPlace`, `SettingsTitle`), as Providers and Agents have; a list row, a tile, a chip, a select and a sort title reuse the pieces of [ui](../ui.md), and a piece that is missing is added there.
 The row goes into `settingsIndex`, and `SettingsIndexDriftTests` keeps it.
 
 **The watch.** The switch uses the writers and the rules of the Repos page (`applyingRepos`, `reposProblem` in `RepoList.swift`, the folder-name rule of watched repos) and the reload answer the other pages show, so the two pages cannot disagree about the file.

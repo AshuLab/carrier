@@ -1,7 +1,7 @@
 # macos
 
 The code map of `Carrier.app`: where each area lives in the code and what is tested.
-How to build, test and run it is in [README.md](README.md); what each area does for the person is in `docs/macos/` ([the list](README.md#what-the-app-does)); how it looks is in [macos-ui](../docs/macos-ui.md).
+How to build, test and run it is in [README.md](README.md); what each area does for the person is in `docs/macos/` ([the list](README.md#what-the-app-does)); how it looks is in [ui](../docs/ui.md).
 
 ## Packages
 
@@ -48,6 +48,8 @@ Interface icons: `AppIcon` in three sets (`IconSets.swift`, `IconsTests`), drawn
 ## Settings
 
 The window is `SettingsWindow.swift`, a page's pieces `Carrier/UI/` ([settings](../docs/macos/settings.md)); `SettingsIndexDriftTests` keeps the search's `settingsIndex` in step with them.
+The Pieces gallery under `--fixture` (`Features/Settings/PiecesGallery*.swift`, its data `CarrierCore/Fixtures/PiecesGalleryData.swift`) is looked at, not tested; `scripts/check-structure.sh` fails for a piece with no `GalleryEntry` ([ui](../docs/ui.md#the-gallery)).
+Where each page lives in the code and what is tested (Providers, Projects, Agents, Sessions, Health): [settings](../docs/macos/settings.md#where-the-pages-live-in-the-code).
 
 ### Preferences
 
@@ -55,51 +57,6 @@ The keys, their types and defaults are `design/preferences.json`, generated into
 Views read and write a preference with `@AppStorage(Preference.<name>)`, the initializers of `Carrier/UI/Modifiers/PreferenceStorage.swift` (`PreferenceStorageTests`); code that is not a view uses `AppPreferences`.
 `CarrierCore/Settings/` is the only place that touches user defaults: `scripts/check-structure.sh` fails on `UserDefaults.standard` or a literal `forKey:` anywhere else, and lists the state it leaves out (the per-session `chat.*.<id>` keys).
 `PreferenceKey` is named `CarrierCore.PreferenceKey` in a file that imports SwiftUI, which has a protocol of that name.
-
-### Providers page
-
-What the person sees: [settings-app](../docs/macos/settings-app.md#providers).
-
-The rows are `providersPage(_:config:chat:)` and `providersDirectory` (`ProvidersPage.swift`, `ProvidersDirectory.swift`; `Providers{Page,Directory}Tests`); views untested; what the page asks of `providers.json` (`ProvidersRequests.swift`, the five requests) is in `ProvidersFileTests`, `ProvidersRequestsTests` and `FixtureServerTests`.
-
-### Projects file
-
-`projects.json` is read and checked by `CarrierCore/ProjectsFile.swift` (`ProjectsFileTests`, `ProjectsListTests`) and written by Node: `ProjectsModel` sends each change as a request of `Connection/ProjectsRequests.swift` (`ProjectsRequestsTests`) and waits for the answer; the same rules as `src/config/projects.ts` are run over `Tests/Fixtures/projects.json` by `ContractTests`.
-
-The app writes no config file: `ContractTests` lists the requests of both sockets that change one (`Tests/Fixtures/config-requests.json`, written by `src/control/config-requests.test.ts`) and checks that each one the app builds is encoded as its golden says. Only `FixtureServer` writes the scratch Carrier folder of `--fixture` (`FixtureServer+Projects`, `+Providers`, `+EngineConfig`), answering the requests like the real ones.
-
-### Projects page
-
-What the person sees: [settings](../docs/macos/settings.md#projects-page).
-
-The pure rules live in `CarrierCore` (`ProjectsList`, `ProjectSheet`, `ProjectIcon`, `ProjectIconStore`, `ProjectActions`, `ProjectDeletion`, `ProjectWatch`, `ProjectWorktrees`, `ProjectDisk`, `WorkspaceSources`, `ProjectsFile`), each with a `*Tests` of its name; `ProjectsModel` follows the file (another process's write, a file that does not match, refused folders) and `ProjectsModel.shared` is the app's one reading of it.
-Gotchas:
-- An edit changes only its own key: `setDefault` writes `defaults` (the `editProjectDefaults` request, read by `NewSessionModel.projectDefaults`), `setHidden` `hidden`, `locate` only `path`, `remove` only the entry and its image copy.
-- The Carrier switch asks the engine to change Watching's list (`watchChange` makes the list, `saveEngineConfig` sends it: `setWatchedRepos` to the socket, or `carrier config`; `EngineConfigRequests.swift`, `EngineConfigRequestsTests`).
-- Deleting what Carrier made goes to the Trash (`moveProjectToTrash`, tried by hand) after `projectDeletionCheck`.
-- `projectFolderRefusal` shares `Tests/Fixtures/project-folder.json` with `src/chat/folder.ts`.
-- `projectIdentity`/`projectTile` (`ProjectIcon.swift`) give the tile and title wherever a project shows; `retitled(_:projects:)` (`ChatSessions.swift`) does it for the sidebar.
-- The host requests are behind the `projects` capability (`ChatHost.swift`, `ChatHostTests`); the fixture host answers with the `chat-new-project.json` and `chat-project-*.json` goldens, and `--fixture` writes its projects in `FixtureServer.writeProjects`.
-- The sheet's New session mode (`ProjectSheetMode.newSession`) only fills the plan (`NewSessionModel.choose(_:)`).
-- Views (`ProjectsTab.swift`, `AddProjectSheet.swift`) are untested, only drawn by `--selftest`.
-
-### Agents page
-
-What the person sees: [settings-carrier](../docs/macos/settings-carrier.md#agents).
-
-`agentsPage`, `agentsReadiness`, `AgentRole.stages` (`CarrierCore/AgentsPage.swift`, `AgentsReadiness.swift`; `AgentsPageTests`, `AgentsReadinessTests`); Antigravity's models are `AgyModels` (`AgyModelsTests`); views untested.
-
-### Sessions page
-
-What the person sees: [settings](../docs/macos/settings.md#sessions-page).
-
-Tested: `SessionAgesTests`, `IdleCloseTests`; the view not.
-
-### Health tab
-
-What the person sees: [settings-health](../docs/macos/settings-health.md#health-tab).
-
-The rows are `healthSections(host:facts:)` (`HealthRows.swift`, `HealthRowsTests`); the socket and the installed version are read by `HostProbe` (`HostProbeTests`); view untested. Decoding and outcomes: `DoctorChecksTests`.
 
 ## New session
 
@@ -149,9 +106,4 @@ Cleanup: `DictationCleanup.swift` (`TextModelClient`, `CleanupRun`) and `LocalMo
 
 ## Embedded terminal
 
-What the person sees: [terminal](../docs/macos/terminal.md).
-
-Pure rules (`Terminal{Core,SplitTree,Persistence,Settings,ZshBottomPromptShim}.swift`) are in `CarrierCore` (`TerminalCoreTests`, `TerminalZshBottomPromptShimTests`); Continue in Terminal's launch is `ContinueInTerminal.swift` (`embeddedResumeLaunch`).
-The AppKit runtime (`Carrier/Terminal{Host,Appearance,ProcessInspector,ConfirmationCopy}.swift`, `CarrierTerminalView.swift`) owns the `paneId`-keyed `GhosttyKit` surface cache, live settings reload, `ZDOTDIR` bottom-prompt preparation, `⌘K` scrollback clear and close confirmation; the views are the `Terminal*View.swift` files, `MainMenu.swift`, `PanelView.swift` and friends.
-Window selection and drawer state: `CarrierCore/WindowShell.swift` (`WindowShellTests`).
-`libghostty-spm` (`GhosttyTerminal`) is linked by `Carrier` only; `build-app.sh` and `scripts/check-app.sh` bundle and verify `GhosttyKit_GhosttyTerminal.bundle` and `THIRD-PARTY-NOTICES.md`.
+Where it lives in the code and what is tested: [terminal](../docs/macos/terminal.md#where-it-lives-in-the-code).

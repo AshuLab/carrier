@@ -63,7 +63,7 @@ The session menu's Regenerate title is offered while the hello lists `regenerate
 `providers` of the host also answers the generator in use, so the page shows it without reading the file twice.
 
 **The documentation.**
-The configuration guide documents the two keys, the glossary has the term, [sessions-in-the-app](sessions-in-the-app.md) stops saying that no host lists `regenerateTitle`, `src/chat/AGENTS.md` and `src/config/AGENTS.md` list the new files and keys, the macOS docs and [macos-ui](../macos-ui.md) say what the group is and which piece it uses, and the Changelog has its line.
+The configuration guide documents the two keys, the glossary has the term, [sessions-in-the-app](sessions-in-the-app.md) stops saying that no host lists `regenerateTitle`, `src/chat/AGENTS.md` and `src/config/AGENTS.md` list the new files and keys, the macOS docs and [ui](../ui.md) say what the group is and which piece it uses, and the Changelog has its line.
 
 ## Scope
 
@@ -114,7 +114,7 @@ Testing seams, story by story:
 - Story 8: `src/chat/providers.test.ts` for the generator in use in the reply, and `ProvidersPageTests.swift` for what the group shows from a `HostProviders` (running, not running, no model, the chosen one).
 - Stories 9 and 10 in the app: `ProvidersFileTests.swift`, a pure function from the file's bytes to the file's bytes that keeps the keys it does not know and refuses a file it cannot read, and `ChatHostTests.swift` for the requests and for what the app does while the hello lacks a capability.
 - Story 10 and the contract: `src/control/capabilities-contract.test.ts` with `ContractTests.swift`.
-- Story 8 and 6's menu entry as drawn: no unit tests, a view; it is checked in the real app against the fixture server as `macos-ui-change` says, and its piece and its states go in [macos-ui](../macos-ui.md) and `docs/macos/`.
+- Story 8 and 6's menu entry as drawn: no unit tests, a view; it is checked in the real app against the fixture server as `macos-ui-change` says, and its piece and its states go in [ui](../ui.md) and `docs/macos/`.
 - Story 12: no tests, prose; the AGENTS rule that changing a schema updates `docs/configuration.md` and the Changelog check are the gate.
 
 ## Out of scope

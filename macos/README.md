@@ -90,6 +90,7 @@ The temporary folder is removed when the app quits.
 It holds a `projects.json` with four projects (a GitHub origin, a very long name, a folder that is not a repository and a folder that is not there) for the Projects page; to look at a file that does not match, change it by hand while the app runs and the page follows.
 The Dictation page has a history to look at (`Carrier/DictationFixtures.swift`, written into its own temporary folder, not the person's): today's four dictations (pasted, copied and cleaned, cancelled, failed) and a few a day for the 20 days before, so History and Statistics have rows, cards and charts.
 It combines with `--selftest`.
+Two sessions of that host's list are pages and not conversations, drawn only under `--fixture`: Notices (every notice, `NoticesGalleryView`) and Pieces (every piece in each state, light or dark, `PiecesGalleryView`; [the gallery](../docs/ui.md#the-gallery)); opened again with `-AppleLanguages (es)`, the Pieces page reads in Spanish.
 `--fixture-long-transcript` (with `--fixture`) answers `events` with a made-up transcript of 3,600 events (edits with diffs, passing and failing commands with output) instead of the golden file, to scroll a long one, and every session of the chat host with a made-up conversation of 3,500 events (`longChatEvents`).
 
 Dictation's fixture flags are in [dictation](../docs/macos/dictation.md#under---fixture).
@@ -156,7 +157,7 @@ The generators are in `Tests/CarrierCoreTests/LargeFixtures.swift`; the long tra
 
 ## What the app does
 
-How the app looks is in [macos-ui](../docs/macos-ui.md); what it does, area by area, is in `docs/macos/`; where each area lives in the code is in [AGENTS.md](AGENTS.md).
+How the app looks is in [ui](../docs/ui.md); what it does, area by area, is in `docs/macos/`; where each area lives in the code is in [AGENTS.md](AGENTS.md).
 
 - [The app shell](../docs/macos/app-shell.md): the Dock and menu bar app, the window, the sidebar and its shortcuts, epics and file icons.
 - [Starting Carrier and the chat host](../docs/macos/lifecycle.md): Start Carrier, the chat host, version checks and replacement.

@@ -108,11 +108,11 @@ An approval's suggestions wait behind one line ("4 suggestions").
 The reviewer's verification (CI passed or no CI) is the foot of that card and opens on its evidence, so the reviewer's session has no separate "Completed" row (a stop keeps its row); the engine sends no commit, so the foot names none.
 The fixer's session shows the same round's blockers with the ones the next review verified marked fixed, under its own result row.
 A note "created 946 (branch)", which Claude Code emits when the agent publishes a change (`code_change_published`), is a quiet line with the pull request as a link; a skill, the closing result and Continue in Terminal are lines of the same card family.
-How they are drawn is in [the look of the app](../macos-ui.md#cards-in-the-feed).
+How they are drawn is in [the look of the app](../ui.md#cards-in-the-feed).
 
 ## Agent output
 
-An epic's Agent output tab lists its sessions oldest first, the newest last, as centered rows with no card (how they are drawn is in [the UI guide](../macos-ui.md#rows-of-a-feed); the words are `sessionRowText` and `sessionSummary` in `CarrierCore/SessionRowText.swift`, `earlierSessions` in `CarrierCore/SessionSections.swift`).
+An epic's Agent output tab lists its sessions oldest first, the newest last, as centered rows with no card (how they are drawn is in [the UI guide](../ui.md#rows-of-a-feed); the words are `sessionRowText` and `sessionSummary` in `CarrierCore/SessionRowText.swift`, `earlierSessions` in `CarrierCore/SessionSections.swift`).
 A row says who acted (the GitHub profile, an Agent Forge bot, or the tool's name when none is known), the role and place ("Builder · Ship", "Reviewer · Round 2"), and on a second line the tool, the account, the model and the effort that are known.
 The engine's `sessions` reply gives the key of `profiles` the session acted as (`profile`), and the app reads `engine.json` when the tab opens to say whose account that is: a `forge` profile is named by its Agent Forge bot, a `gh` profile has no name in the file, so such a session shows the tool's name, and a key the file does not have stays as sent.
 An engine that sends no key (an epic frozen before it was kept) gets the bot of `agents.author` (builder and fixer) or `agents.reviewer`, and the role's `effort` when the session ran on the role's model.

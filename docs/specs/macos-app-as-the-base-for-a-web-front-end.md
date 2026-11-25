@@ -387,7 +387,7 @@ The translations are the one exception to "all repo content is in English", and 
 
 ### 8. Docs
 
-- `docs/macos-ui.md` becomes `docs/ui.md`: the rules of the look for every front-end, the nine rules of a piece with an example each, and what only macOS does in a section of its own.
+- The macOS look guide becomes `docs/ui.md`: the rules of the look for every front-end, the nine rules of a piece with an example each, and what only macOS does in a section of its own.
 - `docs/ui.md` has the catalog of the pieces, one entry per piece:
 
   ```markdown

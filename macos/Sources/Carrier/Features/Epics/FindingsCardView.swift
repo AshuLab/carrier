@@ -1,7 +1,7 @@
 import CarrierCore
 import SwiftUI
 
-// The findings of a review round as one work card (docs/macos-ui.md, "The review findings card"; the mockup is "Proposed" of
+// The findings of a review round as one work card (docs/ui.md, "The review findings card"; the mockup is "Proposed" of
 // docs/research/macos-app-design/explorations/carrier-view-review.html): the verdict on top, a row per finding, blockers first, and the
 // reviewer's verification as the foot.
 

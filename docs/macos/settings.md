@@ -145,3 +145,42 @@ The Watching page is unchanged.
 
 Nothing here restarts Carrier: every writer of `engine.json` or `providers.json` (the Behavior and Watching tabs, the Agents page and the repos' role screens, the Engine page's GitHub identity, the Providers page and the new session's watch) sends its change to the engine (`EngineConfigChange`; it writes the file and runs on it in the same request, and `carrier config` writes it when none answers) and shows what the engine answered like a reload, off the main thread and off the cooperative pool (the ask goes to `ReloadStatus.shared` in `CarrierCore/EngineReload.swift`; the new session and the Providers store use `ReloadStatus.answer`, which keeps the answer in the same place and gives it back for their own line).
 The answer is a `ReloadOutcome` (applied, nobody to ask, an engine that does not list `reload`, refused with the engine's words, or no answer); `ReloadStatus` keeps the last one for every page, drops the answer of an older ask when a newer one was made and forgets it when Carrier stops or starts (`PanelView`), `reloadWords` says what a page shows (`ReloadNote` in Repos and Agents, with Ask Carrier again for a problem, which is said to VoiceOver every time it comes, as are the refusals of a repo's role form (`ProblemLine`); the Behavior header, which has Ask Carrier again too; the Providers lines, whose Add button waits while `ProvidersStore.busy` (Save, Remove and Add account close at once and the answer comes after), and where an older engine is a grey `editNote` and not an `editProblem`); an older engine's "reads it when it starts" is a quiet note, not a problem, and the Watching page's note follows the engine's `reload` capability and that outcome (`CarrierCore/SettingsNote.swift`, tested in `SettingsNoteTests` and `ReloadStatusTests`).
+
+## Where the pages live in the code
+
+The code map of the pages above, with what is tested; the sources are under `macos/Sources` and the tests under `macos/Tests`.
+
+### Providers
+
+The rows are `providersPage(_:config:chat:)` and `providersDirectory` (`ProvidersPage.swift`, `ProvidersDirectory.swift`; `Providers{Page,Directory}Tests`); views untested; what the page asks of `providers.json` (`ProvidersRequests.swift`, the five requests) is in `ProvidersFileTests`, `ProvidersRequestsTests` and `FixtureServerTests`.
+
+### The projects file
+
+`projects.json` is read and checked by `CarrierCore/ProjectsFile.swift` (`ProjectsFileTests`, `ProjectsListTests`) and written by Node: `ProjectsModel` sends each change as a request of `Connection/ProjectsRequests.swift` (`ProjectsRequestsTests`) and waits for the answer; the same rules as `src/config/projects.ts` are run over `Tests/Fixtures/projects.json` by `ContractTests`.
+
+The app writes no config file: `ContractTests` lists the requests of both sockets that change one (`Tests/Fixtures/config-requests.json`, written by `src/control/config-requests.test.ts`) and checks that each one the app builds is encoded as its golden says. Only `FixtureServer` writes the scratch Carrier folder of `--fixture` (`FixtureServer+Projects`, `+Providers`, `+EngineConfig`), answering the requests like the real ones.
+
+### Projects
+
+The pure rules live in `CarrierCore` (`ProjectsList`, `ProjectSheet`, `ProjectIcon`, `ProjectIconStore`, `ProjectActions`, `ProjectDeletion`, `ProjectWatch`, `ProjectWorktrees`, `ProjectDisk`, `WorkspaceSources`, `ProjectsFile`), each with a `*Tests` of its name; `ProjectsModel` follows the file (another process's write, a file that does not match, refused folders) and `ProjectsModel.shared` is the app's one reading of it.
+Gotchas:
+- An edit changes only its own key: `setDefault` writes `defaults` (the `editProjectDefaults` request, read by `NewSessionModel.projectDefaults`), `setHidden` `hidden`, `locate` only `path`, `remove` only the entry and its image copy.
+- The Carrier switch asks the engine to change Watching's list (`watchChange` makes the list, `saveEngineConfig` sends it: `setWatchedRepos` to the socket, or `carrier config`; `EngineConfigRequests.swift`, `EngineConfigRequestsTests`).
+- Deleting what Carrier made goes to the Trash (`moveProjectToTrash`, tried by hand) after `projectDeletionCheck`.
+- `projectFolderRefusal` shares `Tests/Fixtures/project-folder.json` with `src/chat/folder.ts`.
+- `projectIdentity`/`projectTile` (`ProjectIcon.swift`) give the tile and title wherever a project shows; `retitled(_:projects:)` (`ChatSessions.swift`) does it for the sidebar.
+- The host requests are behind the `projects` capability (`ChatHost.swift`, `ChatHostTests`); the fixture host answers with the `chat-new-project.json` and `chat-project-*.json` goldens, and `--fixture` writes its projects in `FixtureServer.writeProjects`.
+- The sheet's New session mode (`ProjectSheetMode.newSession`) only fills the plan (`NewSessionModel.choose(_:)`).
+- Views (`ProjectsTab.swift`, `AddProjectSheet.swift`) are untested, only drawn by `--selftest`.
+
+### Agents
+
+`agentsPage`, `agentsReadiness`, `AgentRole.stages` (`CarrierCore/AgentsPage.swift`, `AgentsReadiness.swift`; `AgentsPageTests`, `AgentsReadinessTests`); Antigravity's models are `AgyModels` (`AgyModelsTests`); views untested.
+
+### Sessions
+
+Tested: `SessionAgesTests`, `IdleCloseTests`; the view not.
+
+### Health
+
+The rows are `healthSections(host:facts:)` (`HealthRows.swift`, `HealthRowsTests`); the socket and the installed version are read by `HostProbe` (`HostProbeTests`); view untested. Decoding and outcomes: `DoctorChecksTests`.

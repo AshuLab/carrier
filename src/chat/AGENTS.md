@@ -29,13 +29,6 @@ Adding a `chat.json` field: [`src/config/AGENTS.md`](../config/AGENTS.md#adding-
 - `plan.ts`: the plan's request schema and step types.
 - `shell.ts`: the port through which a project's actions run (`realShell`: its own process group, SIGKILL after 3 s); `FakeShell` in `fake.ts`, and no test runs a real command.
 - `runner.ts`: the chat runner port, with `fake.ts` its test double; `claude.ts` and `codex.ts` are the Claude and Codex adapters.
-  `ChatRefused(code, words, params)` is every refusal of the host: the code (`textCode`, `<area>.<what>`) is a string literal, the params are strings and numbers, and `pnpm typecheck` refuses one without a code.
-  The reply of the socket is `{ id, ok: false, error, code, params }`; the codes are listed with an example of their params in `macos/Tests/Fixtures/text-codes.json` (`UPDATE_FIXTURES=1 pnpm test` rewrites it, `text-codes.test.ts` checks it against the sources).
-  A helper that computes a reason elsewhere returns a `Reason` (`code`, `words`, `params`) and its caller throws `refusedFor(reason)`.
-  The other texts the host sends keep their words and gain a sibling `code` and `params`: a notice (`text`), a preparation step (`detail`), a clone's `error`, a cleanup's `skipped.reason` and a provider's `problem`.
-  A step that fails on a `ChatRefused` keeps its code and params.
-  They are stored with the event, and an event stored before them reads back with its words and neither.
-  The scanner of `text-codes.test.ts` finds each by the literal `code: '<code>'` beside a literal `params: { ... }`.
   Codex's `usageLimitExceeded` (not retried) is an `error` with `reason: 'usage_limit'` before `turn_end`; `resetsAt` comes from `account/rateLimits/read`, else `resetText`.
 - `folder.ts`: the check of a session's folder (never inside `<folder>/engine/`), `checkProjectsFolder` and `checkProjectFolder` (shared table: `macos/Tests/Fixtures/project-folder.json`).
 - `projects.ts`: what the chat brings onto the Mac with the person's own `gh` login, under the projects folder (ADR 0015).
@@ -45,11 +38,8 @@ Adding a `chat.json` field: [`src/config/AGENTS.md`](../config/AGENTS.md#adding-
   `projectClones` lists clones running and failed (kept until `dismissClone`); a running clone holds the idle exit, a stop aborts it and removes what it made.
   `projectWorktrees` (in `sessions.ts`, it joins `chat.db`) answers a project's main clone and its `worktrees/` still on disk with branch, session, age and a state (session open, uncommitted, PR merged, commits no other branch holds, else clean); the main clone says `uncommitted`, `notPushed` or `clean`, which the app reads before the Trash.
   `removeProjectWorktree` takes only one of those folders (`clearWorktree`: the branch stays, `restoreWorktree` brings it back on resume), refused while its session is open or it has uncommitted changes; `cleanProjectWorktrees` lists, and with `run` removes, the merged ones nothing blocks.
-- `project-edits.ts`: the nine changes of the `config` capability for `projects.json` and `projectsFolder` of `chat.json` (`projectEdits`; ADR 0053), written through `updateProjectsFile` and `editChatSettings`.
-  The host answers them on its socket and `carrier config` runs the same functions when no host answers; a value the schema refuses is `config.problem` with the key path and kind, a project that is not there is `project.missing`, and the file is left as it was.
-- `disk.ts`: what a project takes on disk, behind the `projects` capability.
-  `projectDisk` answers at once what `project_sizes` of `chat.db` holds (main clone and `worktrees/` together; nulls if never measured) and `measuring`. `refresh: 'stale'` queues those never measured or a day old, `now` all; the measure (`du -sk`, faked in tests) runs in the background, a failure is logged and keeps the last figure.
-- `providers-requests.ts`, `engine-reload.ts`: the `setAccounts`, `addAccount`, `editAccount`, `removeAccount` and `setTextGenerator` requests of the `config` capability ([ADR 0053](../../docs/adr/0053-a-carrier-config-file-has-one-owner-process-and-a-front-end-writes-it-through-that-process.md)): `config/providers-edit.ts` writes `providers.json`, then `reloadEngine` asks the engine to read it and the reply says `engine: applied`, `refused` (with `engineReason`) or `notRunning`; `fake-engine.ts` is the engine socket the tests ask.
+- `disk.ts`: what a project takes on disk, behind the `projects` capability ([how](../../docs/specs/chat-host.md#refusals-and-config-requests-in-the-code)).
+- `ChatRefused`, `project-edits.ts`, `providers-requests.ts`, `engine-reload.ts`: [refusals and config requests](../../docs/specs/chat-host.md#refusals-and-config-requests-in-the-code).
 - `providers.ts`: the `providers` request (accounts with their state, `unadded`, local servers, `textGenerator` or `problem`; built from `doctor/detect.ts`).
 - `mcp.ts`: the chat MCP (ADR 0024), a loopback HTTP server the host starts before `chat.sock`; toolkits under `mcp/`.
   `McpSessionRegistry`: a hashed bearer token per live conversation, revoked by `invocationId` when it ends.

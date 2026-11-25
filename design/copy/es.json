@@ -1715,7 +1715,7 @@
   "projectsWorktreesTitle": "Worktrees y disco",
   "projectsWorktreesFooter": "Los worktrees que Carrier creó para sesiones de este proyecto, y lo que ocupa cada carpeta en el disco.",
   "projectsTotal": "Total",
-  "projectsRemoveWorktreeHelp": "Quita la carpeta de este worktree; su rama y su sesión se quedan",
+  "projectsRemoveWorktreeHelp": "Quitar la carpeta de este worktree",
   "projectsRemoveWorktreeLabel": "Quitar el worktree {branch}",
   "projectsCleanUpDetail": "Worktrees fusionados que nada bloquea: {words}",
   "projectsLastCleanUp": "Última limpieza",

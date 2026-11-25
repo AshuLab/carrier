@@ -26,3 +26,12 @@ Under `--fixture` the host answers `Tests/Fixtures/chat-usage.json`.
 ## In the conversation
 
 The meters of `5h`, `Weekly` and `Monthly` of the Providers page (`AccountUsageMeters`, `UsageMeterLine`) are also what the ring beside the message box's microphone opens to ([sessions](chat.md#context-and-limits-beside-the-microphone)), so a limit reads the same everywhere.
+
+## Words
+
+The words of the whole area are copy keys (`usage*` in `design/copy/`): the page, the consumption section, the Map sheet, the context button and the sentences `UsagePage`, `UsageConsumption` and `ContextRing` build from data.
+A function that says words takes `bundle` and `locale` (`usageProviders`, `usageKpis`, `usageModelRows`, `usageWorkspaceRows`, the totals, `usageTooltip`, `UsageOverrideDraft.check`, `contextRingWords`, `contextLimitsWords`, `UsageStore.override`), and a property that said words is a method (`QuotaKind.title`).
+Numbers and money follow the locale they are given (`usageCount`, `usageGrouped`, `usageMoney`); the day labels and weekday names of the chart (`Nov 7`, `Saturday`) are still English and wait for the step that makes dates follow the person's locale.
+What a view draws by is never a word: `UsageLine.ready` (a server's green dot), `UsageKpi.warns` (the orange footnote), `UsageWorkspaceRow.sourceKind` (the symbol) and `UsageTooltipLine.providerId` (the color) carry what used to be read back from the English text.
+The text of a quota that Node sent comes with its code and is said by `Copy.text`; one with no code is the host's own English.
+`UsageSpanishTests` renders each of these in Spanish, with every plural and select; `macos/scripts/check-structure.sh` fails on a literal passed to `Text`, `Label`, `Button`, `.help`, `.accessibilityLabel` or a `title:` in the files of the area (its `COPY_AREAS`).

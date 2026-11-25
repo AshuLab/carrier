@@ -8385,4 +8385,568 @@ public enum Copy {
     public static func dictationRemovePasted(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         String(localized: "dictationRemovePasted", bundle: bundle ?? carrierResources, locale: locale)
     }
+
+    public enum UsageWindowName: Sendable { case fiveHour; case weekly; case monthly }
+    public static func usageWindowName(which: UsageWindowName, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch which {
+        case .fiveHour: return String(localized: "usageWindowName.fiveHour", bundle: bundle ?? carrierResources, locale: locale)
+        case .weekly: return String(localized: "usageWindowName.weekly", bundle: bundle ?? carrierResources, locale: locale)
+        case .monthly: return String(localized: "usageWindowName.monthly", bundle: bundle ?? carrierResources, locale: locale)
+        }
+    }
+
+    public enum UsageProviderName: Sendable { case claude; case codex; case agy; case local }
+    public static func usageProviderName(which: UsageProviderName, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch which {
+        case .claude: return String(localized: "usageProviderName.claude", bundle: bundle ?? carrierResources, locale: locale)
+        case .codex: return String(localized: "usageProviderName.codex", bundle: bundle ?? carrierResources, locale: locale)
+        case .agy: return String(localized: "usageProviderName.agy", bundle: bundle ?? carrierResources, locale: locale)
+        case .local: return String(localized: "usageProviderName.local", bundle: bundle ?? carrierResources, locale: locale)
+        }
+    }
+
+    public static func usageLocalServers(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageLocalServers", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageLocalServersAccount(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageLocalServersAccount", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageStatusPlan(plan: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageStatusPlan \(plan)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public enum UsageStatus: Sendable { case lastKnown; case ready; case signedOut; case missing; case unavailable; case rateLimited; case error }
+    public static func usageStatus(which: UsageStatus, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch which {
+        case .lastKnown: return String(localized: "usageStatus.lastKnown", bundle: bundle ?? carrierResources, locale: locale)
+        case .ready: return String(localized: "usageStatus.ready", bundle: bundle ?? carrierResources, locale: locale)
+        case .signedOut: return String(localized: "usageStatus.signedOut", bundle: bundle ?? carrierResources, locale: locale)
+        case .missing: return String(localized: "usageStatus.missing", bundle: bundle ?? carrierResources, locale: locale)
+        case .unavailable: return String(localized: "usageStatus.unavailable", bundle: bundle ?? carrierResources, locale: locale)
+        case .rateLimited: return String(localized: "usageStatus.rateLimited", bundle: bundle ?? carrierResources, locale: locale)
+        case .error: return String(localized: "usageStatus.error", bundle: bundle ?? carrierResources, locale: locale)
+        }
+    }
+
+    public static func usageMeterPercent(percent: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageMeterPercent \(percent)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageResetsIn(duration: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageResetsIn \(duration)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageByModel(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageByModel", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageOtherLimits(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageOtherLimits", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageExtraUsage(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageExtraUsage", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageExtraOff(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageExtraOff", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageExtraOn(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageExtraOn", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageExtraLimit(amount: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageExtraLimit \(amount)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageCredits(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageCredits", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public enum UsageCreditsValue: Sendable { case unlimited; case available; case none }
+    public static func usageCreditsValue(which: UsageCreditsValue, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch which {
+        case .unlimited: return String(localized: "usageCreditsValue.unlimited", bundle: bundle ?? carrierResources, locale: locale)
+        case .available: return String(localized: "usageCreditsValue.available", bundle: bundle ?? carrierResources, locale: locale)
+        case .none: return String(localized: "usageCreditsValue.none", bundle: bundle ?? carrierResources, locale: locale)
+        }
+    }
+
+    public static func usageResetCredits(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageResetCredits", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageResetCreditsValue(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageResetCreditsValue \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageNoModelLoaded(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageNoModelLoaded", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageLoaded(models: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageLoaded \(models)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public enum UsageServerState: Sendable { case ready; case stopped }
+    public static func usageServerState(which: UsageServerState, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch which {
+        case .ready: return String(localized: "usageServerState.ready", bundle: bundle ?? carrierResources, locale: locale)
+        case .stopped: return String(localized: "usageServerState.stopped", bundle: bundle ?? carrierResources, locale: locale)
+        }
+    }
+
+    public static func usageLocalCompute(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageLocalCompute", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageAccounts(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageAccounts \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageAccountsProblem(count: Int, status: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageAccountsProblem \(count) \(status)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageServersRunning(running: Int, total: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageServersRunning \(running) \(total)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageStale(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageStale", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageStaleHelp(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageStaleHelp", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageLoadingTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageLoadingTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageLoadingLine(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageLoadingLine", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageNoAccountsTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageNoAccountsTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageNoAccountsLine(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageNoAccountsLine", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageHideDetails(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageHideDetails", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageShowDetails(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageShowDetails", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public enum UsageMark: Sendable { case ok; case warning; case failure }
+    public static func usageMark(which: UsageMark, provider: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch which {
+        case .ok: return String(localized: "usageMark.ok \(provider)", bundle: bundle ?? carrierResources, locale: locale)
+        case .warning: return String(localized: "usageMark.warning \(provider)", bundle: bundle ?? carrierResources, locale: locale)
+        case .failure: return String(localized: "usageMark.failure \(provider)", bundle: bundle ?? carrierResources, locale: locale)
+        }
+    }
+
+    public static func usageSignIn(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageSignIn", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageSignInHelp(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageSignInHelp", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageCheckAgain(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageCheckAgain", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageSignInFailed(account: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageSignInFailed \(account)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageKpiCost(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageKpiCost", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageKpiTokens(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageKpiTokens", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageKpiLocal(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageKpiLocal", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageKpiActive(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageKpiActive", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageKpiUnpriced(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageKpiUnpriced \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageKpiWork(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageKpiWork", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageTurns(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageTurns \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageLocalTurns(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageLocalTurns \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageNoLocalModels(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageNoLocalModels", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public enum UsageCountUnit: Sendable { case billion; case million; case thousand }
+    public static func usageCountUnit(which: UsageCountUnit, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch which {
+        case .billion: return String(localized: "usageCountUnit.billion", bundle: bundle ?? carrierResources, locale: locale)
+        case .million: return String(localized: "usageCountUnit.million", bundle: bundle ?? carrierResources, locale: locale)
+        case .thousand: return String(localized: "usageCountUnit.thousand", bundle: bundle ?? carrierResources, locale: locale)
+        }
+    }
+
+    public enum UsageSourceName: Sendable { case epic; case chat; case external }
+    public static func usageSourceName(which: UsageSourceName, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch which {
+        case .epic: return String(localized: "usageSourceName.epic", bundle: bundle ?? carrierResources, locale: locale)
+        case .chat: return String(localized: "usageSourceName.chat", bundle: bundle ?? carrierResources, locale: locale)
+        case .external: return String(localized: "usageSourceName.external", bundle: bundle ?? carrierResources, locale: locale)
+        }
+    }
+
+    public static func usageUnknown(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageUnknown", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageTokensTurns(tokens: String, turns: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageTokensTurns \(tokens) \(turns)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageTokenDetail(input: String, cache: String, output: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageTokenDetail \(input) \(cache) \(output)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageCostLocal(cost: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageCostLocal \(cost)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageTotalModels(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageTotalModels \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageTotalModelsUnpriced(count: Int, unpriced: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageTotalModelsUnpriced \(count) \(unpriced)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageTotalWorkspaces(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageTotalWorkspaces \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageTotalWorkspacesTop(count: Int, limit: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageTotalWorkspacesTop \(count) \(limit)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public enum UsageChartTitle: Sendable { case cost; case tokens }
+    public static func usageChartTitle(metric: UsageChartTitle, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch metric {
+        case .cost: return String(localized: "usageChartTitle.cost", bundle: bundle ?? carrierResources, locale: locale)
+        case .tokens: return String(localized: "usageChartTitle.tokens", bundle: bundle ?? carrierResources, locale: locale)
+        }
+    }
+
+    public enum UsageChartLabel: Sendable { case cost; case tokens }
+    public static func usageChartLabel(metric: UsageChartLabel, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch metric {
+        case .cost: return String(localized: "usageChartLabel.cost", bundle: bundle ?? carrierResources, locale: locale)
+        case .tokens: return String(localized: "usageChartLabel.tokens", bundle: bundle ?? carrierResources, locale: locale)
+        }
+    }
+
+    public enum UsageMetricName: Sendable { case cost; case tokens }
+    public static func usageMetricName(metric: UsageMetricName, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch metric {
+        case .cost: return String(localized: "usageMetricName.cost", bundle: bundle ?? carrierResources, locale: locale)
+        case .tokens: return String(localized: "usageMetricName.tokens", bundle: bundle ?? carrierResources, locale: locale)
+        }
+    }
+
+    public static func usageChartDay(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageChartDay", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageChartNoUse(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageChartNoUse", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageChartSegment(day: String, provider: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageChartSegment \(day) \(provider)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageChartDayNoUse(day: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageChartDayNoUse \(day)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageTooltipTotal(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageTooltipTotal", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageFilterMetric(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageFilterMetric", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageFilterRange(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageFilterRange", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageRangeDays(days: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageRangeDays \(days)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageFilterProvider(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageFilterProvider", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageFilterSource(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageFilterSource", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageAllProviders(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageAllProviders", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageAllSources(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageAllSources", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageSearch(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageSearch", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageNoMatchTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageNoMatchTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageNoMatchLine(days: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageNoMatchLine \(days)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageClearFilters(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageClearFilters", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageNoUsageTitle(days: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageNoUsageTitle \(days)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageNoUsageLine(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageNoUsageLine", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageNoCostTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageNoCostTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageNoCostLine(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageNoCostLine", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageShowTokens(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageShowTokens", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageNoModels(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageNoModels", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageByWorkspace(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageByWorkspace", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageNoWorkspaces(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageNoWorkspaces", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageUnpricedMap(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageUnpricedMap", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageUnpricedLabel(model: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageUnpricedLabel \(model)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageUnpricedHelp(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageUnpricedHelp", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageCustom(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageCustom", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageCustomLabel(model: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageCustomLabel \(model)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageCustomHelp(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageCustomHelp", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageErrorRequired(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageErrorRequired", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageErrorNumber(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageErrorNumber", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageErrorNegative(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageErrorNegative", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageErrorMax(max: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageErrorMax \(max)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageErrorChoose(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageErrorChoose", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageErrorNotCatalog(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageErrorNotCatalog", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageMapTitle(model: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageMapTitle \(model)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageMapLine(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageMapLine", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageMapPrice(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageMapPrice", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageMapLocal(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageMapLocal", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageMapCatalog(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageMapCatalog", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageMapCustom(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageMapCustom", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageMapClear(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageMapClear", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageMapCancel(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageMapCancel", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageMapSave(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageMapSave", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageMapLocalDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageMapLocalDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageMapClearDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageMapClearDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageMapAliasLead(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageMapAliasLead", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageMapPerMillion(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageMapPerMillion", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageMapInput(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageMapInput", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageMapCachedRead(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageMapCachedRead", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageMapCacheWrite(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageMapCacheWrite", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageMapOutput(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageMapOutput", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageMapRequired(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageMapRequired", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageMapOptional(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageMapOptional", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageMapRateLabel(rate: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageMapRateLabel \(rate)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageContext(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageContext", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageContextUnknown(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageContextUnknown", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageOpen(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageOpen", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageLimitsSignedOut(name: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageLimitsSignedOut \(name)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageLimitsNone(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageLimitsNone", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageLimitsFailed(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageLimitsFailed", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageLimitsChecking(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageLimitsChecking", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageRingNone(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageRingNone", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageRingPart(name: String, percent: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageRingPart \(name) \(percent)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageRingPartNear(name: String, percent: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageRingPartNear \(name) \(percent)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func usageRingStale(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "usageRingStale", bundle: bundle ?? carrierResources, locale: locale)
+    }
 }

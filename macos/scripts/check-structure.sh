@@ -114,8 +114,9 @@ rm -f /tmp/check-structure-gallery.$$
 # COPY_AREAS grows with the steps that turn an area's texts into copy keys; the step that finishes them widens it to the whole of Sources/Carrier and Sources/CarrierCore.
 # Files and folders:
 #   Sources/Carrier/Features/Dictation, Sources/CarrierCore/Dictation  the Dictation area; its recognizers' sentences are `DictationFailure` reasons
+#   Sources/Carrier/Features/Usage, Sources/CarrierCore/Usage  the Usage area: the page, the consumption view and the context button
 COPY_AREAS=(Sources/Carrier/Features/Dictation Sources/CarrierCore/Dictation Sources/Carrier/Platform/AppleRecognizer.swift Sources/Carrier/Platform/FluidAudioRecognizer.swift
-  Sources/Carrier/Platform/WhisperKitRecognizer.swift Sources/Carrier/Platform/MicrophoneCapture.swift)
+  Sources/Carrier/Platform/WhisperKitRecognizer.swift Sources/Carrier/Platform/MicrophoneCapture.swift Sources/Carrier/Features/Usage Sources/CarrierCore/Usage)
 find "${COPY_AREAS[@]}" -name '*.swift' | sort |
   while IFS= read -r file; do
     perl -0777 -ne '

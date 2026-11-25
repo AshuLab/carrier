@@ -43,11 +43,11 @@ import SwiftUI
 extension Color {
     init(_ color: RGBA) { self.init(.sRGB, red: color.red, green: color.green, blue: color.blue, opacity: color.alpha) }
 
-    /// A semantic token: its light value under a light appearance and its dark value under a dark one.
+    /// A semantic color of `design/tokens.json`: its light or its dark version, whichever the appearance in force is.
     init(_ pair: SchemePair<UInt32>) {
         self.init(nsColor: NSColor(name: nil) { appearance in
             let color = RGBA(hex: appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? pair.dark : pair.light)
-            return NSColor(srgbRed: color.red, green: color.green, blue: color.blue, alpha: 1)
+            return NSColor(srgbRed: color.red, green: color.green, blue: color.blue, alpha: color.alpha)
         })
     }
 

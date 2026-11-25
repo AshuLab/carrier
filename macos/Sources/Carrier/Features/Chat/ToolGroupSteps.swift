@@ -9,14 +9,14 @@ struct ThoughtRowView: View {
 
     var body: some View {
         let whole = flipped.contains(key)
-        HStack(alignment: .top, spacing: Tokens.Space.snug) {
+        HStack(alignment: .top, spacing: Tokens.Space.s10) {
             Glyph(.sparkles, size: 8).foregroundStyle(Color.thought)
                 .frame(width: 16, height: 16).background(Circle().fill(Color.thought.opacity(0.2)))
             // as tall as the icon at least, so the first line is level with it
             Text(thought.text).font(.scaled(12.5)).lineSpacing(2).foregroundStyle(.secondary).lineLimit(whole ? nil : 2).multilineTextAlignment(.leading)
                 .frame(maxWidth: .infinity, minHeight: 16, alignment: .topLeading).textSelection(.enabled)
         }
-        .padding(.vertical, Tokens.Space.tight)
+        .padding(.vertical, Tokens.Space.s6)
         .contentShape(Rectangle())
         .onTapGesture { flip(key, in: $flipped) }
         .accessibilityElement(children: .combine)
@@ -38,7 +38,7 @@ struct CallRowView: View {
             Button {
                 flip(key, in: $flipped)
             } label: {
-                HStack(spacing: Tokens.Space.snug) {
+                HStack(spacing: Tokens.Space.s10) {
                     node
                     Text(call.label).fontWeight(.medium)
                     Text(call.subject).codeFont(12).lineLimit(1).truncationMode(.middle)
@@ -51,13 +51,13 @@ struct CallRowView: View {
                 }
                 .font(.scaled(12))
                 .foregroundStyle(call.status == .failed ? .red : .primary)
-                .padding(.trailing, Tokens.Space.tight).frame(height: 26)
+                .padding(.trailing, Tokens.Space.s6).frame(height: 26)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel("\(call.label) \(call.subject), \(call.result.isEmpty ? "running" : call.result)")
             .accessibilityHint(open ? "Hides the detail" : "Shows the detail")
-            if open { CallDetailView(call: call).padding(.leading, Tokens.Space.xxl).padding(.top, Tokens.Space.tight).padding(.bottom, Tokens.Space.tight) }
+            if open { CallDetailView(call: call).padding(.leading, Tokens.Space.s24).padding(.top, Tokens.Space.s6).padding(.bottom, Tokens.Space.s6) }
         }
     }
 
@@ -87,14 +87,14 @@ struct CallDetailView: View {
         if call.diff.isEmpty == false {
             DiffView(rows: call.diff, showAll: $showAll, style: diffStyle).clipShape(RoundedRectangle(cornerRadius: Tokens.Radius.control))
         } else {
-            VStack(alignment: .leading, spacing: Tokens.Space.snug) {
+            VStack(alignment: .leading, spacing: Tokens.Space.s10) {
                 // the row cuts a long or multi-line command in the middle: opened, the call shows all of it
                 if call.kind == .shell, call.arg.contains("\n") || call.arg.count > 80 { CodeBlockView(language: "bash", code: call.arg) }
                 if case .mcp = call.kind, call.arg.isEmpty == false {
                     CodeBlockView(language: resolvedCodeLanguage(nil, code: call.arg) ?? "Arguments", code: call.arg)
                 }
                 if call.output.isEmpty {
-                    Text(call.status == .running ? "running…" : "no output").font(.scaled(11.5)).foregroundStyle(.secondary).padding(.horizontal, Tokens.Space.tight)
+                    Text(call.status == .running ? "running…" : "no output").font(.scaled(11.5)).foregroundStyle(.secondary).padding(.horizontal, Tokens.Space.s6)
                 } else {
                     CodeBlockView(language: "Output", code: call.output.joined(separator: "\n"), foldAfter: OutputLength(rawValue: lines)?.rawValue ?? AppPreferences.defaultOutputLength.rawValue, spare: 0)
                 }

@@ -28,7 +28,7 @@ struct SubagentRowView: View {
     private var steps: String { "\(subagent.steps) \(subagent.steps == 1 ? "step" : "steps")" }
 
     private var line: some View {
-        HStack(spacing: Tokens.Space.snug) {
+        HStack(spacing: Tokens.Space.s10) {
             lead.frame(width: 16, height: 16)
             KindChipView(chip: .subagent(type: subagent.type))
             Text(subagent.name).font(.scaled(12.5, weight: .semibold)).foregroundStyle(.primary).lineLimit(1).truncationMode(.tail)
@@ -40,7 +40,7 @@ struct SubagentRowView: View {
             if open != nil { CardChevron(open: false, width: 9) }
         }
         .font(.scaled(12, weight: .medium)).monospacedDigit()
-        .padding(.horizontal, Tokens.Space.snug)
+        .padding(.horizontal, Tokens.Space.s10)
         .frame(height: 30)
         .workCard()
         .accessibilityElement(children: .combine)

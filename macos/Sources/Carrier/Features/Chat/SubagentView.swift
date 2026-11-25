@@ -22,14 +22,14 @@ struct SubagentView: View {
                 if let brief = work.brief { BriefBubble(text: brief) }
                 ForEach(visibleFlow(work.items, mode: mode, showsReasoning: showsReasoning)) { FlowItemView(flow: $0, flipped: $flipped) }
             }
-            .padding(.horizontal, Tokens.Space.gutter).padding(.vertical, Tokens.Space.lg)
+            .padding(.horizontal, Tokens.Space.s40).padding(.vertical, Tokens.Space.s16)
             .frame(maxWidth: messageWidth.points, alignment: .leading)
             .frame(maxWidth: .infinity)
         }
         .defaultScrollAnchor(.top)
         .safeAreaInset(edge: .bottom, spacing: Tokens.Space.none) {
             SubagentNote(backToChat: backToChat, backTitle: backTitle)
-                .padding(.horizontal, Tokens.Space.gutter).padding(.vertical, Tokens.Space.md)
+                .padding(.horizontal, Tokens.Space.s40).padding(.vertical, Tokens.Space.s12)
                 .frame(maxWidth: messageWidth.points).frame(maxWidth: .infinity)
         }
         .font(.scaled(13))
@@ -42,10 +42,10 @@ private struct BriefBubble: View {
     let text: String
 
     var body: some View {
-        VStack(alignment: .trailing, spacing: Tokens.Space.xs) {
+        VStack(alignment: .trailing, spacing: Tokens.Space.s3) {
             Text("Brief from the main agent").font(.scaled(10.5, weight: .semibold)).textCase(.uppercase).tracking(0.5).foregroundStyle(Color.themeAccent)
             Text(text).chatText(bubble: true).textSelection(.enabled)
-                .padding(.horizontal, Tokens.Space.roomy).padding(.vertical, Tokens.Space.sm)
+                .padding(.horizontal, Tokens.Space.s14).padding(.vertical, Tokens.Space.s8)
                 .chatSurface(.regular.tint(Color.themeAccent.opacity(0.1)), flat: Color.themeAccent.opacity(0.16), in: RoundedRectangle(cornerRadius: Tokens.Radius.panel))
         }
         .frame(maxWidth: .infinity, alignment: .trailing)
@@ -60,19 +60,19 @@ private struct SubagentNote: View {
     let backTitle: String
 
     var body: some View {
-        HStack(spacing: Tokens.Space.snug) {
+        HStack(spacing: Tokens.Space.s10) {
             Glyph(.lock, size: 12).foregroundStyle(.secondary).accessibilityHidden(true)
             Text("Subagent work is read-only.").font(.scaled(12.5)).foregroundStyle(.secondary).lineLimit(1)
             Spacer(minLength: 8)
             Button(action: backToChat) {
                 Label(backTitle, icon: .chevronLeft).font(.scaled(12, weight: .medium)).labelStyle(.titleAndIcon)
-                    .padding(.horizontal, Tokens.Space.md).frame(height: ToolbarPillButton.height)
+                    .padding(.horizontal, Tokens.Space.s12).frame(height: ToolbarPillButton.height)
                     .chatSurface(.regular.interactive(), in: Capsule())
                     .contentShape(Capsule())
             }
             .buttonStyle(.plain)
         }
-        .padding(.leading, Tokens.Space.roomy).padding(.trailing, Tokens.Space.snug).frame(height: 44)
+        .padding(.leading, Tokens.Space.s14).padding(.trailing, Tokens.Space.s10).frame(height: 44)
         .frame(maxWidth: .infinity)
         .workCard()
     }

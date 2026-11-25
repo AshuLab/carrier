@@ -182,10 +182,10 @@ struct PanelView: View {
                             }.id(id)
                         } else if case .running(let snapshot)? = model.state {
                             ScrollView {
-                                VStack(alignment: .leading, spacing: Tokens.Space.xxl) {
+                                VStack(alignment: .leading, spacing: Tokens.Space.s24) {
                                     Running(snapshot: snapshot, selection: $shell.selection)
                                 }
-                                .padding(Tokens.Space.xl)
+                                .padding(Tokens.Space.s18)
                                 .frame(maxWidth: .infinity, alignment: .topLeading)
                             }
                         } else {

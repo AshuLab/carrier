@@ -13,12 +13,12 @@ struct StoppedView: View {
         // the content is at least as tall as the window, so it sits in the middle both ways and scrolls only when it does not fit
         GeometryReader { window in
             ScrollView {
-                VStack(spacing: 22) {
-                    VStack(spacing: 6) {
+                VStack(spacing: Tokens.Space.s22) {
+                    VStack(spacing: Tokens.Space.s6) {
                         Glyph(icon, size: 26).foregroundStyle(.secondary)
                             .frame(width: 54, height: 54)
-                            .background(RoundedRectangle(cornerRadius: 16).fill(Color.secondary.opacity(0.12)))
-                            .padding(.bottom, 9)
+                            .background(RoundedRectangle(cornerRadius: Tokens.Radius.panel).fill(Color.secondary.opacity(0.12)))
+                            .padding(.bottom, Tokens.Space.s8)
                         Text(title).font(.title3.weight(.semibold))
                         Text(line).textSelection(.enabled).foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: 340)
                     }
@@ -27,7 +27,7 @@ struct StoppedView: View {
                         missing
                     }
                 }
-                .padding(28)
+                .padding(Tokens.Space.s28)
                 .frame(maxWidth: .infinity, minHeight: window.size.height)
             }
         }
@@ -53,7 +53,7 @@ struct StoppedView: View {
             Label(notice, icon: .warningFilled)
                 .font(.callout).foregroundStyle(.orange).multilineTextAlignment(.center).frame(maxWidth: 340)
         } else if banner.state != .ready {
-            VStack(spacing: 8) {
+            VStack(spacing: Tokens.Space.s8) {
                 Label(banner.title, icon: banner.state == .detecting ? .search : .warningFilled)
                     .font(.callout).foregroundStyle(.orange)
                 if banner.state == .missing {

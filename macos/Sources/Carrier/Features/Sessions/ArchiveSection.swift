@@ -38,13 +38,13 @@ struct ArchiveSection: View {
 
     var body: some View {
         let archived = archivedCount(sessions.rows)
-        VStack(spacing: Tokens.Space.hair) {
+        VStack(spacing: Tokens.Space.s2) {
             SidebarSectionRow(
                 title: "Archive", icon: .archive, selected: selection == .archive, keepActions: sortOpen || query != nil,
                 action: { selection = .archive }, actions: {
                     if archived > 0 {
                         Text("\(archived)").font(SidebarMetrics.detail.weight(.semibold).monospacedDigit()).foregroundStyle(.secondary)
-                            .padding(.horizontal, Tokens.Space.tight).padding(.vertical, Tokens.Space.hair)
+                            .padding(.horizontal, Tokens.Space.s6).padding(.vertical, Tokens.Space.s1)
                             .background(Capsule().fill(Color.secondary.opacity(0.15)))
                             .accessibilityLabel("\(archived) archived")
                     }
@@ -66,7 +66,7 @@ struct ArchiveSection: View {
             )
             .help("Archive")
             if open {
-                VStack(spacing: Tokens.Space.hair) {
+                VStack(spacing: Tokens.Space.s2) {
                     if query != nil {
                         // not `Binding($query)`: its getter force-unwraps and crashes once the query is nil
                         SidebarSearchField(
@@ -93,17 +93,17 @@ struct ArchiveSection: View {
 
     private func list(_ groups: [SessionGroup]) -> some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: Tokens.Space.hair) {
+            LazyVStack(alignment: .leading, spacing: Tokens.Space.s1) {
                 ForEach(groups, id: \.title) { group in
                     Text(group.title).font(SidebarMetrics.group).foregroundStyle(.secondary).lineLimit(1)
-                        .padding(.horizontal, SidebarMetrics.inset).padding(.top, Tokens.Space.xs)
+                        .padding(.horizontal, SidebarMetrics.inset).padding(.top, Tokens.Space.s4)
                     ForEach(group.rows, id: \.id) { row in
                         let chosen = selection == .session(id: row.id)
                         Button {
                             choose(row.id)
                         } label: {
                             SessionRowView(row: row, showsWorkspace: true)
-                                .padding(.vertical, Tokens.Space.hair)
+                                .padding(.vertical, Tokens.Space.s2)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .background(RoundedRectangle(cornerRadius: Tokens.Radius.control).fill(chosen ? Color.selectedRow(dark: scheme == .dark) : .clear))
                                 .contentShape(RoundedRectangle(cornerRadius: Tokens.Radius.control))

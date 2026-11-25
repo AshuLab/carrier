@@ -154,14 +154,14 @@ struct SidebarView: View {
                 SidebarSectionRow(title: "Home", icon: .home, selected: selection == .home, action: { selection = .home }).help("Home (⌘1)")
                 ForEach(above, id: \.self) { slot($0, epicCount: epicCount) }
             }
-            .padding(.horizontal, SidebarMetrics.edge).padding(.top, Tokens.Space.sm)
+            .padding(.horizontal, SidebarMetrics.edge).padding(.top, Tokens.Space.s8)
             if let openSlot {
                 // the open section's list scrolls in the room between the rows above and the rows under it
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: SidebarMetrics.rowGap, pinnedViews: [.sectionHeaders]) {
                         slot(openSlot, epicCount: epicCount, pinned: true)
                     }
-                    .padding(.horizontal, SidebarMetrics.edge).padding(.bottom, Tokens.Space.sm)
+                    .padding(.horizontal, SidebarMetrics.edge).padding(.bottom, Tokens.Space.s8)
                 }
                 .onScrollGeometryChange(for: Bool.self, of: { $0.contentOffset.y > 1 }, action: { _, moved in scrolled = moved })
                 .environment(\.sidebarScrolled, scrolled)
@@ -172,7 +172,7 @@ struct SidebarView: View {
                         sessions: sessions, selection: $selection, open: open == .archive, toggle: { open = open == .archive ? .sessions : .archive },
                         choose: chooseArchived, searchRequest: searchRequest
                     )
-                    .padding(.horizontal, SidebarMetrics.edge).padding(.vertical, Tokens.Space.sm)
+                    .padding(.horizontal, SidebarMetrics.edge).padding(.vertical, Tokens.Space.s8)
                 }
             } else {
                 Spacer(minLength: 0)
@@ -180,13 +180,13 @@ struct SidebarView: View {
             VStack(alignment: .leading, spacing: SidebarMetrics.rowGap) {
                 ForEach(below, id: \.self) { slot($0, epicCount: epicCount) }
             }
-            .padding(.horizontal, SidebarMetrics.edge).padding(.vertical, Tokens.Space.sm)
+            .padding(.horizontal, SidebarMetrics.edge).padding(.vertical, Tokens.Space.s8)
             Divider()
             VStack(spacing: SidebarMetrics.rowGap) {
                 SidebarSectionRow(title: "Settings", icon: .settings, selected: false, action: openSettings)
                 SidebarSectionRow(title: "Usage", icon: .chartBar, selected: selection == .usage, action: { selection = .usage })
             }
-            .padding(.horizontal, SidebarMetrics.edge).padding(.vertical, Tokens.Space.sm)
+            .padding(.horizontal, SidebarMetrics.edge).padding(.vertical, Tokens.Space.s8)
         }
         .frame(maxHeight: .infinity, alignment: .top)
         // the open section's list slides open and shut, and the rows move between the top, the list and the foot with it
@@ -227,7 +227,7 @@ private struct PinnedSectionHeader: ViewModifier {
     func body(content: Content) -> some View {
         let sidebar = theme.surfaces.sidebar
         content
-            .padding(.top, Tokens.Space.sm)
+            .padding(.top, Tokens.Space.s8)
             .background {
                 Rectangle()
                     .fill(sidebar.alpha == 1 ? AnyShapeStyle(Color(sidebar)) : AnyShapeStyle(.thinMaterial))

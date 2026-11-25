@@ -65,7 +65,7 @@ struct EpicView: View {
 
     private var scroll: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: Tokens.Space.xl) {
+            VStack(alignment: .leading, spacing: Tokens.Space.s18) {
                 EpicHeaderView(header: epicHeader(subject, reply: reply))
                 UnderlineTabs(
                     items: EpicTab.allCases.map { item in
@@ -75,20 +75,20 @@ struct EpicView: View {
                 )
                 tabContent
             }
-            .padding(.horizontal, Tokens.Space.xl).padding(.top, Tokens.Space.xl).padding(.bottom, Tokens.Space.xl)
+            .padding(.horizontal, Tokens.Space.s20).padding(.top, Tokens.Space.s20).padding(.bottom, Tokens.Space.s20)
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
         .safeAreaBar(edge: .top) {
             PipelineStrip(steps: pipelineSteps(subject, reply: reply))
                 .frame(maxWidth: messageWidth.points).frame(maxWidth: .infinity)
-                .padding(.horizontal, Tokens.Space.xl).padding(.vertical, Tokens.Space.snug)
+                .padding(.horizontal, Tokens.Space.s20).padding(.vertical, Tokens.Space.s10)
         }
     }
 
     @ViewBuilder private var tabContent: some View {
         switch tab {
         case .agentOutput:
-            VStack(alignment: .leading, spacing: Tokens.Space.xl) {
+            VStack(alignment: .leading, spacing: Tokens.Space.s18) {
                 agentFeed
                 if let resume { ResumeCardView(card: resume.card, store: resume.store, epic: EpicRef(repo: subject.repo, issue: subject.issue)) }
             }
@@ -128,11 +128,11 @@ private struct EpicHeaderView: View {
     let header: EpicHeader
 
     var body: some View {
-        HStack(alignment: .center, spacing: Tokens.Space.roomy) {
+        HStack(alignment: .center, spacing: Tokens.Space.s14) {
             HeaderGlyph(state: header.state)
-            VStack(alignment: .leading, spacing: Tokens.Space.sm) {
+            VStack(alignment: .leading, spacing: Tokens.Space.s8) {
                 Text(header.title).font(.title2.weight(.bold)).lineLimit(2)
-                FlowLayout(spacing: Tokens.Space.sm) {
+                FlowLayout(spacing: Tokens.Space.s8) {
                     StatePill(state: header.state, text: header.status)
                     if let url = URL(string: "https://github.com/\(header.repo)") {
                         Button { NSWorkspace.shared.open(url) } label: { Chip(text: header.repo, mark: GitHubMark.image, opens: true) }
@@ -143,7 +143,7 @@ private struct EpicHeaderView: View {
                             .buttonStyle(.plain).help("Open the issue")
                     }
                     ForEach(header.labels, id: \.self) { label in
-                        Text(label).font(.scaled(12, weight: .medium)).padding(.horizontal, Tokens.Space.sm).padding(.vertical, Tokens.Space.hair)
+                        Text(label).font(.scaled(12, weight: .medium)).padding(.horizontal, Tokens.Space.s8).padding(.vertical, Tokens.Space.s2)
                             .background(Capsule().fill(Color.secondary.opacity(0.15)))
                     }
                 }
@@ -189,7 +189,7 @@ private struct StatePill: View {
         case .waiting, .cancelled: .gray
         case .done: .green
         }
-        HStack(spacing: Tokens.Space.tight) {
+        HStack(spacing: Tokens.Space.s6) {
             if byShape, let shape = state.shape() {
                 Glyph(stateSymbol(shape), size: 11)
             } else {
@@ -199,7 +199,7 @@ private struct StatePill: View {
         }
         .font(.scaled(12, weight: .semibold)).foregroundStyle(color)
         .help(text)
-        .padding(.horizontal, Tokens.Space.md).padding(.vertical, Tokens.Space.xs)
+        .padding(.horizontal, Tokens.Space.s12).padding(.vertical, Tokens.Space.s4)
         .background(Capsule().fill(color.opacity(0.2)))
     }
 }
@@ -211,13 +211,13 @@ private struct Chip: View {
     let opens: Bool
 
     var body: some View {
-        HStack(spacing: Tokens.Space.tight) {
+        HStack(spacing: Tokens.Space.s5) {
             if let mark { mark.renderingMode(.template).resizable().scaledToFit().frame(width: 13, height: 13) }
             Text(text).lineLimit(1)
             if opens { Glyph(.arrowUpRight, size: 9).foregroundStyle(.tertiary) }
         }
         .font(.scaled(12, weight: .medium)).foregroundStyle(.secondary)
-        .padding(.horizontal, Tokens.Space.snug).padding(.vertical, Tokens.Space.xs)
+        .padding(.horizontal, Tokens.Space.s10).padding(.vertical, Tokens.Space.s4)
         .background(Capsule().fill(Color.secondary.opacity(0.15)))
     }
 }
@@ -227,7 +227,7 @@ struct PipelineStrip: View {
     let steps: [PipelineStep]
 
     var body: some View {
-        HStack(spacing: Tokens.Space.sm) {
+        HStack(spacing: Tokens.Space.s8) {
             ForEach(Array(steps.enumerated()), id: \.offset) { index, step in
                 if index > 0 {
                     Capsule().fill(steps[index - 1].state == .done ? Color.green : Color.secondary.opacity(0.3))
@@ -244,7 +244,7 @@ struct PipelineStepView: View {
     let step: PipelineStep
 
     var body: some View {
-        HStack(spacing: Tokens.Space.tight) {
+        HStack(spacing: Tokens.Space.s5) {
             Group {
                 if step.loops {
                     SpinningGlyph(symbol: .refresh, diameter: 10)

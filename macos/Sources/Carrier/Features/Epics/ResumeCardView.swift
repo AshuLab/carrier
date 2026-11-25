@@ -19,18 +19,18 @@ struct ResumeCardView: View {
                     .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).labelStyle(.titleAndIcon).disabled(resuming)
             }
         } below: {
-            if let refusal = store.resumeRefusals[epic] { ProblemLine(text: refusal, font: .scaled(11.5)).padding(.top, Tokens.Space.tight) }
+            if let refusal = store.resumeRefusals[epic] { ProblemLine(text: refusal, font: .scaled(11.5)).padding(.top, Tokens.Space.s6) }
         }
         .sheet(isPresented: $confirming) { confirmation.themed() }
     }
 
     private var confirmation: some View {
-        VStack(alignment: .leading, spacing: Tokens.Space.md) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s12) {
             Text("Resume this epic?").font(.title3.weight(.semibold))
-            VStack(alignment: .leading, spacing: Tokens.Space.tight) {
+            VStack(alignment: .leading, spacing: Tokens.Space.s6) {
                 ForEach(card.sheet, id: \.self) { line in Text("• " + line) }
             }
-            HStack(spacing: Tokens.Space.snug) {
+            HStack(spacing: Tokens.Space.s10) {
                 Spacer()
                 Button { confirming = false } label: { Label("Cancel", icon: .close) }
                     .buttonStyle(SecondaryCapsuleButtonStyle()).keyboardShortcut(.cancelAction)
@@ -40,9 +40,9 @@ struct ResumeCardView: View {
                 } label: { Label("Resume", icon: .playFilled) }
                     .buttonStyle(PrimaryCapsuleButtonStyle()).keyboardShortcut(.defaultAction)
             }
-            .labelStyle(.titleAndIcon).padding(.top, Tokens.Space.snug)
+            .labelStyle(.titleAndIcon).padding(.top, Tokens.Space.s10)
         }
-        .padding(Tokens.Space.xl).frame(width: 420)
+        .padding(Tokens.Space.s20).frame(width: 420)
     }
 
     private func resume() {

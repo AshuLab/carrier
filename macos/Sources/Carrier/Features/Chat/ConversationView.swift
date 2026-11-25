@@ -147,7 +147,7 @@ struct ConversationView: View {
                 if let failure = model.failure { ProblemNotice(text: failure, failed: true) }
             }
             .scrollTargetLayout()
-            .padding(.horizontal, Tokens.Space.gutter).padding(.vertical, Tokens.Space.lg)
+            .padding(.horizontal, Tokens.Space.s40).padding(.vertical, Tokens.Space.s16)
             .frame(maxWidth: messageWidth.points, alignment: .leading)
             .frame(maxWidth: .infinity)
             // the count and whether the agent is busy (the dots of Thinking come and go with it)
@@ -235,7 +235,7 @@ struct ConversationView: View {
     private var archivedBox: some View {
         // two lines at most: with no limit this detail made the whole window lay out taller than it is, the notice below its edge
         ArchivedSessionNotice(resume: { Task { if let refusal = await actions.restore(model.sessionId) { tell(refusal) } } })
-        .padding(.horizontal, Tokens.Space.gutter).padding(.vertical, Tokens.Space.md)
+        .padding(.horizontal, Tokens.Space.s40).padding(.vertical, Tokens.Space.s12)
         .frame(maxWidth: messageWidth.points).frame(maxWidth: .infinity)
     }
 

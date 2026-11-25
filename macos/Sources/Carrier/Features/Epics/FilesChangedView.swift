@@ -21,7 +21,7 @@ struct FilesChangedView: View {
         if model.isEmpty {
             EmptyStateView(state: .noFilesChanged).frame(minHeight: 260)
         } else {
-            VStack(alignment: .leading, spacing: Tokens.Space.snug) {
+            VStack(alignment: .leading, spacing: Tokens.Space.s10) {
                 FilesSummary(model: model)
                 ForEach(model.sections, id: \.id) { section in
                     let open = section.openByDefault != flipped.contains(section.id)
@@ -39,12 +39,12 @@ private struct FilesSummary: View {
     let model: FilesChangedModel
 
     var body: some View {
-        HStack(spacing: Tokens.Space.tight) {
-            Text("Epic total").font(.caption.weight(.semibold)).foregroundStyle(.secondary).padding(.trailing, Tokens.Space.hair)
+        HStack(spacing: Tokens.Space.s6) {
+            Text("Epic total").font(.caption.weight(.semibold)).foregroundStyle(.secondary).padding(.trailing, Tokens.Space.s2)
             Pill { Text("\(model.fileCount)").fontWeight(.semibold).foregroundStyle(.primary); Text(model.fileCount == 1 ? "file" : "files") }
             Pill { Text("+\(model.added)").fontWeight(.semibold).foregroundStyle(.green) }
             Pill { Text("−\(model.removed)").fontWeight(.semibold).foregroundStyle(.red) }
-            DiffSquares(added: model.added, removed: model.removed).padding(.leading, Tokens.Space.xs)
+            DiffSquares(added: model.added, removed: model.removed).padding(.leading, Tokens.Space.s4)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Epic total: \(model.fileCount) \(model.fileCount == 1 ? "file" : "files"), \(model.added) lines added, \(model.removed) removed")
@@ -57,9 +57,9 @@ private struct Pill<Content: View>: View {
     @ViewBuilder let content: Content
 
     var body: some View {
-        HStack(spacing: Tokens.Space.xs) { content }
+        HStack(spacing: Tokens.Space.s4) { content }
             .font(.caption).foregroundStyle(.secondary).monospacedDigit()
-            .padding(.horizontal, Tokens.Space.sm).padding(.vertical, Tokens.Space.hair)
+            .padding(.horizontal, Tokens.Space.s8).padding(.vertical, Tokens.Space.s2)
             .background(Capsule().fill(Color.secondary.opacity(0.16)))
     }
 }
@@ -73,10 +73,10 @@ private struct FileSectionView: View {
     var body: some View {
         LazyVStack(alignment: .leading, spacing: Tokens.Space.none) {
             Button(action: toggle) {
-                HStack(spacing: Tokens.Space.md) {
-                    VStack(alignment: .leading, spacing: Tokens.Space.xs) {
+                HStack(spacing: Tokens.Space.s12) {
+                    VStack(alignment: .leading, spacing: Tokens.Space.s4) {
                         Text(section.title).fontWeight(.semibold).lineLimit(1)
-                        HStack(spacing: Tokens.Space.tight) {
+                        HStack(spacing: Tokens.Space.s5) {
                             Pill {
                                 Glyph(.fileText, size: 10)
                                 Text("\(section.files.count)").fontWeight(.semibold).foregroundStyle(.primary)
@@ -87,12 +87,12 @@ private struct FileSectionView: View {
                         }
                     }
                     Spacer(minLength: 8)
-                    HStack(spacing: Tokens.Space.xs) {
+                    HStack(spacing: Tokens.Space.s4) {
                         if section.working == false { Glyph(.gitMerge, size: 9) }
                         Text(section.working ? "not merged yet" : "merged")
                     }
                     .font(.caption.weight(.medium)).foregroundStyle(section.working ? Color.blue : .purple)
-                    .padding(.horizontal, Tokens.Space.sm).padding(.vertical, Tokens.Space.hair)
+                    .padding(.horizontal, Tokens.Space.s8).padding(.vertical, Tokens.Space.s2)
                     .background(Capsule().fill((section.working ? Color.blue : .purple).opacity(0.18)))
                     // a round button, as in the session headers: it says the whole header folds
                     Glyph(.chevronRight, size: 11).foregroundStyle(.secondary)
@@ -101,7 +101,7 @@ private struct FileSectionView: View {
                         .background(Circle().fill(Color.secondary.opacity(0.16)))
                         .opacity(section.files.isEmpty ? 0 : 1)
                 }
-                .padding(.horizontal, Tokens.Space.md).padding(.vertical, Tokens.Space.md)
+                .padding(.horizontal, Tokens.Space.s12).padding(.vertical, Tokens.Space.s12)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain).disabled(section.files.isEmpty)
@@ -138,7 +138,7 @@ private struct OpeningFileRow: View {
                 FileRowView(row: row)
                 Glyph(.chevronRight, size: 10).foregroundStyle(.secondary)
                     .rotationEffect(.degrees(open ? 90 : 0))
-                    .padding(.trailing, Tokens.Space.md)
+                    .padding(.trailing, Tokens.Space.s12)
             }
             .contentShape(Rectangle())
         }
@@ -156,7 +156,7 @@ private struct OpeningFileRow: View {
                 case nil: line("Loading the changes…")
                 }
             }
-            .padding(.horizontal, Tokens.Space.md).padding(.bottom, Tokens.Space.snug)
+            .padding(.horizontal, Tokens.Space.s12).padding(.bottom, Tokens.Space.s10)
         }
     }
 
@@ -194,27 +194,27 @@ struct FileRowView: View {
     let row: FileRow
 
     var body: some View {
-        HStack(spacing: Tokens.Space.snug) {
+        HStack(spacing: Tokens.Space.s10) {
             FileIconView(icon: row.icon).frame(width: 20)
-            VStack(alignment: .leading, spacing: Tokens.Space.xs) {
+            VStack(alignment: .leading, spacing: Tokens.Space.s3) {
                 Text(row.name).fontWeight(.medium).lineLimit(1)
                 if row.directory.isEmpty == false || row.alsoIn.isEmpty == false { subtitle }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .help(row.directory + row.name)
-            HStack(spacing: Tokens.Space.xs) {
+            HStack(spacing: Tokens.Space.s4) {
                 Text("+\(row.added)").foregroundStyle(.green)
                 Text("−\(row.removed)").foregroundStyle(.red)
             }
             .monospacedDigit().font(.callout)
             DiffSquares(added: row.added, removed: row.removed)
         }
-        .padding(.horizontal, Tokens.Space.md).padding(.vertical, Tokens.Space.snug)
+        .padding(.horizontal, Tokens.Space.s12).padding(.vertical, Tokens.Space.s10)
     }
 
     /// The directory, cut in the middle when it does not fit; the warning keeps its room.
     private var subtitle: some View {
-        HStack(spacing: Tokens.Space.tight) {
+        HStack(spacing: Tokens.Space.s6) {
             Text(row.directory).foregroundStyle(.tertiary).lineLimit(1).truncationMode(.middle)
             if row.alsoIn.isEmpty == false {
                 Text("⚠ also in \(row.alsoIn.joined(separator: ", "))").foregroundStyle(.orange).lineLimit(1).fixedSize()
@@ -231,7 +231,7 @@ private struct DiffSquares: View {
 
     var body: some View {
         let squares = diffSquares(added: added, removed: removed)
-        HStack(spacing: Tokens.Space.xs) {
+        HStack(spacing: Tokens.Space.s3) {
             ForEach(0..<5, id: \.self) { index in
                 RoundedRectangle(cornerRadius: Tokens.Radius.hair)
                     .fill(index < squares.green ? Color.green : index < squares.green + squares.red ? Color.red : Color.secondary.opacity(0.2))

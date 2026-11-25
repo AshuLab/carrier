@@ -19,7 +19,7 @@ struct CopyButton: View {
             }
         } label: {
             // the icon and the word keep their size when they swap, so the button does not move
-            HStack(spacing: Tokens.Space.tight) {
+            HStack(spacing: Tokens.Space.s5) {
                 Glyph(copied ? .check : .copy).frame(width: 12, height: 14)
                 Text(copied ? "Copied" : "Copy").frame(width: 40, alignment: .leading)
             }
@@ -44,7 +44,7 @@ struct Console<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Tokens.Space.none) { content }
             .codeFont(11.5)
-            .padding(.vertical, Tokens.Space.tight)
+            .padding(.vertical, Tokens.Space.s6)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(Color(Tokens.Console.background))
     }
@@ -83,23 +83,23 @@ struct DiffView: View {
             if rows.count > collapsedDiffRows {
                 Button(showAll ? "Show less" : "Show \(shown.hidden) more \(shown.hidden == 1 ? "line" : "lines")") { showAll.toggle() }
                     .buttonStyle(.plain).font(.scaled(11)).foregroundStyle(Color.themeAccent)
-                    .padding(.horizontal, Tokens.Space.roomy).padding(.top, Tokens.Space.sm).padding(.bottom, Tokens.Space.hair)
+                    .padding(.horizontal, Tokens.Space.s14).padding(.top, Tokens.Space.s8).padding(.bottom, Tokens.Space.s1)
             }
             if let cut {
                 Text(cut).font(.scaled(11)).foregroundStyle(ConsoleColor.text.opacity(0.6))
-                    .padding(.horizontal, Tokens.Space.roomy).padding(.top, Tokens.Space.sm).padding(.bottom, Tokens.Space.hair)
+                    .padding(.horizontal, Tokens.Space.s14).padding(.top, Tokens.Space.s8).padding(.bottom, Tokens.Space.s1)
             }
         }
     }
 
     private func line(_ row: DiffRow) -> some View {
-        HStack(alignment: .top, spacing: Tokens.Space.tight) {
+        HStack(alignment: .top, spacing: Tokens.Space.s6) {
             Text(sign(row.sign))
             Text(row.text).textSelection(.enabled).lineLimit(1).truncationMode(.tail).frame(maxWidth: .infinity, alignment: .leading)
         }
         .foregroundStyle(color(row.sign))
-        .padding(.horizontal, Tokens.Space.roomy)
-        .padding(.vertical, row.sign == .hunk ? Tokens.Space.hair : Tokens.Space.none)
+        .padding(.horizontal, Tokens.Space.s14)
+        .padding(.vertical, row.sign == .hunk ? Tokens.Space.s2 : Tokens.Space.none)
     }
 
     /// One side of a split line; a side with no match stays empty.

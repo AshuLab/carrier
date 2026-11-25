@@ -91,13 +91,13 @@ struct StartCarrierButton: View {
 
     var body: some View {
         let missing = setup.missing
-        VStack(spacing: 6) {
+        VStack(spacing: Tokens.Space.s6) {
             HStack {
                 let blocked = missing.isEmpty == false || start.configExists == false || start.starting
                 Button { start.start() } label: {
                     Label("Start Carrier", icon: .playFilled).labelStyle(.titleAndIcon).font(.scaled(14, weight: .semibold))
                         .foregroundStyle(blocked ? Color.secondary : .white)
-                        .padding(.horizontal, 22).padding(.vertical, 10).contentShape(Capsule())
+                        .padding(.horizontal, Tokens.Space.s22).padding(.vertical, Tokens.Space.s10).contentShape(Capsule())
                 }
                 .buttonStyle(.plain)
                 // the accent is a light pastel on the dark themes: darkened for the tint so the white label reads over any window behind it

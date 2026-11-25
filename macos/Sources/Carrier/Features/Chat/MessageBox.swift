@@ -80,14 +80,14 @@ struct MessageBox<Selects: View>: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Tokens.Space.snug) {
-            VStack(alignment: .leading, spacing: Tokens.Space.snug) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s10) {
+            VStack(alignment: .leading, spacing: Tokens.Space.s10) {
                 if matches.isEmpty == false {
                     commandList
                     Divider()
                 }
                 if pastes.isEmpty == false {
-                    VStack(alignment: .leading, spacing: Tokens.Space.tight) {
+                    VStack(alignment: .leading, spacing: Tokens.Space.s6) {
                         ForEach(pastes) { pasted in
                             PastedTextCard(
                                 text: pasted.text, summary: pasted.summary,
@@ -100,7 +100,7 @@ struct MessageBox<Selects: View>: View {
                     .animation(.smooth(duration: 0.2), value: pastes)
                 }
                 if attachments.isEmpty == false {
-                    FlowLayout(spacing: Tokens.Space.sm) {
+                    FlowLayout(spacing: Tokens.Space.s8) {
                         ForEach(attachments) { file in
                             AttachmentChip(file: file, remove: { discard(file) }, open: file.canPreview ? { previewing = file } : nil)
                                 .transition(.scale(scale: 0.9).combined(with: .opacity))
@@ -128,7 +128,7 @@ struct MessageBox<Selects: View>: View {
                     withAnimation(.smooth(duration: 0.2)) { pastes += split.pastes.map { PastedEntry(text: $0) } }
                     text = split.text
                 }
-                HStack(spacing: Tokens.Space.sm) {
+                HStack(spacing: Tokens.Space.s8) {
                     selects()
                     Spacer(minLength: 0)
                     if let caption = dictationPresentation?.caption {
@@ -149,7 +149,7 @@ struct MessageBox<Selects: View>: View {
                     button
                 }
             }
-            .padding(.horizontal, Tokens.Space.lg).padding(.top, Tokens.Space.roomy).padding(.bottom, Tokens.Space.md)
+            .padding(.horizontal, Tokens.Space.s16).padding(.top, Tokens.Space.s14).padding(.bottom, Tokens.Space.s12)
             // while it listens: the line with its arc that follows the voice, outside the box and under the text; a drop's veil makes it wait
             .background {
                 if dictationEdgeShown(dictationPresentation, dropping: dropping) {
@@ -192,7 +192,7 @@ struct MessageBox<Selects: View>: View {
 
     /// What a blocked microphone offers: the way to the Microphone pane of System Settings.
     private var blockedPopover: some View {
-        VStack(alignment: .leading, spacing: Tokens.Space.sm) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s8) {
             Text(MicrophoneBlockedPopover.title).font(.scaled(13, weight: .semibold))
             Text(MicrophoneBlockedPopover.message).font(.scaled(12)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             Button(MicrophoneBlockedPopover.button) {
@@ -200,12 +200,12 @@ struct MessageBox<Selects: View>: View {
                 microphoneBlocked = false
             }
         }
-        .padding(Tokens.Space.roomy).frame(width: 260, alignment: .leading)
+        .padding(Tokens.Space.s14).frame(width: 260, alignment: .leading)
     }
 
     /// What the box says while files are over it.
     private var dropVeil: some View {
-        VStack(spacing: Tokens.Space.xs) {
+        VStack(spacing: Tokens.Space.s3) {
             Text("Drop to attach").font(.scaled(14, weight: .semibold))
             Text("The agent reads them by their path").font(.scaled(12)).foregroundStyle(.secondary)
         }

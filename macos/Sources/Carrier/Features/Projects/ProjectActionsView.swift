@@ -45,7 +45,7 @@ struct ProjectActionsView: View {
             }
             Button { add(when) } label: { Label("Add action", icon: .plus).labelStyle(.titleAndIcon) }
                 .buttonStyle(HoverTextButtonStyle(tint: nil))
-                .padding(.vertical, 10)
+                .padding(.vertical, Tokens.Space.s10)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .overlay(alignment: .top) { if items.isEmpty == false { SettingsDivider() } }
         }
@@ -56,7 +56,7 @@ struct ProjectActionsView: View {
         let label = item.action.name.trimmingCharacters(in: .whitespacesAndNewlines)
         let named = label.isEmpty ? "action" : label
         SettingsTabRow(title: "Name", detail: "", first: first, problem: problems[.name]) {
-            HStack(spacing: 10) {
+            HStack(spacing: Tokens.Space.s10) {
                 TextField("", text: binding(item.id, \.name), prompt: Text("Install dependencies"))
                     .accessibilityLabel("Name").settingsField(width: 200)
                 Toggle("On", isOn: binding(item.id, \.on))

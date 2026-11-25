@@ -83,7 +83,7 @@ struct BehaviorTabView: View {
         case .number(let minimum, let unit):
             integer(item.key, intBinding(item.key), min: minimum, unit: unit)
         case .runTime:
-            HStack(spacing: 10) {
+            HStack(spacing: Tokens.Space.s10) {
                 if draft.maxExecutionHours != nil {
                     integer(item.key, Binding(get: { draft.maxExecutionHours ?? 4 }, set: { draft.maxExecutionHours = $0 }), min: 1, unit: "h")
                 }
@@ -117,7 +117,7 @@ struct BehaviorTabView: View {
     }
 
     private func field<Value: Equatable>(_ key: String, _ value: Binding<Value>, unit: String?, parse: @escaping (String) -> Value?, format: @escaping (Value) -> String, step: @escaping (Value, Int) -> Value?) -> some View {
-        HStack(spacing: 6) {
+        HStack(spacing: Tokens.Space.s6) {
             NumberField(key: key, value: value, unparsable: $unparsable, parse: parse, format: format, step: step)
             if let unit { Text(unit).font(.scaled(11)).foregroundStyle(.secondary) }
         }

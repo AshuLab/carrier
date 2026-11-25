@@ -20,12 +20,12 @@ struct MarkdownTableView: View {
         // the card is as wide as its table, not as the message
         .workCard()
         .clipShape(RoundedRectangle(cornerRadius: Tokens.Radius.card))
-        .overlay(alignment: .topTrailing) { copyMenu.opacity(hovering || copied ? 1 : 0).padding(Tokens.Space.tight) }
+        .overlay(alignment: .topTrailing) { copyMenu.opacity(hovering || copied ? 1 : 0).padding(Tokens.Space.s5) }
         .onHover { hovering = $0 }
         .animation(.easeOut(duration: 0.15), value: hovering)
         .contextMenu { copyButtons }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, Tokens.Space.xs)
+        .padding(.vertical, Tokens.Space.s3)
     }
 
     /// Copy over the table's corner, shown while the pointer is over it: as tabs for a spreadsheet, or as the pipes it was written with.
@@ -65,7 +65,7 @@ struct MarkdownTableView: View {
         return Text(text).font(.chat(points, weight: header ? .semibold : nil)).lineSpacing(points * 2 / 12.5)
             .multilineTextAlignment(table.aligns[column] == .trailing ? .trailing : table.aligns[column] == .center ? .center : .leading)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: align)
-            .padding(.horizontal, Tokens.Space.md).padding(.vertical, Tokens.Space.sm)
+            .padding(.horizontal, Tokens.Space.s12).padding(.vertical, Tokens.Space.s8)
             .background(header ? Color.primary.opacity(0.06) : .clear)
             // a hairline over every row but the header
             .overlay(alignment: .top) { if header == false { Rectangle().fill(Color.primary.opacity(0.08)).frame(height: 0.5) } }

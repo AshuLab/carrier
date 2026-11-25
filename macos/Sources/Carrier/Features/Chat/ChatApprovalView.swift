@@ -16,8 +16,8 @@ struct ApprovalCardView: View {
     @Environment(\.conversationHeight) private var paneHeight
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Tokens.Space.snug) {
-            HStack(spacing: Tokens.Space.snug) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s10) {
+            HStack(spacing: Tokens.Space.s10) {
                 Glyph(.exclamation, size: 12, bold: true).foregroundStyle(.white)
                     .frame(width: 26, height: 26).background(RoundedRectangle(cornerRadius: Tokens.Radius.control, style: .continuous).fill(Color.attention))
                 Text(card.question).font(.scaled(14, weight: .semibold))
@@ -29,11 +29,11 @@ struct ApprovalCardView: View {
                     .scrollBounceBehavior(.basedOnSize)
                     .frame(height: argHeight > 0 ? min(argHeight, cardRoom(in: paneHeight)) : nil)
             }
-            VStack(spacing: Tokens.Space.hair) {
+            VStack(spacing: Tokens.Space.s2) {
                 ForEach(Array(card.choices.enumerated()), id: \.element.id) { index, choice in row(index, choice) }
             }
         }
-        .padding(Tokens.Space.roomy)
+        .padding(Tokens.Space.s14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .chatSurface(.regular.tint(Color.attention.opacity(0.16)), flat: Color.attention.opacity(0.14), in: RoundedRectangle(cornerRadius: Tokens.Radius.sheet))
         .accessibilityElement(children: .contain)
@@ -42,7 +42,7 @@ struct ApprovalCardView: View {
     private func row(_ index: Int, _ choice: ChatChoice) -> some View {
         let first = index == 0
         let line = Button { answer(card.approvalId, choice.id) } label: {
-            HStack(spacing: Tokens.Space.snug) {
+            HStack(spacing: Tokens.Space.s10) {
                 Text("\(index + 1)").font(.scaled(11, weight: .semibold, design: .monospaced))
                     .foregroundStyle(first ? AnyShapeStyle(.white) : AnyShapeStyle(.secondary))
                     .frame(width: 20, height: 20)
@@ -51,8 +51,8 @@ struct ApprovalCardView: View {
                 Spacer(minLength: 0)
                 if index < 9 { Text("⌥\(index + 1)").font(.scaled(11)).foregroundStyle(.tertiary) }
             }
-            .padding(.horizontal, Tokens.Space.snug).padding(.vertical, Tokens.Space.sm)
-            .background(RoundedRectangle(cornerRadius: Tokens.Radius.snug, style: .continuous).fill(fill(choice, first: first)))
+            .padding(.horizontal, Tokens.Space.s10).padding(.vertical, Tokens.Space.s8)
+            .background(RoundedRectangle(cornerRadius: Tokens.Radius.tile, style: .continuous).fill(fill(choice, first: first)))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -78,7 +78,7 @@ struct ApprovalDecidedView: View {
     let allow: Bool
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: Tokens.Space.tight) {
+        HStack(alignment: .firstTextBaseline, spacing: Tokens.Space.s6) {
             Glyph(allow ? .check : .close).foregroundStyle(allow ? Color.green : Color.red)
             Text(text).foregroundStyle(.secondary).lineLimit(8).textSelection(.enabled)
         }

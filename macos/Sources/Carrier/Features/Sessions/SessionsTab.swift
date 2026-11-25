@@ -112,7 +112,7 @@ struct SessionsTabView: View {
         let key = field == .archive ? "archive" : "delete"
         let days = Binding(get: { if case .days(let days) = age.wrappedValue { days } else { fallback } }, set: { age.wrappedValue = .days($0) })
         return SettingsTabRow(id: id, title: title, detail: off ?? detail, first: first, problem: off == nil ? problems[field] : nil) {
-            HStack(spacing: Tokens.Space.snug) {
+            HStack(spacing: Tokens.Space.s10) {
                 if age.wrappedValue != .never {
                     NumberField(key: key, value: days, unparsable: $unparsable, parse: { Int($0) }, format: { String($0) }, step: { $0 + $1 >= 1 ? $0 + $1 : nil })
                     Text("days").font(.scaled(11)).foregroundStyle(.secondary)

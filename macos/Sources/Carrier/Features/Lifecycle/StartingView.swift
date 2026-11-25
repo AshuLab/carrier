@@ -11,28 +11,28 @@ struct StartingView: View {
         // the clock of the workspace step runs: one tick a second is all it needs
         TickingTimeline(every: 1) { context in
             let steps = startingSteps(epic, reply: reply, now: Int(context.date.timeIntervalSince1970 * 1000))
-            VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: Tokens.Space.none) {
                 ForEach(Array(steps.enumerated()), id: \.offset) { index, step in
                     if index > 0 { Divider() }
                     row(step)
                 }
             }
-            .padding(.horizontal, 14).padding(.vertical, 6)
-            .background(RoundedRectangle(cornerRadius: 16).fill(Color.secondary.opacity(0.08)))
+            .padding(.horizontal, Tokens.Space.s14).padding(.vertical, Tokens.Space.s6)
+            .background(RoundedRectangle(cornerRadius: Tokens.Radius.panel).fill(Color.secondary.opacity(0.08)))
         }
     }
 
     private func row(_ step: StartStep) -> some View {
-        HStack(alignment: .top, spacing: 12) {
+        HStack(alignment: .top, spacing: Tokens.Space.s12) {
             mark(step.state).frame(width: 22, height: 22)
-            VStack(alignment: .leading, spacing: 1) {
+            VStack(alignment: .leading, spacing: Tokens.Space.s1) {
                 Text(step.title).fontWeight(.semibold).foregroundStyle(step.state == .waiting ? Color.secondary : .primary)
                 if let detail = step.detail { Text(detail).font(.callout).foregroundStyle(.secondary) }
             }
             Spacer(minLength: 12)
-            if let clock = step.clock { Text(clock).font(.caption).monospacedDigit().foregroundStyle(.tertiary).padding(.top, 2) }
+            if let clock = step.clock { Text(clock).font(.caption).monospacedDigit().foregroundStyle(.tertiary).padding(.top, Tokens.Space.s2) }
         }
-        .padding(.vertical, 11)
+        .padding(.vertical, Tokens.Space.s12)
         .accessibilityElement(children: .combine)
     }
 

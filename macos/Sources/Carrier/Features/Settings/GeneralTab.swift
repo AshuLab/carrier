@@ -10,11 +10,11 @@ struct GeneralTabView: View {
         let now = today(18, 0)
         let format = TimeFormat.stored()
         return SettingsPreview {
-            HStack(spacing: 10) {
+            HStack(spacing: Tokens.Space.s10) {
                 ForEach([today(17, 49), today(15, 40), today(9, 5)], id: \.self) { date in
                     Text(timeText(date, now: now, format: format)).monospacedDigit()
-                        .frame(maxWidth: .infinity).padding(.vertical, 10)
-                        .background(RoundedRectangle(cornerRadius: 10).fill(Color.secondary.opacity(0.1)))
+                        .frame(maxWidth: .infinity).padding(.vertical, Tokens.Space.s10)
+                        .background(RoundedRectangle(cornerRadius: Tokens.Radius.tile).fill(Color.secondary.opacity(0.1)))
                 }
             }
         }

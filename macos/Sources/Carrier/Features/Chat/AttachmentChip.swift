@@ -22,7 +22,7 @@ struct AttachmentChip: View {
     }
 
     var body: some View {
-        HStack(spacing: Tokens.Space.snug) {
+        HStack(spacing: Tokens.Space.s10) {
             badge
             VStack(alignment: .leading, spacing: Tokens.Space.none) {
                 Text(Self.shortened(file.name)).font(.scaled(12.5, weight: .semibold)).lineLimit(1)
@@ -38,7 +38,7 @@ struct AttachmentChip: View {
                 .animation(.easeOut(duration: 0.12), value: hovering)
             }
         }
-        .padding(.leading, Tokens.Space.tight).padding(.trailing, remove == nil ? Tokens.Space.md : Tokens.Space.sm).padding(.vertical, Tokens.Space.tight)
+        .padding(.leading, Tokens.Space.s5).padding(.trailing, remove == nil ? Tokens.Space.s12 : Tokens.Space.s8).padding(.vertical, Tokens.Space.s5)
         // as wide as its words and no wider (the name is cut by `shortened`): a flexible frame would stretch the glass and leave the × in its middle
         .fixedSize(horizontal: true, vertical: false)
         .chatSurface(.regular.tint(tint?.opacity(0.3)), flat: tint.map { $0.opacity(0.16) } ?? Color.primary.opacity(0.07), in: RoundedRectangle(cornerRadius: Tokens.Radius.card))
@@ -61,8 +61,8 @@ struct AttachmentChip: View {
         .frame(width: 32, height: 32)
         // the badge of the session notices: the colour itself, vivid, with the symbol in white
         .background(color)
-        .clipShape(RoundedRectangle(cornerRadius: Tokens.Radius.snug))
-        .overlay(RoundedRectangle(cornerRadius: Tokens.Radius.snug).strokeBorder(.white.opacity(0.16), lineWidth: 0.5))
+        .clipShape(RoundedRectangle(cornerRadius: Tokens.Radius.tile))
+        .overlay(RoundedRectangle(cornerRadius: Tokens.Radius.tile).strokeBorder(.white.opacity(0.16), lineWidth: 0.5))
         .accessibilityHidden(true)
     }
 
@@ -119,7 +119,7 @@ struct SentAttachments: View {
     @State private var previewing: AttachedFile?
 
     var body: some View {
-        FlowLayout(spacing: Tokens.Space.sm) {
+        FlowLayout(spacing: Tokens.Space.s8) {
             ForEach(files) { file in AttachmentChip(file: file, open: file.canPreview ? { previewing = file } : nil) }
         }
         .attachmentPreview(of: files, showing: $previewing)

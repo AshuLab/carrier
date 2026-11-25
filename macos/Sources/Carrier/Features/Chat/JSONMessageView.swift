@@ -21,8 +21,8 @@ private struct SliceReportView: View {
     let report: SliceReport
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Tokens.Space.tight) {
-            HStack(spacing: Tokens.Space.sm) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s6) {
+            HStack(spacing: Tokens.Space.s8) {
                 if let title = report.title { Text(title).font(.scaled(14, weight: .semibold)) }
                 pill
                 Spacer(minLength: 8)
@@ -36,24 +36,24 @@ private struct SliceReportView: View {
             if let branch = report.branch {
                 Label(branch, icon: .gitBranch)
                     .codeFont(11.5).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
-                    .padding(.horizontal, Tokens.Space.sm).padding(.vertical, Tokens.Space.xs).background(Capsule().fill(Color.secondary.opacity(0.14)))
+                    .padding(.horizontal, Tokens.Space.s8).padding(.vertical, Tokens.Space.s3).background(Capsule().fill(Color.secondary.opacity(0.14)))
             }
             let done = report.checks.filter(\.passed).count
             Text("DEFINITION OF DONE · \(done) OF \(report.checks.count)")
-                .font(.scaled(11, weight: .semibold)).tracking(0.4).foregroundStyle(.tertiary).padding(.top, Tokens.Space.tight)
+                .font(.scaled(11, weight: .semibold)).tracking(0.4).foregroundStyle(.tertiary).padding(.top, Tokens.Space.s6)
             ChecklistView(checks: report.checks)
-            if let note = report.note { MarkdownView(text: note).foregroundStyle(.secondary).padding(.top, Tokens.Space.tight) }
+            if let note = report.note { MarkdownView(text: note).foregroundStyle(.secondary).padding(.top, Tokens.Space.s6) }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var pill: some View {
-        HStack(spacing: Tokens.Space.tight) {
+        HStack(spacing: Tokens.Space.s5) {
             Glyph(icon, size: 10)
             Text(report.outcome)
         }
         .font(.scaled(10, weight: .semibold)).foregroundStyle(tint)
-        .padding(.horizontal, Tokens.Space.snug).padding(.vertical, Tokens.Space.xs).background(Capsule().fill(tint.opacity(0.18)))
+        .padding(.horizontal, Tokens.Space.s10).padding(.vertical, Tokens.Space.s3).background(Capsule().fill(tint.opacity(0.18)))
     }
 
     private var icon: AppIcon {
@@ -77,9 +77,9 @@ private struct ChecklistView: View {
     let checks: [ReportCheck]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Tokens.Space.xs) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s4) {
             ForEach(Array(checks.enumerated()), id: \.offset) { _, check in
-                HStack(alignment: .firstTextBaseline, spacing: Tokens.Space.sm) {
+                HStack(alignment: .firstTextBaseline, spacing: Tokens.Space.s8) {
                     Glyph(check.passed ? .checkCircle : .closeCircle)
                         .foregroundStyle(check.passed ? Color.green : Color.red)
                     Text(check.name).foregroundStyle(check.passed ? .secondary : .primary)
@@ -115,7 +115,7 @@ private struct FieldsView: View {
             Text(text).codeFont(11.5).foregroundStyle(.secondary).textSelection(.enabled)
         case .link(let link): Link(link.label, destination: link.url).foregroundStyle(.blue)
         case .list(let items):
-            VStack(alignment: .leading, spacing: Tokens.Space.hair) { ForEach(Array(items.enumerated()), id: \.offset) { _, item in Text("· \(item)") } }
+            VStack(alignment: .leading, spacing: Tokens.Space.s2) { ForEach(Array(items.enumerated()), id: \.offset) { _, item in Text("· \(item)") } }
         case .checks(let checks): ChecklistView(checks: checks)
         }
     }

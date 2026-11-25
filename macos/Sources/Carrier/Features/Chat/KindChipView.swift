@@ -7,14 +7,14 @@ struct KindChipView: View {
 
     var body: some View {
         CappedWidth(maxWidth: 160) {
-            HStack(spacing: Tokens.Space.xs) {
+            HStack(spacing: Tokens.Space.s4) {
                 if let icon = chip.icon {
                     Glyph(icon, size: 9.5)
                 }
                 Text(chip.label).font(.scaled(11, weight: .semibold)).lineLimit(1).truncationMode(.tail)
             }
             .foregroundStyle(foreground)
-            .padding(.leading, chip.icon == nil ? Tokens.Space.sm : Tokens.Space.tight).padding(.trailing, Tokens.Space.sm).padding(.vertical, Tokens.Space.hair)
+            .padding(.leading, chip.icon == nil ? Tokens.Space.s8 : Tokens.Space.s6).padding(.trailing, Tokens.Space.s8).padding(.vertical, Tokens.Space.s1)
             .background(Capsule().fill(background))
         }
         .fixedSize()

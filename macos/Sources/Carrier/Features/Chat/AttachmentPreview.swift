@@ -19,7 +19,7 @@ struct AttachmentPreview: View {
 
     var body: some View {
         VStack(spacing: Tokens.Space.none) {
-            HStack(spacing: Tokens.Space.snug) {
+            HStack(spacing: Tokens.Space.s10) {
                 Text(file.name).font(.headline).lineLimit(1).truncationMode(.middle)
                 if files.count > 1 { Text("\(index + 1) of \(files.count)").font(.callout).foregroundStyle(.secondary).monospacedDigit() }
                 Spacer(minLength: 0)
@@ -27,7 +27,7 @@ struct AttachmentPreview: View {
                     .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
                 IconButton(icon: .close, name: "Close") { dismiss() }.keyboardShortcut(.cancelAction)
             }
-            .padding(.horizontal, Tokens.Space.lg).padding(.vertical, Tokens.Space.snug)
+            .padding(.horizontal, Tokens.Space.s16).padding(.vertical, Tokens.Space.s10)
             Divider()
             QuickLook(path: file.path)
                 .overlay(alignment: .leading) { step(.chevronLeft, "Previous", -1) }
@@ -44,7 +44,7 @@ struct AttachmentPreview: View {
             }
             .buttonStyle(.plain).glassEffect(.regular.interactive(), in: .circle)
             .keyboardShortcut(by < 0 ? .leftArrow : .rightArrow, modifiers: [])
-            .help(name).accessibilityLabel(name).padding(Tokens.Space.md)
+            .help(name).accessibilityLabel(name).padding(Tokens.Space.s12)
         }
     }
 }

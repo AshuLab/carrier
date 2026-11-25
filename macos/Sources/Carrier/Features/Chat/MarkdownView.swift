@@ -95,7 +95,7 @@ struct MarkdownView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Tokens.Space.tight) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s5) {
             ForEach(Array(segments.enumerated()), id: \.offset) { _, segment in
                 switch segment {
                 case .text(let text):
@@ -104,12 +104,12 @@ struct MarkdownView: View {
                 case .code(let language, let file, let code): CodeBlockView(language: language, file: file, code: code)
                 case .table(let table): MarkdownTableView(table: table)
                 case .quote(let quoted):
-                    HStack(alignment: .top, spacing: Tokens.Space.snug) {
+                    HStack(alignment: .top, spacing: Tokens.Space.s10) {
                         Capsule().fill(Color.secondary.opacity(0.4)).frame(width: 3)
                         Text(quoted).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .fixedSize(horizontal: false, vertical: true).padding(.vertical, Tokens.Space.hair)
-                case .rule: Divider().padding(.vertical, Tokens.Space.tight)
+                    .fixedSize(horizontal: false, vertical: true).padding(.vertical, Tokens.Space.s2)
+                case .rule: Divider().padding(.vertical, Tokens.Space.s6)
                 }
             }
         }

@@ -37,10 +37,10 @@ struct PreparationStepsView: View {
 
     private func card(elapsed: TimeInterval) -> some View {
         let slow = failed == false && current?.step == "message" && elapsed >= Self.slowAfter
-        return VStack(alignment: .leading, spacing: Tokens.Space.md) {
-            HStack(spacing: Tokens.Space.md) {
+        return VStack(alignment: .leading, spacing: Tokens.Space.s12) {
+            HStack(spacing: Tokens.Space.s12) {
                 badge(slow: slow)
-                VStack(alignment: .leading, spacing: Tokens.Space.hair) {
+                VStack(alignment: .leading, spacing: Tokens.Space.s1) {
                     Text(title(slow: slow, elapsed: elapsed)).fontWeight(.semibold).contentTransition(.opacity)
                     Text(subtitle(slow: slow)).font(.scaled(11)).foregroundStyle(failed ? Color.red : .secondary).fixedSize(horizontal: false, vertical: true)
                         .contentTransition(.opacity)
@@ -50,21 +50,21 @@ struct PreparationStepsView: View {
                 case .failed: Button("Try again", action: retry).buttonStyle(.glassProminent).buttonBorderShape(.capsule).controlSize(.small)
                 case .running:
                     // its shape shows on hover; the shape reaches a little into the card's margin so the word keeps its place near the edge
-                    Button(action: cancel) { Text("Cancel").padding(.horizontal, Tokens.Space.snug).padding(.vertical, Tokens.Space.tight).contentShape(Rectangle()) }
-                        .buttonStyle(HoverFillButtonStyle()).foregroundStyle(.secondary).padding(.trailing, -Tokens.Space.xs)
+                    Button(action: cancel) { Text("Cancel").padding(.horizontal, Tokens.Space.s10).padding(.vertical, Tokens.Space.s5).contentShape(Rectangle()) }
+                        .buttonStyle(HoverFillButtonStyle()).foregroundStyle(.secondary).padding(.trailing, -Tokens.Space.s4)
                 case nil: EmptyView()
                 }
             }
             segments(slow: slow)
             if let progress = current?.progress { clone(progress) }
-            VStack(alignment: .leading, spacing: Tokens.Space.tight) {
+            VStack(alignment: .leading, spacing: Tokens.Space.s6) {
                 ForEach(items) { item in
                     row(item).transition(.opacity.combined(with: .move(edge: .top)))
                 }
             }
             if let refusal { Text(refusal).font(.scaled(11)).foregroundStyle(.red).textSelection(.enabled) }
         }
-        .font(.scaled(12)).padding(Tokens.Space.md)
+        .font(.scaled(12)).padding(Tokens.Space.s12)
         .frame(maxWidth: .infinity, alignment: .leading)
         // glass, as the notices of the session: the conversation under it is blurred and not seen through it
         .chatSurface(.regular.tint(Color.themeAccent.opacity(0.15)), flat: Color.themeAccent.opacity(0.14), in: RoundedRectangle(cornerRadius: Tokens.Radius.card))
@@ -114,7 +114,7 @@ struct PreparationStepsView: View {
 
     /// A segment a step: done in green, the one it is on in the accent and breathing, a failed one red, the rest dim.
     private func segments(slow: Bool) -> some View {
-        HStack(spacing: Tokens.Space.xs) {
+        HStack(spacing: Tokens.Space.s4) {
             ForEach(items) { item in
                 Capsule().fill(color(item, slow: slow)).frame(height: 3)
                     .opacity(item.status == .running && pulse ? 0.45 : 1)
@@ -136,7 +136,7 @@ struct PreparationStepsView: View {
 
     /// git's own line while a clone runs, with how far it is when the line says.
     private func clone(_ progress: String) -> some View {
-        VStack(alignment: .leading, spacing: Tokens.Space.tight) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s5) {
             if let fraction = progressFraction(progress) {
                 ProgressView(value: fraction).progressViewStyle(.linear).tint(Color.themeAccent)
             }
@@ -146,7 +146,7 @@ struct PreparationStepsView: View {
     }
 
     private func row(_ item: OutlineItem) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: Tokens.Space.sm) {
+        HStack(alignment: .firstTextBaseline, spacing: Tokens.Space.s8) {
             mark(item.status).frame(width: 16)
             if let icon = item.icon { Glyph(icon, size: 12).foregroundStyle(.secondary) }
             Text(item.line).foregroundStyle(item.status == nil ? AnyShapeStyle(.tertiary) : item.status == .done ? AnyShapeStyle(.secondary) : AnyShapeStyle(.primary))

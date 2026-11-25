@@ -8,7 +8,7 @@ struct ReviewTabView: View {
     @Binding var folds: ReviewFolds
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Tokens.Space.roomy) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s14) {
             rounds
             if let threads = model.threads { ReviewThreadsView(threads: threads) }
         }
@@ -17,13 +17,13 @@ struct ReviewTabView: View {
 
     @ViewBuilder private var rounds: some View {
         if let card = model.card {
-            VStack(alignment: .leading, spacing: Tokens.Space.snug) {
+            VStack(alignment: .leading, spacing: Tokens.Space.s10) {
                 if let headline = model.headline {
                     Text(headline).font(.callout).foregroundStyle(.secondary)
                 }
                 ReviewCardView(card: card)
                 if model.history.isEmpty == false {
-                    Text("History · newest first").font(.caption.weight(.semibold)).foregroundStyle(.secondary).padding(.top, Tokens.Space.tight)
+                    Text("History · newest first").font(.caption.weight(.semibold)).foregroundStyle(.secondary).padding(.top, Tokens.Space.s6)
                     ForEach(model.history, id: \.id) { round in
                         ReviewHistoryRow(round: round, open: folds.isOpen(epic, round.id)) { folds.toggle(epic, round.id) }
                     }
@@ -33,7 +33,7 @@ struct ReviewTabView: View {
             EmptyStateView(state: .reviewNotStarted).frame(minHeight: 260)
         } else {
             // back in ship after a requeue: only the earlier attempt's rounds
-            VStack(alignment: .leading, spacing: Tokens.Space.snug) {
+            VStack(alignment: .leading, spacing: Tokens.Space.s10) {
                 Text("Review has not started again").font(.callout).foregroundStyle(.secondary)
                 Text("History · newest first").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
                 ForEach(model.history, id: \.id) { round in
@@ -48,7 +48,7 @@ private struct ReviewThreadsView: View {
     let threads: ReviewThreadsModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Tokens.Space.sm) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s8) {
             Text("Review threads").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
             if threads.rows.isEmpty {
                 Text("No review threads on the pull request.").font(.callout).foregroundStyle(.secondary)
@@ -73,8 +73,8 @@ private struct ReviewThreadRowView: View {
     }
 
     private var content: some View {
-        VStack(alignment: .leading, spacing: Tokens.Space.xs) {
-            HStack(spacing: Tokens.Space.tight) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s3) {
+            HStack(spacing: Tokens.Space.s6) {
                 Text(row.author).font(.callout.weight(.semibold)).lineLimit(1)
                 Spacer(minLength: 4)
                 if row.outdated { Text("outdated").font(.caption2).foregroundStyle(.orange).fixedSize() }
@@ -84,8 +84,8 @@ private struct ReviewThreadRowView: View {
             if let firstLine = row.firstLine { Text(firstLine).font(.caption).lineLimit(2) }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(Tokens.Space.snug)
-        .background(RoundedRectangle(cornerRadius: Tokens.Radius.snug).fill(Color.secondary.opacity(0.07)))
+        .padding(Tokens.Space.s10)
+        .background(RoundedRectangle(cornerRadius: Tokens.Radius.tile).fill(Color.secondary.opacity(0.07)))
         .contentShape(Rectangle())
     }
 }
@@ -94,7 +94,7 @@ private struct ReviewCardView: View {
     let card: ReviewCard
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Tokens.Space.snug) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s10) {
             HStack {
                 Text(card.heading).font(.body.weight(.semibold))
                 Spacer(minLength: 0)
@@ -103,8 +103,8 @@ private struct ReviewCardView: View {
             }
             ReviewStepsView(round: card.view)
         }
-        .padding(Tokens.Space.md)
-        .background(RoundedRectangle(cornerRadius: Tokens.Radius.snug).fill(Color.secondary.opacity(0.07)))
+        .padding(Tokens.Space.s12)
+        .background(RoundedRectangle(cornerRadius: Tokens.Radius.tile).fill(Color.secondary.opacity(0.07)))
     }
 }
 
@@ -114,12 +114,12 @@ private struct ReviewHistoryRow: View {
     let toggle: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Tokens.Space.sm) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s8) {
             Button(action: toggle) {
-                HStack(spacing: Tokens.Space.sm) {
+                HStack(spacing: Tokens.Space.s8) {
                     Glyph(.chevronRight, size: 11, bold: true).foregroundStyle(.secondary)
                         .rotationEffect(.degrees(open ? 90 : 0))
-                    VStack(alignment: .leading, spacing: Tokens.Space.hair) {
+                    VStack(alignment: .leading, spacing: Tokens.Space.s1) {
                         Text("Round \(round.round)").font(.body.weight(.semibold))
                         Text(round.blockerCount == 0 ? "No blockers" : "\(round.blockerCount) blocker\(round.blockerCount == 1 ? "" : "s")")
                             .font(.caption).foregroundStyle(.secondary)
@@ -131,10 +131,10 @@ private struct ReviewHistoryRow: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            if open { ReviewStepsView(round: round).padding(.leading, Tokens.Space.xs) }
+            if open { ReviewStepsView(round: round).padding(.leading, Tokens.Space.s4) }
         }
-        .padding(Tokens.Space.snug)
-        .background(RoundedRectangle(cornerRadius: Tokens.Radius.snug).fill(Color.secondary.opacity(0.07)))
+        .padding(Tokens.Space.s10)
+        .background(RoundedRectangle(cornerRadius: Tokens.Radius.tile).fill(Color.secondary.opacity(0.07)))
     }
 }
 
@@ -149,7 +149,7 @@ private struct ReviewChipView: View {
         case .neutral: .secondary
         }
         Text(chip.text).font(.caption.weight(.medium)).foregroundStyle(color)
-            .padding(.horizontal, Tokens.Space.sm).padding(.vertical, Tokens.Space.hair)
+            .padding(.horizontal, Tokens.Space.s8).padding(.vertical, Tokens.Space.s2)
             .background(Capsule().fill(color.opacity(0.14)))
     }
 }
@@ -169,7 +169,7 @@ private struct ReviewStepsView: View {
     let round: ReviewRoundView
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Tokens.Space.snug) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s10) {
             ForEach(round.steps, id: \.number) { ReviewStepRow(step: $0) }
             if round.approximate {
                 Text("Marks are approximate: the reviewer gave no blocker ids, so they come from matching titles.")
@@ -183,15 +183,15 @@ private struct ReviewStepRow: View {
     let step: ReviewStep
 
     var body: some View {
-        HStack(alignment: .top, spacing: Tokens.Space.snug) {
+        HStack(alignment: .top, spacing: Tokens.Space.s10) {
             marker
-            VStack(alignment: .leading, spacing: Tokens.Space.xs) {
+            VStack(alignment: .leading, spacing: Tokens.Space.s3) {
                 Text(step.title).font(.callout.weight(.semibold)).foregroundStyle(step.state == .waiting ? .secondary : .primary)
                 Text(step.subtitle).font(.caption).foregroundStyle(step.state == .stopped ? Color.orange : .secondary)
                 ForEach(step.blockers, id: \.title) { ReviewBlockerRow(blocker: $0) }
                 ForEach(Array(step.observations.enumerated()), id: \.offset) { ReviewObservationRow(observation: $0.element) }
                 ForEach(step.commits, id: \.sha) { commit in
-                    HStack(spacing: Tokens.Space.tight) {
+                    HStack(spacing: Tokens.Space.s6) {
                         Text(commit.sha).font(.caption.monospaced()).foregroundStyle(.secondary)
                         Text(commit.subject).font(.caption).lineLimit(1)
                     }
@@ -222,7 +222,7 @@ private struct ReviewObservationRow: View {
     let observation: EpicReply.Observation
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: Tokens.Space.tight) {
+        HStack(alignment: .firstTextBaseline, spacing: Tokens.Space.s6) {
             Circle().strokeBorder(Color.secondary, lineWidth: 1).frame(width: 5, height: 5).offset(y: -1)
             if let link = observation.url.flatMap(browserURL) {
                 Link(destination: link) { Text(observation.title).font(.caption).lineLimit(2).multilineTextAlignment(.leading) }.buttonStyle(.plain).help(link.absoluteString)
@@ -239,7 +239,7 @@ private struct ReviewBlockerRow: View {
     let blocker: ReviewBlocker
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: Tokens.Space.tight) {
+        HStack(alignment: .firstTextBaseline, spacing: Tokens.Space.s6) {
             Circle().fill(color).frame(width: 5, height: 5).offset(y: -1)
             // the comment that raised it; a result that predates the url is plain text
             if let link = blocker.url.flatMap(browserURL) {

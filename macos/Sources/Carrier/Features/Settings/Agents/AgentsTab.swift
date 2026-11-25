@@ -169,7 +169,7 @@ struct AgentsTabView: View {
                             }
                         }
                     }
-                    if let problem { ProblemLine(text: problem, font: .scaled(11)).textSelection(.enabled).padding(.vertical, 8) }
+                    if let problem { ProblemLine(text: problem, font: .scaled(11)).textSelection(.enabled).padding(.vertical, Tokens.Space.s8) }
                 }
                 SettingsGroup(id: "persona", title: "Persona") {
                     SettingsTabRow(id: "persona-name", title: "Persona name", detail: "Optional, one line up to 40 characters", first: true) {
@@ -202,7 +202,7 @@ struct AgentsTabView: View {
                     }
                     if row.steps.count > 2 {
                         Text("The file has \(row.steps.count - 2) more step\(row.steps.count == 3 ? "" : "s"), kept and tried in order.")
-                            .font(.scaled(11)).foregroundStyle(.secondary).padding(.vertical, 8)
+                            .font(.scaled(11)).foregroundStyle(.secondary).padding(.vertical, Tokens.Space.s8)
                     }
                 }
             }
@@ -310,11 +310,11 @@ private struct SkillValue: View {
     let skill: String
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: Tokens.Space.s8) {
             StatusChip(text: "Default", tint: .secondary)
             Text(skill).font(.scaled(11.5, design: .monospaced)).foregroundStyle(.secondary).lineLimit(1)
-                .padding(.horizontal, 9).padding(.vertical, 5).frame(width: 150, alignment: .leading)
-                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.primary.opacity(0.06)))
+                .padding(.horizontal, Tokens.Space.s8).padding(.vertical, Tokens.Space.s5).frame(width: 150, alignment: .leading)
+                .background(RoundedRectangle(cornerRadius: Tokens.Radius.control, style: .continuous).fill(Color.primary.opacity(0.06)))
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Skill")
@@ -379,7 +379,7 @@ struct CommitEditor: View {
     var body: some View {
         TextEditor(text: $draft).font(.scaled(13)).scrollContentBackground(.hidden).frame(height: 96)
             .overlay(alignment: .topLeading) {
-                if draft.isEmpty { Text(prompt).foregroundStyle(.tertiary).padding(.leading, 5).allowsHitTesting(false) }
+                if draft.isEmpty { Text(prompt).foregroundStyle(.tertiary).padding(.leading, Tokens.Space.s5).allowsHitTesting(false) }
             }
             .settingsField(focused: $focused)
             // the system's writing tools (and its "Write with Siri" button, which sits on the box) have nothing to do with an instruction for an agent

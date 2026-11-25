@@ -82,7 +82,7 @@ extension PanelView {
                     toggleSessionTerminal(for: session)
                 }
                 .glassEffect(.regular, in: .capsule)
-                .padding(.trailing, Tokens.Space.snug)
+                .padding(.trailing, Tokens.Space.s10)
             }
             .sharedBackgroundVisibility(.hidden)
         }
@@ -90,7 +90,7 @@ extension PanelView {
             ToolbarItem(placement: .primaryAction) {
                 CheckAgainButton(skin: .toolbar, checking: AppUsage.store.isRefreshing, failed: AppUsage.store.error != nil) { AppUsage.refresher.checkAgain() }
                     .glassEffect(.regular, in: .capsule)
-                    .padding(.trailing, Tokens.Space.snug)
+                    .padding(.trailing, Tokens.Space.s10)
                     .help("Asks every provider again, skipping the minute the chat host keeps its answer")
             }
             .sharedBackgroundVisibility(.hidden)
@@ -117,7 +117,7 @@ extension PanelView {
                         .help("Stop Carrier")
                 }
                 .glassEffect(.regular, in: .capsule)
-                .padding(.trailing, Tokens.Space.snug)
+                .padding(.trailing, Tokens.Space.s10)
             }
             .sharedBackgroundVisibility(.hidden)
         }

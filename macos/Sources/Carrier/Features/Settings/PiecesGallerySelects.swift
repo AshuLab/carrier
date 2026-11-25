@@ -4,7 +4,7 @@ import SwiftUI
 /// The Selects of `Carrier/UI/` in the states their catalog entries list.
 struct PiecesGallerySelects: View {
     var body: some View {
-        VStack(alignment: .leading, spacing: 22) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s22) {
             GalleryEntry("SelectMenu", "ChoicePopUp") {
                 GalleryState(.normal) { MenuSample(disabled: false) }
                 GalleryState(.disabled) { MenuSample(disabled: true) }
@@ -21,7 +21,7 @@ struct PiecesGallerySelects: View {
     }
 
     private func select(disabled: Bool) -> some View {
-        Button {} label: { HStack(spacing: 6) { Text(sample(.label)); SelectChevron() } }.buttonStyle(SelectButtonStyle()).disabled(disabled)
+        Button {} label: { HStack(spacing: Tokens.Space.s6) { Text(sample(.label)); SelectChevron() } }.buttonStyle(SelectButtonStyle()).disabled(disabled)
     }
 }
 
@@ -34,7 +34,7 @@ private struct MenuSample: View {
     @State private var value = 0
 
     var body: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: Tokens.Space.s16) {
             SelectMenu(items: choices().map(\.title), selection: $index)
             ChoicePopUp(label: sample(.label), options: choices(), selection: $value)
         }

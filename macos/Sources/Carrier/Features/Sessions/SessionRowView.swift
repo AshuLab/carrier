@@ -92,7 +92,7 @@ struct SessionRowView: View {
         ZStack(alignment: .trailing) {
             ageOrStopwatch(content).opacity(hoverActions && hovered ? 0 : 1)
             if hoverActions && hovered {
-                HStack(spacing: Tokens.Space.hair) {
+                HStack(spacing: Tokens.Space.s2) {
                     hoverButton(pinned ? .pinOff : .pin, pinned ? "Unpin" : "Pin", togglePin)
                     hoverButton(.archive, "Archive", why: archiveBlock(row), archive)
                 }
@@ -117,14 +117,14 @@ struct SessionRowView: View {
                 )
             }
             VStack(alignment: .leading, spacing: roomy ? density.sessionLineGap : SidebarMetrics.lineGap) {
-                HStack(spacing: Tokens.Space.xs) {
+                HStack(spacing: Tokens.Space.s4) {
                     RollingTitle(text: titles.title(of: row), waiting: titles.waiting.contains(row.id))
                         .font(SidebarMetrics.item).fontWeight(row.state == .waiting ? .medium : .regular)
                     Spacer(minLength: 4)
                     ageSlot(content)
                 }
                 .frame(height: Self.titleLine)
-                HStack(spacing: Tokens.Space.xs) {
+                HStack(spacing: Tokens.Space.s4) {
                     detail(content).font(SidebarMetrics.detail).lineLimit(1).truncationMode(.tail)
                     Spacer(minLength: 4)
                     // with no third line the providers sit here; with one they go down to it
@@ -132,7 +132,7 @@ struct SessionRowView: View {
                 }
                 .frame(height: Self.detailLine)
                 if third {
-                    HStack(spacing: Tokens.Space.sm) {
+                    HStack(spacing: Tokens.Space.s8) {
                         SessionWorkPill(pr: content.pullRequest, diff: content.diff)
                         Spacer(minLength: 4)
                         ProviderMarks(names: content.providers)
@@ -141,7 +141,7 @@ struct SessionRowView: View {
                 }
             }
         }
-        .padding(.horizontal, content.showsIcon ? (roomy ? density.sessionRowPadding - Tokens.Space.hair : density.rowPadding) : SidebarMetrics.inset).padding(.vertical, roomy ? density.sessionRowPadding : density.rowPadding)
+        .padding(.horizontal, content.showsIcon ? (roomy ? density.sessionRowPadding - Tokens.Space.s2 : density.rowPadding) : SidebarMetrics.inset).padding(.vertical, roomy ? density.sessionRowPadding : density.rowPadding)
         .onChange(of: row.isWorking, initial: true) { _, working in if working { ringKept = true } }
         .onChange(of: row.status) { old, new in
             guard old == .working, ringKept else { return }
@@ -198,7 +198,7 @@ struct SessionTimeLabel: View {
             Text("Needs you").fontWeight(.medium).foregroundStyle(SessionRowView.attention)
         } else if row.status == .unread, let age {
             // the word, and beside it how long ago it ended: the time it would have shown
-            HStack(spacing: Tokens.Space.xs) {
+            HStack(spacing: Tokens.Space.s4) {
                 Text("Done").fontWeight(.medium).foregroundStyle(Color.sessionDone)
                 Text(age).foregroundStyle(.tertiary)
             }
@@ -218,7 +218,7 @@ struct ProviderMarks: View {
     private static let shown = 3
 
     var body: some View {
-        HStack(spacing: Tokens.Space.xs) {
+        HStack(spacing: Tokens.Space.s3) {
             ForEach(names.prefix(Self.shown), id: \.self) { name in
                 AccountMark(account: name, size: 12).help(ProviderIdentityStore.shared.shortName(of: name))
             }

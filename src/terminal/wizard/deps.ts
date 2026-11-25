@@ -1,9 +1,11 @@
 import { execFile, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 import { promisify } from 'node:util';
+import { saveEngineConfig } from '../../config/engine-edit.ts';
 import { enginePlacesOf } from '../../config/places.ts';
+import { saveAccounts } from '../../config/providers-edit.ts';
 import type { Config } from '../../config/schema.ts';
 import { repoNamePattern } from '../../config/schema.ts';
 import { defaults } from '../../config/load.ts';
@@ -41,7 +43,8 @@ export interface InitDeps {
   /** Whether that harness is logged in with that config folder (the environment when none); throws when its CLI cannot run. */
   loggedIn: typeof cliLoggedIn;
   exists: (path: string) => boolean;
-  write: (path: string, content: string) => void;
+  /** Writes the accounts to `providers.json` in the Carrier folder and the engine's config to `file` (`engine.json`, or what `--out` names), both through the config writing code, which checks each first; throws the refusal's words. */
+  writeConfig: (config: { engine: Record<string, unknown>; file: string; providers: Record<string, unknown>; folder: string }) => void;
   doctor: typeof runDoctor;
   /** The user's config at `path`, parsed; throws when unreadable. */
   readConfig: (path: string) => unknown;
@@ -118,9 +121,10 @@ export const realDeps: InitDeps = {
   },
   loggedIn: cliLoggedIn,
   exists: existsSync,
-  write: (path, content) => {
-    mkdirSync(dirname(path), { recursive: true });
-    writeFileSync(path, content);
+  // the accounts first: the engine's file is checked against the ones on disk
+  writeConfig: ({ engine, file, providers, folder }) => {
+    saveAccounts(providers, folder);
+    saveEngineConfig(engine, file, folder);
   },
   doctor: runDoctor,
   readConfig: (path) => JSON.parse(readFileSync(path, 'utf8')),

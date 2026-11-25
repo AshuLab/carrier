@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-11-25
+
+The Mac app in Spanish when macOS is in Spanish, its code reorganized by area as the base a web front-end is built on, and `carrier config` to change a setting of the Carrier folder from a script or the app.
+
 ### Added
 
 - `carrier config` changes a setting of the Carrier folder from a script or the Mac app: it reads one request as a line of JSON on standard input (`{"cmd":"editChatSettings","changes":{"idleCloseMinutes":30}}`), hands it to the chat host when one answers and otherwise writes `chat.json` itself with the same code, and prints the reply as one line of JSON.

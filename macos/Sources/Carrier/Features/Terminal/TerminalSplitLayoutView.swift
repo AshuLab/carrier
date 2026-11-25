@@ -176,8 +176,8 @@ private struct SplitContainerView: View {
         return TerminalResizeDivider(
             horizontal: horizontal,
             isDragging: dragBaseRatio != nil,
-            accessibilityLabel: horizontal ? "Vertical split divider" : "Horizontal split divider",
-            accessibilityValue: "\(Int((clamped * 100).rounded())) percent",
+            accessibilityLabel: horizontal ? Copy.terminalDividerVertical() : Copy.terminalDividerHorizontal(),
+            accessibilityValue: Copy.terminalPercentValue(percent: Int((clamped * 100).rounded())),
             onDragChanged: { delta in
                 guard usable > 0 else { return }
                 let base = dragBaseRatio ?? clamped

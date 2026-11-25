@@ -44,7 +44,13 @@ public enum TerminalCursorStyleChoice: String, CaseIterable, Codable, Sendable {
     case bar
     case underline
 
-    public var title: String { rawValue.capitalized }
+    public func title(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch self {
+        case .block: Copy.terminalCursorStyle(style: .block, bundle: bundle, locale: locale)
+        case .bar: Copy.terminalCursorStyle(style: .bar, bundle: bundle, locale: locale)
+        case .underline: Copy.terminalCursorStyle(style: .other, bundle: bundle, locale: locale)
+        }
+    }
 }
 
 /// How macOS Option keys map to Alt/Meta inside Ghostty.
@@ -54,12 +60,12 @@ public enum TerminalOptionAsAlt: String, CaseIterable, Codable, Sendable {
     case right = "right"
     case both = "true"
 
-    public var title: String {
+    public func title(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         switch self {
-        case .off: "Off"
-        case .left: "Left Option"
-        case .right: "Right Option"
-        case .both: "Both"
+        case .off: Copy.terminalOptionAsAlt(which: .off, bundle: bundle, locale: locale)
+        case .left: Copy.terminalOptionAsAlt(which: .left, bundle: bundle, locale: locale)
+        case .right: Copy.terminalOptionAsAlt(which: .right, bundle: bundle, locale: locale)
+        case .both: Copy.terminalOptionAsAlt(which: .other, bundle: bundle, locale: locale)
         }
     }
 }
@@ -71,13 +77,8 @@ public enum TerminalScrollbackLimit: Int, CaseIterable, Codable, Sendable {
     case mb50 = 50_000_000
     case mb100 = 100_000_000
 
-    public var title: String {
-        switch self {
-        case .mb1: "1 MB"
-        case .mb10: "10 MB"
-        case .mb50: "50 MB"
-        case .mb100: "100 MB"
-        }
+    public func title(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        Copy.terminalMegabytes(size: rawValue / 1_000_000, bundle: bundle, locale: locale)
     }
 }
 
@@ -228,11 +229,11 @@ public struct TerminalSettings: Equatable, Codable, Sendable {
         return sizes
     }
 
-    public static func minimumContrastLabel(_ value: Double) -> String {
+    public static func minimumContrastLabel(_ value: Double, bundle: Bundle? = nil, locale: Locale = .current) -> String {
         let clamped = clampMinimumContrast(value)
         if clamped <= minimumContrastRange.lowerBound + 0.001 {
-            return "Off · 1.0 : 1"
+            return Copy.terminalContrastOff(bundle: bundle, locale: locale)
         }
-        return String(format: "%.1f : 1", clamped)
+        return Copy.terminalContrastRatio(ratio: String(format: "%.1f", locale: locale, clamped), bundle: bundle, locale: locale)
     }
 }

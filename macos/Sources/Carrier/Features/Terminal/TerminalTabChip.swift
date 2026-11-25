@@ -39,7 +39,7 @@ struct TerminalTabChip: View {
                 HStack(spacing: Tokens.Space.s5) {
                     Glyph(.terminal, size: 10.5)
                         .foregroundStyle(selected ? theme.accent : .secondary)
-                    Text(tab.title)
+                    Text(tab.title())
                         .scaledFont(12, weight: selected ? .medium : .regular)
                         .foregroundStyle(selected || hovered ? .primary : .secondary)
                         .lineLimit(1)
@@ -60,10 +60,10 @@ struct TerminalTabChip: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(tab.paneCount > 1 ? "\(tab.title), \(tab.paneCount) panes" : tab.title)
+            .accessibilityLabel(tab.paneCount > 1 ? Copy.terminalTabWithPanes(title: tab.title(), count: tab.paneCount) : tab.title())
             .accessibilityAddTraits(selected ? .isSelected : [])
-            .accessibilityAction(named: "Rename Tab") {
-                draftTitle = tab.customTitle ?? tab.title
+            .accessibilityAction(named: Copy.terminalRenameTab()) {
+                draftTitle = tab.customTitle ?? tab.title()
                 renaming = true
             }
 
@@ -78,8 +78,8 @@ struct TerminalTabChip: View {
                 }
                 .buttonStyle(.plain)
                 .onHover { closeHovered = $0 }
-                .help("Close tab")
-                .accessibilityLabel("Close \(tab.title)")
+                .help(Copy.terminalCloseTabHelp())
+                .accessibilityLabel(Copy.terminalCloseNamed(title: tab.title()))
             }
         }
         .accessibilityElement(children: .contain)
@@ -97,31 +97,31 @@ struct TerminalTabChip: View {
         .help(tooltipText)
         .contextMenu {
             Button {
-                draftTitle = tab.customTitle ?? tab.title
+                draftTitle = tab.customTitle ?? tab.title()
                 renaming = true
             } label: {
-                Label("Rename Tab…", systemIcon: .pencil).labelStyle(.titleAndIcon)
+                Label(Copy.terminalRenameTabEllipsis(), systemIcon: .pencil).labelStyle(.titleAndIcon)
             }
             if canMoveLeft || canMoveRight {
                 Divider()
                 if canMoveLeft {
                     Button(action: moveLeft) {
-                        Label("Move Tab Left", systemIcon: .arrowLeft).labelStyle(.titleAndIcon)
+                        Label(Copy.terminalMoveTabLeft(), systemIcon: .arrowLeft).labelStyle(.titleAndIcon)
                     }
                 }
                 if canMoveRight {
                     Button(action: moveRight) {
-                        Label("Move Tab Right", systemIcon: .arrowRight).labelStyle(.titleAndIcon)
+                        Label(Copy.terminalMoveTabRight(), systemIcon: .arrowRight).labelStyle(.titleAndIcon)
                     }
                 }
             }
             Divider()
             Button(action: close) {
-                Label("Close Tab", systemIcon: .close).labelStyle(.titleAndIcon)
+                Label(Copy.terminalCloseTab(), systemIcon: .close).labelStyle(.titleAndIcon)
             }
             if canCloseOthers {
                 Button(action: closeOthers) {
-                    Label("Close Other Tabs", systemIcon: .closeCircle).labelStyle(.titleAndIcon)
+                    Label(Copy.terminalCloseOtherTabs(), systemIcon: .closeCircle).labelStyle(.titleAndIcon)
                 }
             }
         }
@@ -151,7 +151,7 @@ struct TerminalTabChip: View {
             )
             return NSItemProvider(object: tab.id.uuidString as NSString)
         }
-        .accessibilityAction(named: "Close Tab", close)
+        .accessibilityAction(named: Copy.terminalCloseTab(), close)
         .modifier(
             TabReorderAccessibilityActions(
                 canMoveLeft: canMoveLeft,
@@ -196,8 +196,8 @@ struct TerminalTabChip: View {
     private var tooltipText: String {
         let folder = abbreviatedTerminalPath(tab.workingDirectory)
         if tab.paneCount > 1 {
-            return "\(tab.title) · \(tab.paneCount) panes\n\(folder)"
+            return Copy.terminalTabHelpWithPanes(title: tab.title(), count: tab.paneCount, folder: folder)
         }
-        return "\(tab.title)\n\(folder)"
+        return Copy.terminalRowHelp(title: tab.title(), folder: folder)
     }
 }

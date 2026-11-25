@@ -90,7 +90,7 @@ import CarrierCore
     }
 
     private func terminalItem(_ terminal: StandaloneTerminalSummary) -> NSMenuItem {
-        let item = rowItem(terminal.title, secondary: abbreviatedTerminalPath(terminal.workingDirectory), symbol: "terminal", action: #selector(openTerminal(_:)))
+        let item = rowItem(terminal.title(), secondary: abbreviatedTerminalPath(terminal.workingDirectory), symbol: "terminal", action: #selector(openTerminal(_:)))
         item.representedObject = terminal.id
         return item
     }

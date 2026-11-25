@@ -48,7 +48,7 @@ struct TerminalDetailView: View {
                             store: store,
                             tabs: tabs,
                             activeTabId: tab.id,
-                            addTabLabel: "Add tab in \(abbreviatedTerminalPath(tab.workingDirectory))",
+                            addTabLabel: Copy.terminalAddTabIn(folder: abbreviatedTerminalPath(tab.workingDirectory)),
                             onSelectTab: { store.selectTab($0, for: owner) },
                             onAddTab: {
                                 _ = store.openTab(for: owner, workingDirectory: tab.workingDirectory)
@@ -73,7 +73,7 @@ struct TerminalDetailView: View {
             } else {
                 EmptyStateView(
                     state: .noTerminals,
-                    action: ("New Terminal Session", newTerminal),
+                    action: (Copy.terminalNewSession(), newTerminal),
                     actionIcon: .plus,
                     actionStyle: .accentGlass
                 )
@@ -84,9 +84,9 @@ struct TerminalDetailView: View {
 
     @ToolbarContentBuilder private var toolbar: some ToolbarContent {
         ToolbarItem(placement: .primaryAction) {
-            AccentGlassPillButton(title: "New Terminal", icon: .plus, action: newTerminal)
+            AccentGlassPillButton(title: Copy.terminalNewButton(), icon: .plus, action: newTerminal)
                 .padding(.trailing, Tokens.Space.s10)
-                .help("New terminal")
+                .help(Copy.terminalNewHelp())
         }
         .sharedBackgroundVisibility(.hidden)
     }

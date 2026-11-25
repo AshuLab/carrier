@@ -186,15 +186,15 @@ struct TerminalCoreTests {
             owner: .terminal(UUID()),
             spec: TerminalLaunchSpec(workingDirectory: "/tmp/project", title: "zsh")
         )
-        #expect(registry.tab(id: tab.id)?.title == "zsh")
+        #expect(registry.tab(id: tab.id)?.title(bundle: english.bundle, locale: english.locale) == "zsh")
 
         registry.renameTab(id: tab.id, customTitle: "  Backend  ")
         #expect(registry.tab(id: tab.id)?.customTitle == "Backend")
-        #expect(registry.tab(id: tab.id)?.title == "Backend")
+        #expect(registry.tab(id: tab.id)?.title(bundle: english.bundle, locale: english.locale) == "Backend")
 
         registry.renameTab(id: tab.id, customTitle: "   ")
         #expect(registry.tab(id: tab.id)?.customTitle == nil)
-        #expect(registry.tab(id: tab.id)?.title == "zsh")
+        #expect(registry.tab(id: tab.id)?.title(bundle: english.bundle, locale: english.locale) == "zsh")
     }
 
     @Test func persistsAndRestoresWorkspaceWithValidationAndPruning() throws {
@@ -489,9 +489,9 @@ struct TerminalCoreTests {
         #expect(abbreviatedTerminalPath("/Users/dev/src/app", home: "/Users/dev") == "~/src/app")
         #expect(abbreviatedTerminalPath("/tmp/work", home: "/Users/dev") == "/tmp/work")
 
-        #expect(terminalsSubtitle(count: 0) == "No terminals")
-        #expect(terminalsSubtitle(count: 1) == "1 terminal")
-        #expect(terminalsSubtitle(count: 3) == "3 terminals")
+        #expect(terminalsSubtitle(count: 0, bundle: english.bundle, locale: english.locale) == "No terminals")
+        #expect(terminalsSubtitle(count: 1, bundle: english.bundle, locale: english.locale) == "1 terminal")
+        #expect(terminalsSubtitle(count: 3, bundle: english.bundle, locale: english.locale) == "3 terminals")
 
         #expect(terminalDropZone(x: 10, y: 50, width: 100, height: 100) == .edge(.leading))
         #expect(terminalDropZone(x: 90, y: 50, width: 100, height: 100) == .edge(.trailing))
@@ -525,12 +525,12 @@ struct TerminalCoreTests {
         #expect(summaries.map(\.id) == [firstGroup, secondGroup])
         #expect(summaries[0].tabCount == 2)
         #expect(summaries[0].totalPaneCount == 3)
-        #expect(summaries[0].title == "logs")
-        #expect(summaries[0].countsSummary == "2 tabs · 3 panes")
-        #expect(summaries[0].subtitle(home: "/existing") == "~/api/logs · 2 tabs · 3 panes")
+        #expect(summaries[0].title(bundle: english.bundle, locale: english.locale) == "logs")
+        #expect(summaries[0].countsSummary(bundle: english.bundle, locale: english.locale) == "2 tabs · 3 panes")
+        #expect(summaries[0].subtitle(home: "/existing", bundle: english.bundle, locale: english.locale) == "~/api/logs · 2 tabs · 3 panes")
         #expect(summaries[1].tabCount == 1)
-        #expect(summaries[1].countsSummary == nil)
-        #expect(summaries[1].subtitle(home: "/existing") == "~/web")
+        #expect(summaries[1].countsSummary(bundle: english.bundle, locale: english.locale) == nil)
+        #expect(summaries[1].subtitle(home: "/existing", bundle: english.bundle, locale: english.locale) == "~/web")
 
         #expect(filteredStandaloneTerminals(summaries, query: "   ").map(\.id) == [firstGroup, secondGroup])
         #expect(filteredStandaloneTerminals(summaries, query: "api").map(\.id) == [firstGroup])
@@ -641,10 +641,10 @@ struct TerminalCoreTests {
         #expect(prefs.terminal == custom)
 
         #expect(
-            TerminalOptionAsAlt.allCases.map(\.title) == ["Off", "Left Option", "Right Option", "Both"]
+            TerminalOptionAsAlt.allCases.map { $0.title(bundle: english.bundle, locale: english.locale) } == ["Off", "Left Option", "Right Option", "Both"]
         )
         #expect(
-            TerminalScrollbackLimit.allCases.map(\.title) == ["1 MB", "10 MB", "50 MB", "100 MB"]
+            TerminalScrollbackLimit.allCases.map { $0.title(bundle: english.bundle, locale: english.locale) } == ["1 MB", "10 MB", "50 MB", "100 MB"]
         )
         #expect(
             TerminalSettings.availableFontFamilies(
@@ -659,8 +659,8 @@ struct TerminalCoreTests {
             ) == ["JetBrains Mono", "Menlo"]
         )
         #expect(TerminalSettings.availableFontSizes(currentOverride: prefs.terminal.fontSizeOverride) == Array(9...24))
-        #expect(TerminalSettings.minimumContrastLabel(1.0) == "Off · 1.0 : 1")
-        #expect(TerminalSettings.minimumContrastLabel(4.5) == "4.5 : 1")
+        #expect(TerminalSettings.minimumContrastLabel(1.0, bundle: english.bundle, locale: english.locale) == "Off · 1.0 : 1")
+        #expect(TerminalSettings.minimumContrastLabel(4.5, bundle: english.bundle, locale: english.locale) == "4.5 : 1")
 
         prefs.reset(.terminal)
         #expect(prefs.terminal == TerminalSettings())

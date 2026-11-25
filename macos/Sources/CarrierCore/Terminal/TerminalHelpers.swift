@@ -50,12 +50,8 @@ public func abbreviatedTerminalPath(_ path: String, home: String = NSHomeDirecto
 }
 
 /// Toolbar subtitle for the Terminal home view, matching `Sessions`.
-public func terminalsSubtitle(count: Int) -> String {
-    switch count {
-    case 0: "No terminals"
-    case 1: "1 terminal"
-    default: "\(count) terminals"
-    }
+public func terminalsSubtitle(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+    Copy.terminalsSubtitle(count: count, bundle: bundle, locale: locale)
 }
 
 /// One standalone terminal group listed in the sidebar/home, owning one or more tabs.
@@ -64,27 +60,27 @@ public struct StandaloneTerminalSummary: Identifiable, Equatable, Sendable {
     public let tabs: [TerminalTab]
     public let activeTab: TerminalTab
 
-    public var title: String { activeTab.title }
+    public func title(bundle: Bundle? = nil, locale: Locale = .current) -> String { activeTab.title(bundle: bundle, locale: locale) }
     public var workingDirectory: String { activeTab.workingDirectory }
     public var tabCount: Int { tabs.count }
     public var totalPaneCount: Int { tabs.reduce(0) { $0 + $1.paneCount } }
 
     /// Tab and pane counts joined with `·`, or `nil` for a single-tab single-pane terminal.
-    public var countsSummary: String? {
+    public func countsSummary(bundle: Bundle? = nil, locale: Locale = .current) -> String? {
         var parts: [String] = []
         if tabCount > 1 {
-            parts.append("\(tabCount) tabs")
+            parts.append(Copy.terminalTabsCount(count: tabCount, bundle: bundle, locale: locale))
         }
         if totalPaneCount > tabCount {
-            parts.append("\(totalPaneCount) panes")
+            parts.append(Copy.terminalPanesCount(count: totalPaneCount, bundle: bundle, locale: locale))
         }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
     /// Abbreviated working directory optionally suffixed with multi-tab or multi-pane counts.
-    public func subtitle(home: String = NSHomeDirectory()) -> String {
+    public func subtitle(home: String = NSHomeDirectory(), bundle: Bundle? = nil, locale: Locale = .current) -> String {
         let path = abbreviatedTerminalPath(workingDirectory, home: home)
-        if let countsSummary {
+        if let countsSummary = countsSummary(bundle: bundle, locale: locale) {
             return "\(path) · \(countsSummary)"
         }
         return path
@@ -97,15 +93,17 @@ public struct StandaloneTerminalSummary: Identifiable, Equatable, Sendable {
     }
 }
 
-/// Filters standalone terminal groups by active title, folder, or any contained tab/pane title or folder.
-public func filteredStandaloneTerminals(_ terminals: [StandaloneTerminalSummary], query: String) -> [StandaloneTerminalSummary] {
+/// Filters standalone terminal groups by active title, folder, or any contained tab/pane title or folder, the titles said in the language of `bundle` and `locale`.
+public func filteredStandaloneTerminals(
+    _ terminals: [StandaloneTerminalSummary], query: String, bundle: Bundle? = nil, locale: Locale = .current
+) -> [StandaloneTerminalSummary] {
     let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
     guard trimmed.isEmpty == false else { return terminals }
     return terminals.filter { summary in
         summary.tabs.contains { tab in
-            tab.title.localizedCaseInsensitiveContains(trimmed)
+            tab.title(bundle: bundle, locale: locale).localizedCaseInsensitiveContains(trimmed)
                 || tab.workingDirectory.localizedCaseInsensitiveContains(trimmed)
-                || tab.orderedPanes.contains { $0.displayTitle.localizedCaseInsensitiveContains(trimmed) }
+                || tab.orderedPanes.contains { $0.displayTitle(bundle: bundle, locale: locale).localizedCaseInsensitiveContains(trimmed) }
         }
     }
 }

@@ -25,42 +25,42 @@ struct TerminalPaneHeaderView: View {
                 SettingsDivider(vertical: true)
                     .frame(height: 14)
             }
-            ToolbarGlassIconButton(icon: .layoutColumns, name: "Split right", action: splitRight)
-            ToolbarGlassIconButton(icon: .layoutRows, name: "Split down", action: splitDown)
+            ToolbarGlassIconButton(icon: .layoutColumns, name: Copy.terminalSplitRightName(), action: splitRight)
+            ToolbarGlassIconButton(icon: .layoutRows, name: Copy.terminalSplitDownName(), action: splitDown)
             if isSplit {
                 ToolbarGlassIconButton(
                     icon: isZoomed ? .arrowsMinimize : .arrowsMaximize,
-                    name: isZoomed ? "Restore split view" : "Zoom pane",
+                    name: isZoomed ? Copy.terminalRestoreSplitName() : Copy.terminalZoomPaneName(),
                     action: toggleZoom
                 )
             }
-            ToolbarGlassIconButton(icon: .close, name: isSplit ? "Close pane" : "Close terminal", action: close)
+            ToolbarGlassIconButton(icon: .close, name: isSplit ? Copy.terminalClosePaneName() : Copy.terminalCloseTerminalName(), action: close)
         }
         .glassEffect(.regular, in: .capsule)
         .contextMenu {
             Button(action: splitRight) {
-                Label("Split Right", systemIcon: .layoutColumns).labelStyle(.titleAndIcon)
+                Label(Copy.terminalSplitRight(), systemIcon: .layoutColumns).labelStyle(.titleAndIcon)
             }
             Button(action: splitDown) {
-                Label("Split Down", systemIcon: .layoutRows).labelStyle(.titleAndIcon)
+                Label(Copy.terminalSplitDown(), systemIcon: .layoutRows).labelStyle(.titleAndIcon)
             }
             if isSplit {
                 Button(action: toggleZoom) {
                     Label(
-                        isZoomed ? "Restore Split View" : "Zoom Pane",
+                        isZoomed ? Copy.terminalRestoreSplit() : Copy.terminalZoomPane(),
                         systemIcon: isZoomed ? .arrowsMinimize : .arrowsMaximize
                     ).labelStyle(.titleAndIcon)
                 }
                 Button(action: equalizeSplits) {
-                    Label("Equalize Splits", systemIcon: .columns3).labelStyle(.titleAndIcon)
+                    Label(Copy.terminalEqualizeSplits(), systemIcon: .columns3).labelStyle(.titleAndIcon)
                 }
                 Button(action: moveToNewTab) {
-                    Label("Move Pane to New Tab", systemImage: "macwindow.badge.plus").labelStyle(.titleAndIcon)
+                    Label(Copy.terminalMovePaneToNewTab(), systemImage: "macwindow.badge.plus").labelStyle(.titleAndIcon)
                 }
             }
             Divider()
             Button(role: .destructive, action: close) {
-                Label(isSplit ? "Close Pane" : "Close Terminal", systemIcon: .close).labelStyle(.titleAndIcon)
+                Label(isSplit ? Copy.terminalClosePane() : Copy.terminalCloseTerminal(), systemIcon: .close).labelStyle(.titleAndIcon)
             }
         }
     }
@@ -74,10 +74,10 @@ struct TerminalPaneHeaderView: View {
             .contentShape(Capsule())
             .hoverCursor(.openHand) { dragHovered = $0 }
             .animation(.easeOut(duration: 0.12), value: dragHovered)
-            .help("\(pane.displayTitle) (\(abbreviatedTerminalPath(pane.workingDirectory))) — Drag to move or swap pane")
+            .help(Copy.terminalPaneDragHelp(title: pane.displayTitle(), folder: abbreviatedTerminalPath(pane.workingDirectory)))
             // not a button, so the icon inside is its own element: one element, with the label
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Move pane \(pane.displayTitle)")
+            .accessibilityLabel(Copy.terminalPaneDragLabel(title: pane.displayTitle()))
             .onDrag(onBeginDrag)
     }
 }

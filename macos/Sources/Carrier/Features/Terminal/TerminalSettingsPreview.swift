@@ -2,6 +2,20 @@ import AppKit
 import CarrierCore
 import SwiftUI
 
+/// What the preview's mock terminal prints: a prompt, a command and its output, as a shell and a test runner write them. They are the terminal's own text, not the app's words.
+private enum PreviewOutput {
+    static let folder = "~/carrier"
+    static let branch = "feat/terminal-ui"
+    static let promptMark = "❯"
+    static let command = "pnpm test && git status"
+    static let pass = "✓ PASS"
+    static let count = "1609"
+    static let warning = "WARN"
+    static let error = "ERR"
+    static let ligatures = "a != b => c"
+    static let typing = "cargo test --lib "
+}
+
 /// Live preview of the terminal surface inside Settings > Terminal reflecting theme, ANSI colors, padding, typography and cursor style.
 struct TerminalSettingsPreview: View {
     let profile: TerminalAppearanceProfile
@@ -40,48 +54,48 @@ struct TerminalSettingsPreview: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Tokens.Space.s5) {
             HStack(spacing: Tokens.Space.s6) {
-                Text("~/carrier")
+                Text(PreviewOutput.folder)
                     .font(previewBoldFont)
                     .foregroundStyle(paletteColor(6, fallback: profile.foreground))
-                Text("feat/terminal-ui")
+                Text(PreviewOutput.branch)
                     .font(previewFont)
                     .foregroundStyle(paletteColor(5, fallback: profile.foreground))
-                Text("❯")
+                Text(PreviewOutput.promptMark)
                     .font(previewBoldFont)
                     .foregroundStyle(Color(profile.cursorColor))
-                Text("pnpm test && git status")
+                Text(PreviewOutput.command)
                     .font(previewFont)
                     .foregroundStyle(Color(profile.foreground))
                     .lineLimit(1)
             }
 
             HStack(spacing: Tokens.Space.s6) {
-                Text("✓ PASS")
+                Text(PreviewOutput.pass)
                     .font(previewBoldFont)
                     .foregroundStyle(paletteColor(2, fallback: profile.boldColor))
-                Text("1609")
+                Text(PreviewOutput.count)
                     .font(previewBoldFont)
                     .foregroundStyle(Color(profile.boldColor))
-                Text("tests")
+                Text(Copy.terminalPreviewTests())
                     .font(previewFont)
                     .foregroundStyle(Color(profile.foreground))
-                Text("· dim contrast sample")
+                Text(Copy.terminalPreviewDim())
                     .font(previewFont)
                     .foregroundStyle(paletteColor(8, fallback: profile.foreground))
                     .lineLimit(1)
             }
 
             HStack(spacing: Tokens.Space.s6) {
-                Text("WARN")
+                Text(PreviewOutput.warning)
                     .font(previewBoldFont)
                     .foregroundStyle(paletteColor(3, fallback: profile.foreground))
-                Text("ERR")
+                Text(PreviewOutput.error)
                     .font(previewBoldFont)
                     .foregroundStyle(paletteColor(1, fallback: profile.foreground))
-                Text("a != b => c")
+                Text(PreviewOutput.ligatures)
                     .font(previewFont)
                     .foregroundStyle(paletteColor(4, fallback: profile.foreground))
-                Text("selected text")
+                Text(Copy.terminalPreviewSelected())
                     .font(previewFont)
                     .foregroundStyle(Color(profile.selectionForeground))
                     .padding(.horizontal, Tokens.Space.s4)
@@ -95,7 +109,7 @@ struct TerminalSettingsPreview: View {
                         .frame(width: 12, height: 6)
                 }
                 Spacer(minLength: 6)
-                Text("ANSI 0–15")
+                Text(Copy.terminalPreviewAnsi())
                     .font(previewFont)
                     .foregroundStyle(paletteColor(8, fallback: profile.foreground))
             }
@@ -106,14 +120,14 @@ struct TerminalSettingsPreview: View {
             }
 
             HStack(spacing: Tokens.Space.s6) {
-                Text("~/carrier")
+                Text(PreviewOutput.folder)
                     .font(previewBoldFont)
                     .foregroundStyle(paletteColor(6, fallback: profile.foreground))
-                Text("❯")
+                Text(PreviewOutput.promptMark)
                     .font(previewBoldFont)
                     .foregroundStyle(Color(profile.cursorColor))
                 HStack(spacing: Tokens.Space.none) {
-                    Text("cargo test --lib ")
+                    Text(PreviewOutput.typing)
                         .font(previewFont)
                         .foregroundStyle(Color(profile.foreground))
                     cursorGlyph

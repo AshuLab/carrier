@@ -12,15 +12,17 @@ extension CarrierTerminalStore {
 
     func pendingConfirmation(
         for target: TerminalCloseTarget,
-        removalKind: SessionRemovalKind? = nil
+        removalKind: SessionRemovalKind? = nil,
+        bundle: Bundle? = nil,
+        locale: Locale = .current
     ) async -> Question? {
         guard preferences.terminal.confirmCloseRunningProcess else { return nil }
         let inspection = await inspectProcesses(for: target)
         guard inspection.running.isEmpty == false || inspection.error != nil else { return nil }
 
         let targetTitle: String? = switch target {
-        case .pane(let id): registry.pane(id: id)?.displayTitle
-        case .tab(let id): registry.tab(id: id)?.title
+        case .pane(let id): registry.pane(id: id)?.displayTitle(bundle: bundle, locale: locale)
+        case .tab(let id): registry.tab(id: id)?.title(bundle: bundle, locale: locale)
         case .owner, .owners, .all: nil
         }
 
@@ -29,7 +31,9 @@ extension CarrierTerminalStore {
             running: inspection.running,
             targetTitle: targetTitle,
             removalKind: removalKind,
-            inspectionError: inspection.error
+            inspectionError: inspection.error,
+            bundle: bundle,
+            locale: locale
         )
     }
 
@@ -146,7 +150,7 @@ extension CarrierTerminalStore {
         for input in inputs {
             let commands = result.commandsByPane[input.paneId] ?? []
             guard commands.isEmpty == false else { continue }
-            let title = registry.pane(id: input.paneId)?.displayTitle ?? "Terminal"
+            let title = registry.pane(id: input.paneId)?.displayTitle() ?? Copy.terminalDefaultTitle()
             running.append(TerminalActiveProcess(paneId: input.paneId, paneTitle: title, commands: commands))
         }
         return (running, result.inspectionError)

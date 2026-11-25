@@ -61,7 +61,7 @@ struct PanelView: View {
         case .session: return openSession.map { conversationTitle($0) } ?? Copy.epicsPanelSession()
         case .newSession: return Copy.sessionsNew()
         case .terminals: return Copy.epicsPanelTerminal()
-        case .terminal(let id): return terminalStore.standaloneTerminal(id: id)?.title ?? Copy.epicsPanelTerminal()
+        case .terminal(let id): return terminalStore.standaloneTerminal(id: id)?.title() ?? Copy.epicsPanelTerminal()
         case .archive: return Copy.archiveTitle()
         case .usage: return Copy.sidebarUsage()
         default: return Copy.appName()

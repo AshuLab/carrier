@@ -8,7 +8,7 @@ extension TerminalRegistry {
             return
         }
         let cleaned = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        pane.title = cleaned.isEmpty ? "Terminal" : cleaned
+        pane.title = cleaned.isEmpty ? TerminalPane.untitled : cleaned
         tab.panes[paneId] = pane
         tabsById[tab.id] = tab
     }

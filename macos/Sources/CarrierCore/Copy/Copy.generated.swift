@@ -6407,4 +6407,673 @@ public enum Copy {
     public static func newSessionUseWorktree(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         String(localized: "newSessionUseWorktree", bundle: bundle ?? carrierResources, locale: locale)
     }
+
+    public static func terminalSection(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalSection", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalDefaultTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalDefaultTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalNewButton(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalNewButton", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalNewHelp(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalNewHelp", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalNewSessionHelp(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalNewSessionHelp", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalNewSession(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalNewSession", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalSearch(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalSearch", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalSearchNone(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalSearchNone", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalClearSearch(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalClearSearch", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalOpen(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalOpen", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalNewTab(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalNewTab", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalClose(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalClose", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalCloseNamed(title: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalCloseNamed \(title)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalCloseTerminalName(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalCloseTerminalName", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalsSubtitle(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalsSubtitle \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalCount(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalCount \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalTabsCount(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalTabsCount \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalPanesCount(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalPanesCount \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalRowHelp(title: String, folder: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalRowHelp \(title) \(folder)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalRowLabel(title: String, subtitle: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalRowLabel \(title) \(subtitle)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalAddTab(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalAddTab", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalAddTabIn(folder: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalAddTabIn \(folder)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalNewTabInDrawer(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalNewTabInDrawer", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalHide(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalHide", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalDrawerHandle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalDrawerHandle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalPointsValue(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalPointsValue \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalPercentValue(percent: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalPercentValue \(percent)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalDividerVertical(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalDividerVertical", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalDividerHorizontal(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalDividerHorizontal", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalTabWithPanes(title: String, count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalTabWithPanes \(title) \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalTabHelpWithPanes(title: String, count: Int, folder: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalTabHelpWithPanes \(title) \(count) \(folder)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalRenameTab(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalRenameTab", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalRenameTabEllipsis(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalRenameTabEllipsis", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalTabName(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalTabName", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalReset(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalReset", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalCancel(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalCancel", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalSave(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalSave", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalCloseTabHelp(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalCloseTabHelp", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalCloseTab(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalCloseTab", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalCloseOtherTabs(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalCloseOtherTabs", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalMoveTabLeft(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalMoveTabLeft", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalMoveTabRight(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalMoveTabRight", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalSplitRight(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalSplitRight", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalSplitRightName(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalSplitRightName", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalSplitDown(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalSplitDown", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalSplitDownName(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalSplitDownName", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalRestoreSplit(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalRestoreSplit", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalRestoreSplitName(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalRestoreSplitName", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalZoomPane(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalZoomPane", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalZoomPaneName(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalZoomPaneName", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalEqualizeSplits(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalEqualizeSplits", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalMovePaneToNewTab(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalMovePaneToNewTab", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalClosePane(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalClosePane", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalClosePaneName(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalClosePaneName", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalCloseTerminal(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalCloseTerminal", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalPaneDragHelp(title: String, folder: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalPaneDragHelp \(title) \(folder)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalPaneDragLabel(title: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalPaneDragLabel \(title)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public enum TerminalPaneValue: Sendable { case active; case other }
+    public static func terminalPaneValue(which: TerminalPaneValue, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch which {
+        case .active: return String(localized: "terminalPaneValue.active", bundle: bundle ?? carrierResources, locale: locale)
+        case .other: return String(localized: "terminalPaneValue.other", bundle: bundle ?? carrierResources, locale: locale)
+        }
+    }
+
+    public static func terminalContinueTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalContinueTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalContinueResumes(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalContinueResumes", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalContinueHint(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalContinueHint", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalContinueHelp(agent: String, command: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalContinueHelp \(agent) \(command)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalContinueGone(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalContinueGone", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalContinueExited(status: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalContinueExited \(status)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalContinuePressReturn(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalContinuePressReturn", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalPreviewTests(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalPreviewTests", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalPreviewDim(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalPreviewDim", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalPreviewSelected(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalPreviewSelected", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalPreviewAnsi(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalPreviewAnsi", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public enum TerminalCursorStyle: Sendable { case block; case bar; case other }
+    public static func terminalCursorStyle(style: TerminalCursorStyle, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch style {
+        case .block: return String(localized: "terminalCursorStyle.block", bundle: bundle ?? carrierResources, locale: locale)
+        case .bar: return String(localized: "terminalCursorStyle.bar", bundle: bundle ?? carrierResources, locale: locale)
+        case .other: return String(localized: "terminalCursorStyle.other", bundle: bundle ?? carrierResources, locale: locale)
+        }
+    }
+
+    public enum TerminalOptionAsAlt: Sendable { case off; case left; case right; case other }
+    public static func terminalOptionAsAlt(which: TerminalOptionAsAlt, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch which {
+        case .off: return String(localized: "terminalOptionAsAlt.off", bundle: bundle ?? carrierResources, locale: locale)
+        case .left: return String(localized: "terminalOptionAsAlt.left", bundle: bundle ?? carrierResources, locale: locale)
+        case .right: return String(localized: "terminalOptionAsAlt.right", bundle: bundle ?? carrierResources, locale: locale)
+        case .other: return String(localized: "terminalOptionAsAlt.other", bundle: bundle ?? carrierResources, locale: locale)
+        }
+    }
+
+    public static func terminalMegabytes(size: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalMegabytes \(size)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalContrastOff(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalContrastOff", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalContrastRatio(ratio: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalContrastRatio \(ratio)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalPoints(size: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalPoints \(size)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalOn(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalOn", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalOff(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalOff", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalSameAsApp(theme: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalSameAsApp \(theme)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalSameAsAppearance(value: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalSameAsAppearance \(value)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalSettingsAppearance(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalSettingsAppearance", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalSettingsTheme(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalSettingsTheme", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalSettingsThemeDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalSettingsThemeDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalSettingsContrast(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalSettingsContrast", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalSettingsContrastDetail(contrast: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalSettingsContrastDetail \(contrast)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalSettingsPaddingX(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalSettingsPaddingX", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalSettingsPaddingXDetail(size: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalSettingsPaddingXDetail \(size)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalSettingsPaddingY(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalSettingsPaddingY", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalSettingsPaddingYDetail(size: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalSettingsPaddingYDetail \(size)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalSettingsTypography(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalSettingsTypography", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalSettingsFont(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalSettingsFont", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalSettingsFontDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalSettingsFontDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalSettingsSize(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalSettingsSize", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalSettingsSizeDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalSettingsSizeDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalSettingsLigatures(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalSettingsLigatures", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalSettingsLigaturesDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalSettingsLigaturesDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalSettingsThicken(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalSettingsThicken", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalSettingsThickenDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalSettingsThickenDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalSettingsCursor(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalSettingsCursor", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalSettingsCursorStyle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalSettingsCursorStyle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalSettingsCursorStyleDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalSettingsCursorStyleDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalSettingsBlink(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalSettingsBlink", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalSettingsBlinkDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalSettingsBlinkDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalSettingsPanes(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalSettingsPanes", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalSettingsDim(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalSettingsDim", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalSettingsDimDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalSettingsDimDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalSettingsFocusFollows(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalSettingsFocusFollows", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalSettingsFocusFollowsDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalSettingsFocusFollowsDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalSettingsInput(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalSettingsInput", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalSettingsOptionAsAlt(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalSettingsOptionAsAlt", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalSettingsOptionAsAltDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalSettingsOptionAsAltDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalSettingsCopyOnSelect(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalSettingsCopyOnSelect", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalSettingsCopyOnSelectDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalSettingsCopyOnSelectDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalSettingsScrollback(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalSettingsScrollback", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalSettingsScrollbackDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalSettingsScrollbackDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalSettingsShell(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalSettingsShell", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalSettingsPinPrompt(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalSettingsPinPrompt", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalSettingsPinPromptDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalSettingsPinPromptDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalSettingsConfirm(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalSettingsConfirm", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalSettingsConfirmDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalSettingsConfirmDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalConfirmSummaryOne(command: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalConfirmSummaryOne \(command)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalConfirmSummaryFew(commands: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalConfirmSummaryFew \(commands)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalConfirmSummaryMore(commands: String, count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalConfirmSummaryMore \(commands) \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public enum TerminalConfirmWhat: Sendable { case it; case them; case other }
+    public static func terminalConfirmWhat(which: TerminalConfirmWhat, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch which {
+        case .it: return String(localized: "terminalConfirmWhat.it", bundle: bundle ?? carrierResources, locale: locale)
+        case .them: return String(localized: "terminalConfirmWhat.them", bundle: bundle ?? carrierResources, locale: locale)
+        case .other: return String(localized: "terminalConfirmWhat.other", bundle: bundle ?? carrierResources, locale: locale)
+        }
+    }
+
+    public static func terminalConfirmSummaryThen(summary: String, then: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalConfirmSummaryThen \(summary) \(then)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalConfirmUnverifiedThen(then: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalConfirmUnverifiedThen \(then)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalConfirmClose(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalConfirmClose", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalConfirmPaneTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalConfirmPaneTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalConfirmPaneTitleNamed(name: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalConfirmPaneTitleNamed \(name)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalConfirmPaneMessage(summary: String, what: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalConfirmPaneMessage \(summary) \(what)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalConfirmPaneUnverified(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalConfirmPaneUnverified", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalConfirmPaneRunning(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalConfirmPaneRunning", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalConfirmTabTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalConfirmTabTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalConfirmTabTitleNamed(name: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalConfirmTabTitleNamed \(name)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalConfirmTabTitleMany(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalConfirmTabTitleMany \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalConfirmTabTitleNamedMany(count: Int, name: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalConfirmTabTitleNamedMany \(count) \(name)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalConfirmTabMessage(summary: String, what: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalConfirmTabMessage \(summary) \(what)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalConfirmTabUnverified(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalConfirmTabUnverified", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public enum TerminalConfirmOwnerPrefix: Sendable { case archive; case delete; case clear; case many; case other }
+    public static func terminalConfirmOwnerPrefix(which: TerminalConfirmOwnerPrefix, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch which {
+        case .archive: return String(localized: "terminalConfirmOwnerPrefix.archive", bundle: bundle ?? carrierResources, locale: locale)
+        case .delete: return String(localized: "terminalConfirmOwnerPrefix.delete", bundle: bundle ?? carrierResources, locale: locale)
+        case .clear: return String(localized: "terminalConfirmOwnerPrefix.clear", bundle: bundle ?? carrierResources, locale: locale)
+        case .many: return String(localized: "terminalConfirmOwnerPrefix.many", bundle: bundle ?? carrierResources, locale: locale)
+        case .other: return String(localized: "terminalConfirmOwnerPrefix.other", bundle: bundle ?? carrierResources, locale: locale)
+        }
+    }
+
+    public static func terminalConfirmOwnerTitle(prefix: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalConfirmOwnerTitle \(prefix)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalConfirmOwnerTitleOne(prefix: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalConfirmOwnerTitleOne \(prefix)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalConfirmOwnerTitleOneNamed(prefix: String, name: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalConfirmOwnerTitleOneNamed \(prefix) \(name)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalConfirmOwnerTitleClearOne(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalConfirmOwnerTitleClearOne", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalConfirmOwnerTitleMany(count: Int, prefix: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalConfirmOwnerTitleMany \(count) \(prefix)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public enum TerminalConfirmSessions: Sendable { case many; case other }
+    public static func terminalConfirmSessions(which: TerminalConfirmSessions, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch which {
+        case .many: return String(localized: "terminalConfirmSessions.many", bundle: bundle ?? carrierResources, locale: locale)
+        case .other: return String(localized: "terminalConfirmSessions.other", bundle: bundle ?? carrierResources, locale: locale)
+        }
+    }
+
+    public static func terminalConfirmTerminals(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalConfirmTerminals \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public enum TerminalConfirmOwnerMessage: Sendable { case archive; case delete; case clear; case other }
+    public static func terminalConfirmOwnerMessage(which: TerminalConfirmOwnerMessage, sessions: String, terminals: String, what: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch which {
+        case .archive: return String(localized: "terminalConfirmOwnerMessage.archive \(sessions) \(terminals) \(what)", bundle: bundle ?? carrierResources, locale: locale)
+        case .delete: return String(localized: "terminalConfirmOwnerMessage.delete \(sessions) \(terminals) \(what)", bundle: bundle ?? carrierResources, locale: locale)
+        case .clear: return String(localized: "terminalConfirmOwnerMessage.clear \(what)", bundle: bundle ?? carrierResources, locale: locale)
+        case .other: return String(localized: "terminalConfirmOwnerMessage.other \(terminals) \(what)", bundle: bundle ?? carrierResources, locale: locale)
+        }
+    }
+
+    public enum TerminalConfirmOwnerUnverified: Sendable { case archive; case delete; case clear; case other }
+    public static func terminalConfirmOwnerUnverified(which: TerminalConfirmOwnerUnverified, sessions: String, terminals: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch which {
+        case .archive: return String(localized: "terminalConfirmOwnerUnverified.archive \(sessions) \(terminals)", bundle: bundle ?? carrierResources, locale: locale)
+        case .delete: return String(localized: "terminalConfirmOwnerUnverified.delete \(sessions) \(terminals)", bundle: bundle ?? carrierResources, locale: locale)
+        case .clear: return String(localized: "terminalConfirmOwnerUnverified.clear", bundle: bundle ?? carrierResources, locale: locale)
+        case .other: return String(localized: "terminalConfirmOwnerUnverified.other \(terminals)", bundle: bundle ?? carrierResources, locale: locale)
+        }
+    }
+
+    public enum TerminalConfirmOwnerConfirm: Sendable { case archive; case delete; case clear; case other }
+    public static func terminalConfirmOwnerConfirm(which: TerminalConfirmOwnerConfirm, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch which {
+        case .archive: return String(localized: "terminalConfirmOwnerConfirm.archive", bundle: bundle ?? carrierResources, locale: locale)
+        case .delete: return String(localized: "terminalConfirmOwnerConfirm.delete", bundle: bundle ?? carrierResources, locale: locale)
+        case .clear: return String(localized: "terminalConfirmOwnerConfirm.clear", bundle: bundle ?? carrierResources, locale: locale)
+        case .other: return String(localized: "terminalConfirmOwnerConfirm.other", bundle: bundle ?? carrierResources, locale: locale)
+        }
+    }
+
+    public static func terminalConfirmQuit(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalConfirmQuit", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalConfirmQuitTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalConfirmQuitTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalConfirmQuitTitleOne(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalConfirmQuitTitleOne", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalConfirmQuitTitleOneNamed(name: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalConfirmQuitTitleOneNamed \(name)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalConfirmQuitTitleMany(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalConfirmQuitTitleMany \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalConfirmQuitMessage(summary: String, what: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalConfirmQuitMessage \(summary) \(what)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func terminalConfirmQuitUnverified(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "terminalConfirmQuitUnverified", bundle: bundle ?? carrierResources, locale: locale)
+    }
 }

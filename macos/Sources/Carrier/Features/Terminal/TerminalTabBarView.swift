@@ -10,7 +10,7 @@ struct TerminalTabBarView<Trailing: View>: View {
     let store: CarrierTerminalStore
     let tabs: [TerminalTab]
     let activeTabId: UUID?
-    var addTabLabel: String = "Add tab"
+    var addTabLabel: String = Copy.terminalAddTab()
     let onSelectTab: (UUID) -> Void
     let onAddTab: () -> Void
     let onCloseTab: (UUID) -> Void
@@ -70,7 +70,7 @@ extension TerminalTabBarView where Trailing == EmptyView {
         store: CarrierTerminalStore,
         tabs: [TerminalTab],
         activeTabId: UUID?,
-        addTabLabel: String = "Add tab",
+        addTabLabel: String = Copy.terminalAddTab(),
         onSelectTab: @escaping (UUID) -> Void,
         onAddTab: @escaping () -> Void,
         onCloseTab: @escaping (UUID) -> Void,

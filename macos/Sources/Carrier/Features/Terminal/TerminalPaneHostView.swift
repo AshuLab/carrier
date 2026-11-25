@@ -109,8 +109,8 @@ struct TerminalPaneHostView: View {
             }
         }
         .accessibilityElement(children: .contain)
-        .accessibilityAction(named: "Split Right") { _ = store.splitPane(paneId, edge: .trailing) }
-        .accessibilityAction(named: "Split Down") { _ = store.splitPane(paneId, edge: .bottom) }
+        .accessibilityAction(named: Copy.terminalSplitRight()) { _ = store.splitPane(paneId, edge: .trailing) }
+        .accessibilityAction(named: Copy.terminalSplitDown()) { _ = store.splitPane(paneId, edge: .bottom) }
         .modifier(
             SplitPaneAccessibilityActions(
                 isSplit: isSplit,
@@ -124,7 +124,7 @@ struct TerminalPaneHostView: View {
                 }
             )
         )
-        .accessibilityAction(named: isSplit ? "Close Pane" : "Close Terminal", closeCurrentPane)
+        .accessibilityAction(named: isSplit ? Copy.terminalClosePane() : Copy.terminalCloseTerminal(), closeCurrentPane)
         .overlay {
             if isSplit {
                 GeometryReader { geometry in
@@ -163,9 +163,9 @@ private struct SplitPaneAccessibilityActions: ViewModifier {
     func body(content: Content) -> some View {
         if isSplit {
             content
-                .accessibilityAction(named: isZoomed ? "Restore Split View" : "Zoom Pane", onToggleZoom)
-                .accessibilityAction(named: "Equalize Splits", onEqualize)
-                .accessibilityAction(named: "Move Pane to New Tab", onMoveToNewTab)
+                .accessibilityAction(named: isZoomed ? Copy.terminalRestoreSplit() : Copy.terminalZoomPane(), onToggleZoom)
+                .accessibilityAction(named: Copy.terminalEqualizeSplits(), onEqualize)
+                .accessibilityAction(named: Copy.terminalMovePaneToNewTab(), onMoveToNewTab)
         } else {
             content
         }

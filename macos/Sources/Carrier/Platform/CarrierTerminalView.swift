@@ -14,7 +14,7 @@ struct CarrierTerminalView: View {
 
     var body: some View {
         if let state = store.state(for: paneId) {
-            let label = store.pane(id: paneId)?.displayTitle ?? "Terminal"
+            let label = store.pane(id: paneId)?.displayTitle() ?? Copy.terminalDefaultTitle()
             MountedTerminalSurface(
                 store: store,
                 paneId: paneId,
@@ -51,7 +51,7 @@ private struct MountedTerminalSurface: View {
             .terminalFocused($focused)
             .accessibilityElement(children: .contain)
             .accessibilityLabel(accessibilityLabel)
-            .accessibilityValue(isSplit ? (isActivePane ? "Active pane" : "Pane") : "")
+            .accessibilityValue(isSplit ? Copy.terminalPaneValue(which: isActivePane ? .active : .other) : "")
             .onChange(of: focused) { _, isFocused in
                 onFocusChange?(isFocused)
             }

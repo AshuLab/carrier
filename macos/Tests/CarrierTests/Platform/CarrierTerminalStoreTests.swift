@@ -6,6 +6,8 @@ import Testing
 @testable import Carrier
 @testable import CarrierCore
 
+private let english = (bundle: Copy.bundle("en"), locale: Locale(identifier: "en_US"))
+
 @MainActor
 private final class FakeProcessInspector: TerminalProcessInspecting {
     var runningByStateId: [ObjectIdentifier: [String]] = [:]
@@ -189,32 +191,32 @@ struct CarrierTerminalStoreTests {
         inspector.runningByStateId[ObjectIdentifier(busyState)] = ["vite", "vitest"]
 
         // Idle pane closes cleanly without confirmation.
-        #expect(await store.pendingConfirmation(for: .pane(idlePane)) == nil)
+        #expect(await store.pendingConfirmation(for: .pane(idlePane), bundle: english.bundle, locale: english.locale) == nil)
         #expect(await store.closePane(id: idlePane, force: false))
         #expect(store.pane(id: idlePane) == nil)
         #expect(store.state(for: idlePane) == nil)
         #expect(idleState.onClose == nil)
 
         // Busy pane, tab, owner, delete context, and app quit all produce consistent confirmations and refuse non-forced closes.
-        let paneQuestion = await store.pendingConfirmation(for: .pane(busyPane))
+        let paneQuestion = await store.pendingConfirmation(for: .pane(busyPane), bundle: english.bundle, locale: english.locale)
         #expect(paneQuestion?.title == "Close \u{201C}Dev server\u{201D}?")
         #expect(paneQuestion?.message.contains("vite") == true)
         #expect(paneQuestion?.message.contains("vitest") == true)
 
-        let tabQuestion = await store.pendingConfirmation(for: .tab(tab.id))
+        let tabQuestion = await store.pendingConfirmation(for: .tab(tab.id), bundle: english.bundle, locale: english.locale)
         #expect(tabQuestion?.title == "Close tab \u{201C}Dev server\u{201D}?")
         #expect(tabQuestion?.message.contains("Closing this tab will terminate them.") == true)
 
-        let deleteQuestion = await store.pendingConfirmation(for: .owners([session]), removalKind: .delete)
+        let deleteQuestion = await store.pendingConfirmation(for: .owners([session]), removalKind: .delete, bundle: english.bundle, locale: english.locale)
         #expect(deleteQuestion?.title.contains("Delete session") == true)
         #expect(deleteQuestion?.message.contains("Deleting this session") == true)
 
-        let clearQuestion = await store.pendingConfirmation(for: .owners([session, .terminal(UUID())]), removalKind: .clear)
+        let clearQuestion = await store.pendingConfirmation(for: .owners([session, .terminal(UUID())]), removalKind: .clear, bundle: english.bundle, locale: english.locale)
         #expect(clearQuestion?.title == "Delete archived sessions with a running terminal?")
         #expect(clearQuestion?.confirm == "Delete all")
 
-        #expect(await store.pendingConfirmation(for: .owner(session)) != nil)
-        #expect(await store.pendingConfirmation(for: .all)?.confirm == "Quit")
+        #expect(await store.pendingConfirmation(for: .owner(session), bundle: english.bundle, locale: english.locale) != nil)
+        #expect(await store.pendingConfirmation(for: .all, bundle: english.bundle, locale: english.locale)?.confirm == "Quit")
 
         #expect(await store.closePane(id: busyPane, force: false) == false)
         #expect(await store.closeTab(id: tab.id, force: false) == false)
@@ -226,25 +228,25 @@ struct CarrierTerminalStoreTests {
         var settings = prefs.terminal
         settings.confirmCloseRunningProcess = false
         prefs.terminal = settings
-        #expect(await store.pendingConfirmation(for: .pane(busyPane)) == nil)
+        #expect(await store.pendingConfirmation(for: .pane(busyPane), bundle: english.bundle, locale: english.locale) == nil)
 
         // Inspector failure fails safe conservatively without leaking raw process error details into user copy.
         settings.confirmCloseRunningProcess = true
         prefs.terminal = settings
         inspector.runningByStateId = [:]
         inspector.inspectionError = "ps failed"
-        let errorQuestion = await store.pendingConfirmation(for: .pane(busyPane))
+        let errorQuestion = await store.pendingConfirmation(for: .pane(busyPane), bundle: english.bundle, locale: english.locale)
         #expect(errorQuestion?.message.contains("Could not verify running commands") == true)
         #expect(errorQuestion?.message.contains("ps failed") == false)
-        let quitErrorQuestion = await store.pendingConfirmation(for: .all)
+        let quitErrorQuestion = await store.pendingConfirmation(for: .all, bundle: english.bundle, locale: english.locale)
         #expect(quitErrorQuestion?.title == "Quit Carrier?")
-        let archiveErrorQuestion = await store.pendingConfirmation(for: .owners([session]), removalKind: .archive)
+        let archiveErrorQuestion = await store.pendingConfirmation(for: .owners([session]), removalKind: .archive, bundle: english.bundle, locale: english.locale)
         #expect(archiveErrorQuestion?.title == "Archive session?")
 
         // Many running commands summarize to at most 3 and use the singular/plural pronoun consistently.
         inspector.inspectionError = nil
         inspector.runningByStateId[ObjectIdentifier(busyState)] = ["cmd-a", "cmd-b", "cmd-c", "cmd-d", "cmd-e"]
-        let manyCommandsQuestion = await store.pendingConfirmation(for: .owners([session]), removalKind: .archive)
+        let manyCommandsQuestion = await store.pendingConfirmation(for: .owners([session]), removalKind: .archive, bundle: english.bundle, locale: english.locale)
         #expect(manyCommandsQuestion?.title.hasPrefix("Archive session with running terminal") == true)
         #expect(manyCommandsQuestion?.confirm == "Archive")
         #expect(manyCommandsQuestion?.message.contains("and 2 more") == true)
@@ -255,7 +257,9 @@ struct CarrierTerminalStoreTests {
         let longCopy = terminalConfirmationQuestion(
             for: .tab(tab.id),
             running: [TerminalActiveProcess(paneId: busyPane, paneTitle: longTitle, commands: ["vite"])],
-            targetTitle: longTitle
+            targetTitle: longTitle,
+            bundle: english.bundle,
+            locale: english.locale
         )
         #expect(longCopy.title.count < 70)
         #expect(longCopy.title.contains("\u{2026}") == true)
@@ -744,7 +748,7 @@ struct CarrierTerminalStoreTests {
         let third = store.openTab(for: owner, workingDirectory: "/tmp")
 
         store.renameTab(second.id, customTitle: "Server")
-        #expect(store.tab(id: second.id)?.title == "Server")
+        #expect(store.tab(id: second.id)?.title(bundle: english.bundle, locale: english.locale) == "Server")
 
         let closed = await store.closeOtherTabs(except: second.id, for: owner)
         #expect(closed == true)

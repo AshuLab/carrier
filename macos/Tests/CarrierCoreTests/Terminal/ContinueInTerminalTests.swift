@@ -384,7 +384,7 @@ private final class RecordingOpener: TerminalOpener {
     let vanishingFolder = scratch.engine + "/vanishing"
     try FileManager.default.createDirectory(atPath: vanishingFolder, withIntermediateDirectories: true)
     let valid = try validateResume(scratch.descriptor("claude", cwd: vanishingFolder, config: scratch.config), engine: scratch.engine).get()
-    let launch = embeddedResumeLaunch(valid)
+    let launch = embeddedResumeLaunch(valid, bundle: english.bundle, locale: english.locale)
     try FileManager.default.removeItem(atPath: vanishingFolder)
 
     let failed = try runEmbedded(launch, cwd: emptyHome)

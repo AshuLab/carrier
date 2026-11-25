@@ -13,9 +13,9 @@ struct TabRenamePopover: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Tokens.Space.s10) {
-            Text("Rename Tab")
+            Text(Copy.terminalRenameTab())
                 .scaledFont(12, weight: .semibold)
-            TextField("Tab name", text: $title)
+            TextField(Copy.terminalTabName(), text: $title)
                 .settingsField(width: 248, focused: $focused)
                 .onSubmit(save)
                 .onKeyPress(.escape) {
@@ -25,20 +25,20 @@ struct TabRenamePopover: View {
             HStack(spacing: Tokens.Space.s8) {
                 if hasCustomTitle {
                     Button(action: reset) {
-                        Label("Reset", icon: .rotate)
+                        Label(Copy.terminalReset(), icon: .rotate)
                     }
                     .buttonStyle(SecondaryCapsuleButtonStyle())
                     .controlSize(.small)
                 }
                 Spacer(minLength: 0)
                 Button(action: cancel) {
-                    Label("Cancel", icon: .close)
+                    Label(Copy.terminalCancel(), icon: .close)
                 }
                 .buttonStyle(SecondaryCapsuleButtonStyle())
                 .controlSize(.small)
                 .keyboardShortcut(.cancelAction)
                 Button(action: save) {
-                    Label("Save", icon: .check)
+                    Label(Copy.terminalSave(), icon: .check)
                 }
                 .buttonStyle(PrimaryCapsuleButtonStyle())
                 .controlSize(.small)

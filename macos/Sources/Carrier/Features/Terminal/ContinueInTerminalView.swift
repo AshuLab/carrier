@@ -16,15 +16,15 @@ struct ContinueInTerminalView: View {
                 VStack(alignment: .leading, spacing: Tokens.Space.none) {
                     Button {
                         guard case .success(let freshValid) = validateResume(descriptor, engine: engineFolder()) else {
-                            tell("The session folder is no longer available.")
+                            tell(Copy.terminalContinueGone())
                             return
                         }
                         onContinue(freshValid)
                     } label: {
                         HStack(spacing: Tokens.Space.s8) {
                             Glyph(.terminal, size: 12).foregroundStyle(.secondary).frame(width: 16, height: 16)
-                            Text("Continue in Terminal").fontWeight(.semibold)
-                            Text("· resumes this session").foregroundStyle(.secondary)
+                            Text(Copy.terminalContinueTitle()).fontWeight(.semibold)
+                            Text(Copy.terminalContinueResumes()).foregroundStyle(.secondary)
                             Spacer(minLength: 8)
                         }
                         .scaledFont(12.5).lineLimit(1)
@@ -35,9 +35,9 @@ struct ContinueInTerminalView: View {
                     .buttonStyle(.plain)
                     .onHover { hovered = $0 }
                     .help(section.state == .stopped
-                        ? "Opens the terminal panel below in the folder it started in and resumes \(section.agent) so you can keep talking to it.\n\(resumeCommand(valid))"
+                        ? Copy.terminalContinueHelp(agent: section.agent, command: resumeCommand(valid))
                         : resumeCommand(valid))
-                    .accessibilityHint("Opens the terminal panel and resumes this session")
+                    .accessibilityHint(Copy.terminalContinueHint())
                 }
                 .workCard()
                 .padding(.horizontal, LogMetrics.iconColumn).padding(.vertical, Tokens.Space.s4)

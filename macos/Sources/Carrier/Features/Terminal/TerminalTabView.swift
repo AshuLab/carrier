@@ -136,7 +136,7 @@ struct TerminalTabView: View {
     }
 
     private var themeOptions: [(value: Theme?, title: String)] {
-        [(value: nil, title: "Same as app (\(appTheme.title))")]
+        [(value: nil, title: Copy.terminalSameAsApp(theme: appTheme.title))]
             + Theme.allCases.map { (value: $0, title: $0.title) }
     }
 
@@ -149,153 +149,153 @@ struct TerminalTabView: View {
             installed: MonospaceStyle.installedFamilies,
             currentOverride: fontFamilyOverride
         )
-        return [(value: nil, title: "Same as Appearance (\(appFontDisplayName))")]
+        return [(value: nil, title: Copy.terminalSameAsAppearance(value: appFontDisplayName))]
             + families.map { (value: $0, title: $0) }
     }
 
     private var fontSizeOptions: [(value: Int?, title: String)] {
         let sizes = TerminalSettings.availableFontSizes(currentOverride: fontSizeOverride)
-        return [(value: nil, title: "Same as Appearance (\(Int(appFontSize.rounded())) pt)")]
-            + sizes.map { (value: $0, title: "\($0) pt") }
+        return [(value: nil, title: Copy.terminalSameAsAppearance(value: Copy.terminalPoints(size: Int(appFontSize.rounded()))))]
+            + sizes.map { (value: $0, title: Copy.terminalPoints(size: $0)) }
     }
 
     private var ligaturesOptions: [(value: Bool?, title: String)] {
         [
-            (value: nil, title: "Same as Appearance (\(appLigatures ? "On" : "Off"))"),
-            (value: true, title: "On"),
-            (value: false, title: "Off"),
+            (value: nil, title: Copy.terminalSameAsAppearance(value: appLigatures ? Copy.terminalOn() : Copy.terminalOff())),
+            (value: true, title: Copy.terminalOn()),
+            (value: false, title: Copy.terminalOff()),
         ]
     }
 
     private var cursorStyleOptions: [(value: TerminalCursorStyleChoice, title: String, icon: AppIcon?)] {
-        TerminalCursorStyleChoice.allCases.map { (value: $0, title: $0.title, icon: nil) }
+        TerminalCursorStyleChoice.allCases.map { (value: $0, title: $0.title(), icon: nil) }
     }
 
     private var optionAsAltOptions: [(value: TerminalOptionAsAlt, title: String)] {
-        TerminalOptionAsAlt.allCases.map { (value: $0, title: $0.title) }
+        TerminalOptionAsAlt.allCases.map { (value: $0, title: $0.title()) }
     }
 
     private var scrollbackLimitOptions: [(value: TerminalScrollbackLimit, title: String)] {
-        TerminalScrollbackLimit.allCases.map { (value: $0, title: $0.title) }
+        TerminalScrollbackLimit.allCases.map { (value: $0, title: $0.title()) }
     }
 
     var body: some View {
         SettingsPageBody(reset: resetTerminalSettings) {
-            SettingsGroup(id: "appearance", title: "Appearance") {
-                SettingsTabRow(id: "theme", title: "Theme", detail: "Color palette for panes; inherits the app theme by default", first: true) {
-                    ChoicePopUp(label: "Theme", options: themeOptions, selection: $themeOverride)
+            SettingsGroup(id: "appearance", title: Copy.terminalSettingsAppearance()) {
+                SettingsTabRow(id: "theme", title: Copy.terminalSettingsTheme(), detail: Copy.terminalSettingsThemeDetail(), first: true) {
+                    ChoicePopUp(label: Copy.terminalSettingsTheme(), options: themeOptions, selection: $themeOverride)
                 }
                 SettingsTabRow(
-                    id: "minimum-contrast", title: "Minimum contrast",
-                    detail: "Raises low-contrast ANSI text · \(TerminalSettings.minimumContrastLabel(minimumContrast))"
+                    id: "minimum-contrast", title: Copy.terminalSettingsContrast(),
+                    detail: Copy.terminalSettingsContrastDetail(contrast: TerminalSettings.minimumContrastLabel(minimumContrast))
                 ) {
                     Slider(value: minimumContrastSelection, in: TerminalSettings.minimumContrastRange)
                         .labelsHidden().frame(width: settingsSliderWidth)
-                        .accessibilityLabel("Minimum contrast")
+                        .accessibilityLabel(Copy.terminalSettingsContrast())
                         .accessibilityValue(TerminalSettings.minimumContrastLabel(minimumContrast))
                 }
                 SettingsTabRow(
-                    id: "horizontal-padding", title: "Horizontal padding",
-                    detail: "Left and right margin inside each pane · \(Int(paddingX.rounded())) pt"
+                    id: "horizontal-padding", title: Copy.terminalSettingsPaddingX(),
+                    detail: Copy.terminalSettingsPaddingXDetail(size: Int(paddingX.rounded()))
                 ) {
                     Slider(value: paddingXSelection, in: TerminalSettings.paddingRange)
                         .labelsHidden().frame(width: settingsSliderWidth)
-                        .accessibilityLabel("Horizontal padding")
-                        .accessibilityValue("\(Int(paddingX.rounded())) points")
+                        .accessibilityLabel(Copy.terminalSettingsPaddingX())
+                        .accessibilityValue(Copy.terminalPointsValue(count: Int(paddingX.rounded())))
                 }
                 SettingsTabRow(
-                    id: "vertical-padding", title: "Vertical padding",
-                    detail: "Top and bottom margin inside each pane · \(Int(paddingY.rounded())) pt"
+                    id: "vertical-padding", title: Copy.terminalSettingsPaddingY(),
+                    detail: Copy.terminalSettingsPaddingYDetail(size: Int(paddingY.rounded()))
                 ) {
                     Slider(value: paddingYSelection, in: TerminalSettings.paddingRange)
                         .labelsHidden().frame(width: settingsSliderWidth)
-                        .accessibilityLabel("Vertical padding")
-                        .accessibilityValue("\(Int(paddingY.rounded())) points")
+                        .accessibilityLabel(Copy.terminalSettingsPaddingY())
+                        .accessibilityValue(Copy.terminalPointsValue(count: Int(paddingY.rounded())))
                 }
                 SettingsPreview {
                     TerminalSettingsPreview(profile: previewProfile, pinPromptToBottom: pinPromptToBottom)
                 }
             }
 
-            SettingsGroup(id: "typography", title: "Typography") {
+            SettingsGroup(id: "typography", title: Copy.terminalSettingsTypography()) {
                 SettingsTabRow(
-                    id: "font", title: "Font",
-                    detail: "Monospaced font used in panes; inherits Appearance › Code and output",
+                    id: "font", title: Copy.terminalSettingsFont(),
+                    detail: Copy.terminalSettingsFontDetail(),
                     first: true
                 ) {
-                    ChoicePopUp(label: "Font", options: fontFamilyOptions, selection: fontFamilySelection)
+                    ChoicePopUp(label: Copy.terminalSettingsFont(), options: fontFamilyOptions, selection: fontFamilySelection)
                 }
-                SettingsTabRow(id: "size", title: "Size", detail: "Text size in points for terminal output") {
-                    ChoicePopUp(label: "Size", options: fontSizeOptions, selection: fontSizeSelection)
+                SettingsTabRow(id: "size", title: Copy.terminalSettingsSize(), detail: Copy.terminalSettingsSizeDetail()) {
+                    ChoicePopUp(label: Copy.terminalSettingsSize(), options: fontSizeOptions, selection: fontSizeSelection)
                 }
-                SettingsTabRow(id: "ligatures", title: "Ligatures", detail: "Joins pairs such as != and >= where the font has them") {
-                    ChoicePopUp(label: "Ligatures", options: ligaturesOptions, selection: $fontLigaturesOverride)
+                SettingsTabRow(id: "ligatures", title: Copy.terminalSettingsLigatures(), detail: Copy.terminalSettingsLigaturesDetail()) {
+                    ChoicePopUp(label: Copy.terminalSettingsLigatures(), options: ligaturesOptions, selection: $fontLigaturesOverride)
                 }
-                SettingsTabRow(id: "thicken-font", title: "Thicken font", detail: "Renders glyphs slightly heavier on Retina displays") {
-                    Toggle("Thicken font", isOn: $fontThicken).labelsHidden().toggleStyle(.switch)
+                SettingsTabRow(id: "thicken-font", title: Copy.terminalSettingsThicken(), detail: Copy.terminalSettingsThickenDetail()) {
+                    Toggle(Copy.terminalSettingsThicken(), isOn: $fontThicken).labelsHidden().toggleStyle(.switch)
                 }
             }
 
-            SettingsGroup(id: "cursor", title: "Cursor") {
-                SettingsTabRow(id: "cursor-style", title: "Cursor style", detail: "Shape of the text cursor inside terminal panes", first: true) {
+            SettingsGroup(id: "cursor", title: Copy.terminalSettingsCursor()) {
+                SettingsTabRow(id: "cursor-style", title: Copy.terminalSettingsCursorStyle(), detail: Copy.terminalSettingsCursorStyleDetail(), first: true) {
                     SegmentedChoice(options: cursorStyleOptions, selection: $cursorStyle)
                 }
-                SettingsTabRow(id: "blink-cursor", title: "Blink cursor", detail: "Animates the cursor when the pane is focused") {
-                    Toggle("Blink cursor", isOn: $cursorBlink).labelsHidden().toggleStyle(.switch)
+                SettingsTabRow(id: "blink-cursor", title: Copy.terminalSettingsBlink(), detail: Copy.terminalSettingsBlinkDetail()) {
+                    Toggle(Copy.terminalSettingsBlink(), isOn: $cursorBlink).labelsHidden().toggleStyle(.switch)
                 }
             }
 
-            SettingsGroup(id: "panes", title: "Panes") {
+            SettingsGroup(id: "panes", title: Copy.terminalSettingsPanes()) {
                 SettingsTabRow(
-                    id: "dim-inactive-panes", title: "Dim inactive panes",
-                    detail: "Softens unfocused split panes so the active pane stands out",
+                    id: "dim-inactive-panes", title: Copy.terminalSettingsDim(),
+                    detail: Copy.terminalSettingsDimDetail(),
                     first: true
                 ) {
-                    Toggle("Dim inactive panes", isOn: $dimInactivePanes).labelsHidden().toggleStyle(.switch)
+                    Toggle(Copy.terminalSettingsDim(), isOn: $dimInactivePanes).labelsHidden().toggleStyle(.switch)
                 }
                 SettingsTabRow(
-                    id: "focus-follows-mouse", title: "Focus follows mouse",
-                    detail: "Activates split panes when hovering over them without clicking"
+                    id: "focus-follows-mouse", title: Copy.terminalSettingsFocusFollows(),
+                    detail: Copy.terminalSettingsFocusFollowsDetail()
                 ) {
-                    Toggle("Focus follows mouse", isOn: $focusFollowsMouse).labelsHidden().toggleStyle(.switch)
+                    Toggle(Copy.terminalSettingsFocusFollows(), isOn: $focusFollowsMouse).labelsHidden().toggleStyle(.switch)
                 }
             }
 
-            SettingsGroup(id: "input-and-scrollback", title: "Input and scrollback") {
+            SettingsGroup(id: "input-and-scrollback", title: Copy.terminalSettingsInput()) {
                 SettingsTabRow(
-                    id: "option-as-alt", title: "Option as Alt",
-                    detail: "Sends Option key presses as Meta/Alt escape sequences in shells",
+                    id: "option-as-alt", title: Copy.terminalSettingsOptionAsAlt(),
+                    detail: Copy.terminalSettingsOptionAsAltDetail(),
                     first: true
                 ) {
-                    ChoicePopUp(label: "Option as Alt", options: optionAsAltOptions, selection: $optionAsAlt)
+                    ChoicePopUp(label: Copy.terminalSettingsOptionAsAlt(), options: optionAsAltOptions, selection: $optionAsAlt)
                 }
                 SettingsTabRow(
-                    id: "copy-on-select", title: "Copy on select",
-                    detail: "Copies highlighted terminal text to the clipboard automatically"
+                    id: "copy-on-select", title: Copy.terminalSettingsCopyOnSelect(),
+                    detail: Copy.terminalSettingsCopyOnSelectDetail()
                 ) {
-                    Toggle("Copy on select", isOn: $copyOnSelect).labelsHidden().toggleStyle(.switch)
+                    Toggle(Copy.terminalSettingsCopyOnSelect(), isOn: $copyOnSelect).labelsHidden().toggleStyle(.switch)
                 }
                 SettingsTabRow(
-                    id: "scrollback-limit", title: "Scrollback limit",
-                    detail: "Memory reserved per pane for scrollback output history"
+                    id: "scrollback-limit", title: Copy.terminalSettingsScrollback(),
+                    detail: Copy.terminalSettingsScrollbackDetail()
                 ) {
-                    ChoicePopUp(label: "Scrollback limit", options: scrollbackLimitOptions, selection: scrollbackLimitSelection)
+                    ChoicePopUp(label: Copy.terminalSettingsScrollback(), options: scrollbackLimitOptions, selection: scrollbackLimitSelection)
                 }
             }
 
-            SettingsGroup(id: "shell-and-closing", title: "Shell and closing") {
+            SettingsGroup(id: "shell-and-closing", title: Copy.terminalSettingsShell()) {
                 SettingsTabRow(
-                    id: "pin-zsh-prompt-to-bottom", title: "Pin Zsh prompt to bottom",
-                    detail: "Keeps new interactive prompts at the bottom row without changing dotfiles",
+                    id: "pin-zsh-prompt-to-bottom", title: Copy.terminalSettingsPinPrompt(),
+                    detail: Copy.terminalSettingsPinPromptDetail(),
                     first: true
                 ) {
-                    Toggle("Pin Zsh prompt to bottom", isOn: $pinPromptToBottom).labelsHidden().toggleStyle(.switch)
+                    Toggle(Copy.terminalSettingsPinPrompt(), isOn: $pinPromptToBottom).labelsHidden().toggleStyle(.switch)
                 }
                 SettingsTabRow(
-                    id: "confirm-before-closing-running-commands", title: "Confirm before closing running commands",
-                    detail: "Asks before closing a tab, split, or drawer with an active process"
+                    id: "confirm-before-closing-running-commands", title: Copy.terminalSettingsConfirm(),
+                    detail: Copy.terminalSettingsConfirmDetail()
                 ) {
-                    Toggle("Confirm before closing running commands", isOn: $confirmCloseRunningProcess)
+                    Toggle(Copy.terminalSettingsConfirm(), isOn: $confirmCloseRunningProcess)
                         .labelsHidden().toggleStyle(.switch)
                 }
             }

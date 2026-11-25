@@ -23,7 +23,7 @@ extension TerminalRegistry {
         let cwd = (resolvedCwd?.isEmpty == false ? resolvedCwd! : targetPane.workingDirectory)
         let pane = TerminalPane(
             id: newPaneId,
-            title: spec?.title ?? "Terminal",
+            title: spec?.title ?? TerminalPane.untitled,
             customTitle: spec?.customTitle,
             workingDirectory: cwd,
             envVars: spec?.envVars ?? [:],

@@ -73,7 +73,8 @@ struct TerminalWorkspaceLayoutTests {
             if name.contains("HostingScrollView"), rect.width >= 400, rect.height >= 400 {
                 scrollViewFrame = rect
             }
-            if name.contains("HostingScrollView"), rect.width >= 400, rect.height <= 40 {
+            // the tab group is as wide as its tabs, so only its height tells it from the detail's scroll view
+            if name.contains("HostingScrollView"), rect.width > 0, rect.height <= 40 {
                 tabBarScrollFrame = rect
             }
             if name == "NSScrollPocket" {
@@ -87,9 +88,10 @@ struct TerminalWorkspaceLayoutTests {
         let actual = try #require(terminalFrame, "Missing AppTerminalView: \(msg)")
         let container = try #require(scrollViewFrame, "Missing HostingScrollView: \(msg)")
         let tabBar = try #require(tabBarScrollFrame, "Missing bottom TerminalTabBarView: \(msg)")
-        // Detail view lets the terminal surface extend behind the translucent top toolbar while mounting the shared tab bar below it.
-        #expect(actual.minY <= 4, "Expected terminal to extend behind top toolbar to the window top edge: \(msg)")
-        #expect(abs(actual.maxY - container.maxY) <= 1, "Expected terminal bottom to match detail ScrollView bottom: \(msg)")
+        // The detail view draws the terminal as a card under the toolbar's buttons (not behind them), 8 pt above the bottom of its area, with the shared tab bar below it.
+        let topInset = host.view.safeAreaInsets.top
+        #expect(actual.minY > 4 && actual.minY <= topInset, "Expected the terminal card below the window's top edge and not past the toolbar: \(msg)")
+        #expect(abs(container.maxY - actual.maxY - Tokens.Space.s8) <= 1, "Expected the terminal card 8 pt above the bottom of the detail ScrollView: \(msg)")
         #expect(tabBar.minY >= actual.maxY, "Expected TerminalTabBarView below terminal surface: \(msg)")
         // Ensure macOS mounts a detail-column NSScrollPocket spanning the translucent top toolbar.
         #expect(scrollPocketFrames.contains(where: { $0.height >= 40 && $0.width >= 400 }), "Expected detail NSScrollPocket: \(msg)")

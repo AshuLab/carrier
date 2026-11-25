@@ -16,7 +16,7 @@ A dependency points down only ([ADR 0052](../docs/adr/0052-the-macos-app-is-spli
 
 Where a file goes: a Settings page that changes one area lives in that area, one about Carrier's config or the app as a whole in `Features/Settings/`; a file that needs a platform framework and also draws is split in two; a test goes to the folder of what it tests.
 No view starts a process, reads or writes a file or opens a socket: it asks a model.
-Each area's code and tests are in its doc under `docs/macos/`, in the sections called "Where it lives in the code" and the like ([the list](README.md#what-the-app-does)):
+What each area does is in its doc under `docs/macos/` ([the list](README.md#what-the-app-does)), and the code map and tests of lifecycle, epics, dictation, terminal and keep awake are in the section of their doc called "Where it lives in the code" (keep awake: "Code and tests"):
 [lifecycle](../docs/macos/lifecycle.md) (Lifecycle), [app-shell](../docs/macos/app-shell.md) (App), [sessions](../docs/macos/sessions.md), [chat](../docs/macos/chat.md), [new-session](../docs/macos/new-session.md), [epics](../docs/macos/epics.md), [projects](../docs/macos/projects.md), [terminal](../docs/macos/terminal.md), [dictation](../docs/macos/dictation.md), [usage](../docs/macos/usage.md), [keep-awake](../docs/macos/keep-awake.md), [settings](../docs/macos/settings.md) with [Health](../docs/macos/settings-health.md).
 
 ## Tests

@@ -220,3 +220,18 @@ In the widget, with Cleanup on, the end of the dictation (the second press, or t
 Esc while it cleans does not cancel the dictation: it skips the cleanup and the raw text goes on to be pasted, as if Cleanup were off; a late answer changes nothing.
 When the server is down, the model is missing or it does not answer in 30 seconds, the raw text is pasted anyway, the widget shows a warning (the box says Pasted without cleaning and the cause, the Pill a warning icon) for a few seconds, the entry has no cleaned text, and a line with the cause only is appended to `dictation.log`. If the text could only be copied, the kept widget adds It was not cleaned and the cause. A failure of the recognizer is still a failure, with no paste (`GlobalDictation` tells the two by how the session's take ended: stopped for a cleanup that failed, failed for the recognizer).
 With Cleanup off, or on a server and model not chosen, the widget's dictation ends exactly as before.
+
+## Where it lives in the code
+
+What the person sees is above.
+The logic: `CarrierCore/Dictation/Dictation.swift`, `DictationSession.swift`, `TentativeText.swift`, `DictationPresentation.swift`, tested with `ScriptedDictation.swift`; `DictationController` holds the switch both boxes read; `LaunchPhases`: after the first frame.
+Readiness: `speechModelStep`, `ModelSlot`, run by `DictationController.warmUp`; `DictationSession.run` captures before `prepare`.
+The platform it needs is protocols in `CarrierCore/Platform/` (`Recognizer`, `AudioCapture`, `BatchTranscriber`, `ModelDownloader`, `TextModelClient`, `AudioPlayer`, `AccessibilityTrust`; `TerminalOpener` for Terminal), implemented in `Carrier/Platform/`; the models over them are `AudioPlayback` (`AudioPlaybackTests`) and `AccessibilityState` (`AccessibilityStateTests`), tested with a fake.
+Firm and tentative: `DictationEvent.partial`, `TentativeText.tentativeRange`, `GlobalDictation.split`.
+The page is `Carrier/Features/Dictation/DictationTab.swift` (`reset(.dictation)` restores the keys the schema (`design/preferences.json`) gives the page); views untested.
+
+The [global dictation](#global-dictation) machine is `CarrierCore/Dictation/GlobalDictation.swift` (`GlobalDictationTests`, scripted recognizer; Hold is `.up`); shortcut `DictationShortcut.swift`; paste or copy `PasteDecision.swift`; box or widget `DictationRoute.swift` (box side `MessageBox.dictateRequest`).
+`Carrier/Features/Dictation/GlobalDictationController.swift` wires a `GlobalShortcut`, `DictationWidget` and a `Clipboard` (fakes in `GlobalDictationControllerTests`; the real ones are `GlobalHotKey` and `SystemClipboard`, `SystemClipboardTests`); views untested.
+
+[History](#history) and [statistics](#statistics): `DictationRecords.swift` (fake clock, fed by `DictationSession.take`; `load()` is async), `DictationAudio.swift`, `DictationStatistics.swift`; the player is untested.
+[Cleanup](#cleanup): `DictationCleanup.swift` (`TextModelClient`, `CleanupRun`) and `LocalModelClient.swift`; the `.cleaning` state of `DictationSession` is in `DictationSessionTests`; `CleanupController.swift`, `CleanupGroup.swift` untested.

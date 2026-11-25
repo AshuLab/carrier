@@ -47,3 +47,9 @@ A thought is drawn if the events carry one (`reasoning`; today's parsers send no
 What is only the epic's stays between the runs, in event order: notes (a change the agent published, "created 736 (main)", is a quiet line with the pull request as a link), skills as a row of their own, and a subagent's slice row, which opens its Subagent view.
 A harness with no parser shows its summarised `tail` lines instead.
 The calls are hidden when Tool output is hidden.
+
+## Where it lives in the code
+
+What the person sees: [the epic's Agent output](#the-epics-agent-output) and [the log's slices and findings](#slices-and-findings-in-an-epics-log); the resume card words and request are tested, the sheet, its "Resuming…" state and layout not.
+The rows, words and marks are two pure functions, `sliceCard(lane:)` (`SliceCard.swift`, `SliceCardTests`) and `findingsCard(_:stage:round:)` (`FindingsCard.swift`, `FindingsCardTests`, which also reads the golden epic reply); the views only for their heights (`LaneHeaderTests`).
+The session row's words are `sessionRowText` and `RoleIdentities`; the epic's events become the chat's calls in `flowItems` (`EpicTranscriptAdapterTests`).

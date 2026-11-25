@@ -49,7 +49,7 @@ Each folder has one job (the folder tree is in [CONTRIBUTING.md](CONTRIBUTING.md
 - Node strips types, it does not compile them: no `enum`, no parameter properties, relative imports end in `.ts`.
 - SQLite is the authority and labels are its mirror ([ADR 0002](docs/adr/0002-sqlite-authority-labels-mirror.md)). Importing a result and its transition is one idempotent transaction.
 - No secrets in config, state or logs. Never echo a child's output that could hold a token.
-- All repo content (code, docs, tests, strings) is in English, except the Spanish translations in `design/copy/es.json`.
+- All repo content (code, docs, tests, strings) is in English, except the Spanish translations in `design/copy/es.json`, the one exception ([ui](docs/ui.md) has the look, the words and the preferences every front-end shares).
 - Config schema lives in `src/config/schema.ts` (the engine's), `src/config/providers.ts` (the accounts' `providers.json`) and `src/chat/config.ts` (the chat's `chat.json`); changing any of them means updating `docs/configuration.md`.
 - A new table file under `src/storage` goes into the list in `drizzle.config.ts`, or drizzle-kit misses it (the chat's tables all live in `src/chat/schema.ts`).
 - A prompt change updates the inline snapshots with `pnpm test -u`, and `src/prompts/result.ts` stays in step with `src/execution/caller-result.ts`.

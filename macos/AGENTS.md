@@ -3,9 +3,21 @@
 The code map of `Carrier.app`: where each area lives in the code and what is tested.
 How to build, test and run it is in [README.md](README.md); what each area does for the person is in `docs/macos/` ([the list](README.md#what-the-app-does)); how it looks is in [ui](../docs/ui.md).
 
-## Packages
+## Packages and the tree
 
 A SwiftPM package for macOS 26+: `CarrierCore` (library), `Carrier` (AppKit shell), `CarrierCoreTests` and `CarrierTests` (Swift Testing).
+A dependency points down only ([ADR 0052](../docs/adr/0052-the-macos-app-is-split-into-three-targets-by-layer-and-each-target-by-area.md)); the areas are Lifecycle, Sessions, Chat, Epics, Projects, Terminal, Dictation, Usage, KeepAwake, Updates, Health and Settings.
+
+- `CarrierCore/<Area>/`: clients, rules, what a view shows, with no SwiftUI or AppKit; `Platform/` has the protocols for what only the machine does, `Connection/` the sockets, `Theme/`, `Copy/` and `Settings/` the generated tokens, words and preference keys (`pnpm design`), `Support/` and `Fixtures/` what is shared.
+- `Carrier/App/`: the composition root (`AppDelegate`, `MainMenu`, `PanelModel`, the window), where the controllers are built.
+- `Carrier/Features/<Area>/`: thin views and the models only they use.
+- `Carrier/Platform/`: the implementations of `CarrierCore/Platform/` and every framework import.
+- `Carrier/UI/`: the pieces of [ui](../docs/ui.md), which name no type of `Features/`, `App/` or `Platform/`; it becomes the `CarrierUI` target.
+
+Where a file goes: a Settings page that changes one area lives in that area, one about Carrier's config or the app as a whole in `Features/Settings/`; a file that needs a platform framework and also draws is split in two; a test goes to the folder of what it tests.
+No view starts a process, reads or writes a file or opens a socket: it asks a model.
+Each area's code and tests are in its doc under `docs/macos/`, in the sections called "Where it lives in the code" and the like ([the list](README.md#what-the-app-does)):
+[lifecycle](../docs/macos/lifecycle.md) (Lifecycle), [app-shell](../docs/macos/app-shell.md) (App), [sessions](../docs/macos/sessions.md), [chat](../docs/macos/chat.md), [new-session](../docs/macos/new-session.md), [epics](../docs/macos/epics.md), [projects](../docs/macos/projects.md), [terminal](../docs/macos/terminal.md), [dictation](../docs/macos/dictation.md), [usage](../docs/macos/usage.md), [keep-awake](../docs/macos/keep-awake.md), [settings](../docs/macos/settings.md) with [Health](../docs/macos/settings-health.md).
 
 ## Tests
 
@@ -14,29 +26,11 @@ The live shell test (`CarrierTerminalStoreTests`) spawns a real Ghostty surface 
 A test finds `Tests/Fixtures`, `Sources` and the repository root with `testPaths()` (`Tests/CarrierCoreTests/TestPaths.swift` and `Tests/CarrierTests/TestPaths.swift`), never by climbing from `#filePath`, so a file can move to any depth.
 A test that scans the sources reads every subfolder and fails when it scans fewer files than a minimum (`swiftFiles(under:minimum:)`), and finds a source file by its name, not its path.
 
-## Starting Carrier and the chat host
-
-What the person sees: [lifecycle](../docs/macos/lifecycle.md).
-
-The decision and command line are in `CarrierCore/Lifecycle/StartCarrier.swift`; the chat host's, with its notice, in `StartChatHost.swift`. The start itself (one at a time, `engine.json`, the wait for the socket or the exit, the retry when a tool is not found, the log's tail) is `CarrierStart` and `CarrierLauncher` (`CarrierLauncherTests`, fake `ProcessRunner` and `HostSocket`); `Carrier/Platform/SystemProcessRunner.swift` does the spawn, and the alert stays in `StartController`. `Carrier/Features/Lifecycle/ChatHostStarter.swift` reuses the launcher and shows its alert. Tested on a real socket with a scripted engine (`EngineReplacementTests`).
-`CarrierCore/Connection/EngineLink.swift` reads the engine ([how](../docs/macos/app-shell.md#how-the-app-reads-the-engine); `EngineLinkTests`).
-
 ## Dev build and release build
 
 `build-app.sh` with no version makes the dev build, with a version the release build ([CONTRIBUTING](../CONTRIBUTING.md#developing-against-a-throwaway-folder)).
 `CarrierChannel` in the plist is `dev` or `release`; `isDevBuild` (`Carrier/App/AppDelegate.swift`) reads it, and a dev build has no `SUFeedURL`, so `AppUpdater.start` does not start the updater.
 `scripts/check-app.sh` asserts id, channel and missing feed for both; a new difference goes into `build-app.sh` and that script.
-
-## Epics
-
-What the person sees: [the app shell](../docs/macos/epics.md#resume-card). The resume words and request are tested; the sheet, its "Resuming…" state and layout not.
-
-### The epic's Agent output
-
-What the person sees: [the app shell](../docs/macos/epics.md#slices-and-findings-in-an-epics-log).
-
-The rows, words and marks are two pure functions, `sliceCard(lane:)` (`SliceCard.swift`, `SliceCardTests`) and `findingsCard(_:stage:round:)` (`FindingsCard.swift`, `FindingsCardTests`, which also reads the golden epic reply); the views only for their heights (`LaneHeaderTests`).
-The session row's words are `sessionRowText` and `RoleIdentities`; the epic's events become the chat's calls in `flowItems` (`EpicTranscriptAdapterTests`).
 
 ## Icons
 
@@ -74,35 +68,11 @@ The words are tested; the Finder and pasteboard calls not.
 `CarrierCore/Connection/ChatLink.swift` reads the chat host ([how](../docs/macos/sessions.md#how-the-app-reads-the-chat-host); `ChatLinkTests`).
 A subagent's row is `Subagent` (`Subagent.swift`), built by `chatFeed` from `task` events (`SubagentRowTests`).
 
-## Usage
-
-What the person sees: [usage](../docs/macos/usage.md).
-
 ## Platform adapters
 
 Each thing only macOS can do is a protocol of `CarrierCore/Platform/` implemented in `Carrier/Platform/`, and `scripts/check-structure.sh` fails when a file outside `Carrier/Platform/` imports Ghostty, FluidAudio, WhisperKit, Speech, AVFoundation, IOKit, Carbon, ApplicationServices, UserNotifications, Sparkle, MetricKit or ServiceManagement, or calls a symbol with the prefix `AX`, `SPU`, `AVAudio`, `IOPM`, `UN`, `MX` or `CGEvent`.
 `KeepAwakeAssertion` (`SystemKeepAwakeAssertion`, IOKit), `GlobalShortcut` (`SystemGlobalShortcut`, Carbon), `Clipboard` (`SystemClipboard`), `Updater` (`AppUpdater`, Sparkle), `NotificationCentre` and `NotificationPermissionReader` (`SystemNotificationCentre`): the models over them take the protocol (`KeepAwakeControllerTests` and `GlobalDictationControllerTests` with a fake; one test of the real assertion, `SystemKeepAwakeAssertionTests`).
 The app's controllers are built where they are used: `KeepAwakeController.shared` in `KeepAwakeController+App.swift`, `GlobalDictationController.shared`, and the views take the protocol from `SettingsWindow` and `PanelView`.
-
-## Dictation
-
-What the person sees: [dictation](../docs/macos/dictation.md).
-
-The logic: `CarrierCore/Dictation/Dictation.swift`, `DictationSession.swift`, `TentativeText.swift`, `DictationPresentation.swift`, tested with `ScriptedDictation.swift`; `DictationController` holds the switch both boxes read; `LaunchPhases`: after the first frame.
-Readiness: `speechModelStep`, `ModelSlot`, run by `DictationController.warmUp`; `DictationSession.run` captures before `prepare`.
-The platform it needs is protocols in `CarrierCore/Platform/` (`Recognizer`, `AudioCapture`, `BatchTranscriber`, `ModelDownloader`, `TextModelClient`, `AudioPlayer`, `AccessibilityTrust`; `TerminalOpener` for Terminal), implemented in `Carrier/Platform/`; the models over them are `AudioPlayback` (`AudioPlaybackTests`) and `AccessibilityState` (`AccessibilityStateTests`), tested with a fake.
-Firm and tentative: `DictationEvent.partial`, `TentativeText.tentativeRange`, `GlobalDictation.split`.
-The page is `Carrier/Features/Dictation/DictationTab.swift` (`reset(.dictation)` restores the keys the schema (`design/preferences.json`) gives the page); views untested.
-
-### Global dictation
-
-See [dictation](../docs/macos/dictation.md#global-dictation). The machine is `CarrierCore/Dictation/GlobalDictation.swift` (`GlobalDictationTests`, scripted recognizer; Hold is `.up`); shortcut `DictationShortcut.swift`; paste or copy `PasteDecision.swift`; box or widget `DictationRoute.swift` (box side `MessageBox.dictateRequest`).
-`Carrier/Features/Dictation/GlobalDictationController.swift` wires a `GlobalShortcut`, `DictationWidget` and a `Clipboard` (fakes in `GlobalDictationControllerTests`; the real ones are `GlobalHotKey` and `SystemClipboard`, `SystemClipboardTests`); views untested.
-
-### History, statistics and cleanup
-
-[History](../docs/macos/dictation.md#history) and [statistics](../docs/macos/dictation.md#statistics): `DictationRecords.swift` (fake clock, fed by `DictationSession.take`; `load()` is async), `DictationAudio.swift`, `DictationStatistics.swift`; the player is untested.
-Cleanup: `DictationCleanup.swift` (`TextModelClient`, `CleanupRun`) and `LocalModelClient.swift`; the `.cleaning` state of `DictationSession` is in `DictationSessionTests`; `CleanupController.swift`, `CleanupGroup.swift` untested.
 
 ## Embedded terminal
 

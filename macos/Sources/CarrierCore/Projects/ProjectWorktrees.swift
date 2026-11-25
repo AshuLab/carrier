@@ -85,6 +85,11 @@ public struct ProjectWorktrees: Decodable, Equatable, Sendable {
     }
 }
 
+extension Array where Element == ProjectWorktree {
+    /// Whether one has a session and is Merged or In main, the only ones Clean up can take, so the only case where the page asks the host what it takes (that walks the folders).
+    public var hasFinished: Bool { contains { $0.session != nil && ($0.integration == .merged || $0.integration == .inMain) } }
+}
+
 /// One row of the Worktrees and disk group, in words.
 public struct WorktreeRow: Equatable, Identifiable, Sendable {
     public let id: String
@@ -165,7 +170,7 @@ private func integrationWords(_ integration: ProjectWorktree.Integration, bundle
 /// What the host says when a session holds the worktree, which is also why the button is off while it is.
 public func worktreeOpenWords(bundle: Bundle? = nil, locale: Locale = .current) -> String { Copy.projectsWorktreeOpen(bundle: bundle, locale: locale) }
 
-/// The reply of `cleanProjectWorktrees`: the merged worktrees nothing blocks (the ones Clean up removes, or removed) with the bytes each folder holds, and the ones it skips with the reason.
+/// The reply of `cleanProjectWorktrees`: the finished worktrees (with a session, Merged or In main) nothing blocks (the ones Clean up removes, or removed) with the bytes each folder holds, and the ones it skips with the reason.
 public struct ProjectCleanup: Decodable, Equatable, Sendable {
     public struct Removed: Decodable, Equatable, Sendable {
         public let path: String

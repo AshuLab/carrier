@@ -1885,14 +1885,15 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
     },
 
     /**
-     * The worktrees of a project whose session's pull request is merged: the ones Clean up would remove, each with the bytes its folder holds, and the ones nothing lets it remove with the reason.
+     * The worktrees of a project that have a session and whose integration is Merged or In main: the ones Clean up would remove (those with no activity), each with the bytes its folder holds,
+     * and the ones nothing lets it remove with the reason. A worktree with no session is never in it, whatever its HEAD holds.
      * With `run` it removes them (each one checked again just before) and answers what it removed and what it skipped.
      */
     async cleanProjectWorktrees({ folder, run }: { folder: string; run: boolean }) {
       const { base, entries } = await readProjectWorktrees(folder, { refresh: true });
       const removed: { path: string; bytes: number }[] = [];
       const skipped: { path: string; reason: string; code: string; params: TextParams }[] = [];
-      for (const entry of entries.filter(({ found }) => found?.prState === 'merged')) {
+      for (const entry of entries.filter(({ found, worktree }) => found !== undefined && (worktree.integration === 'merged' || worktree.integration === 'inMain'))) {
         const { path } = entry.worktree;
         const reason = blockOf(entry);
         if (reason !== null) {

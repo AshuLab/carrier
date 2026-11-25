@@ -5784,6 +5784,10 @@ public enum Copy {
         String(localized: "projectsRemoveWorktreeLabel \(branch)", bundle: bundle ?? carrierResources, locale: locale)
     }
 
+    public static func projectsCleanUpTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsCleanUpTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
     public static func projectsCleanUpDetail(words: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
         String(localized: "projectsCleanUpDetail \(words)", bundle: bundle ?? carrierResources, locale: locale)
     }

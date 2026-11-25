@@ -54,7 +54,7 @@ extension ProjectDetailView {
                     }
                 }
                 if let cleanup, let words = cleanUpWords(cleanup) {
-                    SettingsTabRow(title: Copy.projectsCleanUp(), detail: Copy.projectsCleanUpDetail(words: words)) {
+                    SettingsTabRow(title: Copy.projectsCleanUpTitle(), detail: Copy.projectsCleanUpDetail(words: words)) {
                         Button { confirmingCleanup = true } label: { Label(Copy.projectsCleanUp(), icon: .trash) }
                             .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
                             .disabled(removing.isEmpty == false)
@@ -134,8 +134,8 @@ extension ProjectDetailView {
             let listed = try await model.worktrees(of: row.path)
             worktrees = listed
             worktreesProblem = nil
-            // measuring what Clean up takes walks the folders, so only a project with a merged worktree asks
-            cleanup = listed.worktrees.contains { $0.integration == .merged } ? try? await model.cleanUpWorktrees(of: row.path, run: false) : nil
+            // measuring what Clean up takes walks the folders, so only a project with a finished worktree asks
+            cleanup = listed.worktrees.hasFinished ? try? await model.cleanUpWorktrees(of: row.path, run: false) : nil
         } catch ControlError.remote(let refusal) {
             worktreesProblem = refusal.shown()
         } catch {

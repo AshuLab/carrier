@@ -67,9 +67,26 @@ private func ms(daysAgo days: Double) -> Double { (now.timeIntervalSince1970 - d
     #expect(cleanUpWords(one, bundle: english.bundle, locale: english.locale) == "1 worktree, \(size(1_000_000_000))")
     let two = ProjectCleanup(removed: [.init(path: "/w/a", bytes: 1_000_000_000), .init(path: "/w/b", bytes: 500_000_000)], skipped: [.init(path: "/h/worktrees/o/r/busy", reason: "Its session is open")])
     #expect(cleanUpWords(two, bundle: english.bundle, locale: english.locale) == "2 worktrees, \(size(1_500_000_000))")
+    // the row says what it takes in words of its own, with the count and size as the preview gives them
+    let words = cleanUpWords(two, bundle: english.bundle, locale: english.locale)!
+    #expect(Copy.projectsCleanUpTitle(bundle: english.bundle, locale: english.locale) == "Finished worktrees")
+    #expect(Copy.projectsCleanUpDetail(words: words, bundle: english.bundle, locale: english.locale) == "Merged or already in main, nothing blocks them: 2 worktrees, \(size(1_500_000_000))")
     #expect(cleanUpReport(two, bundle: english.bundle, locale: english.locale) == "Removed 2 worktrees, \(size(1_500_000_000)). Their branches and sessions stay.\nSkipped busy: Its session is open.")
     // nothing to take hides the button; a report of nothing says so
     let none = ProjectCleanup(removed: [], skipped: [])
     #expect(cleanUpWords(none, bundle: english.bundle, locale: english.locale) == nil && cleanUpReport(none, bundle: english.bundle, locale: english.locale) == "Nothing to clean up.")
     #expect(cleanUpReport(.init(removed: [], skipped: [.init(path: "/w/x", reason: "It has uncommitted changes")]), bundle: english.bundle, locale: english.locale) == "Skipped x: It has uncommitted changes.")
+}
+
+@Test func thePageAsksWhatCleanUpTakesOnlyWhenAWorktreeWithASessionIsMergedOrInMain() {
+    let session = ProjectWorktree.Session(id: "1")
+    let worktree = { (path: String, session: ProjectWorktree.Session?, integration: ProjectWorktree.Integration) in
+        ProjectWorktree(path: path, branch: nil, session: session, lastActiveAt: 0, integration: integration)
+    }
+    #expect([ProjectWorktree]().hasFinished == false)
+    #expect([worktree("/w/a", session, .merged)].hasFinished)
+    #expect([worktree("/w/a", session, .inMain)].hasFinished)
+    // no session is never taken, and the other words are not finished
+    #expect([worktree("/w/a", nil, .merged), worktree("/w/b", nil, .inMain)].hasFinished == false)
+    #expect([.notPushed, .prOpen, .prClosed, .pushed].map { worktree("/w/a", session, $0) }.hasFinished == false)
 }

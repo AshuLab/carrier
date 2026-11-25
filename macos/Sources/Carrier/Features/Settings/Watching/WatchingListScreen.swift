@@ -15,7 +15,7 @@ struct WatchingListScreen: View {
     static let group = "Repositories"
 
     var body: some View {
-        SettingsGroup(title: rows.isEmpty ? "" : Self.group) {
+        SettingsGroup(id: "repositories", title: rows.isEmpty ? "" : Self.group) {
             if rows.isEmpty {
                 EmptyStateView(
                     icon: .inbox, title: "Carrier isn\u{2019}t watching anything",

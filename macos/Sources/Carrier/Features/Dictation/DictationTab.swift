@@ -64,10 +64,10 @@ struct DictationTabView: View {
         SettingsGroup(title: "") {
             DictationStatusCard(dictation: dictation)
         }
-        SettingsGroup(title: "Set up") {
+        SettingsGroup(id: "set-up", title: "Set up") {
             ForEach([DictationScreen.recognition, .global, .cleanup, .sounds], id: \.self) { opens($0) }
         }
-        SettingsGroup(title: "Your dictations") {
+        SettingsGroup(id: "your-dictations", title: "Your dictations") {
             opens(.history)
             opens(.statistics)
         }
@@ -90,7 +90,7 @@ struct DictationTabView: View {
     }
 
     private func opens(_ screen: DictationScreen) -> some View {
-        NavigationRow(title: screen.title, detail: screen.detail, action: { go(SettingsPlace(.dictation, path: [screen.rawValue])) }) {
+        NavigationRow(id: screen.rawValue, title: screen.title, detail: screen.detail, action: { go(SettingsPlace(.dictation, path: [screen.rawValue])) }) {
             // two lines before a cut: at a narrow window and a large text the summary wraps and does not lose its last word
             Text(summary(screen)).font(.scaled(12)).foregroundStyle(.secondary).lineLimit(2).multilineTextAlignment(.trailing).fixedSize(horizontal: false, vertical: true)
         }

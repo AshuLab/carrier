@@ -41,10 +41,10 @@ struct SessionsTabView: View {
     var body: some View {
         SettingsPageBody(reset: reset) {
             SettingsGroup(
-                title: "New sessions",
+                id: "new-sessions", title: "New sessions",
                 footer: "A new worktree is offered only for a git repository. The message box and the new session screen still change these for that one session. Remote fetches the branch first and falls back to the local one when it cannot be reached."
             ) {
-                SettingsTabRow(title: "Starts with", detail: "Provider, model and reasoning", first: true) {
+                SettingsTabRow(id: "starts-with", title: "Starts with", detail: "Provider, model and reasoning", first: true) {
                     ModelPickerButton(
                         provider: startAgent.isEmpty ? nil : startAgent, model: startModel.isEmpty ? nil : startModel, effort: startEffort,
                         accounts: startAccounts, catalog: catalog, showsAccess: false, accessScales: startAccessScales,
@@ -65,36 +65,36 @@ struct SessionsTabView: View {
                     }
                     .task { await catalog.load() }
                 }
-                SettingsTabRow(title: "Work in", detail: "Base folder or a new worktree") {
+                SettingsTabRow(id: "work-in", title: "Work in", detail: "Base folder or a new worktree") {
                     ChoicePopUp(label: "Work in", options: WorkIn.allCases.map { (value: $0, title: $0.title) }, selection: $workIn)
                 }
                 let startOff = worktreeStartOffReason(workIn: workIn)
-                SettingsTabRow(title: "Start from", detail: startOff ?? "Where a new worktree is cut") {
+                SettingsTabRow(id: "start-from", title: "Start from", detail: startOff ?? "Where a new worktree is cut") {
                     ChoicePopUp(label: "Start from", options: WorktreeStart.allCases.map { (value: $0, title: $0.title) }, selection: $start)
                         .disabled(startOff != nil || unreadable)
                 }
                 .foregroundStyle(startOff == nil ? Color.primary : Color.secondary)
             }
             SettingsGroup(
-                title: "Idle sessions",
+                id: "idle-sessions", title: "Idle sessions",
                 footer: "An idle session you do not open for this long puts its agent to sleep, which frees its memory. It stays in the list, and a message wakes it where it left off. The session you have open stays awake, and so does one that is working or waiting for you."
             ) {
-                SettingsTabRow(title: "Sleep after", detail: "How long an idle session nobody opens keeps its agent running", first: true) {
+                SettingsTabRow(id: "sleep-after", title: "Sleep after", detail: "How long an idle session nobody opens keeps its agent running", first: true) {
                     ChoicePopUp(label: "Sleep after", options: IdleClose.allCases.map { (value: $0, title: $0.title) }, selection: $idle)
                         .disabled(unreadable)
                 }
             }
             SettingsGroup(
-                title: "Archive and delete",
+                id: "archive-and-delete", title: "Archive and delete",
                 footer: "Ages count from a session’s last activity. Delete is off while Archive is Never. Deleting removes the session’s worktree; work that is not saved is kept."
             ) {
-                row("Archive after", "Days without activity before it is archived", .archive, off: nil, first: true, age: $draft.archive, fallback: defaultArchiveAfterDays)
-                row("Delete after", "Days an archived session waits before it is deleted", .delete, off: deleteAgeOffReason(draft), age: $draft.delete, fallback: defaultDeleteAfterDays)
-                SettingsTabRow(title: "Ask before deleting a session", detail: "The question says its worktree goes with it") {
+                row(id: "archive-after", "Archive after", "Days without activity before it is archived", .archive, off: nil, first: true, age: $draft.archive, fallback: defaultArchiveAfterDays)
+                row(id: "delete-after", "Delete after", "Days an archived session waits before it is deleted", .delete, off: deleteAgeOffReason(draft), age: $draft.delete, fallback: defaultDeleteAfterDays)
+                SettingsTabRow(id: "ask-before-deleting-a-session", title: "Ask before deleting a session", detail: "The question says its worktree goes with it") {
                     Toggle("Ask before deleting a session", isOn: $confirmDelete).labelsHidden().toggleStyle(.switch)
                 }
             }
-            SettingsGroup(title: "With these ages") {
+            SettingsGroup(id: "with-these-ages", title: "With these ages") {
                 // with chat.json unreadable the draft is only the defaults, not what the host will use
                 let line = unreadable ? nil : sessionAgesLine(draft, today: Date(), unparsable: unparsableFields)
                 if let line { SettingsTabRow(title: "A session you stop using today", detail: line, first: true) { EmptyView() } }
@@ -108,10 +108,10 @@ struct SessionsTabView: View {
         .onChange(of: idle) { saveIdle() }
     }
 
-    private func row(_ title: String, _ detail: String, _ field: SessionAgeField, off: String?, first: Bool = false, age: Binding<SessionAge>, fallback: Int) -> some View {
+    private func row(id: String, _ title: String, _ detail: String, _ field: SessionAgeField, off: String?, first: Bool = false, age: Binding<SessionAge>, fallback: Int) -> some View {
         let key = field == .archive ? "archive" : "delete"
         let days = Binding(get: { if case .days(let days) = age.wrappedValue { days } else { fallback } }, set: { age.wrappedValue = .days($0) })
-        return SettingsTabRow(title: title, detail: off ?? detail, first: first, problem: off == nil ? problems[field] : nil) {
+        return SettingsTabRow(id: id, title: title, detail: off ?? detail, first: first, problem: off == nil ? problems[field] : nil) {
             HStack(spacing: 10) {
                 if age.wrappedValue != .never {
                     NumberField(key: key, value: days, unparsable: $unparsable, parse: { Int($0) }, format: { String($0) }, step: { $0 + $1 >= 1 ? $0 + $1 : nil })

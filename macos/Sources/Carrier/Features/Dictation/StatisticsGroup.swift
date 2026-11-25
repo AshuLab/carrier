@@ -28,14 +28,14 @@ struct StatisticsGroup: View {
             } else {
                 let speed = min(max(wpm, AppPreferences.dictationTypingSpeedRange.lowerBound), AppPreferences.dictationTypingSpeedRange.upperBound)
                 let figures = dictationFigures(records.counts, range: range, now: Date())
-                SettingsGroup(title: "Overview", accessory: {
+                SettingsGroup(id: "overview", title: "Overview", accessory: {
                     SegmentedChoice(options: StatisticsRange.allCases.map { (value: $0, title: $0.title, icon: nil) }, selection: $range)
                 }, content: { cards(figures, wpm: speed) })
                 SettingsGroup(title: "\(metric.title) per day", accessory: {
                     SegmentedChoice(options: StatisticsMetric.allCases.map { (value: $0, title: $0.title, icon: nil) }, selection: $metric)
                 }, content: { StatisticsChart(days: figures.days, metric: metric).padding(.vertical, 8) })
-                SettingsGroup(title: "By hour of the day") { hoursContent(dictationHours(records.counts, range: range, now: Date())) }
-                SettingsGroup(title: "This week") { weekContent(dictationFigures(records.counts, range: .week, now: Date()), wpm: speed) }
+                SettingsGroup(id: "by-hour-of-the-day", title: "By hour of the day") { hoursContent(dictationHours(records.counts, range: range, now: Date())) }
+                SettingsGroup(id: "this-week", title: "This week") { weekContent(dictationFigures(records.counts, range: .week, now: Date()), wpm: speed) }
                 recordsGroup(statisticsRecords(records.counts))
             }
             settings
@@ -113,7 +113,7 @@ struct StatisticsGroup: View {
 
     private func recordsGroup(_ records: StatisticsRecords) -> some View {
         func on(_ day: Date?) -> String { day?.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day()) ?? "Nothing yet" }
-        return SettingsGroup(title: "Records", footer: "The statistics are their own counters: they hold no text, and turning the history off or deleting entries does not change them.") {
+        return SettingsGroup(id: "records", title: "Records", footer: "The statistics are their own counters: they hold no text, and turning the history off or deleting entries does not change them.") {
             cardGrid([
                 StatisticsCard(title: "Most dictations", value: (records.mostDictations?.value ?? 0).formatted(), line: on(records.mostDictations?.day)),
                 StatisticsCard(title: "Most words", value: (records.mostWords?.value ?? 0).formatted(), line: on(records.mostWords?.day)),
@@ -124,9 +124,9 @@ struct StatisticsGroup: View {
     }
 
     private var settings: some View {
-        SettingsGroup(title: "Statistics settings") {
+        SettingsGroup(id: "statistics-settings", title: "Statistics settings") {
             SettingsTabRow(
-                title: "Typing speed", detail: "Used for the time saved: words ÷ speed, minus the time you spent speaking", first: true,
+                id: "typing-speed", title: "Typing speed", detail: "Used for the time saved: words ÷ speed, minus the time you spent speaking", first: true,
                 problem: unparsable.isEmpty ? nil : "Must be between \(AppPreferences.dictationTypingSpeedRange.lowerBound) and \(AppPreferences.dictationTypingSpeedRange.upperBound)"
             ) {
                 // the counter of Behavior's numbers: a number between the range's ends, − and + by 5; text that is not one keeps the last good value
@@ -143,7 +143,7 @@ struct StatisticsGroup: View {
                     Text("words/min").font(.scaled(11)).foregroundStyle(.secondary)
                 }
             }
-            SettingsTabRow(title: "Reset statistics", detail: "Deletes the counters. The history stays, and deleting history never changes the statistics") {
+            SettingsTabRow(id: "reset-statistics", title: "Reset statistics", detail: "Deletes the counters. The history stays, and deleting history never changes the statistics") {
                 Button(role: .destructive) { confirmingReset = true } label: { Label("Reset statistics…", icon: .trash) }
                     .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
             }

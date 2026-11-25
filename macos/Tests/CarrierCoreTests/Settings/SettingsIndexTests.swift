@@ -5,12 +5,23 @@ import Testing
     let ids = settingsIndex.map(\.id)
     #expect(Set(ids).count == ids.count)
     for page in SettingsPage.allCases { #expect(settingsIndex.contains { $0.page == page && $0.isPage }) }
-    #expect(settingsAnchor(.appearance, group: "Code and output", title: "Font") == "appearance.code-and-output.font")
-    // a group is the place of its own title, and a page is its name alone
-    #expect(settingsAnchor(.providers, group: "Accounts", title: "Accounts") == "providers.accounts")
+    #expect(settingsAnchor(.appearance, group: "code-and-output", row: "font") == "appearance.code-and-output.font")
+    // a group is the place of its own identifier, and a page is its identifier alone
+    #expect(settingsAnchor(.providers, group: "accounts", row: "accounts") == "providers.accounts")
     #expect(settingsIndex.first { $0.page == .general && $0.isPage }?.id == "general")
-    // the same title in two groups is two places
-    #expect(settingsAnchor(.notifications, group: "Carrier", title: "Needs attention") != settingsAnchor(.notifications, group: "Chat", title: "Needs attention"))
+    // the same row in two groups is two places
+    #expect(settingsAnchor(.notifications, group: "carrier", row: "needs-attention") != settingsAnchor(.notifications, group: "chat", row: "needs-attention"))
+}
+
+@Test func anAnchorIsMadeOfIdentifiersSoAnotherTitleMakesTheSameAnchor() {
+    let font = SettingsEntry(page: .appearance, groupID: "code-and-output", group: "Code and output", rowID: "font", title: "Font")
+    let translated = SettingsEntry(page: .appearance, groupID: "code-and-output", group: "Código y salida", rowID: "font", title: "Fuente")
+    #expect(font.anchor == "appearance.code-and-output.font" && translated.anchor == font.anchor && translated.id == font.id)
+    // the page's own identifier is not its title, and nothing in an anchor is a title
+    for page in SettingsPage.allCases { #expect(page.rawValue != page.title) }
+    for entry in settingsIndex { #expect(entry.anchor.hasPrefix(entry.page.rawValue) && entry.anchor.contains(" ") == false, Comment(rawValue: entry.anchor)) }
+    // and every row of the index has one
+    #expect(settingsIndex.filter { $0.isPage == false }.allSatisfy { $0.rowID.isEmpty == false })
 }
 
 @Test func aSearchFindsTheRowsThatHaveEveryWordAndListsTitlesFirst() {
@@ -36,8 +47,10 @@ import Testing
 }
 
 @Test func theIndexReadsTheRowsOfTheBehaviorAndKeybindingsPagesFromTheirOwnModels() {
-    for group in behaviorGroups { for row in group.rows { #expect(settingsIndex.contains { $0.page == .behavior && $0.group == group.title && $0.title == row.title }) } }
-    for command in ShortcutCommand.allCases { #expect(settingsIndex.contains { $0.page == .keybindings && $0.group == command.group.rawValue && $0.title == command.title }) }
+    for group in behaviorGroups { for row in group.rows { #expect(settingsIndex.contains { $0.page == .behavior && $0.groupID == group.id && $0.rowID == row.key && $0.title == row.title }) } }
+    for command in ShortcutCommand.allCases {
+        #expect(settingsIndex.contains { $0.page == .keybindings && $0.groupID == command.group.rawValue && $0.rowID == command.rawValue && $0.title == command.title })
+    }
 }
 
 @Test func everyDictationScreenIsOpenedByAnEntryAndItsRowsKeepTheirAnchorUnderThePath() {
@@ -50,7 +63,7 @@ import Testing
     let typing = dictation.first { $0.title == "Typing speed" }
     #expect(typing?.path == ["statistics"])
     // the anchor is what the row is called on its page; the id adds the screen, so the same row is one place and a screen another
-    #expect(typing?.anchor == settingsAnchor(.dictation, group: "Statistics settings", title: "Typing speed"))
+    #expect(typing?.anchor == settingsAnchor(.dictation, group: "statistics-settings", row: "typing-speed"))
     #expect(typing?.id == "\(typing?.anchor ?? "")/statistics")
     #expect(dictation.first { $0.title == "Microphone" }.map { $0.id == $0.anchor } == true)
 }

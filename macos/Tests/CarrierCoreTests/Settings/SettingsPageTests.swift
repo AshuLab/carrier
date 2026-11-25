@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import CarrierCore
 
@@ -46,4 +47,25 @@ import Testing
 
 @Test func theLongPagesAreAColumnAndTheListsAndTablesTakeTheWidth() {
     #expect(SettingsPage.allCases.filter { !$0.isColumn } == [.projects, .health])
+}
+
+@Test func theLastSettingsPageIsSavedByItsIdentifierAndAnEarlierBuildsTitleStillOpensIt() {
+    let suite = "last-settings-page-\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suite)!
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let preferences = AppPreferences(defaults: defaults)
+    // nothing stored yet opens General
+    #expect(preferences.lastSettingsPage == .general)
+    // an identifier is what is stored, and it opens its page
+    preferences.lastSettingsPage = .keepAwake
+    #expect(defaults.string(forKey: "settingsLastPage") == "keep-awake" && preferences.lastSettingsPage == .keepAwake)
+    // an earlier build stored the page's English title: it still opens its page
+    defaults.set("Keep awake", forKey: "settingsLastPage")
+    #expect(preferences.lastSettingsPage == .keepAwake)
+    defaults.set("Watching", forKey: "settingsLastPage")
+    #expect(preferences.lastSettingsPage == .watching)
+    // anything else opens General
+    defaults.set("Not a page", forKey: "settingsLastPage")
+    #expect(preferences.lastSettingsPage == .general)
+    for page in SettingsPage.allCases { #expect(SettingsPage(stored: page.rawValue) == page && SettingsPage(stored: page.title) == page) }
 }

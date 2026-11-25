@@ -7,6 +7,8 @@ public struct HealthRow: Equatable {
     /// How the row reads: `ok` is green, `problem` needs the person, `neutral` is neither (not checked, or stopped on purpose).
     public enum Mark: Equatable { case ok, warning, problem, neutral }
 
+    /// What the search finds the row by (`SettingsIndex`), whatever its title says; nil for a row that is not searched.
+    public let id: String?
     public let title: String
     public let mark: Mark
     public let detail: String
@@ -16,7 +18,8 @@ public struct HealthRow: Equatable {
     /// What the doctor says to do, shown as text and never run.
     public let fix: String?
 
-    public init(title: String, mark: Mark, detail: String, tool: HealthTool? = nil, state: ToolState = .ready, fix: String? = nil) {
+    public init(id: String? = nil, title: String, mark: Mark, detail: String, tool: HealthTool? = nil, state: ToolState = .ready, fix: String? = nil) {
+        self.id = id
         self.title = title
         self.mark = mark
         self.detail = detail
@@ -27,6 +30,7 @@ public struct HealthRow: Equatable {
 }
 
 public struct HealthSection: Equatable {
+    public let id: String
     public let title: String
     /// Said in place of the rows when the layer could not be checked.
     public let note: String?
@@ -70,7 +74,7 @@ public func healthSections(host: HostHealth?, facts: CarrierFacts, doctor: Docto
     let mac: HealthSection
     if let host {
         mac = HealthSection(
-            title: "This Mac", note: nil,
+            id: "this-mac", title: "This Mac", note: nil,
             rows: [macRow("git", .git, host.git), macRow("gh", .gh, host.gh)]
         )
     } else {
@@ -81,7 +85,7 @@ public func healthSections(host: HostHealth?, facts: CarrierFacts, doctor: Docto
         } else {
             "This Mac has not been checked yet, or the check failed. Press Check again."
         }
-        mac = HealthSection(title: "This Mac", note: note, rows: [])
+        mac = HealthSection(id: "this-mac", title: "This Mac", note: note, rows: [])
     }
 
     let versionLine = facts.installedVersion.map { " · version \($0)" } ?? ""
@@ -91,42 +95,42 @@ public func healthSections(host: HostHealth?, facts: CarrierFacts, doctor: Docto
 
     let hostRow: HealthRow
     if facts.hostRunning == false {
-        hostRow = HealthRow(title: "Chat host", mark: .problem, detail: "Not running")
+        hostRow = HealthRow(id: "chat-host", title: "Chat host", mark: .problem, detail: "Not running")
     } else if let running = facts.hostVersion, let installed = facts.installedVersion,
         hostReplacement(running: running, installed: installed, working: false) != .keep
     {
-        hostRow = HealthRow(title: "Chat host", mark: .problem, detail: "Running version \(running), older than the installed \(installed). Restart it to update.")
+        hostRow = HealthRow(id: "chat-host", title: "Chat host", mark: .problem, detail: "Running version \(running), older than the installed \(installed). Restart it to update.")
     } else {
-        hostRow = HealthRow(title: "Chat host", mark: .ok, detail: "Running" + (facts.hostVersion.map { " · version \($0)" } ?? ""))
+        hostRow = HealthRow(id: "chat-host", title: "Chat host", mark: .ok, detail: "Running" + (facts.hostVersion.map { " · version \($0)" } ?? ""))
     }
 
     let engine: HealthRow
     if let notConfigured = engineNotConfiguredNotice(configExists: facts.configExists) {
-        engine = HealthRow(title: "Engine", mark: .problem, detail: notConfigured)
+        engine = HealthRow(id: "engine", title: "Engine", mark: .problem, detail: notConfigured)
     } else if facts.engineRunning {
-        engine = HealthRow(title: "Engine", mark: .ok, detail: "Running")
+        engine = HealthRow(id: "engine", title: "Engine", mark: .ok, detail: "Running")
     } else {
-        engine = HealthRow(title: "Engine", mark: .neutral, detail: "Configured, stopped")
+        engine = HealthRow(id: "engine", title: "Engine", mark: .neutral, detail: "Configured, stopped")
     }
 
-    return [mac, HealthSection(title: "Carrier", note: nil, rows: [carrier, hostRow, engine]), setupSection(doctor, configExists: facts.configExists)]
+    return [mac, HealthSection(id: "carrier", title: "Carrier", note: nil, rows: [carrier, hostRow, engine]), setupSection(doctor, configExists: facts.configExists)]
 }
 
 /// The engine's setup: the doctor's checks, or one line in place of them when it needs the config, is running, or could not answer.
 private func setupSection(_ doctor: DoctorState, configExists: Bool) -> HealthSection {
     let title = "Engine setup"
     guard configExists else {
-        return HealthSection(title: title, note: "The engine's setup needs the config: there is no engine.json in the Carrier folder.", rows: [])
+        return HealthSection(id: "engine-setup", title: title, note: "The engine's setup needs the config: there is no engine.json in the Carrier folder.", rows: [])
     }
     switch doctor {
-    case .idle: return HealthSection(title: title, note: "Not checked yet.", rows: [])
-    case .running: return HealthSection(title: title, note: "Running carrier doctor…", rows: [])
+    case .idle: return HealthSection(id: "engine-setup", title: title, note: "Not checked yet.", rows: [])
+    case .running: return HealthSection(id: "engine-setup", title: title, note: "Running carrier doctor…", rows: [])
     case .unknown(let reason):
-        return HealthSection(title: title, note: nil, rows: [HealthRow(title: "carrier doctor", mark: .neutral, detail: "Could not check: \(reason)")])
+        return HealthSection(id: "engine-setup", title: title, note: nil, rows: [HealthRow(title: "carrier doctor", mark: .neutral, detail: "Could not check: \(reason)")])
     case .refused(let reason):
-        return HealthSection(title: title, note: nil, rows: [HealthRow(title: "carrier doctor", mark: .neutral, detail: "Carrier refuses the config: \(reason)")])
+        return HealthSection(id: "engine-setup", title: title, note: nil, rows: [HealthRow(title: "carrier doctor", mark: .neutral, detail: "Carrier refuses the config: \(reason)")])
     case .checks(let checks):
-        return HealthSection(title: title, note: nil, rows: groupedChecks(checks))
+        return HealthSection(id: "engine-setup", title: title, note: nil, rows: groupedChecks(checks))
     }
 }
 

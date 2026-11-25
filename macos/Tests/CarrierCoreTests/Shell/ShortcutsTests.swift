@@ -11,7 +11,7 @@ private func freshTable() -> (ShortcutTable, UserDefaults) {
 
 @Test func theDefaultsAreTheGoToAndSessionsGroups() {
     let (table, _) = freshTable()
-    let shown = ShortcutCommand.allCases.filter { $0.group != .carrier }.map { "\($0.group.rawValue) \($0.title) \(table.combo(for: $0)?.text ?? "")" }
+    let shown = ShortcutCommand.allCases.filter { $0.group != .carrier }.map { "\($0.group.title) \($0.title) \(table.combo(for: $0)?.text ?? "")" }
     #expect(shown == [
         "Go to Home ⌘1", "Go to Sessions ⌘2", "Go to Carrier ⌘3", "Go to Archive ⌘4", "Go to Back ⌘[", "Go to Forward ⌘]",
         "Sessions New session ⌘N", "Sessions Search ⌘F", "Sessions Next session ⌥⌘↓", "Sessions Previous session ⌥⌘↑", "Sessions Archive the session ⇧⌘A",

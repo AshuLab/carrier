@@ -181,12 +181,12 @@ struct TerminalTabView: View {
 
     var body: some View {
         SettingsPageBody(reset: resetTerminalSettings) {
-            SettingsGroup(title: "Appearance") {
-                SettingsTabRow(title: "Theme", detail: "Color palette for panes; inherits the app theme by default", first: true) {
+            SettingsGroup(id: "appearance", title: "Appearance") {
+                SettingsTabRow(id: "theme", title: "Theme", detail: "Color palette for panes; inherits the app theme by default", first: true) {
                     ChoicePopUp(label: "Theme", options: themeOptions, selection: $themeOverride)
                 }
                 SettingsTabRow(
-                    title: "Minimum contrast",
+                    id: "minimum-contrast", title: "Minimum contrast",
                     detail: "Raises low-contrast ANSI text · \(TerminalSettings.minimumContrastLabel(minimumContrast))"
                 ) {
                     Slider(value: minimumContrastSelection, in: TerminalSettings.minimumContrastRange)
@@ -195,7 +195,7 @@ struct TerminalTabView: View {
                         .accessibilityValue(TerminalSettings.minimumContrastLabel(minimumContrast))
                 }
                 SettingsTabRow(
-                    title: "Horizontal padding",
+                    id: "horizontal-padding", title: "Horizontal padding",
                     detail: "Left and right margin inside each pane · \(Int(paddingX.rounded())) pt"
                 ) {
                     Slider(value: paddingXSelection, in: TerminalSettings.paddingRange)
@@ -204,7 +204,7 @@ struct TerminalTabView: View {
                         .accessibilityValue("\(Int(paddingX.rounded())) points")
                 }
                 SettingsTabRow(
-                    title: "Vertical padding",
+                    id: "vertical-padding", title: "Vertical padding",
                     detail: "Top and bottom margin inside each pane · \(Int(paddingY.rounded())) pt"
                 ) {
                     Slider(value: paddingYSelection, in: TerminalSettings.paddingRange)
@@ -217,82 +217,82 @@ struct TerminalTabView: View {
                 }
             }
 
-            SettingsGroup(title: "Typography") {
+            SettingsGroup(id: "typography", title: "Typography") {
                 SettingsTabRow(
-                    title: "Font",
+                    id: "font", title: "Font",
                     detail: "Monospaced font used in panes; inherits Appearance › Code and output",
                     first: true
                 ) {
                     ChoicePopUp(label: "Font", options: fontFamilyOptions, selection: fontFamilySelection)
                 }
-                SettingsTabRow(title: "Size", detail: "Text size in points for terminal output") {
+                SettingsTabRow(id: "size", title: "Size", detail: "Text size in points for terminal output") {
                     ChoicePopUp(label: "Size", options: fontSizeOptions, selection: fontSizeSelection)
                 }
-                SettingsTabRow(title: "Ligatures", detail: "Joins pairs such as != and >= where the font has them") {
+                SettingsTabRow(id: "ligatures", title: "Ligatures", detail: "Joins pairs such as != and >= where the font has them") {
                     ChoicePopUp(label: "Ligatures", options: ligaturesOptions, selection: $fontLigaturesOverride)
                 }
-                SettingsTabRow(title: "Thicken font", detail: "Renders glyphs slightly heavier on Retina displays") {
+                SettingsTabRow(id: "thicken-font", title: "Thicken font", detail: "Renders glyphs slightly heavier on Retina displays") {
                     Toggle("Thicken font", isOn: $fontThicken).labelsHidden().toggleStyle(.switch)
                 }
             }
 
-            SettingsGroup(title: "Cursor") {
-                SettingsTabRow(title: "Cursor style", detail: "Shape of the text cursor inside terminal panes", first: true) {
+            SettingsGroup(id: "cursor", title: "Cursor") {
+                SettingsTabRow(id: "cursor-style", title: "Cursor style", detail: "Shape of the text cursor inside terminal panes", first: true) {
                     SegmentedChoice(options: cursorStyleOptions, selection: $cursorStyle)
                 }
-                SettingsTabRow(title: "Blink cursor", detail: "Animates the cursor when the pane is focused") {
+                SettingsTabRow(id: "blink-cursor", title: "Blink cursor", detail: "Animates the cursor when the pane is focused") {
                     Toggle("Blink cursor", isOn: $cursorBlink).labelsHidden().toggleStyle(.switch)
                 }
             }
 
-            SettingsGroup(title: "Panes") {
+            SettingsGroup(id: "panes", title: "Panes") {
                 SettingsTabRow(
-                    title: "Dim inactive panes",
+                    id: "dim-inactive-panes", title: "Dim inactive panes",
                     detail: "Softens unfocused split panes so the active pane stands out",
                     first: true
                 ) {
                     Toggle("Dim inactive panes", isOn: $dimInactivePanes).labelsHidden().toggleStyle(.switch)
                 }
                 SettingsTabRow(
-                    title: "Focus follows mouse",
+                    id: "focus-follows-mouse", title: "Focus follows mouse",
                     detail: "Activates split panes when hovering over them without clicking"
                 ) {
                     Toggle("Focus follows mouse", isOn: $focusFollowsMouse).labelsHidden().toggleStyle(.switch)
                 }
             }
 
-            SettingsGroup(title: "Input and scrollback") {
+            SettingsGroup(id: "input-and-scrollback", title: "Input and scrollback") {
                 SettingsTabRow(
-                    title: "Option as Alt",
+                    id: "option-as-alt", title: "Option as Alt",
                     detail: "Sends Option key presses as Meta/Alt escape sequences in shells",
                     first: true
                 ) {
                     ChoicePopUp(label: "Option as Alt", options: optionAsAltOptions, selection: $optionAsAlt)
                 }
                 SettingsTabRow(
-                    title: "Copy on select",
+                    id: "copy-on-select", title: "Copy on select",
                     detail: "Copies highlighted terminal text to the clipboard automatically"
                 ) {
                     Toggle("Copy on select", isOn: $copyOnSelect).labelsHidden().toggleStyle(.switch)
                 }
                 SettingsTabRow(
-                    title: "Scrollback limit",
+                    id: "scrollback-limit", title: "Scrollback limit",
                     detail: "Memory reserved per pane for scrollback output history"
                 ) {
                     ChoicePopUp(label: "Scrollback limit", options: scrollbackLimitOptions, selection: scrollbackLimitSelection)
                 }
             }
 
-            SettingsGroup(title: "Shell and closing") {
+            SettingsGroup(id: "shell-and-closing", title: "Shell and closing") {
                 SettingsTabRow(
-                    title: "Pin Zsh prompt to bottom",
+                    id: "pin-zsh-prompt-to-bottom", title: "Pin Zsh prompt to bottom",
                     detail: "Keeps new interactive prompts at the bottom row without changing dotfiles",
                     first: true
                 ) {
                     Toggle("Pin Zsh prompt to bottom", isOn: $pinPromptToBottom).labelsHidden().toggleStyle(.switch)
                 }
                 SettingsTabRow(
-                    title: "Confirm before closing running commands",
+                    id: "confirm-before-closing-running-commands", title: "Confirm before closing running commands",
                     detail: "Asks before closing a tab, split, or drawer with an active process"
                 ) {
                     Toggle("Confirm before closing running commands", isOn: $confirmCloseRunningProcess)

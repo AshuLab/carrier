@@ -55,24 +55,24 @@ struct AboutTabView: View {
 
     var body: some View {
         SettingsPageBody {
-            SettingsGroup(title: "About") {
+            SettingsGroup(id: "about", title: "About") {
                 identity
-                SettingsTabRow(title: "Star Carrier on GitHub", detail: "A star helps other people find it") {
+                SettingsTabRow(id: "star-carrier-on-github", title: "Star Carrier on GitHub", detail: "A star helps other people find it") {
                     Button { if let url = browserURL(repositoryURL) { NSWorkspace.shared.open(url) } } label: { Label("Star on GitHub", icon: .star) }
                         .buttonStyle(SecondaryCapsuleButtonStyle())
                 }
             }
-            SettingsGroup(title: "Updates") {
+            SettingsGroup(id: "updates", title: "Updates") {
                 SettingsTabRow(title: "Carrier \(version)", detail: thisCarrierDetail, first: true) { thisCarrierAction }
-                SettingsTabRow(title: "Check by itself", detail: "Looks for a newer Carrier when it opens and from time to time") {
+                SettingsTabRow(id: "check-by-itself", title: "Check by itself", detail: "Looks for a newer Carrier when it opens and from time to time") {
                     Toggle("Check by itself", isOn: Binding(get: { updater.checksAutomatically }, set: { updater.checksAutomatically = $0 }))
                         .labelsHidden().toggleStyle(.switch).disabled(updater.isRunning == false)
                 }
-                SettingsTabRow(title: "Install by itself", detail: "Installs when you quit; off, it asks before it installs") {
+                SettingsTabRow(id: "install-by-itself", title: "Install by itself", detail: "Installs when you quit; off, it asks before it installs") {
                     Toggle("Install by itself", isOn: Binding(get: { updater.installsAutomatically }, set: { updater.installsAutomatically = $0 }))
                         .labelsHidden().toggleStyle(.switch).disabled(updater.isRunning == false || updater.checksAutomatically == false)
                 }
-                SettingsStackedRow(title: "Update delay", detail: "Waits this long after a release before offering it by itself, so a new version is tried by others first. Check now ignores it") {
+                SettingsStackedRow(id: "update-delay", title: "Update delay", detail: "Waits this long after a release before offering it by itself, so a new version is tried by others first. Check now ignores it") {
                     SegmentedChoice(
                         options: updateDelayChoices.map { (value: $0, title: $0 == 0 ? "None" : $0 == 1 ? "1 day" : "\($0) days", icon: nil) },
                         selection: Binding(get: { clampedUpdateDelay(delay) }, set: { delay = $0 })
@@ -80,8 +80,8 @@ struct AboutTabView: View {
                     .accessibilityLabel("Update delay").disabled(updater.isRunning == false)
                 }
             }
-            SettingsGroup(title: "Engine") {
-                SettingsTabRow(title: "Engine and chat host", detail: engine.line, first: true) {
+            SettingsGroup(id: "engine", title: "Engine") {
+                SettingsTabRow(id: "engine-and-chat-host", title: "Engine and chat host", detail: engine.line, first: true) {
                     HStack(spacing: 10) {
                         switch engine {
                         case .running: ProgressView().controlSize(.mini).frame(width: 16, height: 16).accessibilityLabel("Updating")

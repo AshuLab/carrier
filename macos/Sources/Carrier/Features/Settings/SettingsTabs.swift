@@ -7,6 +7,8 @@ import SwiftUI
 /// A row of these tabs: a title and a line under it on the left, the control on the right. In a page that is a native `Form` it is a
 /// `LabeledContent` of its section; elsewhere it is a row of a card.
 struct SettingsTabRow<Control: View>: View {
+    /// What the search finds the row by (`SettingsIndex`), whatever its title says; a row that is not searched (a value, a model's name) has none.
+    var id: String?
     let title: String
     let detail: String
     var first = false
@@ -53,7 +55,7 @@ struct SettingsTabRow<Control: View>: View {
                 control.environment(\.settingsInvalid, problem != nil)
             }
             .frame(minHeight: 36)
-            .settingsAnchored(title)
+            .settingsAnchored(id)
         } else {
             HStack(spacing: 12) {
                 if let leading { leading }
@@ -63,7 +65,7 @@ struct SettingsTabRow<Control: View>: View {
             }
             .padding(.vertical, roomy ? 14 : 10).frame(minHeight: 46)
             .overlay(alignment: .top) { if first == false { SettingsDivider() } }
-            .settingsAnchored(title)
+            .settingsAnchored(id)
         }
     }
 }
@@ -71,7 +73,7 @@ struct SettingsTabRow<Control: View>: View {
 extension EnvironmentValues {
     /// Whether the row the control sits in says its value is not valid.
     @Entry var settingsInvalid = false
-    /// The page being drawn and the title of the group a row is in, so a row knows the anchor the search finds it by (`settingsAnchor`).
+    /// The page being drawn and the identifier of the group a row is in, so a row knows the anchor the search finds it by (`settingsAnchor`).
     @Entry var settingsPage: SettingsPage?
     @Entry var settingsGroup = ""
     /// The anchor the search just took the person to: its row shows itself for a moment.
@@ -195,18 +197,18 @@ struct SettingsHeaderButton: Equatable {
     }
 }
 
-/// Makes a row (or a group, with its own title as both) findable by the search: the id the page scrolls to, and the color it takes when it is the
-/// place that was chosen.
+/// Makes a row (or a group, with its own identifier as both) findable by the search: the id the page scrolls to, and the color it takes when it
+/// is the place that was chosen. With no identifier the view is not a place of the search.
 private struct SettingsAnchored: ViewModifier {
     let group: String?
-    let title: String
+    let id: String
     @Environment(\.settingsPage) private var page
     @Environment(\.settingsGroup) private var inherited
     @Environment(\.settingsHighlight) private var highlight
 
     func body(content: Content) -> some View {
         if let page {
-            let anchor = settingsAnchor(page, group: group ?? inherited, title: title)
+            let anchor = settingsAnchor(page, group: group ?? inherited, row: id)
             content.id(anchor)
                 .background(RoundedRectangle(cornerRadius: 8).fill(Color.yellow.opacity(highlight == anchor ? 0.3 : 0)))
                 .animation(.easeOut(duration: 0.5), value: highlight == anchor)
@@ -217,7 +219,9 @@ private struct SettingsAnchored: ViewModifier {
 }
 
 extension View {
-    func settingsAnchored(_ title: String, group: String? = nil) -> some View { modifier(SettingsAnchored(group: group, title: title)) }
+    @ViewBuilder func settingsAnchored(_ id: String?, group: String? = nil) -> some View {
+        if let id { modifier(SettingsAnchored(group: group, id: id)) } else { self }
+    }
 }
 
 /// The line between two rows of a card: a whole point tall and quiet, where the system's Divider is a grey hairline that stands out on the dark themes.
@@ -380,6 +384,7 @@ private struct EqualWidthRow: Layout {
 
 /// A row whose control is wide (a text of several lines): the title and the detail on top and the control under them, the whole width of the card.
 struct SettingsStackedRow<Control: View>: View {
+    var id: String?
     let title: String
     let detail: String
     var first = false
@@ -396,7 +401,7 @@ struct SettingsStackedRow<Control: View>: View {
         }
         .padding(.vertical, form ? 4 : 12).frame(maxWidth: .infinity, alignment: .leading)
         .overlay(alignment: .top) { if first == false && form == false { SettingsDivider() } }
-        .settingsAnchored(title)
+        .settingsAnchored(id)
     }
 }
 
@@ -574,6 +579,7 @@ func roleSummary(_ fields: RoleFields) -> Text {
 /// A group of a tab: a small uppercase title over a card of rows, or a section of a native `Form`. `footer` is the longer word about the whole
 /// group, under it, so a row's own line can stay short.
 struct SettingsGroup<Content: View, Accessory: View>: View {
+    var id: String?
     let title: String
     var footer: String?
     @ViewBuilder var accessory: Accessory
@@ -583,7 +589,7 @@ struct SettingsGroup<Content: View, Accessory: View>: View {
     var body: some View {
         if form {
             Section {
-                content.environment(\.settingsGroup, title)
+                content.environment(\.settingsGroup, id ?? "")
             } header: {
                 if title.isEmpty == false {
                     HStack {
@@ -591,7 +597,7 @@ struct SettingsGroup<Content: View, Accessory: View>: View {
                         Spacer(minLength: 8)
                         accessory
                     }
-                    .settingsAnchored(title, group: title)
+                    .settingsAnchored(id, group: id)
                 }
             } footer: {
                 if let footer { Text(footer) }
@@ -606,18 +612,18 @@ struct SettingsGroup<Content: View, Accessory: View>: View {
                     }
                     .padding(.leading, 14).padding(.top, 8)
                 }
-                SettingsTabCard { content }.environment(\.settingsGroup, title)
+                SettingsTabCard { content }.environment(\.settingsGroup, id ?? "")
                 if let footer { Text(footer).font(.scaled(11)).foregroundStyle(.secondary).padding(.horizontal, 14) }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .settingsAnchored(title, group: title)
+            .settingsAnchored(id, group: id)
         }
     }
 }
 
 extension SettingsGroup where Accessory == EmptyView {
-    init(title: String, footer: String? = nil, @ViewBuilder content: () -> Content) {
-        self.init(title: title, footer: footer, accessory: { EmptyView() }, content: content)
+    init(id: String? = nil, title: String, footer: String? = nil, @ViewBuilder content: () -> Content) {
+        self.init(id: id, title: title, footer: footer, accessory: { EmptyView() }, content: content)
     }
 }
 
@@ -812,28 +818,28 @@ struct GeneralTabView: View {
 
     var body: some View {
         SettingsPageBody(reset: { AppPreferences().reset(.general) }) {
-            SettingsGroup(title: "Menu bar") {
-                SettingsTabRow(title: "Icon style", detail: "What the icon in the menu bar shows", first: true) {
+            SettingsGroup(id: "menu-bar", title: "Menu bar") {
+                SettingsTabRow(id: "icon-style", title: "Icon style", detail: "What the icon in the menu bar shows", first: true) {
                     ChoicePopUp(
                         label: "Icon style", options: IconStyle.allCases.map { (value: $0, title: $0.title) },
                         selection: $style
                     )
                 }
-                SettingsTabRow(title: "Animate the icon", detail: "A segment moves over the bar while epics run, except in Low Power Mode") {
+                SettingsTabRow(id: "animate-the-icon", title: "Animate the icon", detail: "A segment moves over the bar while epics run, except in Low Power Mode") {
                     Toggle("Animate the icon", isOn: $animates).labelsHidden().toggleStyle(.switch)
                 }
-                SettingsTabRow(title: "List epics in the menu", detail: "The epics that run or wait show under the status") {
+                SettingsTabRow(id: "list-epics-in-the-menu", title: "List epics in the menu", detail: "The epics that run or wait show under the status") {
                     Toggle("List epics in the menu", isOn: $showsEpics).labelsHidden().toggleStyle(.switch)
                 }
             }
-            SettingsGroup(title: "Display") {
-                SettingsTabRow(title: "Time format", detail: "Ages read \"11m\" or as a time, \"14:32\"", first: true) {
+            SettingsGroup(id: "display", title: "Display") {
+                SettingsTabRow(id: "time-format", title: "Time format", detail: "Ages read \"11m\" or as a time, \"14:32\"", first: true) {
                     ChoicePopUp(
                         label: "Time format", options: [(value: TimeStyle.relative, title: "Relative"), (value: .clock, title: "Clock")],
                         selection: $timeStyle
                     )
                 }
-                SettingsTabRow(title: "Clock", detail: "How clock times count the hours") {
+                SettingsTabRow(id: "clock", title: "Clock", detail: "How clock times count the hours") {
                     ChoicePopUp(
                         label: "Clock", options: [(value: ClockHours.system, title: "System"), (value: .h12, title: "12 hours"), (value: .h24, title: "24 hours")],
                         selection: $clockHours
@@ -919,56 +925,56 @@ struct AppearanceTabView: View {
 
     var body: some View {
         SettingsPageBody(reset: { AppPreferences().reset(.appearance) }) {
-            SettingsGroup(title: "Theme") {
+            SettingsGroup(id: "theme", title: "Theme") {
                 ThemeGallery(theme: $theme)
             }
-            SettingsGroup(title: "Look") {
-                SettingsTabRow(title: "Color scheme", detail: "System follows the Mac", first: true) {
+            SettingsGroup(id: "look", title: "Look") {
+                SettingsTabRow(id: "color-scheme", title: "Color scheme", detail: "System follows the Mac", first: true) {
                     ChoicePopUp(label: "Color scheme", options: ColorSchemeChoice.allCases.map { (value: $0, title: $0.title) }, selection: $colorScheme)
                 }
-                SettingsTabRow(title: "Text size", detail: "The size of the text of the interface, \(textSize)%; the messages have their own in Chat") {
+                SettingsTabRow(id: "text-size", title: "Text size", detail: "The size of the text of the interface, \(textSize)%; the messages have their own in Chat") {
                     Slider(
                         value: Binding(get: { Double(textSize) }, set: { textSize = Int($0) }),
                         in: Double(TypeScale.range.lowerBound)...Double(TypeScale.range.upperBound), step: 5
                     )
                     .labelsHidden().frame(width: settingsSliderWidth).accessibilityLabel("Text size").accessibilityValue("\(textSize) percent")
                 }
-                SettingsTabRow(title: "Icon set", detail: "The look of the icons of the app: SF Symbols are the Mac's own") {
+                SettingsTabRow(id: "icon-set", title: "Icon set", detail: "The look of the icons of the app: SF Symbols are the Mac's own") {
                     ChoicePopUp(
                         label: "Icon set", options: IconSet.allCases.map { (value: $0, title: $0.title) },
                         selection: $iconSet
                     )
                 }
-                SettingsTabRow(title: "Icon weight", detail: "How thick the strokes of the icons are, \(iconWeight.formatted(.number.precision(.fractionLength(0...2))))") {
+                SettingsTabRow(id: "icon-weight", title: "Icon weight", detail: "How thick the strokes of the icons are, \(iconWeight.formatted(.number.precision(.fractionLength(0...2))))") {
                     Slider(value: $iconWeight, in: IconWeight.range, step: IconWeight.step)
                         .labelsHidden().frame(width: settingsSliderWidth)
                         .accessibilityLabel("Icon weight").accessibilityValue(iconWeight.formatted(.number.precision(.fractionLength(0...2))))
                 }
                 iconsPreview
-                SettingsTabRow(title: "Density", detail: "The space in the sidebar rows") {
+                SettingsTabRow(id: "density", title: "Density", detail: "The space in the sidebar rows") {
                     ChoicePopUp(label: "Density", options: Density.allCases.map { (value: $0, title: $0.title) }, selection: $density)
                 }
-                SettingsTabRow(title: "Tell states apart by shape", detail: "A symbol in each state, so that color is not the only clue") {
+                SettingsTabRow(id: "tell-states-apart-by-shape", title: "Tell states apart by shape", detail: "A symbol in each state, so that color is not the only clue") {
                     Toggle("Tell states apart by shape", isOn: $statesByShape).labelsHidden().toggleStyle(.switch)
                 }
                 statesPreview
             }
-            SettingsGroup(title: "Color") {
-                SettingsTabRow(title: "Accent color", detail: "Buttons, switches and the selection", first: true) {
+            SettingsGroup(id: "color", title: "Color") {
+                SettingsTabRow(id: "accent-color", title: "Accent color", detail: "Buttons, switches and the selection", first: true) {
                     AccentSwatches(theme: theme, scheme: scheme == .dark ? .dark : .light, accent: accent)
                 }
-                SettingsTabRow(title: "Tint the windows", detail: "A touch of the theme's own color on the backgrounds") {
+                SettingsTabRow(id: "tint-the-windows", title: "Tint the windows", detail: "A touch of the theme's own color on the backgrounds") {
                     ChoicePopUp(label: "Tint the windows", options: Tint.allCases.map { (value: $0, title: $0.title) }, selection: $tint)
                 }
-                SettingsTabRow(title: "Translucent windows", detail: "Off draws solid backgrounds") {
+                SettingsTabRow(id: "translucent-windows", title: "Translucent windows", detail: "Off draws solid backgrounds") {
                     Toggle("Translucent windows", isOn: Binding(
                         get: { translucentChoice ?? (reduceTransparency == false) }, set: { translucentChoice = $0 }
                     ))
                     .labelsHidden().toggleStyle(.switch)
                 }
             }
-            SettingsGroup(title: "Code and output") {
-                SettingsTabRow(title: "Font", detail: "The monospaced fonts installed on this Mac", first: true) {
+            SettingsGroup(id: "code-and-output", title: "Code and output") {
+                SettingsTabRow(id: "font", title: "Font", detail: "The monospaced fonts installed on this Mac", first: true) {
                     // a family that is no longer installed shows as the system's, as the views draw it
                     ChoicePopUp(
                         label: "Font", options: ([MonospaceSettings.systemFamily] + MonospaceStyle.installedFamilies).map { (value: $0, title: $0) },
@@ -978,20 +984,20 @@ struct AppearanceTabView: View {
                         )
                     )
                 }
-                SettingsTabRow(title: "Size", detail: "In points, before the text size of the whole app") {
+                SettingsTabRow(id: "size", title: "Size", detail: "In points, before the text size of the whole app") {
                     Slider(value: $codeSize, in: Double(MonospaceSettings.sizeRange.lowerBound)...Double(MonospaceSettings.sizeRange.upperBound), step: 1)
                         .labelsHidden().frame(width: settingsSliderWidth).accessibilityLabel("Code size").accessibilityValue("\(Int(codeSize)) points")
                 }
-                SettingsTabRow(title: "Line height", detail: "The room between the lines of code and output") {
+                SettingsTabRow(id: "line-height", title: "Line height", detail: "The room between the lines of code and output") {
                     ChoicePopUp(label: "Line height", options: LineHeight.allCases.map { (value: $0, title: $0.title) }, selection: $lineHeight)
                 }
-                SettingsTabRow(title: "Ligatures", detail: "Joins pairs such as != and >= where the font has them") {
+                SettingsTabRow(id: "ligatures", title: "Ligatures", detail: "Joins pairs such as != and >= where the font has them") {
                     Toggle("Ligatures", isOn: $ligatures).labelsHidden().toggleStyle(.switch)
                 }
-                SettingsTabRow(title: "Wrap long lines", detail: "Off keeps each line whole and scrolls sideways") {
+                SettingsTabRow(id: "wrap-long-lines", title: "Wrap long lines", detail: "Off keeps each line whole and scrolls sideways") {
                     Toggle("Wrap long lines", isOn: $wrapLongLines).labelsHidden().toggleStyle(.switch)
                 }
-                SettingsTabRow(title: "Line numbers", detail: "In code blocks and the output of a command") {
+                SettingsTabRow(id: "line-numbers", title: "Line numbers", detail: "In code blocks and the output of a command") {
                     Toggle("Line numbers", isOn: $lineNumbers).labelsHidden().toggleStyle(.switch)
                 }
                 codePreview()
@@ -1175,34 +1181,34 @@ struct SidebarTabView: View {
 
     var body: some View {
         SettingsPageBody(reset: { AppPreferences().reset(.sidebar) }) {
-            SettingsGroup(title: "Order") {
-                SettingsTabRow(title: "Group epics by", detail: "How the epics under Carrier are grouped", first: true) {
+            SettingsGroup(id: "order", title: "Order") {
+                SettingsTabRow(id: "group-epics-by", title: "Group epics by", detail: "How the epics under Carrier are grouped", first: true) {
                     picker("Group epics by", selection: $groupBy, options: GroupBy.allCases) { $0.title }
                 }
-                SettingsTabRow(title: "Sort sessions", detail: "How the Sessions list is grouped and ordered") {
+                SettingsTabRow(id: "sort-sessions", title: "Sort sessions", detail: "How the Sessions list is grouped and ordered") {
                     picker("Sort sessions", selection: $sessionSort, options: SessionSort.allCases) { $0.title }
                 }
-                SettingsTabRow(title: "Sort the Archive", detail: "How the archived sessions are ordered") {
+                SettingsTabRow(id: "sort-the-archive", title: "Sort the Archive", detail: "How the archived sessions are ordered") {
                     picker("Sort the Archive", selection: $archiveSort, options: ArchiveSort.allCases) { $0.title }
                 }
             }
-            SettingsGroup(title: "Session rows") {
-                SettingsTabRow(title: "Project icon", detail: "The colored square with the project's initials", first: true) {
+            SettingsGroup(id: "session-rows", title: "Session rows") {
+                SettingsTabRow(id: "project-icon", title: "Project icon", detail: "The colored square with the project's initials", first: true) {
                     Toggle("Project icon", isOn: $showsIcon).labelsHidden().toggleStyle(.switch)
                 }
-                SettingsTabRow(title: "Branch", detail: "Where the session works, the branch or the base folder") {
+                SettingsTabRow(id: "branch", title: "Branch", detail: "Where the session works, the branch or the base folder") {
                     Toggle("Branch", isOn: $showsBranch).labelsHidden().toggleStyle(.switch)
                 }
-                SettingsTabRow(title: "Pull request", detail: "The pull request of the session's branch, with its state and how its checks went, on a third line") {
+                SettingsTabRow(id: "pull-request", title: "Pull request", detail: "The pull request of the session's branch, with its state and how its checks went, on a third line") {
                     Toggle("Pull request", isOn: $showsPullRequest).labelsHidden().toggleStyle(.switch)
                 }
-                SettingsTabRow(title: "Lines changed", detail: "How many lines the session added and removed, on the third line with or without a pull request") {
+                SettingsTabRow(id: "lines-changed", title: "Lines changed", detail: "How many lines the session added and removed, on the third line with or without a pull request") {
                     Toggle("Lines changed", isOn: $showsDiff).labelsHidden().toggleStyle(.switch)
                 }
-                SettingsTabRow(title: "Providers", detail: "The marks of the providers the session used") {
+                SettingsTabRow(id: "providers", title: "Providers", detail: "The marks of the providers the session used") {
                     Toggle("Providers", isOn: $showsProviders).labelsHidden().toggleStyle(.switch)
                 }
-                SettingsTabRow(title: "Age", detail: "How long ago the session was last active; Done and Needs you take its place, and so do Pin and Archive on hover") {
+                SettingsTabRow(id: "age", title: "Age", detail: "How long ago the session was last active; Done and Needs you take its place, and so do Pin and Archive on hover") {
                     Toggle("Age", isOn: $showsAge).labelsHidden().toggleStyle(.switch)
                 }
                 SettingsPreview {
@@ -1266,65 +1272,65 @@ struct ChatTabView: View {
 
     var body: some View {
         SettingsPageBody(reset: { AppPreferences().reset(.chat) }) {
-            SettingsGroup(title: "Message box") {
-                SettingsTabRow(title: "Send with", detail: "The other key makes a new line", first: true) {
+            SettingsGroup(id: "message-box", title: "Message box") {
+                SettingsTabRow(id: "send-with", title: "Send with", detail: "The other key makes a new line", first: true) {
                     ChoicePopUp(label: "Send with", options: [(value: SendKey.return, title: "Return"), (value: .commandReturn, title: "\u{2318}Return")], selection: $sendKey)
                 }
-                SettingsTabRow(title: "While the agent works", detail: "Hold the message, or stop the turn and send it") {
+                SettingsTabRow(id: "while-the-agent-works", title: "While the agent works", detail: "Hold the message, or stop the turn and send it") {
                     ChoicePopUp(label: "While the agent works", options: [(value: WhileWorking.queue, title: "Queue it"), (value: .interrupt, title: "Interrupt")], selection: $whileWorking)
                 }
-                SettingsTabRow(title: "Writing Tools", detail: "The system's offer to rewrite or proofread what you select") {
+                SettingsTabRow(id: "writing-tools", title: "Writing Tools", detail: "The system's offer to rewrite or proofread what you select") {
                     Toggle("Writing Tools", isOn: $writingTools).labelsHidden().toggleStyle(.switch)
                 }
-                SettingsTabRow(title: "Check spelling", detail: "Underline words that look misspelled") {
+                SettingsTabRow(id: "check-spelling", title: "Check spelling", detail: "Underline words that look misspelled") {
                     Toggle("Check spelling", isOn: $checksSpelling).labelsHidden().toggleStyle(.switch)
                 }
-                SettingsTabRow(title: "Correct spelling automatically", detail: "Fix a misspelled word as you type it") {
+                SettingsTabRow(id: "correct-spelling-automatically", title: "Correct spelling automatically", detail: "Fix a misspelled word as you type it") {
                     Toggle("Correct spelling automatically", isOn: $correctsSpelling).labelsHidden().toggleStyle(.switch)
                 }
-                SettingsTabRow(title: "Context and limits", detail: "A ring beside the microphone: how full the context is and how much of the 5h limit is used") {
+                SettingsTabRow(id: "context-and-limits", title: "Context and limits", detail: "A ring beside the microphone: how full the context is and how much of the 5h limit is used") {
                     Toggle("Context and limits", isOn: $showsContextUsage).labelsHidden().toggleStyle(.switch)
                 }
             }
-            SettingsGroup(title: "Conversation") {
-                SettingsTabRow(title: "Follow new output", detail: "Scroll to what arrives while you are at the end", first: true) {
+            SettingsGroup(id: "conversation", title: "Conversation") {
+                SettingsTabRow(id: "follow-new-output", title: "Follow new output", detail: "Scroll to what arrives while you are at the end", first: true) {
                     Toggle("Follow new output", isOn: $followsOutput).labelsHidden().toggleStyle(.switch)
                 }
-                SettingsTabRow(title: "Message times", detail: "When a message shows the time it was written, as in General") {
+                SettingsTabRow(id: "message-times", title: "Message times", detail: "When a message shows the time it was written, as in General") {
                     ChoicePopUp(label: "Message times", options: MessageTimes.allCases.map { (value: $0, title: $0.title) }, selection: $messageTimes)
                 }
-                SettingsTabRow(title: "Tool output", detail: "Nothing, each run folded, or every call open") {
+                SettingsTabRow(id: "tool-output", title: "Tool output", detail: "Nothing, each run folded, or every call open") {
                     ChoicePopUp(label: "Tool output", options: ToolOutputMode.allCases.map { (value: $0, title: $0.title) }, selection: $toolOutput)
                 }
-                SettingsTabRow(title: "Open the calls that failed", detail: "A call that failed opens by itself, even when the rest are folded") {
+                SettingsTabRow(id: "open-the-calls-that-failed", title: "Open the calls that failed", detail: "A call that failed opens by itself, even when the rest are folded") {
                     Toggle("Open the calls that failed", isOn: $opensFailedCalls).labelsHidden().toggleStyle(.switch)
                 }
-                SettingsTabRow(title: "Diff style", detail: "Unified, or removed and added side by side") {
+                SettingsTabRow(id: "diff-style", title: "Diff style", detail: "Unified, or removed and added side by side") {
                     ChoicePopUp(label: "Diff style", options: DiffStyle.allCases.map { (value: $0, title: $0.title) }, selection: $diffStyle)
                 }
-                SettingsTabRow(title: "Output length", detail: "How many lines of an output show before Show more") {
+                SettingsTabRow(id: "output-length", title: "Output length", detail: "How many lines of an output show before Show more") {
                     ChoicePopUp(label: "Output length", options: OutputLength.allCases.map { (value: $0, title: $0.title) }, selection: Binding(get: { OutputLength(rawValue: outputLines) ?? AppPreferences.defaultOutputLength }, set: { outputLines = $0.rawValue }))
                 }
-                SettingsTabRow(title: "Show reasoning", detail: "The agent's reasoning, folded under its message, when its host sends it") {
+                SettingsTabRow(id: "show-reasoning", title: "Show reasoning", detail: "The agent's reasoning, folded under its message, when its host sends it") {
                     Toggle("Show reasoning", isOn: $showsReasoning).labelsHidden().toggleStyle(.switch)
                 }
-                SettingsTabRow(title: "Message text size", detail: "The size of the text of the messages, \(Int(textSize)) pt, apart from the text size of the app") {
+                SettingsTabRow(id: "message-text-size", title: "Message text size", detail: "The size of the text of the messages, \(Int(textSize)) pt, apart from the text size of the app") {
                     Slider(value: $textSize, in: Double(ChatText.sizeRange.lowerBound)...Double(ChatText.sizeRange.upperBound), step: 1)
                         .labelsHidden().frame(width: settingsSliderWidth).accessibilityLabel("Message text size").accessibilityValue("\(Int(textSize)) points")
                 }
-                SettingsTabRow(title: "Line spacing", detail: "The room between the lines of a message") {
+                SettingsTabRow(id: "line-spacing", title: "Line spacing", detail: "The room between the lines of a message") {
                     ChoicePopUp(label: "Line spacing", options: ChatLineSpacing.allCases.map { (value: $0, title: $0.title) }, selection: $lineSpacing)
                 }
-                SettingsTabRow(title: "Message spacing", detail: "The room between the messages") {
+                SettingsTabRow(id: "message-spacing", title: "Message spacing", detail: "The room between the messages") {
                     ChoicePopUp(label: "Message spacing", options: MessageSpacing.allCases.map { (value: $0, title: $0.title) }, selection: $messageSpacing)
                 }
-                SettingsTabRow(title: "Message width", detail: "How wide a message gets before it wraps") {
+                SettingsTabRow(id: "message-width", title: "Message width", detail: "How wide a message gets before it wraps") {
                     ChoicePopUp(
                         label: "Message width", options: MessageWidth.allCases.map { (value: $0, title: "\($0.title) · \(Int($0.points)) pt") },
                         selection: $messageWidth
                     )
                 }
-                SettingsTabRow(title: "Surfaces", detail: "Glass blurs what is under; flat is a quiet solid fill") {
+                SettingsTabRow(id: "surfaces", title: "Surfaces", detail: "Glass blurs what is under; flat is a quiet solid fill") {
                     SegmentedChoice(options: ChatSurface.allCases.map { (value: $0, title: $0.title, icon: nil) }, selection: $chatSurface)
                 }
                 messagePreview
@@ -1353,56 +1359,56 @@ struct NotificationsTabView: View {
 
     var body: some View {
         SettingsPageBody(reset: { AppPreferences().reset(.notifications) }) {
-            SettingsGroup(title: "Carrier") {
-                SettingsTabRow(title: "Needs attention", detail: "An epic stopped and waits for a person", first: true) {
+            SettingsGroup(id: "carrier", title: "Carrier") {
+                SettingsTabRow(id: "needs-attention", title: "Needs attention", detail: "An epic stopped and waits for a person", first: true) {
                     Toggle("Needs attention", isOn: $needsYou).labelsHidden().toggleStyle(.switch)
                 }
-                SettingsTabRow(title: "Ready for test", detail: "An epic finished and has a PR to try") {
+                SettingsTabRow(id: "ready-for-test", title: "Ready for test", detail: "An epic finished and has a PR to try") {
                     Toggle("Ready for test", isOn: $readyForTest).labelsHidden().toggleStyle(.switch)
                 }
-                SettingsTabRow(title: "A problem", detail: "GitHub refuses a repo, or Carrier stops by itself") {
+                SettingsTabRow(id: "a-problem", title: "A problem", detail: "GitHub refuses a repo, or Carrier stops by itself") {
                     Toggle("A problem", isOn: $problem).labelsHidden().toggleStyle(.switch)
                 }
             }
-            SettingsGroup(title: "Chat") {
-                SettingsTabRow(title: "Needs attention", detail: "A session waits for an approval", first: true) {
+            SettingsGroup(id: "chat", title: "Chat") {
+                SettingsTabRow(id: "needs-attention", title: "Needs attention", detail: "A session waits for an approval", first: true) {
                     Toggle("Chat needs attention", isOn: $chatNeedsAttention).labelsHidden().toggleStyle(.switch)
                 }
-                SettingsTabRow(title: "Done", detail: "A session finished its turn") {
+                SettingsTabRow(id: "done", title: "Done", detail: "A session finished its turn") {
                     Toggle("Chat done", isOn: $chatDone).labelsHidden().toggleStyle(.switch)
                 }
             }
-            SettingsGroup(title: "Delivery") {
-                SettingsTabRow(title: "Only when Carrier is not in front", detail: "No banner while its window is the one you are looking at", first: true) {
+            SettingsGroup(id: "delivery", title: "Delivery") {
+                SettingsTabRow(id: "only-when-carrier-is-not-in-front", title: "Only when Carrier is not in front", detail: "No banner while its window is the one you are looking at", first: true) {
                     Toggle("Only when Carrier is not in front", isOn: $onlyWhenAway).labelsHidden().toggleStyle(.switch)
                 }
-                SettingsTabRow(title: "Dock badge", detail: "The Dock icon counts the epics that need a person and the sessions that wait for an approval") {
+                SettingsTabRow(id: "dock-badge", title: "Dock badge", detail: "The Dock icon counts the epics that need a person and the sessions that wait for an approval") {
                     Toggle("Dock badge", isOn: $dockBadge).labelsHidden().toggleStyle(.switch)
                 }
-                SettingsTabRow(title: "Play a sound", detail: "A banner plays the notification sound") {
+                SettingsTabRow(id: "play-a-sound", title: "Play a sound", detail: "A banner plays the notification sound") {
                     Toggle("Play a sound", isOn: $sound).labelsHidden().toggleStyle(.switch)
                 }
-                SettingsTabRow(title: "Remind me again", detail: "While an epic or a session still needs attention. Ready for test and Done never remind") {
+                SettingsTabRow(id: "remind-me-again", title: "Remind me again", detail: "While an epic or a session still needs attention. Ready for test and Done never remind") {
                     // a saved value that is not a choice reads as Never, as the watcher does
                     ChoicePopUp(
                         label: "Remind me again", options: ReminderInterval.allCases.map { (value: $0, title: $0.title) },
                         selection: Binding(get: { ReminderInterval(rawValue: reminder) ?? .never }, set: { reminder = $0.rawValue })
                     )
                 }
-                SettingsTabRow(title: "Quiet hours", detail: "No banner and no sound: notifications wait in the Notification Center") {
+                SettingsTabRow(id: "quiet-hours", title: "Quiet hours", detail: "No banner and no sound: notifications wait in the Notification Center") {
                     Toggle("Quiet hours", isOn: $quiet).labelsHidden().toggleStyle(.switch)
                 }
-                SettingsTabRow(title: "From", detail: "When the quiet starts") {
+                SettingsTabRow(id: "from", title: "From", detail: "When the quiet starts") {
                     timePicker("From", $quietStart)
                 }
                 .disabled(quiet == false)
-                SettingsTabRow(title: "Until", detail: "When it ends, the next day if it is earlier than the start") {
+                SettingsTabRow(id: "until", title: "Until", detail: "When it ends, the next day if it is earlier than the start") {
                     timePicker("Until", $quietEnd)
                 }
                 .disabled(quiet == false)
             }
-            SettingsGroup(title: "Permission") {
-                SettingsTabRow(title: "System permission", detail: permission?.text ?? "Checking…", first: true) {
+            SettingsGroup(id: "permission", title: "Permission") {
+                SettingsTabRow(id: "system-permission", title: "System permission", detail: permission?.text ?? "Checking…", first: true) {
                     HStack {
                         if permission != .noBundle {
                             Button { NSWorkspace.shared.open(Self.systemSettingsURL) } label: { Label("Open System Settings", icon: .settings) }
@@ -1455,6 +1461,7 @@ struct NotificationsTabView: View {
 
 /// A row of a form that opens a screen: the whole row is the button, with a chevron at its end and whatever else says its state before it.
 struct NavigationRow<Trailing: View>: View {
+    var id: String?
     let title: String
     let detail: String
     let leading: AnyView?
@@ -1472,7 +1479,8 @@ struct NavigationRow<Trailing: View>: View {
         self.trailing = trailing()
     }
 
-    init(title: String, detail: String, first: Bool = false, action: @escaping () -> Void, @ViewBuilder trailing: () -> Trailing) {
+    init(id: String? = nil, title: String, detail: String, first: Bool = false, action: @escaping () -> Void, @ViewBuilder trailing: () -> Trailing) {
+        self.id = id
         self.title = title
         self.detail = detail
         self.first = first
@@ -1483,7 +1491,7 @@ struct NavigationRow<Trailing: View>: View {
 
     var body: some View {
         Button(action: action) {
-            SettingsTabRow(title: title, detail: detail, first: first, leading: leading) {
+            SettingsTabRow(id: id, title: title, detail: detail, first: first, leading: leading) {
                 HStack(spacing: 10) {
                     trailing
                     Glyph(.chevronRight, size: 13, bold: true).foregroundStyle(.tertiary).accessibilityHidden(true)

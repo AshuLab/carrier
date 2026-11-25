@@ -47,7 +47,7 @@ struct DictationStatusCard: View {
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in accessibility.refresh() }
         .accessibilityElement(children: .contain)
         // the search's "Microphone" lands on the card
-        .settingsAnchored("Microphone", group: "Dictation")
+        .settingsAnchored("microphone", group: "dictation")
     }
 
     /// The model the page would use: the chosen one when it is on disk, and, when it is not, which one is missing (or on its way).

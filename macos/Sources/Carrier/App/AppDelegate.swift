@@ -382,7 +382,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             ("quit enabled", {
                 guard let menu = self.statusItem?.menu else { return "false" }
                 menu.update()
-                return "\(menu.item(withTitle: "Quit Carrier")?.isEnabled == true)"
+                return "\(menu.items.first { $0.action == #selector(NSApplication.terminate(_:)) }?.isEnabled == true)"
             }),
             ("open window", { WindowController.shared.open(); return WindowController.shared.status }),
             ("close window", { WindowController.shared.close(); return WindowController.shared.status }),
@@ -395,7 +395,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // every page of Settings is drawn, a second each: a page that cannot be drawn (a missing environment object) ends the process here
         if let opened = steps.firstIndex(where: { $0.0 == "open settings" }) {
             let pages: [(String, () -> String)] = SettingsPage.allCases.map { page in
-                ("settings page \(page.rawValue)", { WindowController.shared.showSettings(page); return WindowController.shared.settingsStatus })
+                ("settings page \(page.title)", { WindowController.shared.showSettings(page); return WindowController.shared.settingsStatus })
             }
             // and every screen of the Dictation page, which is a place of its own
             let screens: [(String, () -> String)] = DictationScreen.allCases.map { screen in

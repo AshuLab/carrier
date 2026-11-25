@@ -1,11 +1,39 @@
-/// A page of Settings: its title is the raw value, and it carries its group and its row of the sidebar. The sidebar is built from these, in
-/// the order of the cases.
+/// A page of Settings: its raw value is its identifier (what an anchor and the remembered page are made of, never shown), and it carries its
+/// title, its group and its row of the sidebar. The sidebar is built from these, in the order of the cases.
 public enum SettingsPage: String, CaseIterable, Sendable {
-    case general = "General", providers = "Providers", appearance = "Appearance", notifications = "Notifications"
-    case keybindings = "Keybindings", dictation = "Dictation", keepAwake = "Keep awake"
-    case chat = "Chat", sessions = "Sessions", projects = "Projects", sidebar = "Sidebar", terminal = "Terminal"
-    case agents = "Agents", watching = "Watching", behavior = "Behavior"
-    case engine = "Engine", health = "Health", about = "About"
+    case general, providers, appearance, notifications, keybindings, dictation, keepAwake = "keep-awake"
+    case chat, sessions, projects, sidebar, terminal
+    case agents, watching, behavior
+    case engine, health, about
+
+    /// The page for what was stored as the last page: its identifier, or the English title an earlier build stored; General for anything else.
+    public init(stored value: String) {
+        self = Self(rawValue: value) ?? Self.allCases.first { $0.title == value } ?? .general
+    }
+
+    /// The page's name, as the sidebar, the results of a search and the window's title show it.
+    public var title: String {
+        switch self {
+        case .general: "General"
+        case .providers: "Providers"
+        case .appearance: "Appearance"
+        case .notifications: "Notifications"
+        case .keybindings: "Keybindings"
+        case .dictation: "Dictation"
+        case .keepAwake: "Keep awake"
+        case .chat: "Chat"
+        case .sessions: "Sessions"
+        case .projects: "Projects"
+        case .sidebar: "Sidebar"
+        case .terminal: "Terminal"
+        case .agents: "Agents"
+        case .watching: "Watching"
+        case .behavior: "Behavior"
+        case .engine: "Engine"
+        case .health: "Health"
+        case .about: "About"
+        }
+    }
 
     /// A group of the sidebar: the App one has no heading, the others have their own.
     public enum Group: CaseIterable, Sendable {

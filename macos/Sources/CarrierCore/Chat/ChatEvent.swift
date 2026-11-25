@@ -104,6 +104,11 @@ public struct ChatEvent: Codable, Equatable {
     public var code: String?
     public var params: [String: TextParam]?
 
+    /// The `text` of a notice or the `detail` of a step (`words`) in the person's language: the copy of the event's code, else the words, which is all an event stored before the codes has.
+    public func shown(_ words: String?, bundle: Bundle? = nil, locale: Locale = .current) -> String? {
+        words.map { shownText($0, code: code, params: params, bundle: bundle, locale: locale) }
+    }
+
     /// The agents of a switch, as `chat.json` names them.
     public struct Switched: Codable, Equatable {
         public let from: String

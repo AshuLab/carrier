@@ -35,6 +35,15 @@ public struct DoctorCheck: Decodable, Equatable {
         self.repo = repo
         self.profiles = profiles
     }
+
+    /// `detail` and `fix` in the person's language: the copy of their code, else their words.
+    public func shownDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String? {
+        detail.map { shownText($0, code: detailCode, params: detailParams, bundle: bundle, locale: locale) }
+    }
+
+    public func shownFix(bundle: Bundle? = nil, locale: Locale = .current) -> String? {
+        fix.map { shownText($0, code: fixCode, params: fixParams, bundle: bundle, locale: locale) }
+    }
 }
 
 /// How long the doctor is given: its GitHub calls and probes take seconds on a normal machine, so this is generous.

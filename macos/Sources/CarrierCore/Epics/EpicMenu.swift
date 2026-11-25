@@ -58,7 +58,7 @@ public func epicMenu(_ snapshot: PanelSnapshot, showEpics: Bool) -> EpicMenu? {
     let needsYou = snapshot.epics.filter { $0.status == .needsHuman }.map { epic in
         EpicMenuItem(
             repo: epic.repo, issue: epic.issue, state: .needsYou, title: name(epic.repo, epic.issue),
-            detail: epic.needsHumanReason ?? "needs attention", badge: slicesBadge(epic.slices)
+            detail: epic.shownNeedsHumanReason() ?? "needs attention", badge: slicesBadge(epic.slices)
         )
     }
     let running = snapshot.epics.filter { $0.status == .running }.map { epic in

@@ -11,8 +11,8 @@ enum ProvidersFileError: Error, Equatable {
     case missing(String)
     /// The account is named by a role, a repo override, a failover list or a chat agent, so it stays.
     case inUse(String, [AccountUse])
-    /// The words of what the host would refuse.
-    case invalid(String)
+    /// The words of what the host would refuse, and the key they are about (the host's `config.problem` path).
+    case invalid(path: String, String)
 }
 
 /// The servers a text generator can be: the entry the host writes is named after its server.
@@ -29,8 +29,8 @@ func fixtureProvidersRefusal(_ error: ProvidersFileError) -> Refusal {
     case .inUse(let name, let uses):
         let who = uses.map(\.text).joined(separator: ", ")
         return Refusal(code: "account.inUse", params: ["name": .string(name), "uses": .string(who)], text: "\(name) is used by \(who), so it stays. Point those at another account first.")
-    case .invalid(let words):
-        return Refusal(code: "config.problem", params: ["path": "providers", "problem": "custom"], text: words)
+    case .invalid(let path, let words):
+        return Refusal(code: "config.problem", params: ["path": .string(path), "problem": "custom"], text: words)
     }
 }
 
@@ -65,12 +65,12 @@ func fixtureProvidersChange(_ request: [String: Any], home: String) -> FixturePr
         case "addAccount":
             let account = accountMap(request["account"])
             let (name, harness, configDir) = (account["name"] ?? "", account["harness"] ?? "", account["configDir"] ?? "")
-            if let problem = nameProblem(name) { throw ProvidersFileError.invalid(problem) }
-            guard harness == "claude" || harness == "codex" else { throw ProvidersFileError.invalid("Only Claude Code and Codex take more accounts.") }
+            if let problem = nameProblem(name) { throw ProvidersFileError.invalid(path: "providers.\(name)", problem) }
+            guard harness == "claude" || harness == "codex" else { throw ProvidersFileError.invalid(path: "providers.\(name).harness", "Only Claude Code and Codex take more accounts.") }
             var draft = AccountDraft()
             draft.configDir = configDir
             let problems = draftProblems(draft, harness: harness)
-            if let first = AccountDraft.fields.compactMap({ problems[$0] }).first { throw ProvidersFileError.invalid(first) }
+            if let field = AccountDraft.fields.first(where: { problems[$0] != nil }) { throw ProvidersFileError.invalid(path: "providers.\(name).\(field)", problems[field] ?? "") }
             guard providers[name] == nil else { throw ProvidersFileError.taken(name) }
             providers[name] = configDir.isEmpty ? ["harness": harness] : ["harness": harness, "configDir": normalizedConfigDir(configDir)]
         case "editAccount":
@@ -78,7 +78,7 @@ func fixtureProvidersChange(_ request: [String: Any], home: String) -> FixturePr
             guard var account = providers[name] as? [String: Any] else { throw ProvidersFileError.missing(name) }
             for (key, value) in request["changes"] as? [String: Any] ?? [:] { account[key] = value is NSNull ? nil : value }
             let problems = draftProblems(AccountDraft(account: account), harness: account["harness"] as? String ?? "")
-            if let first = AccountDraft.fields.compactMap({ problems[$0] }).first { throw ProvidersFileError.invalid(first) }
+            if let field = AccountDraft.fields.first(where: { problems[$0] != nil }) { throw ProvidersFileError.invalid(path: "providers.\(name).\(field)", problems[field] ?? "") }
             providers[name] = account
         case "removeAccount":
             let name = request["name"] as? String ?? ""
@@ -93,7 +93,7 @@ func fixtureProvidersChange(_ request: [String: Any], home: String) -> FixturePr
             if let choice = request["choice"] as? [String: String], let server = choice["server"] {
                 let model = (choice["model"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
                 guard textGeneratorServers.contains(server), model.isEmpty == false else {
-                    throw ProvidersFileError.invalid("textGenerators.\(server): a text generator is a model of LM Studio or Ollama")
+                    throw ProvidersFileError.invalid(path: "textGenerators.\(server)", "textGenerators.\(server): a text generator is a model of LM Studio or Ollama")
                 }
                 generators[server] = ["kind": server, "model": model]
                 file["textGenerator"] = server

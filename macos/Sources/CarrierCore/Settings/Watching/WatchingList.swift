@@ -54,7 +54,7 @@ public struct RefusalBanner: Equatable {
 public func refusalBanner(_ reason: Refusal) -> RefusalBanner {
     let path = reason.params["path"]?.text.split(separator: ".").map(String.init) ?? []
     guard reason.has("config.problem"), path.count == 4, path[0] == "failover", path[1] == "roles", let index = Int(path[3]) else {
-        return RefusalBanner(detail: nil, raw: reason.text, fix: nil)
+        return RefusalBanner(detail: nil, raw: reason.shown(), fix: nil)
     }
     let role = ["author": "Author", "reviewer": "Reviewer", "leadReviewer": "Lead reviewer"][path[2]] ?? path[2]
     let what: String? =
@@ -64,5 +64,5 @@ public func refusalBanner(_ reason: Refusal) -> RefusalBanner {
         case "providerNotDeclared": "uses a provider that is not declared in providers"
         default: nil
         }
-    return RefusalBanner(detail: what.map { "The \(role)'s failover step \(index + 1) \($0)." }, raw: reason.text, fix: .agents)
+    return RefusalBanner(detail: what.map { "The \(role)'s failover step \(index + 1) \($0)." }, raw: reason.shown(), fix: .agents)
 }

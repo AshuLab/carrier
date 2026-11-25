@@ -405,6 +405,30 @@ export function emitSwift(copy: CompiledCopy): string {
   return lines.join('\n');
 }
 
+/**
+ * TextShapes.generated.swift: what each text code's catalog keys take, since the key holds specifiers and not names and a reply's params are a dictionary.
+ * One line per code, `code|select|branch=args|branch=args`: `select` names the param that picks a branch (empty when there is none), a branch is empty when there is no select,
+ * and `args` are the arguments of that key in order, `name:n` for a number and `name:s` for a string. A string and not a literal of structs, which the compiler type-checks for minutes.
+ */
+export function emitTextShapes(copy: CompiledCopy): string {
+  const lines = [
+    GENERATED_HEADER,
+    '',
+    '/// The shape of each text code, parsed by `Copy+Text.swift`.',
+    'let textShapeLines = """',
+  ];
+  const texts = copy.keys.filter((compiled) => isTextKey(compiled.key)).sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+  for (const compiled of texts) {
+    const entries = variants(compiled).map((variant) => {
+      const args = variant.args.map((name) => `${name}:${compiled.analysis.args.get(name) === 'number' ? 'n' : 's'}`).join(' ');
+      return `${variant.branch ?? ''}=${args}`;
+    });
+    lines.push([compiled.key.slice('text.'.length), compiled.analysis.select ?? '', ...entries].join('|'));
+  }
+  lines.push('"""', '');
+  return lines.join('\n');
+}
+
 const TYPESCRIPT_PRELUDE = `${GENERATED_HEADER}
 
 export type Language = ${LANGUAGES.map((language) => `'${language}'`).join(' | ')};

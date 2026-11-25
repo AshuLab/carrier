@@ -27,7 +27,7 @@ public func addedRepoNote(_ repo: String, outcome: ReloadOutcome) -> (text: Stri
     switch outcome {
     case .applied: (applies(repo), false)
     case .nobody, .unsupported: (reads(repo), false)
-    case .refused(let problem): ("\(repo) was added to Carrier's list, but Carrier kept its settings: \(problem.text)", true)
+    case .refused(let problem): ("\(repo) was added to Carrier's list, but Carrier kept its settings: \(problem.shown())", true)
     case .noAnswer: ("\(repo) was added to Carrier's list, but Carrier did not answer: it may not have applied it.", true)
     }
 }

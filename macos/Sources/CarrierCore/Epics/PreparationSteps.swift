@@ -45,7 +45,7 @@ public func preparationSteps(_ events: [ChatEvent], preparation: ChatSession.Pre
         guard let step = event.step, let status = event.status.flatMap(StepRow.Status.init(rawValue:)) else { continue }
         let key = StepRow(step: step, status: status, line: "", reason: nil, progress: nil, action: event.action, when: event.when)
         if latest[key.id] == nil { order.append(key) }
-        latest[key.id] = (status, event.detail)
+        latest[key.id] = (status, event.shown(event.detail))
     }
     return order.compactMap { key in
         guard let now = latest[key.id] else { return nil }

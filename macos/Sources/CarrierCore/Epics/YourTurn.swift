@@ -56,7 +56,7 @@ private func needsYouLine(_ epic: PanelEpic) -> String {
     let kind = interventionLine(epic)
     var line = kind.prefix(1).uppercased() + kind.dropFirst()
     if epic.needsHumanKind == "review_limit", let round = epic.round { line += " (\(round)/\(epic.maxReviews))" }
-    if epic.needsHumanKind != nil, let reason = epic.needsHumanReason, reason.isEmpty == false, reason.lowercased() != kind.lowercased() {
+    if epic.needsHumanKind != nil, let reason = epic.shownNeedsHumanReason(), reason.isEmpty == false, reason.lowercased() != kind.lowercased() {
         line += " · \(reason)"
     }
     return line

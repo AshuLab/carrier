@@ -21,7 +21,7 @@ extension AddProjectSheet {
                 github.repos += loaded.repos.filter { isRepoName($0.name) }
                 if loaded.hasMore == false { return }
             } catch ControlError.remote(let refusal) {
-                github.listingProblem = refusal.text
+                github.listingProblem = refusal.shown()
                 return
             } catch {
                 return
@@ -49,7 +49,7 @@ extension AddProjectSheet {
                 _ = try await SocketChatHost().repoBranches(repo)
                 github.visibility[key] = .visible
             } catch ControlError.remote(let refusal) {
-                github.visibility[key] = isRepoNotVisible(refusal) ? .notVisible : .problem(refusal.text)
+                github.visibility[key] = isRepoNotVisible(refusal) ? .notVisible : .problem(refusal.shown())
             } catch {
                 github.visibility[key] = nil
             }
@@ -63,7 +63,7 @@ extension AddProjectSheet {
                 try await model.startClone(repo, into: parent)
                 dismiss()
             } catch ControlError.remote(let refusal) {
-                problem = refusal.text
+                problem = refusal.shown()
             } catch {
                 problem = hostNotRunning
             }
@@ -82,7 +82,7 @@ extension AddProjectSheet {
         panel.message = "Choose the folder \(repo) is cloned into"
         guard panel.runModal() == .OK, let url = panel.url else { return }
         if let refusal = projectsFolderRefusal(url.path, carrierFolder: currentCarrierFolder()) {
-            problem = refusal.text
+            problem = refusal.shown()
             return
         }
         problem = nil

@@ -193,7 +193,7 @@ public func usageProviders(_ quotas: [UsageQuota], now: Int) -> [UsageProviderRo
         let accounts = own.map { quota in
             UsageAccountRow(
                 id: quota.account, title: quota.displayName ?? (id == "local" ? "Local servers" : quota.account), status: statusWords(quota), mark: mark(quota),
-                stale: quota.stale, note: quota.status == .ok && quota.stale == false ? nil : quota.message,
+                stale: quota.stale, note: quota.status == .ok && quota.stale == false ? nil : quota.shownMessage(),
                 canSignIn: quota.status == .signedOut && id != "local", lines: lines(quota, now: now)
             )
         }

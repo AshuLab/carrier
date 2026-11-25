@@ -92,7 +92,7 @@ public func resumeEpic(socketPath: String, repo: String, issue: Int) -> ResumeRe
 public func resumeFailureWords(_ result: ResumeResult) -> String? {
     switch result {
     case .resumed: nil
-    case .refused(let refusal): refusal.code.flatMap(ResumeRefusal.init(rawValue:))?.words ?? "Carrier could not resume this epic (\(refusal.text))."
+    case .refused(let refusal): refusal.code.flatMap(ResumeRefusal.init(rawValue:))?.words ?? "Carrier could not resume this epic (\(refusal.shown()))."
     case .stopped: "Carrier is not running."
     case .unsupported: "This Carrier cannot resume epics. Update it."
     }

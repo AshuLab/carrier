@@ -77,7 +77,7 @@ public func shouldAskHealth(_ moment: HealthMoment, capabilities: Set<ControlCli
             return
         }
         do { latest = try await host.health(refresh: moment.refreshes) } catch {
-            log("health: \(ConversationModel.words(error))")
+            log("health: \(ConversationModel.refusal(error).text)")
         }
     }
 }

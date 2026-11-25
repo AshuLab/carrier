@@ -169,7 +169,7 @@ public typealias SendEngineConfig = (EngineConfigChange) async throws -> EngineC
         (status ?? .shared).record(try await send(change).outcome)
         return .saved
     } catch ControlError.remote(let refusal) {
-        return .refused(refusal.text)
+        return .refused(refusal.shown())
     } catch {
         FileHandle.standardError.write(Data("carrier: saving engine.json failed: \(error)\n".utf8))
         return .failed("Could not save the config file: \(error.localizedDescription)")

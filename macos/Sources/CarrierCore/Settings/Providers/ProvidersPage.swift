@@ -45,8 +45,11 @@ public struct HostProviders: Decodable, Equatable {
         public let code: String?
         public let params: [String: TextParam]?
 
-        /// The message with the key it is about, unless the message already names it.
-        public var text: String { message.contains(path) ? message : "\(path): \(message)" }
+        /// The message in the person's language, with the key it is about unless the message already names it.
+        public func shown(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+            let words = shownText(message, code: code, params: params, bundle: bundle, locale: locale)
+            return words.contains(path) ? words : "\(path): \(words)"
+        }
     }
 
     public let accounts: [Account]
@@ -262,7 +265,7 @@ public enum ProvidersOutcome: Equatable {
         case .noHost: "The chat host is not running, so this Mac was not looked at. Open Health to see why."
         case .tooOld: "The chat host is too old to list the AI tools. Restart it to use the installed Carrier."
         case .failed(let reason): "The chat host could not list the AI tools: \(reason)"
-        case .reply(let reply): reply.problem.map { "providers.json does not match, so no accounts are shown. \($0.text)" }
+        case .reply(let reply): reply.problem.map { "providers.json does not match, so no accounts are shown. \($0.shown())" }
         }
     }
 }

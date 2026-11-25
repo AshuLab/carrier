@@ -50,7 +50,7 @@ public struct NotificationKinds: Equatable {
 }
 
 private func needsAttention(_ epic: PanelEpic) -> EpicNotification {
-    EpicNotification(title: "\(epic.repo) #\(epic.issue) needs attention", body: epic.needsHumanReason ?? "It stopped and waits for a person", epic: EpicRef(repo: epic.repo, issue: epic.issue))
+    EpicNotification(title: "\(epic.repo) #\(epic.issue) needs attention", body: epic.shownNeedsHumanReason() ?? "It stopped and waits for a person", epic: EpicRef(repo: epic.repo, issue: epic.issue))
 }
 
 private func needsAttention(_ row: SessionRow) -> EpicNotification {

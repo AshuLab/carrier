@@ -170,16 +170,16 @@ import Observation
     /// `replacing` is the path of the project being pointed at `folder` (Locate…), which does not count as another. nil when it can; a file that does not
     /// read is left to the write, which says why.
     public func addRefusal(folder: String, replacing: String?) -> String? {
-        if let refusal = projectFolderRefusal(folder, carrierFolder: file.folder) { return refusal.text }
+        if let refusal = projectFolderRefusal(folder, carrierFolder: file.folder) { return refusal.shown() }
         let others = projectRows((try? file.read()) ?? [], remote: remote).filter { $0.path != replacing }
-        return worktreeClashRefusal(folder: folder, repo: remote(folder), among: others)?.text
+        return worktreeClashRefusal(folder: folder, repo: remote(folder), among: others)?.shown()
     }
 
     /// Points the project at `path` to `folder`, its new place, after the check for folders that cannot be projects; everything else of the entry stays and
     /// so do the sessions that remember the old path. False when nothing was written: `failure` says why.
     @discardableResult public func locate(path: String, to folder: String) async -> Bool {
         if let refusal = projectFolderRefusal(folder, carrierFolder: file.folder) {
-            failure = refusal.text
+            failure = refusal.shown()
             return false
         }
         if rows.contains(where: { $0.path != path && isSameFolder($0.path, folder) }) {
@@ -335,7 +335,7 @@ import Observation
     }
 
     private static func words(_ error: Error) -> String {
-        if case ControlError.remote(let refusal) = error { return refusal.text }
+        if case ControlError.remote(let refusal) = error { return refusal.shown() }
         return "projects.json cannot be changed: \(ConversationModel.words(error))"
     }
 }

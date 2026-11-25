@@ -41,7 +41,7 @@ public func repoChecks(repo: String, roles: [RepoRoleRow], doctor: DoctorState) 
         case .warn: .warn
         case .fail: .fail
         }
-        return RepoCheckRow(title: title, status: status, detail: found.detail, fix: found.fix, role: role)
+        return RepoCheckRow(title: title, status: status, detail: found.shownDetail(), fix: found.shownFix(), role: role)
     }
     // a check that failed says what it is by the code of its detail; one that passed has none, and its name says it
     func matches(_ code: String, _ suffix: String, _ check: DoctorCheck) -> Bool { check.detailCode == code || (check.detailCode == nil && check.name.hasSuffix(suffix)) }

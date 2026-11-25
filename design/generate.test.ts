@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterAll, describe, expect, it } from 'vitest';
-import { compileCopy, CopyError, emitCatalog, emitSwift, emitTypeScript, GENERATED_HEADER, parseMessage, analyze, type Node } from './copy.ts';
+import { compileCopy, CopyError, emitCatalog, emitSwift, emitTextShapes, emitTypeScript, GENERATED_HEADER, parseMessage, analyze, type Node } from './copy.ts';
 import { check, copyOutputs, generate, loadSources, outputs, REPOSITORY_ROOT } from './generate.ts';
 import { compilePreferences, emitPreferencesSwift, emitPreferencesTypeScript, PreferenceError } from './preferences.ts';
 import { compileTokens, emitTokensCss, emitTokensSwift, emitTokensTypeScript, TokenError } from './tokens.ts';
@@ -584,6 +584,7 @@ describe('the tokens', () => {
       'macos/Sources/CarrierCore/Theme/Tokens.generated.swift',
       'macos/Sources/CarrierCore/Settings/Preferences.generated.swift',
       'macos/Sources/CarrierCore/Copy/Copy.generated.swift',
+      'macos/Sources/CarrierCore/Copy/TextShapes.generated.swift',
       'macos/Sources/CarrierCore/Resources/Localizable.xcstrings',
     ]);
   });
@@ -862,6 +863,26 @@ describe('the words of the text codes', () => {
     expect(forms('en')).toEqual({ one: '%arg uncommitted file', other: '%arg uncommitted files' });
     expect(forms('es')).toEqual({ one: '%arg archivo sin confirmar', other: '%arg archivos sin confirmar' });
     expect(entry.localizations.en!.stringUnit.value).toBe('The folder has %#@count@, so its branch was not changed to %2$@. Save the work and try again.');
+  });
+
+  it('lists, for the app, the arguments of every catalog key of a code in the order of the key', () => {
+    const shapes = emitTextShapes(copy);
+    expect(shapes).toContain('\nworkspace.dirty||=count:n branch:s\n');
+    expect(shapes).toContain('\nsession.tasksRunning|action|archive=count:n|delete=count:n|other=count:n\n');
+    const catalog = JSON.parse(emitCatalog(copy)) as { strings: Record<string, unknown> };
+    const keys = Object.keys(catalog.strings).filter((key) => key.startsWith('text.'));
+    let variants = 0;
+    for (const line of shapes.split('\n').slice(4, -2)) {
+      const [code, select, ...list] = line.split('|');
+      for (const entry of list) {
+        const [branch, args] = entry.split('=') as [string, string];
+        const specifiers = args.split(' ').filter((arg) => arg !== '').map((arg) => (arg.endsWith(':n') ? '%lld' : '%@'));
+        const key = [`text.${code}${select === '' ? '' : `.${branch}`}`, ...specifiers].join(' ');
+        expect(keys, key).toContain(key);
+        variants++;
+      }
+    }
+    expect(variants).toBe(keys.length);
   });
 
   it('has no function in the Swift or the TypeScript, which find the words by the code they receive', () => {

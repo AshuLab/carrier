@@ -6,7 +6,7 @@
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { type CompiledCopy, CopyError, LANGUAGES, type Language, compileCopy, emitCatalog, emitSwift, emitTypeScript } from './copy.ts';
+import { type CompiledCopy, CopyError, LANGUAGES, type Language, compileCopy, emitCatalog, emitSwift, emitTextShapes, emitTypeScript } from './copy.ts';
 import { type Preference, PreferenceError, compilePreferences, emitPreferencesSwift } from './preferences.ts';
 import { type CompiledTokens, TokenError, compileTokens, emitTokensSwift } from './tokens.ts';
 
@@ -39,6 +39,7 @@ export const outputs: Output[] = [
   { path: 'macos/Sources/CarrierCore/Theme/Tokens.generated.swift', render: (sources) => emitTokensSwift(sources.tokens) },
   { path: 'macos/Sources/CarrierCore/Settings/Preferences.generated.swift', render: (sources) => emitPreferencesSwift(sources.preferences) },
   { path: 'macos/Sources/CarrierCore/Copy/Copy.generated.swift', render: (sources) => emitSwift(sources.copy) },
+  { path: 'macos/Sources/CarrierCore/Copy/TextShapes.generated.swift', render: (sources) => emitTextShapes(sources.copy) },
   { path: 'macos/Sources/CarrierCore/Resources/Localizable.xcstrings', render: (sources) => emitCatalog(sources.copy) },
 ];
 

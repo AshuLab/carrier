@@ -7,8 +7,11 @@ import { dirname, join } from 'node:path';
 import { afterAll, expect, test, vi } from 'vitest';
 import { acquireLock } from '../../storage/lock.ts';
 import { connectControl } from './control-client.ts';
+import { pidAt } from './detached.ts';
 
 const main = join(import.meta.dirname, 'main.ts');
+// `args`, not `comm`: Linux cuts `comm` to 15 characters ("carrier-chat-ho")
+const processName = (pid: number) => spawnSync('ps', ['-p', String(pid), '-o', 'args='], { encoding: 'utf8' }).stdout.trim().split(/\s/)[0];
 const dir = mkdtempSync(join(tmpdir(), 'carrier-cli-'));
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
@@ -69,6 +72,7 @@ test('a valid config starts the engine over Forge, shows the panel as plain line
     expect(realpathSync(first.cwd)).toBe(realpathSync(join(home, 'engine', 'state', 'forge-cwd', 'AshuLab', 'carrier')));
     expect(stdout).toContain('slots 0/3');
     expect(stdout).not.toContain('\x1b['); // not a terminal: plain lines
+    expect(processName(child.pid!)).toBe('carrier-engine'); // not `node`: it can be told from other node processes
   } finally {
     child.kill('SIGINT');
   }
@@ -587,7 +591,7 @@ test('--version prints the package version, the one the hello carries, with no c
 // The chat needs only the Carrier folder: no engine config exists in these, and the folder is short because a socket path holds 103 bytes on macOS.
 const chatRun = (folder: string, ...args: string[]) => spawnSync(process.execPath, [main, ...args], { cwd: dir, encoding: 'utf8', env: { ...process.env, CARRIER_HOME: folder } });
 
-test('chat --list starts a real detached host from the Carrier folder alone, a second one starts no other, an engine in the same folder keeps running, and chat --stop ends only the host', () => {
+test('chat --list starts a real detached host from the Carrier folder alone, a second one starts no other, an engine in the same folder keeps running, and chat --stop ends only the host', async () => {
   const folder = mkdtempSync(join(tmpdir(), 'cm-'));
   const socket = join(folder, 'chat', 'state', 'chat.sock');
   const engine = acquireLock(join(folder, 'engine', 'state')); // an engine holding its lock in the same folder
@@ -598,6 +602,7 @@ test('chat --list starts a real detached host from the Carrier folder alone, a s
     expect(chatRun(folder, 'chat', '--list').stdout).toBe('No chat sessions.\n');
     expect(existsSync(socket)).toBe(true);
     expect(existsSync(join(folder, 'chat', 'logs', 'chat-host.log'))).toBe(true);
+    expect(processName((await pidAt(socket))!)).toBe('carrier-chat-host'); // not `node`
     expect(chatRun(folder, 'chat', '--stop').stdout).toBe('Chat host stopped\n');
     expect(existsSync(socket)).toBe(false);
     expect(chatRun(folder, 'chat', '--stop').stdout).toBe('No chat host is running\n');

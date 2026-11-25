@@ -65,7 +65,10 @@ else if (cli.flags.help) {
         // the chat runs from the Carrier folder alone (ADR 0034), not from an engine config
         if (cli.flags.config !== undefined) throw new CliError(2, `carrier ${cli.command} takes no --config: it runs from the Carrier folder (CARRIER_HOME, else ~/.carrier)`);
         if (cli.command === 'chat') exit = await (await import('./commands/chat.ts')).chatCommand(cli.flags);
-        else await (await import('./commands/chat-host.ts')).chatHostCommand(); // runs until stopped
+        else {
+          process.title = 'carrier-chat-host'; // what `ps` and Activity Monitor show instead of `node`
+          await (await import('./commands/chat-host.ts')).chatHostCommand(); // runs until stopped
+        }
         break;
       case 'usage':
         if (cli.flags.config !== undefined) throw new CliError(2, 'carrier usage takes no --config: it asks the chat host, which runs from the Carrier folder (CARRIER_HOME, else ~/.carrier)');
@@ -76,6 +79,7 @@ else if (cli.flags.help) {
         break;
       default:
         if (configPath === undefined) throw noConfig(usage(), '');
+        process.title = 'carrier-engine'; // what `ps` and Activity Monitor show instead of `node`; the detached run of `carrier start` is this branch too
         await (await import('./commands/run.ts')).runCommand(loadConfigFile(configPath, folder), folder, () => loadConfigFile(configPath, folder), { configPath }); // runs until Ctrl+C
     }
     if (exit !== undefined) process.exit(exit); // otherwise the command keeps the process alive (running), or has nothing left to do

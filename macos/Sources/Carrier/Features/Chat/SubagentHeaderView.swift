@@ -18,9 +18,10 @@ struct SubagentTitle: View {
 
     let title: String
     let subtitle: String
+    @Environment(\.textScale) private var textScale
 
     var body: some View {
-        let bases = Self.bases(percent: TextSize.shared.scale.percent)
+        let bases = Self.bases(percent: textScale.percent)
         VStack(alignment: .leading, spacing: 1) {
             Text(title).font(.scaled(bases.title, weight: .semibold)).lineLimit(1).truncationMode(.tail)
             Text(subtitle).font(.scaled(bases.subtitle)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.tail)

@@ -3,24 +3,6 @@ import CarrierCore
 import Observation
 import SwiftUI
 
-/// The icon set and the weight of the outline icons the person chose, for the views to read while they draw: a `Glyph` is drawn again when either changes, so
-/// moving the slider or choosing another set in Appearance redraws every icon at once (the same way `TextSize` does for the text).
-@Observable final class IconAppearance {
-    static let shared = IconAppearance()
-
-    private(set) var set = IconSet.stored()
-    private(set) var weight = IconWeight.stored()
-
-    private init() {
-        NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification, object: nil, queue: .main) { [self] _ in
-            let stored = IconSet.stored()
-            if stored != set { set = stored }
-            let storedWeight = IconWeight.stored()
-            if storedWeight != weight { weight = storedWeight }
-        }
-    }
-}
-
 /// The image of an icon in a set at a weight: the SVG with its stroke rewritten, as a template image so it takes the color of its text. Kept by set, icon and weight.
 @MainActor enum IconImages {
     private static var cache: [String: NSImage] = [:]
@@ -38,13 +20,6 @@ import SwiftUI
         image.isTemplate = true
         cache[key] = image
         return image
-    }
-
-    /// For the AppKit that draws an icon itself (an attachment, a layer): the icon in the set and at the weight now, with `bold` as `Glyph` has it. An SF
-    /// Symbol comes at `pointSize` and the weight as the weight of its font, as `Glyph` draws it.
-    static func image(_ icon: AppIcon, bold: Bool = false, pointSize: CGFloat = 24) -> NSImage {
-        let style = IconAppearance.shared
-        return image(icon, set: style.set, weight: style.weight, bold: bold, pointSize: pointSize)
     }
 
     /// The same in the set and weight it is given: what a test, or a caller that holds the appearance itself, asks for.
@@ -110,6 +85,8 @@ struct Glyph: View {
     let icon: AppIcon
     var size: CGFloat = 14
     var bold = false
+    @Environment(\.textScale) private var textScale
+    @Environment(\.pieceTheme) private var theme
     /// What VoiceOver says of an icon that is a state on its own (a tick that says "Pasted"); an icon beside words is decoration and says nothing.
     var label: String?
 
@@ -121,15 +98,14 @@ struct Glyph: View {
     }
 
     var body: some View {
-        let side = TextSize.shared.scale.size(size)
-        let style = IconAppearance.shared
-        let weight = style.weight + (bold ? 0.75 : 0)
+        let side = textScale.size(size)
+        let weight = theme.iconWeight + (bold ? 0.75 : 0)
         Group {
-            if let image = IconImages.image(icon, set: style.set, weight: weight) {
+            if let image = IconImages.image(icon, set: theme.iconSet, weight: weight) {
                 Image(nsImage: image).renderingMode(.template).resizable().scaledToFit()
             } else if case .symbol(let name) = iconAsset(icon, in: .sfSymbols) {
                 // a symbol of the font's size draws a little bigger than the SVGs' box does
-                Image(systemName: name).font(.scaled(size * 0.9, weight: Font.Weight(strokeWeight: weight)))
+                Image(systemName: name).scaledFont(size * 0.9, weight: Font.Weight(strokeWeight: weight))
             }
         }
         .frame(width: side, height: side)
@@ -218,11 +194,3 @@ private struct GlyphKick<Trigger: Equatable>: ViewModifier {
     }
 }
 
-extension Image {
-    /// An icon of the interface to put inside a `Text` (`Text("\(Image(inline: .gitBranch)) main")`), where a view cannot go: sized in points to the text, in
-    /// the set and weight now, and a template, so it takes the color of the text.
-    @MainActor init(inline icon: AppIcon, size: CGFloat = 11) {
-        let style = IconAppearance.shared
-        self.init(nsImage: IconImages.inline(icon, side: TextSize.shared.scale.size(size), set: style.set, weight: style.weight))
-    }
-}

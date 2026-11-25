@@ -102,6 +102,22 @@ extension View {
     func chatText(bubble: Bool = false) -> some View { modifier(ChatTextStyle(bubble: bubble)) }
 }
 
+private struct ScaledFont: ViewModifier {
+    let base: CGFloat
+    let weight: Font.Weight?
+    let design: Font.Design?
+    @Environment(\.textScale) private var scale
+
+    func body(content: Content) -> some View { content.font(.system(size: scale.size(base), weight: weight, design: design)) }
+}
+
+extension View {
+    /// The system font at `base` points scaled by the person's text size, which the window's root puts on the environment; the way a piece sets a size.
+    func scaledFont(_ base: CGFloat, weight: Font.Weight? = nil, design: Font.Design? = nil) -> some View {
+        modifier(ScaledFont(base: base, weight: weight, design: design))
+    }
+}
+
 extension Font {
     /// The system font of a message at `points`, the chat's own size: the text size of the app does not multiply it.
     static func chat(_ points: CGFloat, weight: Font.Weight? = nil) -> Font { .system(size: points, weight: weight) }

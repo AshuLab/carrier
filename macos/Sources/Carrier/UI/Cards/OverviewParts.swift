@@ -7,7 +7,7 @@ struct OverviewTitle: View {
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Text(title).font(.scaled(15, weight: .semibold))
+            Text(title).scaledFont(15, weight: .semibold)
             if let detail { Text(detail).font(.caption).foregroundStyle(.secondary) }
         }
         // in line with the content inside the card below, which the card pads by 14

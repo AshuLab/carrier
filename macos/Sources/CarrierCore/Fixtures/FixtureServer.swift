@@ -65,53 +65,53 @@ public final class FixtureServer {
     public var socketPath: String { CarrierPlaces(folder: home).controlSocket }
     public var chatSocketPath: String { CarrierPlaces(folder: home).chatSocket }
 
-    private let listener: Int32
+    let listener: Int32
     private let chatListener: Int32
-    private let chatAgents: Data
+    let chatAgents: Data
     /// The golden replies of the worktree requests, and which of the suggested names `suggestName` answers next.
-    private let chatWorkspaces: [String: [String: Any]]
-    private let chatFetches: [String: [String: Any]]
-    private let chatGithubRepos: [String: [String: Any]]
-    private let chatBranches: [String: [String: Any]]
+    let chatWorkspaces: [String: [String: Any]]
+    let chatFetches: [String: [String: Any]]
+    let chatGithubRepos: [String: [String: Any]]
+    let chatBranches: [String: [String: Any]]
     /// `chat-project-worktrees.json`: the `projectWorktrees` reply by the project folder's name; any other project has its main clone and no worktrees.
-    private let chatProjectWorktrees: [String: [String: Any]]
+    let chatProjectWorktrees: [String: [String: Any]]
     /// `chat-project-disk.json`: the `projectDisk` figure by the project folder's name.
-    private let chatProjectDisk: [String: [String: Any]]
+    let chatProjectDisk: [String: [String: Any]]
     /// `chat-project-cleanup.json`: what `cleanProjectWorktrees` removes and skips, by the project folder's name; any other project has nothing to clean up.
-    private let chatProjectCleanup: [String: [String: Any]]
+    let chatProjectCleanup: [String: [String: Any]]
     /// The worktrees `removeProjectWorktree` and Clean up took, which `projectWorktrees` no longer lists (read with `lock`).
-    private var removedWorktrees: Set<String> = []
+    var removedWorktrees: Set<String> = []
     /// The clones from Settings the host runs or has failed: `chat-project-clones.json` at the start, then what `cloneProject` and `dismissClone` change (read with `lock`).
-    private var chatClones: [[String: Any]]
-    private let chatProviders: [String: Any]
-    private let chatNames: [String: Any]
+    var chatClones: [[String: Any]]
+    let chatProviders: [String: Any]
+    let chatNames: [String: Any]
     /// The golden `usage` reply, for any filter.
-    private let chatUsage: [String: Any]
-    private var suggested = 0
+    let chatUsage: [String: Any]
+    var suggested = 0
     /// `archive` and `delete` change it; the sockets' threads share it, so it is read and written with `lock`.
-    private var chatSessions: [[String: Any]]
+    var chatSessions: [[String: Any]]
     /// What `deletePreview` says of the sessions in a worktree, by session id: the entries of `chat-delete-preview.json`.
-    private var chatWorktrees: [String: Any] = [:]
+    var chatWorktrees: [String: Any] = [:]
     /// Each session's golden conversation: its events and the message being written.
-    private var chatConversations: [String: (events: [[String: Any]], streaming: String)] = [:]
+    var chatConversations: [String: (events: [[String: Any]], streaming: String)] = [:]
     /// What the provider offers in each golden conversation that lists options; `setOption` changes the current value here.
-    private var chatOptions: [String: [[String: Any]]] = [:]
+    var chatOptions: [String: [[String: Any]]] = [:]
     /// How many times the chat socket was asked each request, for the tests that count what the app asks (read with `lock`).
-    private var chatAsked: [String: Int] = [:]
+    var chatAsked: [String: Int] = [:]
     /// How many connections the chat socket accepted (each one gets a hello), for the tests that count what the app opens.
-    private var chatConnected = 0
+    var chatConnected = 0
     /// The same two counts for the engine's socket.
-    private var engineAsked: [String: Int] = [:]
-    private var engineConnected = 0
+    var engineAsked: [String: Int] = [:]
+    var engineConnected = 0
     /// Under `longTranscript`, every listed session answers this instead.
-    private var longChat: [[String: Any]]?
+    var longChat: [[String: Any]]?
     /// Sessions already titled by `regenerateTitle` or `regenerateTitles`, so a second bulk ask sees 0 left.
-    private var regeneratedSessionIds: Set<String> = []
+    var regeneratedSessionIds: Set<String> = []
     let chatHello = Data("{\"event\":\"hello\",\"protocol\":1,\"pid\":0,\"startedAt\":0,\"version\":\"fixture\",\"capabilities\":[\"agents\",\"list\",\"open\",\"resume\",\"send\",\"events\",\"answer\",\"setOption\",\"archive\",\"delete\",\"deletePreview\",\"workspace\",\"fetch\",\"suggestName\",\"checkName\",\"cloneRepo\",\"createProject\",\"githubRepos\",\"repoBranches\",\"providers\",\"plan\",\"usage\",\"usageOverride\",\"accountIdentity\",\"accountPalette\",\"switchAgent\",\"interrupt\",\"stopTask\",\"worktreeStart\",\"fetchIfStale\",\"projects\",\"textGenerators\",\"regenerateTitle\",\"regenerateTitles\",\"config\"]}\n".utf8)
-    private let data: [String: Data]
+    let data: [String: Data]
     let hello: Data
-    private var stopped = false
-    private let lock = NSLock()
+    var stopped = false
+    let lock = NSLock()
 
     /// request name -> golden file
     private static let files = [
@@ -132,7 +132,7 @@ public final class FixtureServer {
     /// The requests that change the roles, personas, failover, lead reviewer or orchestrator profile in `engine.json`: `engineRolesReply` writes them.
     static let roleRequests: Set<String> = ["editRole", "editRepoRole", "editPersona", "editFailover", "setLeadReviewer", "setOrchestratorProfile"]
     /// Accepted and answered with nothing, as the real engine would; the fixture has no one to pause or stop.
-    private static let controls: Set<String> = ["pause", "resume", "checkNow", "stop", "resumeEpic", "recoverEpic", "reload"]
+    static let controls: Set<String> = ["pause", "resume", "checkNow", "stop", "resumeEpic", "recoverEpic", "reload"]
 
     /// `longTranscript`: `events` answers with a made-up transcript of thousands of events instead of the golden file.
     public init(fixtures: String, longTranscript: Bool = false) throws {
@@ -297,542 +297,6 @@ public final class FixtureServer {
         return context.makeImage()
     }
 
-    public func stop() {
-        lock.lock(); stopped = true; lock.unlock()
-        try? FileManager.default.removeItem(atPath: home)
-    }
-
-    private var isStopped: Bool { lock.lock(); defer { lock.unlock() }; return stopped }
-
-    private static func listen(path: String) throws -> Int32 {
-        var address = sockaddr_un()
-        guard path.utf8.count < MemoryLayout.size(ofValue: address.sun_path) else { throw FixtureError.socket("path too long: \(path)") }
-        address.sun_family = sa_family_t(AF_UNIX)
-        withUnsafeMutableBytes(of: &address.sun_path) { $0.copyBytes(from: path.utf8) }
-        let fd = socket(AF_UNIX, SOCK_STREAM, 0)
-        guard fd >= 0 else { throw FixtureError.socket("socket() failed") }
-        let bound = withUnsafePointer(to: &address) {
-            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { bind(fd, $0, socklen_t(MemoryLayout<sockaddr_un>.size)) }
-        }
-        guard bound == 0, Darwin.listen(fd, 4) == 0 else {
-            Darwin.close(fd)
-            throw FixtureError.socket("cannot listen on \(path)")
-        }
-        return fd
-    }
-
-    private func accept(_ listener: Int32, chat: Bool) {
-        while isStopped == false {
-            var ready = pollfd(fd: listener, events: Int16(POLLIN), revents: 0)
-            guard poll(&ready, 1, 50) > 0 else { continue }
-            let fd = Darwin.accept(listener, nil, nil)
-            guard fd >= 0 else { continue }
-            Thread.detachNewThread { [self] in
-                var on: Int32 = 1
-                setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &on, socklen_t(MemoryLayout<Int32>.size))
-                serve(fd, chat: chat)
-                Darwin.close(fd)
-            }
-        }
-        Darwin.close(listener)
-    }
-
-    /// The hello, then one reply per line until the client leaves or the server stops.
-    private func serve(_ fd: Int32, chat: Bool) {
-        locked { if chat { chatConnected += 1 } else { engineConnected += 1 } }
-        guard send(chat ? chatHello : hello, to: fd) else { return }
-        var pending = Data()
-        while isStopped == false {
-            var ready = pollfd(fd: fd, events: Int16(POLLIN), revents: 0)
-            guard poll(&ready, 1, 50) >= 0 else { return }
-            guard ready.revents != 0 else { continue }
-            var chunk = [UInt8](repeating: 0, count: 4096)
-            let n = read(fd, &chunk, chunk.count)
-            guard n > 0 else { return }
-            pending.append(contentsOf: chunk[..<n])
-            while let end = pending.firstIndex(of: 0x0A) {
-                let line = pending[pending.startIndex..<end]
-                pending.removeSubrange(pending.startIndex...end)
-                // this thread lives as long as the connection, so each request frees what it autoreleases (the JSON of the request)
-                let sent = autoreleasepool { send(chat ? chatReply(to: Data(line)) : reply(to: Data(line)), to: fd) }
-                guard sent else { return }
-            }
-        }
-    }
-
-    /// What the engine's socket was asked so far, by request name, and how many connections it accepted.
-    var engineRequests: [String: Int] { locked { engineAsked } }
-    var engineConnections: Int { locked { engineConnected } }
-
-    private func reply(to line: Data) -> Data {
-        let request = (try? JSONSerialization.jsonObject(with: line)) as? [String: Any]
-        if let cmd = request?["cmd"] as? String { locked { engineAsked[cmd, default: 0] += 1 } }
-        guard let id = request?["id"] as? Int else { return Self.refused(nil, "request.invalid", "invalid request") }
-        guard let cmd = request?["cmd"] as? String else { return Self.refused(id, "request.invalid", "invalid request") }
-        if let body = data[cmd] { return Self.line("{\"id\":\(id),\"ok\":true,\"data\":" + String(decoding: body, as: UTF8.self) + "}") }
-        if Self.controls.contains(cmd) { return Self.line("{\"id\":\(id),\"ok\":true}") }
-        if cmd == "setWatchedRepos" || cmd == "editBehavior", let answer = engineConfigReply(id, request ?? [:]) { return answer }
-        if Self.roleRequests.contains(cmd), let answer = engineRolesReply(id, request ?? [:]) { return answer }
-        return Self.refused(id, "request.invalid", "unknown request")
-    }
-
-    /// What the chat socket was asked so far, by request name.
-    var chatRequests: [String: Int] { locked { chatAsked } }
-
-    /// How many connections the chat socket has accepted so far.
-    var chatConnections: Int { locked { chatConnected } }
-
-    /// `cloneProject`: a repository the golden branches or the listing know starts cloning and stays at git's progress line, as a long clone would; one it does not know is refused
-    /// like a repository the login cannot see; one already cloning is shared; one that is a project of the fixture home is refused as the host does.
-    private func cloneProject(_ id: Int, _ repo: String, parent: String?) -> Data {
-        let key = repo.lowercased()
-        let folder = (parent ?? currentProjectsFolderOfFixture) + "/" + repo
-        if let running = locked({ chatClones.first { ($0["repo"] as? String)?.lowercased() == key && $0["state"] as? String == "cloning" } }) { return Self.answer(id, running) }
-        let listed = chatGithubRepos.values.flatMap { ($0["repos"] as? [[String: Any]] ?? []).compactMap { $0["name"] as? String } }
-        guard (Array(chatBranches.keys) + listed).contains(where: { $0.lowercased() == key }) else { return Self.refused(id, "github.repoNotFound", "\(repo) was not found, or your GitHub login cannot see it", ["repo": .string(repo)]) }
-        let clone: [String: Any] = ["repo": repo, "folder": folder, "state": "cloning", "progress": "Receiving objects: 45%"]
-        locked {
-            chatClones.removeAll { ($0["repo"] as? String)?.lowercased() == key }
-            chatClones.append(clone)
-        }
-        return Self.answer(id, clone)
-    }
-
-    /// `newProject`: the folder and the entry, as the host makes them, without git; refused as the host refuses.
-    private func newProject(_ id: Int, _ name: String, parent: String?) -> Data {
-        if let refusal = projectNameProblem(name) { return Self.refused(id, "project.nameInvalid", refusal.text, ["name": .string(name)]) }
-        let folder = (parent ?? currentProjectsFolderOfFixture) + "/local/" + name
-        guard FileManager.default.fileExists(atPath: folder) == false else { return Self.refused(id, "project.nameTaken", "\(name) is already a project; choose another name", ["name": .string(name)]) }
-        do {
-            try FileManager.default.createDirectory(atPath: folder, withIntermediateDirectories: true)
-            try fixtureEditProjects(home: home) { $0.append(["path": folder, "name": (folder as NSString).lastPathComponent, "origin": "created"]) }
-        } catch {
-            return Self.refused(id, "project.initFailed", "git could not start the project \(name)", ["name": .string(name)])
-        }
-        return Self.answer(id, ["folder": folder])
-    }
-
-    private var currentProjectsFolderOfFixture: String { CarrierPlaces(folder: home).chatProjects }
-
-    private func chatReply(to line: Data) -> Data {
-        let request = (try? JSONSerialization.jsonObject(with: line)) as? [String: Any]
-        if let cmd = request?["cmd"] as? String { locked { chatAsked[cmd, default: 0] += 1 } }
-        guard let id = request?["id"] as? Int else { return Self.refused(nil, "request.invalid", "invalid request") }
-        switch request?["cmd"] as? String {
-        case "agents":
-            return Self.line("{\"id\":\(id),\"ok\":true,\"data\":" + String(decoding: chatAgents, as: UTF8.self) + "}")
-        case "list":
-            let archived = request?["archived"] as? Bool ?? false
-            let sessions = locked { chatSessions.filter { ($0["archived"] as? Bool) == archived } }
-            guard let body = try? JSONSerialization.data(withJSONObject: ["sessions": sessions], options: .sortedKeys) else { break }
-            return Self.line("{\"id\":\(id),\"ok\":true,\"data\":" + String(decoding: body, as: UTF8.self) + "}")
-        case "events":
-            guard let session = request?["sessionId"] as? String, locked({ chatSessions.contains(where: { $0["id"] as? String == session }) }) else {
-                return Self.refused(id, "session.unknown", "unknown session")
-            }
-            let after = request?["after"] as? Int ?? 0
-            let limit = min(max(request?["limit"] as? Int ?? 200, 1), 200)
-            lock.lock()
-            let conversation = longChat.map { ($0, "") } ?? chatConversations[session] ?? ([], "")
-            lock.unlock()
-            let page = Array(conversation.0.filter { ($0["id"] as? Int ?? 0) > after }.prefix(limit))
-            let reply: [String: Any] = [
-                "events": page, "cursor": page.last?["id"] as? Int ?? after, "streaming": conversation.1,
-                "approvals": Self.pending(conversation.0), "options": chatOptions[session] ?? [],
-                "session": locked {
-                    let listed = chatSessions.first { $0["id"] as? String == session }
-                    var summary: [String: Any] = ["state": listed?["state"] as? String ?? "idle"]
-                    if let preparation = listed?["preparation"] as? String { summary["preparation"] = preparation }
-                    // what the real host adds to the summary of `events`, from the row its list gives
-                    for key in ["agent", "archived", "live", "background"] { if let value = listed?[key] { summary[key] = value } }
-                    return summary
-                },
-            ]
-            guard let body = try? JSONSerialization.data(withJSONObject: reply, options: .sortedKeys) else { break }
-            return Self.line("{\"id\":\(id),\"ok\":true,\"data\":" + String(decoding: body, as: UTF8.self) + "}")
-        case "workspace", "fetch":
-            guard let folder = request?["folder"] as? String else { break }
-            if request?["cmd"] as? String == "workspace" {
-                return Self.answer(id, chatWorkspaces[folder] ?? ["folder": folder, "git": false, "bare": false, "linkedWorktree": false, "repo": NSNull(), "branch": NSNull(), "defaultBranch": NSNull(), "dirty": 0, "branches": [], "fetchedAt": NSNull()])
-            }
-            if let fetched = chatFetches[folder] { return Self.answer(id, fetched) }
-            let git = chatWorkspaces[folder]?["git"] as? Bool ?? false
-            return git ? Self.refused(id, "workspace.fetchFailed", "The fetch of origin failed") : Self.refused(id, "workspace.notGit", "That folder is not a git repository")
-        case "githubRepos":
-            guard let page = request?["page"] as? Int else { break }
-            return chatGithubRepos[String(page)].map { Self.answer(id, $0) } ?? Self.refused(id, "github.noAnswer", "GitHub did not answer; check \"gh auth status\"")
-        case "repoBranches":
-            guard let repo = request?["repo"] as? String else { break }
-            return chatBranches[repo].map { Self.answer(id, $0) } ?? Self.refused(id, "github.repoNotFound", "\(repo) was not found, or your GitHub login cannot see it", ["repo": .string(repo)])
-        case "cloneProject":
-            guard let repo = request?["repo"] as? String else { break }
-            return cloneProject(id, repo, parent: request?["parent"] as? String)
-        case "newProject":
-            guard let name = request?["name"] as? String else { break }
-            return newProject(id, name, parent: request?["parent"] as? String)
-        case "projectClones":
-            return Self.answer(id, ["clones": locked { chatClones }])
-        case "projectWorktrees":
-            guard let folder = request?["folder"] as? String else { break }
-            var reply = chatProjectWorktrees[(folder as NSString).lastPathComponent] ?? ["main": ["branch": "main"], "worktrees": [Any]()]
-            let main = reply["main"] as? [String: Any]
-            reply["main"] = ["path": folder, "branch": main?["branch"] ?? NSNull(), "state": main?["state"] ?? "clean"]
-            let gone = locked { removedWorktrees }
-            reply["worktrees"] = (reply["worktrees"] as? [[String: Any]])?.filter { gone.contains($0["path"] as? String ?? "") == false }
-            return Self.answer(id, reply)
-        case "projectDisk":
-            guard let folders = request?["folders"] as? [String] else { break }
-            return Self.answer(id, ["projects": folders.map { folder in
-                guard var figure = chatProjectDisk[(folder as NSString).lastPathComponent] else {
-                    return ["folder": folder, "bytes": NSNull(), "measuredAt": NSNull(), "parts": [String: Any]()] as [String: Any]
-                }
-                // the golden file names the project's own folder "main", as the host's answer names it by its real path
-                figure["parts"] = (figure["parts"] as? [String: Any] ?? [:]).reduce(into: [String: Any]()) { $0[$1.key == "main" ? folder : $1.key] = $1.value }
-                figure["folder"] = folder
-                return figure
-            }, "measuring": [String]()])
-        case "removeProjectWorktree":
-            guard let folder = request?["folder"] as? String, let path = request?["path"] as? String else { break }
-            let listed = chatProjectWorktrees[(folder as NSString).lastPathComponent]?["worktrees"] as? [[String: Any]] ?? []
-            guard let found = listed.first(where: { $0["path"] as? String == path }), locked({ removedWorktrees.contains(path) }) == false else { return Self.refused(id, "worktree.unknown", "That is not a worktree of this project") }
-            switch found["state"] as? String {
-            case "sessionOpen": return Self.refused(id, "worktree.sessionOpen", "Its session is open")
-            case "uncommitted": return Self.refused(id, "worktree.uncommitted", "It has uncommitted changes")
-            default:
-                locked { _ = removedWorktrees.insert(path) }
-                return Self.answer(id, [String: Any]())
-            }
-        case "cleanProjectWorktrees":
-            guard let folder = request?["folder"] as? String else { break }
-            let planned = chatProjectCleanup[(folder as NSString).lastPathComponent] ?? ["removed": [Any](), "skipped": [Any]()]
-            let gone = locked { removedWorktrees }
-            let removed = (planned["removed"] as? [[String: Any]] ?? []).filter { gone.contains($0["path"] as? String ?? "") == false }
-            if request?["run"] as? Bool == true { locked { removedWorktrees.formUnion(removed.compactMap { $0["path"] as? String }) } }
-            return Self.answer(id, ["removed": removed, "skipped": planned["skipped"] ?? [Any]()])
-        case "dismissClone":
-            guard let repo = request?["repo"] as? String else { break }
-            return Self.answer(id, ["clones": locked {
-                chatClones.removeAll { ($0["repo"] as? String)?.lowercased() == repo.lowercased() && $0["state"] as? String == "failed" }
-                return chatClones
-            }])
-        case "providers":
-            return Self.answer(id, providersReply())
-        case "usage":
-            return Self.answer(id, chatUsage)
-        case "usageOverride":
-            guard let model = request?["model"] as? String, let action = request?["action"] as? String else { break }
-            return Self.answer(id, ["model": model, "action": action])
-        case "suggestName":
-            let names = chatNames["suggestions"] as? [String] ?? []
-            guard request?["folder"] is String, names.isEmpty == false else { break }
-            return Self.answer(id, ["name": locked { defer { suggested += 1 }; return names[suggested % names.count] }])
-        case "checkName":
-            guard request?["folder"] is String, let name = request?["name"] as? String else { break }
-            return Self.answer(id, nameCheck(name))
-        case "open":
-            if let plan = request?["plan"] as? [String: Any] { return openPlan(id, plan) }
-            return open(id, request ?? [:])
-        case "resume":
-            // a closed session wakes: the next list says it is live
-            guard let session = request?["sessionId"] as? String else { break }
-            let found = locked { () -> Bool in
-                guard let at = chatSessions.firstIndex(where: { $0["id"] as? String == session }) else { return false }
-                chatSessions[at]["live"] = true
-                return true
-            }
-            return found ? Self.answer(id, [String: Any]()) : Self.refused(id, "session.unknown", "unknown session")
-        case "switchAgent":
-            guard let session = request?["sessionId"] as? String, let agent = request?["agent"] as? String else { break }
-            return switchAgent(id, session, to: agent)
-        case "send":
-            guard let session = request?["sessionId"] as? String, let text = request?["text"] as? String else { break }
-            // a session whose list entry says `fixtureRefuseSend` refuses every send with those words (a provider that is not signed in)
-            if let refusal = locked({ chatSessions.first { $0["id"] as? String == session }?["fixtureRefuseSend"] as? String }) { return Self.refused(id, "agent.notLoggedIn", refusal) }
-            let found = locked { () -> Bool in
-                guard chatSessions.contains(where: { $0["id"] as? String == session }) else { return false }
-                let events = chatConversations[session]?.events ?? []
-                chatConversations[session, default: ([], "")].events = events + [["id": (events.last?["id"] as? Int ?? 0) + 1, "at": Int(Date().timeIntervalSince1970 * 1000), "kind": "user", "text": text]]
-                return true
-            }
-            return found ? Self.answer(id, [String: Any]()) : Self.refused(id, "session.unknown", "unknown session")
-        case "answer":
-            guard let session = request?["sessionId"] as? String, let approval = request?["approvalId"] as? String, let choice = request?["choiceId"] as? String else { break }
-            lock.lock()
-            defer { lock.unlock() }
-            var events = chatConversations[session]?.events ?? []
-            guard let asked = Self.pending(events).first(where: { $0["approvalId"] as? String == approval }) else {
-                return Self.refused(id, "session.approval.notPending", "That approval is not pending: it is unknown or was already answered")
-            }
-            guard (asked["choices"] as? [[String: Any]] ?? []).contains(where: { $0["id"] as? String == choice }) else {
-                return Self.refused(id, "session.approval.choiceUnknown", "That is not one of the choices")
-            }
-            var answered: [String: Any] = ["id": (events.last?["id"] as? Int ?? 0) + 1, "at": Int(Date().timeIntervalSince1970 * 1000), "kind": "approval_answered", "approvalId": approval, "choiceId": choice]
-            if let answers = request?["answers"] as? [String: String] { answered["answers"] = answers }
-            events.append(answered)
-            chatConversations[session]?.events = events
-            return Self.line("{\"id\":\(id),\"ok\":true,\"data\":{}}")
-        case "setOption":
-            guard let session = request?["sessionId"] as? String, let option = request?["option"] as? String, let value = request?["value"] as? String,
-                let at = chatOptions[session]?.firstIndex(where: { $0["id"] as? String == option })
-            else { return Self.refused(id, "session.option.unknown", "This agent has no such option", ["option": .string(request?["option"] as? String ?? "")]) }
-            let listed = (chatOptions[session]?[at]["values"] as? [[String: Any]])?.contains { $0["id"] as? String == value } ?? false
-            guard listed else { return Self.refused(id, "session.option.valueUnknown", "The agent does not offer that value for \(option)", ["option": .string(option), "value": .string(value)]) }
-            chatOptions[session]?[at]["current"] = value
-            return Self.line("{\"id\":\(id),\"ok\":true,\"data\":{}}")
-        case "stopTask":
-            guard let session = request?["sessionId"] as? String, let task = request?["taskId"] as? String else { break }
-            lock.lock()
-            defer { lock.unlock() }
-            // a task the session waits for in the background: as the host does, it is gone from the session's row
-            if let at = chatSessions.firstIndex(where: { $0["id"] as? String == session }), var tasks = chatSessions[at]["background"] as? [[String: Any]],
-                let found = tasks.firstIndex(where: { $0["id"] as? String == task }) {
-                tasks.remove(at: found)
-                chatSessions[at]["background"] = tasks
-                return Self.line("{\"id\":\(id),\"ok\":true,\"data\":{}}")
-            }
-            // else a running subagent: the host answers at once and the agent says the task stopped, here the event comes with the answer
-            var events = chatConversations[session]?.events ?? []
-            let own = events.filter { $0["kind"] as? String == "task" && $0["taskId"] as? String == task }
-            let ended = own.contains { ["completed", "failed", "stopped"].contains($0["state"] as? String ?? "") }
-            guard let started = own.first(where: { $0["state"] as? String == "started" }), ended == false else {
-                return Self.refused(id, "session.task.notRunning", "That task is not running")
-            }
-            events.append(["id": (events.last?["id"] as? Int ?? 0) + 1, "at": Int(Date().timeIntervalSince1970 * 1000), "kind": "task", "callId": started["callId"] as Any, "taskId": task, "state": "stopped"])
-            chatConversations[session]?.events = events
-            return Self.line("{\"id\":\(id),\"ok\":true,\"data\":{}}")
-        case "interrupt":
-            guard let session = request?["sessionId"] as? String else { break }
-            // with no turn running it stops what the session waits for in the background
-            locked { if let at = chatSessions.firstIndex(where: { $0["id"] as? String == session }) { chatSessions[at]["background"] = [] as [[String: Any]] } }
-            return Self.line("{\"id\":\(id),\"ok\":true,\"data\":{}}")
-        case "regenerateTitle":
-            guard let session = request?["sessionId"] as? String else { break }
-            // a session whose list entry says `fixtureRefuseTitle` refuses with those words (no text generator chosen); any other gets a made-up title
-            return locked {
-                guard let at = chatSessions.firstIndex(where: { $0["id"] as? String == session }) else { return Self.refused(id, "session.unknown", "There is no such session") }
-                if let refusal = chatSessions[at]["fixtureRefuseTitle"] as? String { return Self.refused(id, "title.noGenerator", refusal) }
-                regeneratedSessionIds.insert(session)
-                chatSessions[at]["title"] = "Regenerated title"
-                return Self.answer(id, ["title": "Regenerated title"])
-            }
-        case "regenerateTitles":
-            let whole = (try? ProvidersFile(folder: home).read()).flatMap { $0 }
-                .flatMap { (try? JSONSerialization.jsonObject(with: $0)) as? [String: Any] }
-            let chosen = whole?["textGenerator"] as? String
-            let declared = (whole?["textGenerators"] as? [String: Any])?[chosen ?? ""] != nil
-            guard chosen != nil, declared else {
-                return Self.refused(id, "title.noGenerator", "Could not write titles: no text generator is chosen; choose one in Providers")
-            }
-            return locked {
-                var started = 0
-                for index in chatSessions.indices {
-                    guard chatSessions[index]["parentSessionId"] as? String == nil,
-                        chatSessions[index]["fixtureRefuseTitle"] == nil,
-                        let sessionId = chatSessions[index]["id"] as? String,
-                        regeneratedSessionIds.contains(sessionId) == false
-                    else { continue }
-                    regeneratedSessionIds.insert(sessionId)
-                    chatSessions[index]["title"] = "Regenerated title"
-                    started += 1
-                }
-                return Self.answer(id, ["started": started])
-            }
-        case "editChatSettings":
-            guard let changes = request?["changes"] as? [String: Any] else { break }
-            return editChatSettings(id, changes)
-        case "setAccounts", "addAccount", "editAccount", "removeAccount", "setTextGenerator":
-            switch fixtureProvidersChange(request ?? [:], home: home) {
-            case .data(let data): return Self.answer(id, data)
-            case .refused(let reason): return Self.refused(id, reason.code ?? "request.invalid", reason.text, reason.params)
-            }
-        case "addProject", "removeProject", "editProject", "moveProject", "editProjectIcon", "editProjectDefaults", "editProjectTags", "setProjectActions", "setProjectsFolder":
-            guard let cmd = request?["cmd"] as? String, let request, let change = ProjectsChange(cmd: cmd, request: request) else { break }
-            let (data, refusal) = applyProjectsChange(change, home: home)
-            if let refusal { return Self.refused(id, refusal.code ?? "request.internal", refusal.text, refusal.params) }
-            return Self.answer(id, data ?? [:])
-        case "archive", "delete":
-            let verb = request?["cmd"] as? String ?? ""
-            guard let session = request?["sessionId"] as? String, let archived = verb == "delete" ? false : request?["archived"] as? Bool else { break }
-            let refusal: String? = locked {
-                guard let at = chatSessions.firstIndex(where: { $0["id"] as? String == session }) else { return "unknown session" }
-                // as the host does: a session that is working or waiting for an approval is not archived or deleted
-                let state = chatSessions[at]["state"] as? String
-                if verb == "delete" || archived, state != "idle" {
-                    return "This session is \(state == "working" ? "working" : "waiting for an approval"); interrupt or close it first, then \(verb) it"
-                }
-                if verb == "delete" { chatSessions.remove(at: at) } else { chatSessions[at]["archived"] = archived }
-                return nil
-            }
-            if let refusal { return Self.line("{\"id\":\(id),\"ok\":false,\"error\":\"\(refusal)\"}") }
-            return Self.line("{\"id\":\(id),\"ok\":true,\"data\":{}}")
-        case "deletePreview":
-            guard let asked = request?["sessionIds"] as? [String] else { break }
-            let listed = locked { Set(chatSessions.compactMap { $0["id"] as? String }) }
-            // as the host does: one unknown id refuses the whole request
-            guard asked.allSatisfy(listed.contains) else { return Self.line("{\"id\":\(id),\"ok\":false,\"error\":\"There is no such session\"}") }
-            let sessions = asked.map { ["sessionId": $0, "worktree": chatWorktrees[$0] ?? NSNull()] as [String: Any] }
-            guard let body = try? JSONSerialization.data(withJSONObject: ["sessions": sessions], options: .sortedKeys) else { break }
-            return Self.line("{\"id\":\(id),\"ok\":true,\"data\":" + String(decoding: body, as: UTF8.self) + "}")
-        default: break
-        }
-        return Self.line("{\"id\":\(id),\"ok\":false,\"error\":\"unknown request\"}")
-    }
-
-    /// `editChatSettings` as the host answers it: the scratch `chat.json` read again, each key set (null removes it), the four keys checked as the host's schema does, and written only when
-    /// all hold; the reply is the keys as the file now has them. A file that is not a JSON object is refused and left as it was.
-    private func editChatSettings(_ id: Int, _ changes: [String: Any]) -> Data {
-        let url = URL(fileURLWithPath: CarrierPlaces(folder: home).chatConfig)
-        var file: [String: Any] = [:]
-        if let data = try? Data(contentsOf: url) {
-            guard let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
-                return Self.refused(id, "config.problem", "chat.json is not a JSON object, so it was not changed", ["path": "(file)", "problem": "notAnObject"])
-            }
-            file = object
-        }
-        for (key, value) in changes { file[key] = value is NSNull ? nil : value }
-        func refusal(_ path: String, _ problem: String, _ words: String) -> Data {
-            Self.refused(id, "config.problem", "\(path): \(words)", ["path": .string(path), "problem": .string(problem)])
-        }
-        /// the days of an age: nil for "never" or a key that is not there, and whether the value is one the schema takes
-        func age(_ key: String) -> (days: Int?, valid: Bool) {
-            guard let value = file[key], value as? String != "never" else { return (nil, true) }
-            guard let days = value as? Int, days > 0 else { return (nil, false) }
-            return (days, true)
-        }
-        let (archive, delete) = (age("archiveAfterDays"), age("deleteAfterDays"))
-        guard archive.valid else { return refusal("archiveAfterDays", "too_small", "Too small: expected number to be >0") }
-        guard delete.valid else { return refusal("deleteAfterDays", "too_small", "Too small: expected number to be >0") }
-        if let start = file["worktreeStart"], ["remote", "local"].contains(start as? String ?? "") == false { return refusal("worktreeStart", "invalid_value", "Invalid option: expected one of \"remote\"|\"local\"") }
-        if let idle = file["idleCloseMinutes"], [10, 30, 60].contains(idle as? Int ?? 0) == false { return refusal("idleCloseMinutes", "invalid_union", "must be 10, 30 or 60 (minutes)") }
-        if let archive = archive.days, let delete = delete.days, delete <= archive { return refusal("deleteAfterDays", "custom", "must be greater than archiveAfterDays") }
-        guard let data = try? JSONSerialization.data(withJSONObject: file, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]), (try? data.write(to: url, options: .atomic)) != nil else {
-            return Self.refused(id, "request.internal", "internal error")
-        }
-        return Self.answer(id, ["saved": changes.keys.reduce(into: [String: Any]()) { $0[$1] = file[$1] }])
-    }
-
-    /// The golden check of a worktree name: free unless `chat-names.json` says why not.
-    private func nameCheck(_ name: String) -> [String: Any] {
-        (chatNames["checks"] as? [String: [String: Any]])?[name] ?? chatNames["free"] as? [String: Any] ?? ["valid": true, "free": true]
-    }
-
-    /// `open`: a session in memory, in a worktree of the folder when asked; refused as the host does. A plan opens the same session with its
-    /// text already sent and every step done at once.
-    private func openPlan(_ id: Int, _ plan: [String: Any]) -> Data {
-        let place = plan["workspace"] as? [String: Any]
-        // a repository is cloned by the host under its projects folder, which the fixture only names
-        let folder = place?["folder"] as? String ?? (place?["repo"] as? String).map { "/Users/dev/projects/\($0)" }
-        guard let folder, let text = plan["text"] as? String else { return Self.refused(id, "request.invalid", "invalid request") }
-        var request: [String: Any] = ["agent": plan["agent"] as Any, "folder": folder]
-        if var from = plan["branch"] as? String {
-            // as the host does: a remote start of a branch the repository lists as `origin/<name>` is cut from that ref
-            let listed = (chatWorkspaces[folder]?["branches"] as? [[String: Any]])?.compactMap { $0["name"] as? String } ?? []
-            if (plan["worktree"] as? [String: Any])?["startFrom"] as? String == "remote", from.hasPrefix("origin/") == false, listed.contains("origin/\(from)") { from = "origin/\(from)" }
-            request["worktree"] = ["from": from, "name": (plan["worktree"] as? [String: Any])?["name"] as Any].compactMapValues { $0 is NSNull ? nil : $0 }
-        }
-        let opened = open(id, request)
-        guard let reply = (try? JSONSerialization.jsonObject(with: opened.dropLast())) as? [String: Any], reply["ok"] as? Bool == true,
-            let session = (reply["data"] as? [String: Any])?["session"] as? [String: Any], let sessionId = session["id"] as? String else { return opened }
-        let now = Int(Date().timeIntervalSince1970 * 1000)
-        locked {
-            chatConversations[sessionId, default: ([], "")].events = ["agent", "message"].enumerated().map { at, step in
-                ["id": at + 1, "at": now, "kind": "step", "step": step, "status": "done"]
-            } + [["id": 3, "at": now, "kind": "user", "text": text]]
-        }
-        return opened
-    }
-
-    /// As the host does: an idle session takes another listed agent and gets the notice of the switch; a working or waiting one, the agent it has and one that is not listed are refused.
-    private func switchAgent(_ id: Int, _ session: String, to agent: String) -> Data {
-        guard let chosen = ((try? JSONSerialization.jsonObject(with: chatAgents)) as? [[String: Any]])?.first(where: { $0["name"] as? String == agent }) else {
-            return Self.refused(id, "agent.unknown", "There is no chat agent named \"\(agent)\"", ["agent": .string(agent)])
-        }
-        return locked {
-            guard let at = chatSessions.firstIndex(where: { $0["id"] as? String == session }) else { return Self.refused(id, "session.unknown", "There is no such session") }
-            let from = chatSessions[at]["agent"] as? String ?? ""
-            let state = chatSessions[at]["state"] as? String
-            if state != "idle" { return Self.refused(id, "session.switchAgent.busy", "This session is \(state == "working" ? "working" : "waiting for an approval"); interrupt it or wait, then switch its agent", ["state": .string(state ?? "")]) }
-            if from == agent { return Self.refused(id, "session.switchAgent.same", "This session already has the agent \"\(agent)\"", ["agent": .string(agent)]) }
-            if chosen["found"] as? Bool == false { return Self.refused(id, "agent.notFound", "The agent \"\(agent)\" is not found on this machine", ["agent": .string(agent)]) }
-            chatSessions[at]["agent"] = agent
-            chatSessions[at]["harness"] = chosen["harness"] as? String ?? agent
-            chatSessions[at]["live"] = true
-            let events = chatConversations[session]?.events ?? []
-            let notice: [String: Any] = ["id": (events.last?["id"] as? Int ?? 0) + 1, "at": Int(Date().timeIntervalSince1970 * 1000), "kind": "notice", "text": "The agent changed from \(from) to \(agent).", "switched": ["from": from, "to": agent]]
-            chatConversations[session, default: ([], "")].events = events + [notice]
-            var summary = chatSessions[at]
-            for key in ["live", "kept", "deleteAt", "lastMessage", "turns", "model"] { summary[key] = nil }
-            return Self.answer(id, ["session": summary, "options": [Any]()])
-        }
-    }
-
-    private func open(_ id: Int, _ request: [String: Any]) -> Data {
-        guard let agent = request["agent"] as? String, let folder = request["folder"] as? String else { return Self.refused(id, "request.invalid", "invalid request") }
-        guard let chosen = ((try? JSONSerialization.jsonObject(with: chatAgents)) as? [[String: Any]])?.first(where: { $0["name"] as? String == agent }) else {
-            return Self.refused(id, "agent.unknown", "There is no chat agent named \"\(agent)\"", ["agent": .string(agent)])
-        }
-        var session: [String: Any] = [
-            "id": UUID().uuidString.lowercased(), "agent": agent, "harness": chosen["harness"] as? String ?? agent, "folder": folder, "workspace": ["kind": "folder"],
-            "state": "idle", "createdAt": Int(Date().timeIntervalSince1970 * 1000), "lastActiveAt": Int(Date().timeIntervalSince1970 * 1000), "archived": false, "live": true,
-        ]
-        if let worktree = request["worktree"] as? [String: Any] {
-            guard let info = chatWorkspaces[folder], info["git"] as? Bool == true, info["bare"] as? Bool != true else { return Self.refused(id, "worktree.notGit", "Worktrees need a git repository") }
-            let from = worktree["from"] as? String ?? ""
-            guard (info["branches"] as? [[String: Any]])?.contains(where: { $0["name"] as? String == from }) == true else {
-                return Self.refused(id, "worktree.startNotListed", "The branch to start from is not one this repository lists")
-            }
-            let names = chatNames["suggestions"] as? [String] ?? []
-            let name = worktree["name"] as? String ?? names.first ?? "worktree"
-            let check = nameCheck(name)
-            guard check["valid"] as? Bool == true, check["free"] as? Bool == true else { return Self.refused(id, check["code"] as? String ?? "request.invalid", check["reason"] as? String ?? "That name cannot be used") }
-            let path = "/Users/dev/.carrier/chat/worktrees/local/\(URL(fileURLWithPath: folder).lastPathComponent)/\(name)"
-            session["folder"] = path
-            session["workspace"] = ["kind": "worktree", "branch": "carrier/\(name)", "from": from, "base": folder, "path": path]
-        }
-        locked { chatSessions.insert(session, at: 0) }
-        return Self.answer(id, ["session": session, "options": [Any]()])
-    }
-
-    /// The golden `providers` reply as `<home>/providers.json` leaves it, so an Add, an edit or a Remove made in the app shows in the page as it
-    /// would against a real host: an account of the file is listed (what the golden reply knows of its name, else what this Mac has of its
-    /// harness) with the file's display name, binary, folder; a harness the file gives no account is "found, not added".
-    private func providersReply() -> [String: Any] {
-        var reply = chatProviders
-        let whole = (try? ProvidersFile(folder: home).read()).flatMap { $0 }
-            .flatMap { (try? JSONSerialization.jsonObject(with: $0)) as? [String: Any] }
-        let file = whole?["providers"] as? [String: [String: Any]] ?? [:]
-        // the generator in use, as the host reads it: the entry `textGenerator` names
-        reply["textGenerator"] = (whole?["textGenerator"] as? String).flatMap { name in
-            (whole?["textGenerators"] as? [String: [String: Any]])?[name].map { ["name": name].merging($0) { $1 } }
-        }
-        let golden = reply["accounts"] as? [[String: Any]] ?? []
-        let unadded = reply["unadded"] as? [[String: Any]] ?? []
-        // what this Mac has of each harness
-        var seen: [String: [String: Any]] = [:]
-        for entry in golden + unadded {
-            guard let harness = entry["harness"] as? String, seen[harness] == nil else { continue }
-            seen[harness] = ["path": entry["path"] ?? "", "version": entry["version"] as Any]
-        }
-        // the golden reply's accounts keep their order, those the app added follow by name
-        let goldenNames = golden.compactMap { $0["name"] as? String }
-        let order = goldenNames.filter { file[$0] != nil } + file.keys.filter { goldenNames.contains($0) == false }.sorted()
-        reply["accounts"] = order.compactMap { name -> [String: Any]? in
-            guard let account = file[name], let harness = account["harness"] as? String else { return nil }
-            var entry = golden.first { $0["name"] as? String == name }
-                ?? ["name": name, "harness": harness, "found": seen[harness] != nil, "path": seen[harness]?["path"] ?? "", "state": "unknown"]
-            if entry["version"] == nil, let version = seen[harness]?["version"] as? String { entry["version"] = version }
-            for key in ["displayName", "command", "configDir"] { entry[key] = account[key] }
-            return entry
-        }
-        let taken = Set(file.values.compactMap { $0["harness"] as? String })
-        reply["unadded"] = seen.keys.sorted().filter { taken.contains($0) == false }.map { harness in
-            var entry: [String: Any] = ["harness": harness, "path": seen[harness]?["path"] ?? ""]
-            if let version = seen[harness]?["version"] as? String { entry["version"] = version }
-            return entry
-        }
-        return reply
-    }
-
     static func answer(_ id: Int, _ data: Any) -> Data {
         let body = (try? JSONSerialization.data(withJSONObject: data, options: .sortedKeys)).map { String(decoding: $0, as: UTF8.self) } ?? "null"
         return line("{\"id\":\(id),\"ok\":true,\"data\":" + body + "}")
@@ -844,27 +308,10 @@ public final class FixtureServer {
         return line(String(decoding: (try? JSONSerialization.data(withJSONObject: reply, options: .sortedKeys)) ?? Data(), as: UTF8.self))
     }
 
-    private func locked<Value>(_ body: () -> Value) -> Value {
-        lock.lock()
-        defer { lock.unlock() }
-        return body()
-    }
-
     /// The approvals asked and not answered yet, as the host lists them in `events`.
-    private static func pending(_ events: [[String: Any]]) -> [[String: Any]] {
+    static func pending(_ events: [[String: Any]]) -> [[String: Any]] {
         let answered = Set(events.filter { $0["kind"] as? String == "approval_answered" }.compactMap { $0["approvalId"] as? String })
         return events.filter { $0["kind"] as? String == "approval" && answered.contains($0["approvalId"] as? String ?? "") == false }
-    }
-
-    private static func line(_ text: String) -> Data { Data((text + "\n").utf8) }
-
-    private func send(_ data: Data, to fd: Int32) -> Bool {
-        var sent = 0
-        while sent < data.count {
-            let n = data.withUnsafeBytes { write(fd, $0.baseAddress! + sent, data.count - sent) }
-            if n > 0 { sent += n } else if n < 0 && errno == EINTR { continue } else { return false }
-        }
-        return true
     }
 }
 

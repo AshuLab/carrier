@@ -76,7 +76,7 @@ struct CheckButton: View {
             face(.done) { ResultMark(kind: .check, tint: ResultMark.green, shown: phase == .done); Text("Up to date") }
             face(.failed) { ResultMark(kind: .cross, tint: ResultMark.red, shown: phase == .failed); Text("Check failed") }
         }
-        .font(.scaled(12, weight: .medium))
+        .scaledFont(12, weight: .medium)
         .accessibilityElement(children: .ignore).accessibilityLabel(words)
     }
 

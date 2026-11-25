@@ -28,10 +28,10 @@ struct ToolbarPillButton: View {
                 } else if let icon {
                     Glyph(icon, size: 12).foregroundStyle(iconTint ?? .primary).glyphSpinning(spinning)
                 }
-                Text(title).font(.scaled(12, weight: .medium))
+                Text(title).scaledFont(12, weight: .medium)
                 if badge > 0 {
-                    Text("\(badge)").font(.scaled(10, weight: .semibold)).monospacedDigit().foregroundStyle(.white)
-                        .padding(.horizontal, 6).padding(.vertical, 1).background(Capsule().fill(Color.themeAccent))
+                    Text("\(badge)").scaledFont(10, weight: .semibold).monospacedDigit().foregroundStyle(.white)
+                        .padding(.horizontal, 6).padding(.vertical, 1).background(Capsule().fill(.tint))
                         .accessibilityLabel("\(badge) filters applied")
                 }
             }
@@ -65,7 +65,7 @@ struct AccentGlassPillButton: View {
         Button(action: action) {
             HStack(spacing: 5) {
                 if let icon { Glyph(icon, size: 11) }
-                Text(title).font(.scaled(12, weight: .medium))
+                Text(title).scaledFont(12, weight: .medium)
             }
             .foregroundStyle(.white)
             .padding(.horizontal, 13)
@@ -92,10 +92,10 @@ struct ToolbarGlassIconButton: View {
     var body: some View {
         Button(action: action) {
             Glyph(icon, size: 12)
-                .foregroundStyle(active ? Color.themeAccent : .primary)
+                .foregroundStyle(active ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary))
                 .padding(.horizontal, 10)
                 .frame(height: ToolbarPillButton.height)
-                .background(Capsule().fill(active ? Color.themeAccent.opacity(0.18) : Color.primary.opacity(hovered && enabled ? 0.1 : 0)))
+                .background(Capsule().fill(active ? AnyShapeStyle(.tint.opacity(0.18)) : AnyShapeStyle(Color.primary.opacity(hovered && enabled ? 0.1 : 0))))
                 .contentShape(Capsule())
         }
         .buttonStyle(.plain)
@@ -124,7 +124,7 @@ struct ToolbarSearchField: View {
                     .accessibilityHidden(true)
                 TextField(placeholder, text: Binding(get: { query ?? "" }, set: { query = $0 }))
                     .textFieldStyle(.plain)
-                    .font(.scaled(12))
+                    .scaledFont(12)
                     .focused(focused)
                     .onKeyPress(.escape) {
                         dismiss()

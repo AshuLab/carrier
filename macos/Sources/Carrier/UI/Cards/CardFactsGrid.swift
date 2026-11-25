@@ -17,7 +17,7 @@ struct CardFactsGrid<Extra: View>: View {
                     VStack(alignment: .leading, spacing: 2) {
                         value(facts[index])
                         if let detail = facts[index].detail {
-                            Text(detail).font(.scaled(10, design: .monospaced)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
+                            Text(detail).scaledFont(10, design: .monospaced).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -33,11 +33,11 @@ struct CardFactsGrid<Extra: View>: View {
         case .text:
             Text(fact.value).fixedSize(horizontal: false, vertical: true)
         case .path:
-            Text(fact.value).font(.scaled(10.5, design: .monospaced)).lineLimit(1).truncationMode(.middle).help(fact.value).textSelection(.enabled)
+            Text(fact.value).scaledFont(10.5, design: .monospaced).lineLimit(1).truncationMode(.middle).help(fact.value).textSelection(.enabled)
         case .branch:
             HStack(spacing: 5) {
                 Glyph(.gitBranch, size: 10).foregroundStyle(.secondary).accessibilityHidden(true)
-                Text(fact.value).font(.scaled(10.5, design: .monospaced)).lineLimit(1).truncationMode(.middle).textSelection(.enabled)
+                Text(fact.value).scaledFont(10.5, design: .monospaced).lineLimit(1).truncationMode(.middle).textSelection(.enabled)
             }
             .help(fact.value)
         case .agent:

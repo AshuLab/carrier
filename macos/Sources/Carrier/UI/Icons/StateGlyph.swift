@@ -44,7 +44,7 @@ struct Disc: View {
             Glyph(stateSymbol(shape), size: size).foregroundStyle(color)
         } else {
             Circle().fill(color).frame(width: size, height: size)
-                .overlay { Text(mark).font(.scaled(size * 0.55, weight: .heavy)).foregroundStyle(.white) }
+                .overlay { Text(mark).scaledFont(size * 0.55, weight: .heavy).foregroundStyle(.white) }
         }
     }
 }
@@ -62,7 +62,7 @@ struct StateMark: View {
         if byShape, let shape {
             Glyph(stateSymbol(shape), size: size, bold: true)
         } else if text.isEmpty == false {
-            Text(text).font(.scaled(size, weight: weight))
+            Text(text).scaledFont(size, weight: weight)
         }
     }
 }

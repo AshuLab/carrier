@@ -48,7 +48,8 @@ A squash merge is never in main, so for it only the saved pull request says Merg
 The remote default branch is what `refs/remotes/origin/HEAD` points at: with no `origin/HEAD` the host does not guess `main` and no worktree says In main, and the host does not fetch, so a stale `origin/main` can only say In main too seldom.
 The pull request is the one saved on the session, whatever the integration says, and its number (`PR #1495`, the piece of a session's pull request) opens its page on GitHub; a worktree with no session or no pull request saved has none.
 A detached HEAD has no branch to hold its commits, so those that no branch holds count as Not pushed.
-The host does not refresh the saved pull request when the page opens, so a pull request that merged since the session last looked is still PR open until the sweep sees it.
+The page refreshes the pull request state when it opens: the host asks GitHub, in one request, for every session of the listed worktrees whose saved pull request is open or draft, archived sessions included and whatever the age of the saved state, before it says the chips (`projectWorktrees` and `cleanProjectWorktrees`, with or without `run`), so a worktree whose pull request merged says Merged when the page opens.
+When GitHub cannot answer, the saved state shows, the list still opens and the host logs the failure; a project with no open pull request asks nothing, and Remove does not ask.
 A worktree with a detached HEAD says "Detached HEAD" for its branch.
 The host answers it when the page opens (`projectWorktrees`, behind the `projects` and `worktreeIntegration` capabilities): only worktrees git lists for the project's folder that lie under Carrier's worktrees folder and are still on disk, so one git still lists whose folder is gone is not shown.
 A host without them says what a host that predates `projects` says (restart it), and no chip is drawn; a folder git cannot read shows the host's reason in orange in the group.

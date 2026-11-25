@@ -44317,19 +44317,19 @@
         }
       }
     },
-    "projectsWorktreeStateClean": {
+    "projectsWorktreeStateInMain": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Clean"
+            "value": "In main"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Limpio"
+            "value": "En main"
           }
         }
       }
@@ -44381,6 +44381,57 @@
           "stringUnit": {
             "state": "translated",
             "value": "Sesión abierta"
+          }
+        }
+      }
+    },
+    "projectsWorktreeStatePrClosed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PR closed"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PR cerrado"
+          }
+        }
+      }
+    },
+    "projectsWorktreeStatePrOpen": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PR open"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PR abierto"
+          }
+        }
+      }
+    },
+    "projectsWorktreeStatePushed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pushed"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Subido"
           }
         }
       }

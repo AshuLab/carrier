@@ -35,7 +35,7 @@ import { createProject, projectFolder, type createProjects } from './projects.ts
 import type { PullRequests } from './pull-requests.ts';
 import { createSessionData } from './session-data.ts';
 import { githubWorkOf } from './shell-effects.ts';
-import { clearWorktree, createWorktree, deleteWorktree, folderBytes, headDetached, hiddenWork, isWorktreeFolder, listWorktrees, previewMain, previewWorktree, REMOVE_TIMEOUT_MS, removeWorktree, restoreWorktree } from './worktree.ts';
+import { clearWorktree, createWorktree, deleteWorktree, detachedUnpushed, folderBytes, headDetached, hiddenWork, isAncestor, isWorktreeFolder, listWorktrees, previewMain, previewWorktree, REMOVE_TIMEOUT_MS, removeWorktree, restoreWorktree } from './worktree.ts';
 import { worktreesDir } from './names.ts';
 import { checkout, FETCH_FRESH_MS, fetchFolder, inspectFolder } from './workspace.ts';
 
@@ -74,8 +74,17 @@ export type TitleSource = NonNullable<(typeof sessions.$inferSelect)['titleSourc
 /** Where a session works: the folder it was opened in, or a worktree made for it from that base folder. */
 export type SessionWorkspace = { kind: 'folder' } | { kind: 'worktree'; branch: string; from: string; base: string; path: string };
 
-/** One worktree of a project's page: the session that made it (or none) and its state, see `projectWorktrees`. */
-export type ProjectWorktree = { path: string; branch: string | null; session: { id: string; title: string | null } | null; lastActiveAt: number; state: 'sessionOpen' | 'uncommitted' | 'merged' | 'notPushed' | 'clean' };
+/** One worktree of a project's page: the session that made it (or none), what is happening to it and where its work stands, see `projectWorktrees`. */
+export type ProjectWorktree = {
+  path: string;
+  branch: string | null;
+  session: { id: string; title: string | null } | null;
+  lastActiveAt: number;
+  activity: 'sessionOpen' | 'uncommitted' | null;
+  integration: 'merged' | 'inMain' | 'notPushed' | 'prOpen' | 'prClosed' | 'pushed';
+  /** The session's saved pull request; null with no session or none linked. */
+  pullRequest: { number: number; url: string } | null;
+};
 /** What the project's own folder holds that would be lost with it: uncommitted changes, commits on its branch that no other branch or remote holds, else clean. */
 export type ProjectWorktrees = { main: { path: string; branch: string | null; state: 'uncommitted' | 'notPushed' | 'clean' }; worktrees: ProjectWorktree[] };
 
@@ -341,15 +350,24 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
     const root = real(worktreesDir()) + sep;
     const bySession = new Map(db.select().from(sessions).where(and(eq(sessions.workspaceKind, 'worktree'), isNull(sessions.parentSessionId))).all().map((found) => [real(found.worktreePath!), found]));
     const entries: Entry[] = [];
-    // one worktree after another: each reads two git processes, and this is one project's page opening
+    // the remote default branch, which `origin/HEAD` points at; with none (or one pointing at a branch that is not there) nothing is in main, the host does not guess `main`
+    const remoteHead = await git.run(base, ['rev-parse', '--verify', '--quiet', 'refs/remotes/origin/HEAD^{commit}']);
+    const remoteTip = remoteHead.ok ? remoteHead.out.trim() : null;
+    // one worktree after another: each reads a few git processes, and this is one project's page opening
     for (const { path, branch } of linked) {
       if (existsSync(path) === false || real(path).startsWith(root) === false) continue;
       const found = bySession.get(real(path));
       const family = found === undefined ? undefined : familyClock(found);
-      // a detached HEAD has no branch to hold commits, so only its files count
-      const { dirty, unpushed } = await previewWorktree(git, { path, branch: branch ?? '', from: '', base }, branch === null ? [] : [branch]);
-      const state = family?.live ? 'sessionOpen' : dirty > 0 ? 'uncommitted' : found?.prState === 'merged' ? 'merged' : unpushed > 0 ? 'notPushed' : 'clean';
-      const worktree: ProjectWorktree = { path, branch, session: found === undefined ? null : { id: found.id, title: found.title }, lastActiveAt: family?.lastActiveAt ?? statSync(path).mtimeMs, state };
+      const preview = await previewWorktree(git, { path, branch: branch ?? '', from: '', base }, branch === null ? [] : [branch]);
+      const { dirty } = preview;
+      // a detached HEAD has no branch to hold its commits: those that no branch holds are not pushed
+      const unpushed = branch === null ? await detachedUnpushed(git, path) : preview.unpushed;
+      const inMain = remoteTip !== null && (await isAncestor(git, path, remoteTip));
+      const pr = found?.prState;
+      const activity = family?.live ? 'sessionOpen' : dirty > 0 ? 'uncommitted' : null;
+      const integration = pr === 'merged' ? 'merged' : inMain ? 'inMain' : unpushed > 0 ? 'notPushed' : pr === 'open' || pr === 'draft' ? 'prOpen' : pr === 'closed' ? 'prClosed' : 'pushed';
+      const pullRequest = found?.prNumber != null && found.prUrl != null ? { number: found.prNumber, url: found.prUrl } : null;
+      const worktree: ProjectWorktree = { path, branch, session: found === undefined ? null : { id: found.id, title: found.title }, lastActiveAt: family?.lastActiveAt ?? statSync(path).mtimeMs, activity, integration, pullRequest };
       entries.push({ worktree, found, live: family?.live === true, dirty });
     }
     return { base, main: { path: base, branch: main?.branch ?? null }, entries };
@@ -1835,8 +1853,9 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
     /**
      * A project's worktrees for its page: the main clone and each worktree git lists for the project's folder that lies under the worktrees folder and is still on disk,
      * joined to the session whose worktree it is (none for an orphan). Its age is the session's last activity, or the folder's modification time with no session.
-     * The state, in this order: the session is open, it has uncommitted changes, its session's pull request is merged (so a squash merge is not "not pushed"),
-     * it has commits no other branch holds, else clean. The main clone says only whether it has uncommitted changes, commits on its branch that no remote holds, or neither,
+     * Each worktree says its activity (its session is open, else it has uncommitted changes, else none) and its integration, the first that applies: its session's saved pull request
+     * is merged (so a squash merge is not "not pushed"), its HEAD is in the remote default branch (`origin/HEAD`, never guessed), it has commits no other branch holds
+     * (a detached HEAD's commits that no branch holds), its pull request is open or draft, closed, else pushed. The main clone says only whether it has uncommitted changes, commits on its branch that no remote holds, or neither,
      * which is what the app reads before it moves a project to the Trash.
      */
     async projectWorktrees({ folder }: { folder: string }): Promise<ProjectWorktrees> {

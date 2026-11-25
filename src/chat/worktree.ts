@@ -168,6 +168,25 @@ export async function previewWorktree(git: Git, made: MadeWorktree, batch: strin
   return { dirty: countPorcelain(status.out), unpushed: parseCount(ahead.out) };
 }
 
+/** The commits of a detached worktree's HEAD that no branch and no remote branch holds: `previewWorktree` has no branch to count from. */
+export async function detachedUnpushed(git: Git, path: string): Promise<number> {
+  const ahead = await git.run(path, ['rev-list', '--count', 'HEAD', '--not', '--branches', '--remotes']);
+  if (ahead.ok === false) {
+    log.error('git could not read a detached worktree to count its unpushed commits', { code: ahead.code });
+    throw new ChatRefused('worktree.unreadable', 'Git could not read the worktree of a session');
+  }
+  return parseCount(ahead.out);
+}
+
+/** Whether the worktree's HEAD is an ancestor of `commit` (or is it), by git alone. */
+export async function isAncestor(git: Git, path: string, commit: string): Promise<boolean> {
+  const result = await git.run(path, ['merge-base', '--is-ancestor', 'HEAD', commit]);
+  if (result.ok) return true;
+  if (result.code === 1) return false; // git's answer for "no"
+  log.error('git could not tell whether a worktree is in the remote default branch', { code: result.code, timedOut: result.timedOut === true });
+  throw new ChatRefused('worktree.unreadable', 'Git could not read the worktree of a session');
+}
+
 /** What moving a project's own folder to the Trash would lose: the lines `git status --porcelain` prints in it and the commits of its branch that no remote branch holds (all of them with no remote). No branch, or one with no commits yet, has none. */
 export async function previewMain(git: Git, folder: string, branch: string | null): Promise<{ dirty: number; unpushed: number }> {
   const hasBranch = branch !== null && (await branchExists(git, folder, branch));

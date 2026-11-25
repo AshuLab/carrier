@@ -115,7 +115,7 @@ extension FixtureServer {
             guard let folder = request?["folder"] as? String, let path = request?["path"] as? String else { break }
             let listed = chatProjectWorktrees[(folder as NSString).lastPathComponent]?["worktrees"] as? [[String: Any]] ?? []
             guard let found = listed.first(where: { $0["path"] as? String == path }), locked({ removedWorktrees.contains(path) }) == false else { return Self.refused(id, "worktree.unknown", "That is not a worktree of this project") }
-            switch found["state"] as? String {
+            switch found["activity"] as? String {
             case "sessionOpen": return Self.refused(id, "worktree.sessionOpen", "Its session is open")
             case "uncommitted": return Self.refused(id, "worktree.uncommitted", "It has uncommitted changes")
             default:

@@ -2,11 +2,12 @@
   "carrier": {
     "main": { "path": "/Users/dev/projects/carrier", "branch": "main", "state": "notPushed" },
     "worktrees": [
-      { "path": "/Users/dev/.carrier/chat/worktrees/AshuLab/carrier/kerrigan", "branch": "carrier/kerrigan", "session": { "id": "s-open", "title": "Add the retry button" }, "lastActiveAt": 1792000000000, "state": "sessionOpen" },
-      { "path": "/Users/dev/.carrier/chat/worktrees/AshuLab/carrier/raynor", "branch": "carrier/raynor", "session": { "id": "s-done", "title": "Fix the sync loop" }, "lastActiveAt": 1791000000000, "state": "merged" },
-      { "path": "/Users/dev/.carrier/chat/worktrees/AshuLab/carrier/zeratul", "branch": "carrier/zeratul", "session": { "id": "s-wip", "title": "Spike the new panel" }, "lastActiveAt": 1790500000000, "state": "uncommitted" },
-      { "path": "/Users/dev/.carrier/chat/worktrees/AshuLab/carrier/artanis", "branch": "carrier/artanis", "session": { "id": "s-ahead" }, "lastActiveAt": 1790000000000, "state": "notPushed" },
-      { "path": "/Users/dev/.carrier/chat/worktrees/AshuLab/carrier/tassadar", "branch": "carrier/tassadar", "session": null, "lastActiveAt": 1780000000000, "state": "clean" }
+      { "path": "/Users/dev/.carrier/chat/worktrees/AshuLab/carrier/kerrigan", "branch": "carrier/kerrigan", "session": { "id": "s-open", "title": "Add the retry button" }, "lastActiveAt": 1792000000000, "activity": "sessionOpen", "integration": "prOpen", "pullRequest": { "number": 1496, "url": "https://github.com/AshuLab/carrier/pull/1496" } },
+      { "path": "/Users/dev/.carrier/chat/worktrees/AshuLab/carrier/raynor", "branch": "carrier/raynor", "session": { "id": "s-done", "title": "Fix the sync loop" }, "lastActiveAt": 1791000000000, "activity": null, "integration": "merged", "pullRequest": { "number": 1495, "url": "https://github.com/AshuLab/carrier/pull/1495" } },
+      { "path": "/Users/dev/.carrier/chat/worktrees/AshuLab/carrier/zeratul", "branch": "carrier/zeratul", "session": { "id": "s-wip", "title": "Spike the new panel" }, "lastActiveAt": 1790500000000, "activity": "uncommitted", "integration": "prClosed", "pullRequest": { "number": 1480, "url": "https://github.com/AshuLab/carrier/pull/1480" } },
+      { "path": "/Users/dev/.carrier/chat/worktrees/AshuLab/carrier/artanis", "branch": "carrier/artanis", "session": { "id": "s-ahead" }, "lastActiveAt": 1790000000000, "activity": null, "integration": "notPushed", "pullRequest": null },
+      { "path": "/Users/dev/.carrier/chat/worktrees/AshuLab/carrier/fenix", "branch": "carrier/fenix", "session": { "id": "s-pushed", "title": "Rename the sidebar groups" }, "lastActiveAt": 1789000000000, "activity": null, "integration": "pushed", "pullRequest": null },
+      { "path": "/Users/dev/.carrier/chat/worktrees/AshuLab/carrier/tassadar", "branch": "carrier/tassadar", "session": null, "lastActiveAt": 1780000000000, "activity": null, "integration": "inMain", "pullRequest": null }
     ]
   }
 }

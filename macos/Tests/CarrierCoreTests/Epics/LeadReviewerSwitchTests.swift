@@ -53,4 +53,11 @@ private func complete() -> LeadReviewerDraft {
     #expect(on.switchDetail(bundle: english.bundle, locale: english.locale).contains("removes the lead reviewer and its failover steps from the file"))
 }
 
+@Test func theSwitchRowTellsWhatOffDoesInSpanish() throws {
+    let off = try #require(agentsPage(config: Data(withoutLead.utf8), providers: nil, bots: ForgeBots(names: bots, note: nil))?.rows.first { $0.role == .leadReviewer })
+    #expect(off.switchDetail(bundle: spanish.bundle, locale: spanish.locale) == "Desactivado: el archivo no tiene revisor líder")
+    let on = try #require(agentsPage(config: Data(withLead.utf8), providers: nil, bots: ForgeBots(names: bots, note: nil))?.rows.first { $0.role == .leadReviewer })
+    #expect(on.switchDetail(bundle: spanish.bundle, locale: spanish.locale) == "Al desactivarlo se quitan del archivo el revisor líder y sus pasos de respaldo")
+}
+
 // MARK: the engine is asked to reload

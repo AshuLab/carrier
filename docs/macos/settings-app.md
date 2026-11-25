@@ -4,14 +4,14 @@ The pages of the App group of [Settings](settings.md).
 
 ## General
 
-The General page (`GeneralTabView` in `Carrier/SettingsTabs.swift`) changes the icon style, the animation and "Show epics in the menu" (`menu.iconStyle`, `menu.animate`, `menu.showEpics`); the keys of the App pages are read by `CarrierCore/AppPreferences.swift`.
+The General page (`GeneralTabView` in `Carrier/Features/Settings/GeneralTab.swift`) changes the icon style, the animation and "Show epics in the menu" (`menu.iconStyle`, `menu.animate`, `menu.showEpics`); the keys of the App pages are read by `CarrierCore/AppPreferences.swift`.
 The bar of the menu icon bounces only while the setting is on, the screens and the Mac are awake and Low Power Mode is off (`iconAnimates`).
 The window hiding does not stop it, as it is there to be seen with the window closed, but it costs the window server about four points of a core.
 The row says "except in Low Power Mode", so a switch that is on with no bounce is explained.
 
 ## Providers
 
-Settings has a Providers page (`Carrier/ProvidersTab.swift`, `SettingsPage.providers`, in the App group) for the AI providers of this Mac: Claude Code, Codex, Antigravity and the local servers LM Studio and Ollama.
+Settings has a Providers page (`Carrier/Features/Settings/Providers/ProvidersTab.swift`, `SettingsPage.providers`, in the App group) for the AI providers of this Mac: Claude Code, Codex, Antigravity and the local servers LM Studio and Ollama.
 It is three screens of one form, each a place of the window's history, so ‹ › and the toolbar's title follow them (`SettingsPlace`, `SettingsTitle`): the list, one provider, one account.
 The list (`providersDirectory`, `ProvidersDirectoryTests`) has a filter that finds a provider, an account or a server by its name, then **Accounts that need attention**, **AI providers**, **Local servers** and **Text generators**.
 An account needs attention when it is signed out or at 90 % or more of its 5h window (a provider that is not installed has none: there is nothing to sign in to); the first five are listed, the rest behind Show N more, and one opens straight at its account, with back going to its provider.
@@ -28,7 +28,7 @@ The state is the chat host's `providers` reply (`ProvidersStore`, asked when the
   The account's `command`, when set, is the binary that runs; it and the folder are accepted only as absolute paths, and a harness outside the list is refused before anything is written.
   With `--fixture` the opener is `FixtureTerminalOpener`: it logs the line to stderr (`carrier: fixture terminal: ...`) and removes the script, so nothing opens.
 
-- **Text generators** (the last group of the list, hidden while the filter has text; `textGeneratorsGroup` in `Carrier/ProvidersTab.swift`, the rows in `providersPage`, tested in `ProvidersPageTests`): the model that writes text for Carrier, a model of LM Studio or Ollama.
+- **Text generators** (the last group of the list, hidden while the filter has text; `textGeneratorsGroup` in `Carrier/Features/Settings/Providers/ProvidersTextGenerators.swift`, the rows in `providersPage`, tested in `ProvidersPageTests`): the model that writes text for Carrier, a model of LM Studio or Ollama.
   The first row, In use, says which one the host reports (`qwen3:8b on Ollama`, from the `textGenerator` of the `providers` reply) or "None chosen", and has Clear while one is.
   Under it each server has a row: "Not running" (it answers nothing; it cannot be chosen) or "No model loaded" (it runs with none) and nothing to choose, or a select with Not used and the models the server lists (LM Studio's embedding models left out, as in Local servers).
   The select shows the model in use on its server, even one the server no longer lists, and choosing another model replaces the choice; Not used on the server in use clears it.

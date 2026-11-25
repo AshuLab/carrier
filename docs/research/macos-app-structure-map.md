@@ -99,17 +99,17 @@ macos/Sources/
     App/          main, AppDelegate, WindowController, MainMenu, MenuControls, StatusMenuGroups, StatusHeaderView, SessionMenu, EpicMenuSection, KeepAwakeMenu, LaunchPhases, EngineIdentityStore, AppHealth
     Features/
       Lifecycle/  StartController, StartingView, RunningView, StoppedView, ChatHostStarter
-      Sessions/   SidebarView, SessionRowView, SessionSectionsView, SessionsHomeView, NewSessionView, WhereItWorksSheet, ArchiveView, ...
-      Chat/       ConversationView, TranscriptView, ChatToolGroupView, MessageBox, ComposerMenuButton, ModelPicker, ...
+      Sessions/   SidebarView, SidebarTab, SessionRowView, SessionSectionsView, SessionsHomeView, NewSessionView, WhereItWorksSheet, ArchiveView, ...
+      Chat/       ConversationView, ChatTab, TranscriptView, ChatToolGroupView, MessageBox, ComposerMenuButton, ModelPicker, ...
       Epics/      PanelView, EpicView, ReviewTabView, SlicesTabView, SliceCardView, FindingsCardView, InspectorTabsView, ...
-      Projects/   ProjectsTab, AddProjectSheet, BranchSheet, CleanupGroup, CleanupController
+      Projects/   ProjectsTab, ProjectDetailView, AddProjectSheet, BranchSheet, CleanupGroup, CleanupController, ...
       Terminal/   TerminalWorkspaceView, TerminalTabView, TerminalTabBarView, TerminalsHomeView, ...
       Dictation/  DictationWidget, DictationController, GlobalDictationController, DictationTab and its groups (History, Statistics, Recognition, Sounds, Storage, SpeechModels), ...
       Usage/      UsageView, UsageConsumptionView, ContextUsageButton
       KeepAwake/  KeepAwakeTab
       Updates/    UpdatePill
       Health/     HealthTab, HealthFixButton, SetupController
-      Settings/   SettingsWindow, its sidebar and search, General, Appearance, Notifications, Keybindings, About, NoticesGalleryView; Agents/, Watching/, Behavior/, Providers/, Engine/
+      Settings/   SettingsWindow, SettingsSidebar, SettingsPages, General, Appearance, Notifications, Keybindings, About, NoticesGalleryView; Agents/, Watching/, Behavior/, Providers/, Engine/
     Platform/     TerminalHost, CarrierTerminalView, TerminalAppearance, TerminalProcessInspector, CommandTextView, AppleRecognizer, FluidAudioRecognizer, WhisperKitRecognizer, MicrophoneCapture, CaptureConverter, DictationSoundPlayer, KeepAwakeController, GlobalHotKey, FocusedField, ClipboardPaste, SystemNotificationCentre, AppUpdater, IconController, MetricsSink, ProcessRun, BrewRunner, ShellDetector, ProgramVersions
 macos/Tests/
   CarrierCoreTests/<the same folders as CarrierCore>/
@@ -136,18 +136,18 @@ Under `CarrierUI`, the files hold whole pieces today; the pieces hidden in scree
 - `Carrier/Features/Sessions` [12]: SidebarView (617), SessionRowView (542), SessionSectionsView (386), SessionsHomeView (323), NewSessionView (268), SessionsTab (207), ArchiveView (196), SessionsSidebarView (184), ArchiveSection (122), SessionPullRequestChip (102), WhereItWorksSheet (71), SessionPlacePill (43).
 - `Carrier/Features/Chat` [20]: ConversationView (721), TranscriptView (661), ChatToolGroupView (653), MessageBox (416), ModelPicker (366), ComposerMenuButton (347), ChatQuestionView (199), AttachmentChip (145), JSONMessageView (123), ChatApprovalView (97), ConversationTimeline (88), SubagentRowView (85), AudioPlayerView (82), SessionPeekView (81), SubagentView (80), AttachmentPreview (66), SubagentHeaderView (66), AgentSwitchDivider (48), ContextCutDivider (41), ChatSurface (33).
 - `Carrier/Features/Epics` [15]: PanelView (523), EpicView (323), ReviewTabView (263), FilesChangedView (244), FindingsCardView (195), SlicesTabView (171), PreparationStepsView (166), SliceCardView (156), DetailsTabView (126), EpicCardView (72), ResumeCardView (57), YourTurnView (53), InspectorTabsView (40), QueuedPlanView (34), UpNextView (29).
-- `Carrier/Features/Projects` [5]: ProjectsTab (1,148), AddProjectSheet (636), BranchSheet (260), CleanupGroup (169), CleanupController (60).
+- `Carrier/Features/Projects` [5]: ProjectsTab (1,148, split: `ProjectDetailView` with its Worktrees and Start extensions, `ProjectIdentityParts`, `ProjectActionsView`, `DiskBar`), AddProjectSheet (636, split: `AddProjectNew`, `AddProjectResults`, `AddProjectGithub`), BranchSheet (260), CleanupGroup (169), CleanupController (60).
 - `Carrier/Features/Terminal` [7]: TerminalWorkspaceView (814), TerminalTabView (511), TerminalTabBarView (420), TerminalsHomeView (188), TerminalSidebarView (186), TerminalConfirmationCopy (181), ContinueInTerminalView (56).
 - `Carrier/Features/Dictation` [17]: DictationWidget (501), DictationController (371), GlobalDictationGroup (311), HistoryGroup (237), StatisticsGroup (219), SpeechModelsTable (162), DictationTab (142), GlobalDictationController (122), DictationIndicator (102), DictationStatusCard (95), PastedTextCard (74), DictationButton (64), RecognitionGroups (54), SpeechModelsGroup (43), DictationFixtures (41), SoundsGroup (34), StorageGroup (16).
 - `Carrier/Features/Usage` [3]: UsageConsumptionView (503), UsageView (308), ContextUsageButton (129).
 - `Carrier/Features/KeepAwake` [1]: KeepAwakeTab (82).
 - `Carrier/Features/Updates` [1]: UpdatePill (106).
 - `Carrier/Features/Health` [3]: HealthTab (127), SetupController (82), HealthFixButton (37).
-- `Carrier/Features/Settings` [5]: SettingsTabs (1,494, split: its pages to their folders, its pieces to `CarrierUI`), SettingsWindow (582), AboutTab (144), NoticesGalleryView (127), KeybindingsTab (119).
+- `Carrier/Features/Settings` [5]: SettingsTabs (1,494, split: its pieces to `CarrierUI`, General, Appearance (with `ThemeGallery`, `AccentSwatches`) and Notifications (`NotificationsTabView`, the name `NotificationsTab` is `CarrierCore`'s) to `Settings/`, the toolbar's state to `SettingsToolbarState`, the Sidebar page to `Sessions/SidebarTab`, the Chat page to `Chat/ChatTab`), SettingsWindow (582, split: `SettingsSidebar`, `SettingsPages`, `EngineParts`), AboutTab (144), NoticesGalleryView (127), KeybindingsTab (119).
 - `Carrier/Features/Settings/Agents` [4]: AgentsTab (392), AgentsParts (228), RoleAvatar (132), CreateBotRow (26).
 - `Carrier/Features/Settings/Watching` [6]: WatchingTab (277), WatchingListScreen (172), WatchingRole (123), WatchingRepoScreen (91), WatchedReposView (68), WatchingBanner (36).
 - `Carrier/Features/Settings/Behavior` [1]: BehaviorTab (276, split: its button styles and `NumberField` to `CarrierUI`).
-- `Carrier/Features/Settings/Providers` [2]: ProvidersTab (553), ProvidersEditor (300).
+- `Carrier/Features/Settings/Providers` [2]: ProvidersTab (553, split: `ProvidersTextGenerators`, `ProvidersParts`), ProvidersEditor (300).
 - `Carrier/Platform` [23]: TerminalHost (1,013), CommandTextView (528), FluidAudioRecognizer (273), KeepAwakeController (262), TerminalProcessInspector (258), AppUpdater (199), IconController (194), WhisperKitRecognizer (183), SystemNotificationCentre (143), AppleRecognizer (139), TerminalAppearance (127), MicrophoneCapture (82), CarrierTerminalView (81), GlobalHotKey (75), FocusedField (74), ClipboardPaste (69), ShellDetector (49), BrewRunner (44), CaptureConverter (35), ProgramVersions (32), MetricsSink (28), ProcessRun (27), DictationSoundPlayer (15).
 - `CarrierUI` [27]: CodeBlockView (234), Icons (229), SpinningRing (208), ScaledFont (158), ToolbarPillButton (156), NoticeCard (147), HoverCard (146), CheckButton (134), MiddleClickModifier (125), EmptyStateView (113), SheetParts (96), AppTheme (95), StateGlyph (82), OverviewParts (80), AccountMark (79), SidebarSearch (74), CardFactsGrid (56), BrandLogo (51), UnderlineTabs (50), LookingTimeline (46), FlowLayout (44), MonoLines (41), RowParts (31), RollingTitle (25), WorkCard (20), CommandStyle (14), TimeFormatChanges (13). The parts files (`SheetParts`, `OverviewParts`, `RowParts`) are split into one file per piece.
 - `CarrierCore/Connection` [9]: ChatHost (969), ChatLink (296), ControlClient (254), Snapshot (221), EngineLink (137), ControlMonitor (126), PollPace (125), ControlRequests (76), IdleClose (36).

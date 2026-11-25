@@ -6,7 +6,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi 
 import { realGit } from './git.ts';
 import { createProjects } from './projects.ts';
 import { ChatRefused } from './runner.ts';
-import { clearWorktree, createWorktree, previewWorktree, removeWorktree, restoreWorktree } from './worktree.ts';
+import { clearWorktree, createWorktree, isAncestor, previewWorktree, removeWorktree, restoreWorktree } from './worktree.ts';
 import { openChatDatabase } from './db.ts';
 import { loadChatConfig } from './config.ts';
 import { FakeChatRunner, fakeProjects } from './fake.ts';
@@ -707,6 +707,24 @@ describe.skipIf(!enabled)('the worktrees of a project, with the real git', () =>
     git(base, 'update-ref', 'refs/remotes/origin/main', git(base, 'rev-parse', 'main').trim());
     expect(await integrations()).toEqual({ [made['fresh']!.id]: 'inMain', [made['work']!.id]: 'pushed' });
     expect(chatDb.select().from(sessions).all()).toHaveLength(2);
+  });
+
+  test('a worktree with no commit yet or whose folder went is not in main, and a folder git cannot read still refuses', async () => {
+    const base = repoAt('in-main-edges');
+    const tip = git(base, 'rev-parse', 'main').trim();
+    const made = await createWorktree(realGit, base, { from: 'main', name: 'edges' });
+    expect(await isAncestor(realGit, made.path, tip)).toBe(true);
+    // HEAD on a branch with no commit yet, as `git worktree add --orphan` leaves it
+    const orphan = join(dir, 'orphan-worktree');
+    git(base, 'worktree', 'add', '-q', '--orphan', '-b', 'orphan', orphan);
+    expect(await isAncestor(realGit, orphan, tip)).toBe(false);
+    // the folder removed while the page was reading
+    rmSync(made.path, { recursive: true });
+    expect(await isAncestor(realGit, made.path, tip)).toBe(false);
+    // a folder that is there but is not a repository is a failure, not an answer
+    const plain = join(dir, 'in-main-plain');
+    mkdirSync(plain);
+    await expect(isAncestor(realGit, plain, tip)).rejects.toMatchObject({ code: 'worktree.unreadable' });
   });
 
   /** A project with one session per name, each in its own worktree and closed unless `live`. */

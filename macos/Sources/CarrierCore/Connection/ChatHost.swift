@@ -60,7 +60,7 @@ public protocol ChatHost {
     /// Removes only the folder of one worktree of the project at `folder`, keeping its branch and its session; refused in words while its session is open or it has
     /// uncommitted changes. Only for a host whose hello lists `projects`.
     func removeProjectWorktree(_ folder: String, path: String) async throws
-    /// What Clean up would remove from the project at `folder` (its merged worktrees nothing blocks, with the bytes each folder holds) and skip (with the reason);
+    /// What Clean up would remove from the project at `folder` (its finished worktrees, Merged or In main, that nothing blocks, with the bytes each folder holds) and skip (with the reason);
     /// with `run` it removes them and answers what it removed and skipped. Only for a host whose hello lists `projects`.
     func cleanProjectWorktrees(_ folder: String, run: Bool) async throws -> ProjectCleanup
     /// Forgets a failed clone (one that is running stays) and answers the clones that are left. Only for a host whose hello lists `projects`.

@@ -29,7 +29,7 @@ struct ProjectDetailView: View {
     @State var newTag = ""
     @State var worktrees: ProjectWorktrees?
     @State var worktreesProblem: String?
-    /// What Clean up would take, asked when the page has a merged worktree; nil while it is not known.
+    /// What Clean up would take, asked when the page has a finished worktree (Merged or In main); nil while it is not known.
     @State var cleanup: ProjectCleanup?
     @State var confirmingCleanup = false
     /// The worktrees whose Remove is running (or Clean up's), the reason the host refused each one, and what the last Clean up did.

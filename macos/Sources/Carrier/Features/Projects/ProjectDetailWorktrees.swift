@@ -44,6 +44,7 @@ extension ProjectDetailView {
                                     .disabled(item.removeBlockedBy() != nil || removing.contains(item.id))
                                     .help(item.removeBlockedBy() ?? Copy.projectsRemoveWorktreeHelp())
                                     .accessibilityLabel(Copy.projectsRemoveWorktreeLabel(branch: item.branch))
+                                    .accessibilityHint(item.removeBlockedBy() ?? "")
                             }
                             HStack(spacing: Tokens.Space.s6) {
                                 Circle().fill(diskColor(item.id, in: items)).frame(width: 7, height: 7).accessibilityHidden(true)

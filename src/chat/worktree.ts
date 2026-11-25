@@ -183,6 +183,10 @@ export async function isAncestor(git: Git, path: string, commit: string): Promis
   const result = await git.run(path, ['merge-base', '--is-ancestor', 'HEAD', commit]);
   if (result.ok) return true;
   if (result.code === 1) return false; // git's answer for "no"
+  // nothing to be in main: the folder went while the page was reading, or HEAD is on a branch with no commit yet
+  if (existsSync(path) === false) return false;
+  const head = await git.run(path, ['rev-parse', '--verify', '--quiet', 'HEAD^{commit}']);
+  if (head.ok === false && head.code === 1) return false; // `--verify --quiet` exits 1 when there is no such commit
   log.error('git could not tell whether a worktree is in the remote default branch', { code: result.code, timedOut: result.timedOut === true });
   throw new ChatRefused('worktree.unreadable', 'Git could not read the worktree of a session');
 }

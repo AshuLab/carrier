@@ -7,6 +7,7 @@ import SwiftUI
 /// `actions` are what the row says (a count, a state) and are always there; `hoverActions` are its buttons, which fade in while the pointer
 /// is over the row and stay while `keepActions` (a menu they opened is open, a search they started is on), left of `actions`.
 struct SidebarSectionRow<Actions: View, HoverActions: View, Below: View>: View {
+    @Environment(\.pieceTheme) private var theme
     let title: String
     let icon: AppIcon
     let selected: Bool
@@ -44,7 +45,7 @@ struct SidebarSectionRow<Actions: View, HoverActions: View, Below: View>: View {
                     HStack(spacing: Tokens.Space.s8) {
                         Glyph(icon, size: 18)
                             .foregroundStyle(selected ? .primary : .secondary)
-                        Text(title).font(SidebarMetrics.section)
+                        Text(title).sidebarFont(.section)
                         Spacer(minLength: 0)
                     }
                     .contentShape(Rectangle())
@@ -64,7 +65,7 @@ struct SidebarSectionRow<Actions: View, HoverActions: View, Below: View>: View {
         }
         .padding(.horizontal, SidebarMetrics.inset).padding(.vertical, SidebarMetrics.sectionPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: Tokens.Radius.control).fill(selected ? Color.selectedRow(dark: dark) : Color.primary.opacity(hovered ? (dark ? 0.07 : 0.05) : 0)))
+        .background(RoundedRectangle(cornerRadius: Tokens.Radius.control).fill(selected ? theme.selectedRow(dark: dark) : Color.primary.opacity(hovered ? (dark ? 0.07 : 0.05) : 0)))
         .contentShape(RoundedRectangle(cornerRadius: Tokens.Radius.control))
         .onTapGesture(perform: action)
         .onHover { hovered = $0 }

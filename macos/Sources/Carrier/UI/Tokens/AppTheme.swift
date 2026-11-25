@@ -60,9 +60,6 @@ extension Color {
         let window = AppTheme.shared.surfaces.window
         return window.alpha > 0 ? Color(window) : Color(nsColor: .windowBackgroundColor)
     }
-
-    /// What the app draws with where it used the system's accent: that one does not follow the theme, this one does.
-    static var themeAccent: Color { AppTheme.shared.accent }
 }
 
 /// The disc behind the mark on the corner of an avatar (a role's, a session's): opaque, lighter than the dark windows and white in the light ones, with a
@@ -79,7 +76,7 @@ private struct AvatarCornerDisc: ViewModifier {
 }
 
 /// `themed()` reads the theme in its own body, while the view draws, and not when it is applied: the Settings window is built once, and a color picked
-/// after that has to reach its switches and sliders (the system's controls take the `tint`, not `Color.themeAccent`).
+/// after that has to reach its switches and sliders (the system's controls take the `tint`, not a static color).
 private struct Themed: ViewModifier {
     func body(content: Content) -> some View {
         let surfaces = AppTheme.shared.surfaces

@@ -21,7 +21,7 @@ struct AgentSwitchDivider: View {
                 .chatSurface(.regular, flat: Color.primary.opacity(0.07), in: Capsule())
                 line
             }
-            Text(handoffDetail(to: store.shortName(of: switched.to))).font(.scaled(11.5)).foregroundStyle(.secondary).multilineTextAlignment(.center)
+            Text(handoffDetail(to: store.shortName(of: switched.to))).scaledFont(11.5).foregroundStyle(.secondary).multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true).textSelection(.enabled).padding(.horizontal, Tokens.Space.s24)
         }
         .padding(.vertical, Tokens.Space.s6)
@@ -36,8 +36,8 @@ struct AgentSwitchDivider: View {
         let color = store.identity(of: agent).color?.color
         return HStack(spacing: Tokens.Space.s6) {
             AccountMark(account: agent, size: 13).accessibilityHidden(true)
-            Text(store.shortName(of: agent)).font(.scaled(12, weight: .semibold)).foregroundStyle(color.map { AnyShapeStyle($0) } ?? AnyShapeStyle(.primary)).lineLimit(1)
-            if let name = modelName(model) { Text(name).font(.scaled(11.5)).foregroundStyle(.secondary).lineLimit(1) }
+            Text(store.shortName(of: agent)).scaledFont(12, weight: .semibold).foregroundStyle(color.map { AnyShapeStyle($0) } ?? AnyShapeStyle(.primary)).lineLimit(1)
+            if let name = modelName(model) { Text(name).scaledFont(11.5).foregroundStyle(.secondary).lineLimit(1) }
         }
     }
 

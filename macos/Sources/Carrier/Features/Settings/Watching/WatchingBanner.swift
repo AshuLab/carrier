@@ -13,14 +13,14 @@ struct RefusalBannerView: View {
         HStack(alignment: .top, spacing: Tokens.Space.s12) {
             Glyph(.warningFilled, size: 16).foregroundStyle(.orange).padding(.top, Tokens.Space.s1).accessibilityHidden(true)
             VStack(alignment: .leading, spacing: Tokens.Space.s6) {
-                Text(banner.title).font(.scaled(13).weight(.semibold))
-                Text([banner.detail, RefusalBanner.consequence].compactMap { $0 }.joined(separator: " ")).font(.scaled(12)).foregroundStyle(.secondary)
+                Text(banner.title).scaledFont(13, weight: .semibold)
+                Text([banner.detail, RefusalBanner.consequence].compactMap { $0 }.joined(separator: " ")).scaledFont(12).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 DisclosureGroup("What Carrier said", isExpanded: $showingRaw) {
-                    Text(banner.raw).font(.scaled(11, design: .monospaced)).foregroundStyle(.secondary).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
+                    Text(banner.raw).scaledFont(11, design: .monospaced).foregroundStyle(.secondary).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading).padding(.top, Tokens.Space.s4)
                 }
-                .font(.scaled(11.5)).foregroundStyle(.secondary)
+                .scaledFont(11.5).foregroundStyle(.secondary)
                 HStack(spacing: Tokens.Space.s8) {
                     if let page = banner.fix, let title = banner.fixTitle { Button(title) { fix(page) }.controlSize(.small) }
                     AskAgainButton(pending: reloaded.pending) { reloaded.ask() }

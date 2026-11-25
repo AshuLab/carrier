@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 
 /// Shared 1 pt resize handle for split panes and the bottom terminal drawer with expanded hover/drag hit area and accessibility adjustment.
 struct TerminalResizeDivider: View {
+    @Environment(\.pieceTheme) private var theme
     let horizontal: Bool
     let isDragging: Bool
     let accessibilityLabel: String
@@ -17,7 +18,7 @@ struct TerminalResizeDivider: View {
 
     var body: some View {
         Rectangle()
-            .fill(hovered || isDragging ? Color.themeAccent.opacity(0.65) : Color.primary.opacity(0.08))
+            .fill(hovered || isDragging ? theme.accent.opacity(0.65) : Color.primary.opacity(0.08))
             .frame(width: horizontal ? 1 : nil, height: horizontal ? nil : 1)
             .frame(maxWidth: horizontal ? nil : .infinity, maxHeight: horizontal ? .infinity : nil)
             .contentShape(Rectangle().inset(by: -3))

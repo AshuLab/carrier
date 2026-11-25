@@ -83,6 +83,7 @@ struct PickerInherited {
 /// chat's message box has: the providers that can work as tabs, a search, the models and the reasoning slider. A role runs on its own, so the
 /// panel says its access is full, where the chat lets the person choose it.
 struct ModelPickerButton: View {
+    @Environment(\.pieceTheme) private var theme
     let provider: String?
     let model: String?
     var effort: String?
@@ -193,7 +194,7 @@ struct ModelPickerButton: View {
                         let fallback = $0.id.isEmpty ? effortFallback : nil
                         return OptionRow.Choice(id: $0.id, label: fallback?.label ?? $0.label, ticked: $0.id == (effort ?? ""), detail: fallback?.detail ?? $0.detail)
                     }),
-                    color: { _, _ in Color.themeAccent },
+                    color: { _, _ in theme.accent },
                     commit: { index in if effortSteps.indices.contains(index) { pick(.effort(effortSteps[index].id)) } }
                 ) }
                 if showsAccess { accessNote } else {
@@ -224,7 +225,7 @@ struct ModelPickerButton: View {
                 OptionRow.Choice(id: level, label: levelLabel(level), ticked: level == split?.level, detail: effortSteps.first { $0.id == level }?.detail)
             }),
             note: levels.isEmpty ? "This model has no reasoning levels." : nil,
-            color: { _, _ in Color.themeAccent },
+            color: { _, _ in theme.accent },
             commit: { index in
                 guard let family, let account = shownProvider, levels.indices.contains(index) else { return }
                 pick(.account(account, model: family.id + "-" + levels[index]))
@@ -242,12 +243,12 @@ struct ModelPickerButton: View {
                     Button { viewing = account.name; query = "" } label: {
                         VStack(spacing: Tokens.Space.s3) {
                             AccountMark(account: account.name, icon: account.icon, size: 18)
-                            Text(ProviderIdentityStore.shared.shortName(of: account.name)).font(.scaled(10, weight: .medium)).lineLimit(1)
+                            Text(ProviderIdentityStore.shared.shortName(of: account.name)).scaledFont(10, weight: .medium).lineLimit(1)
                         }
                         .frame(minWidth: 54).padding(.horizontal, Tokens.Space.s6).padding(.vertical, Tokens.Space.s6)
                         .overlay(alignment: .bottom) { if on { Capsule().fill(.primary).frame(height: 2).padding(.horizontal, Tokens.Space.s8) } }
                         .overlay(alignment: .topTrailing) {
-                            if account.name == shownProvider { Circle().fill(Color.themeAccent).frame(width: 6, height: 6).padding(.top, Tokens.Space.s5).padding(.trailing, Tokens.Space.s8) }
+                            if account.name == shownProvider { Circle().fill(.tint).frame(width: 6, height: 6).padding(.top, Tokens.Space.s5).padding(.trailing, Tokens.Space.s8) }
                         }
                         .contentShape(Rectangle())
                     }
@@ -305,26 +306,26 @@ struct ModelPickerButton: View {
                     }
                     if options == nil {
                         Text(catalog.loading ? "Looking for models…" : "No list of this provider's models is available. Type the model's name in the search to use it.")
-                            .font(.scaled(12)).foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: .infinity).padding(Tokens.Space.s16)
+                            .scaledFont(12).foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: .infinity).padding(Tokens.Space.s16)
                     } else if shown.isEmpty && needle.isEmpty && allowsDefaultModel == false && custom == nil {
-                        Text("No models listed").font(.scaled(12)).foregroundStyle(.secondary).frame(maxWidth: .infinity).padding(Tokens.Space.s16)
+                        Text("No models listed").scaledFont(12).foregroundStyle(.secondary).frame(maxWidth: .infinity).padding(Tokens.Space.s16)
                     }
                 }
                 .padding(.horizontal, Tokens.Space.s8).padding(.vertical, Tokens.Space.s8)
             }
             .frame(maxHeight: .infinity)
         } else {
-            Text("No provider is signed in. Sign one in on the Providers page.").font(.scaled(12)).foregroundStyle(.secondary).multilineTextAlignment(.center)
+            Text("No provider is signed in. Sign one in on the Providers page.").scaledFont(12).foregroundStyle(.secondary).multilineTextAlignment(.center)
                 .frame(maxWidth: .infinity, maxHeight: .infinity).padding(Tokens.Space.s20)
         }
     }
 
     private func row(title: String, detail: String?, ticked: Bool, action: @escaping () -> Void) -> some View {
-        HoverRow(action: action, fill: ticked ? Color.themeAccent.opacity(0.18) : nil) { _ in
+        HoverRow(action: action, fill: ticked ? theme.accent.opacity(0.18) : nil) { _ in
             HStack(spacing: Tokens.Space.s8) {
                 VStack(alignment: .leading, spacing: Tokens.Space.s2) {
-                    Text(title).font(.scaled(13, weight: .medium)).lineLimit(1)
-                    if let detail { Text(detail).font(.scaled(11.5)).foregroundStyle(.secondary).lineLimit(2) }
+                    Text(title).scaledFont(13, weight: .medium).lineLimit(1)
+                    if let detail { Text(detail).scaledFont(11.5).foregroundStyle(.secondary).lineLimit(2) }
                 }
                 Spacer(minLength: 8)
                 if ticked { ChosenMark() }
@@ -337,12 +338,12 @@ struct ModelPickerButton: View {
     private var accessNote: some View {
         VStack(alignment: .leading, spacing: Tokens.Space.s8) {
             HStack(alignment: .firstTextBaseline) {
-                Text("ACCESS").font(.scaled(11, weight: .semibold)).tracking(0.6).foregroundStyle(.secondary)
+                Text("ACCESS").scaledFont(11, weight: .semibold).tracking(0.6).foregroundStyle(.secondary)
                 Spacer(minLength: 8)
-                Label("Full access", icon: .lockOpen).labelStyle(.titleAndIcon).font(.scaled(13, weight: .semibold)).foregroundStyle(.orange)
+                Label("Full access", icon: .lockOpen).labelStyle(.titleAndIcon).scaledFont(13, weight: .semibold).foregroundStyle(.orange)
             }
             Text("Epics run on their own, so a role never waits for someone to approve a change: it can edit files and run commands.")
-                .font(.scaled(12)).foregroundStyle(.primary.opacity(0.75)).fixedSize(horizontal: false, vertical: true)
+                .scaledFont(12).foregroundStyle(.primary.opacity(0.75)).fixedSize(horizontal: false, vertical: true)
         }
         .padding(.horizontal, panelMargin).padding(.vertical, Tokens.Space.s14)
         .overlay(alignment: .top) { Divider() }

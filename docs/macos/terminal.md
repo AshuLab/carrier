@@ -18,7 +18,7 @@ The terminal surface extends under the translucent top toolbar across the full d
 The tab strip (`Carrier/Features/Terminal/TerminalTabBarView.swift`, `TerminalTabBarView`) sits along the bottom edge with drag reordering, context-menu and VoiceOver tab move actions, inline rename popovers, a pinned `+` button to add a tab in the active tab's folder, Close Tab / Close Other Tabs in the context menu and middle-click or `×` to close a tab.
 Hovering near the top of a pane reveals floating glass controls (`TerminalPaneHeaderView`) to split right, split down, zoom or restore a split pane, drag a pane to another pane's edge to move it or center to swap (`terminalDropZone`), equalize splits or detach a pane into a new tab.
 All tab, split, focus, zoom, equalize, detach and close actions are also available via the menu bar (`Terminal` menu, `TerminalMenuControls`), keyboard shortcuts (`⌘⌥T`, `⌘⌃T`, `⌘T`, `⌘D`, `⌘⇧D`, `⌘⇧↩`, `⌘⌥[`, `⌘⌥]`, `⌘⇧[`, `⌘⇧]`, `⌘⇧W`) and pane accessibility actions.
-Split dividers (`SplitContainerView`) and the drawer's top edge (`TerminalDrawerView`) share `TerminalResizeDivider`, resize by drag or accessibility adjustment with `AppKit` resize cursors managed by `hoverCursor`, and highlight using `Color.themeAccent`.
+Split dividers (`SplitContainerView`) and the drawer's top edge (`TerminalDrawerView`) share `TerminalResizeDivider`, resize by drag or accessibility adjustment with `AppKit` resize cursors managed by `hoverCursor`, and highlight using the window's `.tint`.
 
 ## Appearance and theme alignment
 

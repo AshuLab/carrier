@@ -50,10 +50,10 @@ struct AccountRow: View {
                 Text(account.title).fontWeight(.medium)
             }
             // one line, with the whole of it as a tooltip: who uses the account is on its own screen too
-            Text(account.usedBy).font(.scaled(11)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.tail).help(account.usedBy)
+            Text(account.usedBy).scaledFont(11).foregroundStyle(.secondary).lineLimit(1).truncationMode(.tail).help(account.usedBy)
             if tool.id != "agy" {
                 let folder = account.configDir ?? "This Mac's login"
-                Text(folder).font(.scaled(10.5, design: .monospaced)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+                Text(folder).scaledFont(10.5, design: .monospaced).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
                     .help(folder).textSelection(.enabled)
             }
         }
@@ -87,7 +87,7 @@ struct AccountUsageMeters: View {
                     if usage.stale { StatusChip(text: "Stale", tint: .orange) }
                     if let reset = usage.reset { Text(reset).lineLimit(1) }
                 }
-                .font(.scaled(10.5)).foregroundStyle(.secondary).fixedSize()
+                .scaledFont(10.5).foregroundStyle(.secondary).fixedSize()
             }
         }
         // room for the words and the percent at the largest text, and no more than the bars need
@@ -103,7 +103,7 @@ struct UsageMeterLine: View {
 
     var body: some View {
         HStack(spacing: Tokens.Space.s8) {
-            Text(label).font(.scaled(11)).foregroundStyle(.secondary).lineLimit(1).fixedSize().frame(minWidth: 46, alignment: .leading)
+            Text(label).scaledFont(11).foregroundStyle(.secondary).lineLimit(1).fixedSize().frame(minWidth: 46, alignment: .leading)
             QuotaBar(shape: shape, height: 5).frame(minWidth: 60, maxWidth: .infinity)
             QuotaPercent(shape: shape).lineLimit(1).fixedSize().frame(minWidth: 36, alignment: .trailing)
         }
@@ -118,7 +118,7 @@ struct StateWords: View {
     var body: some View {
         HStack(spacing: Tokens.Space.s6) {
             Circle().fill(color).frame(width: 7, height: 7).accessibilityHidden(true)
-            Text(text).font(.scaled(12)).foregroundStyle(mark == .attention ? SessionRowView.attention : Color.secondary).lineLimit(1)
+            Text(text).scaledFont(12).foregroundStyle(mark == .attention ? SessionRowView.attention : Color.secondary).lineLimit(1)
         }
         .fixedSize()
         .accessibilityElement(children: .combine)

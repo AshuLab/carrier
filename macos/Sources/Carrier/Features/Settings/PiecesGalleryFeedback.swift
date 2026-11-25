@@ -3,6 +3,7 @@ import SwiftUI
 
 /// The Feedback pieces of `Carrier/UI/` in the states their catalog entries list.
 struct PiecesGalleryFeedback: View {
+    @Environment(\.pieceTheme) private var theme
     var body: some View {
         VStack(alignment: .leading, spacing: Tokens.Space.s22) {
             GalleryEntry("BannerView") {
@@ -49,6 +50,6 @@ struct PiecesGalleryFeedback: View {
     }
 
     private func glow(waiting: Bool, moves: Bool) -> some View {
-        GlowEdge(color: .themeAccent, waiting: waiting, moves: moves).frame(width: 150, height: 54)
+        GlowEdge(color: theme.accent, waiting: waiting, moves: moves).frame(width: 150, height: 54)
     }
 }

@@ -6,6 +6,7 @@ import SwiftUI
 /// that wraps goes back to the margin and does not hang under its text; an NSTextView with paragraph styles would hang it and select
 /// across the code blocks too, if that is missed.
 struct MarkdownView: View {
+    @Environment(\.pieceTheme) private var theme
     let text: String
     @Environment(\.colorScheme) private var scheme
     @AppStorage(Preference.chatTextSize) private var size
@@ -23,8 +24,8 @@ struct MarkdownView: View {
     /// space inside the tint), so a name in a sentence stands out of it.
     private func chipped(_ line: AttributedString) -> AttributedString {
         // kept low on purpose: a message full of names and links is a lot of colour, so the tint is faint and the text only a little lighter than the accent
-        let ink = dark ? Color.themeAccent.mix(with: .white, by: 0.12) : Color.themeAccent.mix(with: .black, by: 0.12)
-        let tint = Color.themeAccent.opacity(dark ? 0.13 : 0.09)
+        let ink = dark ? theme.accent.mix(with: .white, by: 0.12) : theme.accent.mix(with: .black, by: 0.12)
+        let tint = theme.accent.opacity(dark ? 0.13 : 0.09)
         var out = AttributedString()
         for run in line.runs {
             var piece = AttributedString(line[run.range])

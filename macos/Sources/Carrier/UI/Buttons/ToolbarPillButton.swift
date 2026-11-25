@@ -45,17 +45,9 @@ struct ToolbarPillButton: View {
     }
 }
 
-extension Color {
-    /// The accent a main action is tinted with on glass (the New session pill, the message box's send button): darkened, so white reads on it and it is not as loud as the system's prominent button.
-    static var accentGlass: Color { themeAccent.mix(with: .black, by: 0.4) }
-
-    /// The fill of the selected row of a sidebar list. On dark the accent is deepened, so the white words keep their contrast and it is not as
-    /// loud as the accent itself; on light the accent at 45 % behind the dark words is already quiet.
-    static func selectedRow(dark: Bool) -> Color { dark ? themeAccent.mix(with: .black, by: 0.5).opacity(0.85) : themeAccent.opacity(0.45) }
-}
-
 /// Accent glass capsule pill button at `ToolbarPillButton.height` (28 pt), shared between headers and primary empty-state CTAs.
 struct AccentGlassPillButton: View {
+    @Environment(\.pieceTheme) private var theme
     let title: String
     var icon: AppIcon? = nil
     let action: () -> Void
@@ -74,7 +66,7 @@ struct AccentGlassPillButton: View {
         }
         .buttonStyle(.plain)
         // off: dimmed, and the glass does not answer the pointer, as the other toolbar pills do
-        .glassEffect(.regular.tint(Color.accentGlass).interactive(enabled), in: .capsule)
+        .glassEffect(.regular.tint(theme.accentGlass).interactive(enabled), in: .capsule)
         .opacity(enabled ? 1 : 0.45)
     }
 }

@@ -5,6 +5,7 @@ import SwiftUI
 /// step it is on as the title with how many there are, segments for the steps, git's progress while a clone runs, and the list of all of them,
 /// the ones to come dim. It says so when the agent takes long to answer, shows the reason on the step that failed, and offers Cancel, or Try again.
 struct PreparationStepsView: View {
+    @Environment(\.pieceTheme) private var theme
     let steps: [StepRow]
     let preparation: ChatSession.Preparation?
     /// What the host refused when asked to try again or to cancel, in words.
@@ -42,7 +43,7 @@ struct PreparationStepsView: View {
                 badge(slow: slow)
                 VStack(alignment: .leading, spacing: Tokens.Space.s1) {
                     Text(title(slow: slow, elapsed: elapsed)).fontWeight(.semibold).contentTransition(.opacity)
-                    Text(subtitle(slow: slow)).font(.scaled(11)).foregroundStyle(failed ? Color.red : .secondary).fixedSize(horizontal: false, vertical: true)
+                    Text(subtitle(slow: slow)).scaledFont(11).foregroundStyle(failed ? Color.red : .secondary).fixedSize(horizontal: false, vertical: true)
                         .contentTransition(.opacity)
                 }
                 Spacer(minLength: 0)
@@ -62,12 +63,12 @@ struct PreparationStepsView: View {
                     row(item).transition(.opacity.combined(with: .move(edge: .top)))
                 }
             }
-            if let refusal { Text(refusal).font(.scaled(11)).foregroundStyle(.red).textSelection(.enabled) }
+            if let refusal { Text(refusal).scaledFont(11).foregroundStyle(.red).textSelection(.enabled) }
         }
-        .font(.scaled(12)).padding(Tokens.Space.s12)
+        .scaledFont(12).padding(Tokens.Space.s12)
         .frame(maxWidth: .infinity, alignment: .leading)
         // glass, as the notices of the session: the conversation under it is blurred and not seen through it
-        .chatSurface(.regular.tint(Color.themeAccent.opacity(0.15)), flat: Color.themeAccent.opacity(0.14), in: RoundedRectangle(cornerRadius: Tokens.Radius.card))
+        .chatSurface(.regular.tint(theme.accent.opacity(0.15)), flat: theme.accent.opacity(0.14), in: RoundedRectangle(cornerRadius: Tokens.Radius.card))
         .accessibilityElement(children: .contain)
     }
 
@@ -93,7 +94,7 @@ struct PreparationStepsView: View {
 
     /// The badge of the notices: white on the accent a little deepened with a faint rim of light; red when failed, amber when slow.
     private func badge(slow: Bool) -> some View {
-        let fill: Color = failed ? Color.red.mix(with: .black, by: 0.2) : slow ? Color.orange.mix(with: .black, by: 0.15) : Color.themeAccent.mix(with: .black, by: 0.18)
+        let fill: Color = failed ? Color.red.mix(with: .black, by: 0.2) : slow ? Color.orange.mix(with: .black, by: 0.15) : theme.accent.mix(with: .black, by: 0.18)
         return Group {
             if failed {
                 Glyph(.exclamation, size: 14)
@@ -128,7 +129,7 @@ struct PreparationStepsView: View {
     private func color(_ item: OutlineItem, slow: Bool) -> Color {
         switch item.status {
         case .done: .green
-        case .running: slow ? .orange : Color.themeAccent
+        case .running: slow ? .orange : theme.accent
         case .failed: .red
         case nil: Color.primary.opacity(0.14)
         }
@@ -138,9 +139,9 @@ struct PreparationStepsView: View {
     private func clone(_ progress: String) -> some View {
         VStack(alignment: .leading, spacing: Tokens.Space.s5) {
             if let fraction = progressFraction(progress) {
-                ProgressView(value: fraction).progressViewStyle(.linear).tint(Color.themeAccent)
+                ProgressView(value: fraction).progressViewStyle(.linear)
             }
-            Text(progress).font(.scaled(11).monospacedDigit()).foregroundStyle(.secondary).textSelection(.enabled)
+            Text(progress).scaledFont(11).monospacedDigit().foregroundStyle(.secondary).textSelection(.enabled)
         }
         .transition(.opacity)
     }

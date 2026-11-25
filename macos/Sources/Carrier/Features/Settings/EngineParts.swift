@@ -19,7 +19,7 @@ struct ReadinessBannerView: View {
             }
             VStack(alignment: .leading, spacing: Tokens.Space.s1) {
                 Text(banner.title).fontWeight(.semibold)
-                Text(banner.detail).font(.scaled(11)).foregroundStyle(.secondary)
+                Text(banner.detail).scaledFont(11).foregroundStyle(.secondary)
             }
             Spacer(minLength: 8)
             Button(action: detectAgain) { Label("Detect", icon: .refresh).labelStyle(.titleAndIcon) }

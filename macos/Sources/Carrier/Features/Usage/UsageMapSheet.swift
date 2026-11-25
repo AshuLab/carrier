@@ -25,8 +25,8 @@ struct MapSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Tokens.Space.s14) {
             VStack(alignment: .leading, spacing: Tokens.Space.s2) {
-                Text("Price for \(row.model)").font(.scaled(15).weight(.semibold)).lineLimit(1).truncationMode(.middle)
-                Text("The cost on this page follows what you set here. Nothing is guessed.").font(.scaled(12)).foregroundStyle(.secondary)
+                Text("Price for \(row.model)").scaledFont(15, weight: .semibold).lineLimit(1).truncationMode(.middle)
+                Text("The cost on this page follows what you set here. Nothing is guessed.").scaledFont(12).foregroundStyle(.secondary)
             }
             Picker("Price", selection: $draft.mode) {
                 Text("$0.00 local").tag(UsageOverrideDraft.Mode.local)
@@ -51,18 +51,18 @@ struct MapSheet: View {
     @ViewBuilder private var fields: some View {
         switch draft.mode {
         case .local:
-            Text("Counts every token of this model as free, like a model running on your Mac.").font(.scaled(12)).foregroundStyle(.secondary)
+            Text("Counts every token of this model as free, like a model running on your Mac.").scaledFont(12).foregroundStyle(.secondary)
         case .clear:
-            Text("Goes back to the price table. If the model is not in it, it shows as unpriced again.").font(.scaled(12)).foregroundStyle(.secondary)
+            Text("Goes back to the price table. If the model is not in it, it shows as unpriced again.").scaledFont(12).foregroundStyle(.secondary)
         case .alias:
             VStack(alignment: .leading, spacing: Tokens.Space.s4) {
-                Text("Uses the rates of").font(.scaled(12)).foregroundStyle(.secondary)
+                Text("Uses the rates of").scaledFont(12).foregroundStyle(.secondary)
                 ChoicePopUp(label: "Catalog model", options: [("", "Choose a model")] + catalog.map { ($0, $0) }, selection: $draft.alias)
                 problem(errors[.alias])
             }
         case .custom:
             VStack(alignment: .leading, spacing: Tokens.Space.s8) {
-                Text("US dollars per million tokens").font(.scaled(12)).foregroundStyle(.secondary)
+                Text("US dollars per million tokens").scaledFont(12).foregroundStyle(.secondary)
                 rate("Input", "required", $draft.input, .input)
                 rate("Cached read", "optional", $draft.cachedInput, .cachedInput)
                 rate("Cache write", "optional", $draft.cacheWrite, .cacheWrite)
@@ -83,7 +83,7 @@ struct MapSheet: View {
     }
 
     @ViewBuilder private func problem(_ text: String?) -> some View {
-        if let text { ProblemLine(text: text, font: .scaled(11)) }
+        if let text { ProblemLine(text: text, size: 11) }
     }
 
     private func save() async {

@@ -6,9 +6,10 @@ struct QuotaBar: View {
     let solid: Double
     let hatched: Double
     var height: CGFloat = 8
+    @Environment(\.pieceTheme) private var theme
 
     var body: some View {
-        let tint = solid + hatched >= 0.9 ? Color.orange : .themeAccent
+        let tint = solid + hatched >= 0.9 ? Color.orange : theme.accent
         GeometryReader { geometry in
             let width = geometry.size.width
             ZStack(alignment: .leading) {

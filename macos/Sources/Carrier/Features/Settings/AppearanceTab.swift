@@ -68,7 +68,7 @@ struct AppearanceTabView: View {
         VStack(spacing: Tokens.Space.s8) {
             // at its own size: scaling the 20-point glyph up scaled its pixels, and the ring (a layer) showed them
             glyph().frame(width: 28, height: 28)
-            Text(title).font(.scaled(12)).foregroundStyle(.secondary)
+            Text(title).scaledFont(12).foregroundStyle(.secondary)
         }
         .frame(width: 120)
     }

@@ -19,7 +19,7 @@ struct QuotaMeter: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Tokens.Space.s5) {
             HStack {
-                Text(label).font(.scaled(11)).foregroundStyle(.secondary)
+                Text(label).scaledFont(11).foregroundStyle(.secondary)
                 Spacer()
                 QuotaPercent(shape: shape)
             }

@@ -67,17 +67,17 @@ struct FindingsCardView: View {
             Text(card.title).fontWeight(.semibold).lineLimit(1).layoutPriority(1)
             Text(card.summary).foregroundStyle(.secondary).lineLimit(1)
             Spacer(minLength: 8)
-            Text(roundText).font(.scaled(12)).foregroundStyle(.tertiary).lineLimit(1).truncationMode(.tail)
+            Text(roundText).scaledFont(12).foregroundStyle(.tertiary).lineLimit(1).truncationMode(.tail)
             if let number = card.prNumber { PullRequestChip(number: number, dot: nil, url: card.prURL).layoutPriority(1) }
         }
-        .font(.scaled(12.5))
+        .scaledFont(12.5)
         .padding(.horizontal, Tokens.Space.s10).frame(height: 30)
     }
 
     /// The one line an approval's suggestions wait behind.
     private var foldLine: some View {
         HStack(spacing: Tokens.Space.s8) {
-            Text(plural(card.rows.count, "suggestion")).font(.scaled(12.5)).foregroundStyle(.secondary)
+            Text(plural(card.rows.count, "suggestion")).scaledFont(12.5).foregroundStyle(.secondary)
             Spacer(minLength: 8)
             CardChevron(open: suggestionsOpen, width: 12)
         }
@@ -88,7 +88,7 @@ struct FindingsCardView: View {
 
     private func foot(_ ci: ResultCard.CI) -> some View {
         HStack(spacing: Tokens.Space.s8) {
-            Text("Verified · \(ciVerdictText(ci.verdict))").font(.scaled(12)).foregroundStyle(.secondary).lineLimit(1)
+            Text("Verified · \(ciVerdictText(ci.verdict))").scaledFont(12).foregroundStyle(.secondary).lineLimit(1)
             Spacer(minLength: 8)
             CardChevron(open: evidenceOpen)
         }
@@ -118,10 +118,10 @@ private struct FindingRowView: View {
         HStack(alignment: .top, spacing: Tokens.Space.s10) {
             VStack(alignment: .leading, spacing: Tokens.Space.s3) {
                 HStack(spacing: Tokens.Space.s8) {
-                    Text(row.kind == .blocker ? "BLOCKER" : "SUGGESTION").font(.scaled(10.5, weight: .bold)).foregroundStyle(kindTint)
-                    if let id = row.id { Text(id).font(.scaled(12, weight: .semibold, design: .monospaced)).lineLimit(1).truncationMode(.middle) }
+                    Text(row.kind == .blocker ? "BLOCKER" : "SUGGESTION").scaledFont(10.5, weight: .bold).foregroundStyle(kindTint)
+                    if let id = row.id { Text(id).scaledFont(12, weight: .semibold, design: .monospaced).lineLimit(1).truncationMode(.middle) }
                 }
-                Text(row.text).font(.scaled(12.5)).foregroundStyle(.secondary).lineSpacing(2).fixedSize(horizontal: false, vertical: true)
+                Text(row.text).scaledFont(12.5).foregroundStyle(.secondary).lineSpacing(2).fixedSize(horizontal: false, vertical: true)
             }
             .opacity(row.isFixed ? 0.55 : 1)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -151,7 +151,7 @@ private struct FindingRowView: View {
         case .fixed: .green
         }
         // an approximate mark was found by matching titles; the words say so
-        return Text(mark.text + (row.approximate ? " ≈" : "")).font(.scaled(10.5, weight: .semibold)).foregroundStyle(tint)
+        return Text(mark.text + (row.approximate ? " ≈" : "")).scaledFont(10.5, weight: .semibold).foregroundStyle(tint)
             .padding(.horizontal, Tokens.Space.s8).padding(.vertical, Tokens.Space.s1)
             .background(Capsule().fill(tint.opacity(0.16)))
             .help(row.approximate ? "The reviewer gave no ids, so this mark comes from matching titles" : "")

@@ -134,24 +134,24 @@ private struct Tooltip: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Tokens.Space.s8) {
             HStack(alignment: .firstTextBaseline, spacing: Tokens.Space.s6) {
-                Text(tooltip.title).font(.scaled(12, weight: .semibold))
-                Text(tooltip.weekday).font(.scaled(11)).foregroundStyle(.secondary)
+                Text(tooltip.title).scaledFont(12, weight: .semibold)
+                Text(tooltip.weekday).scaledFont(11).foregroundStyle(.secondary)
             }
-            if tooltip.lines.isEmpty { Text("No use").font(.scaled(11)).foregroundStyle(.secondary) }
+            if tooltip.lines.isEmpty { Text("No use").scaledFont(11).foregroundStyle(.secondary) }
             VStack(spacing: Tokens.Space.s5) {
                 ForEach(tooltip.lines, id: \.provider) { line in
                     HStack(spacing: Tokens.Space.s8) {
                         Circle().fill(providerColors[line.provider] ?? .gray).frame(width: 7, height: 7)
                         UsageProviderMark(title: line.provider, size: 12).frame(width: 14)
-                        Text(line.provider).font(.scaled(11))
+                        Text(line.provider).scaledFont(11)
                         Spacer(minLength: 14)
-                        Text(line.value).font(.scaled(11)).monospacedDigit()
+                        Text(line.value).scaledFont(11).monospacedDigit()
                     }
                 }
             }
             if tooltip.lines.count > 1 {
                 SettingsDivider()
-                HStack { Text("Total").font(.scaled(11, weight: .semibold)); Spacer(minLength: 14); Text(tooltip.total).font(.scaled(11, weight: .semibold)).monospacedDigit() }
+                HStack { Text("Total").scaledFont(11, weight: .semibold); Spacer(minLength: 14); Text(tooltip.total).scaledFont(11, weight: .semibold).monospacedDigit() }
             }
         }
         .frame(width: 200).padding(Tokens.Space.s12)

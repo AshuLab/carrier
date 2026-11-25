@@ -5,6 +5,7 @@ import SwiftUI
 /// The draft of a new session in the centre (chat-ui-where2.html): the question, the sentence that says where it works (the workspace,
 /// then a new worktree or the current folder), and the box with the agent chip and Send. Sending opens the session and `opened` selects it.
 struct NewSessionView: View {
+    @Environment(\.pieceTheme) private var theme
     @Bindable var model: NewSessionModel
     /// Opens the Health tab of Settings.
     let openHealth: () -> Void
@@ -24,7 +25,7 @@ struct NewSessionView: View {
             Spacer(minLength: 0)
             // the title carries the page alone: large, and centred however many lines it takes
             VStack(spacing: Tokens.Space.s6) {
-                Text("What do you want to work on?").font(.scaled(28, weight: .semibold))
+                Text("What do you want to work on?").scaledFont(28, weight: .semibold)
                 Text("Pick where it works, then write.").font(.title3).foregroundStyle(.secondary)
             }
             .multilineTextAlignment(.center).frame(maxWidth: .infinity)
@@ -112,7 +113,7 @@ struct NewSessionView: View {
                     Button { Task { await model.addAsProject() } } label: { Label("Add as project", icon: .folderPlus).labelStyle(.titleAndIcon) }
                         .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
                         .help("Keep this folder in your projects")
-                    if let problem = model.addProjectProblem { ProblemLine(text: problem, font: .scaled(12)) }
+                    if let problem = model.addProjectProblem { ProblemLine(text: problem, size: 12) }
                 }
             }
             if case .problem(let reason) = model.nameState, model.worktree {
@@ -164,7 +165,7 @@ struct NewSessionView: View {
                         .frame(width: 30, height: 30)
                         // the accent a little deepened, with a faint rim of light: the badge of the closed-session notice
                         .background {
-                            RoundedRectangle(cornerRadius: Tokens.Radius.control).fill(Color.themeAccent.mix(with: .black, by: 0.18))
+                            RoundedRectangle(cornerRadius: Tokens.Radius.control).fill(theme.accent.mix(with: .black, by: 0.18))
                                 .overlay(RoundedRectangle(cornerRadius: Tokens.Radius.control).strokeBorder(.white.opacity(0.2), lineWidth: 0.5))
                         }
                         .accessibilityHidden(true)
@@ -173,19 +174,19 @@ struct NewSessionView: View {
                         step.parts.reduce(Text("")) { text, part in
                             switch part {
                             case .text(let words): Text("\(text)\(Text(words))")
-                            case .code(let name): Text("\(text)\(Text(name).font(.scaled(11).monospaced().weight(.medium)).foregroundStyle(.primary))")
+                            case .code(let name): Text("\(text)\(Text(name).monospaced().fontWeight(.medium).foregroundStyle(.primary))")
                             }
                         }
-                        .font(.scaled(11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
+                        .scaledFont(11).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
                         .help(step.help ?? "")
                     }
                     Spacer(minLength: 0)
                 }
             }
         }
-        .font(.scaled(12)).padding(Tokens.Space.s12)
+        .scaledFont(12).padding(Tokens.Space.s12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .chatSurface(.regular.tint(Color.themeAccent.opacity(0.15)), flat: Color.themeAccent.opacity(0.14), in: RoundedRectangle(cornerRadius: Tokens.Radius.card))
+        .chatSurface(.regular.tint(theme.accent.opacity(0.15)), flat: theme.accent.opacity(0.14), in: RoundedRectangle(cornerRadius: Tokens.Radius.card))
         .accessibilityElement(children: .contain)
     }
 

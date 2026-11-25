@@ -25,12 +25,12 @@ struct SidebarRowView: View {
             ProjectIcon(repo: row.repo, name: row.name, colorKey: projectColorKey(row.repo), working: row.state == .running)
             VStack(alignment: .leading, spacing: SidebarMetrics.lineGap) {
                 // two lines before the ellipsis: a title is a sentence, and the number no longer takes room from it
-                Text(row.title ?? row.name).font(SidebarMetrics.item).lineLimit(2)
-                Text("#\(row.issue) · \(row.detail)").font(SidebarMetrics.detail).monospacedDigit().foregroundStyle(detailColor)
+                Text(row.title ?? row.name).sidebarFont(.item).lineLimit(2)
+                Text("#\(row.issue) · \(row.detail)").sidebarFont(.detail).monospacedDigit().foregroundStyle(detailColor)
                     .lineLimit(1).truncationMode(.tail).frame(height: Self.detailLine, alignment: .leading)
             }
             Spacer(minLength: 4)
-            Text(row.age).font(SidebarMetrics.detail.monospacedDigit()).foregroundStyle(.tertiary).lineLimit(1)
+            Text(row.age).sidebarFont(.detail).monospacedDigit().foregroundStyle(.tertiary).lineLimit(1)
                 .frame(height: Self.titleLine).frame(maxHeight: .infinity, alignment: .top)
         }
         .padding(.horizontal, density.rowPadding).padding(.vertical, density.rowPadding)
@@ -41,6 +41,7 @@ struct SidebarRowView: View {
 }
 
 private struct SelectableSidebarRow: ViewModifier {
+    @Environment(\.pieceTheme) private var theme
     let selected: Bool
     let action: () -> Void
     @State private var hovered = false
@@ -50,7 +51,7 @@ private struct SelectableSidebarRow: ViewModifier {
         let dark = scheme == .dark
         content
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: Tokens.Radius.control).fill(selected ? Color.selectedRow(dark: dark) : Color.primary.opacity(hovered ? (dark ? 0.07 : 0.05) : 0)))
+            .background(RoundedRectangle(cornerRadius: Tokens.Radius.control).fill(selected ? theme.selectedRow(dark: dark) : Color.primary.opacity(hovered ? (dark ? 0.07 : 0.05) : 0)))
             .contentShape(RoundedRectangle(cornerRadius: Tokens.Radius.control))
             .environment(\.rowActive, selected || hovered)
             .environment(\.rowState, selected ? .selected : hovered ? .hovered : .resting)

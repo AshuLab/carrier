@@ -21,12 +21,12 @@ struct WatchedReposView: View {
                                 .background(Circle().fill(Color.secondary.opacity(0.15)))
                             VStack(alignment: .leading, spacing: Tokens.Space.s1) {
                                 Text(repo.name).fontWeight(.semibold)
-                                Text(repo.url).font(.scaled(11).monospaced()).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
-                                if let error = repo.error { Text(error).font(.scaled(11)).foregroundStyle(.red) }
+                                Text(repo.url).scaledFont(11, design: .monospaced).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+                                if let error = repo.error { Text(error).scaledFont(11).foregroundStyle(.red) }
                             }
                             Spacer(minLength: 8)
                             RepoStatusPill(status: repo.status)
-                            Text(repo.lastCheck).font(.scaled(11).monospaced()).foregroundStyle(.secondary)
+                            Text(repo.lastCheck).scaledFont(11, design: .monospaced).foregroundStyle(.secondary)
                         }
                     }
                 }
@@ -49,7 +49,7 @@ private struct RepoStatusPill: View {
         case .paused: ("Paused", .gray)
         case .failing: ("Failing", .red)
         }
-        Text(text).font(.scaled(11).weight(.semibold)).foregroundStyle(color)
+        Text(text).scaledFont(11, weight: .semibold).foregroundStyle(color)
             .padding(.horizontal, Tokens.Space.s8).padding(.vertical, Tokens.Space.s3)
             .background(Capsule().fill(color.opacity(0.18)))
     }

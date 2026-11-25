@@ -73,9 +73,9 @@ struct ConsumptionSection: View {
                     if index > 0 { SettingsDivider(vertical: true).padding(.vertical, Tokens.Space.s12) }
                     VStack(alignment: .leading, spacing: Tokens.Space.s3) {
                         Text(kpi.title).sectionLabel()
-                        Text(kpi.value).font(.scaled(20, weight: .semibold)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.7)
+                        Text(kpi.value).scaledFont(20, weight: .semibold).monospacedDigit().lineLimit(1).minimumScaleFactor(0.7)
                         // the footnote of the cost is the one that matters: an unpriced model is missing from the number
-                        Text(kpi.footnote ?? " ").font(.scaled(11)).foregroundStyle(kpi.title == "Est. API Cost" && kpi.footnote != nil ? .orange : .secondary)
+                        Text(kpi.footnote ?? " ").scaledFont(11).foregroundStyle(kpi.title == "Est. API Cost" && kpi.footnote != nil ? .orange : .secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, Tokens.Space.s12).padding(.leading, index > 0 ? Tokens.Space.s14 : Tokens.Space.none)
@@ -134,11 +134,11 @@ struct ConsumptionSection: View {
                     HStack(spacing: Tokens.Space.s12) {
                         UsageProviderMark(title: row.provider, size: 16).frame(width: 20)
                         VStack(alignment: .leading, spacing: Tokens.Space.s1) {
-                            Text(row.model).font(.scaled(12, weight: .medium)).lineLimit(1).truncationMode(.middle)
-                            Text(row.provider).font(.scaled(11)).foregroundStyle(.secondary)
+                            Text(row.model).scaledFont(12, weight: .medium).lineLimit(1).truncationMode(.middle)
+                            Text(row.provider).scaledFont(11).foregroundStyle(.secondary)
                         }
                         Spacer(minLength: 8)
-                        Text(row.detail).font(.scaled(11)).foregroundStyle(.secondary).monospacedDigit().lineLimit(1)
+                        Text(row.detail).scaledFont(11).foregroundStyle(.secondary).monospacedDigit().lineLimit(1)
                         costCell(row).frame(width: 150, alignment: .trailing)
                     }
                     .padding(.vertical, Tokens.Space.s10).frame(minHeight: 40)
@@ -153,7 +153,7 @@ struct ConsumptionSection: View {
 
     @ViewBuilder private func costCell(_ row: UsageModelRow) -> some View {
         HStack(spacing: Tokens.Space.s6) {
-            if let cost = row.cost { Text(cost).font(.scaled(12, weight: .medium)).monospacedDigit() }
+            if let cost = row.cost { Text(cost).scaledFont(12, weight: .medium).monospacedDigit() }
             if row.unpriced {
                 Button { mapping = row } label: { Badge(text: "Unpriced · Map", icon: .warningFilled, tint: .orange) }
                     .buttonStyle(.plain).accessibilityLabel("Unpriced. Map \(row.model) to a price")
@@ -177,12 +177,12 @@ struct ConsumptionSection: View {
                     HStack(spacing: Tokens.Space.s12) {
                         Glyph(sourceSymbol(row.source), size: 13).foregroundStyle(.secondary).frame(width: 20).accessibilityHidden(true)
                         VStack(alignment: .leading, spacing: Tokens.Space.s1) {
-                            Text(row.name).font(.scaled(12, weight: .medium)).lineLimit(1).truncationMode(.middle).help(row.path)
-                            Text(row.source).font(.scaled(11)).foregroundStyle(.secondary)
+                            Text(row.name).scaledFont(12, weight: .medium).lineLimit(1).truncationMode(.middle).help(row.path)
+                            Text(row.source).scaledFont(11).foregroundStyle(.secondary)
                         }
                         Spacer(minLength: 8)
-                        Text(row.detail).font(.scaled(11)).foregroundStyle(.secondary).monospacedDigit().lineLimit(1)
-                        Text(row.cost).font(.scaled(12, weight: .medium)).monospacedDigit().frame(width: 150, alignment: .trailing)
+                        Text(row.detail).scaledFont(11).foregroundStyle(.secondary).monospacedDigit().lineLimit(1)
+                        Text(row.cost).scaledFont(12, weight: .medium).monospacedDigit().frame(width: 150, alignment: .trailing)
                     }
                     .padding(.vertical, Tokens.Space.s10).frame(minHeight: 40)
                 }
@@ -204,7 +204,7 @@ struct ConsumptionSection: View {
     }
 
     private func emptyRow(_ text: String) -> some View {
-        Text(text).font(.scaled(12)).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, Tokens.Space.s14)
+        Text(text).scaledFont(12).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, Tokens.Space.s14)
     }
 }
 
@@ -217,10 +217,10 @@ private struct UsageFooter: View {
     var body: some View {
         HStack(spacing: Tokens.Space.s12) {
             Glyph(.sum, size: 13).foregroundStyle(.secondary).frame(width: 20).accessibilityHidden(true)
-            Text(title).font(.scaled(12, weight: .semibold)).lineLimit(1).truncationMode(.tail)
+            Text(title).scaledFont(12, weight: .semibold).lineLimit(1).truncationMode(.tail)
             Spacer(minLength: 8)
-            Text(detail).font(.scaled(11)).foregroundStyle(.secondary).monospacedDigit().lineLimit(1)
-            Text(cost).font(.scaled(13, weight: .semibold)).monospacedDigit().frame(width: 150, alignment: .trailing)
+            Text(detail).scaledFont(11).foregroundStyle(.secondary).monospacedDigit().lineLimit(1)
+            Text(cost).scaledFont(13, weight: .semibold).monospacedDigit().frame(width: 150, alignment: .trailing)
         }
         .padding(.vertical, Tokens.Space.s10).padding(.horizontal, Tokens.Space.s8).frame(minHeight: 40)
         .background(RoundedRectangle(cornerRadius: Tokens.Radius.tile).fill(Color.primary.opacity(0.07)))

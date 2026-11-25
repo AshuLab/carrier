@@ -25,7 +25,7 @@ struct CarrierRow: View {
         let detail: String? = if let snapshot { Self.hover(snapshot) } else if case .incompatible(let update)? = state { update ?? state?.menuLine } else { nil }
         SidebarSectionRow(title: "Carrier", icon: .send, selected: selected, keepActions: groupMenu || searching, action: select, actions: {
             Text(card.title)
-                .font(SidebarMetrics.detail.weight(.semibold))
+                .sidebarFont(.detail, weight: .semibold)
                 .foregroundStyle(Self.tint(card.kind))
                 .padding(.horizontal, Tokens.Space.s8).padding(.vertical, Tokens.Space.s2)
                 .background(Capsule().fill(Self.tint(card.kind).opacity(0.28)))
@@ -55,7 +55,7 @@ struct CarrierRow: View {
             if let slots = card.slots {
                 HStack(spacing: Tokens.Space.s8) {
                     SegmentedProgress(done: slots.busy, total: slots.total, tint: Self.tint(card.kind))
-                    Text("\(slots.busy)/\(slots.total)").font(.scaled(11).monospacedDigit()).foregroundStyle(.secondary)
+                    Text("\(slots.busy)/\(slots.total)").scaledFont(11).monospacedDigit().foregroundStyle(.secondary)
                 }
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel("\(slots.busy) of \(slots.total) slots busy")

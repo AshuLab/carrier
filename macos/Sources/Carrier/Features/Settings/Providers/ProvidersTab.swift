@@ -32,10 +32,10 @@ struct ProvidersTabView: View {
         let page: ProvidersPage? = if case .reply(let reply) = store.outcome, reply.problem == nil { providersPage(reply, config: config, chat: chat) } else { nil }
         SettingsPageBody {
             if let note = store.outcome.note {
-                SettingsGroup(title: "") { Text(note).font(.scaled(12)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
+                SettingsGroup(title: "") { Text(note).scaledFont(12).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
             }
             // Sign in opens Terminal from a provider's screen and from an account's: what went wrong is said where it was asked
-            if let failure { SettingsGroup(title: "") { ProblemLine(text: failure, font: .scaled(11)) } }
+            if let failure { SettingsGroup(title: "") { ProblemLine(text: failure, size: 11) } }
             if let page { screen(page) }
         }
         .preference(key: SettingsTitleKey.self, value: page.flatMap(title))
@@ -174,10 +174,10 @@ struct ProvidersTabView: View {
 
     @ViewBuilder private func providerScreen(_ tool: ProviderTool) -> some View {
         // an editor that closed after a save the engine did not apply leaves its words here
-        if let problem = store.editProblem { SettingsGroup(title: "") { ProblemLine(text: problem, font: .scaled(11)) } }
+        if let problem = store.editProblem { SettingsGroup(title: "") { ProblemLine(text: problem, size: 11) } }
         // not a problem: said quietly, as the other pages say that Carrier reads it when it starts
         if let note = store.editNote {
-            SettingsGroup(title: "") { Label(note, icon: .info).font(.scaled(11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
+            SettingsGroup(title: "") { Label(note, icon: .info).scaledFont(11).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
         }
         switch tool.status {
         case .missing:

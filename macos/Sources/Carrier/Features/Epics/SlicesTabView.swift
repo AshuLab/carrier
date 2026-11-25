@@ -48,7 +48,7 @@ struct SlicesRing: View {
                 }
             }
             VStack(spacing: Tokens.Space.none) {
-                Text(centre).font(.scaled(24, weight: .bold)).monospacedDigit()
+                Text(centre).scaledFont(24, weight: .bold).monospacedDigit()
                 Text(caption).font(.caption).foregroundStyle(.secondary)
             }
         }
@@ -61,6 +61,7 @@ struct SlicesRing: View {
 
 /// The Slices tab: ring, the totals that filter one at a time, and the list of every slice by number.
 struct SlicesTabView: View {
+    @Environment(\.pieceTheme) private var theme
     private let timeChanges = TimeFormatChanges()
     let subject: EpicSubject?
     let reply: EpicReply?
@@ -101,7 +102,7 @@ struct SlicesTabView: View {
                 Text("\(count)").foregroundStyle(.secondary)
             }
             .padding(.horizontal, Tokens.Space.s10).padding(.vertical, Tokens.Space.s8)
-            .background(RoundedRectangle(cornerRadius: Tokens.Radius.tile).fill(target == selected ? Color.themeAccent.opacity(0.18) : .clear))
+            .background(RoundedRectangle(cornerRadius: Tokens.Radius.tile).fill(target == selected ? theme.accent.opacity(0.18) : .clear))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -113,6 +114,7 @@ struct SlicesTabView: View {
 /// plain row with its mark (a green check or an empty circle). Under the title go its links on GitHub: the issue number and, when the engine found one, the pull
 /// request. A tap on the row opens the pull request (the issue when there is none).
 struct SliceRowView: View {
+    @Environment(\.pieceTheme) private var theme
     let row: SliceRow
     private var group: SliceGroup { row.state }
 
@@ -149,7 +151,7 @@ struct SliceRowView: View {
     }
 
     @ViewBuilder private func chip(_ text: String, url: String?, accent: Bool) -> some View {
-        let color: Color = accent ? .themeAccent : .secondary
+        let color: Color = accent ? theme.accent : .secondary
         let label = HStack(spacing: Tokens.Space.s3) {
             Text(text)
             if url != nil { Glyph(.arrowUpRight, size: 8) }

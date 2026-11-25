@@ -143,6 +143,7 @@ struct WidgetGroup: View {
 
 /// The five themes of the widget as five small drawings over a backdrop that shows the glass, the chosen one with the accent's edge and its words under it.
 private struct WidgetThemePicker: View {
+    @Environment(\.pieceTheme) private var pieceTheme
     @Binding var selection: DictationWidgetTheme
 
     var body: some View {
@@ -152,11 +153,11 @@ private struct WidgetThemePicker: View {
                 Button { selection = theme } label: {
                     VStack(spacing: Tokens.Space.s8) {
                         swatch(theme).frame(height: 44)
-                        Text(theme.title).font(.scaled(11, weight: .medium)).lineLimit(1).minimumScaleFactor(0.8)
+                        Text(theme.title).scaledFont(11, weight: .medium).lineLimit(1).minimumScaleFactor(0.8)
                     }
                     .padding(.vertical, Tokens.Space.s10).padding(.horizontal, Tokens.Space.s6).frame(maxWidth: .infinity)
-                    .background(RoundedRectangle(cornerRadius: Tokens.Radius.tile, style: .continuous).fill(on ? Color.themeAccent.opacity(0.16) : Color.primary.opacity(0.06)))
-                    .overlay(RoundedRectangle(cornerRadius: Tokens.Radius.tile, style: .continuous).strokeBorder(Color.themeAccent, lineWidth: on ? 1.5 : 0))
+                    .background(RoundedRectangle(cornerRadius: Tokens.Radius.tile, style: .continuous).fill(on ? pieceTheme.accent.opacity(0.16) : Color.primary.opacity(0.06)))
+                    .overlay(RoundedRectangle(cornerRadius: Tokens.Radius.tile, style: .continuous).strokeBorder(.tint, lineWidth: on ? 1.5 : 0))
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain).accessibilityLabel(theme.title).accessibilityAddTraits(on ? .isSelected : [])
@@ -181,6 +182,7 @@ private struct WidgetThemePicker: View {
 /// The four styles of the widget as four small drawings, the chosen one with the accent's edge: the words of the style under each, and the drawing says
 /// what the words only count (a badge, then a box of two, three and four lines).
 private struct WidgetStylePicker: View {
+    @Environment(\.pieceTheme) private var pieceTheme
     @Binding var selection: DictationWidgetStyle
 
     var body: some View {
@@ -190,11 +192,11 @@ private struct WidgetStylePicker: View {
                 Button { selection = style } label: {
                     VStack(spacing: Tokens.Space.s8) {
                         drawing(style).frame(height: 44)
-                        Text(style.title).font(.scaled(12, weight: .medium))
+                        Text(style.title).scaledFont(12, weight: .medium)
                     }
                     .padding(.vertical, Tokens.Space.s10).frame(maxWidth: .infinity)
-                    .background(RoundedRectangle(cornerRadius: Tokens.Radius.tile, style: .continuous).fill(on ? Color.themeAccent.opacity(0.16) : Color.primary.opacity(0.06)))
-                    .overlay(RoundedRectangle(cornerRadius: Tokens.Radius.tile, style: .continuous).strokeBorder(Color.themeAccent, lineWidth: on ? 1.5 : 0))
+                    .background(RoundedRectangle(cornerRadius: Tokens.Radius.tile, style: .continuous).fill(on ? pieceTheme.accent.opacity(0.16) : Color.primary.opacity(0.06)))
+                    .overlay(RoundedRectangle(cornerRadius: Tokens.Radius.tile, style: .continuous).strokeBorder(.tint, lineWidth: on ? 1.5 : 0))
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain).accessibilityLabel(style.title).accessibilityAddTraits(on ? .isSelected : [])
@@ -210,9 +212,9 @@ private struct WidgetStylePicker: View {
                 ForEach(0..<lines, id: \.self) { _ in Capsule().fill(Color.white.opacity(0.6)).frame(height: 3) }
             }
             .padding(.horizontal, Tokens.Space.s8).padding(.vertical, Tokens.Space.s8).frame(width: 74)
-            .background(RoundedRectangle(cornerRadius: Tokens.Radius.control, style: .continuous).fill(Color.themeAccent.opacity(0.75)))
+            .background(RoundedRectangle(cornerRadius: Tokens.Radius.control, style: .continuous).fill(.tint.opacity(0.75)))
         } else {
-            Capsule().fill(Color.themeAccent.opacity(0.75)).frame(width: 36, height: 18)
+            Capsule().fill(.tint.opacity(0.75)).frame(width: 36, height: 18)
         }
     }
 }
@@ -222,6 +224,7 @@ private struct WidgetStylePicker: View {
 /// so pressing either records it instead of running it. `shortcutText` makes the row draw again when the saved shortcut changes; `problem` is why a recorded
 /// shortcut is not registered; `taken` says why a combination is refused because another feature has it.
 struct ShortcutRecorderRow: View {
+    @Environment(\.pieceTheme) private var theme
     var id: String?
     let shortcutText: String
     let title: String
@@ -242,11 +245,11 @@ struct ShortcutRecorderRow: View {
         SettingsTabRow(id: id, title: title, detail: detail, problem: refusal ?? problem) {
             HStack(spacing: Tokens.Space.s8) {
                 Text(recording ? "Press the keys…" : shown)
-                    .font(.scaled(12, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(recording ? Color.themeAccent : Color.primary)
+                    .scaledFont(12, weight: .semibold, design: .monospaced)
+                    .foregroundStyle(recording ? theme.accent : Color.primary)
                     .frame(minWidth: 96).padding(.horizontal, Tokens.Space.s10).padding(.vertical, Tokens.Space.s5)
                     .background(RoundedRectangle(cornerRadius: Tokens.Radius.control, style: .continuous).fill(Color.primary.opacity(recording ? 0.12 : 0.08)))
-                    .overlay { if recording { RoundedRectangle(cornerRadius: Tokens.Radius.control, style: .continuous).strokeBorder(Color.themeAccent, lineWidth: 1.5) } }
+                    .overlay { if recording { RoundedRectangle(cornerRadius: Tokens.Radius.control, style: .continuous).strokeBorder(.tint, lineWidth: 1.5) } }
                     .accessibilityLabel(name).accessibilityValue(recording ? "Listening for the new keys" : shown)
                 Button { recording ? stop() : start() } label: { Label(recording ? "Cancel" : "Record", icon: recording ? .close : .record) }
                     .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)

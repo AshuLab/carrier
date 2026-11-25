@@ -3,13 +3,14 @@ import SwiftUI
 
 /// The Rows of `Carrier/UI/` in the states their catalog entries list.
 struct PiecesGalleryRows: View {
+    @Environment(\.pieceTheme) private var theme
     private let wide: CGFloat = 420
 
     var body: some View {
         VStack(alignment: .leading, spacing: Tokens.Space.s22) {
             GalleryEntry("HoverRow") {
                 GalleryState(.normal) { HoverRow(action: {}) { _ in Text(sample(.row)).padding(Tokens.Space.s8) }.frame(width: 240) }
-                GalleryState(.selected) { HoverRow(action: {}, fill: Color.themeAccent.opacity(0.3)) { _ in Text(sample(.row)).padding(Tokens.Space.s8) }.frame(width: 240) }
+                GalleryState(.selected) { HoverRow(action: {}, fill: theme.accent.opacity(0.3)) { _ in Text(sample(.row)).padding(Tokens.Space.s8) }.frame(width: 240) }
                 GalleryState(.disabled) { HoverRow(action: {}) { _ in Text(sample(.row)).padding(Tokens.Space.s8) }.frame(width: 240).disabled(true) }
             }
             GalleryEntry("MonoLines") {

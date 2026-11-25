@@ -10,7 +10,7 @@ struct SessionPlacePill: View {
 
     var body: some View {
         HStack(spacing: Tokens.Space.s5) {
-            Glyph(row.branch == nil ? .folder : .gitBranch).foregroundStyle(Color.themeAccent)
+            Glyph(row.branch == nil ? .folder : .gitBranch).foregroundStyle(.tint)
             if let branch = row.branch {
                 Text(branch).font(.caption.monospaced()).lineLimit(1).truncationMode(.middle)
             } else {
@@ -19,7 +19,7 @@ struct SessionPlacePill: View {
         }
         .font(.caption).foregroundStyle(.secondary)
         .padding(.horizontal, Tokens.Space.s10).frame(height: 24)
-        .background(Capsule().fill(Color.themeAccent.opacity(0.12)))
+        .background(Capsule().fill(.tint.opacity(0.12)))
         .frame(maxWidth: 300)
         // the toolbar item has no glass of its own, so nothing insets it from the window's rounded corner: match the gap above it
         .padding(.trailing, Tokens.Space.s6)

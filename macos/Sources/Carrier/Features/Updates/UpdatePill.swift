@@ -6,6 +6,7 @@ import SwiftUI
 /// version rolls to the percent and the chat's thinking glow runs round its edge; done, a tick bounces and it rolls to Restart, whose words
 /// shimmer. A failed download leaves Retry. Absent while there is nothing new.
 struct UpdatePill: View {
+    @Environment(\.pieceTheme) private var theme
     let updater: any Updater
     /// The tick and "Ready" between the download and Restart.
     @State private var justDownloaded = false
@@ -62,10 +63,10 @@ struct UpdatePill: View {
 
     private var icon: some View {
         let (name, tint): (AppIcon, Color) = switch phase {
-        case .none, .available: (.downloadTray, .themeAccent)
+        case .none, .available: (.downloadTray, theme.accent)
         case .downloading: (.downloadTray, .primary)
-        case .ready: justDownloaded ? (.check, .primary) : (.refresh, .themeAccent)
-        case .installing: (.refresh, .themeAccent)
+        case .ready: justDownloaded ? (.check, .primary) : (.refresh, theme.accent)
+        case .installing: (.refresh, theme.accent)
         case .failed: (.warning, .orange)
         }
         return Glyph(name, size: 11).foregroundStyle(tint)
@@ -84,7 +85,7 @@ struct UpdatePill: View {
         case .failed: ("failed", "Retry")
         }
         let shimmers = kind == "restart" || kind == "installing"
-        return Text(text).font(.scaled(12, weight: .medium)).monospacedDigit()
+        return Text(text).scaledFont(12, weight: .medium).monospacedDigit()
             .foregroundStyle(shimmers && reduceMotion == false ? .secondary : .primary)
             .modifier(Shimmer(active: shimmers && reduceMotion == false))
             .contentTransition(.numericText())

@@ -26,8 +26,8 @@ struct PastedTextCard: View {
                     .overlay(RoundedRectangle(cornerRadius: Tokens.Radius.tile).strokeBorder(.white.opacity(0.16), lineWidth: 0.5))
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: Tokens.Space.none) {
-                    Text("Pasted text").font(.scaled(12.5, weight: .semibold)).lineLimit(1)
-                    Text(summary.stats).font(.scaled(11)).foregroundStyle(.secondary).lineLimit(1)
+                    Text("Pasted text").scaledFont(12.5, weight: .semibold).lineLimit(1)
+                    Text(summary.stats).scaledFont(11).foregroundStyle(.secondary).lineLimit(1)
                 }
                 Spacer(minLength: 12)
                 Button { toggle() } label: { Label(open ? "Collapse" : "Expand", icon: open ? .chevronUp : .chevronDown) }
@@ -46,12 +46,12 @@ struct PastedTextCard: View {
                 Group {
                     if let edit {
                         TextEditor(text: Binding(get: { text }, set: edit))
-                            .font(.scaled(11.5, design: .monospaced)).scrollContentBackground(.hidden).padding(Tokens.Space.s6)
+                            .scaledFont(11.5, design: .monospaced).scrollContentBackground(.hidden).padding(Tokens.Space.s6)
                             .frame(height: min(220, max(90, CGFloat(summary.lines) * 17 + 24)))
                             .accessibilityLabel("Pasted text")
                     } else {
                         ScrollView {
-                            Text(text).font(.scaled(11.5, design: .monospaced)).textSelection(.enabled)
+                            Text(text).scaledFont(11.5, design: .monospaced).textSelection(.enabled)
                                 .frame(maxWidth: .infinity, alignment: .leading).padding(Tokens.Space.s10)
                         }
                         .frame(maxHeight: 220)

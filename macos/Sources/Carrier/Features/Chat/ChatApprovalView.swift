@@ -6,6 +6,7 @@ import SwiftUI
 /// a choice that does not allow turns red under the pointer, and ⌥1, ⌥2… answer from the keyboard (a plain digit would be a character
 /// of the message being written). With more than one waiting, the others come after this one is answered.
 struct ApprovalCardView: View {
+    @Environment(\.pieceTheme) private var theme
     let card: ApprovalCard
     /// How many more approvals wait behind this one.
     let behind: Int
@@ -20,9 +21,9 @@ struct ApprovalCardView: View {
             HStack(spacing: Tokens.Space.s10) {
                 Glyph(.exclamation, size: 12, bold: true).foregroundStyle(.white)
                     .frame(width: 26, height: 26).background(RoundedRectangle(cornerRadius: Tokens.Radius.control, style: .continuous).fill(Color.attention))
-                Text(card.question).font(.scaled(14, weight: .semibold))
+                Text(card.question).scaledFont(14, weight: .semibold)
                 Spacer(minLength: 0)
-                Text(behind > 0 ? "\(behind) more waiting" : "Waiting for you").font(.scaled(11)).foregroundStyle(.secondary)
+                Text(behind > 0 ? "\(behind) more waiting" : "Waiting for you").scaledFont(11).foregroundStyle(.secondary)
             }
             if let arg = card.arg {
                 ScrollView { CodeBlockView(language: card.tool, code: arg).onGeometryChange(for: CGFloat.self) { $0.size.height } action: { argHeight = $0 } }
@@ -43,13 +44,13 @@ struct ApprovalCardView: View {
         let first = index == 0
         let line = Button { answer(card.approvalId, choice.id) } label: {
             HStack(spacing: Tokens.Space.s10) {
-                Text("\(index + 1)").font(.scaled(11, weight: .semibold, design: .monospaced))
+                Text("\(index + 1)").scaledFont(11, weight: .semibold, design: .monospaced)
                     .foregroundStyle(first ? AnyShapeStyle(.white) : AnyShapeStyle(.secondary))
                     .frame(width: 20, height: 20)
-                    .background(RoundedRectangle(cornerRadius: Tokens.Radius.small, style: .continuous).fill(first ? Color.themeAccent : Color.secondary.opacity(0.18)))
-                Text(choice.label).font(.scaled(13, weight: .medium)).foregroundStyle(choice.allow ? Color.primary : Color.red)
+                    .background(RoundedRectangle(cornerRadius: Tokens.Radius.small, style: .continuous).fill(first ? theme.accent : Color.secondary.opacity(0.18)))
+                Text(choice.label).scaledFont(13, weight: .medium).foregroundStyle(choice.allow ? Color.primary : Color.red)
                 Spacer(minLength: 0)
-                if index < 9 { Text("⌥\(index + 1)").font(.scaled(11)).foregroundStyle(.tertiary) }
+                if index < 9 { Text("⌥\(index + 1)").scaledFont(11).foregroundStyle(.tertiary) }
             }
             .padding(.horizontal, Tokens.Space.s10).padding(.vertical, Tokens.Space.s8)
             .background(RoundedRectangle(cornerRadius: Tokens.Radius.tile, style: .continuous).fill(fill(choice, first: first)))

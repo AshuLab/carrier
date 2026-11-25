@@ -72,7 +72,7 @@ private struct SliceCardRowView: View {
                 HStack(alignment: .top, spacing: Tokens.Space.s12) {
                     mark.frame(width: 22, height: 18, alignment: .leading).padding(.top, Tokens.Space.s1).accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: Tokens.Space.s3) {
-                        title.font(.scaled(13, weight: .semibold)).fixedSize(horizontal: false, vertical: true)
+                        title.scaledFont(13, weight: .semibold).fixedSize(horizontal: false, vertical: true)
                         quiet
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -107,12 +107,12 @@ private struct SliceCardRowView: View {
                 case .step: Text(part.text).foregroundStyle(.primary).fontWeight(.medium).lineLimit(1)
                 case .error: Text(part.text).foregroundStyle(.red)
                 case .lane:
-                    Text(part.text).font(.scaled(10.5, weight: .semibold)).padding(.horizontal, Tokens.Space.s8)
+                    Text(part.text).scaledFont(10.5, weight: .semibold).padding(.horizontal, Tokens.Space.s8)
                         .background(Capsule().fill(Color.primary.opacity(0.1))).help("The lane the agent worked in, read from its worktree")
                 }
             }
         }
-        .font(.scaled(12)).foregroundStyle(.secondary)
+        .scaledFont(12).foregroundStyle(.secondary)
     }
 
     @ViewBuilder private var mark: some View {

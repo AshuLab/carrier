@@ -79,7 +79,7 @@ struct DictationTabView: View {
             SettingsGroup(title: "") {
                 HStack(spacing: Tokens.Space.s12) {
                     Glyph(.power, size: 14).foregroundStyle(.secondary).accessibilityHidden(true)
-                    Text("Dictation is off, so what is set here waits. Turn it on to change it.").font(.scaled(12)).foregroundStyle(.secondary)
+                    Text("Dictation is off, so what is set here waits. Turn it on to change it.").scaledFont(12).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: 8)
                     Button("Turn on") { dictation.setEnabled(true) }.buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).fixedSize()
@@ -92,7 +92,7 @@ struct DictationTabView: View {
     private func opens(_ screen: DictationScreen) -> some View {
         NavigationRow(id: screen.rawValue, title: screen.title, detail: screen.detail, action: { go(SettingsPlace(.dictation, path: [screen.rawValue])) }) {
             // two lines before a cut: at a narrow window and a large text the summary wraps and does not lose its last word
-            Text(summary(screen)).font(.scaled(12)).foregroundStyle(.secondary).lineLimit(2).multilineTextAlignment(.trailing).fixedSize(horizontal: false, vertical: true)
+            Text(summary(screen)).scaledFont(12).foregroundStyle(.secondary).lineLimit(2).multilineTextAlignment(.trailing).fixedSize(horizontal: false, vertical: true)
         }
     }
 

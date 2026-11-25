@@ -53,7 +53,7 @@ struct ProjectTagChip: View {
 
     var body: some View {
         HStack(spacing: Tokens.Space.s5) {
-            Text(tag).font(.scaled(12, weight: .medium)).lineLimit(1).truncationMode(.tail)
+            Text(tag).scaledFont(12, weight: .medium).lineLimit(1).truncationMode(.tail)
             Button(action: remove) {
                 Glyph(.close, size: 9, bold: true).foregroundStyle(.secondary)
                     .frame(width: 16, height: 16).background(Circle().fill(Color.primary.opacity(0.12))).contentShape(Circle())
@@ -86,7 +86,7 @@ struct ProjectIconPopover: View {
                     Text("Color").sectionLabel()
                     Spacer(minLength: 8)
                     if selectedColor != nil || selectedMark != nil || hasImage {
-                        Button("Reset", action: reset).buttonStyle(HoverTextButtonStyle(tint: nil)).font(.scaled(11))
+                        Button("Reset", action: reset).buttonStyle(HoverTextButtonStyle(tint: nil)).scaledFont(11)
                     }
                 }
                 LazyVGrid(columns: grid, alignment: .leading, spacing: Self.gap) {
@@ -115,7 +115,7 @@ struct ProjectIconPopover: View {
                             Glyph(choice, size: 15).foregroundStyle(tint)
                                 .frame(width: Self.tile, height: Self.tile)
                                 .background(RoundedRectangle(cornerRadius: Tokens.Radius.control).fill(Color.secondary.opacity(0.12)))
-                                .overlay(RoundedRectangle(cornerRadius: Tokens.Radius.control).strokeBorder(Color.themeAccent, lineWidth: on ? 2 : 0))
+                                .overlay(RoundedRectangle(cornerRadius: Tokens.Radius.control).strokeBorder(.tint, lineWidth: on ? 2 : 0))
                                 .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain).help(name).accessibilityLabel(name).accessibilityAddTraits(on ? .isSelected : [])

@@ -17,10 +17,10 @@ struct AudioPlayerView: View {
                 playback.toggle()
             }
             if playback.failed {
-                Text("The audio could not be read").font(.scaled(11)).foregroundStyle(.secondary)
+                Text("The audio could not be read").scaledFont(11).foregroundStyle(.secondary)
             } else {
                 ProgressView(value: playback.position, total: max(playback.duration, 0.1)).frame(maxWidth: 220)
-                Text("\(dictationClock(playback.position)) / \(dictationClock(playback.duration))").font(.scaled(11)).monospacedDigit().foregroundStyle(.secondary)
+                Text("\(dictationClock(playback.position)) / \(dictationClock(playback.duration))").scaledFont(11).monospacedDigit().foregroundStyle(.secondary)
             }
         }
         .onAppear { playback.load() }

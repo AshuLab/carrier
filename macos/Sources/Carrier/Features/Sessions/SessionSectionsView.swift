@@ -96,7 +96,7 @@ struct EvidenceBlock: View {
     let text: String
 
     var body: some View {
-        Text(linkedText(text)).font(.scaled(11, design: .monospaced)).foregroundStyle(.secondary).textSelection(.enabled)
+        Text(linkedText(text)).scaledFont(11, design: .monospaced).foregroundStyle(.secondary).textSelection(.enabled)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, Tokens.Space.s10).padding(.vertical, Tokens.Space.s8)
             .background(RoundedRectangle(cornerRadius: Tokens.Radius.control).fill(Color.secondary.opacity(0.1)))
@@ -124,7 +124,7 @@ struct ResultCardView: View {
                 line.accessibilityElement(children: .ignore).accessibilityLabel(resultAccessibilityLabel(card, open: open))
             }
             if let reason = card.reason {
-                Text(linkedText(reason)).font(.scaled(12)).foregroundStyle(tint).textSelection(.enabled)
+                Text(linkedText(reason)).scaledFont(12).foregroundStyle(tint).textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, Tokens.Space.s10).padding(.vertical, Tokens.Space.s8)
                     .background(RoundedRectangle(cornerRadius: Tokens.Radius.control).fill(tint.opacity(0.14)))
@@ -147,7 +147,7 @@ struct ResultCardView: View {
             Spacer(minLength: 8)
             if card.hasDetails { CardChevron(open: open) }
         }
-        .font(.scaled(12.5)).lineLimit(1)
+        .scaledFont(12.5).lineLimit(1)
         .padding(.horizontal, Tokens.Space.s10).frame(height: 30)
         .contentShape(Rectangle())
     }
@@ -183,6 +183,7 @@ struct SessionHeaderView: View {
     let section: SessionSection
     let open: Bool
     @State private var hovered = false
+    @Environment(\.textScale) private var scale
 
     var body: some View {
         let text = sessionRowText(section)
@@ -193,8 +194,8 @@ struct SessionHeaderView: View {
                     AgentAvatar(text: text, harness: section.agent, size: 34, working: section.state == .running, account: section.account)
                     VStack(alignment: .leading, spacing: Tokens.Space.s3) {
                         HStack(spacing: Tokens.Space.s8) {
-                            Text(text.name).font(.scaled(14, weight: .bold)).lineLimit(1).layoutPriority(1)
-                            Text(text.role).font(.scaled(14)).foregroundStyle(.secondary).lineLimit(1)
+                            Text(text.name).scaledFont(14, weight: .bold).lineLimit(1).layoutPriority(1)
+                            Text(text.role).scaledFont(14).foregroundStyle(.secondary).lineLimit(1)
                         }
                         if text.how.isEmpty == false { Text(howLine(text)).lineLimit(1) }
                     }
@@ -216,12 +217,12 @@ struct SessionHeaderView: View {
         if let tool = text.tool {
             var name = AttributedString(tool)
             name.foregroundColor = Color(nsColor: .secondaryLabelColor)
-            name.font = .scaled(11.5, weight: .medium)
+            name.font = scale.font(11.5, weight: .medium)
             line += name
         }
         var rest = AttributedString((text.tool != nil && text.details.isEmpty == false ? " · " : "") + text.details.joined(separator: " · "))
         rest.foregroundColor = Color(nsColor: .tertiaryLabelColor)
-        rest.font = .scaled(11.5)
+        rest.font = scale.font(11.5)
         return line + rest
     }
 
@@ -229,16 +230,16 @@ struct SessionHeaderView: View {
         switch sessionSummary(section, open: open) {
         case .stopped(let reason):
             HStack(spacing: Tokens.Space.s8) {
-                Text("stopped").font(.scaled(11, weight: .semibold)).foregroundStyle(.orange)
+                Text("stopped").scaledFont(11, weight: .semibold).foregroundStyle(.orange)
                     .padding(.horizontal, Tokens.Space.s10).padding(.vertical, Tokens.Space.s2).background(Capsule().fill(Color.orange.opacity(0.18)))
                 // up to 300 characters from the engine: two lines, cut at the end, whole in the tooltip
                 if let reason {
-                    Text(reason).font(.scaled(12)).foregroundStyle(.orange).lineLimit(2).truncationMode(.tail).help(reason)
+                    Text(reason).scaledFont(12).foregroundStyle(.orange).lineLimit(2).truncationMode(.tail).help(reason)
                 }
             }
         case .line(let spans):
             if spans.isEmpty == false {
-                Text(summaryText(spans)).font(.scaled(12)).multilineTextAlignment(.center)
+                Text(summaryText(spans)).scaledFont(12).multilineTextAlignment(.center)
             }
         }
     }
@@ -249,11 +250,11 @@ struct SessionHeaderView: View {
             var piece = AttributedString((index == 0 ? "" : " ") + span.text)
             switch span.style {
             case .plain: piece.foregroundColor = Color(nsColor: .secondaryLabelColor)
-            case .strong: piece.foregroundColor = Color(nsColor: .labelColor); piece.font = .scaled(12, weight: .semibold)
+            case .strong: piece.foregroundColor = Color(nsColor: .labelColor); piece.font = scale.font(12, weight: .semibold)
             case .faint: piece.foregroundColor = Color(nsColor: .tertiaryLabelColor)
             case .red: piece.foregroundColor = .red
-            case .green: piece.foregroundColor = .green; piece.font = .scaled(12, weight: .semibold)
-            case .working: piece.foregroundColor = .green; piece.font = .scaled(12, weight: .semibold)
+            case .green: piece.foregroundColor = .green; piece.font = scale.font(12, weight: .semibold)
+            case .working: piece.foregroundColor = .green; piece.font = scale.font(12, weight: .semibold)
             }
             line += piece
         }
@@ -315,7 +316,7 @@ private struct EarlierSessionsRow: View {
                     Text(earlier.title).fontWeight(.semibold).foregroundStyle(.primary)
                     if earlier.detail.isEmpty == false { Text("· \(earlier.detail)") }
                 }
-                .font(.scaled(12.5)).foregroundStyle(.secondary).lineLimit(1)
+                .scaledFont(12.5).foregroundStyle(.secondary).lineLimit(1)
                 FoldChevron(open: open, hovered: hovered)
             }
             .padding(.vertical, Tokens.Space.s12)
@@ -344,7 +345,7 @@ struct AgentAvatar: View {
     /// The account the session runs on: the corner wears its icon and color when it has them (the disc is the profile's, not the account's).
     var account: String?
     var body: some View {
-        Text(text.letter).font(.scaled(size * 0.38, weight: .bold)).foregroundStyle(.white)
+        Text(text.letter).scaledFont(size * 0.38, weight: .bold).foregroundStyle(.white)
             .frame(width: size, height: size)
             .background(Circle().fill(disc))
             .overlay { if working { SpinningRing(diameter: size + 8, lineWidth: 2) } }
@@ -365,7 +366,7 @@ struct AgentAvatar: View {
             } else if let image = ProviderMark.image(harness) {
                 Image(nsImage: image).renderingMode(.template).resizable().scaledToFit().frame(width: 9, height: 9)
             } else {
-                Text(harness.prefix(1)).font(.scaled(8, weight: .bold))
+                Text(harness.prefix(1)).scaledFont(8, weight: .bold)
             }
         }
         .foregroundStyle(.primary)

@@ -136,7 +136,7 @@ private struct TerminalHomeRow: View {
             }
             VStack(alignment: .leading, spacing: Tokens.Space.s3) {
                 Text(summary.title)
-                    .font(.scaled(13, weight: .medium))
+                    .scaledFont(13, weight: .medium)
                     .lineLimit(1)
                     .truncationMode(.tail)
                 HStack(spacing: Tokens.Space.s6) {

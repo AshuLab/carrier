@@ -86,6 +86,7 @@ final class StartController: ObservableObject {
 /// The window's Start Carrier button, shown while Carrier is stopped; disabled while there is no config or the settings lack something
 /// (the stopped view says what).
 struct StartCarrierButton: View {
+    @Environment(\.pieceTheme) private var theme
     @ObservedObject private var start = StartController.shared
     @ObservedObject private var setup = SetupController.shared
 
@@ -95,13 +96,13 @@ struct StartCarrierButton: View {
             HStack {
                 let blocked = missing.isEmpty == false || start.configExists == false || start.starting
                 Button { start.start() } label: {
-                    Label("Start Carrier", icon: .playFilled).labelStyle(.titleAndIcon).font(.scaled(14, weight: .semibold))
+                    Label("Start Carrier", icon: .playFilled).labelStyle(.titleAndIcon).scaledFont(14, weight: .semibold)
                         .foregroundStyle(blocked ? Color.secondary : .white)
                         .padding(.horizontal, Tokens.Space.s22).padding(.vertical, Tokens.Space.s10).contentShape(Capsule())
                 }
                 .buttonStyle(.plain)
                 // the accent is a light pastel on the dark themes: darkened for the tint so the white label reads over any window behind it
-                .glassEffect(blocked ? .regular : .regular.tint(Color.themeAccent.mix(with: .black, by: 0.4)).interactive(), in: .capsule)
+                .glassEffect(blocked ? .regular : .regular.tint(theme.accent.mix(with: .black, by: 0.4)).interactive(), in: .capsule)
                 .disabled(blocked)
                 if start.starting {
                     ProgressView().controlSize(.small)

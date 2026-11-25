@@ -107,19 +107,19 @@ struct NoticesGalleryView: View {
             .padding(.horizontal, Tokens.Space.s40).padding(.vertical, Tokens.Space.s16)
             .frame(maxWidth: messageWidth.points, alignment: .leading).frame(maxWidth: .infinity)
         }
-        .font(.scaled(13))
+        .scaledFont(13)
     }
 
     private func group<Content: View>(_ title: String, @ViewBuilder _ content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: Tokens.Space.s18) {
-            Text(title.uppercased()).font(.scaled(11, weight: .semibold)).foregroundStyle(.secondary).tracking(0.6)
+            Text(title.uppercased()).scaledFont(11, weight: .semibold).foregroundStyle(.secondary).tracking(0.6)
             content()
         }
     }
 
     private func item<Content: View>(_ caption: String, @ViewBuilder _ content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: Tokens.Space.s6) {
-            Text(caption).font(.scaled(11)).foregroundStyle(.tertiary)
+            Text(caption).scaledFont(11).foregroundStyle(.tertiary)
             content()
         }
     }

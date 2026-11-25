@@ -96,7 +96,7 @@ struct HistoryList: View {
                 }
             }
             SettingsGroup(title: "") {
-                Text("\(shown.matched) of \(records.entries.count) dictations").font(.scaled(11)).foregroundStyle(.secondary).frame(maxWidth: .infinity)
+                Text("\(shown.matched) of \(records.entries.count) dictations").scaledFont(11).foregroundStyle(.secondary).frame(maxWidth: .infinity)
                 if shown.matched > limit {
                     Button("Show \(min(dictationHistoryPage, shown.matched - limit)) more") { limit += dictationHistoryPage }
                         .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).frame(maxWidth: .infinity)
@@ -107,6 +107,8 @@ struct HistoryList: View {
 }
 
 private struct HistoryRow: View {
+    @Environment(\.pieceTheme) private var theme
+    @Environment(\.textScale) private var scale
     let entry: DictationEntry
     let audio: URL?
     let open: Bool
@@ -119,7 +121,7 @@ private struct HistoryRow: View {
     private var tint: Color {
         switch entry.outcome {
         case .pasted: .green
-        case .copied: Color.themeAccent
+        case .copied: theme.accent
         case .cancelled: .secondary
         case .failed: .red
         }
@@ -130,7 +132,7 @@ private struct HistoryRow: View {
             HStack(alignment: .top, spacing: Tokens.Space.s10) {
                 Button(action: toggle) {
                     HStack(alignment: .top, spacing: Tokens.Space.s10) {
-                        Text(entry.started.formatted(date: .omitted, time: .shortened)).font(.scaled(11)).monospacedDigit().foregroundStyle(.secondary).frame(width: 64, alignment: .leading)
+                        Text(entry.started.formatted(date: .omitted, time: .shortened)).scaledFont(11).monospacedDigit().foregroundStyle(.secondary).frame(width: 64, alignment: .leading)
                         VStack(alignment: .leading, spacing: Tokens.Space.s4) {
                             Text(entry.shown).lineLimit(open ? nil : 2).italic(entry.outcome == .cancelled)
                                 .foregroundStyle(entry.outcome == .cancelled ? .secondary : .primary)
@@ -162,13 +164,13 @@ private struct HistoryRow: View {
     /// One quiet line under the text: a dot of the outcome's color and its name, then where it went, the words and the length. One `Text`, so it wraps as a sentence.
     private var meta: some View {
         let words = entry.words == 0 ? "" : "\(entry.words) \(entry.words == 1 ? "word" : "words") · "
-        let line = Text("\(Image(systemName: "circle.fill"))").font(.scaled(6)).baselineOffset(1).foregroundStyle(tint)
+        let line = Text("\(Image(systemName: "circle.fill"))").font(scale.font(6)).baselineOffset(1).foregroundStyle(tint)
             + Text(" \(entry.outcome.title)").fontWeight(.medium).foregroundStyle(.primary)
             + Text(" · \(entry.destination) · \(words)\(seconds(entry.audio))").foregroundStyle(.secondary)
         return Group {
-            if entry.cleaned != nil { line + Text(" · cleaned").foregroundStyle(Color.themeAccent) } else { line }
+            if entry.cleaned != nil { line + Text(" · cleaned").foregroundStyle(theme.accent) } else { line }
         }
-        .font(.scaled(11.5))
+        .scaledFont(11.5)
     }
 
     /// What the line above did not say, with no box of its own: a dashed rule, the text as recognized when cleanup changed it (the row already shows the
@@ -179,7 +181,7 @@ private struct HistoryRow: View {
             if entry.cleaned != nil {
                 VStack(alignment: .leading, spacing: Tokens.Space.s1) {
                     Text("As recognized").sectionLabel()
-                    Text(entry.text).font(.scaled(12)).foregroundStyle(.secondary).textSelection(.enabled)
+                    Text(entry.text).scaledFont(12).foregroundStyle(.secondary).textSelection(.enabled)
                         .padding(.leading, Tokens.Space.s10).overlay(alignment: .leading) { Rectangle().fill(Color.primary.opacity(0.15)).frame(width: 2) }
                 }
             }
@@ -206,7 +208,7 @@ private struct HistoryRow: View {
     private func field(_ title: String, _ value: String) -> some View {
         VStack(alignment: .leading, spacing: Tokens.Space.s1) {
             Text(title).sectionLabel()
-            Text(value).font(.scaled(12)).textSelection(.enabled)
+            Text(value).scaledFont(12).textSelection(.enabled)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

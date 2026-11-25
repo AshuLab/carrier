@@ -4,6 +4,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct TerminalTabChip: View {
+    @Environment(\.pieceTheme) private var theme
     static let height: CGFloat = 26
 
     let tab: TerminalTab
@@ -37,15 +38,15 @@ struct TerminalTabChip: View {
             Button(action: select) {
                 HStack(spacing: Tokens.Space.s5) {
                     Glyph(.terminal, size: 10.5)
-                        .foregroundStyle(selected ? Color.themeAccent : .secondary)
+                        .foregroundStyle(selected ? theme.accent : .secondary)
                     Text(tab.title)
-                        .font(.scaled(12, weight: selected ? .medium : .regular))
+                        .scaledFont(12, weight: selected ? .medium : .regular)
                         .foregroundStyle(selected || hovered ? .primary : .secondary)
                         .lineLimit(1)
                         .truncationMode(.middle)
                     if tab.paneCount > 1 {
                         Text("\(tab.paneCount)")
-                            .font(.scaled(10, weight: .semibold).monospacedDigit())
+                            .scaledFont(10, weight: .semibold).monospacedDigit()
                             .foregroundStyle(.secondary)
                             .padding(.horizontal, Tokens.Space.s5)
                             .padding(.vertical, Tokens.Space.s1)
@@ -174,9 +175,9 @@ struct TerminalTabChip: View {
     private var backgroundFill: some View {
         Capsule().fill(
             isDropTarget
-                ? Color.themeAccent.opacity(0.20)
+                ? theme.accent.opacity(0.20)
                 : selected
-                    ? Color.themeAccent.opacity(0.16)
+                    ? theme.accent.opacity(0.16)
                     : hovered ? Color.primary.opacity(0.08) : Color.primary.opacity(0.04)
         )
     }
@@ -184,9 +185,9 @@ struct TerminalTabChip: View {
     private var borderStroke: some View {
         Capsule().strokeBorder(
             isDropTarget
-                ? Color.themeAccent.opacity(0.60)
+                ? theme.accent.opacity(0.60)
                 : selected
-                    ? Color.themeAccent.opacity(0.32)
+                    ? theme.accent.opacity(0.32)
                     : hovered ? Color.primary.opacity(0.12) : Color.primary.opacity(0.06),
             lineWidth: isDropTarget ? 1.5 : 1
         )

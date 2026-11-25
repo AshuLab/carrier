@@ -34,9 +34,9 @@ struct KeybindingsTabView: View {
         return SettingsTabRow(id: command.rawValue, title: command.title, detail: "Default: \(command.defaultCombo?.text ?? "none")", first: first) {
             HStack(spacing: Tokens.Space.s8) {
                 if let refused, refused.command == command {
-                    Label("\(refused.combo.text) is the system's", icon: .warningFilled).font(.scaled(11)).foregroundStyle(.orange)
+                    Label("\(refused.combo.text) is the system's", icon: .warningFilled).scaledFont(11).foregroundStyle(.orange)
                 } else if let clash {
-                    Label("Also \(clash.title)", icon: .warningFilled).font(.scaled(11)).foregroundStyle(.orange)
+                    Label("Also \(clash.title)", icon: .warningFilled).scaledFont(11).foregroundStyle(.orange)
                 }
                 if table.isDefault(command) == false {
                     Button { table.set(command.defaultCombo, for: command); revision += 1 } label: {
@@ -100,15 +100,16 @@ private struct KeyCapButtonStyle: ButtonStyle {
         let recording: Bool
         let empty: Bool
         @State private var hovered = false
+        @Environment(\.pieceTheme) private var theme
 
         var body: some View {
             let shape = RoundedRectangle(cornerRadius: Tokens.Radius.control, style: .continuous)
             configuration.label
-                .font(.scaled(12, weight: .semibold, design: .monospaced))
-                .foregroundStyle(recording ? Color.themeAccent : empty ? Color.secondary : Color.primary)
+                .scaledFont(12, weight: .semibold, design: .monospaced)
+                .foregroundStyle(recording ? theme.accent : empty ? Color.secondary : Color.primary)
                 .frame(minWidth: 96).padding(.horizontal, Tokens.Space.s10).padding(.vertical, Tokens.Space.s5)
                 .background(shape.fill(Color.primary.opacity(configuration.isPressed ? 0.16 : hovered || recording ? 0.12 : 0.08)))
-                .overlay { if recording { shape.strokeBorder(Color.themeAccent, lineWidth: 1.5) } }
+                .overlay { if recording { shape.strokeBorder(.tint, lineWidth: 1.5) } }
                 .contentShape(shape)
                 .onHover { hovered = $0 }
                 .animation(.easeOut(duration: 0.12), value: hovered)

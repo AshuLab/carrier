@@ -100,7 +100,7 @@ struct SessionsTabView: View {
                 if let line { SettingsTabRow(title: "A session you stop using today", detail: line, first: true) { EmptyView() } }
                 SettingsTabRow(title: "Left alone", detail: "A session that is working, waiting for you or open is looked at again later", first: line == nil) { EmptyView() }
             }
-            if let failure { Label(failure, icon: .warningFilled).font(.scaled(12)).foregroundStyle(.orange) }
+            if let failure { Label(failure, icon: .warningFilled).scaledFont(12).foregroundStyle(.orange) }
         }
         .onAppear(perform: load)
         .onChange(of: draft) { save() }
@@ -115,7 +115,7 @@ struct SessionsTabView: View {
             HStack(spacing: Tokens.Space.s10) {
                 if age.wrappedValue != .never {
                     NumberField(key: key, value: days, unparsable: $unparsable, parse: { Int($0) }, format: { String($0) }, step: { $0 + $1 >= 1 ? $0 + $1 : nil })
-                    Text("days").font(.scaled(11)).foregroundStyle(.secondary)
+                    Text("days").scaledFont(11).foregroundStyle(.secondary)
                 }
                 ChoicePopUp(
                     label: title, options: [(value: false, title: "Days"), (value: true, title: "Never")],

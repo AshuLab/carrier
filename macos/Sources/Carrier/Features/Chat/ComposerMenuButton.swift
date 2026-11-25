@@ -14,6 +14,7 @@ struct ProviderTab: Identifiable {
 /// The one button of the message box, at its left: the provider's mark, the model and the reasoning level (and a flag when access is not
 /// the careful default). It opens the panel: the providers as tabs, that provider's models, and a slider each for the reasoning and the access.
 struct ComposerMenuButton: View {
+    @Environment(\.pieceTheme) private var theme
     let providers: [ProviderTab]
     let agent: String
     /// The provider cannot change now (a session that is answering, or one whose host cannot switch): the other tabs are off.
@@ -80,14 +81,14 @@ struct ComposerMenuButton: View {
         VStack(spacing: Tokens.Space.none) {
             tabs
             if menu.models.isEmpty {
-                Text(emptyNote).font(.scaled(12)).foregroundStyle(.secondary).multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
+                Text(emptyNote).scaledFont(12).foregroundStyle(.secondary).multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity).padding(Tokens.Space.s20)
             } else {
                 if menu.models.count > 5 { search }
                 models
             }
             if let reasoning = menu.reasoning {
-                ScaleRow(scale: reasoning, note: busy ? "Changes between turns: the agent is answering." : nil, color: { _, _ in Color.themeAccent }, commit: commit(reasoning)).disabled(busy)
+                ScaleRow(scale: reasoning, note: busy ? "Changes between turns: the agent is answering." : nil, color: { _, _ in theme.accent }, commit: commit(reasoning)).disabled(busy)
             } else if menu.models.isEmpty == false {
                 ScaleRow(scale: nil, title: "Reasoning", note: "This model has no reasoning levels.", color: { _, _ in .secondary }, commit: { _ in })
             }
@@ -117,7 +118,7 @@ struct ComposerMenuButton: View {
                     Button { if on == false { chooseAgent(provider.name) } } label: {
                         VStack(spacing: Tokens.Space.s3) {
                             AccountMark(account: provider.name, icon: provider.icon, size: 18)
-                            Text(ProviderIdentityStore.shared.shortName(of: provider.name)).font(.scaled(10, weight: .medium)).lineLimit(1)
+                            Text(ProviderIdentityStore.shared.shortName(of: provider.name)).scaledFont(10, weight: .medium).lineLimit(1)
                         }
                         .frame(minWidth: 54).padding(.horizontal, Tokens.Space.s6).padding(.vertical, Tokens.Space.s6)
                         .overlay(alignment: .bottom) { if on { Capsule().fill(.primary).frame(height: 2).padding(.horizontal, Tokens.Space.s8) } }
@@ -136,7 +137,7 @@ struct ComposerMenuButton: View {
     private var search: some View {
         HStack(spacing: Tokens.Space.s8) {
             Glyph(.search, size: 12).foregroundStyle(.secondary)
-            TextField("Search models", text: $query).textFieldStyle(.plain).font(.scaled(13))
+            TextField("Search models", text: $query).textFieldStyle(.plain).scaledFont(13)
         }
         .padding(.horizontal, Tokens.Space.s10).frame(height: 30)
         .background(RoundedRectangle(cornerRadius: Tokens.Radius.tile).fill(Color.primary.opacity(0.08)))
@@ -150,12 +151,12 @@ struct ComposerMenuButton: View {
             VStack(alignment: .leading, spacing: Tokens.Space.s2) {
                 ForEach(shown) { model in
                     let ticked = model.id == chosen
-                    HoverRow(action: { pendingModel = model.id; choose("model", model.id) }, fill: ticked ? Color.themeAccent.opacity(0.18) : nil) { _ in
+                    HoverRow(action: { pendingModel = model.id; choose("model", model.id) }, fill: ticked ? theme.accent.opacity(0.18) : nil) { _ in
                         HStack(spacing: Tokens.Space.s8) {
                             VStack(alignment: .leading, spacing: Tokens.Space.s2) {
-                                Text(model.label).font(.scaled(13, weight: .medium)).lineLimit(1)
+                                Text(model.label).scaledFont(13, weight: .medium).lineLimit(1)
                                 // the exact model, only when it says more than the name does
-                                if let line = modelLine(model) { Text(line).font(.scaled(11.5)).foregroundStyle(.secondary).lineLimit(2) }
+                                if let line = modelLine(model) { Text(line).scaledFont(11.5).foregroundStyle(.secondary).lineLimit(2) }
                             }
                             Spacer(minLength: 8)
                             if ticked { ChosenMark() }
@@ -164,7 +165,7 @@ struct ComposerMenuButton: View {
                     }
                     .id(model.id)
                 }
-                if shown.isEmpty { Text("No model matches").font(.scaled(12)).foregroundStyle(.secondary).frame(maxWidth: .infinity).padding(Tokens.Space.s14) }
+                if shown.isEmpty { Text("No model matches").scaledFont(12).foregroundStyle(.secondary).frame(maxWidth: .infinity).padding(Tokens.Space.s14) }
             }
             .padding(.horizontal, Tokens.Space.s8).padding(.vertical, Tokens.Space.s8)
         }
@@ -233,14 +234,14 @@ struct ScaleRow: View {
         let tint = steps.isEmpty ? Color.secondary : color(shown, steps.count)
         VStack(alignment: .leading, spacing: Tokens.Space.s8) {
             HStack(alignment: .firstTextBaseline) {
-                Text((scale?.title ?? title).uppercased()).font(.scaled(11, weight: .semibold)).tracking(0.6).foregroundStyle(.secondary)
+                Text((scale?.title ?? title).uppercased()).scaledFont(11, weight: .semibold).tracking(0.6).foregroundStyle(.secondary)
                 Spacer(minLength: 8)
-                Text(steps.indices.contains(shown) ? steps[shown].label : "—").font(.scaled(13, weight: .semibold)).foregroundStyle(tint).lineLimit(1)
+                Text(steps.indices.contains(shown) ? steps[shown].label : "—").scaledFont(13, weight: .semibold).foregroundStyle(tint).lineLimit(1)
             }
             if steps.isEmpty {
                 // the room of a slider, so the rows under it keep their place from one model to the next
                 Capsule().fill(Color.primary.opacity(0.06)).frame(height: 26)
-                Text(" ").font(.scaled(11))
+                Text(" ").scaledFont(11)
             } else {
                 StepSlider(count: steps.count, index: shown, tint: tint, dragging: $dragging) { step in
                     guard step != scale?.index else { return }
@@ -257,9 +258,9 @@ struct ScaleRow: View {
                     Spacer(minLength: 12)
                     Text(steps.last?.label ?? "")
                 }
-                .font(.scaled(11)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.tail)
+                .scaledFont(11).foregroundStyle(.secondary).lineLimit(1).truncationMode(.tail)
             }
-            Text(note ?? (steps.indices.contains(shown) ? steps[shown].detail : nil) ?? "").font(.scaled(12)).foregroundStyle(.primary.opacity(0.75))
+            Text(note ?? (steps.indices.contains(shown) ? steps[shown].detail : nil) ?? "").scaledFont(12).foregroundStyle(.primary.opacity(0.75))
                 .frame(maxWidth: .infinity, minHeight: 16, alignment: .topLeading).fixedSize(horizontal: false, vertical: true)
         }
         .padding(.horizontal, panelMargin).padding(.vertical, Tokens.Space.s14)
@@ -273,17 +274,20 @@ struct ScaleRow: View {
 struct SwitchRow: View {
     let scale: OptionScale
     let commit: (Int) -> Void
+    @Environment(\.pieceTheme) private var theme
     @State private var pending: Int?
 
     var body: some View {
         let on = (pending ?? scale.index) == 1
         HStack(alignment: .center, spacing: Tokens.Space.s12) {
             VStack(alignment: .leading, spacing: Tokens.Space.s3) {
-                Text(scale.steps[1].label).font(.scaled(13, weight: .semibold))
-                Text(scale.steps[on ? 1 : 0].detail ?? "").font(.scaled(12)).foregroundStyle(.primary.opacity(0.75)).fixedSize(horizontal: false, vertical: true)
+                Text(scale.steps[1].label).scaledFont(13, weight: .semibold)
+                Text(scale.steps[on ? 1 : 0].detail ?? "").scaledFont(12).foregroundStyle(.primary.opacity(0.75)).fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 8)
-            Toggle("", isOn: Binding(get: { on }, set: { pending = $0 ? 1 : 0; commit($0 ? 1 : 0) })).labelsHidden().toggleStyle(.switch).tint(.themeAccent)
+            Toggle("", isOn: Binding(get: { on }, set: { pending = $0 ? 1 : 0; commit($0 ? 1 : 0) })).labelsHidden().toggleStyle(.switch)
+                // in a popover, which does not take the window's tint
+                .tint(theme.accent)
                 .accessibilityLabel(scale.steps[1].label)
         }
         .padding(.horizontal, panelMargin).padding(.vertical, Tokens.Space.s14)

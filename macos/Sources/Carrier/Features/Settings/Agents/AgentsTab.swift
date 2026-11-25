@@ -38,7 +38,7 @@ struct AgentsTabView: View {
                 ReloadNote(ReloadStatus.shared)
             } else {
                 Label("The engine is not configured: engine.json in the Carrier folder is missing or is not a JSON object.", icon: .warningFilled)
-                    .font(.scaled(12)).foregroundStyle(.orange)
+                    .scaledFont(12).foregroundStyle(.orange)
             }
         }
         .id(role)
@@ -169,7 +169,7 @@ struct AgentsTabView: View {
                             }
                         }
                     }
-                    if let problem { ProblemLine(text: problem, font: .scaled(11)).textSelection(.enabled).padding(.vertical, Tokens.Space.s8) }
+                    if let problem { ProblemLine(text: problem, size: 11).textSelection(.enabled).padding(.vertical, Tokens.Space.s8) }
                 }
                 SettingsGroup(id: "persona", title: "Persona") {
                     SettingsTabRow(id: "persona-name", title: "Persona name", detail: "Optional, one line up to 40 characters", first: true) {
@@ -202,7 +202,7 @@ struct AgentsTabView: View {
                     }
                     if row.steps.count > 2 {
                         Text("The file has \(row.steps.count - 2) more step\(row.steps.count == 3 ? "" : "s"), kept and tried in order.")
-                            .font(.scaled(11)).foregroundStyle(.secondary).padding(.vertical, Tokens.Space.s8)
+                            .scaledFont(11).foregroundStyle(.secondary).padding(.vertical, Tokens.Space.s8)
                     }
                 }
             }
@@ -312,7 +312,7 @@ private struct SkillValue: View {
     var body: some View {
         HStack(spacing: Tokens.Space.s8) {
             StatusChip(text: "Default", tint: .secondary)
-            Text(skill).font(.scaled(11.5, design: .monospaced)).foregroundStyle(.secondary).lineLimit(1)
+            Text(skill).scaledFont(11.5, design: .monospaced).foregroundStyle(.secondary).lineLimit(1)
                 .padding(.horizontal, Tokens.Space.s8).padding(.vertical, Tokens.Space.s5).frame(width: 150, alignment: .leading)
                 .background(RoundedRectangle(cornerRadius: Tokens.Radius.control, style: .continuous).fill(Color.primary.opacity(0.06)))
         }
@@ -345,7 +345,7 @@ struct CommitField: View {
 
     var body: some View {
         TextField(label, text: $draft, prompt: Text(prompt))
-            .font(mono ? .scaled(11.5, design: .monospaced) : .scaled(13)).settingsField(width: width, focused: $focused)
+            .scaledFont(mono ? 11.5 : 13, design: mono ? .monospaced : nil).settingsField(width: width, focused: $focused)
             .onSubmit(save)
             .onChange(of: focused) { _, now in if now == false { save() } }
             .accessibilityLabel(label)
@@ -377,7 +377,7 @@ struct CommitEditor: View {
     }
 
     var body: some View {
-        TextEditor(text: $draft).font(.scaled(13)).scrollContentBackground(.hidden).frame(height: 96)
+        TextEditor(text: $draft).scaledFont(13).scrollContentBackground(.hidden).frame(height: 96)
             .overlay(alignment: .topLeading) {
                 if draft.isEmpty { Text(prompt).foregroundStyle(.tertiary).padding(.leading, Tokens.Space.s5).allowsHitTesting(false) }
             }

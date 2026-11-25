@@ -8,6 +8,7 @@ import SwiftUI
 /// running stops the background tasks). It is there while the host lists a task and gone with the last. With more than one task and a host that can stop
 /// one by itself, each has its own Stop in the list and the one of the line says "Stop all".
 struct BackgroundWorkCard: View {
+    @Environment(\.pieceTheme) private var theme
     let tasks: [CarrierCore.BackgroundTask]
     /// Stops them all.
     let stop: () -> Void
@@ -25,7 +26,7 @@ struct BackgroundWorkCard: View {
             HStack(spacing: Tokens.Space.s6) {
                 Button { toggle() } label: { header }.buttonStyle(.plain)
                     .accessibilityLabel(spoken).accessibilityHint(open ? "Hides the tasks" : "Shows the tasks")
-                Button(stopsEach ? "Stop all" : "Stop", action: stop).buttonStyle(HoverTextButtonStyle(tint: .themeAccent)).help("Stop what the agent waits for")
+                Button(stopsEach ? "Stop all" : "Stop", action: stop).buttonStyle(HoverTextButtonStyle(tint: theme.accent)).help("Stop what the agent waits for")
                     .accessibilityLabel("Stop the background tasks")
             }
             .frame(height: 30)
@@ -65,13 +66,13 @@ struct BackgroundWorkCard: View {
                         SpinningRing(diameter: 11, lineWidth: 1.5, color: NSColor(cyan)).frame(width: 16, height: 16)
                         // the words roll up when they change: the new ones come in from below, the old ones leave above
                         ZStack(alignment: .leading) {
-                            Text(words + "…").font(.scaled(12.5, weight: .semibold)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.tail)
+                            Text(words + "…").scaledFont(12.5, weight: .semibold).foregroundStyle(.secondary).lineLimit(1).truncationMode(.tail)
                                 .modifier(Shimmer(active: reduceMotion == false))
                                 .id(words)
                                 .transition(reduceMotion ? .opacity : .asymmetric(insertion: .move(edge: .bottom).combined(with: .opacity), removal: .move(edge: .top).combined(with: .opacity)))
                         }
                         .frame(height: 18).clipped()
-                        if let count = backgroundCount(tasks) { Text(count).font(.scaled(12)).foregroundStyle(.tertiary).lineLimit(1).fixedSize() }
+                        if let count = backgroundCount(tasks) { Text(count).scaledFont(12).foregroundStyle(.tertiary).lineLimit(1).fixedSize() }
                     }
                     .padding(.leading, Tokens.Space.s4)
                 }
@@ -82,14 +83,14 @@ struct BackgroundWorkCard: View {
             HStack(spacing: Tokens.Space.s8) {
                 if let oldest = tasks.compactMap(\.startedAt).min() {
                     TickingTimeline(every: 1) { context in
-                        Text(workingElapsed(Int(context.date.timeIntervalSince(oldest)))).font(.scaled(12)).monospacedDigit().foregroundStyle(.tertiary)
+                        Text(workingElapsed(Int(context.date.timeIntervalSince(oldest)))).scaledFont(12).monospacedDigit().foregroundStyle(.tertiary)
                     }
                 }
                 LogChevron(open: open).frame(width: 16)
             }
             .fixedSize()
         }
-        .font(.scaled(12, weight: .medium)).monospacedDigit()
+        .scaledFont(12, weight: .medium).monospacedDigit()
         .frame(height: 30)
         .contentShape(Rectangle())
     }
@@ -102,12 +103,12 @@ struct BackgroundWorkCard: View {
                 HStack(spacing: Tokens.Space.s10) {
                     // a node for each, in the column of the lead
                     Circle().fill(cyan).frame(width: 6, height: 6).frame(width: 16)
-                    Text(task.name).font(.scaled(11.5, design: .monospaced)).lineLimit(1).truncationMode(.tail)
-                    Text(task.kind.replacingOccurrences(of: "_", with: " ")).font(.scaled(11)).foregroundStyle(.tertiary).lineLimit(1).fixedSize()
+                    Text(task.name).scaledFont(11.5, design: .monospaced).lineLimit(1).truncationMode(.tail)
+                    Text(task.kind.replacingOccurrences(of: "_", with: " ")).scaledFont(11).foregroundStyle(.tertiary).lineLimit(1).fixedSize()
                     Spacer(minLength: 8)
                     if let started = task.startedAt {
                         TickingTimeline(every: 1) { context in
-                            Text(workingElapsed(Int(context.date.timeIntervalSince(started)))).font(.scaled(11.5)).monospacedDigit().foregroundStyle(.tertiary)
+                            Text(workingElapsed(Int(context.date.timeIntervalSince(started)))).scaledFont(11.5).monospacedDigit().foregroundStyle(.tertiary)
                         }
                     }
                     if stopsEach, let stopTask {

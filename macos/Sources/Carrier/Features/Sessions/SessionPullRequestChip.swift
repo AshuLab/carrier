@@ -15,7 +15,7 @@ struct SessionPullRequestChip: View {
         } label: {
             HStack(spacing: Tokens.Space.s4) {
                 Glyph(.gitPullRequest, size: 9)
-                Text(pr.chipText).font(.scaled(11, weight: .medium).monospacedDigit())
+                Text(pr.chipText).scaledFont(11, weight: .medium).monospacedDigit()
             }
             .foregroundStyle(tint).padding(.horizontal, Tokens.Space.s6).frame(height: 17)
             .background(Capsule().fill(tint.opacity(0.16)))
@@ -34,7 +34,7 @@ struct DiffText: View {
             Text("+\(diff.added)").foregroundStyle(Color.sessionDone)
             Text("−\(diff.removed)").foregroundStyle(Color.red)
         }
-        .font(.scaled(11).monospacedDigit()).lineLimit(1).fixedSize()
+        .scaledFont(11).monospacedDigit().lineLimit(1).fixedSize()
     }
 }
 
@@ -92,7 +92,7 @@ struct SessionWorkPill: View {
                 if pr != nil, diff != nil { Rectangle().frame(width: 1, height: 9).opacity(0.3) }
                 if let diff { Text("+\(diff.added) −\(diff.removed)") }
             }
-            .font(.scaled(11, weight: .medium).monospacedDigit()).foregroundStyle(words).lineLimit(1).fixedSize()
+            .scaledFont(11, weight: .medium).monospacedDigit().foregroundStyle(words).lineLimit(1).fixedSize()
             .padding(.horizontal, Tokens.Space.s8).frame(height: 17)
             .background(Capsule().fill(fill))
             .animation(.easeOut(duration: 0.12), value: state)

@@ -87,7 +87,7 @@ struct SettingsPages: View {
                     ReadinessBannerView(banner: banner, detecting: setup.detecting) { setup.detect() }
                 }
                 if let message = setup.message {
-                    Label(message, icon: .warningFilled).font(.scaled(12)).foregroundStyle(.orange)
+                    Label(message, icon: .warningFilled).scaledFont(12).foregroundStyle(.orange)
                 }
             }
         }
@@ -128,7 +128,7 @@ struct SettingsPages: View {
 
     @ViewBuilder private func engine(notConfigured: String?) -> some View {
         if let notConfigured {
-            Label(notConfigured, icon: .warningFilled).font(.scaled(12)).foregroundStyle(.orange)
+            Label(notConfigured, icon: .warningFilled).scaledFont(12).foregroundStyle(.orange)
         }
         let programs = EnginePrograms(
             carrier: setup.carrier, carrierIsOwn: setup.carrierIsOwn, carrierVersion: versions?.carrier, setup: setup.settings, nodeVersion: versions?.node,

@@ -78,7 +78,7 @@ struct CleanupGroup: View {
     private var promptRow: some View {
         SettingsStackedRow(id: "prompt", title: "Prompt", detail: "What you ask the model to do with every dictation: drop filler words, translate, make it technical…") {
             TextEditor(text: Binding(get: { cleanup.prompt }, set: { cleanup.set(prompt: $0) }))
-                .font(.scaled(13)).scrollContentBackground(.hidden).frame(height: 96).settingsField()
+                .scaledFont(13).scrollContentBackground(.hidden).frame(height: 96).settingsField()
                 .writingToolsBehavior(.disabled).accessibilityLabel("Cleanup prompt")
         }
     }
@@ -105,9 +105,9 @@ struct CleanupGroup: View {
             HStack {
                 Text(label).sectionLabel()
                 Spacer()
-                if let seconds { Text(String(format: "%.1f s", seconds)).font(.scaled(11)).foregroundStyle(.secondary).monospacedDigit() }
+                if let seconds { Text(String(format: "%.1f s", seconds)).scaledFont(11).foregroundStyle(.secondary).monospacedDigit() }
             }
-            Text(text).font(.scaled(13)).foregroundStyle(tint).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
+            Text(text).scaledFont(13).foregroundStyle(tint).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(Tokens.Space.s12)
@@ -132,7 +132,7 @@ struct CleanupGroup: View {
                 Text("Cleaned").sectionLabel()
                 Spacer()
                 ProgressView().controlSize(.mini)
-                Text("Cleaning…").font(.scaled(11)).foregroundStyle(.secondary)
+                Text("Cleaning…").scaledFont(11).foregroundStyle(.secondary)
             }
             VStack(alignment: .leading, spacing: Tokens.Space.s8) {
                 RoundedRectangle(cornerRadius: Tokens.Radius.tiny).fill(Color.primary.opacity(0.14)).frame(height: 9)
@@ -150,7 +150,7 @@ struct CleanupGroup: View {
     private func testFailure(_ message: String) -> some View {
         VStack(alignment: .leading, spacing: Tokens.Space.s6) {
             Label("Could not clean", icon: .warningFilled).sectionLabel().foregroundStyle(.orange)
-            Text(message).font(.scaled(13)).foregroundStyle(.primary).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
+            Text(message).scaledFont(13).foregroundStyle(.primary).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading).padding(Tokens.Space.s12)
         .background(RoundedRectangle(cornerRadius: Tokens.Radius.control, style: .continuous).fill(Color.orange.opacity(0.12)))
@@ -160,7 +160,7 @@ struct CleanupGroup: View {
     private func testPlaceholder(_ label: String, _ text: String) -> some View {
         VStack(alignment: .leading, spacing: Tokens.Space.s6) {
             Text(label).sectionLabel()
-            Text(text).font(.scaled(12)).foregroundStyle(.tertiary).fixedSize(horizontal: false, vertical: true)
+            Text(text).scaledFont(12).foregroundStyle(.tertiary).fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading).padding(Tokens.Space.s12)
         .background(RoundedRectangle(cornerRadius: Tokens.Radius.control, style: .continuous).strokeBorder(Color.primary.opacity(0.1), style: StrokeStyle(lineWidth: 1, dash: [4, 3])))

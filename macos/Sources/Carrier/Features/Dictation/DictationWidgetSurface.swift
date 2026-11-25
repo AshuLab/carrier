@@ -21,11 +21,12 @@ struct WidgetSurface: ViewModifier {
     let shape: RoundedRectangle
     var theme = DictationWidgetTheme.accent
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.pieceTheme) private var pieceTheme
 
     func body(content: Content) -> some View {
         switch theme {
         case .accent:
-            let tint = scheme == .dark ? Color.themeAccent.mix(with: .black, by: 0.6).opacity(0.55) : Color.themeAccent.opacity(0.12)
+            let tint = scheme == .dark ? pieceTheme.accent.mix(with: .black, by: 0.6).opacity(0.55) : pieceTheme.accent.opacity(0.12)
             content.chatSurface(.regular.tint(tint), flat: tint, in: shape).shadow(color: .black.opacity(0.22), radius: 10, y: 3)
         case .black:
             content.chatSurface(.regular.tint(.black.opacity(0.92)), flat: .black.opacity(0.92), in: shape)
@@ -38,7 +39,7 @@ struct WidgetSurface: ViewModifier {
             content.chatSurface(.regular, in: shape).shadow(color: .black.opacity(0.2), radius: 10, y: 3)
         case .glow:
             // the colours of the listening line (the accent and its two neighbouring hues) laid side to side as the surface, over dark glass: a gradient from one edge to the other
-            let colors = DictationIndicator.accentColors()
+            let colors = DictationIndicator.accentColors(pieceTheme.accent)
             let wash = LinearGradient(colors: [colors[2], colors[0], colors[1]], startPoint: .leading, endPoint: .trailing)
             content
                 .background(shape.fill(wash).opacity(0.6))
@@ -91,9 +92,9 @@ struct WidgetBox<Content: View, Foot: View>: View {
                     }
                 }
             }
-            HStack { foot }.font(.scaled(11)).foregroundStyle(.secondary).frame(height: 20)
+            HStack { foot }.scaledFont(11).foregroundStyle(.secondary).frame(height: 20)
         }
-        .font(.scaled(box.text))
+        .scaledFont(box.text)
         .padding(.horizontal, Tokens.Space.s16).padding(.vertical, Tokens.Space.s12)
     }
 }

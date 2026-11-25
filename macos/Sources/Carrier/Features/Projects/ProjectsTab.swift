@@ -12,6 +12,7 @@ extension ProjectsModel {
 /// the project as a screen of its own, a place of the window's history (‹ ›) named by its path, and Actions opens its actions screen. The rows are
 /// `ProjectsModel`'s, which follows `projects.json`; the page has no automated test of its own.
 struct ProjectsTabView: View {
+    @Environment(\.pieceTheme) private var theme
     let place: SettingsPlace
     let go: (SettingsPlace) -> Void
     var sessions: [SessionRow] = []
@@ -107,7 +108,7 @@ struct ProjectsTabView: View {
                             .accessibilityLabel("Search projects")
                             .settingsField(icon: .search)
                         HStack(spacing: Tokens.Space.s6) {
-                            Text("Group").font(.scaled(12)).foregroundStyle(.secondary)
+                            Text("Group").scaledFont(12).foregroundStyle(.secondary)
                             ChoicePopUp(
                                 label: "Group",
                                 options: ProjectGrouping.allCases.map { (value: $0, title: $0.title) },
@@ -199,12 +200,12 @@ struct ProjectsTabView: View {
                 HStack(spacing: Tokens.Space.s6) {
                     Text(row.name).fontWeight(.medium).lineLimit(1).truncationMode(.tail)
                     switch clone.state {
-                    case .cloning: StatusChip(text: "Cloning", tint: .themeAccent)
+                    case .cloning: StatusChip(text: "Cloning", tint: theme.accent)
                     case .failed: StatusChip(text: "Failed", tint: .orange)
                     }
                 }
                 Text(row.line)
-                    .font(.scaled(11)).foregroundStyle(clone.state == .failed ? Color.orange : .secondary)
+                    .scaledFont(11).foregroundStyle(clone.state == .failed ? Color.orange : .secondary)
                     .lineLimit(clone.state == .failed ? 3 : 1).truncationMode(.tail)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -234,11 +235,11 @@ struct ProjectsTabView: View {
                     VStack(alignment: .leading, spacing: Tokens.Space.s1) {
                         Text(row.name).fontWeight(.medium).lineLimit(1).truncationMode(.tail)
                         if let status = row.status.text {
-                            Label(status, icon: .warningFilled, size: 11).font(.scaled(11)).foregroundStyle(.orange).lineLimit(1)
+                            Label(status, icon: .warningFilled, size: 11).scaledFont(11).foregroundStyle(.orange).lineLimit(1)
                         } else if row.hidden {
-                            Label("Hidden", icon: .eyeOff, size: 11).font(.scaled(11)).foregroundStyle(.secondary).lineLimit(1)
+                            Label("Hidden", icon: .eyeOff, size: 11).scaledFont(11).foregroundStyle(.secondary).lineLimit(1)
                         } else {
-                            Text(row.line).font(.scaled(11)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+                            Text(row.line).scaledFont(11).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -262,16 +263,16 @@ struct ProjectsTabView: View {
                 }
 
                 Text(row.lastActive.map { timeText($0, now: now) } ?? "—")
-                    .font(.scaled(12)).foregroundStyle(.secondary).lineLimit(1)
+                    .scaledFont(12).foregroundStyle(.secondary).lineLimit(1)
                     .frame(width: ProjectColumns.lastActive, alignment: .leading)
 
                 // the host's last figure, and a dash for a project it has not measured and always for a folder that is gone
-                Text(row.diskBytes.map(formatDiskSize) ?? "—").font(.scaled(12)).monospacedDigit().foregroundStyle(.secondary).lineLimit(1)
+                Text(row.diskBytes.map(formatDiskSize) ?? "—").scaledFont(12).monospacedDigit().foregroundStyle(.secondary).lineLimit(1)
                     .frame(width: ProjectColumns.disk, alignment: .leading)
 
                 if columns.showsCarrier {
                     Text(row.carrierText)
-                        .font(.scaled(12)).foregroundStyle(row.watched ? Color.primary : .secondary).lineLimit(1)
+                        .scaledFont(12).foregroundStyle(row.watched ? Color.primary : .secondary).lineLimit(1)
                         .frame(width: ProjectColumns.carrier, alignment: .leading)
                 }
 
@@ -293,11 +294,11 @@ struct ProjectsTabView: View {
         VStack(alignment: .leading, spacing: Tokens.Space.s6) {
             HStack(spacing: Tokens.Space.s6) {
                 Text("New clones go to ")
-                    .font(.scaled(12))
+                    .scaledFont(12)
                     .foregroundStyle(.secondary)
                     .fixedSize()
                 Text((model.projectsPath as NSString).abbreviatingWithTildeInPath)
-                    .font(.scaled(11.5, design: .monospaced))
+                    .scaledFont(11.5, design: .monospaced)
                     .foregroundStyle(.primary)
                     .lineLimit(1)
                     .truncationMode(.middle)

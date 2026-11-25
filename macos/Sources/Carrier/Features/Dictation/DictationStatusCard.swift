@@ -19,20 +19,20 @@ struct DictationStatusCard: View {
             Glyph(symbol(readiness.tone), size: 18, bold: true).foregroundStyle(.white)
                 .frame(width: 34, height: 34).background(Circle().fill(tint(readiness.tone))).accessibilityHidden(true)
             VStack(alignment: .leading, spacing: Tokens.Space.s6) {
-                Text(readiness.title).font(.scaled(15).weight(.bold))
+                Text(readiness.title).scaledFont(15, weight: .bold)
                 if readiness.items.isEmpty == false {
                     FlowLayout(spacing: Tokens.Space.s14) {
                         ForEach(readiness.items) { item in
                             HStack(spacing: Tokens.Space.s6) {
                                 Circle().fill(color(item.mark)).frame(width: 7, height: 7).accessibilityHidden(true)
-                                Text("\(item.title) · \(item.state)").font(.scaled(12)).foregroundStyle(.secondary)
+                                Text("\(item.title) · \(item.state)").scaledFont(12).foregroundStyle(.secondary)
                             }
                             .accessibilityElement(children: .combine)
                         }
                     }
                 }
                 ForEach(readiness.notes, id: \.self) { note in
-                    Text(note).font(.scaled(12)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    Text(note).scaledFont(12).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
                 ForEach(readiness.items.compactMap(\.fix), id: \.self) { fix in
                     // each says what it opens, so two of them side by side are told apart and the spoken name is the one on the button

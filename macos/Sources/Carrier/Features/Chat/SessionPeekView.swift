@@ -29,12 +29,12 @@ struct SessionPeekView: View {
             HStack(alignment: .top, spacing: Tokens.Space.s10) {
                 ProjectIcon(base: card.base, name: card.name, colorKey: projectColorKey(card.name), working: card.tone == .working || card.tone == .background, background: card.tone == .background)
                 VStack(alignment: .leading, spacing: Tokens.Space.s2) {
-                    Text(card.title).font(.scaled(14, weight: .semibold)).fixedSize(horizontal: false, vertical: true)
-                    Text(card.subtitle).font(SidebarMetrics.detail).fontWeight(card.tone == .quiet ? .regular : .medium).foregroundStyle(tone)
+                    Text(card.title).scaledFont(14, weight: .semibold).fixedSize(horizontal: false, vertical: true)
+                    Text(card.subtitle).sidebarFont(.detail).fontWeight(card.tone == .quiet ? .regular : .medium).foregroundStyle(tone)
                 }
             }
             if let message = card.lastMessage {
-                Text(message).font(SidebarMetrics.detail).foregroundStyle(.secondary).lineLimit(4)
+                Text(message).sidebarFont(.detail).foregroundStyle(.secondary).lineLimit(4)
                     .padding(Tokens.Space.s8).frame(maxWidth: .infinity, alignment: .leading)
                     .background(RoundedRectangle(cornerRadius: Tokens.Radius.control).fill(Color.primary.opacity(0.06)))
             }
@@ -60,17 +60,17 @@ struct SessionPeekView: View {
                             ForEach(card.background.prefix(Self.tasksShown), id: \.id) { task in
                                 HStack(spacing: Tokens.Space.s6) {
                                     Circle().fill(Color.backgroundWork).frame(width: 6, height: 6).accessibilityHidden(true)
-                                    Text(task.name).font(.scaled(10.5, design: .monospaced)).lineLimit(1).truncationMode(.tail)
+                                    Text(task.name).scaledFont(10.5, design: .monospaced).lineLimit(1).truncationMode(.tail)
                                 }
                             }
                             if card.background.count > Self.tasksShown {
-                                Text("+\(card.background.count - Self.tasksShown) more").font(.scaled(11)).foregroundStyle(.tertiary)
+                                Text("+\(card.background.count - Self.tasksShown) more").scaledFont(11).foregroundStyle(.tertiary)
                             }
                         }
                     }
                 }
             }
-            Text(card.timeline).font(.scaled(11.5)).foregroundStyle(.tertiary)
+            Text(card.timeline).scaledFont(11.5).foregroundStyle(.tertiary)
         }
         .padding(Tokens.Space.s14)
         .frame(width: 320, alignment: .leading)

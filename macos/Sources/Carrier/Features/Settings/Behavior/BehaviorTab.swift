@@ -119,7 +119,7 @@ struct BehaviorTabView: View {
     private func field<Value: Equatable>(_ key: String, _ value: Binding<Value>, unit: String?, parse: @escaping (String) -> Value?, format: @escaping (Value) -> String, step: @escaping (Value, Int) -> Value?) -> some View {
         HStack(spacing: Tokens.Space.s6) {
             NumberField(key: key, value: value, unparsable: $unparsable, parse: parse, format: format, step: step)
-            if let unit { Text(unit).font(.scaled(11)).foregroundStyle(.secondary) }
+            if let unit { Text(unit).scaledFont(11).foregroundStyle(.secondary) }
         }
     }
 

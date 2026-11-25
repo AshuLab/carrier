@@ -37,6 +37,7 @@ private struct WatchingRowView: View {
     let row: RepoRow
     let projectName: String?
     let open: () -> Void
+    @Environment(\.textScale) private var scale
 
     var body: some View {
         Button(action: open) {
@@ -44,7 +45,7 @@ private struct WatchingRowView: View {
                 tile
                 VStack(alignment: .leading, spacing: Tokens.Space.s1) {
                     Text(title).lineLimit(1).truncationMode(.middle)
-                    detail.font(.scaled(11)).lineLimit(1).truncationMode(.tail)
+                    detail.scaledFont(11).lineLimit(1).truncationMode(.tail)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 chips
@@ -80,7 +81,7 @@ private struct WatchingRowView: View {
         var owner = AttributedString(row.owner + "/")
         owner.foregroundColor = Color.secondary
         var repo = AttributedString(row.repo)
-        repo.font = Font.scaled(13).weight(.semibold)
+        repo.font = scale.font(13, weight: .semibold)
         return owner + repo
     }
 
@@ -131,7 +132,7 @@ struct WatchPicker: View {
         VStack(alignment: .leading, spacing: Tokens.Space.s8) {
             TextField("", text: $query, prompt: Text("Search your projects")).accessibilityLabel("Search your projects").settingsField(icon: .search)
             if shown.isEmpty {
-                Text(choices.isEmpty ? "Every project with a GitHub origin is watched." : "No project matches.").font(.scaled(12)).foregroundStyle(.secondary)
+                Text(choices.isEmpty ? "Every project with a GitHub origin is watched." : "No project matches.").scaledFont(12).foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .center).padding(.vertical, Tokens.Space.s18)
             } else {
                 ScrollView {
@@ -144,7 +145,7 @@ struct WatchPicker: View {
             Divider()
             HStack(spacing: Tokens.Space.s8) {
                 Button(action: addProject) { Label("Add project…", icon: .folderPlus) }.buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
-                Text("Clone one from GitHub or open a folder").font(.scaled(11)).foregroundStyle(.secondary)
+                Text("Clone one from GitHub or open a folder").scaledFont(11).foregroundStyle(.secondary)
             }
         }
         .padding(Tokens.Space.s12).frame(width: 360)
@@ -158,7 +159,7 @@ struct WatchPicker: View {
                 ProjectIcon(tile: choice.project.tile, imageFolder: carrierFolder)
                 VStack(alignment: .leading, spacing: Tokens.Space.s1) {
                     Text(choice.project.name).lineLimit(1)
-                    Text(choice.reason ?? choice.project.repo ?? "").font(.scaled(11)).foregroundStyle(.secondary).lineLimit(2).fixedSize(horizontal: false, vertical: true)
+                    Text(choice.reason ?? choice.project.repo ?? "").scaledFont(11).foregroundStyle(.secondary).lineLimit(2).fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: 4)
             }

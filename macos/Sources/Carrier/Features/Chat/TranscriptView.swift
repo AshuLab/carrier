@@ -35,7 +35,7 @@ struct LoadingRow: View {
             ProgressView().controlSize(.small)
             Text("Loading…").foregroundStyle(.secondary)
         }
-        .font(.scaled(12))
+        .scaledFont(12)
         .frame(maxWidth: .infinity, minHeight: 64)
         .accessibilityElement(children: .combine)
     }
@@ -60,7 +60,7 @@ struct FlowItemView: View {
             if let published = publishedNote(text) {
                 PublishedNoteRow(note: published)
             } else {
-                Text(text).font(.scaled(12)).foregroundStyle(.secondary).textSelection(.enabled)
+                Text(text).scaledFont(12).foregroundStyle(.secondary).textSelection(.enabled)
                     .padding(.horizontal, LogMetrics.iconColumn).padding(.vertical, Tokens.Space.s6)
             }
         case .error(_, let text):
@@ -105,10 +105,10 @@ struct CallColumns: View {
 
     var body: some View {
         HStack(spacing: LogMetrics.gap) {
-            Text(duration ?? "").font(.scaled(11)).monospacedDigit().foregroundStyle(failed ? AnyShapeStyle(.red) : AnyShapeStyle(.tertiary)).lineLimit(1)
+            Text(duration ?? "").scaledFont(11).monospacedDigit().foregroundStyle(failed ? AnyShapeStyle(.red) : AnyShapeStyle(.tertiary)).lineLimit(1)
                 .frame(width: LogMetrics.durationColumn, alignment: .trailing)
             Group {
-                if status != .ok { ToolStatusView(status: status).font(.scaled(14)) }
+                if status != .ok { ToolStatusView(status: status).scaledFont(14) }
             }
             .frame(width: LogMetrics.statusColumn, height: LogMetrics.statusColumn)
             LogChevron(open: chevron?.open == true).opacity(chevron?.visible == true ? 1 : 0)
@@ -136,7 +136,7 @@ struct PublishedNoteRow: View {
             }
             Spacer(minLength: 0)
         }
-        .font(.scaled(12)).lineLimit(1)
+        .scaledFont(12).lineLimit(1)
         .padding(.horizontal, LogMetrics.iconColumn).padding(.vertical, Tokens.Space.s6)
         .accessibilityElement(children: .combine)
     }
@@ -158,7 +158,7 @@ struct SkillRowView: View {
             Spacer(minLength: 8)
             if failed { Text("failed").foregroundStyle(.red) } else if let ms = call.durationMs { Text(formatCallDuration(ms)).foregroundStyle(.tertiary).monospacedDigit() }
         }
-        .font(.scaled(12.5)).lineLimit(1)
+        .scaledFont(12.5).lineLimit(1)
         .padding(.horizontal, Tokens.Space.s10).frame(height: LogMetrics.skillRow)
         .workCard()
         .help(call.arg)

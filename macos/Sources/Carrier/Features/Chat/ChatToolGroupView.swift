@@ -62,12 +62,12 @@ struct ChatToolGroupView: View {
                 ZStack(alignment: .leading) { words.id(key).transition(reduceMotion ? .opacity : .asymmetric(insertion: .move(edge: .bottom).combined(with: .opacity), removal: .move(edge: .top).combined(with: .opacity))) }
                     .frame(height: 22).clipped()
                 if live {
-                    Text("· step \(max(1, steps.count))").font(.scaled(12)).foregroundStyle(.tertiary).lineLimit(1)
+                    Text("· step \(max(1, steps.count))").scaledFont(12).foregroundStyle(.tertiary).lineLimit(1)
                 }
                 if group.failed > 0 {
                     HStack(spacing: Tokens.Space.s4) {
                         StateMark(shape: .problem, size: 12)
-                        Text("\(group.failed) failed").font(.scaled(12.5))
+                        Text("\(group.failed) failed").scaledFont(12.5)
                     }
                     .foregroundStyle(.red)
                 }
@@ -92,7 +92,7 @@ struct ChatToolGroupView: View {
             }
             .fixedSize()
         }
-        .font(.scaled(12, weight: .medium)).monospacedDigit()
+        .scaledFont(12, weight: .medium).monospacedDigit()
         .frame(height: 30)
         .contentShape(Rectangle())
         .animation(reduceMotion ? nil : .smooth(duration: 0.3), value: key)
@@ -104,9 +104,9 @@ struct ChatToolGroupView: View {
     private func liveTimers(_ timer: LiveTimer) -> some View {
         HStack(spacing: Tokens.Space.s6) {
             if let turn = timer.turnMs {
-                Text(formatCallDuration(turn)).font(.scaled(11.5)).foregroundStyle(.quaternary).lineLimit(1)
+                Text(formatCallDuration(turn)).scaledFont(11.5).foregroundStyle(.quaternary).lineLimit(1)
             }
-            Text(formatCallDuration(timer.primaryMs)).font(.scaled(12)).foregroundStyle(timer.slow ? AnyShapeStyle(Color.slowCall) : AnyShapeStyle(.tertiary)).lineLimit(1)
+            Text(formatCallDuration(timer.primaryMs)).scaledFont(12).foregroundStyle(timer.slow ? AnyShapeStyle(Color.slowCall) : AnyShapeStyle(.tertiary)).lineLimit(1)
         }
         .monospacedDigit()
         .fixedSize()
@@ -136,14 +136,14 @@ struct ChatToolGroupView: View {
             HStack(spacing: Tokens.Space.s8) {
                 if let chip = group.chip(waiting: waiting) { KindChipView(chip: chip) }
                 if showsLabel {
-                    Text(liveLabel).font(.scaled(12.5, weight: .semibold)).foregroundStyle(.secondary).lineLimit(1)
+                    Text(liveLabel).scaledFont(12.5, weight: .semibold).foregroundStyle(.secondary).lineLimit(1)
                         .modifier(Shimmer(active: reduceMotion == false))
                 }
             }
         } else {
             HStack(spacing: Tokens.Space.s8) {
-                Text(group.title).font(.scaled(12.5, weight: .semibold)).foregroundStyle(group.erred ? Color.red : .primary)
-                Text(group.summary).font(.scaled(12.5)).foregroundStyle(.secondary).lineLimit(1)
+                Text(group.title).scaledFont(12.5, weight: .semibold).foregroundStyle(group.erred ? Color.red : .primary)
+                Text(group.summary).scaledFont(12.5).foregroundStyle(.secondary).lineLimit(1)
             }
         }
     }
@@ -182,7 +182,7 @@ struct ChatToolGroupView: View {
         return VStack(alignment: .leading, spacing: Tokens.Space.none) {
             if live, all.count > 4 {
                 Button { toggle("\(id)/earlier") } label: {
-                    Text(capped ? "\(all.count - 4) earlier steps" : "Hide earlier steps").font(.scaled(11.5)).foregroundStyle(.tertiary)
+                    Text(capped ? "\(all.count - 4) earlier steps" : "Hide earlier steps").scaledFont(11.5).foregroundStyle(.tertiary)
                         .padding(.leading, Tokens.Space.s24).frame(height: 22).contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)

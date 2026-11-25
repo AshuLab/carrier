@@ -19,7 +19,7 @@ struct ResumeCardView: View {
                     .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).labelStyle(.titleAndIcon).disabled(resuming)
             }
         } below: {
-            if let refusal = store.resumeRefusals[epic] { ProblemLine(text: refusal, font: .scaled(11.5)).padding(.top, Tokens.Space.s6) }
+            if let refusal = store.resumeRefusals[epic] { ProblemLine(text: refusal, size: 11.5).padding(.top, Tokens.Space.s6) }
         }
         .sheet(isPresented: $confirming) { confirmation.themed() }
     }

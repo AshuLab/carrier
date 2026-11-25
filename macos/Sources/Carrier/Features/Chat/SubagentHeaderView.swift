@@ -23,8 +23,8 @@ struct SubagentTitle: View {
     var body: some View {
         let bases = Self.bases(percent: textScale.percent)
         VStack(alignment: .leading, spacing: Tokens.Space.s1) {
-            Text(title).font(.scaled(bases.title, weight: .semibold)).lineLimit(1).truncationMode(.tail)
-            Text(subtitle).font(.scaled(bases.subtitle)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.tail)
+            Text(title).scaledFont(bases.title, weight: .semibold).lineLimit(1).truncationMode(.tail)
+            Text(subtitle).scaledFont(bases.subtitle).foregroundStyle(.secondary).lineLimit(1).truncationMode(.tail)
         }
         .frame(height: Self.height, alignment: .leading)
         .accessibilityElement(children: .combine)
@@ -46,7 +46,7 @@ struct SubagentStatePill: View {
                 words(0)
             }
         }
-        .font(.scaled(12, weight: .medium)).monospacedDigit().foregroundStyle(.secondary)
+        .scaledFont(12, weight: .medium).monospacedDigit().foregroundStyle(.secondary)
         .padding(.horizontal, Tokens.Space.s10).frame(height: 24)
         .background(Capsule().fill(Color.primary.opacity(0.08)))
         .padding(.trailing, Tokens.Space.s6)

@@ -87,7 +87,7 @@ struct RunningAvatar: View {
     var ring: SpinningRing? { running ? SpinningRing(diameter: 22, lineWidth: 2, color: .white) : nil }
 
     var body: some View {
-        Text(initial).font(.scaled(12, weight: .bold)).foregroundStyle(.white)
+        Text(initial).scaledFont(12, weight: .bold).foregroundStyle(.white)
             .frame(width: 28, height: 28)
             .background(Circle().fill(Color.gray))
             .overlay { if let ring { ring.frame(width: 28, height: 28) } }

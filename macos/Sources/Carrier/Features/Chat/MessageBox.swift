@@ -6,6 +6,7 @@ import UniformTypeIdentifiers
 /// agent answers, and beside it at the left the button of what the session runs with. The key chosen in Settings sends (Return or ⌘Return), the other
 /// and Shift+Return add a line.
 struct MessageBox<Selects: View>: View {
+    @Environment(\.pieceTheme) private var theme
     @Environment(\.colorScheme) private var scheme
     @Environment(\.textScale) private var textScale
     @Binding var text: String
@@ -134,7 +135,7 @@ struct MessageBox<Selects: View>: View {
                     if let caption = dictationPresentation?.caption {
                         // the caption goes first when the row is tight
                         ViewThatFits(in: .horizontal) {
-                            Text(caption).font(.scaled(12)).foregroundStyle(.secondary).lineLimit(1).fixedSize()
+                            Text(caption).scaledFont(12).foregroundStyle(.secondary).lineLimit(1).fixedSize()
                             Color.clear.frame(width: 0, height: 0)
                         }
                         .layoutPriority(-1)
@@ -193,8 +194,8 @@ struct MessageBox<Selects: View>: View {
     /// What a blocked microphone offers: the way to the Microphone pane of System Settings.
     private var blockedPopover: some View {
         VStack(alignment: .leading, spacing: Tokens.Space.s8) {
-            Text(MicrophoneBlockedPopover.title).font(.scaled(13, weight: .semibold))
-            Text(MicrophoneBlockedPopover.message).font(.scaled(12)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            Text(MicrophoneBlockedPopover.title).scaledFont(13, weight: .semibold)
+            Text(MicrophoneBlockedPopover.message).scaledFont(12).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             Button(MicrophoneBlockedPopover.button) {
                 MicrophoneAccess.openSystemSettings()
                 microphoneBlocked = false
@@ -206,13 +207,13 @@ struct MessageBox<Selects: View>: View {
     /// What the box says while files are over it.
     private var dropVeil: some View {
         VStack(spacing: Tokens.Space.s3) {
-            Text("Drop to attach").font(.scaled(14, weight: .semibold))
-            Text("The agent reads them by their path").font(.scaled(12)).foregroundStyle(.secondary)
+            Text("Drop to attach").scaledFont(14, weight: .semibold)
+            Text("The agent reads them by their path").scaledFont(12).foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(RoundedRectangle(cornerRadius: Tokens.Radius.panel).fill(Color.themeAccent.opacity(0.16)))
+        .background(RoundedRectangle(cornerRadius: Tokens.Radius.panel).fill(.tint.opacity(0.16)))
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: Tokens.Radius.panel))
-        .overlay(RoundedRectangle(cornerRadius: Tokens.Radius.panel).strokeBorder(Color.themeAccent, style: StrokeStyle(lineWidth: 1.5, dash: [6, 4])))
+        .overlay(RoundedRectangle(cornerRadius: Tokens.Radius.panel).strokeBorder(.tint, style: StrokeStyle(lineWidth: 1.5, dash: [6, 4])))
         .allowsHitTesting(false)
         .transition(.opacity)
     }
@@ -338,7 +339,7 @@ struct MessageBox<Selects: View>: View {
             .contentShape(Circle())
         Button(action: busy ? stop : fire) { label }
             .buttonStyle(.plain)
-            .chatSurface(active ? .regular.tint(Color.accentGlass).interactive() : .regular, flat: active ? Color.accentGlass : Color.primary.opacity(0.08), in: Circle())
+            .chatSurface(active ? .regular.tint(theme.accentGlass).interactive() : .regular, flat: active ? theme.accentGlass : Color.primary.opacity(0.08), in: Circle())
             .disabled(active == false)
             .animation(.smooth(duration: 0.25), value: active)
         .help(busy ? "Stop" : "\(sendHelp) (\(sendKey == .return ? "↩" : "⌘↩")) · New line (\(sendKey == .return ? "⇧↩" : "↩"))").accessibilityLabel(busy ? "Stop" : "Send")

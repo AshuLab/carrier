@@ -135,7 +135,7 @@ struct SessionsHomeView: View {
                         Glyph(.close, size: 8)
                     }
                     .font(.caption.weight(.medium)).foregroundStyle(.white)
-                    .padding(.horizontal, Tokens.Space.s10).padding(.vertical, Tokens.Space.s3).background(Capsule().fill(Color.themeAccent))
+                    .padding(.horizontal, Tokens.Space.s10).padding(.vertical, Tokens.Space.s3).background(Capsule().fill(.tint))
                 }
                 .buttonStyle(.plain).accessibilityLabel("Remove filter \(chip.title)")
             }
@@ -239,7 +239,7 @@ private struct SessionHomeRow: View {
             VStack(alignment: .leading, spacing: Tokens.Space.s3) {
                 HStack(spacing: Tokens.Space.s6) {
                     if pinned { Glyph(.pinFilled, size: 10, label: "Pinned").foregroundStyle(.secondary) }
-                    Text(row.title).font(.scaled(13, weight: .medium)).lineLimit(1).truncationMode(.tail)
+                    Text(row.title).scaledFont(13, weight: .medium).lineLimit(1).truncationMode(.tail)
                     if showsWorkspace { RowTag(text: row.workspace) }
                     if row.archived { RowTag(text: "Archived") }
                 }
@@ -248,7 +248,7 @@ private struct SessionHomeRow: View {
             }
             Spacer(minLength: 8)
             VStack(alignment: .trailing, spacing: Tokens.Space.s6) {
-                SessionTimeLabel(row: row, age: timeText(row.updatedAt, now: Date(), format: timeChanges.format)).font(.scaled(12).monospacedDigit()).lineLimit(1)
+                SessionTimeLabel(row: row, age: timeText(row.updatedAt, now: Date(), format: timeChanges.format)).scaledFont(12).monospacedDigit().lineLimit(1)
                 ProviderMarks(names: row.providers)
             }
             .opacity(active ? 0 : 1)
@@ -292,7 +292,7 @@ private struct SessionHomeRow: View {
         HStack(spacing: Tokens.Space.s6) {
             Group {
                 if let branch = row.branch {
-                    Text("\(Image(inline: .gitBranch)) \(Text(branch).font(.scaled(11, design: .monospaced)))").lineLimit(1).truncationMode(.middle)
+                    Text("\(Image(inline: .gitBranch)) \(Text(branch).scaledFont(11, design: .monospaced))").lineLimit(1).truncationMode(.middle)
                 } else {
                     Label("Base folder", icon: .folder).labelStyle(.titleAndIcon).lineLimit(1)
                 }

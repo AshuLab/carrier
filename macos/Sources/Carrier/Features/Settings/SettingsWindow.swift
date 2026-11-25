@@ -99,6 +99,7 @@ import SwiftUI
 
 /// The window's content: the sidebar and, in the detail, the chosen page under the toolbar.
 struct SettingsRoot: View {
+    @Environment(\.pieceTheme) private var theme
     let model: PanelModel
     let navigator: SettingsNavigator
     @State private var headerNote: SettingsHeaderNote?
@@ -135,7 +136,7 @@ struct SettingsRoot: View {
                             ToolbarPillButton(
                                 title: actionTitle,
                                 icon: headerAction.icon,
-                                iconTint: headerAction.active ? Color.themeAccent : nil
+                                iconTint: headerAction.active ? theme.accent : nil
                             ) { headerAction.run?() }
                             .glassEffect(.regular, in: .capsule)
                             .help(headerAction.help.isEmpty ? actionTitle : headerAction.help)
@@ -189,7 +190,7 @@ struct SettingsRoot: View {
             Text("Every setting on this page goes back to how it came. This can’t be undone.")
         }
         // the size of a Text with no font of its own, so it follows the text size too
-        .font(.scaled(13))
+        .scaledFont(13)
         // the search finds the providers and accounts of this Mac, which only the host knows
         .task { await AppHealth.providers.load() }
         // a problem appears while the person looks elsewhere: say it to VoiceOver too

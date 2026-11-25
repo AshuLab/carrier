@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 
-/// A view takes its size from the type scale (`scaledFont`, `Font.scaled`, `NSFont.scaled`, `NSFont.scaledMono`); only the file that holds those helpers builds a font from a number.
+/// A view takes its size from the type scale (`scaledFont`, `TypeScale.font`, `NSFont.scaled`, `NSFont.scaledMono`); only the file that holds those helpers builds a font from a number.
 @Suite struct NoHandSetFontSize {
     private static let helpers = "ScaledFont.swift"
     private static let byHand = try! NSRegularExpression(pattern: #"\.system\(size:|SystemFont\(ofSize:|NSFont\(name:|\.custom\("#)
@@ -21,7 +21,7 @@ import Testing
     @Test func noViewSetsAFontSizeByHand() throws {
         let sources = testPaths().sources
         let found = try Self.offenders(in: sources, minimum: 100)
-        #expect(found.isEmpty, "Set by hand, take the size from the type scale (Font.scaled):\n\(found.joined(separator: "\n"))")
+        #expect(found.isEmpty, "Set by hand, take the size from the type scale (.scaledFont):\n\(found.joined(separator: "\n"))")
     }
 
     @Test func theScanFindsAFontSetByHand() throws {

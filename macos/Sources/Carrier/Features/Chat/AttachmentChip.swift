@@ -7,6 +7,7 @@ import SwiftUI
 /// back, and a × while the pointer is over it when it can be taken out. A click opens `open` (the preview, for a file that can be looked at);
 /// without one it shows the file in Finder.
 struct AttachmentChip: View {
+    @Environment(\.pieceTheme) private var theme
     let file: AttachedFile
     var remove: (() -> Void)?
     var open: (() -> Void)?
@@ -25,8 +26,8 @@ struct AttachmentChip: View {
         HStack(spacing: Tokens.Space.s10) {
             badge
             VStack(alignment: .leading, spacing: Tokens.Space.none) {
-                Text(Self.shortened(file.name)).font(.scaled(12.5, weight: .semibold)).lineLimit(1)
-                Text(file.problemText ?? file.detail).font(.scaled(11)).foregroundStyle(tint ?? .secondary).lineLimit(1)
+                Text(Self.shortened(file.name)).scaledFont(12.5, weight: .semibold).lineLimit(1)
+                Text(file.problemText ?? file.detail).scaledFont(11).foregroundStyle(tint ?? .secondary).lineLimit(1)
             }
             if let remove {
                 Button(action: remove) {
@@ -87,7 +88,7 @@ struct AttachmentChip: View {
         case .pdf: Color(Tokens.Attachment.pdf)
         case .folder: Color(Tokens.Attachment.folder)
         case .log: Color(Tokens.Attachment.log)
-        case .code: Color.themeAccent
+        case .code: theme.accent
         case .data: Color(Tokens.Attachment.data)
         case .archive: Color(Tokens.Attachment.archive)
         case .other: Color(Tokens.Attachment.other)

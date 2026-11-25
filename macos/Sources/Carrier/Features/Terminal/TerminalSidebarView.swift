@@ -49,7 +49,7 @@ struct TerminalRows: View {
             actions: {
                 if terminals.isEmpty == false {
                     Text("\(terminals.count)")
-                        .font(SidebarMetrics.detail.weight(.semibold).monospacedDigit())
+                        .sidebarFont(.detail, weight: .semibold).monospacedDigit()
                         .foregroundStyle(.secondary)
                         .padding(.horizontal, Tokens.Space.s6)
                         .padding(.vertical, Tokens.Space.s1)
@@ -157,12 +157,12 @@ private struct TerminalSidebarRowView: View {
             }
             VStack(alignment: .leading, spacing: SidebarMetrics.lineGap) {
                 Text(summary.title)
-                    .font(SidebarMetrics.item)
+                    .sidebarFont(.item)
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .frame(height: Self.titleLine, alignment: .leading)
                 Text(summary.subtitle())
-                    .font(SidebarMetrics.detail)
+                    .sidebarFont(.detail)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                     .truncationMode(.middle)

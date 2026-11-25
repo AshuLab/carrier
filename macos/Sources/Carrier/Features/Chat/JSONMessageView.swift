@@ -13,7 +13,7 @@ struct JSONMessageView: View {
             case .fields(let fields): FieldsView(fields: fields)
             }
         }
-        .font(.scaled(13))
+        .scaledFont(13)
     }
 }
 
@@ -23,12 +23,12 @@ private struct SliceReportView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Tokens.Space.s6) {
             HStack(spacing: Tokens.Space.s8) {
-                if let title = report.title { Text(title).font(.scaled(14, weight: .semibold)) }
+                if let title = report.title { Text(title).scaledFont(14, weight: .semibold) }
                 pill
                 Spacer(minLength: 8)
                 if let pull = report.pull {
                     Link(destination: pull.url) {
-                        Label(pull.label, icon: .gitPullRequest).font(.scaled(10, weight: .semibold))
+                        Label(pull.label, icon: .gitPullRequest).scaledFont(10, weight: .semibold)
                     }
                     .buttonStyle(.plain).foregroundStyle(.blue)
                 }
@@ -40,7 +40,7 @@ private struct SliceReportView: View {
             }
             let done = report.checks.filter(\.passed).count
             Text("DEFINITION OF DONE · \(done) OF \(report.checks.count)")
-                .font(.scaled(11, weight: .semibold)).tracking(0.4).foregroundStyle(.tertiary).padding(.top, Tokens.Space.s6)
+                .scaledFont(11, weight: .semibold).tracking(0.4).foregroundStyle(.tertiary).padding(.top, Tokens.Space.s6)
             ChecklistView(checks: report.checks)
             if let note = report.note { MarkdownView(text: note).foregroundStyle(.secondary).padding(.top, Tokens.Space.s6) }
         }
@@ -52,7 +52,7 @@ private struct SliceReportView: View {
             Glyph(icon, size: 10)
             Text(report.outcome)
         }
-        .font(.scaled(10, weight: .semibold)).foregroundStyle(tint)
+        .scaledFont(10, weight: .semibold).foregroundStyle(tint)
         .padding(.horizontal, Tokens.Space.s10).padding(.vertical, Tokens.Space.s3).background(Capsule().fill(tint.opacity(0.18)))
     }
 
@@ -96,7 +96,7 @@ private struct FieldsView: View {
         Grid(alignment: .topLeading, horizontalSpacing: 16, verticalSpacing: 7) {
             ForEach(Array(fields.enumerated()), id: \.offset) { _, field in
                 GridRow {
-                    Text(field.label).font(.scaled(10)).foregroundStyle(.tertiary).gridColumnAlignment(.leading)
+                    Text(field.label).scaledFont(10).foregroundStyle(.tertiary).gridColumnAlignment(.leading)
                     value(field.value).frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
@@ -108,7 +108,7 @@ private struct FieldsView: View {
         switch value {
         case .flag(let on):
             Label(on ? "yes" : "no", icon: on ? .checkCircle : .closeCircle)
-                .font(.scaled(10, weight: .semibold)).foregroundStyle(on ? Color.green : Color.red)
+                .scaledFont(10, weight: .semibold).foregroundStyle(on ? Color.green : Color.red)
         case .number(let text): Text(text).fontWeight(.semibold)
         case .text(let text): Text(text).foregroundStyle(.secondary).textSelection(.enabled)
         case .code(let text):

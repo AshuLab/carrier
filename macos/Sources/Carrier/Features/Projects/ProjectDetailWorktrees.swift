@@ -38,7 +38,7 @@ extension ProjectDetailView {
                             }
                             HStack(spacing: Tokens.Space.s6) {
                                 Circle().fill(diskColor(item.id, in: items)).frame(width: 7, height: 7).accessibilityHidden(true)
-                                Text(item.size).font(.scaled(12)).monospacedDigit().foregroundStyle(.secondary)
+                                Text(item.size).scaledFont(12).monospacedDigit().foregroundStyle(.secondary)
                             }
                             .frame(width: 76, alignment: .trailing)
                         }
@@ -64,7 +64,7 @@ extension ProjectDetailView {
 
     /// The colour of a folder in the bar and before its size: the main clone the theme's accent, then one for each worktree, round again after six.
     private func diskColor(_ id: String, in items: [WorktreeRow]) -> Color {
-        let palette: [Color] = [.themeAccent, .teal, .indigo, .purple, .pink, .mint]
+        let palette: [Color] = [theme.accent, .teal, .indigo, .purple, .pink, .mint]
         return palette[(items.firstIndex { $0.id == id } ?? 0) % palette.count]
     }
 
@@ -73,7 +73,7 @@ extension ProjectDetailView {
 
     private func worktreeTint(_ state: ProjectWorktree.State) -> Color {
         switch state {
-        case .sessionOpen: .themeAccent
+        case .sessionOpen: theme.accent
         case .merged: .green
         case .uncommitted, .notPushed: .orange
         case .clean: .secondary

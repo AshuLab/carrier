@@ -32,21 +32,22 @@ struct SubagentView: View {
                 .padding(.horizontal, Tokens.Space.s40).padding(.vertical, Tokens.Space.s12)
                 .frame(maxWidth: messageWidth.points).frame(maxWidth: .infinity)
         }
-        .font(.scaled(13))
+        .scaledFont(13)
         .accessibilityLabel("Subagent \(work.header.title)")
     }
 }
 
 /// What the subagent was given, as the person's own message is drawn (a bubble on the right) with a label over it.
 private struct BriefBubble: View {
+    @Environment(\.pieceTheme) private var theme
     let text: String
 
     var body: some View {
         VStack(alignment: .trailing, spacing: Tokens.Space.s3) {
-            Text("Brief from the main agent").font(.scaled(10.5, weight: .semibold)).textCase(.uppercase).tracking(0.5).foregroundStyle(Color.themeAccent)
+            Text("Brief from the main agent").scaledFont(10.5, weight: .semibold).textCase(.uppercase).tracking(0.5).foregroundStyle(.tint)
             Text(text).chatText(bubble: true).textSelection(.enabled)
                 .padding(.horizontal, Tokens.Space.s14).padding(.vertical, Tokens.Space.s8)
-                .chatSurface(.regular.tint(Color.themeAccent.opacity(0.1)), flat: Color.themeAccent.opacity(0.16), in: RoundedRectangle(cornerRadius: Tokens.Radius.panel))
+                .chatSurface(.regular.tint(theme.accent.opacity(0.1)), flat: theme.accent.opacity(0.16), in: RoundedRectangle(cornerRadius: Tokens.Radius.panel))
         }
         .frame(maxWidth: .infinity, alignment: .trailing)
         .padding(.leading, Tokens.Space.bubbleMargin)
@@ -62,10 +63,10 @@ private struct SubagentNote: View {
     var body: some View {
         HStack(spacing: Tokens.Space.s10) {
             Glyph(.lock, size: 12).foregroundStyle(.secondary).accessibilityHidden(true)
-            Text("Subagent work is read-only.").font(.scaled(12.5)).foregroundStyle(.secondary).lineLimit(1)
+            Text("Subagent work is read-only.").scaledFont(12.5).foregroundStyle(.secondary).lineLimit(1)
             Spacer(minLength: 8)
             Button(action: backToChat) {
-                Label(backTitle, icon: .chevronLeft).font(.scaled(12, weight: .medium)).labelStyle(.titleAndIcon)
+                Label(backTitle, icon: .chevronLeft).scaledFont(12, weight: .medium).labelStyle(.titleAndIcon)
                     .padding(.horizontal, Tokens.Space.s12).frame(height: ToolbarPillButton.height)
                     .chatSurface(.regular.interactive(), in: Capsule())
                     .contentShape(Capsule())

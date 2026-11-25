@@ -9,6 +9,7 @@ import SwiftUI
 /// keeps the ring alone, with no arc and no bloom. It ignores the pointer, has the box's radius (dictation-composer-spec.html, section 3) and exists
 /// only while it listens, with a `MovingTimeline`.
 struct DictationIndicator: View {
+    @Environment(\.pieceTheme) private var theme
     let levels: VoiceLevels
     /// The message box's own radius (`MessageBox` writes the same 16; keep the two equal).
     var radius: CGFloat = Tokens.Radius.panel
@@ -19,15 +20,15 @@ struct DictationIndicator: View {
     /// The arc and its bloom are light over the ring; Reduce Transparency keeps the ring alone.
     static func drawsLight(reduceTransparency: Bool) -> Bool { reduceTransparency == false }
 
-    static func accentColors() -> [Color] {
-        let accent = NSColor(Color.themeAccent).usingColorSpace(.sRGB) ?? .controlAccentColor
+    static func accentColors(_ color: Color) -> [Color] {
+        let accent = NSColor(color).usingColorSpace(.sRGB) ?? .controlAccentColor
         var (hue, saturation, brightness): (CGFloat, CGFloat, CGFloat) = (0, 0, 0)
         accent.getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: nil)
         return dictationColors(accent: HSB(hue: hue, saturation: saturation, brightness: brightness)).map { Color($0) }
     }
 
     var body: some View {
-        let colors = Self.accentColors()
+        let colors = Self.accentColors(theme.accent)
         // with Reduce Motion nothing goes round, trembles or thickens: the arc stands still and its brightness follows the voice, at a calmer rate
         // 30 frames a second, as every motion in the window: the voice reaches it about twelve times a second, and 60 asked for twice the frames
         // for a tremble that the eye does not tell from this one

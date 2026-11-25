@@ -4,6 +4,8 @@ import SwiftUI
 import Testing
 @testable import Carrier
 
+private let english = (bundle: Copy.bundle("en"), locale: Locale(identifier: "en_US"))
+
 /// A controller whose session is in `state`, driven with the scripted ports; nil `state` is a build with no recognizer, and `failing` one
 /// whose dictation failed to start.
 @MainActor private func controller(in state: DictationSession.State?, failing: Bool = false) async -> DictationController {
@@ -82,8 +84,8 @@ func theMessageBoxBuildsInEveryStateOfADictationAtWideAndNarrowWidths(state: Dic
 
 @MainActor @Test func onlyTheBoxThatDictatesDrawsTheStateOfTheDictation() async {
     let dictation = await controller(in: .listening)
-    #expect(dictation.presentation(for: "box")?.label == "Stop dictation")
-    #expect(dictation.presentation(for: "another")?.label == "Dictate")
+    #expect(dictation.presentation(for: "box", bundle: english.bundle, locale: english.locale)?.label == "Stop dictation")
+    #expect(dictation.presentation(for: "another", bundle: english.bundle, locale: english.locale)?.label == "Dictate")
 }
 
 @MainActor @Test func aTypedKeyOrLeavingStopsOnlyTheDictationOfThatBoxAndAClickInAnotherBoxStopsItToo() async {

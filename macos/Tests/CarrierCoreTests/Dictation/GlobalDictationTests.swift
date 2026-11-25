@@ -19,17 +19,21 @@ import Testing
     /// The model server of Cleanup; nil is Cleanup off.
     var server: ScriptedModel?
 
-    init(recognizer: ScriptedRecognizer = ScriptedRecognizer(atAudioEnd: [.final("")]), capture: ScriptedCapture = ScriptedCapture()) {
+    init(
+        recognizer: ScriptedRecognizer = ScriptedRecognizer(atAudioEnd: [.final("")]), capture: ScriptedCapture = ScriptedCapture(),
+        language: (bundle: Bundle, locale: Locale) = english
+    ) {
         self.capture = capture
         self.recognizer = recognizer
         let logged = logged
-        let session = DictationSession(capture: capture, log: { logged.causes.append($0.cause) })
+        let session = DictationSession(capture: capture, log: { logged.causes.append($0.cause) }, bundle: language.bundle, locale: language.locale)
         machine = GlobalDictation(
             session: session, speechModel: { [unowned self] in hasModel ? (recognizer, recognizer.models[0]) : nil }, microphone: { [unowned self] in microphone },
             decision: { [unowned self] in decision }, activation: { [unowned self] in activation },
             moment: { [unowned self] in moments.append($0) }, record: { [unowned self] in recorded.append($0) }, frontApp: { [unowned self] in frontApp },
             cleanup: { [unowned self] in server.map { server in { try await CleanupRun(client: server).run(server: .ollama, model: "m", prompt: "Clean it", text: $0).text } } },
-            cleanupModel: { "m" }, perform: { [unowned self] in effects.append($0) })
+            cleanupModel: { "m" }, perform: { [unowned self] in effects.append($0) },
+            bundle: language.bundle, locale: language.locale)
     }
 
     var session: DictationSession { machine.session }
@@ -537,8 +541,8 @@ func aTextThatCannotBePastedIsCopiedAndStaysInTheWidgetWithItsReason(reason: Pas
 // The cleanup of the widget's text (docs/adr/0030): the model client is scripted, and the session is the one of the boxes.
 
 /// A widget that dictated "um hola mundo" and was ended, so it is cleaning, with `reason` as what the paste decides.
-@MainActor private func cleaningWidget(_ decision: PasteDecision = .paste) async -> (Widget, ScriptedModel) {
-    let widget = Widget(recognizer: ScriptedRecognizer(atAudioEnd: [.final("um hola mundo")]))
+@MainActor private func cleaningWidget(_ decision: PasteDecision = .paste, language: (bundle: Bundle, locale: Locale) = english) async -> (Widget, ScriptedModel) {
+    let widget = Widget(recognizer: ScriptedRecognizer(atAudioEnd: [.final("um hola mundo")]), language: language)
     let server = ScriptedModel()
     widget.server = server
     widget.decision = decision
@@ -583,8 +587,8 @@ func aCleanupThatFailsPastesTheRawTextSaysItWasNotCleanedAndLogsTheCauseAlone(fa
     server.reply(.failure(failure))
     await widget.until { widget.machine.state == .idle }
     #expect(widget.effects == [.show, .paste("um hola mundo"), .close])
-    #expect(widget.machine.shown == .pastedRaw && widget.machine.notCleaned == failure.message)
-    #expect(widget.logged.causes == [failure.message])
+    #expect(widget.machine.shown == .pastedRaw && widget.machine.notCleaned == failure.message(bundle: english.bundle, locale: english.locale))
+    #expect(widget.logged.causes == [failure.message(bundle: english.bundle, locale: english.locale)])
     #expect(widget.recorded.map(\.outcome) == [.pasted] && widget.recorded.map(\.cleaned) == [nil])
 }
 
@@ -593,7 +597,7 @@ func aCleanupThatFailsPastesTheRawTextSaysItWasNotCleanedAndLogsTheCauseAlone(fa
     server.reply(.failure(CleanupFailure.timeout))
     await widget.until { widget.machine.state != .running }
     #expect(widget.effects == [.show, .copy("um hola mundo")] && widget.machine.state == .copied(.secureField))
-    #expect(widget.machine.notCleaned == CleanupFailure.timeout.message)
+    #expect(widget.machine.notCleaned == CleanupFailure.timeout.message(bundle: english.bundle, locale: english.locale))
 }
 
 @MainActor @Test func theNextDictationForgetsWhyTheLastOneWasNotCleaned() async {
@@ -622,4 +626,29 @@ func aCleanupThatFailsPastesTheRawTextSaysItWasNotCleanedAndLogsTheCauseAlone(fa
     widget.recognizer.say(.failed(DictationFailure("The model broke")))
     await widget.until { widget.machine.state == .failed("The model broke") }
     #expect(widget.effects == [.show] && widget.machine.notCleaned == nil)
+}
+
+// MARK: in Spanish
+
+@MainActor @Test func theWidgetSaysWhyADictationCouldNotStartInSpanishAndLogsItInEnglish() {
+    let blocked = Widget(language: spanish)
+    blocked.microphone = .denied
+    blocked.machine.handle(.down)
+    #expect(blocked.machine.state == .failed("macOS tiene el micrófono bloqueado para Carrier. Permítelo en Ajustes del Sistema y vuelve a dictar."))
+    #expect(blocked.logged.causes == ["macOS has the microphone blocked for Carrier. Allow it in System Settings, then dictate again."])
+    let none = Widget(language: spanish)
+    none.hasModel = false
+    none.machine.handle(.down)
+    #expect(none.machine.state == .failed("No hay ningún modelo de voz disponible") && none.logged.causes == ["No speech model is available"])
+}
+
+@MainActor @Test(arguments: [
+    (CleanupFailure.serverDown(.ollama), "Ollama no está en marcha"), (.noModel, "El modelo no está en el servidor: elige otro"), (.timeout, "El modelo no respondió a tiempo"),
+])
+func aCleanupThatFailsTellsItsCauseInSpanishAndLogsTheEnglishOne(failure: CleanupFailure, words: String) async {
+    let (widget, server) = await cleaningWidget(language: spanish)
+    server.reply(.failure(failure))
+    await widget.until { widget.machine.state == .idle }
+    #expect(widget.machine.shown == .pastedRaw && widget.machine.notCleaned == words)
+    #expect(widget.logged.causes == [failure.message(bundle: english.bundle, locale: english.locale)])
 }

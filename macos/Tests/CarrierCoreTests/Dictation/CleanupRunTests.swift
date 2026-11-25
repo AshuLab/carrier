@@ -42,7 +42,7 @@ private func failure(_ client: ScriptedClient, server: CleanupServer? = .lmStudi
 
 @Test func aServerThatIsDownIsSaidByName() async {
     #expect(await failure(ScriptedClient(.failure(CleanupFailure.serverDown(.ollama))), server: .ollama) == .serverDown(.ollama))
-    #expect(CleanupFailure.serverDown(.ollama).message == "Ollama is not running")
+    #expect(CleanupFailure.serverDown(.ollama).message(bundle: english.bundle, locale: english.locale) == "Ollama is not running")
 }
 
 @Test func aModelTheServerDoesNotHaveIsAFailureAndAnAbsentOneIsNeverAsked() async {
@@ -66,7 +66,8 @@ private func failure(_ client: ScriptedClient, server: CleanupServer? = .lmStudi
 }
 
 @Test func aReplyWithNoTextOrAnErrorOfAnotherKindIsABadReply() async {
-    #expect(await failure(ScriptedClient(.success("  \n"))) == .badReply("The model answered with no text"))
+    #expect(await failure(ScriptedClient(.success("  \n"))) == .emptyAnswer)
+    #expect(CleanupFailure.emptyAnswer.message(bundle: english.bundle, locale: english.locale) == "The model answered with no text")
     struct Odd: LocalizedError { var errorDescription: String? { "odd" } }
     #expect(await failure(ScriptedClient(.failure(Odd()))) == .badReply("odd"))
 }

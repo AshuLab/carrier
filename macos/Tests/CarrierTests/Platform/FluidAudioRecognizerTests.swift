@@ -4,6 +4,8 @@ import Foundation
 import Testing
 @testable import Carrier
 
+private let english = (bundle: Copy.bundle("en"), locale: Locale(identifier: "en_US"))
+
 private func recognizer(in root: URL) -> FluidAudioRecognizer { FluidAudioRecognizer(modelsRoot: root, preferredLanguages: ["es-ES"]) }
 
 private func model(_ name: String) -> SpeechModel { FluidAudioRecognizer.entries.first { $0.model.id == "fluidaudio.\(name)" }!.model }
@@ -34,7 +36,7 @@ private let parakeet = model("parakeet-tdt-v3")
 }
 
 @Test func parakeetTDTv3TakesThePartialTextOfTheCoreAndTheTableSaysLiveWhileUltraIsNotMeasuredAndSaysWhenYouStop() {
-    let rows = speechModelRows(models: [parakeet, model("parakeet-ultra")], filter: nil, state: { _ in .downloaded }, inUse: nil)
+    let rows = speechModelRows(models: [parakeet, model("parakeet-ultra")], filter: nil, state: { _ in .downloaded }, inUse: nil, bundle: english.bundle, locale: english.locale)
     #expect(rows.map(\.text) == ["Live", "When you stop"])
 }
 

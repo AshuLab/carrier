@@ -127,7 +127,7 @@ private func entry(
     }
     let days = dictationDays(entries, calendar: calendar)
     #expect(days.map(\.entries.count) == [2, 1, 1])
-    #expect(days.map { dictationDayTitle($0.day, now: today, calendar: calendar) } == ["Today", "Yesterday", "Thursday, Nov 12"])
+    #expect(days.map { dictationDayTitle($0.day, now: today, calendar: calendar, bundle: english.bundle, locale: english.locale) } == ["Today", "Yesterday", "Thursday, Nov 12"])
     #expect(dictationDays([], calendar: calendar).isEmpty)
 }
 
@@ -255,9 +255,9 @@ private let clip = AudioClip(samples: [0, 0.5, -0.5, 1], sampleRate: 16_000)
 }
 
 @Test func theAudioOnDiskIsSaidInMegabytesKilobytesAndFiles() {
-    #expect(formatAudioOnDisk(bytes: 0, files: 0) == "No audio")
-    #expect(formatAudioOnDisk(bytes: 12_400, files: 1) == "12 KB in 1 file")
-    #expect(formatAudioOnDisk(bytes: 182_000_000, files: 214) == "182 MB in 214 files")
+    #expect(formatAudioOnDisk(bytes: 0, files: 0, bundle: english.bundle, locale: english.locale) == "No audio")
+    #expect(formatAudioOnDisk(bytes: 12_400, files: 1, bundle: english.bundle, locale: english.locale) == "12 KB in 1 file")
+    #expect(formatAudioOnDisk(bytes: 182_000_000, files: 214, bundle: english.bundle, locale: english.locale) == "182 MB in 214 files")
 }
 
 private var utc: Calendar {

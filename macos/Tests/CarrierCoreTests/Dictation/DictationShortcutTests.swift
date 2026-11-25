@@ -3,7 +3,7 @@ import Testing
 @testable import CarrierCore
 
 private func record(_ keyCode: Int, _ characters: String, _ modifiers: ShortcutModifiers) -> ShortcutRecording {
-    recordShortcut(keyCode: keyCode, characters: characters, modifiers: modifiers)
+    recordShortcut(keyCode: keyCode, characters: characters, modifiers: modifiers, bundle: english.bundle, locale: english.locale)
 }
 
 @Test func theDefaultShortcutIsOptionShiftSpace() {
@@ -52,6 +52,6 @@ func aCombinationWithNoControlOptionOrCommandIsRefusedWithTheReason(keyCode: Int
 }
 
 @Test func theLineOfTheWidgetSaysHowTheDictationEnds() {
-    #expect(dictationHint(shortcut: .standard, activation: .toggle) == "⌥⇧ Space to finish · Esc to cancel")
-    #expect(dictationHint(shortcut: .standard, activation: .hold) == "Release ⌥⇧ Space to finish · Esc to cancel")
+    #expect(dictationHint(shortcut: .standard, activation: .toggle, bundle: english.bundle, locale: english.locale) == "⌥⇧ Space to finish · Esc to cancel")
+    #expect(dictationHint(shortcut: .standard, activation: .hold, bundle: english.bundle, locale: english.locale) == "Release ⌥⇧ Space to finish · Esc to cancel")
 }

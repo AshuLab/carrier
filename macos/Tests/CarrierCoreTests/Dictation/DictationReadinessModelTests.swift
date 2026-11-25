@@ -4,7 +4,9 @@ import Testing
 private func readiness(
     enabled: Bool = true, microphone: MicrophonePermission = .allowed, trusted: Bool = true, global: Bool = true, model: DictationModelReadiness = .ready("Apple")
 ) -> DictationReadiness {
-    dictationReadiness(enabled: enabled, microphone: microphone, accessibilityTrusted: trusted, globalOn: global, model: model)
+    dictationReadiness(enabled: enabled, microphone: microphone, accessibilityTrusted: trusted, globalOn: global, model: model,
+        bundle: english.bundle, locale: english.locale
+    )
 }
 
 @Test func everythingInPlaceIsReadyToDictateAndSaysNothingIsWrong() {
@@ -51,6 +53,7 @@ private func readiness(
 
 @Test func theScreensOfThePageHaveATitleAndALineAndTheirPathIsTheirName() {
     #expect(DictationScreen.allCases.map(\.rawValue) == ["recognition", "global", "cleanup", "sounds", "history", "statistics"])
-    #expect(DictationScreen.allCases.allSatisfy { $0.title.isEmpty == false && $0.detail.isEmpty == false })
-    #expect(DictationScreen.statistics.title == "Statistics" && DictationScreen.recognition.title == "Speech recognition")
+    #expect(DictationScreen.allCases.allSatisfy { $0.title(bundle: english.bundle, locale: english.locale).isEmpty == false && $0.detail(bundle: english.bundle, locale: english.locale).isEmpty == false })
+    #expect(DictationScreen.statistics.title(bundle: english.bundle, locale: english.locale) == "Statistics"
+            && DictationScreen.recognition.title(bundle: english.bundle, locale: english.locale) == "Speech recognition")
 }

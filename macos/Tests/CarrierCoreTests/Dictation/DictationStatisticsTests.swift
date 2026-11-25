@@ -48,15 +48,15 @@ private func count(daysAgo: Int, words: Int, dictations: Int = 1, seconds: Doubl
 }
 
 @Test func theChangeIsAPercentAgainstThePreviousPeriodAndNothingWithoutOne() {
-    #expect(statisticsChange(150, from: 100) == "▲ 50% vs previous")
-    #expect(statisticsChange(50, from: 100) == "▼ 50% vs previous")
-    #expect(statisticsChange(100, from: 100) == "No change vs previous")
-    #expect(statisticsChange(10, from: 0) == nil && statisticsChange(10, from: nil) == nil)
+    #expect(statisticsChange(150, from: 100, bundle: english.bundle, locale: english.locale) == "▲ 50% vs previous")
+    #expect(statisticsChange(50, from: 100, bundle: english.bundle, locale: english.locale) == "▼ 50% vs previous")
+    #expect(statisticsChange(100, from: 100, bundle: english.bundle, locale: english.locale) == "No change vs previous")
+    #expect(statisticsChange(10, from: 0, bundle: english.bundle, locale: english.locale) == nil && statisticsChange(10, from: nil, bundle: english.bundle, locale: english.locale) == nil)
 }
 
 @Test func aLengthOfTimeIsReadInSecondsMinutesOrHours() {
-    #expect(statisticsDuration(0) == "0 s" && statisticsDuration(42) == "42 s")
-    #expect(statisticsDuration(720) == "12 min" && statisticsDuration(3900) == "1 h 05 min")
+    #expect(statisticsDuration(0, bundle: english.bundle, locale: english.locale) == "0 s" && statisticsDuration(42, bundle: english.bundle, locale: english.locale) == "42 s")
+    #expect(statisticsDuration(720, bundle: english.bundle, locale: english.locale) == "12 min" && statisticsDuration(3900, bundle: english.bundle, locale: english.locale) == "1 h 05 min")
 }
 
 @Test func theBusiestHourIsTheOneWithMostDictationsInTheRangeAndTheEarliestOnATie() {
@@ -66,7 +66,7 @@ private func count(daysAgo: Int, words: Int, dictations: Int = 1, seconds: Doubl
     ]
     let week = dictationHours(counts, range: .week, now: now, calendar: utc)
     #expect(week.dictations.count == 24 && week.dictations[15] == 3 && week.dictations[8] == 2 && week.busiest == 15)
-    #expect(statisticsHoursLine(week) == "You dictate most around 15:00.")
+    #expect(statisticsHoursLine(week, bundle: english.bundle, locale: english.locale) == "You dictate most around 15:00.")
     #expect(dictationHours(counts, range: .month, now: now, calendar: utc).busiest == 22)
     let tie = dictationHours([count(daysAgo: 0, words: 1, hour: 18), count(daysAgo: 0, words: 1, hour: 7)], range: .week, now: now, calendar: utc)
     #expect(tie.busiest == 7)
@@ -75,7 +75,7 @@ private func count(daysAgo: Int, words: Int, dictations: Int = 1, seconds: Doubl
 @Test func withNoDictationsInTheRangeThereIsNoBusiestHour() {
     let empty = dictationHours([], range: .all, now: now, calendar: utc)
     #expect(empty.busiest == nil && empty.dictations == Array(repeating: 0, count: 24))
-    #expect(statisticsHoursLine(empty) == "Nothing dictated in this range yet.")
+    #expect(statisticsHoursLine(empty, bundle: english.bundle, locale: english.locale) == "Nothing dictated in this range yet.")
     #expect(dictationHours([count(daysAgo: 10, words: 1)], range: .week, now: now, calendar: utc).busiest == nil)
 }
 
@@ -88,22 +88,22 @@ private func count(daysAgo: Int, words: Int, dictations: Int = 1, seconds: Doubl
     let week = dictationFigures(counts, range: .week, now: now, calendar: utc)
     #expect(busiestDay(week.days)?.words == 150 && busiestDay(week.days).map { utc.component(.weekday, from: $0.day) } == 1)
     // 200 words at 40 a minute is 300 s of typing, minus 120 s of speaking
-    #expect(weeklySummary(week, wpm: 40, calendar: utc) == "You dictated 200 words in 8 dictations, 100% more than the 7 days before. Sunday was your busiest day, and you saved about 3 min.")
-    #expect(weeklySummary(dictationFigures([count(daysAgo: 0, words: 50, dictations: 1), count(daysAgo: 8, words: 100)], range: .week, now: now, calendar: utc), wpm: 40, calendar: utc)
+    #expect(weeklySummary(week, wpm: 40, calendar: utc, bundle: english.bundle, locale: english.locale) == "You dictated 200 words in 8 dictations, 100% more than the 7 days before. Sunday was your busiest day, and you saved about 3 min.")
+    #expect(weeklySummary(dictationFigures([count(daysAgo: 0, words: 50, dictations: 1), count(daysAgo: 8, words: 100)], range: .week, now: now, calendar: utc), wpm: 40, calendar: utc, bundle: english.bundle, locale: english.locale)
         .contains("50% less than the 7 days before"))
-    #expect(weeklySummary(dictationFigures([count(daysAgo: 0, words: 100), count(daysAgo: 8, words: 100)], range: .week, now: now, calendar: utc), wpm: 40, calendar: utc)
+    #expect(weeklySummary(dictationFigures([count(daysAgo: 0, words: 100), count(daysAgo: 8, words: 100)], range: .week, now: now, calendar: utc), wpm: 40, calendar: utc, bundle: english.bundle, locale: english.locale)
         .contains("the same as the 7 days before"))
 }
 
 @Test func aPreviousWeekAtZeroOrAWeekWithNothingSaysWhatItCanWithoutDividingByZero() {
     // 1 word is typed faster than the 5 s it took to say, so nothing was saved and the sentence leaves it out
-    let first = weeklySummary(dictationFigures([count(daysAgo: 0, words: 1, dictations: 1, seconds: 5)], range: .week, now: now, calendar: utc), wpm: 40, calendar: utc)
+    let first = weeklySummary(dictationFigures([count(daysAgo: 0, words: 1, dictations: 1, seconds: 5)], range: .week, now: now, calendar: utc), wpm: 40, calendar: utc, bundle: english.bundle, locale: english.locale)
     #expect(first == "You dictated 1 word in 1 dictation, with nothing the 7 days before to compare with. Tuesday was your busiest day.")
-    #expect(weeklySummary(dictationFigures([count(daysAgo: 9, words: 40, dictations: 3)], range: .week, now: now, calendar: utc), wpm: 40, calendar: utc)
+    #expect(weeklySummary(dictationFigures([count(daysAgo: 9, words: 40, dictations: 3)], range: .week, now: now, calendar: utc), wpm: 40, calendar: utc, bundle: english.bundle, locale: english.locale)
         == "No dictations in the last 7 days, against 3 dictations in the 7 before.")
     let empty = dictationFigures([], range: .week, now: now, calendar: utc)
-    #expect(weeklySummary(empty, wpm: 40, calendar: utc) == "No dictations in the last 7 days." && busiestDay(empty.days) == nil)
-    #expect(weeklySummary(empty, wpm: 0, calendar: utc) == "No dictations in the last 7 days.")
+    #expect(weeklySummary(empty, wpm: 40, calendar: utc, bundle: english.bundle, locale: english.locale) == "No dictations in the last 7 days." && busiestDay(empty.days) == nil)
+    #expect(weeklySummary(empty, wpm: 0, calendar: utc, bundle: english.bundle, locale: english.locale) == "No dictations in the last 7 days.")
 }
 
 @Test func theBusiestDayOfAWeekWithTwoEqualDaysIsTheEarlierOne() {

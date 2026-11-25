@@ -52,16 +52,16 @@ private struct Case: CustomTestStringConvertible, Sendable {
          offered: ["es", "en", "fr"], selected: "es"),
 ])
 private func theLanguagePageOffersAFunctionOfTheModelMacOSAndTheSavedChoice(c: Case) {
-    let choices = languageChoices(for: c.model, macOSLanguages: c.macOS, saved: c.saved)
+    let choices = languageChoices(for: c.model, macOSLanguages: c.macOS, saved: c.saved, bundle: english.bundle, locale: english.locale)
     #expect(choices.offered == c.offered)
     #expect(choices.selected == c.selected)
 }
 
 @Test func theLineUnderLanguageSaysWhyAutomaticIsNotThereOnlyWhereItIsMissingAndALanguageIsPickable() {
-    #expect(languageChoices(for: apple, macOSLanguages: [], saved: nil).hint.contains("one language"))
-    #expect(languageChoices(for: nemotronEnglish, macOSLanguages: [], saved: nil).hint == "This model only understands English")
-    #expect(languageChoices(for: parakeet, macOSLanguages: [], saved: nil).hint.contains("mix Spanish and English"))
-    #expect(languageChoices(for: nemotronMultilingual, macOSLanguages: [], saved: "en").hint == "Choose Automatic to mix languages")
+    #expect(languageChoices(for: apple, macOSLanguages: [], saved: nil, bundle: english.bundle, locale: english.locale).hint.contains("one language"))
+    #expect(languageChoices(for: nemotronEnglish, macOSLanguages: [], saved: nil, bundle: english.bundle, locale: english.locale).hint == "This model only understands English")
+    #expect(languageChoices(for: parakeet, macOSLanguages: [], saved: nil, bundle: english.bundle, locale: english.locale).hint.contains("mix Spanish and English"))
+    #expect(languageChoices(for: nemotronMultilingual, macOSLanguages: [], saved: "en", bundle: english.bundle, locale: english.locale).hint == "Choose Automatic to mix languages")
 }
 
 @Test func theSwitchDimsEveryRowButStorage() {
@@ -76,7 +76,7 @@ private func theLanguagePageOffersAFunctionOfTheModelMacOSAndTheSavedChoice(c: C
         #expect(dictationRowIsLive(row, enabled: true))
     }
     #expect(dictationReleaseChoices.map(\.minutes) == [5, 15, 30, 60, 0])
-    #expect(dictationReleaseChoices.last?.title == "Never")
+    #expect(dictationReleaseChoices.last?.title(bundle: english.bundle, locale: english.locale) == "Never")
 }
 
 @Test func theGlobalDictationSwitchIsDimmedWithDictationOffAndTheShortcutNeedsBothSwitches() {

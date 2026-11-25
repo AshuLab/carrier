@@ -13,11 +13,11 @@ struct AudioPlayerView: View {
 
     var body: some View {
         HStack(spacing: Tokens.Space.s8) {
-            IconButton(icon: playback.playing ? .pauseFilled : .playFilled, name: playback.playing ? "Pause audio" : "Play audio", enabled: playback.failed == false, why: "The audio could not be read") {
+            IconButton(icon: playback.playing ? .pauseFilled : .playFilled, name: playback.playing ? Copy.chatAudioPause() : Copy.chatAudioPlay(), enabled: playback.failed == false, why: Copy.chatAudioUnreadable()) {
                 playback.toggle()
             }
             if playback.failed {
-                Text("The audio could not be read").scaledFont(11).foregroundStyle(.secondary)
+                Text(Copy.chatAudioUnreadable()).scaledFont(11).foregroundStyle(.secondary)
             } else {
                 ProgressView(value: playback.position, total: max(playback.duration, 0.1)).frame(maxWidth: 220)
                 Text("\(dictationClock(playback.position)) / \(dictationClock(playback.duration))").scaledFont(11).monospacedDigit().foregroundStyle(.secondary)

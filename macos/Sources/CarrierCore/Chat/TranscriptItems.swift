@@ -216,11 +216,10 @@ struct TranscriptBuilder: Equatable {
         if let ms = end.durationMs { call.endedAt = call.startedAt + ms }
         if call.status == .ok, let diff = cardDiff(end.diff) {
             (call.diff, call.added, call.removed) = (diff.rows, diff.added, diff.removed)
-            call.result = call.resultLine()
         }
         let summary = end.summary ?? ""
         if call.status == .failed, call.output.isEmpty, summary.isEmpty == false { call.output = [summary] }
-        if call.status == .ok, summary.isEmpty == false, call.kind == .read || call.kind == .search { call.result = summary }
+        if call.status == .ok, summary.isEmpty == false, call.kind == .read || call.kind == .search { call.reported = summary }
         return call
     }
 }

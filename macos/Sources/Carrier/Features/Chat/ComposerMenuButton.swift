@@ -21,7 +21,7 @@ struct ComposerMenuButton: View {
     var locked = false
     let options: [ChatOption]
     /// What the panel says in place of the lists while the provider lists none.
-    var emptyNote = "Each provider's models will be listed here."
+    var emptyNote = Copy.chatComposerEmptyNote()
     /// The agent is answering: the host refuses a change of the reasoning until the turn ends.
     var busy = false
     let chooseAgent: (String) -> Void
@@ -43,7 +43,7 @@ struct ComposerMenuButton: View {
             .background(alignment: .leading) {
                 Color.clear.frame(width: 1, height: 28).padding(.leading, Tokens.Space.s20).popover(isPresented: $open, arrowEdge: .top) { panel }
             }
-            .help("Provider, model, reasoning and access").accessibilityLabel("Provider, model, reasoning and access")
+            .help(Copy.chatComposerHelp()).accessibilityLabel(Copy.chatComposerHelp())
             .accessibilityValue([agent, menu.pillModel, menu.pillReasoning, menu.accessFlag].compactMap { $0 }.joined(separator: ", "))
     }
 
@@ -88,9 +88,9 @@ struct ComposerMenuButton: View {
                 models
             }
             if let reasoning = menu.reasoning {
-                ScaleRow(scale: reasoning, note: busy ? "Changes between turns: the agent is answering." : nil, color: { _, _ in theme.accent }, commit: commit(reasoning)).disabled(busy)
+                ScaleRow(scale: reasoning, note: busy ? Copy.chatComposerBusyNote() : nil, color: { _, _ in theme.accent }, commit: commit(reasoning)).disabled(busy)
             } else if menu.models.isEmpty == false {
-                ScaleRow(scale: nil, title: "Reasoning", note: "This model has no reasoning levels.", color: { _, _ in .secondary }, commit: { _ in })
+                ScaleRow(scale: nil, title: Copy.chatComposerReasoning(), note: Copy.chatComposerNoLevels(), color: { _, _ in .secondary }, commit: { _ in })
             }
             ForEach(menu.access) { scale in
                 if scale.isSwitch {
@@ -137,7 +137,7 @@ struct ComposerMenuButton: View {
     private var search: some View {
         HStack(spacing: Tokens.Space.s8) {
             Glyph(.search, size: 12).foregroundStyle(.secondary)
-            TextField("Search models", text: $query).textFieldStyle(.plain).scaledFont(13)
+            TextField(Copy.chatPickerSearch(), text: $query).textFieldStyle(.plain).scaledFont(13)
         }
         .padding(.horizontal, Tokens.Space.s10).frame(height: 30)
         .background(RoundedRectangle(cornerRadius: Tokens.Radius.tile).fill(Color.primary.opacity(0.08)))
@@ -165,7 +165,7 @@ struct ComposerMenuButton: View {
                     }
                     .id(model.id)
                 }
-                if shown.isEmpty { Text("No model matches").scaledFont(12).foregroundStyle(.secondary).frame(maxWidth: .infinity).padding(Tokens.Space.s14) }
+                if shown.isEmpty { Text(Copy.chatComposerNoMatch()).scaledFont(12).foregroundStyle(.secondary).frame(maxWidth: .infinity).padding(Tokens.Space.s14) }
             }
             .padding(.horizontal, Tokens.Space.s8).padding(.vertical, Tokens.Space.s8)
         }

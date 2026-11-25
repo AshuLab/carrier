@@ -13,16 +13,16 @@ struct QueuedMessageCard: View {
 
     var body: some View {
         NoticeCard(
-            symbol: .clock, tint: .gray, title: interrupts ? "Sends when the agent stops" : "Sends when the agent finishes",
+            symbol: .clock, tint: .gray, title: interrupts ? Copy.chatQueuedStops() : Copy.chatQueuedFinishes(),
             detail: messagePreview(text), detailLines: 2, onTap: edit
         ) {
             if interrupts == false {
-                Button("Send now", action: sendNow).buttonStyle(NoticeActionStyle()).help("Stop the agent and send it now")
+                Button(Copy.chatQueuedSendNow(), action: sendNow).buttonStyle(NoticeActionStyle()).help(Copy.chatQueuedSendNowHelp())
             }
             Button(action: cancel) { Glyph(.close, size: 10) }
-                .buttonStyle(NoticeActionStyle(quiet: true)).help("Cancel the queued message").accessibilityLabel("Cancel the queued message")
+                .buttonStyle(NoticeActionStyle(quiet: true)).help(Copy.chatQueuedCancel()).accessibilityLabel(Copy.chatQueuedCancel())
         }
-        .help("Click the message to edit it")
+        .help(Copy.chatQueuedEditHelp())
     }
 }
 
@@ -40,7 +40,7 @@ struct ProblemNotice: View {
     }
 
     init(text: String, failed: Bool = false) {
-        self.init(title: failed ? "Couldn't read this session" : "Couldn't do that", detail: text, failed: failed)
+        self.init(title: failed ? Copy.chatProblemReadFailed() : Copy.chatProblemFailed(), detail: text, failed: failed)
     }
 
     init(sentences text: String, failed: Bool = false) {
@@ -59,8 +59,8 @@ struct ArchivedSessionNotice: View {
 
     var body: some View {
         // two lines at most: with no limit this detail made the whole window lay out taller than it is, the notice below its edge
-        NoticeCard(symbol: .archive, tint: .gray, title: archivedSessionNotice.title, detail: archivedSessionNotice.detail, detailLines: 2) {
-            Button("Resume", action: resume).buttonStyle(NoticeActionStyle())
+        NoticeCard(symbol: .archive, tint: .gray, title: archivedSessionNotice().title, detail: archivedSessionNotice().detail, detailLines: 2) {
+            Button(Copy.sessionResume(), action: resume).buttonStyle(NoticeActionStyle())
         }
     }
 }
@@ -68,7 +68,7 @@ struct ArchivedSessionNotice: View {
 /// An idle session whose folder was deleted with its project: it stays as history and cannot go on.
 struct FolderGoneNotice: View {
     var body: some View {
-        NoticeCard(symbol: .trash, tint: .gray, title: folderGoneNotice.title, detail: folderGoneNotice.detail) {}
+        NoticeCard(symbol: .trash, tint: .gray, title: folderGoneNotice().title, detail: folderGoneNotice().detail) {}
     }
 }
 
@@ -78,6 +78,6 @@ struct ClosedSessionNotice: View {
     let chosen: Bool
 
     var body: some View {
-        NoticeCard(symbol: .sleep, tint: .indigo, title: closedSessionNotice.title, detail: chosen ? closedSessionNotice.chosen : closedSessionNotice.detail) {}
+        NoticeCard(symbol: .sleep, tint: .indigo, title: closedSessionNotice().title, detail: chosen ? closedSessionNotice().chosen : closedSessionNotice().detail) {}
     }
 }

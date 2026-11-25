@@ -23,7 +23,7 @@ struct ApprovalCardView: View {
                     .frame(width: 26, height: 26).background(RoundedRectangle(cornerRadius: Tokens.Radius.control, style: .continuous).fill(Color.attention))
                 Text(card.question).scaledFont(14, weight: .semibold)
                 Spacer(minLength: 0)
-                Text(behind > 0 ? "\(behind) more waiting" : "Waiting for you").scaledFont(11).foregroundStyle(.secondary)
+                Text(behind > 0 ? Copy.chatApprovalMoreWaiting(count: behind) : Copy.sessionWaitingForYou()).scaledFont(11).foregroundStyle(.secondary)
             }
             if let arg = card.arg {
                 ScrollView { CodeBlockView(language: card.tool, code: arg).onGeometryChange(for: CGFloat.self) { $0.size.height } action: { argHeight = $0 } }

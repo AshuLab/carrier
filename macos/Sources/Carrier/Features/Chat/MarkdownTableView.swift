@@ -36,12 +36,12 @@ struct MarkdownTableView: View {
         }
         .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
         .background(Capsule().fill(.regularMaterial))
-        .help("Copy the table").accessibilityLabel("Copy the table")
+        .help(Copy.chatTableCopy()).accessibilityLabel(Copy.chatTableCopy())
     }
 
     @ViewBuilder private var copyButtons: some View {
-        Button("Copy for a spreadsheet") { copy(table.tsv) }
-        Button("Copy as Markdown") { copy(table.markdown) }
+        Button(Copy.chatTableCopyForSpreadsheet()) { copy(table.tsv) }
+        Button(Copy.chatCopyAsMarkdown()) { copy(table.markdown) }
     }
 
     private func copy(_ text: String) {

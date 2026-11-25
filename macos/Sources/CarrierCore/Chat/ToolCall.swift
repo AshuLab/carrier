@@ -27,8 +27,8 @@ public struct ToolCall: Equatable, Identifiable {
     /// What the call is on: the command, the path or the pattern.
     public let arg: String
     public internal(set) var status: CallStatus
-    /// The short result of the call's line: "212 lines", "4 matches", "+3 −1", "failed".
-    public internal(set) var result = ""
+    /// What the engine counted for a read or a search ("212 lines"), which is then the call's result; its own words, so not translated.
+    public internal(set) var reported: String?
     /// Milliseconds since the epoch.
     public let startedAt: Int
     public internal(set) var endedAt: Int?
@@ -60,12 +60,18 @@ public struct ToolCall: Equatable, Identifiable {
         while output.last?.isEmpty == true { output.removeLast() }
         status = end.status == "err" ? .failed : .ok
         if kind == .edit { readDiff() }
-        result = resultLine()
     }
 
-    mutating func stop() {
-        status = .stopped
-        result = "stopped"
+    mutating func stop() { status = .stopped }
+
+    /// The short result of the call's line: "212 lines", "4 matches", "+3 −1", "failed", "stopped"; nothing while it runs.
+    public func result(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch status {
+        case .running: ""
+        case .stopped: Copy.chatResultStopped(bundle: bundle, locale: locale)
+        case .failed: Copy.chatResultFailed(bundle: bundle, locale: locale)
+        case .ok: reported ?? resultLine(bundle: bundle, locale: locale)
+        }
     }
 
     public var durationMs: Int? { endedAt.map { $0 - startedAt } }
@@ -96,16 +102,26 @@ public struct ToolCall: Equatable, Identifiable {
     }
 
     /// "Reading src/a.ts", for a call that is going on; an MCP call is its tool's name alone.
-    var doing: String {
+    func doing(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         if case .mcp(_, let name) = kind { return name }
-        let verb = switch kind {
-        case .read: "Reading"
-        case .search: "Searching"
-        case .edit: "Editing"
-        case .shell: "Running"
-        case .other, .mcp: "Using \(tool)"
+        if arg.isEmpty {
+            let verb: Copy.ChatDoing = switch kind {
+            case .read: .read
+            case .search: .search
+            case .edit: .edit
+            case .shell: .shell
+            case .other, .mcp: .other
+            }
+            return Copy.chatDoing(kind: verb, tool: tool, bundle: bundle, locale: locale)
         }
-        return arg.isEmpty ? verb : "\(verb) \(arg)"
+        let verb: Copy.ChatDoingOn = switch kind {
+        case .read: .read
+        case .search: .search
+        case .edit: .edit
+        case .shell: .shell
+        case .other, .mcp: .other
+        }
+        return Copy.chatDoingOn(kind: verb, arg: arg, tool: tool, bundle: bundle, locale: locale)
     }
 
     private mutating func readDiff() {
@@ -125,15 +141,15 @@ public struct ToolCall: Equatable, Identifiable {
         if added + removed == 0 { diff = [] }
     }
 
-    func resultLine() -> String {
-        if status == .failed { return "failed" }
+    private func resultLine(bundle: Bundle?, locale: Locale) -> String {
+        let done = Copy.chatResultDone(bundle: bundle, locale: locale)
         let lines = output.filter { $0.allSatisfy(\.isWhitespace) == false }
         switch kind {
-        case .read: return "\(output.count) \(output.count == 1 ? "line" : "lines")"
-        case .search: return lines.isEmpty ? "no matches" : "\(lines.count) \(lines.count == 1 ? "match" : "matches")"
-        case .edit: return added + removed > 0 ? "+\(added) −\(removed)" : "done"
-        case .shell: return "done"
-        case .other, .mcp: return lines.first.map { String($0.trimmingCharacters(in: .whitespaces).prefix(80)) } ?? "done"
+        case .read: return Copy.chatResultLines(count: output.count, bundle: bundle, locale: locale)
+        case .search: return Copy.chatResultMatches(count: lines.count, bundle: bundle, locale: locale)
+        case .edit: return added + removed > 0 ? "+\(added) −\(removed)" : done
+        case .shell: return done
+        case .other, .mcp: return lines.first.map { String($0.trimmingCharacters(in: .whitespaces).prefix(80)) } ?? done
         }
     }
 }
@@ -148,17 +164,17 @@ public enum KindChip: Equatable {
     case needsYou
 
     /// The server's own name for an MCP call.
-    public var label: String {
+    public func label(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         switch self {
-        case .thinking: "Thinking"
-        case .read: "Read"
-        case .search: "Search"
-        case .edit: "Edit"
-        case .shell: "Shell"
+        case .thinking: Copy.chatChipThinking(bundle: bundle, locale: locale)
+        case .read: Copy.chatChipRead(bundle: bundle, locale: locale)
+        case .search: Copy.chatChipSearch(bundle: bundle, locale: locale)
+        case .edit: Copy.chatChipEdit(bundle: bundle, locale: locale)
+        case .shell: Copy.chatChipShell(bundle: bundle, locale: locale)
         case .mcp(let server): server
-        case .subagents(let count): "\(count) \(count == 1 ? "subagent" : "subagents")"
+        case .subagents(let count): Copy.chatChipSubagents(count: count, bundle: bundle, locale: locale)
         case .subagent(let type): type
-        case .needsYou: "Needs you"
+        case .needsYou: Copy.sessionStatusNeedsYou(bundle: bundle, locale: locale)
         }
     }
 

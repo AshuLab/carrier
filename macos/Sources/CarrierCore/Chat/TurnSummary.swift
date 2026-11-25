@@ -12,7 +12,9 @@ public struct ContextUse: Equatable {
     public var share: Double? { window.flatMap { $0 > 0 ? min(tokens / $0, 1) : nil } }
 
     /// `45.7k of 1M`; just the count when the window is not known.
-    public var text: String { window.map { "\(Self.count(tokens)) of \(Self.count($0))" } ?? Self.count(tokens) }
+    public func text(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        window.map { Copy.chatContextOf(used: Self.count(tokens), window: Self.count($0), bundle: bundle, locale: locale) } ?? Self.count(tokens)
+    }
 
     private static func count(_ tokens: Double) -> String {
         tokens >= 1_000_000 ? String(format: "%g", (tokens / 100_000).rounded() / 10) + "M" : TurnSummary.tokens(tokens)
@@ -64,7 +66,8 @@ public struct TurnSummary: Equatable {
             cacheWrite: count("cache_creation_input_tokens", "cacheCreationInputTokens"), output: count("output_tokens", "outputTokens"),
             contextTokens: count("context_tokens", "contextTokens"), contextWindow: count("context_window", "contextWindow")
         )
-        if text.isEmpty { return nil }
+        // nothing to say: no model or duration worth a word, and no count
+        if [shortModel, duration].compactMap({ $0 }).allSatisfy(\.isEmpty), contextTokens == nil, read == nil, output == nil { return nil }
     }
 
     /// Everything the turn's model calls read added up, nil when the provider reported none of it.
@@ -75,16 +78,36 @@ public struct TurnSummary: Equatable {
 
     /// `181.2k context`: the context at the turn's end. A host that does not say it (an older one, or a turn it stored before) leaves only what the
     /// calls read added up, which is not the context and is not called that: `540.1k in`.
-    public var contextText: String? {
-        if let contextTokens { return "\(Self.tokens(contextTokens)) context" }
-        return read.map { "\(Self.tokens($0)) in" }
+    public func contextText(bundle: Bundle? = nil, locale: Locale = .current) -> String? {
+        if let contextTokens { return Copy.chatContextTokens(count: Self.tokens(contextTokens), bundle: bundle, locale: locale) }
+        return read.map { Copy.chatContextIn(count: Self.tokens($0), bundle: bundle, locale: locale) }
+    }
+
+    /// `436 out`: what the model wrote.
+    public func outText(bundle: Bundle? = nil, locale: Locale = .current) -> String? {
+        output.map { Copy.chatTokensOut(count: Self.tokens($0), bundle: bundle, locale: locale) }
+    }
+
+    /// The tooltip of the numbers: the context at the end of the turn, then what all its model calls read and wrote added up (each call reads the whole
+    /// context again, most of it from the cache, so these are many times the context).
+    public func breakdown(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        let total = [
+            input.map { Copy.chatBreakdownInput(count: Int($0), bundle: bundle, locale: locale) },
+            cacheRead.map { Copy.chatBreakdownCacheRead(count: Int($0), bundle: bundle, locale: locale) },
+            cacheWrite.map { Copy.chatBreakdownCacheWrite(count: Int($0), bundle: bundle, locale: locale) },
+            output.map { Copy.chatBreakdownOutput(count: Int($0), bundle: bundle, locale: locale) },
+        ].compactMap { $0 }
+        let context = contextTokens.map { [Copy.chatBreakdownContext(count: Int($0), bundle: bundle, locale: locale)] } ?? []
+        let calls = Copy.chatBreakdownCalls(bundle: bundle, locale: locale)
+        let header = total.isEmpty ? [] : [context.isEmpty ? calls : "\n" + calls]
+        return (context + header + total).joined(separator: "\n")
     }
 
     /// `12`, `2.5k`: a count as the line writes it.
     public static func tokens(_ count: Double) -> String { count < 1000 ? "\(Int(count))" : String(format: "%.1fk", count / 1000) }
 
-    public var text: String {
-        [shortModel, duration, contextText, output.map { "\(Self.tokens($0)) out" }].compactMap { $0 }.joined(separator: " · ")
+    public func text(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        [shortModel, duration, contextText(bundle: bundle, locale: locale), outText(bundle: bundle, locale: locale)].compactMap { $0 }.joined(separator: " · ")
     }
 
     /// The model as a person says it: `claude-haiku-5-5` is `haiku 5.5`, and a dated one (`claude-opus-4-1-20250805`) loses its date. A name

@@ -54,9 +54,9 @@ public func resolvedCodeLanguage(_ info: String?, code: String) -> String? {
 }
 
 /// What the header says of a language: "JavaScript" for js, the fence's own word when it is not known, "Code" when there is none.
-public func codeLanguageName(_ info: String?, resolved: String?) -> String {
+public func codeLanguageName(_ info: String?, resolved: String?, bundle: Bundle? = nil, locale: Locale = .current) -> String {
     if let resolved, let name = names[resolved] { return name }
-    return info ?? "Code"
+    return info ?? Copy.chatCodeName(bundle: bundle, locale: locale)
 }
 
 /// What follows the opening fence of a block: its language and the file it is from, as in "ts src/a.ts", "ts:src/a.ts", "ts title=src/a.ts" or

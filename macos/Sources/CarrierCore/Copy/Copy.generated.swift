@@ -2025,4 +2025,1360 @@ public enum Copy {
     public static func sidebarSettingsSampleWaiting(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         String(localized: "sidebarSettingsSampleWaiting", bundle: bundle ?? carrierResources, locale: locale)
     }
+
+    public static func archiveNoteKept(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "archiveNoteKept", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func archiveNoteDeletesSoon(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "archiveNoteDeletesSoon", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func archiveNoteDeletesIn(days: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "archiveNoteDeletesIn \(days)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func archiveGroupLast30Days(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "archiveGroupLast30Days", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func archiveLostFiles(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "archiveLostFiles \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func archiveLostCommits(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "archiveLostCommits \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func archiveLostBoth(files: Int, commits: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "archiveLostBoth \(files) \(commits)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func archiveClearTitle(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "archiveClearTitle \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func archiveClearConfirm(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "archiveClearConfirm \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func archiveClearMessage(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "archiveClearMessage", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func archiveClearMessageLosing(count: Int, lost: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "archiveClearMessageLosing \(count) \(lost)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func archiveClearMessageWorktrees(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "archiveClearMessageWorktrees \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func archiveClearPartial(total: Int, deleted: Int, message: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "archiveClearPartial \(total) \(deleted) \(message)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func archiveDeleteTitle(title: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "archiveDeleteTitle \(title)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func archiveDeleteMessage(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "archiveDeleteMessage", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func archiveDeleteMessageLosing(lost: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "archiveDeleteMessageLosing \(lost)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func archiveDeleteMessageWorktree(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "archiveDeleteMessageWorktree", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func archiveBlockWorking(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "archiveBlockWorking", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func archiveBlockWaiting(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "archiveBlockWaiting", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func archiveBlockBackground(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "archiveBlockBackground \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func deleteBlockWorking(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "deleteBlockWorking", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func deleteBlockWaiting(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "deleteBlockWaiting", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func deleteBlockBackground(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "deleteBlockBackground \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatArchivedTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatArchivedTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatArchivedDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatArchivedDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionMenuPath(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionMenuPath", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionMenuBranchName(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionMenuBranchName", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionMenuSessionId(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionMenuSessionId", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionMenuStop(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionMenuStop", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionMenuMarkRead(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionMenuMarkRead", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionMenuMarkUnread(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionMenuMarkUnread", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionMenuMarkWhy(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionMenuMarkWhy", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionMenuNewInProject(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionMenuNewInProject", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionMenuNewOnBranch(branch: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionMenuNewOnBranch \(branch)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionMenuProjectSettings(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionMenuProjectSettings", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionMenuOpenInTerminal(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionMenuOpenInTerminal", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionMenuCopy(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionMenuCopy", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionMenuFilterBy(workspace: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionMenuFilterBy \(workspace)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionMenuDelete(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionMenuDelete", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionMenuRename(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionMenuRename", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionMenuRegenerateTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionMenuRegenerateTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatOpenRevealInFinder(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatOpenRevealInFinder", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatOpenCopyPath(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatOpenCopyPath", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatOpenCopyBranchName(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatOpenCopyBranchName", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSessionUntitled(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSessionUntitled", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatHandoffDetail(agent: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatHandoffDetail \(agent)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatClearedDetail(agent: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatClearedDetail \(agent)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatClearedFreed(tokens: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatClearedFreed \(tokens)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatClearedTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatClearedTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatCompactedTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatCompactedTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatCompactionFailedTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatCompactionFailedTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatCompactionAuto(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatCompactionAuto", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatCompactionSizes(before: String, after: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatCompactionSizes \(before) \(after)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatCompactionLeft(after: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatCompactionLeft \(after)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatCompactionUnchanged(error: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatCompactionUnchanged \(error)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public enum ChatCompactionDetail: Sendable { case auto; case autoTook; case manual; case manualTook }
+    public static func chatCompactionDetail(kind: ChatCompactionDetail, agent: String, duration: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch kind {
+        case .auto: return String(localized: "chatCompactionDetail.auto \(agent)", bundle: bundle ?? carrierResources, locale: locale)
+        case .autoTook: return String(localized: "chatCompactionDetail.autoTook \(agent) \(duration)", bundle: bundle ?? carrierResources, locale: locale)
+        case .manual: return String(localized: "chatCompactionDetail.manual \(agent)", bundle: bundle ?? carrierResources, locale: locale)
+        case .manualTook: return String(localized: "chatCompactionDetail.manualTook \(agent) \(duration)", bundle: bundle ?? carrierResources, locale: locale)
+        }
+    }
+
+    public static func chatFailedTurn(agent: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatFailedTurn \(agent)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatFailedTurnUnnamed(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatFailedTurnUnnamed", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatNotSignedIn(agent: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatNotSignedIn \(agent)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatNotSignedInUnnamed(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatNotSignedInUnnamed", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSignInHint(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSignInHint", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatAsleepTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatAsleepTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatAsleepDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatAsleepDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatAsleepChosen(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatAsleepChosen", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatFolderGoneTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatFolderGoneTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatFolderGoneDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatFolderGoneDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatApprovalAllow(tool: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatApprovalAllow \(tool)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatApprovalTheTool(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatApprovalTheTool", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatApprovalNoLongerWaiting(what: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatApprovalNoLongerWaiting \(what)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatErrorGeneric(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatErrorGeneric", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatDecidedSkipped(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatDecidedSkipped", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatDecidedAnswered(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatDecidedAnswered", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatDecidedAnsweredWhat(what: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatDecidedAnsweredWhat \(what)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public enum ChatDecidedChoice: Sendable { case allowed; case declined }
+    public static func chatDecidedChoice(verdict: ChatDecidedChoice, what: String, choice: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch verdict {
+        case .allowed: return String(localized: "chatDecidedChoice.allowed \(what) \(choice)", bundle: bundle ?? carrierResources, locale: locale)
+        case .declined: return String(localized: "chatDecidedChoice.declined \(what) \(choice)", bundle: bundle ?? carrierResources, locale: locale)
+        }
+    }
+
+    public static func chatGroupWorking(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatGroupWorking", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatGroupWaitingForThem(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatGroupWaitingForThem", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatFailed(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatFailed", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatGroupThought(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatGroupThought", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatGroupWorked(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatGroupWorked", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatGroupChanged(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatGroupChanged", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatGroupExplored(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatGroupExplored", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSummaryThoughts(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSummaryThoughts \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSummaryFilesRead(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSummaryFilesRead \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSummarySearches(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSummarySearches \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSummaryFilesChanged(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSummaryFilesChanged \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSummaryCommands(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSummaryCommands \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSummaryMcpCalls(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSummaryMcpCalls \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSummarySubagents(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSummarySubagents \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSummaryOtherTools(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSummaryOtherTools \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public enum ChatDoing: Sendable { case read; case search; case edit; case shell; case other }
+    public static func chatDoing(kind: ChatDoing, tool: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch kind {
+        case .read: return String(localized: "chatDoing.read", bundle: bundle ?? carrierResources, locale: locale)
+        case .search: return String(localized: "chatDoing.search", bundle: bundle ?? carrierResources, locale: locale)
+        case .edit: return String(localized: "chatDoing.edit", bundle: bundle ?? carrierResources, locale: locale)
+        case .shell: return String(localized: "chatDoing.shell", bundle: bundle ?? carrierResources, locale: locale)
+        case .other: return String(localized: "chatDoing.other \(tool)", bundle: bundle ?? carrierResources, locale: locale)
+        }
+    }
+
+    public enum ChatDoingOn: Sendable { case read; case search; case edit; case shell; case other }
+    public static func chatDoingOn(kind: ChatDoingOn, arg: String, tool: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch kind {
+        case .read: return String(localized: "chatDoingOn.read \(arg)", bundle: bundle ?? carrierResources, locale: locale)
+        case .search: return String(localized: "chatDoingOn.search \(arg)", bundle: bundle ?? carrierResources, locale: locale)
+        case .edit: return String(localized: "chatDoingOn.edit \(arg)", bundle: bundle ?? carrierResources, locale: locale)
+        case .shell: return String(localized: "chatDoingOn.shell \(arg)", bundle: bundle ?? carrierResources, locale: locale)
+        case .other: return String(localized: "chatDoingOn.other \(arg) \(tool)", bundle: bundle ?? carrierResources, locale: locale)
+        }
+    }
+
+    public static func chatResultFailed(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatResultFailed", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatResultStopped(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatResultStopped", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatResultDone(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatResultDone", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatResultLines(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatResultLines \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatResultMatches(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatResultMatches \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatChipThinking(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatChipThinking", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatChipRead(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatChipRead", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatChipSearch(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatChipSearch", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatChipEdit(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatChipEdit", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatChipShell(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatChipShell", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatChipSubagents(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatChipSubagents \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatStepUsing(tool: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatStepUsing \(tool)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatStepThinking(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatStepThinking", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatStepAnswering(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatStepAnswering", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSubagentStarting(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSubagentStarting", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSubagentFinished(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSubagentFinished", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSubagentStopped(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSubagentStopped", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSubagentOf(session: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSubagentOf \(session)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatStateRunning(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatStateRunning", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatStateRunningFor(time: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatStateRunningFor \(time)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatStateFinishedIn(time: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatStateFinishedIn \(time)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatEffortDefault(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatEffortDefault", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatEffortLow(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatEffortLow", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatEffortMedium(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatEffortMedium", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatEffortHigh(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatEffortHigh", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatEffortExtraHigh(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatEffortExtraHigh", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatEffortMax(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatEffortMax", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatEffortDetailDefault(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatEffortDetailDefault", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatEffortDetailLow(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatEffortDetailLow", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatEffortStepMedium(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatEffortStepMedium", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatEffortStepHigh(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatEffortStepHigh", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatEffortStepExtraHigh(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatEffortStepExtraHigh", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatEffortStepMax(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatEffortStepMax", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatEffortDetailMedium(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatEffortDetailMedium", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatEffortDetailHigh(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatEffortDetailHigh", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatEffortDetailExtraHigh(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatEffortDetailExtraHigh", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatEffortDetailMax(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatEffortDetailMax", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatPermissionDefault(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatPermissionDefault", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatPermissionAcceptEdits(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatPermissionAcceptEdits", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatPermissionPlan(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatPermissionPlan", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatPermissionAuto(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatPermissionAuto", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatPermissionDontAsk(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatPermissionDontAsk", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSandboxReadOnly(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSandboxReadOnly", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSandboxWorkspaceWrite(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSandboxWorkspaceWrite", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatComposerAccess(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatComposerAccess", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatComposerReasoning(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatComposerReasoning", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatPeekWhere(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatPeekWhere", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatPeekBranch(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatPeekBranch", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatPeekFolder(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatPeekFolder", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatPeekAgent(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatPeekAgent", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatPeekModel(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatPeekModel", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatPeekTurns(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatPeekTurns", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatPeekWorktreeOf(workspace: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatPeekWorktreeOf \(workspace)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatPeekCutFrom(branch: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatPeekCutFrom \(branch)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatPeekWaitingBackground(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatPeekWaitingBackground", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatPeekUpdated(age: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatPeekUpdated \(age)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatAttachmentItems(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatAttachmentItems \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatAttachmentNotFound(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatAttachmentNotFound", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatAttachmentTooBig(size: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatAttachmentTooBig \(size)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatAttachmentCarrierOwn(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatAttachmentCarrierOwn", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatPasteNoField(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatPasteNoField", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatPasteNoPermission(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatPasteNoPermission", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatPasteSecureField(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatPasteSecureField", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatCodeName(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatCodeName", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatContextOf(used: String, window: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatContextOf \(used) \(window)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatContextTokens(count: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatContextTokens \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatContextIn(count: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatContextIn \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatTokensOut(count: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatTokensOut \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSwitchSpoken(from: String, to: String, detail: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSwitchSpoken \(from) \(to) \(detail)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatAttachmentTakeOut(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatAttachmentTakeOut", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatAttachmentRemove(name: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatAttachmentRemove \(name)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatAttachmentPosition(index: Int, count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatAttachmentPosition \(index) \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatShowInFinder(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatShowInFinder", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatClose(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatClose", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatPrevious(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatPrevious", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatNext(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatNext", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSend(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSend", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatStop(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatStop", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatStopAll(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatStopAll", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatStopTask(name: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatStopTask \(name)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatAudioPause(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatAudioPause", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatAudioPlay(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatAudioPlay", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatAudioUnreadable(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatAudioUnreadable", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatBackgroundHintHide(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatBackgroundHintHide", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatBackgroundHintShow(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatBackgroundHintShow", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatBackgroundStopHelp(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatBackgroundStopHelp", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatBackgroundStopLabel(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatBackgroundStopLabel", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatBackgroundSpoken(count: Int, names: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatBackgroundSpoken \(count) \(names)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatApprovalMoreWaiting(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatApprovalMoreWaiting \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatQuestionChooseAny(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatQuestionChooseAny", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatQuestionChooseOne(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatQuestionChooseOne", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatQuestionSkip(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatQuestionSkip", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatQuestionSkipHelp(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatQuestionSkipHelp", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatQuestionOther(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatQuestionOther", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatQuestionYourAnswer(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatQuestionYourAnswer", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatQuestionOwnAnswer(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatQuestionOwnAnswer", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatQuestionBack(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatQuestionBack", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatQuestionSendHelp(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatQuestionSendHelp", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatQuestionNextHelp(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatQuestionNextHelp", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatQuestionProgress(step: Int, total: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatQuestionProgress \(step) \(total)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatToolFailedCount(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatToolFailedCount \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatToolHintHide(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatToolHintHide", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatToolHintShow(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatToolHintShow", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatToolStep(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatToolStep \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatToolWaitingForAnswer(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatToolWaitingForAnswer", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatToolThinking(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatToolThinking", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatToolEarlierSteps(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatToolEarlierSteps \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatToolHideEarlier(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatToolHideEarlier", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatThoughtSpoken(text: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatThoughtSpoken \(text)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatCallSpoken(label: String, subject: String, result: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatCallSpoken \(label) \(subject) \(result)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatCallRunning(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatCallRunning", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatCallHintHide(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatCallHintHide", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatCallHintShow(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatCallHintShow", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatCallRunningDots(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatCallRunningDots", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatCallNoOutput(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatCallNoOutput", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatCodeArguments(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatCodeArguments", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatCodeOutput(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatCodeOutput", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSkill(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSkill", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSkillPlural(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSkillPlural", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatCommand(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatCommand", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatCommandPlural(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatCommandPlural", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSettingsMessageBox(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSettingsMessageBox", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSettingsSendWith(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSettingsSendWith", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSettingsSendWithDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSettingsSendWithDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSettingsKeyReturn(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSettingsKeyReturn", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSettingsKeyCommandReturn(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSettingsKeyCommandReturn", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSettingsWhileWorking(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSettingsWhileWorking", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSettingsWhileWorkingDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSettingsWhileWorkingDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSettingsQueueIt(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSettingsQueueIt", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSettingsInterrupt(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSettingsInterrupt", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSettingsWritingTools(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSettingsWritingTools", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSettingsWritingToolsDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSettingsWritingToolsDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSettingsCheckSpelling(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSettingsCheckSpelling", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSettingsCheckSpellingDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSettingsCheckSpellingDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSettingsCorrectSpelling(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSettingsCorrectSpelling", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSettingsCorrectSpellingDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSettingsCorrectSpellingDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSettingsContextAndLimits(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSettingsContextAndLimits", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSettingsContextAndLimitsDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSettingsContextAndLimitsDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSettingsConversation(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSettingsConversation", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSettingsFollowOutput(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSettingsFollowOutput", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSettingsFollowOutputDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSettingsFollowOutputDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSettingsMessageTimes(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSettingsMessageTimes", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSettingsMessageTimesDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSettingsMessageTimesDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSettingsToolOutput(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSettingsToolOutput", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSettingsToolOutputDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSettingsToolOutputDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSettingsOpenFailed(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSettingsOpenFailed", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSettingsOpenFailedDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSettingsOpenFailedDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSettingsDiffStyle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSettingsDiffStyle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSettingsDiffStyleDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSettingsDiffStyleDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSettingsOutputLength(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSettingsOutputLength", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSettingsOutputLengthDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSettingsOutputLengthDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSettingsShowReasoning(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSettingsShowReasoning", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSettingsShowReasoningDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSettingsShowReasoningDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSettingsTextSize(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSettingsTextSize", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSettingsTextSizeDetail(size: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSettingsTextSizeDetail \(size)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSettingsTextSizeValue(size: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSettingsTextSizeValue \(size)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSettingsLineSpacing(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSettingsLineSpacing", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSettingsLineSpacingDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSettingsLineSpacingDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSettingsMessageSpacing(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSettingsMessageSpacing", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSettingsMessageSpacingDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSettingsMessageSpacingDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSettingsMessageWidth(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSettingsMessageWidth", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSettingsMessageWidthDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSettingsMessageWidthDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSettingsWidthOption(title: String, points: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSettingsWidthOption \(title) \(points)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSettingsSurfaces(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSettingsSurfaces", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSettingsSurfacesDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSettingsSurfacesDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatComposerHelp(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatComposerHelp", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatComposerEmptyNote(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatComposerEmptyNote", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatComposerBusyNote(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatComposerBusyNote", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatComposerNoLevels(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatComposerNoLevels", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatComposerNoMatch(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatComposerNoMatch", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatComposerPlaceholder(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatComposerPlaceholder", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatComposerTakingOver(agent: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatComposerTakingOver \(agent)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatComposerAsleep(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatComposerAsleep", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatComposerReading(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatComposerReading", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatQueuedStops(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatQueuedStops", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatQueuedFinishes(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatQueuedFinishes", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatQueuedSendNow(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatQueuedSendNow", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatQueuedSendNowHelp(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatQueuedSendNowHelp", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatQueuedCancel(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatQueuedCancel", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatQueuedEditHelp(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatQueuedEditHelp", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatProblemReadFailed(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatProblemReadFailed", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatProblemFailed(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatProblemFailed", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatStoppedTurn(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatStoppedTurn", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatContinue(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatContinue", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatCopyAsMarkdown(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatCopyAsMarkdown", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatCopyAsPlainText(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatCopyAsPlainText", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatCopyMessage(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatCopyMessage", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatCopy(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatCopy", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatCopied(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatCopied", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatCopyCommandHelp(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatCopyCommandHelp", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatBreakdownContext(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatBreakdownContext \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatBreakdownCalls(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatBreakdownCalls", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatBreakdownInput(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatBreakdownInput \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatBreakdownCacheRead(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatBreakdownCacheRead \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatBreakdownCacheWrite(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatBreakdownCacheWrite \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatBreakdownOutput(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatBreakdownOutput \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatReportDefinitionOfDone(done: Int, total: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatReportDefinitionOfDone \(done) \(total)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatYes(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatYes", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatNo(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatNo", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatTableCopy(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatTableCopy", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatTableCopyForSpreadsheet(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatTableCopyForSpreadsheet", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatDictationFailed(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatDictationFailed", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatDropToAttach(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatDropToAttach", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatDropDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatDropDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSendHelp(send: String, key: String, newLine: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSendHelp \(send) \(key) \(newLine)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatPickerLevels(levels: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatPickerLevels \(levels)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatPickerGlobalRole(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatPickerGlobalRole", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatPickerChoose(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatPickerChoose", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatPickerHelp(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatPickerHelp", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatPickerDefaultModel(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatPickerDefaultModel", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatPickerNoModel(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatPickerNoModel", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatPickerSameEverywhere(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatPickerSameEverywhere", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatPickerNotSignedIn(account: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatPickerNotSignedIn \(account)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatPickerSearch(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatPickerSearch", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatPickerFollows(follows: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatPickerFollows \(follows)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatPickerFollowsWith(follows: String, text: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatPickerFollowsWith \(follows) \(text)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatPickerDefaultDetail(account: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatPickerDefaultDetail \(account)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatPickerNamedInFile(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatPickerNamedInFile", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatPickerUse(name: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatPickerUse \(name)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatPickerUseDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatPickerUseDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatPickerLooking(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatPickerLooking", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatPickerNoList(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatPickerNoList", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatPickerNoModelsListed(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatPickerNoModelsListed", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatPickerNoProvider(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatPickerNoProvider", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatPickerFullAccess(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatPickerFullAccess", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatPickerFullAccessNote(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatPickerFullAccessNote", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatPeekPullRequest(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatPeekPullRequest", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatPeekChanges(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatPeekChanges", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatPeekWaitingOn(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatPeekWaitingOn", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatPeekMoreTasks(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatPeekMoreTasks \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSubagentSteps(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSubagentSteps \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSubagentSpoken(type: String, name: String, words: String, steps: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSubagentSpoken \(type) \(name) \(words) \(steps)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSubagentOpensHint(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSubagentOpensHint", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSubagentBackToChat(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSubagentBackToChat", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSubagentBrief(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSubagentBrief", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSubagentReadOnly(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSubagentReadOnly", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSubagentTitleSpoken(title: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSubagentTitleSpoken \(title)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatLogNoOutput(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatLogNoOutput", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatLoading(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatLoading", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatTimelineLabel(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatTimelineLabel", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatDiffShowLess(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatDiffShowLess", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatDiffShowMore(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatDiffShowMore \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
 }

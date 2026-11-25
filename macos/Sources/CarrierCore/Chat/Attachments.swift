@@ -37,18 +37,18 @@ public struct AttachedFile: Equatable, Identifiable {
     }
 
     /// "48 KB", "14 items": under the name.
-    public var detail: String {
-        if let items { return items == 1 ? "1 item" : "\(items) items" }
+    public func detail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        if let items { return Copy.chatAttachmentItems(count: items, bundle: bundle, locale: locale) }
         guard let size else { return "" }
         return ByteCountFormatter.string(fromByteCount: size, countStyle: .file)
     }
 
     /// Why it is not going, in a few words; nil when it goes.
-    public var problemText: String? {
+    public func problemText(bundle: Bundle? = nil, locale: Locale = .current) -> String? {
         switch problem {
-        case .missing?: "Not found"
-        case .tooBig(let bytes)?: "Too big · \(ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file))"
-        case .carrierOwn?: "Carrier's own file"
+        case .missing?: Copy.chatAttachmentNotFound(bundle: bundle, locale: locale)
+        case .tooBig(let bytes)?: Copy.chatAttachmentTooBig(size: ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file), bundle: bundle, locale: locale)
+        case .carrierOwn?: Copy.chatAttachmentCarrierOwn(bundle: bundle, locale: locale)
         case nil: nil
         }
     }

@@ -37,7 +37,7 @@ extension MessageBox {
         HStack(spacing: Tokens.Space.none) {
             HStack(spacing: Tokens.Space.s6) {
                 Glyph(kind.symbol, size: 11).foregroundStyle(kind.color)
-                Text(kind.plural).scaledFont(12, weight: .semibold)
+                Text(kind.plural()).scaledFont(12, weight: .semibold)
                 Text("\(count)").scaledFont(11, weight: .medium).foregroundStyle(.secondary)
             }
             .padding(.horizontal, Tokens.Space.s10).frame(height: 24)

@@ -9,7 +9,7 @@ struct SubagentView: View {
     let work: SubagentWork
     /// The window's header says the rest of `work.header`; the note's Back button leaves for the conversation, or the Agent output tab.
     let backToChat: () -> Void
-    var backTitle = "Back to chat"
+    var backTitle = Copy.chatSubagentBackToChat()
     @State private var flipped: Set<String> = []
     @AppStorage(Preference.chatToolOutput) private var mode
     @AppStorage(Preference.chatShowReasoning) private var showsReasoning
@@ -33,7 +33,7 @@ struct SubagentView: View {
                 .frame(maxWidth: messageWidth.points).frame(maxWidth: .infinity)
         }
         .scaledFont(13)
-        .accessibilityLabel("Subagent \(work.header.title)")
+        .accessibilityLabel(Copy.chatSubagentTitleSpoken(title: work.header.title))
     }
 }
 
@@ -44,7 +44,7 @@ private struct BriefBubble: View {
 
     var body: some View {
         VStack(alignment: .trailing, spacing: Tokens.Space.s3) {
-            Text("Brief from the main agent").scaledFont(10.5, weight: .semibold).textCase(.uppercase).tracking(0.5).foregroundStyle(.tint)
+            Text(Copy.chatSubagentBrief()).scaledFont(10.5, weight: .semibold).textCase(.uppercase).tracking(0.5).foregroundStyle(.tint)
             Text(text).chatText(bubble: true).textSelection(.enabled)
                 .padding(.horizontal, Tokens.Space.s14).padding(.vertical, Tokens.Space.s8)
                 .chatSurface(.regular.tint(theme.accent.opacity(0.1)), flat: theme.accent.opacity(0.16), in: RoundedRectangle(cornerRadius: Tokens.Radius.panel))
@@ -63,7 +63,7 @@ private struct SubagentNote: View {
     var body: some View {
         HStack(spacing: Tokens.Space.s10) {
             Glyph(.lock, size: 12).foregroundStyle(.secondary).accessibilityHidden(true)
-            Text("Subagent work is read-only.").scaledFont(12.5).foregroundStyle(.secondary).lineLimit(1)
+            Text(Copy.chatSubagentReadOnly()).scaledFont(12.5).foregroundStyle(.secondary).lineLimit(1)
             Spacer(minLength: 8)
             Button(action: backToChat) {
                 Label(backTitle, icon: .chevronLeft).scaledFont(12, weight: .medium).labelStyle(.titleAndIcon)

@@ -31,12 +31,12 @@ struct QuestionCardView: View {
     var body: some View {
         NoticeCard(
             symbol: .question, tint: .attention, title: question.question,
-            detail: [question.multiSelect ? "Choose any that apply" : "Choose one", behind > 0 ? "\(behind) more waiting" : nil].compactMap { $0 }.joined(separator: " · "),
+            detail: [question.multiSelect ? Copy.chatQuestionChooseAny() : Copy.chatQuestionChooseOne(), behind > 0 ? Copy.chatApprovalMoreWaiting(count: behind) : nil].compactMap { $0 }.joined(separator: " · "),
             tag: question.header
         ) {
             if card.questions.count > 1 { progress.padding(.trailing, Tokens.Space.s4) }
-            Button("Skip") { answer(card.approvalId, declineId, nil) }.buttonStyle(HoverTextButtonStyle(tint: nil, danger: true))
-                .keyboardShortcut(.escape, modifiers: .option).help("Skip the questions (⌥⎋)")
+            Button(Copy.chatQuestionSkip()) { answer(card.approvalId, declineId, nil) }.buttonStyle(HoverTextButtonStyle(tint: nil, danger: true))
+                .keyboardShortcut(.escape, modifiers: .option).help(Copy.chatQuestionSkipHelp())
         } below: {
             VStack(alignment: .leading, spacing: Tokens.Space.none) {
                 if step > 0 { earlier.padding(.top, Tokens.Space.s6) }
@@ -46,7 +46,7 @@ struct QuestionCardView: View {
                             row(index, label: option.label, detail: option.description)
                             if let preview = option.preview, picked[safe: step]?.contains(index) == true { previewBlock(preview) }
                         }
-                        row(question.options.count, label: "Other…", detail: nil)
+                        row(question.options.count, label: Copy.chatQuestionOther(), detail: nil)
                     }
                     .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { optionsHeight = $0 }
                 }
@@ -54,22 +54,22 @@ struct QuestionCardView: View {
                 .frame(height: optionsHeight > 0 ? min(optionsHeight, cardRoom(in: paneHeight)) : nil)
                 .padding(.top, Tokens.Space.s6)
                 if picked.indices.contains(step), picked[step].contains(question.options.count) {
-                    TextField("Your answer", text: $own[step]).textFieldStyle(.plain).scaledFont(13).focused($writing)
+                    TextField(Copy.chatQuestionYourAnswer(), text: $own[step]).textFieldStyle(.plain).scaledFont(13).focused($writing)
                         .padding(.horizontal, Tokens.Space.s10).padding(.vertical, Tokens.Space.s8)
                         .background(RoundedRectangle(cornerRadius: Tokens.Radius.tile, style: .continuous).fill(Color.primary.opacity(0.07)))
                         .overlay(RoundedRectangle(cornerRadius: Tokens.Radius.tile, style: .continuous).strokeBorder(Color.primary.opacity(writing ? 0.3 : 0.12)))
                         .padding(.leading, Tokens.Space.s40).padding(.top, Tokens.Space.s4)
                         .onSubmit { if complete { next() } }
-                        .accessibilityLabel("Your own answer")
+                        .accessibilityLabel(Copy.chatQuestionOwnAnswer())
                 }
                 if step > 0 || needsButton {
                     HStack(spacing: Tokens.Space.s4) {
                         Spacer(minLength: 0)
-                        if step > 0 { Button { go(step - 1) } label: { Label("Back", icon: .chevronLeft) }.buttonStyle(HoverTextButtonStyle(tint: nil)) }
+                        if step > 0 { Button { go(step - 1) } label: { Label(Copy.chatQuestionBack(), icon: .chevronLeft) }.buttonStyle(HoverTextButtonStyle(tint: nil)) }
                         if needsButton {
                             // ⌘↩ and not a plain Return: the message box under the card would lose its Return
-                            Button(last ? "Send" : "Next") { next() }.buttonStyle(HoverTextButtonStyle(tint: theme.accent)).disabled(complete == false)
-                                .keyboardShortcut(.return, modifiers: .command).help("\(last ? "Send" : "Next") (⌘↩)")
+                            Button(last ? Copy.chatSend() : Copy.chatNext()) { next() }.buttonStyle(HoverTextButtonStyle(tint: theme.accent)).disabled(complete == false)
+                                .keyboardShortcut(.return, modifiers: .command).help(last ? Copy.chatQuestionSendHelp() : Copy.chatQuestionNextHelp())
                         }
                     }
                     .padding(.top, Tokens.Space.s4)
@@ -92,7 +92,7 @@ struct QuestionCardView: View {
         HStack(spacing: Tokens.Space.s4) {
             ForEach(card.questions.indices, id: \.self) { Circle().fill(Color.primary.opacity($0 == step ? 0.7 : 0.2)).frame(width: 6, height: 6) }
         }
-        .accessibilityElement().accessibilityLabel("Question \(step + 1) of \(card.questions.count)")
+        .accessibilityElement().accessibilityLabel(Copy.chatQuestionProgress(step: step + 1, total: card.questions.count))
     }
 
     /// What was answered before this question, one line each, so the last one does not lose its context.

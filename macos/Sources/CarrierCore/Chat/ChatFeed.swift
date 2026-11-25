@@ -12,7 +12,9 @@ import Observation
 /// from events that come after the turn ended. What a nested subagent does is not drawn here. A subagent that started and never ended, in a
 /// session that is not `working`, is shown stopped: the host that ran it is gone.
 /// Anything else the host may add is not drawn.
-public func chatFeed(_ events: [ChatEvent], streaming: String = "", pending: Set<String> = [], working: Bool = true) -> [FeedRow] {
+public func chatFeed(
+    _ events: [ChatEvent], streaming: String = "", pending: Set<String> = [], working: Bool = true, bundle: Bundle? = nil, locale: Locale = .current
+) -> [FeedRow] {
     var rows: [FeedRow] = []
     // where each call still going is: its row and its place in it
     var going: [String: (row: Int, call: Int)] = [:]
@@ -80,14 +82,15 @@ public func chatFeed(_ events: [ChatEvent], streaming: String = "", pending: Set
         case "approval":
             if let approval = event.approvalId { asked[approval] = (rows.count, event) }
             if let approval = event.approvalId, pending.contains(approval) {
-                let tool = event.tool ?? "the tool"
-                rows.append(.approval(id: id, ApprovalCard(approvalId: approval, question: "Allow \(tool)?", tool: tool, arg: event.arg, choices: event.choices ?? [], questions: event.questions ?? [])))
+                let tool = event.tool ?? Copy.chatApprovalTheTool(bundle: bundle, locale: locale)
+                let question = Copy.chatApprovalAllow(tool: tool, bundle: bundle, locale: locale)
+                rows.append(.approval(id: id, ApprovalCard(approvalId: approval, question: question, tool: tool, arg: event.arg, choices: event.choices ?? [], questions: event.questions ?? [])))
             } else {
-                rows.append(.line(id: id, text: "\(what(event)) · no longer waiting for an answer"))
+                rows.append(.line(id: id, text: Copy.chatApprovalNoLongerWaiting(what: what(event), bundle: bundle, locale: locale)))
             }
         case "approval_answered":
             guard let approval = event.approvalId, let question = asked[approval] else { continue }
-            rows[question.row] = decided(question.event, choice: event.choiceId, answers: event.answers, id: rows[question.row].id)
+            rows[question.row] = decided(question.event, choice: event.choiceId, answers: event.answers, id: rows[question.row].id, bundle: bundle, locale: locale)
         case "turn_end":
             release()
             for spot in going.values {
@@ -111,7 +114,7 @@ public func chatFeed(_ events: [ChatEvent], streaming: String = "", pending: Set
             turnStart = nil
         case "error":
             release()
-            rows.append(.error(id: id, text: event.text ?? "Something went wrong"))
+            rows.append(.error(id: id, text: event.text ?? Copy.chatErrorGeneric(bundle: bundle, locale: locale)))
         case "compact":
             release()
             rows.append(.compacted(id: id, Compaction(event)))
@@ -121,7 +124,7 @@ public func chatFeed(_ events: [ChatEvent], streaming: String = "", pending: Set
             // said by the host (a resume that began a new conversation): a plain line, never the banner of a failed turn; a change of agent is its own row
             release()
             if let switched = event.switched { rows.append(.switched(id: id, switched)) }
-            else if let text = event.shown(event.text) { rows.append(.line(id: id, text: text)) }
+            else if let text = event.shown(event.text, bundle: bundle, locale: locale) { rows.append(.line(id: id, text: text)) }
         default:
             continue
         }
@@ -193,16 +196,17 @@ private func place(_ subagent: Subagent, in rows: inout [FeedRow], id: String, h
 private func what(_ approval: ChatEvent) -> String { [approval.tool, approval.arg].compactMap { $0 }.joined(separator: " ") }
 
 /// "Allowed pnpm test · Allow once · by you": the verb is from whether the chosen choice allows, the label is the provider's own.
-private func decided(_ approval: ChatEvent, choice: String?, answers: [String: String]?, id: String) -> FeedRow {
+private func decided(_ approval: ChatEvent, choice: String?, answers: [String: String]?, id: String, bundle: Bundle?, locale: Locale) -> FeedRow {
     if let questions = approval.questions, questions.isEmpty == false {
         guard let answers, let chosen = approval.choices?.first(where: { $0.id == choice })?.allow, chosen else {
-            return .decided(id: id, text: "Skipped the questions · by you", allow: false)
+            return .decided(id: id, text: Copy.chatDecidedSkipped(bundle: bundle, locale: locale), allow: false)
         }
         let parts = questions.compactMap { question in answers[question.question].map { "\(question.header): \($0)" } }
-        return .decided(id: id, text: (["Answered · by you"] + parts).joined(separator: "\n"), allow: true)
+        return .decided(id: id, text: ([Copy.chatDecidedAnswered(bundle: bundle, locale: locale)] + parts).joined(separator: "\n"), allow: true)
     }
     guard let chosen = approval.choices?.first(where: { $0.id == choice }) else {
-        return .decided(id: id, text: "Answered \(what(approval)) · by you", allow: false)
+        return .decided(id: id, text: Copy.chatDecidedAnsweredWhat(what: what(approval), bundle: bundle, locale: locale), allow: false)
     }
-    return .decided(id: id, text: "\(chosen.allow ? "Allowed" : "Declined") \(what(approval)) · \(chosen.label) · by you", allow: chosen.allow)
+    let text = Copy.chatDecidedChoice(verdict: chosen.allow ? .allowed : .declined, what: what(approval), choice: chosen.label, bundle: bundle, locale: locale)
+    return .decided(id: id, text: text, allow: chosen.allow)
 }

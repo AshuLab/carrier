@@ -25,9 +25,9 @@ struct BackgroundWorkCard: View {
         VStack(alignment: .leading, spacing: Tokens.Space.none) {
             HStack(spacing: Tokens.Space.s6) {
                 Button { toggle() } label: { header }.buttonStyle(.plain)
-                    .accessibilityLabel(spoken).accessibilityHint(open ? "Hides the tasks" : "Shows the tasks")
-                Button(stopsEach ? "Stop all" : "Stop", action: stop).buttonStyle(HoverTextButtonStyle(tint: theme.accent)).help("Stop what the agent waits for")
-                    .accessibilityLabel("Stop the background tasks")
+                    .accessibilityLabel(spoken).accessibilityHint(open ? Copy.chatBackgroundHintHide() : Copy.chatBackgroundHintShow())
+                Button(stopsEach ? Copy.chatStopAll() : Copy.chatStop(), action: stop).buttonStyle(HoverTextButtonStyle(tint: theme.accent)).help(Copy.chatBackgroundStopHelp())
+                    .accessibilityLabel(Copy.chatBackgroundStopLabel())
             }
             .frame(height: 30)
             if open { timeline.transition(reduceMotion ? .opacity : .reveal) }
@@ -45,7 +45,7 @@ struct BackgroundWorkCard: View {
 
     private var spoken: String {
         let names = tasks.map(\.name).joined(separator: ", ")
-        return tasks.count == 1 ? "Waiting on a background task, \(names)" : "Waiting on \(tasks.count) background tasks, \(names)"
+        return Copy.chatBackgroundSpoken(count: tasks.count, names: names)
     }
 
     private func toggle() {
@@ -112,8 +112,8 @@ struct BackgroundWorkCard: View {
                         }
                     }
                     if stopsEach, let stopTask {
-                        Button("Stop") { stopTask(task.id) }.buttonStyle(HoverTextButtonStyle(tint: nil)).help("Stop \(task.name)")
-                            .accessibilityLabel("Stop \(task.name)")
+                        Button(Copy.chatStop()) { stopTask(task.id) }.buttonStyle(HoverTextButtonStyle(tint: nil)).help(Copy.chatStopTask(name: task.name))
+                            .accessibilityLabel(Copy.chatStopTask(name: task.name))
                     }
                 }
                 .frame(height: 26).padding(.leading, Tokens.Space.s4).padding(.trailing, stopsEach ? Tokens.Space.s8 : Tokens.Space.s24)

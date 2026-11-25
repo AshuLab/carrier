@@ -41,7 +41,7 @@ struct SessionPeekView: View {
             CardFactsGrid(facts: card.facts) {
                 if let pullRequest = card.pullRequest {
                     GridRow(alignment: .firstTextBaseline) {
-                        Text("Pull request").foregroundStyle(.secondary)
+                        Text(Copy.chatPeekPullRequest()).foregroundStyle(.secondary)
                         HStack(spacing: Tokens.Space.s8) {
                             SessionPullRequestChip(pr: pullRequest)
                             if let diff = card.diff { DiffText(diff: diff) }
@@ -49,13 +49,13 @@ struct SessionPeekView: View {
                     }
                 } else if let diff = card.diff {
                     GridRow(alignment: .firstTextBaseline) {
-                        Text("Changes").foregroundStyle(.secondary)
+                        Text(Copy.chatPeekChanges()).foregroundStyle(.secondary)
                         DiffText(diff: diff)
                     }
                 }
                 if card.background.isEmpty == false {
                     GridRow(alignment: .firstTextBaseline) {
-                        Text("Waiting on").foregroundStyle(.secondary)
+                        Text(Copy.chatPeekWaitingOn()).foregroundStyle(.secondary)
                         VStack(alignment: .leading, spacing: Tokens.Space.s3) {
                             ForEach(card.background.prefix(Self.tasksShown), id: \.id) { task in
                                 HStack(spacing: Tokens.Space.s6) {
@@ -64,7 +64,7 @@ struct SessionPeekView: View {
                                 }
                             }
                             if card.background.count > Self.tasksShown {
-                                Text("+\(card.background.count - Self.tasksShown) more").scaledFont(11).foregroundStyle(.tertiary)
+                                Text(Copy.chatPeekMoreTasks(count: card.background.count - Self.tasksShown)).scaledFont(11).foregroundStyle(.tertiary)
                             }
                         }
                     }

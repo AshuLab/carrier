@@ -21,17 +21,17 @@ struct AttachmentPreview: View {
         VStack(spacing: Tokens.Space.none) {
             HStack(spacing: Tokens.Space.s10) {
                 Text(file.name).font(.headline).lineLimit(1).truncationMode(.middle)
-                if files.count > 1 { Text("\(index + 1) of \(files.count)").font(.callout).foregroundStyle(.secondary).monospacedDigit() }
+                if files.count > 1 { Text(Copy.chatAttachmentPosition(index: index + 1, count: files.count)).font(.callout).foregroundStyle(.secondary).monospacedDigit() }
                 Spacer(minLength: 0)
-                Button { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: file.path)]) } label: { Label("Show in Finder", icon: .folder) }
+                Button { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: file.path)]) } label: { Label(Copy.chatShowInFinder(), icon: .folder) }
                     .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
-                IconButton(icon: .close, name: "Close") { dismiss() }.keyboardShortcut(.cancelAction)
+                IconButton(icon: .close, name: Copy.chatClose()) { dismiss() }.keyboardShortcut(.cancelAction)
             }
             .padding(.horizontal, Tokens.Space.s16).padding(.vertical, Tokens.Space.s10)
             Divider()
             QuickLook(path: file.path)
-                .overlay(alignment: .leading) { step(.chevronLeft, "Previous", -1) }
-                .overlay(alignment: .trailing) { step(.chevronRight, "Next", 1) }
+                .overlay(alignment: .leading) { step(.chevronLeft, Copy.chatPrevious(), -1) }
+                .overlay(alignment: .trailing) { step(.chevronRight, Copy.chatNext(), 1) }
         }
         .windowSheetSize(maxWidth: 900)
     }

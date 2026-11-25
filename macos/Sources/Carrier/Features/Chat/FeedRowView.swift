@@ -74,7 +74,7 @@ struct FeedRowView: View, Equatable {
             }
             .onHover { hovering = $0 }
         case .turnEnd(_, let summary):
-            Text(summary.text).scaledFont(12).foregroundStyle(.secondary).textSelection(.enabled)
+            Text(summary.text()).scaledFont(12).foregroundStyle(.secondary).textSelection(.enabled)
         case .tools(let id, let group):
             // a subagent keeps the line live while it runs, after the turn that launched it ended too
             VStack(alignment: .leading, spacing: Tokens.Space.s6) {
@@ -90,16 +90,16 @@ struct FeedRowView: View, Equatable {
         case .switched(_, let switched):
             AgentSwitchDivider(switched: switched)
         case .cleared(_, let freed):
-            ContextCutDivider(glyph: .brush, title: "Context cleared", notes: [clearedFreedText(freed)].compactMap { $0 }, detail: clearedDetail(agent: ProviderIdentityStore.shared.shortName(of: agent)))
+            ContextCutDivider(glyph: .brush, title: Copy.chatClearedTitle(), notes: [clearedFreedText(freed)].compactMap { $0 }, detail: clearedDetail(agent: ProviderIdentityStore.shared.shortName(of: agent)))
         case .compacted(_, let cut):
-            ContextCutDivider(glyph: cut.error == nil ? .arrowsMinimize : .warning, title: cut.title, notes: [cut.sizes, cut.saved].compactMap { $0 },
+            ContextCutDivider(glyph: cut.error == nil ? .arrowsMinimize : .warning, title: cut.title(), notes: [cut.sizes(), cut.saved].compactMap { $0 },
                               detail: cut.detail(agent: ProviderIdentityStore.shared.shortName(of: agent)), failed: cut.error != nil)
         case .error(_, let text):
             FailureBannerView(banner: failedTurnBanner(agent: ProviderIdentityStore.shared.shortName(of: agent), error: text), agent: agent, copyDetails: true, retry: offersWayOut ? actions.retry : nil)
         case .stopped:
             HStack(spacing: Tokens.Space.s6) {
-                Text("\u{25A0} You stopped this turn").foregroundStyle(.secondary)
-                if offersWayOut { Button("Continue", action: actions.continueTurn).buttonStyle(.link) }
+                Text(Copy.chatStoppedTurn()).foregroundStyle(.secondary)
+                if offersWayOut { Button(Copy.chatContinue(), action: actions.continueTurn).buttonStyle(.link) }
             }
             .scaledFont(12)
         }
@@ -123,7 +123,7 @@ extension FeedRowView {
     }
 
     private func summaryView(_ summary: TurnSummary) -> some View {
-        let numbers = [summary.duration, summary.contextText, summary.output.map { "\(TurnSummary.tokens($0)) out" }]
+        let numbers = [summary.duration, summary.contextText(), summary.outText()]
             .compactMap { $0 }.joined(separator: " · ")
         return HStack(spacing: Tokens.Space.s10) {
             if let model = summary.shortModel {
@@ -144,19 +144,9 @@ extension FeedRowView {
                 .help([identity.label == nil ? nil : agent, summary.model ?? model].compactMap { $0 }.joined(separator: " · "))
             }
             if numbers.isEmpty == false {
-                Text(numbers).scaledFont(12).foregroundStyle(Color.secondary.opacity(0.8)).help(breakdown(summary))
+                Text(numbers).scaledFont(12).foregroundStyle(Color.secondary.opacity(0.8)).help(summary.breakdown())
             }
         }
-    }
-
-    /// The tooltip of the numbers: the context at the end of the turn, then what all its model calls read and wrote added up (each call reads the whole
-    /// context again, most of it from the cache, so these are many times the context).
-    private func breakdown(_ summary: TurnSummary) -> String {
-        let total = [("New input", summary.input), ("Read from the cache", summary.cacheRead), ("Written to the cache", summary.cacheWrite), ("Output", summary.output)]
-            .compactMap { name, count in count.map { "\(name): \(Int($0).formatted())" } }
-        let context = summary.contextTokens.map { ["Context at the end: \(Int($0).formatted())"] } ?? []
-        let header = total.isEmpty ? [] : [context.isEmpty ? "All the turn's model calls:" : "\nAll the turn's model calls:"]
-        return (context + header + total).joined(separator: "\n")
     }
 
     /// Copies the message as it was written (its Markdown) and says so with a green tick for a moment. An agent message also offers its plain text, with the
@@ -169,8 +159,8 @@ extension FeedRowView {
         Group {
             if asks {
                 Menu {
-                    Button("Copy as Markdown") { copy(text) }
-                    Button("Copy as plain text") { copy(plainText(text)) }
+                    Button(Copy.chatCopyAsMarkdown()) { copy(text) }
+                    Button(Copy.chatCopyAsPlainText()) { copy(plainText(text)) }
                 } label: { label } primaryAction: { copy(text) }
                     .menuStyle(.button).menuIndicator(.hidden)
             } else {
@@ -179,7 +169,7 @@ extension FeedRowView {
         }
         .buttonStyle(.plain).fixedSize()
         .onHover { overCopy = $0 }
-        .help("Copy message").accessibilityLabel("Copy message")
+        .help(Copy.chatCopyMessage()).accessibilityLabel(Copy.chatCopyMessage())
     }
 
     private func copy(_ text: String) {

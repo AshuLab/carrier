@@ -20,22 +20,22 @@ final class WindowController: NSObject, NSWindowDelegate {
     private var stateTask: Task<Void, Never>?
 
     /// Adds the "Open window" item at the end of the menu.
-    func addMenuItem(to menu: NSMenu) {
-        let item = menu.addItem(withTitle: "Open window", action: #selector(openFromMenu), keyEquivalent: "o")
+    func addMenuItem(to menu: NSMenu, bundle: Bundle? = nil, locale: Locale = .current) {
+        let item = menu.addItem(withTitle: Copy.statusOpenWindow(bundle: bundle, locale: locale), action: #selector(openFromMenu), keyEquivalent: "o")
         item.target = self
         showIcon("macwindow", on: item)
     }
 
     /// Adds the "About Carrier" item: it shows the About panel.
-    func addAboutItem(to menu: NSMenu) {
-        let item = menu.addItem(withTitle: "About Carrier", action: #selector(aboutFromMenu), keyEquivalent: "")
+    func addAboutItem(to menu: NSMenu, bundle: Bundle? = nil, locale: Locale = .current) {
+        let item = menu.addItem(withTitle: Copy.menuItem(which: .aboutCarrier, bundle: bundle, locale: locale), action: #selector(aboutFromMenu), keyEquivalent: "")
         item.target = self
         showIcon("info.circle", on: item)
     }
 
     /// Adds the "Settings…" item: it opens Settings in its window.
-    func addSettingsItem(to menu: NSMenu) {
-        let item = menu.addItem(withTitle: "Settings…", action: #selector(settingsFromMenu), keyEquivalent: ",")
+    func addSettingsItem(to menu: NSMenu, bundle: Bundle? = nil, locale: Locale = .current) {
+        let item = menu.addItem(withTitle: Copy.menuItem(which: .settings, bundle: bundle, locale: locale), action: #selector(settingsFromMenu), keyEquivalent: ",")
         item.target = self
         showIcon("gearshape", on: item)
     }
@@ -225,7 +225,7 @@ final class WindowController: NSObject, NSWindowDelegate {
         // the content does not size the window: following its minimum size loops in layout when the inspector comes and goes
         host.sizingOptions = []
         let window = NSWindow(contentViewController: host)
-        window.title = "Carrier"
+        window.title = mainWindowTitle()
         // full size content: the sidebar runs up behind the title bar, as Liquid Glass sidebars do
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
         window.isReleasedWhenClosed = false

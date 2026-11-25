@@ -58,10 +58,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(.separator())
         // the Carrier group: its title like the other groups', the state (a view of its own, not a title: a line with no action is drawn grey),
         // its controls and its latest epics, which EpicMenuSection puts before the separator that ends the group
-        menu.addItem(.sectionHeader(title: "Carrier"))
-        let stateLine = menu.addItem(withTitle: ConnectionState.stopped.menuLine, action: nil, keyEquivalent: "")
+        menu.addItem(.sectionHeader(title: Copy.appName()))
+        let stateLine = menu.addItem(withTitle: ConnectionState.stopped.menuLine(), action: nil, keyEquivalent: "")
         stateLine.view = header
-        header.show(ConnectionState.stopped.menuStatus)
+        header.show(ConnectionState.stopped.menuStatus())
         MenuControls.shared.install(in: menu)
         let groupEnd = NSMenuItem.separator()
         groupEnd.tag = EpicMenuSection.anchorTag
@@ -72,7 +72,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Signposts.launch.endInterval("window controller", windowController)
         WindowController.shared.addSettingsItem(to: menu)
         WindowController.shared.addAboutItem(to: menu)
-        let quit = menu.addItem(withTitle: "Quit Carrier", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        let quit = menu.addItem(withTitle: Copy.menuItem(which: .quitCarrier), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         showIcon("power", on: quit)
         item.menu = menu
         statusItem = item
@@ -174,8 +174,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             for await state in states {
                 IconController.shared?.show(state)
                 KeepAwakeController.shared.epics(working: IconState(state).working)
-                line.title = state.menuLine
-                self.header.show(state.menuStatus)
+                line.title = state.menuLine()
+                self.header.show(state.menuStatus())
                 MenuControls.shared.react(to: state)
                 EpicMenuSection.shared.react(to: state)
                 NotificationWatcher.app.react(to: state)

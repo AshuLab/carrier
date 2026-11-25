@@ -132,19 +132,19 @@ private struct RightClickMenu: NSViewRepresentable {
 
 /// Opens Terminal in the folder.
 @MainActor private func openInTerminal(_ path: String) {
-    guard let terminal = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.Terminal") else { return tell("Terminal is not installed.") }
+    guard let terminal = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.Terminal") else { return tell(terminalMissingAlert().title) }
     NSWorkspace.shared.open([URL(fileURLWithPath: path)], withApplicationAt: terminal, configuration: NSWorkspace.OpenConfiguration())
 }
 
 /// Asks for a new title in an alert with a field; nil when cancelled or left empty.
 @MainActor private func askTitle(_ current: String) -> String? {
+    let text = renameSessionAlert()
     let alert = NSAlert()
-    alert.messageText = "Rename session"
+    alert.messageText = text.title
     let field = NSTextField(string: current)
     field.frame = NSRect(x: 0, y: 0, width: 280, height: 24)
     alert.accessoryView = field
-    alert.addButton(withTitle: "Rename")
-    alert.addButton(withTitle: "Cancel")
+    for button in text.buttons { alert.addButton(withTitle: button) }
     alert.window.initialFirstResponder = field
     NSApp.activate()
     guard alert.runModal() == .alertFirstButtonReturn else { return nil }
@@ -154,11 +154,12 @@ private struct RightClickMenu: NSViewRepresentable {
 
 /// Asks the question in an alert whose first button, the default, does nothing; true when the person chose the destructive one.
 @MainActor func ask(_ question: Question) -> Bool {
+    let text = questionAlert(question)
     let alert = NSAlert()
-    alert.messageText = question.title
-    alert.informativeText = question.message
-    alert.addButton(withTitle: "Cancel")
-    alert.addButton(withTitle: question.confirm).hasDestructiveAction = true
+    alert.messageText = text.title
+    alert.informativeText = text.message ?? ""
+    alert.addButton(withTitle: text.buttons[0])
+    alert.addButton(withTitle: text.buttons[1]).hasDestructiveAction = true
     NSApp.activate()
     return alert.runModal() == .alertSecondButtonReturn
 }

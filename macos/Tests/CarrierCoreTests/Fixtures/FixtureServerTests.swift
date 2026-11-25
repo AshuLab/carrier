@@ -80,7 +80,7 @@ private func sameJSON(_ a: Data, _ b: Data) throws -> Bool {
     ControlMonitor(socketPath: { server.socketPath }, wait: { _ in false }, log: { _ in }, onChange: { states.append($0) }).run()
     let snapshot = try decodeSnapshot(golden("snapshot.json"))
     #expect(states == [.running(snapshot)])
-    #expect(states[0].menuLine == "Carrier running · \(snapshot.epics.count) \(snapshot.epics.count == 1 ? "epic" : "epics") · \(snapshot.slots.busy)/\(snapshot.slots.total) slots")
+    #expect(states[0].menuLine(bundle: english.bundle, locale: english.locale) == "Carrier running · \(snapshot.epics.count) \(snapshot.epics.count == 1 ? "epic" : "epics") · \(snapshot.slots.busy)/\(snapshot.slots.total) slots")
 }
 
 @Test func pointingCarrierHomeAtTheFixtureFindsItsSocket() throws {

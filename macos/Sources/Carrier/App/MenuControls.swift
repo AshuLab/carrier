@@ -27,10 +27,23 @@ final class MenuControls: NSObject, NSMenuItemValidation {
     var confirm: (Int) -> Bool = MenuControls.confirmStop
     var preferences = AppPreferences()
     private var socketPath: String { controlSocketPath() }
-    private let pauseItem = NSMenuItem(title: "Pause intake", action: #selector(pauseOrResume), keyEquivalent: "")
-    private let checkItem = NSMenuItem(title: "Check GitHub now", action: #selector(checkNow), keyEquivalent: "")
-    private let stopItem = NSMenuItem(title: "Stop Carrier", action: #selector(stopCarrier), keyEquivalent: "")
-    private let startMenuItem = NSMenuItem(title: "Start Carrier", action: #selector(startCarrier), keyEquivalent: "")
+    convenience override init() { self.init(bundle: nil, locale: .current) }
+
+    init(bundle: Bundle?, locale: Locale) {
+        (self.bundle, self.locale) = (bundle, locale)
+        pauseItem = NSMenuItem(title: Copy.epicsToolbarPauseIntake(bundle: bundle, locale: locale), action: #selector(pauseOrResume), keyEquivalent: "")
+        checkItem = NSMenuItem(title: Copy.epicsToolbarCheckGithub(bundle: bundle, locale: locale), action: #selector(checkNow), keyEquivalent: "")
+        stopItem = NSMenuItem(title: Copy.epicsToolbarStopCarrier(bundle: bundle, locale: locale), action: #selector(stopCarrier), keyEquivalent: "")
+        startMenuItem = NSMenuItem(title: Copy.lifecycleStart(bundle: bundle, locale: locale), action: #selector(startCarrier), keyEquivalent: "")
+        super.init()
+    }
+    /// The language of the items' words: the app's, and a test's own.
+    private let bundle: Bundle?
+    private let locale: Locale
+    private let pauseItem: NSMenuItem
+    private let checkItem: NSMenuItem
+    private let stopItem: NSMenuItem
+    private let startMenuItem: NSMenuItem
     private var state = ConnectionState.stopped
     private var wasPausedAtSelfTest = false
     private var reviewTabCheck = CheckThrottle()
@@ -52,7 +65,7 @@ final class MenuControls: NSObject, NSMenuItemValidation {
         let running = isRunning
         startMenuItem.isHidden = running
         for item in [pauseItem, checkItem, stopItem] { item.isHidden = running == false }
-        pauseItem.title = paused ? "Resume intake" : "Pause intake"
+        pauseItem.title = paused ? Copy.epicsToolbarResumeIntake(bundle: bundle, locale: locale) : Copy.epicsToolbarPauseIntake(bundle: bundle, locale: locale)
         showIcon(paused ? "play.fill" : "pause.fill", on: pauseItem)
     }
 
@@ -72,7 +85,7 @@ final class MenuControls: NSObject, NSMenuItemValidation {
 
     private var startState: (title: String, enabled: Bool) {
         startMenuState(state: state, starting: StartController.shared.starting, missing: StartController.shared.missing,
-            configExists: StartController.shared.refreshConfig())
+            configExists: StartController.shared.refreshConfig(), bundle: bundle, locale: locale)
     }
 
     private var isRunning: Bool {
@@ -109,12 +122,11 @@ final class MenuControls: NSObject, NSMenuItemValidation {
     }
 
     private static func confirmStop(interrupting running: Int) -> Bool {
+        let text = stopCarrierAlert(interrupting: running)
         let alert = NSAlert()
-        alert.messageText = "Stop Carrier?"
-        alert.informativeText = "\(running) \(running == 1 ? "epic" : "epics") will be interrupted. "
-            + "\(running == 1 ? "It resumes" : "They resume") on the next start, but what \(running == 1 ? "it was" : "they were") doing right now is lost."
-        alert.addButton(withTitle: "Stop Carrier")
-        alert.addButton(withTitle: "Cancel")
+        alert.messageText = text.title
+        alert.informativeText = text.message ?? ""
+        for button in text.buttons { alert.addButton(withTitle: button) }
         // an accessory app is not frontmost, and its alert would open behind the other windows
         NSApp.activate(ignoringOtherApps: true)
         return alert.runModal() == .alertFirstButtonReturn

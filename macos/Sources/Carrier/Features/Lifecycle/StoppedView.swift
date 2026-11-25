@@ -35,7 +35,7 @@ struct StoppedView: View {
 
     private var icon: AppIcon { state == nil ? .bolt : state == .stopped ? .power : .warning }
 
-    private var title: String { state == nil ? Copy.lifecycleConnecting() : state?.menuLine ?? "" }
+    private var title: String { state == nil ? Copy.lifecycleConnecting() : state?.menuLine() ?? "" }
 
     private var line: String {
         switch state {

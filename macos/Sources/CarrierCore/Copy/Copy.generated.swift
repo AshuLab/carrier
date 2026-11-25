@@ -12256,4 +12256,190 @@ public enum Copy {
     public static func notificationTestBody(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         String(localized: "notificationTestBody", bundle: bundle ?? carrierResources, locale: locale)
     }
+
+    public enum MenuItem: Sendable { case aboutCarrier; case checkForUpdates; case settings; case services; case hideCarrier; case hideOthers; case showAll; case quitCarrier; case file; case edit; case view; case conversation; case engine; case window; case help; case newSession; case nextSession; case previousSession; case archiveSession; case closeWindow; case undo; case redo; case cut; case copy; case paste; case selectAll; case find; case home; case sessions; case archive; case back; case forward; case toggleSidebar; case toggleInspector; case enterFullScreen; case focusMessageBox; case stopAgent; case jumpToLatest; case foldTools; case copyAnswer; case toggleTerminal; case showTerminal; case hideTerminal; case focusPreviousPane; case focusNextPane; case selectPreviousTab; case selectNextTab; case minimize; case zoom; case bringAllToFront; case carrierOnGitHub; case openWindow }
+    public static func menuItem(which: MenuItem, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch which {
+        case .aboutCarrier: return String(localized: "menuItem.aboutCarrier", bundle: bundle ?? carrierResources, locale: locale)
+        case .checkForUpdates: return String(localized: "menuItem.checkForUpdates", bundle: bundle ?? carrierResources, locale: locale)
+        case .settings: return String(localized: "menuItem.settings", bundle: bundle ?? carrierResources, locale: locale)
+        case .services: return String(localized: "menuItem.services", bundle: bundle ?? carrierResources, locale: locale)
+        case .hideCarrier: return String(localized: "menuItem.hideCarrier", bundle: bundle ?? carrierResources, locale: locale)
+        case .hideOthers: return String(localized: "menuItem.hideOthers", bundle: bundle ?? carrierResources, locale: locale)
+        case .showAll: return String(localized: "menuItem.showAll", bundle: bundle ?? carrierResources, locale: locale)
+        case .quitCarrier: return String(localized: "menuItem.quitCarrier", bundle: bundle ?? carrierResources, locale: locale)
+        case .file: return String(localized: "menuItem.file", bundle: bundle ?? carrierResources, locale: locale)
+        case .edit: return String(localized: "menuItem.edit", bundle: bundle ?? carrierResources, locale: locale)
+        case .view: return String(localized: "menuItem.view", bundle: bundle ?? carrierResources, locale: locale)
+        case .conversation: return String(localized: "menuItem.conversation", bundle: bundle ?? carrierResources, locale: locale)
+        case .engine: return String(localized: "menuItem.engine", bundle: bundle ?? carrierResources, locale: locale)
+        case .window: return String(localized: "menuItem.window", bundle: bundle ?? carrierResources, locale: locale)
+        case .help: return String(localized: "menuItem.help", bundle: bundle ?? carrierResources, locale: locale)
+        case .newSession: return String(localized: "menuItem.newSession", bundle: bundle ?? carrierResources, locale: locale)
+        case .nextSession: return String(localized: "menuItem.nextSession", bundle: bundle ?? carrierResources, locale: locale)
+        case .previousSession: return String(localized: "menuItem.previousSession", bundle: bundle ?? carrierResources, locale: locale)
+        case .archiveSession: return String(localized: "menuItem.archiveSession", bundle: bundle ?? carrierResources, locale: locale)
+        case .closeWindow: return String(localized: "menuItem.closeWindow", bundle: bundle ?? carrierResources, locale: locale)
+        case .undo: return String(localized: "menuItem.undo", bundle: bundle ?? carrierResources, locale: locale)
+        case .redo: return String(localized: "menuItem.redo", bundle: bundle ?? carrierResources, locale: locale)
+        case .cut: return String(localized: "menuItem.cut", bundle: bundle ?? carrierResources, locale: locale)
+        case .copy: return String(localized: "menuItem.copy", bundle: bundle ?? carrierResources, locale: locale)
+        case .paste: return String(localized: "menuItem.paste", bundle: bundle ?? carrierResources, locale: locale)
+        case .selectAll: return String(localized: "menuItem.selectAll", bundle: bundle ?? carrierResources, locale: locale)
+        case .find: return String(localized: "menuItem.find", bundle: bundle ?? carrierResources, locale: locale)
+        case .home: return String(localized: "menuItem.home", bundle: bundle ?? carrierResources, locale: locale)
+        case .sessions: return String(localized: "menuItem.sessions", bundle: bundle ?? carrierResources, locale: locale)
+        case .archive: return String(localized: "menuItem.archive", bundle: bundle ?? carrierResources, locale: locale)
+        case .back: return String(localized: "menuItem.back", bundle: bundle ?? carrierResources, locale: locale)
+        case .forward: return String(localized: "menuItem.forward", bundle: bundle ?? carrierResources, locale: locale)
+        case .toggleSidebar: return String(localized: "menuItem.toggleSidebar", bundle: bundle ?? carrierResources, locale: locale)
+        case .toggleInspector: return String(localized: "menuItem.toggleInspector", bundle: bundle ?? carrierResources, locale: locale)
+        case .enterFullScreen: return String(localized: "menuItem.enterFullScreen", bundle: bundle ?? carrierResources, locale: locale)
+        case .focusMessageBox: return String(localized: "menuItem.focusMessageBox", bundle: bundle ?? carrierResources, locale: locale)
+        case .stopAgent: return String(localized: "menuItem.stopAgent", bundle: bundle ?? carrierResources, locale: locale)
+        case .jumpToLatest: return String(localized: "menuItem.jumpToLatest", bundle: bundle ?? carrierResources, locale: locale)
+        case .foldTools: return String(localized: "menuItem.foldTools", bundle: bundle ?? carrierResources, locale: locale)
+        case .copyAnswer: return String(localized: "menuItem.copyAnswer", bundle: bundle ?? carrierResources, locale: locale)
+        case .toggleTerminal: return String(localized: "menuItem.toggleTerminal", bundle: bundle ?? carrierResources, locale: locale)
+        case .showTerminal: return String(localized: "menuItem.showTerminal", bundle: bundle ?? carrierResources, locale: locale)
+        case .hideTerminal: return String(localized: "menuItem.hideTerminal", bundle: bundle ?? carrierResources, locale: locale)
+        case .focusPreviousPane: return String(localized: "menuItem.focusPreviousPane", bundle: bundle ?? carrierResources, locale: locale)
+        case .focusNextPane: return String(localized: "menuItem.focusNextPane", bundle: bundle ?? carrierResources, locale: locale)
+        case .selectPreviousTab: return String(localized: "menuItem.selectPreviousTab", bundle: bundle ?? carrierResources, locale: locale)
+        case .selectNextTab: return String(localized: "menuItem.selectNextTab", bundle: bundle ?? carrierResources, locale: locale)
+        case .minimize: return String(localized: "menuItem.minimize", bundle: bundle ?? carrierResources, locale: locale)
+        case .zoom: return String(localized: "menuItem.zoom", bundle: bundle ?? carrierResources, locale: locale)
+        case .bringAllToFront: return String(localized: "menuItem.bringAllToFront", bundle: bundle ?? carrierResources, locale: locale)
+        case .carrierOnGitHub: return String(localized: "menuItem.carrierOnGitHub", bundle: bundle ?? carrierResources, locale: locale)
+        case .openWindow: return String(localized: "menuItem.openWindow", bundle: bundle ?? carrierResources, locale: locale)
+        }
+    }
+
+    public static func statusSessionsHeader(waiting: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "statusSessionsHeader \(waiting)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func statusNoSessions(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "statusNoSessions", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func statusMoreSessions(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "statusMoreSessions", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func statusNewSession(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "statusNewSession", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func statusTerminalsHeader(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "statusTerminalsHeader \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func statusMoreTerminals(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "statusMoreTerminals", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func statusNoTerminals(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "statusNoTerminals", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func statusNewTerminal(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "statusNewTerminal", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func statusDictationHeader(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "statusDictationHeader", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func statusDictateNow(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "statusDictateNow", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func statusCopyLastTranscript(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "statusCopyLastTranscript", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func statusTextNotKept(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "statusTextNotKept", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func statusLastTranscripts(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "statusLastTranscripts", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func statusOpenHistory(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "statusOpenHistory", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func statusCopied(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "statusCopied", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func statusOpenWindow(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "statusOpenWindow", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func awakeMenuKeepAwake(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "awakeMenuKeepAwake", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func awakeMenuLengths(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "awakeMenuLengths", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func awakeMenuSleep(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "awakeMenuSleep", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func awakeMenuSettings(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "awakeMenuSettings", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func alertStopTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "alertStopTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func alertStopMessage(running: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "alertStopMessage \(running)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func alertCancel(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "alertCancel", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func alertRenameTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "alertRenameTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func alertRenameButton(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "alertRenameButton", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func alertTerminalMissing(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "alertTerminalMissing", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func connectionStopped(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "connectionStopped", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func connectionIncompatible(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "connectionIncompatible", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func connectionRunning(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "connectionRunning", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func connectionPaused(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "connectionPaused", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func connectionCounts(epics: Int, busy: Int, total: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "connectionCounts \(epics) \(busy) \(total)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func connectionRunningLine(epics: Int, busy: Int, total: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "connectionRunningLine \(epics) \(busy) \(total)", bundle: bundle ?? carrierResources, locale: locale)
+    }
 }

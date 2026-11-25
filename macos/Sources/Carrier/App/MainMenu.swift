@@ -33,118 +33,121 @@ extension AppDelegate {
     func makeMainMenu(
         shortcuts: ShortcutTable,
         controls: MenuControls = .shared,
-        terminalControls: TerminalMenuControls = .shared
+        terminalControls: TerminalMenuControls = .shared,
+        bundle: Bundle? = nil,
+        locale: Locale = .current
     ) -> NSMenu {
         let main = NSMenu()
+        func t(_ which: Copy.MenuItem) -> String { Copy.menuItem(which: which, bundle: bundle, locale: locale) }
 
         // Carrier
-        let app = submenu(of: main, title: "Carrier")
-        item(app, "About Carrier", #selector(showAbout), target: self)
+        let app = submenu(of: main, title: Copy.appName(bundle: bundle, locale: locale))
+        item(app, t(.aboutCarrier), #selector(showAbout), target: self)
         // the update driver validates the item itself; with no updater (a fixture, `swift run`) nothing answers it and it stays dimmed
-        item(app, "Check for Updates…", #selector(UpdateDriver.checkForUpdates(_:)), target: MainActor.assumeIsolated { AppUpdater.menuTarget })
+        item(app, t(.checkForUpdates), #selector(UpdateDriver.checkForUpdates(_:)), target: MainActor.assumeIsolated { AppUpdater.menuTarget })
         app.addItem(.separator())
-        item(app, "Settings…", #selector(openSettings), key: ",", target: self)
+        item(app, t(.settings), #selector(openSettings), key: ",", target: self)
         app.addItem(.separator())
-        let services = NSMenuItem(title: "Services", action: nil, keyEquivalent: "")
+        let services = NSMenuItem(title: t(.services), action: nil, keyEquivalent: "")
         services.identifier = .servicesMenu
-        services.submenu = NSMenu(title: "Services")
+        services.submenu = NSMenu(title: t(.services))
         app.addItem(services)
         app.addItem(.separator())
-        item(app, "Hide Carrier", #selector(NSApplication.hide(_:)), key: "h")
-        item(app, "Hide Others", #selector(NSApplication.hideOtherApplications(_:)), key: "h", modifiers: [.command, .option])
-        item(app, "Show All", #selector(NSApplication.unhideAllApplications(_:)))
+        item(app, t(.hideCarrier), #selector(NSApplication.hide(_:)), key: "h")
+        item(app, t(.hideOthers), #selector(NSApplication.hideOtherApplications(_:)), key: "h", modifiers: [.command, .option])
+        item(app, t(.showAll), #selector(NSApplication.unhideAllApplications(_:)))
         app.addItem(.separator())
-        item(app, "Quit Carrier", #selector(NSApplication.terminate(_:)), key: "q")
+        item(app, t(.quitCarrier), #selector(NSApplication.terminate(_:)), key: "q")
 
         // File
-        let file = submenu(of: main, title: "File")
-        item(file, "New Session", #selector(newSession), shortcut: .newSession, in: shortcuts, target: self)
-        item(file, "Next Session", #selector(nextSession), shortcut: .nextSession, in: shortcuts, target: self)
-        item(file, "Previous Session", #selector(previousSession), shortcut: .previousSession, in: shortcuts, target: self)
-        item(file, "Archive Session", #selector(archiveSession), shortcut: .archiveSession, in: shortcuts, target: self)
+        let file = submenu(of: main, title: t(.file))
+        item(file, t(.newSession), #selector(newSession), shortcut: .newSession, in: shortcuts, target: self)
+        item(file, t(.nextSession), #selector(nextSession), shortcut: .nextSession, in: shortcuts, target: self)
+        item(file, t(.previousSession), #selector(previousSession), shortcut: .previousSession, in: shortcuts, target: self)
+        item(file, t(.archiveSession), #selector(archiveSession), shortcut: .archiveSession, in: shortcuts, target: self)
         file.addItem(.separator())
-        item(file, "Close Window", #selector(NSWindow.performClose(_:)), key: "w")
+        item(file, t(.closeWindow), #selector(NSWindow.performClose(_:)), key: "w")
 
         // Edit: the responder chain does the work; without these a text field has no ⌘C, ⌘V, ⌘Z
-        let edit = submenu(of: main, title: "Edit")
-        item(edit, "Undo", Selector(("undo:")), key: "z")
-        item(edit, "Redo", Selector(("redo:")), key: "z", modifiers: [.command, .shift])
+        let edit = submenu(of: main, title: t(.edit))
+        item(edit, t(.undo), Selector(("undo:")), key: "z")
+        item(edit, t(.redo), Selector(("redo:")), key: "z", modifiers: [.command, .shift])
         edit.addItem(.separator())
-        item(edit, "Cut", #selector(NSText.cut(_:)), key: "x")
-        item(edit, "Copy", #selector(NSText.copy(_:)), key: "c")
-        item(edit, "Paste", #selector(NSText.paste(_:)), key: "v")
-        item(edit, "Select All", #selector(NSText.selectAll(_:)), key: "a")
+        item(edit, t(.cut), #selector(NSText.cut(_:)), key: "x")
+        item(edit, t(.copy), #selector(NSText.copy(_:)), key: "c")
+        item(edit, t(.paste), #selector(NSText.paste(_:)), key: "v")
+        item(edit, t(.selectAll), #selector(NSText.selectAll(_:)), key: "a")
         edit.addItem(.separator())
-        item(edit, "Find…", #selector(findInSection), shortcut: .search, in: shortcuts, target: self)
+        item(edit, t(.find), #selector(findInSection), shortcut: .search, in: shortcuts, target: self)
 
         // View
-        let view = submenu(of: main, title: "View")
-        item(view, "Home", #selector(showHome), shortcut: .home, in: shortcuts, target: self)
-        item(view, "Sessions", #selector(showSessions), shortcut: .sessions, in: shortcuts, target: self)
-        item(view, "Carrier", #selector(showCarrier), shortcut: .carrier, in: shortcuts, target: self)
-        item(view, "Archive", #selector(showArchive), shortcut: .archive, in: shortcuts, target: self)
+        let view = submenu(of: main, title: t(.view))
+        item(view, t(.home), #selector(showHome), shortcut: .home, in: shortcuts, target: self)
+        item(view, t(.sessions), #selector(showSessions), shortcut: .sessions, in: shortcuts, target: self)
+        item(view, Copy.appName(bundle: bundle, locale: locale), #selector(showCarrier), shortcut: .carrier, in: shortcuts, target: self)
+        item(view, t(.archive), #selector(showArchive), shortcut: .archive, in: shortcuts, target: self)
         view.addItem(.separator())
-        item(view, "Back", #selector(goBack), shortcut: .back, in: shortcuts, target: self)
-        item(view, "Forward", #selector(goForward), shortcut: .forward, in: shortcuts, target: self)
+        item(view, t(.back), #selector(goBack), shortcut: .back, in: shortcuts, target: self)
+        item(view, t(.forward), #selector(goForward), shortcut: .forward, in: shortcuts, target: self)
         view.addItem(.separator())
-        item(view, "Show or Hide Sidebar", #selector(toggleSidebar), key: "s", modifiers: [.command, .control], target: self)
-        item(view, "Show or Hide Inspector", #selector(toggleInspector), key: "i", modifiers: [.command, .option], target: self)
+        item(view, t(.toggleSidebar), #selector(toggleSidebar), key: "s", modifiers: [.command, .control], target: self)
+        item(view, t(.toggleInspector), #selector(toggleInspector), key: "i", modifiers: [.command, .option], target: self)
         view.addItem(.separator())
-        item(view, "Enter Full Screen", #selector(NSWindow.toggleFullScreen(_:)), key: "f", modifiers: [.command, .control])
+        item(view, t(.enterFullScreen), #selector(NSWindow.toggleFullScreen(_:)), key: "f", modifiers: [.command, .control])
 
         // Conversation
-        let conversation = submenu(of: main, title: "Conversation")
-        item(conversation, "Focus the Message Box", #selector(focusMessageBox), shortcut: .focusBox, in: shortcuts, target: self)
-        item(conversation, "Stop the Agent", #selector(stopAgent), shortcut: .stopAgent, in: shortcuts, target: self)
-        item(conversation, "Jump to the Latest Message", #selector(jumpToLatestMessage), shortcut: .latestMessage, in: shortcuts, target: self)
-        item(conversation, "Fold or Unfold the Tool Calls", #selector(toggleToolFolds), shortcut: .foldTools, in: shortcuts, target: self)
-        item(conversation, "Copy the Last Answer", #selector(copyLastAnswer), shortcut: .copyAnswer, in: shortcuts, target: self)
+        let conversation = submenu(of: main, title: t(.conversation))
+        item(conversation, t(.focusMessageBox), #selector(focusMessageBox), shortcut: .focusBox, in: shortcuts, target: self)
+        item(conversation, t(.stopAgent), #selector(stopAgent), shortcut: .stopAgent, in: shortcuts, target: self)
+        item(conversation, t(.jumpToLatest), #selector(jumpToLatestMessage), shortcut: .latestMessage, in: shortcuts, target: self)
+        item(conversation, t(.foldTools), #selector(toggleToolFolds), shortcut: .foldTools, in: shortcuts, target: self)
+        item(conversation, t(.copyAnswer), #selector(copyLastAnswer), shortcut: .copyAnswer, in: shortcuts, target: self)
 
         // Engine: the controls of the menu bar item, with a shortcut when the person gives one
-        let engine = submenu(of: main, title: "Engine")
+        let engine = submenu(of: main, title: t(.engine))
         item(engine, ShortcutCommand.startOrStop.title, #selector(MenuControls.startOrStop), shortcut: .startOrStop, in: shortcuts, target: controls)
         item(engine, ShortcutCommand.pauseOrResume.title, #selector(MenuControls.pauseOrResume), shortcut: .pauseOrResume, in: shortcuts, target: controls)
         item(engine, ShortcutCommand.checkNow.title, #selector(MenuControls.checkNow), shortcut: .checkNow, in: shortcuts, target: controls)
 
         // Terminal: global creation, drawer toggle, tab, split, focus, zoom, equalize, detach and close controls for keyboard-only and VoiceOver access
-        let terminal = submenu(of: main, title: "Terminal")
-        item(terminal, "New Terminal", #selector(TerminalMenuControls.newTerminal), key: "t", modifiers: [.command, .option], target: terminalControls)
-        item(terminal, "New Tab", #selector(TerminalMenuControls.newTab), key: "t", target: terminalControls)
-        item(terminal, "Show or Hide Terminal", #selector(TerminalMenuControls.toggleTerminalDrawer), key: "t", modifiers: [.command, .control], target: terminalControls)
+        let terminal = submenu(of: main, title: Copy.terminalSection(bundle: bundle, locale: locale))
+        item(terminal, Copy.terminalNewButton(bundle: bundle, locale: locale), #selector(TerminalMenuControls.newTerminal), key: "t", modifiers: [.command, .option], target: terminalControls)
+        item(terminal, Copy.terminalNewTab(bundle: bundle, locale: locale), #selector(TerminalMenuControls.newTab), key: "t", target: terminalControls)
+        item(terminal, t(.toggleTerminal), #selector(TerminalMenuControls.toggleTerminalDrawer), key: "t", modifiers: [.command, .control], target: terminalControls)
         terminal.addItem(.separator())
-        item(terminal, "Split Right", #selector(TerminalMenuControls.splitRight), key: "d", target: terminalControls)
-        item(terminal, "Split Down", #selector(TerminalMenuControls.splitDown), key: "d", modifiers: [.command, .shift], target: terminalControls)
-        item(terminal, "Zoom Pane", #selector(TerminalMenuControls.toggleZoomPane), key: "\r", modifiers: [.command, .shift], target: terminalControls)
-        item(terminal, "Equalize Splits", #selector(TerminalMenuControls.equalizeSplits), target: terminalControls)
-        item(terminal, "Move Pane to New Tab", #selector(TerminalMenuControls.movePaneToNewTab), target: terminalControls)
-        item(terminal, "Focus Previous Pane", #selector(TerminalMenuControls.focusPreviousPane), key: "[", modifiers: [.command, .option], target: terminalControls)
-        item(terminal, "Focus Next Pane", #selector(TerminalMenuControls.focusNextPane), key: "]", modifiers: [.command, .option], target: terminalControls)
+        item(terminal, Copy.terminalSplitRight(bundle: bundle, locale: locale), #selector(TerminalMenuControls.splitRight), key: "d", target: terminalControls)
+        item(terminal, Copy.terminalSplitDown(bundle: bundle, locale: locale), #selector(TerminalMenuControls.splitDown), key: "d", modifiers: [.command, .shift], target: terminalControls)
+        item(terminal, Copy.terminalZoomPane(bundle: bundle, locale: locale), #selector(TerminalMenuControls.toggleZoomPane), key: "\r", modifiers: [.command, .shift], target: terminalControls)
+        item(terminal, Copy.terminalEqualizeSplits(bundle: bundle, locale: locale), #selector(TerminalMenuControls.equalizeSplits), target: terminalControls)
+        item(terminal, Copy.terminalMovePaneToNewTab(bundle: bundle, locale: locale), #selector(TerminalMenuControls.movePaneToNewTab), target: terminalControls)
+        item(terminal, t(.focusPreviousPane), #selector(TerminalMenuControls.focusPreviousPane), key: "[", modifiers: [.command, .option], target: terminalControls)
+        item(terminal, t(.focusNextPane), #selector(TerminalMenuControls.focusNextPane), key: "]", modifiers: [.command, .option], target: terminalControls)
         terminal.addItem(.separator())
-        item(terminal, "Select Previous Tab", #selector(TerminalMenuControls.selectPreviousTab), key: "[", modifiers: [.command, .shift], target: terminalControls)
-        item(terminal, "Select Next Tab", #selector(TerminalMenuControls.selectNextTab), key: "]", modifiers: [.command, .shift], target: terminalControls)
-        item(terminal, "Move Tab Left", #selector(TerminalMenuControls.moveTabLeft), target: terminalControls)
-        item(terminal, "Move Tab Right", #selector(TerminalMenuControls.moveTabRight), target: terminalControls)
+        item(terminal, t(.selectPreviousTab), #selector(TerminalMenuControls.selectPreviousTab), key: "[", modifiers: [.command, .shift], target: terminalControls)
+        item(terminal, t(.selectNextTab), #selector(TerminalMenuControls.selectNextTab), key: "]", modifiers: [.command, .shift], target: terminalControls)
+        item(terminal, Copy.terminalMoveTabLeft(bundle: bundle, locale: locale), #selector(TerminalMenuControls.moveTabLeft), target: terminalControls)
+        item(terminal, Copy.terminalMoveTabRight(bundle: bundle, locale: locale), #selector(TerminalMenuControls.moveTabRight), target: terminalControls)
         terminal.addItem(.separator())
-        item(terminal, "Close Pane", #selector(TerminalMenuControls.closePane), key: "w", modifiers: [.command, .shift], target: terminalControls)
+        item(terminal, Copy.terminalClosePane(bundle: bundle, locale: locale), #selector(TerminalMenuControls.closePane), key: "w", modifiers: [.command, .shift], target: terminalControls)
 
         // Window
-        let window = submenu(of: main, title: "Window", role: .windowMenu)
-        item(window, "Minimize", #selector(NSWindow.performMiniaturize(_:)), key: "m")
-        item(window, "Zoom", #selector(NSWindow.performZoom(_:)))
+        let window = submenu(of: main, title: t(.window), role: .windowMenu)
+        item(window, t(.minimize), #selector(NSWindow.performMiniaturize(_:)), key: "m")
+        item(window, t(.zoom), #selector(NSWindow.performZoom(_:)))
         window.addItem(.separator())
-        item(window, "Bring All to Front", #selector(NSApplication.arrangeInFront(_:)))
+        item(window, t(.bringAllToFront), #selector(NSApplication.arrangeInFront(_:)))
 
         // Help
-        let help = submenu(of: main, title: "Help", role: .helpMenu)
-        item(help, "Carrier on GitHub", #selector(openHelp), target: self)
+        let help = submenu(of: main, title: t(.help), role: .helpMenu)
+        item(help, t(.carrierOnGitHub), #selector(openHelp), target: self)
         return main
     }
 
     /// The menu of the Dock icon, over the system's own items.
-    func dockMenu() -> NSMenu {
+    func dockMenu(bundle: Bundle? = nil, locale: Locale = .current) -> NSMenu {
         let menu = NSMenu()
-        item(menu, "New Session", #selector(newSession), target: self)
-        item(menu, "Open Window", #selector(openWindow), target: self)
+        item(menu, Copy.menuItem(which: .newSession, bundle: bundle, locale: locale), #selector(newSession), target: self)
+        item(menu, Copy.menuItem(which: .openWindow, bundle: bundle, locale: locale), #selector(openWindow), target: self)
         return menu
     }
 
@@ -205,6 +208,8 @@ final class TerminalMenuControls: NSObject, NSMenuItemValidation {
     private let storeProvider: @MainActor () -> CarrierTerminalStore?
     private let preferredOwnerProvider: @MainActor () -> TerminalOwner?
     private let allowsPreferredFallback: @MainActor () -> Bool
+    private let bundle: Bundle?
+    private let locale: Locale
     private let newTerminalAction: @MainActor () -> Void
     private let drawerStateProvider: @MainActor () -> (isOpen: Bool, toggle: @MainActor () -> Void)?
 
@@ -213,8 +218,12 @@ final class TerminalMenuControls: NSObject, NSMenuItemValidation {
         preferredOwnerProvider: @escaping @MainActor () -> TerminalOwner? = { WindowController.shared.preferredTerminalOwner },
         allowsPreferredFallback: @escaping @MainActor () -> Bool = { TerminalMenuControls.allowsPreferredFallback() },
         newTerminalAction: @escaping @MainActor () -> Void = { WindowController.shared.openNewTerminal() },
-        drawerStateProvider: @escaping @MainActor () -> (isOpen: Bool, toggle: @MainActor () -> Void)? = { WindowController.shared.terminalDrawerToggleState() }
+        drawerStateProvider: @escaping @MainActor () -> (isOpen: Bool, toggle: @MainActor () -> Void)? = { WindowController.shared.terminalDrawerToggleState() },
+        bundle: Bundle? = nil,
+        locale: Locale = .current
     ) {
+        self.bundle = bundle
+        self.locale = locale
         self.storeProvider = storeProvider
         self.preferredOwnerProvider = preferredOwnerProvider
         self.allowsPreferredFallback = allowsPreferredFallback
@@ -340,10 +349,10 @@ final class TerminalMenuControls: NSObject, NSMenuItemValidation {
                 return true
             case #selector(toggleTerminalDrawer):
                 guard let drawer = drawerStateProvider() else {
-                    item.title = "Show or Hide Terminal"
+                    item.title = Copy.menuItem(which: .toggleTerminal, bundle: bundle, locale: locale)
                     return false
                 }
-                item.title = drawer.isOpen ? "Hide Terminal" : "Show Terminal"
+                item.title = Copy.menuItem(which: drawer.isOpen ? .hideTerminal : .showTerminal, bundle: bundle, locale: locale)
                 return true
             default:
                 break
@@ -353,7 +362,8 @@ final class TerminalMenuControls: NSObject, NSMenuItemValidation {
             let tabCount = target.store.tabs(for: target.tab.owner).count
             switch item.action {
             case #selector(toggleZoomPane):
-                item.title = target.tab.zoomedPaneId == target.paneId ? "Restore Split View" : "Zoom Pane"
+                item.title = target.tab.zoomedPaneId == target.paneId
+                    ? Copy.terminalRestoreSplit(bundle: bundle, locale: locale) : Copy.terminalZoomPane(bundle: bundle, locale: locale)
                 return isSplit
             case #selector(equalizeSplits), #selector(movePaneToNewTab), #selector(focusPreviousPane), #selector(focusNextPane):
                 return isSplit
@@ -366,7 +376,7 @@ final class TerminalMenuControls: NSObject, NSMenuItemValidation {
             case #selector(newTab), #selector(splitRight), #selector(splitDown):
                 return true
             case #selector(closePane):
-                item.title = isSplit ? "Close Pane" : "Close Tab"
+                item.title = isSplit ? Copy.terminalClosePane(bundle: bundle, locale: locale) : Copy.terminalCloseTab(bundle: bundle, locale: locale)
                 return true
             default:
                 return false

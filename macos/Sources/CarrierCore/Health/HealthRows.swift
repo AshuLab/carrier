@@ -3,6 +3,10 @@ import Foundation
 // The rows of the Health tab (docs/specs/health-check-in-the-app.md): a pure function of what the app already knows, one section per
 // layer. "This Mac" is the host's reply, "Carrier" is what only the app knows, "Engine setup" is the doctor's checks (`DoctorStore`).
 
+/// The names of the commands a row is titled by: what is typed in a shell, the same in every language.
+private let carrierCommand = "carrier"
+private let carrierDoctorCommand = "carrier doctor"
+
 public struct HealthRow: Equatable {
     /// How the row reads: `ok` is green, `problem` needs the person, `neutral` is neither (not checked, or stopped on purpose).
     public enum Mark: Equatable { case ok, warning, problem, neutral }
@@ -90,8 +94,8 @@ public func healthSections(host: HostHealth?, facts: CarrierFacts, doctor: Docto
 
     let found = facts.installedVersion.map { Copy.healthCarrierFoundVersion(version: $0, bundle: bundle, locale: locale) } ?? Copy.healthCarrierFound(bundle: bundle, locale: locale)
     let carrier = facts.carrierFound
-        ? HealthRow(title: "carrier", mark: .ok, detail: found)
-        : HealthRow(title: "carrier", mark: .problem, detail: Copy.healthCarrierNotFound(bundle: bundle, locale: locale), tool: .carrier, state: .missing)
+        ? HealthRow(title: carrierCommand, mark: .ok, detail: found)
+        : HealthRow(title: carrierCommand, mark: .problem, detail: Copy.healthCarrierNotFound(bundle: bundle, locale: locale), tool: .carrier, state: .missing)
 
     let chatHost = Copy.healthChatHost(bundle: bundle, locale: locale)
 
@@ -132,9 +136,9 @@ private func setupSection(_ doctor: DoctorState, configExists: Bool, bundle: Bun
     case .idle: return HealthSection(id: "engine-setup", title: title, note: Copy.healthSetupNotChecked(bundle: bundle, locale: locale), rows: [])
     case .running: return HealthSection(id: "engine-setup", title: title, note: Copy.healthSetupRunning(bundle: bundle, locale: locale), rows: [])
     case .unknown(let reason):
-        return HealthSection(id: "engine-setup", title: title, note: nil, rows: [HealthRow(title: "carrier doctor", mark: .neutral, detail: Copy.healthDoctorCouldNotCheck(reason: reason, bundle: bundle, locale: locale))])
+        return HealthSection(id: "engine-setup", title: title, note: nil, rows: [HealthRow(title: carrierDoctorCommand, mark: .neutral, detail: Copy.healthDoctorCouldNotCheck(reason: reason, bundle: bundle, locale: locale))])
     case .refused(let reason):
-        return HealthSection(id: "engine-setup", title: title, note: nil, rows: [HealthRow(title: "carrier doctor", mark: .neutral, detail: Copy.healthDoctorRefused(reason: reason, bundle: bundle, locale: locale))])
+        return HealthSection(id: "engine-setup", title: title, note: nil, rows: [HealthRow(title: carrierDoctorCommand, mark: .neutral, detail: Copy.healthDoctorRefused(reason: reason, bundle: bundle, locale: locale))])
     case .checks(let checks):
         return HealthSection(id: "engine-setup", title: title, note: nil, rows: groupedChecks(checks, bundle: bundle, locale: locale))
     }

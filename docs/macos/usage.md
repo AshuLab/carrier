@@ -13,7 +13,7 @@ A click on the rest of a provider's row toggles `providerFilter` (`UsageStore.to
 
 ## Consumption
 
-Under the quotas is the consumption (`Carrier/UsageConsumptionView.swift`, `ConsumptionSection`; `CarrierCore/UsageConsumption.swift` decides every number and word): a card of four columns (`usageKpis`: Est.
+Under the quotas is the consumption (`Carrier/Features/Usage/UsageConsumptionView.swift`, `ConsumptionSection`; `CarrierCore/UsageConsumption.swift` decides every number and word): a card of four columns (`usageKpis`: Est.
 API Cost, with a footnote in orange while models are unpriced because their cost is missing and not zero; Total Tokens as input + cache read + cache write + output, reasoning being part of output; Local Compute, always `$0.00`; Active Epics / Chats, the repos and folders with epic or chat work, `—` with none), the filter strip (a `Cost ($)` / `Tokens` switch that only changes what is drawn, `7d` / `14d` / `30d`, a Source pop-up, a removable `FilterChip` for the provider chosen in the quota list above, and a search of models and workspaces asked 350 ms after the last key; each of the others asks the host again through `UsageStore.load`) and the daily chart, native SwiftUI Charts stacked by provider in the order Claude, Codex, Antigravity, Local (`usageBars` from the `providers` split the host gives each day).
 Hovering a day shows its breakdown and a click keeps it until a second click (`usageTooltip`: each provider that ran that day with its share in the metric, and the total).
 A period or a filter with no turns draws an empty state instead, `Nothing matches these filters` with a Clear filters button while a filter is on (`UsageStore.hasActiveFilters`, `clearFilters`) or `No usage in the last N days`.

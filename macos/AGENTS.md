@@ -24,7 +24,7 @@ The decision and command line are in `CarrierCore/Lifecycle/StartCarrier.swift`;
 ## Dev build and release build
 
 `build-app.sh` with no version makes the dev build, with a version the release build ([CONTRIBUTING](../CONTRIBUTING.md#developing-against-a-throwaway-folder)).
-`CarrierChannel` in the plist is `dev` or `release`; `isDevBuild` (`Carrier/AppDelegate.swift`) reads it, and a dev build has no `SUFeedURL`, so `AppUpdater.start` does not start the updater.
+`CarrierChannel` in the plist is `dev` or `release`; `isDevBuild` (`Carrier/App/AppDelegate.swift`) reads it, and a dev build has no `SUFeedURL`, so `AppUpdater.start` does not start the updater.
 `scripts/check-app.sh` asserts id, channel and missing feed for both; a new difference goes into `build-app.sh` and that script.
 
 ## Epics
@@ -152,6 +152,6 @@ Cleanup: `DictationCleanup.swift` (`TextModelClient`, `CleanupRun`) and `LocalMo
 What the person sees: [terminal](../docs/macos/terminal.md).
 
 Pure rules (`Terminal{Core,SplitTree,Persistence,Settings,ZshBottomPromptShim}.swift`) are in `CarrierCore` (`TerminalCoreTests`, `TerminalZshBottomPromptShimTests`); Continue in Terminal's launch is `ContinueInTerminal.swift` (`embeddedResumeLaunch`).
-The AppKit runtime (`Carrier/Terminal{Host,Appearance,ProcessInspector,ConfirmationCopy}.swift`, `CarrierTerminalView.swift`) owns the `paneId`-keyed `GhosttyKit` surface cache, live settings reload, `ZDOTDIR` bottom-prompt preparation, `⌘K` scrollback clear and close confirmation; the views are the `Terminal*View.swift` files, `MainMenu.swift`, `PanelView.swift` and friends.
+The AppKit runtime (`Carrier/Platform/Terminal{Host,Store*,Appearance,ProcessInspector}.swift`, `CarrierTerminalView.swift`, `Features/Terminal/TerminalConfirmationCopy.swift`) owns the `paneId`-keyed `GhosttyKit` surface cache, live settings reload, `ZDOTDIR` bottom-prompt preparation, `⌘K` scrollback clear and close confirmation; the views are the `Terminal*View.swift` files, `MainMenu.swift`, `PanelView.swift` and friends.
 Window selection and drawer state: `CarrierCore/WindowShell.swift` (`WindowShellTests`).
 `libghostty-spm` (`GhosttyTerminal`) is linked by `Carrier` only; `build-app.sh` and `scripts/check-app.sh` bundle and verify `GhosttyKit_GhosttyTerminal.bundle` and `THIRD-PARTY-NOTICES.md`.

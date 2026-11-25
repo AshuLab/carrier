@@ -73,6 +73,6 @@ public func diskTotalWords(
 ) -> String {
     if measuring { return Copy.projectsDiskMeasuring(bundle: bundle, locale: locale) }
     guard let taken = figure?.measuredAt else { return Copy.projectsDiskNotMeasured(bundle: bundle, locale: locale) }
-    let age = timeText(Date(timeIntervalSince1970: taken / 1000), now: now, format: format)
-    return age == "now" ? Copy.projectsDiskMeasuredNow(bundle: bundle, locale: locale) : Copy.projectsDiskMeasuredAgo(age: age, bundle: bundle, locale: locale)
+    let age = timeText(Date(timeIntervalSince1970: taken / 1000), now: now, format: format, bundle: bundle)
+    return age == Copy.timeNow(bundle: bundle, locale: format.locale) ? Copy.projectsDiskMeasuredNow(bundle: bundle, locale: locale) : Copy.projectsDiskMeasuredAgo(age: age, bundle: bundle, locale: locale)
 }

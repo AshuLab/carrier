@@ -3260,5 +3260,13 @@
   "notificationStoppedTitle": "Carrier stopped",
   "notificationStoppedBody": "It stopped without being asked. Open the app to start it again.",
   "notificationTestTitle": "Carrier test",
-  "notificationTestBody": "Notifications work"
+  "notificationTestBody": "Notifications work",
+  "timeNow": "now",
+  "timeMinutes": "{count, number}m",
+  "timeHours": "{count, number}h",
+  "timeDays": "{count, number}d",
+  "timeYesterday": "Yesterday {time}",
+  "timeDayAndTime": "{day} {time}",
+  "timeAgo": "{duration} ago",
+  "timeNever": "Never"
 }

@@ -83,7 +83,7 @@ public func detailsTab(
         ))
     }
     timing += [
-        row(.started, say(Copy.epicsDetailsLabelStarted), nil, started.map { timeText(Date(ms: $0), now: Date(ms: now), format: time.asClock) }),
+        row(.started, say(Copy.epicsDetailsLabelStarted), nil, started.map { timeText(Date(ms: $0), now: Date(ms: now), format: time.asClock, bundle: bundle) }),
         row(.totalTime, say(Copy.epicsDetailsLabelTotalTime), nil, started.flatMap { start in end.map { formatDuration($0 - start) } }),
     ]
 

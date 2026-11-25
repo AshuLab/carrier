@@ -68,7 +68,7 @@ public func nextCheckLine(_ snapshot: PanelSnapshot, bundle: Bundle? = nil, loca
 
 /// "2m 05s ago", or the time of the event when Time format is clock; "a while ago" when the engine has no time.
 public func agoLine(_ at: Int?, now: Int, time: TimeFormat = .stored(), bundle: Bundle? = nil, locale: Locale = .current) -> String {
-    at.map { agoText($0, now: now, format: time) } ?? Copy.epicsAgoUnknown(bundle: bundle, locale: locale)
+    at.map { agoText($0, now: now, format: time, bundle: bundle) } ?? Copy.epicsAgoUnknown(bundle: bundle, locale: locale)
 }
 
 /// A link from the engine as a URL the browser may open: https or http only.

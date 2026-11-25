@@ -71,7 +71,8 @@ public func sessionAgesLine(
         let day = calendar.date(byAdding: .day, value: days, to: today) ?? today
         let formatter = DateFormatter()
         let sameYear = calendar.component(.year, from: day) == calendar.component(.year, from: today)
-        (formatter.locale, formatter.calendar, formatter.timeZone, formatter.dateFormat) = (Locale(identifier: "en_US_POSIX"), calendar, calendar.timeZone, sameYear ? "MMM d" : "MMM d, yyyy")
+        (formatter.locale, formatter.calendar, formatter.timeZone) = (locale, calendar, calendar.timeZone)
+        formatter.setLocalizedDateFormatFromTemplate(sameYear ? "MMMd" : "yMMMd")
         return formatter.string(from: day)
     }
     guard case .days(let delete) = ages.delete else { return Copy.sessionAgeArchivedNeverDeleted(archive: date(after: archive), bundle: bundle, locale: locale) }

@@ -12256,4 +12256,36 @@ public enum Copy {
     public static func notificationTestBody(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         String(localized: "notificationTestBody", bundle: bundle ?? carrierResources, locale: locale)
     }
+
+    public static func timeNow(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "timeNow", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func timeMinutes(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "timeMinutes \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func timeHours(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "timeHours \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func timeDays(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "timeDays \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func timeYesterday(time: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "timeYesterday \(time)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func timeDayAndTime(day: String, time: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "timeDayAndTime \(day) \(time)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func timeAgo(duration: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "timeAgo \(duration)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func timeNever(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "timeNever", bundle: bundle ?? carrierResources, locale: locale)
+    }
 }

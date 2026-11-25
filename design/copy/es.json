@@ -3260,5 +3260,13 @@
   "notificationStoppedTitle": "Carrier se detuvo",
   "notificationStoppedBody": "Se detuvo sin que nadie lo pidiera. Abre la app para iniciarlo de nuevo.",
   "notificationTestTitle": "Prueba de Carrier",
-  "notificationTestBody": "Las notificaciones funcionan"
+  "notificationTestBody": "Las notificaciones funcionan",
+  "timeNow": "ahora",
+  "timeMinutes": "{count, number} min",
+  "timeHours": "{count, number} h",
+  "timeDays": "{count, number} d",
+  "timeYesterday": "Ayer {time}",
+  "timeDayAndTime": "{day} {time}",
+  "timeAgo": "hace {duration}",
+  "timeNever": "Nunca"
 }

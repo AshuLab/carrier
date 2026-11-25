@@ -214,6 +214,8 @@ private func count(daysAgo: Int, words: Int, dictations: Int = 1, seconds: Doubl
     let yesterday = now.addingTimeInterval(-86_400)
     #expect(dictationDayTitle(today, now: now, calendar: calendar, bundle: b, locale: l) == "Hoy")
     #expect(dictationDayTitle(yesterday, now: now, calendar: calendar, bundle: b, locale: l) == "Ayer")
+    // 2023-11-10 is a Friday
+    #expect(dictationDayTitle(now.addingTimeInterval(-4 * 86_400), now: now, calendar: calendar, bundle: b, locale: l) == "viernes, 10 nov")
     #expect(DictationOutcome.allCases.map { $0.title(bundle: b, locale: l) } == ["Pegado", "Copiado", "Cancelado", "Fallido"])
     let entry = { (destination: String) in
         DictationEntry(started: now, text: "hola", model: "Apple", transcription: 0.1, audio: 2, destination: destination, outcome: .copied)

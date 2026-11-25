@@ -47,7 +47,7 @@ Interface icons: `AppIcon` in three sets (`IconSets.swift`, `IconsTests`), drawn
 
 ## Settings
 
-The window is `Carrier/SettingsWindow.swift`, a page's pieces `Carrier/UI/` ([settings](../docs/macos/settings.md)); `SettingsIndexDriftTests` keeps the search's `settingsIndex` in step with them.
+The window is `SettingsWindow.swift`, a page's pieces `Carrier/UI/` ([settings](../docs/macos/settings.md)); `SettingsIndexDriftTests` keeps the search's `settingsIndex` in step with them.
 
 ### Preferences
 
@@ -81,7 +81,7 @@ Gotchas:
 - `projectIdentity`/`projectTile` (`ProjectIcon.swift`) give the tile and title wherever a project shows; `retitled(_:projects:)` (`ChatSessions.swift`) does it for the sidebar.
 - The host requests are behind the `projects` capability (`ChatHost.swift`, `ChatHostTests`); the fixture host answers with the `chat-new-project.json` and `chat-project-*.json` goldens, and `--fixture` writes its projects in `FixtureServer.writeProjects`.
 - The sheet's New session mode (`ProjectSheetMode.newSession`) only fills the plan (`NewSessionModel.choose(_:)`).
-- Views (`Carrier/ProjectsTab.swift`, `AddProjectSheet.swift`) are untested, only drawn by `--selftest`.
+- Views (`ProjectsTab.swift`, `AddProjectSheet.swift`) are untested, only drawn by `--selftest`.
 
 ### Agents page
 

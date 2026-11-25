@@ -78,18 +78,17 @@ public enum DoctorState: Equatable {
 }
 
 /// The doctor exits 1 when a check failed and still prints the checks, so the output decides and the exit code only explains.
-public func doctorState(from outcome: ProcessOutcome) -> DoctorState {
-    if let error = outcome.startError { return .unknown("carrier doctor could not start: \(error)") }
-    if outcome.timedOut { return .unknown("carrier doctor did not finish in \(Int(doctorTimeout)) seconds and was stopped") }
-    let exit = outcome.exitCode.map { " (exit \($0))" } ?? ""
+public func doctorState(from outcome: ProcessOutcome, bundle: Bundle? = nil, locale: Locale = .current) -> DoctorState {
+    if let error = outcome.startError { return .unknown(Copy.healthDoctorNotStarted(error: error, bundle: bundle, locale: locale)) }
+    if outcome.timedOut { return .unknown(Copy.healthDoctorTimedOut(seconds: Int(doctorTimeout), bundle: bundle, locale: locale)) }
     guard let checks = try? JSONDecoder().decode([DoctorCheck].self, from: Data(outcome.stdout.utf8)) else {
         // a config the engine refuses ends the command before any check, with "Invalid config <file>:" and a line per key on stderr
         if let start = outcome.stderr.range(of: "Invalid ") {
             return .refused(outcome.stderr[start.lowerBound...].trimmingCharacters(in: .whitespacesAndNewlines))
         }
-        return .unknown("carrier doctor printed something that is not its checks" + exit)
+        return .unknown(outcome.exitCode.map { Copy.healthDoctorBadOutputExit(code: Int($0), bundle: bundle, locale: locale) } ?? Copy.healthDoctorBadOutput(bundle: bundle, locale: locale))
     }
-    return checks.isEmpty ? .unknown("carrier doctor printed no checks" + exit) : .checks(checks)
+    return checks.isEmpty ? .unknown(outcome.exitCode.map { Copy.healthDoctorNoChecksExit(code: Int($0), bundle: bundle, locale: locale) } ?? Copy.healthDoctorNoChecks(bundle: bundle, locale: locale)) : .checks(checks)
 }
 
 /// `carrier doctor --config <folder>/engine.json --json` (behind `node` for a script), with the engine's `PATH` and `CARRIER_HOME`; nil
@@ -110,13 +109,13 @@ public func doctorCommand(settings: SetupSettings, carrier: String?, environment
 
     public init(run: @escaping @Sendable (StartCommand) async -> ProcessOutcome) { self.run = run }
 
-    public func check(settings: SetupSettings, carrier: String?, environment: [String: String], configExists: Bool) async {
+    public func check(settings: SetupSettings, carrier: String?, environment: [String: String], configExists: Bool, bundle: Bundle? = nil, locale: Locale = .current) async {
         guard configExists, state != .running else { return }
         guard let command = doctorCommand(settings: settings, carrier: carrier, environment: environment) else {
-            state = .unknown("carrier was not found (or node, for a carrier that is a script)")
+            state = .unknown(Copy.healthDoctorNoCarrier(bundle: bundle, locale: locale))
             return
         }
         state = .running
-        state = doctorState(from: await run(command))
+        state = doctorState(from: await run(command), bundle: bundle, locale: locale)
     }
 }

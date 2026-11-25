@@ -15,45 +15,45 @@ struct KeepAwakeTabView: View {
 
     var body: some View {
         SettingsPageBody(reset: { AppPreferences().reset(.keepAwake) }) {
-            SettingsGroup(id: "now", title: "Now") { statusRow }
-            SettingsGroup(id: "by-hand", title: "By hand") {
-                SettingsTabRow(id: "length", title: "Length", detail: "What the menu's Keep awake item and the shortcut start", first: true) {
+            SettingsGroup(id: "now", title: Copy.awakeGroupNow()) { statusRow }
+            SettingsGroup(id: "by-hand", title: Copy.awakeGroupByHand()) {
+                SettingsTabRow(id: "length", title: Copy.awakeRowLength(), detail: Copy.awakeRowLengthDetail(), first: true) {
                     ChoicePopUp(
-                        label: "Length", options: AwakeLength.choices.map { (value: $0, title: AwakeLength.title($0)) },
+                        label: Copy.awakeRowLength(), options: AwakeLength.choices.map { (value: $0, title: AwakeLength.title($0)) },
                         selection: Binding(get: { AwakeLength.valid(minutes) }, set: { minutes = $0 })
                     )
                 }
-                SettingsTabRow(id: "keep-the-screen-on", title: "Keep the screen on", detail: "Off lets the screen sleep while the Mac stays awake: enough for agents, and it saves power") {
-                    Toggle("Keep the screen on", isOn: $screen).labelsHidden().toggleStyle(.switch)
+                SettingsTabRow(id: "keep-the-screen-on", title: Copy.awakeRowScreen(), detail: Copy.awakeRowScreenDetail()) {
+                    Toggle(Copy.awakeRowScreen(), isOn: $screen).labelsHidden().toggleStyle(.switch)
                 }
                 ShortcutRecorderRow(
-                    id: "shortcut", shortcutText: shortcutText ?? "", title: "Shortcut", detail: "Turns keep awake on or off from any app, with no window", name: "Keep awake shortcut",
-                    emptyText: "None", problem: controller.shortcutProblem,
+                    id: "shortcut", shortcutText: shortcutText ?? "", title: Copy.awakeRowShortcut(), detail: Copy.awakeRowShortcutDetail(), name: Copy.awakeShortcutName(),
+                    emptyText: Copy.awakeShortcutNone(), problem: controller.shortcutProblem,
                     current: { AppPreferences().awakeShortcut }, save: { AppPreferences().awakeShortcut = $0 },
-                    taken: { $0 == AppPreferences().dictationShortcut ? "Dictation uses these keys" : nil })
+                    taken: { $0 == AppPreferences().dictationShortcut ? Copy.awakeShortcutDictation() : nil })
             }
-            SettingsGroup(id: "with-agents", title: "With agents") {
-                SettingsTabRow(id: "keep-awake-while-agents-work", title: "Keep awake while agents work", detail: "While an epic runs or a session works, so a long job is not cut by sleep", first: true) {
-                    Toggle("Keep awake while agents work", isOn: $agents).labelsHidden().toggleStyle(.switch)
+            SettingsGroup(id: "with-agents", title: Copy.awakeGroupAgents()) {
+                SettingsTabRow(id: "keep-awake-while-agents-work", title: Copy.awakeRowAgents(), detail: Copy.awakeRowAgentsDetail(), first: true) {
+                    Toggle(Copy.awakeRowAgents(), isOn: $agents).labelsHidden().toggleStyle(.switch)
                 }
-                SettingsTabRow(id: "stay-awake-after-they-finish", title: "Stay awake after they finish", detail: "Time to read the result before the Mac may sleep") {
+                SettingsTabRow(id: "stay-awake-after-they-finish", title: Copy.awakeRowGrace(), detail: Copy.awakeRowGraceDetail()) {
                     ChoicePopUp(
-                        label: "Stay awake after they finish",
-                        options: AwakeSettings.graceChoices.map { (value: $0, title: $0 == 0 ? "Right away" : "\($0) min") },
+                        label: Copy.awakeRowGrace(),
+                        options: AwakeSettings.graceChoices.map { (value: $0, title: $0 == 0 ? Copy.awakeGraceNow() : Copy.awakeMinutes(minutes: $0)) },
                         selection: Binding(get: { AwakeSettings.graceChoices.contains(grace) ? grace : AwakeSettings().graceMinutes }, set: { grace = $0 })
                     )
                     .disabled(agents == false)
                 }
             }
-            SettingsGroup(id: "battery-and-notices", title: "Battery and notices") {
-                SettingsTabRow(id: "on-battery", title: "On battery", detail: "It goes on by itself when the Mac is plugged in or charged again", first: true) {
+            SettingsGroup(id: "battery-and-notices", title: Copy.awakeGroupBattery()) {
+                SettingsTabRow(id: "on-battery", title: Copy.awakeRowBattery(), detail: Copy.awakeRowBatteryDetail(), first: true) {
                     ChoicePopUp(
-                        label: "On battery", options: BatteryRule.allCases.map { (value: $0, title: $0.title) },
+                        label: Copy.awakeRowBattery(), options: BatteryRule.allCases.map { (value: $0, title: $0.title()) },
                         selection: $battery
                     )
                 }
-                SettingsTabRow(id: "tell-me-when-it-stops-by-itself", title: "Tell me when it stops by itself", detail: "A notification when the time runs out or the battery ends it. Not when you turn it off") {
-                    Toggle("Tell me when it stops by itself", isOn: $notifies).labelsHidden().toggleStyle(.switch)
+                SettingsTabRow(id: "tell-me-when-it-stops-by-itself", title: Copy.awakeRowNotify(), detail: Copy.awakeRowNotifyDetail()) {
+                    Toggle(Copy.awakeRowNotify(), isOn: $notifies).labelsHidden().toggleStyle(.switch)
                 }
             }
         }
@@ -67,8 +67,8 @@ struct KeepAwakeTabView: View {
             // the tick only makes this draw again: the time left is read from the clock now, or it would lag by up to a tick
             let _ = context.date
             let title = awakeStatus(decision, settings: settings, now: Date())
-            SettingsTabRow(title: title, detail: "Closing the lid or choosing Sleep still puts the Mac to sleep", first: true) {
-                Toggle("Keep awake", isOn: Binding(
+            SettingsTabRow(title: title, detail: Copy.awakeStatusDetail(), first: true) {
+                Toggle(Copy.awakeKeep(), isOn: Binding(
                     get: { decision.isManual },
                     set: { _ in
                         controller.toggle()

@@ -11,8 +11,10 @@ public struct AboutLink: Equatable {
 /// The repository, where the links and the star lead.
 public let repositoryURL = "https://github.com/AshuLab/carrier"
 
-public let aboutLinks: [AboutLink] = [
-    ("Release notes", "https://github.com/AshuLab/carrier/releases"),
-    ("Documentation", "https://github.com/AshuLab/carrier/tree/main/docs"),
-    ("GitHub", repositoryURL),
-].compactMap { title, url in browserURL(url).map { AboutLink(title: title, url: $0) } }
+public func aboutLinks(bundle: Bundle? = nil, locale: Locale = .current) -> [AboutLink] {
+    [
+        (Copy.aboutLinkReleaseNotes(bundle: bundle, locale: locale), "https://github.com/AshuLab/carrier/releases"),
+        (Copy.aboutLinkDocumentation(bundle: bundle, locale: locale), "https://github.com/AshuLab/carrier/tree/main/docs"),
+        (Copy.aboutLinkGitHub(bundle: bundle, locale: locale), repositoryURL),
+    ].compactMap { title, url in browserURL(url).map { AboutLink(title: title, url: $0) } }
+}

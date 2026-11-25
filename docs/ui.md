@@ -33,6 +33,19 @@ They hold for every front-end; the sections after the catalog say how the Mac ap
 - **Under the pointer a piece answers**: a faint fill in 0.12 s, a stronger one while pressed, dimmed and no fill when disabled.
 - **Motion stops when nobody looks**: a motion runs only while the window can be seen and Reduce Motion is off.
 
+## The words
+
+How a screen reads a text, so every area does it the same way.
+
+- A key is named `<area><What>` in camel case (`lifecycleStepQueued`, `healthDoctorNoChecks`, `awakeStatusOff`), one flat entry in `design/copy/en.json` and in `es.json`; `pnpm design` writes `Copy.<key>(...)` and the catalog, `pnpm design:check` fails when they are out of step.
+- A view passes the call to what it draws: `Text(Copy.lifecycleRunning())`, `OverviewTitle(title: Copy.lifecycleRunning(), detail: Copy.lifecycleSlotsInUse(busy: 2, total: 4))`.
+  A text that needs a person's data takes it as labelled arguments (`{busy, number}`, `{branch}`); a sentence is never joined from pieces with `+`.
+- A count that changes the words is a `plural` with `one` and `other` (`{hours, plural, one {# hour} other {# hours}}`), and a `=0` case when zero has words of its own; Spanish declares the same cases.
+  A choice among kinds is a `select`; a number that only shows is `{n, number}`, which groups for the locale.
+- A pure function of `CarrierCore` that builds a sentence takes `bundle: Bundle? = nil, locale: Locale = .current` last and hands both to `Copy`; a function a view reads as a property becomes a method for it.
+- A test asserts English with `english` and Spanish with `spanish` (`Tests/CarrierCoreTests/Copy/Languages.swift`: `Copy.bundle("en")` and `en_US`, `Copy.bundle("es")` and `es_AR`), passing `bundle: spanish.bundle, locale: spanish.locale`; every plural a function uses has its Spanish case asserted.
+- A text Node sends (a doctor check's detail and fix, a preparation step's detail) is shown through its text code and is not a key of the area.
+
 ## The scales
 
 A radius, a padding, a `spacing:` and a colour that is not a theme's are tokens of `design/tokens.json` (`Tokens.Radius`, `Tokens.Space`, and the semantic groups), never a number or a `Color(red:)` in a view; frame sizes and opacities of one view stay literals.

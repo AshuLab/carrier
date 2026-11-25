@@ -214,7 +214,7 @@ import CarrierCore
         // the system said no (another app, or Carrier's own Dictation, holds the keys): nothing is shown as active, and the page says why
         guard let key else {
             refused = wanted
-            shortcutProblem = "\(wanted.text) is held by another app. Record other keys."
+            shortcutProblem = Copy.awakeShortcutTaken(keys: wanted.text)
             return
         }
         hotKey = key

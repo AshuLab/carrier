@@ -80,9 +80,9 @@ struct UpdatePill: View {
         case .none: ("none", "")
         case .available(let version): ("version", version)
         case .downloading(_, let percent): ("percent", "\(percent)%")
-        case .ready: justDownloaded ? ("done", "Ready") : ("restart", "Restart")
-        case .installing: ("installing", "Restarting…")
-        case .failed: ("failed", "Retry")
+        case .ready: justDownloaded ? ("done", Copy.updatesPillReady()) : ("restart", Copy.updatesActionRestart())
+        case .installing: ("installing", Copy.updatesRestarting())
+        case .failed: ("failed", Copy.updatesActionRetry())
         }
         let shimmers = kind == "restart" || kind == "installing"
         return Text(text).scaledFont(12, weight: .medium).monospacedDigit()
@@ -93,14 +93,5 @@ struct UpdatePill: View {
             .transition(.push(from: .bottom).combined(with: .opacity))
     }
 
-    private var help: String {
-        switch phase {
-        case .none: ""
-        case .available(let version): "Download Carrier \(version)"
-        case .downloading(let version, let percent): "Downloading Carrier \(version), \(percent) percent"
-        case .ready(let version): justDownloaded ? "Carrier \(version) is downloaded" : "Restart to update to Carrier \(version)"
-        case .installing: "Restarting. If Carrier does not close, click to ask it again"
-        case .failed(let version): "The download of Carrier \(version) failed. Retry"
-        }
-    }
+    private var help: String { phase.pillHelp(justDownloaded: justDownloaded) }
 }

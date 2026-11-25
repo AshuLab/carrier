@@ -68,7 +68,7 @@ struct NoticesGalleryView: View {
                     item("The worktree's name cannot be used") { ProblemNotice(title: "That name cannot be used", detail: "A branch named feat/login already exists.") }
                     item("The folder cannot be used") { ProblemNotice(title: "Couldn't use this folder", detail: "It is not a git repository, so it has no worktrees.", failed: true) }
                     item("The chat host should be restarted (home of Sessions)") {
-                        ProblemNotice(title: chatHostRestartNotice.title, detail: chatHostRestartNotice.line, symbol: .refresh)
+                        ProblemNotice(title: chatHostRestartNotice().title, detail: chatHostRestartNotice().line, symbol: .refresh)
                     }
                 }
                 group("In the conversation and under the box") {

@@ -62,7 +62,7 @@ final class WindowController: NSObject, NSWindowDelegate {
         let centred = NSMutableParagraphStyle()
         centred.alignment = .center
         let credits = NSMutableAttributedString()
-        for (index, link) in aboutLinks.enumerated() {
+        for (index, link) in aboutLinks().enumerated() {
             if index > 0 { credits.append(NSAttributedString(string: "   ")) }
             credits.append(NSAttributedString(string: link.title, attributes: [.link: link.url]))
         }

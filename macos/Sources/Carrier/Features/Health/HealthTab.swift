@@ -22,7 +22,7 @@ struct HealthTabView: View {
         )
         VStack(alignment: .leading, spacing: Tokens.Space.s12) {
             HStack {
-                Text("Is everything Carrier needs ready?").scaledFont(12).foregroundStyle(.secondary)
+                Text(Copy.healthQuestion()).scaledFont(12).foregroundStyle(.secondary)
                 Spacer(minLength: 8)
                 CheckAgainButton(checking: checking, failed: doctor.state.failedToAnswer) { Task { await checkAgain() } }
             }
@@ -84,7 +84,7 @@ private struct HealthCardView: View {
                 Text(row.detail).scaledFont(11).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
             if let fix = row.fix {
-                Text("Fix: \(fix)").scaledFont(11).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                Text(Copy.healthFix(fix: fix)).scaledFont(11).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
             if let tool = row.tool { HealthFixButton(tool: tool, state: row.state) }
         }
@@ -95,10 +95,10 @@ private struct HealthCardView: View {
 
     private var mark: some View {
         let (symbol, color, label): (AppIcon, Color, String) = switch row.mark {
-        case .ok: (.check, .green, "Ready")
-        case .warning: (.exclamation, .yellow, "Warning")
-        case .problem: (.exclamation, .orange, "Needs attention")
-        case .neutral: (.question, .gray, "Not known")
+        case .ok: (.check, .green, Copy.healthReady())
+        case .warning: (.exclamation, .yellow, Copy.healthMarkWarning())
+        case .problem: (.exclamation, .orange, Copy.healthMarkProblem())
+        case .neutral: (.question, .gray, Copy.healthMarkUnknown())
         }
         return Glyph(symbol, size: 11, bold: true).foregroundStyle(.white)
             .frame(width: 18, height: 18).background(Circle().fill(color)).accessibilityElement(children: .ignore).accessibilityLabel(label)

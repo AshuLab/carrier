@@ -40,10 +40,10 @@ struct StartingView: View {
         switch state {
         case .done:
             Glyph(.check, size: 10, bold: true).foregroundStyle(.white)
-                .frame(width: 22, height: 22).background(Circle().fill(Color.green)).accessibilityElement(children: .ignore).accessibilityLabel("done")
-        case .current: SpinningRing(diameter: 16, lineWidth: 2.5).accessibilityLabel("in progress")
+                .frame(width: 22, height: 22).background(Circle().fill(Color.green)).accessibilityElement(children: .ignore).accessibilityLabel(Copy.lifecycleStepDone())
+        case .current: SpinningRing(diameter: 16, lineWidth: 2.5).accessibilityLabel(Copy.lifecycleStepInProgress())
         case .waiting, .input, .error, .cancelled:
-            Circle().fill(Color.secondary.opacity(0.15)).frame(width: 22, height: 22).accessibilityLabel("not started")
+            Circle().fill(Color.secondary.opacity(0.15)).frame(width: 22, height: 22).accessibilityLabel(Copy.lifecycleStepNotStarted())
         }
     }
 }

@@ -53,17 +53,17 @@ import Observation
                     if alertWhenMissing {
                         let notice = chatHostNotice(missing: names)
                         FileHandle.standardError.write(Data("carrier: the chat host was not started, missing: \(names.joined(separator: ", "))\n".utf8))
-                        StartController.showAlert(title: "The chat host did not start", reason: notice?.line ?? "", tail: "")
+                        StartController.showAlert(title: Copy.lifecycleAlertChatHostTitle(), reason: notice?.line ?? "", tail: "")
                     }
                     done(false)
                 case .start:
                     guard let command else { done(false); return }
                     self.starting = true
                     Task {
-                        let failure = await StartController.launcher.launch(command, name: "The chat host")
+                        let failure = await StartController.launcher.launch(command, name: Copy.lifecycleChatHostName())
                         DispatchQueue.main.async {
                             self.starting = false
-                            if let failure { StartController.showAlert(title: "The chat host did not start", reason: failure.reason, tail: failure.tail) } else {
+                            if let failure { StartController.showAlert(title: Copy.lifecycleAlertChatHostTitle(), reason: failure.reason, tail: failure.tail) } else {
                                 // the sidebar's reads back off while the host is down: it is up now, so they need not wait
                                 SocketChatHost().refreshSessions(archived: false)
                             }
@@ -162,7 +162,7 @@ import Observation
             // ponytail: polls the socket for 15 s, as the engine's restart does
             let deadline = Date().addingTimeInterval(15)
             while ControlClient.connect(path: command.socketPath) != nil, Date() < deadline { try await Task.sleep(for: .milliseconds(250)) }
-            failure = await StartController.launcher.launch(command, name: "The chat host")
+            failure = await StartController.launcher.launch(command, name: Copy.lifecycleChatHostName())
         } catch {
             FileHandle.standardError.write(Data("carrier: the older chat host was not replaced: \(error)\n".utf8))
         }
@@ -170,7 +170,7 @@ import Observation
         await MainActor.run {
             self.starting = false
             if let failure = failed {
-                StartController.showAlert(title: "The chat host did not start", reason: failure.reason, tail: failure.tail)
+                StartController.showAlert(title: Copy.lifecycleAlertChatHostTitle(), reason: failure.reason, tail: failure.tail)
             } else {
                 // the sidebar's reads back off while the host is down: the new one is up, so they need not wait
                 SocketChatHost().refreshSessions(archived: false)

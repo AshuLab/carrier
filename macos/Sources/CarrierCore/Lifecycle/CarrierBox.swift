@@ -11,8 +11,8 @@ public struct CarrierBox: Equatable {
 
     public struct Intake: Equatable {
         public var paused: Bool
-        public var value: String { paused ? "Paused" : "Active" }
-        public var actionTitle: String { paused ? "Resume" : "Pause" }
+        public var value: String
+        public var actionTitle: String
         /// The existing control command the link sends.
         public var command: Command { paused ? .resume : .pause }
     }
@@ -37,7 +37,7 @@ public struct CarrierBox: Equatable {
         public var error: String?
     }
 
-    public var title = "Carrier running"
+    public var title: String
     public var uptime: String
     /// The engine's own problem (GitHub not answering, ...), absent when there is none.
     public var problem: String?
@@ -49,14 +49,15 @@ public struct CarrierBox: Equatable {
     public var repoCount: Int
 }
 
-public func carrierBox(_ snapshot: PanelSnapshot) -> CarrierBox {
-    var rows = [CarrierBox.Row(label: "Next check", value: nextCheckLine(snapshot).replacingOccurrences(of: "next check ", with: ""))]
+public func carrierBox(_ snapshot: PanelSnapshot, bundle: Bundle? = nil, locale: Locale = .current) -> CarrierBox {
+    var rows = [CarrierBox.Row(label: Copy.lifecycleBoxNextCheck(bundle: bundle, locale: locale), value: nextCheckLine(snapshot).replacingOccurrences(of: "next check ", with: ""))]
     if let limit = snapshot.engine?.rateLimit {
-        let number = IntegerFormatStyle<Int>.number.locale(Locale(identifier: "en_US"))
-        let reset = limit.resetAt <= snapshot.now ? "reset" : "resets in \(formatDuration(limit.resetAt - snapshot.now))"
+        let reset = limit.resetAt <= snapshot.now
+            ? Copy.lifecycleBoxRateReset(bundle: bundle, locale: locale)
+            : Copy.lifecycleBoxRateResets(duration: formatDuration(limit.resetAt - snapshot.now), bundle: bundle, locale: locale)
         rows.append(.init(
-            label: "GitHub rate limit (\(limit.profile) profile)",
-            value: "\(limit.remaining.formatted(number)) / \(limit.limit.formatted(number)) · \(reset)"
+            label: Copy.lifecycleBoxRateLimit(profile: limit.profile, bundle: bundle, locale: locale),
+            value: Copy.lifecycleBoxRateValue(remaining: limit.remaining, limit: limit.limit, reset: reset, bundle: bundle, locale: locale)
         ))
     }
     let repos = (snapshot.watched ?? []).map { watched in
@@ -65,12 +66,18 @@ public func carrierBox(_ snapshot: PanelSnapshot) -> CarrierBox {
             url: "github.com/\(watched.repo)",
             status: watched.ok ? (snapshot.paused ? .paused : .watching) : .failing,
             ok: watched.ok,
-            lastCheck: watched.lastCheckedAt.map { agoLine($0, now: snapshot.now) } ?? "not checked yet",
-            error: watched.ok ? nil : (watched.error ?? "the last check failed")
+            lastCheck: watched.lastCheckedAt.map { agoLine($0, now: snapshot.now) } ?? Copy.lifecycleBoxNotChecked(bundle: bundle, locale: locale),
+            error: watched.ok ? nil : (watched.error ?? Copy.lifecycleBoxCheckFailed(bundle: bundle, locale: locale))
         )
     }
+    let paused = snapshot.paused
+    let intake = CarrierBox.Intake(
+        paused: paused,
+        value: paused ? Copy.lifecycleIntakePaused(bundle: bundle, locale: locale) : Copy.lifecycleIntakeActive(bundle: bundle, locale: locale),
+        actionTitle: paused ? Copy.lifecycleIntakeResume(bundle: bundle, locale: locale) : Copy.lifecycleIntakePause(bundle: bundle, locale: locale)
+    )
     return CarrierBox(
-        uptime: uptimeLine(snapshot), problem: snapshot.problem, rows: rows,
-        intake: .init(paused: snapshot.paused), repos: repos, repoCount: snapshot.watched?.count ?? snapshot.repos
+        title: Copy.lifecycleBoxTitle(bundle: bundle, locale: locale), uptime: uptimeLine(snapshot), problem: snapshot.problem, rows: rows,
+        intake: intake, repos: repos, repoCount: snapshot.watched?.count ?? snapshot.repos
     )
 }

@@ -28,7 +28,7 @@ public enum CarrierUpgrade: Equatable {
     case failed(ChatHostNotice)
 }
 
-public let carrierUpgradeFailedTitle = "Carrier could not be updated"
+public func carrierUpgradeFailedTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String { Copy.lifecycleUpgradeFailedTitle(bundle: bundle, locale: locale) }
 
 /// A version that cannot be read, on either side, is never older. `1.2` and `1.2.0` are the same.
 public func carrierIsOlder(installed: String, app: String) -> Bool {
@@ -37,15 +37,15 @@ public func carrierIsOlder(installed: String, app: String) -> Bool {
 
 /// Runs `brew update` and then the upgrade when the installed `carrier` is older than the app, one after the other; a failed
 /// update does not go on to the upgrade. Nothing is retried.
-public func upgradeCarrier(installed: String, app: String, brew: (BrewCommand) -> BrewOutcome) -> CarrierUpgrade {
+public func upgradeCarrier(installed: String, app: String, brew: (BrewCommand) -> BrewOutcome, bundle: Bundle? = nil, locale: Locale = .current) -> CarrierUpgrade {
     guard carrierIsOlder(installed: installed, app: app) else { return .notNeeded }
     for (name, command) in [("brew update", brewUpdateCommand), ("brew upgrade", carrierUpgradeCommand)] {
         switch brew(command) {
         case .done: continue
         case .brewMissing:
-            return .failed(ChatHostNotice(title: carrierUpgradeFailedTitle, line: "Homebrew was not found at \(brewPath). The app kept the Carrier it has."))
+            return .failed(ChatHostNotice(title: carrierUpgradeFailedTitle(bundle: bundle, locale: locale), line: Copy.lifecycleUpgradeBrewMissing(path: brewPath, bundle: bundle, locale: locale)))
         case .failed(let tail):
-            return .failed(ChatHostNotice(title: carrierUpgradeFailedTitle, line: "`\(name)` failed, so the app kept the Carrier it has:\n\(tail)"))
+            return .failed(ChatHostNotice(title: carrierUpgradeFailedTitle(bundle: bundle, locale: locale), line: Copy.lifecycleUpgradeBrewFailed(command: name, tail: tail, bundle: bundle, locale: locale)))
         }
     }
     return .upgraded
@@ -57,13 +57,13 @@ public enum EngineUpdateState: Equatable {
     case unknown, running, upToDate, updated
     case failed(ChatHostNotice)
 
-    public var line: String {
+    public func line(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         switch self {
-        case .unknown: "Looked at when the app opens, for a Carrier installed with Homebrew"
-        case .running: "Updating Carrier…"
-        case .upToDate: "Up to date"
-        case .updated: "Updated"
-        case .failed: "Could not be updated"
+        case .unknown: Copy.lifecycleEngineUpdateUnknown(bundle: bundle, locale: locale)
+        case .running: Copy.lifecycleEngineUpdateRunning(bundle: bundle, locale: locale)
+        case .upToDate: Copy.lifecycleEngineUpToDate(bundle: bundle, locale: locale)
+        case .updated: Copy.lifecycleEngineUpdated(bundle: bundle, locale: locale)
+        case .failed: Copy.lifecycleEngineUpdateFailed(bundle: bundle, locale: locale)
         }
     }
 

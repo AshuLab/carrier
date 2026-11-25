@@ -9,12 +9,12 @@ public enum AwakeLength {
     public static let defaultMinutes = 60
 
     /// "30 min", "1 hour", "5 hours", "Until I turn it off". A saved length that is not one of the choices reads as the default.
-    public static func title(_ minutes: Int) -> String {
+    public static func title(_ minutes: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
         switch minutes {
-        case 0: "Until I turn it off"
-        case 60: "1 hour"
-        case let hours where hours >= 120 && hours % 60 == 0: "\(hours / 60) hours"
-        default: "\(minutes) min"
+        case 0: Copy.awakeLengthForever(bundle: bundle, locale: locale)
+        case 60: Copy.awakeLengthHours(hours: 1, bundle: bundle, locale: locale)
+        case let hours where hours >= 120 && hours % 60 == 0: Copy.awakeLengthHours(hours: hours / 60, bundle: bundle, locale: locale)
+        default: Copy.awakeMinutes(minutes: minutes, bundle: bundle, locale: locale)
         }
     }
 
@@ -27,13 +27,13 @@ public enum BatteryRule: String, CaseIterable, Sendable {
 
     public static let standard = BatteryRule.below20
 
-    public var title: String {
+    public func title(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         switch self {
-        case .never: "Keep awake on battery too"
-        case .below30: "Stop below 30 %"
-        case .below20: "Stop below 20 %"
-        case .below10: "Stop below 10 %"
-        case .pluggedIn: "Only while plugged in"
+        case .never: Copy.awakeBatteryNever(bundle: bundle, locale: locale)
+        case .below30: Copy.awakeBatteryBelow(percent: 30, bundle: bundle, locale: locale)
+        case .below20: Copy.awakeBatteryBelow(percent: 20, bundle: bundle, locale: locale)
+        case .below10: Copy.awakeBatteryBelow(percent: 10, bundle: bundle, locale: locale)
+        case .pluggedIn: Copy.awakeBatteryPluggedIn(bundle: bundle, locale: locale)
         }
     }
 
@@ -154,51 +154,53 @@ public func nextAwakeChange(_ decision: AwakeDecision) -> Date? {
 }
 
 /// "1 h 12 min", "42 min", "under 1 min": rounded up, so it never says 0 while there is time left.
-public func awakeRemaining(_ seconds: TimeInterval) -> String {
+public func awakeRemaining(_ seconds: TimeInterval, bundle: Bundle? = nil, locale: Locale = .current) -> String {
     let minutes = Int((max(seconds, 0) / 60).rounded(.up))
-    if minutes < 1 { return "under 1 min" }
-    if minutes < 60 { return "\(minutes) min" }
-    return minutes % 60 == 0 ? "\(minutes / 60) h" : "\(minutes / 60) h \(minutes % 60) min"
+    if minutes < 1 { return Copy.awakeRemainingUnderMinute(bundle: bundle, locale: locale) }
+    if minutes < 60 { return Copy.awakeMinutes(minutes: minutes, bundle: bundle, locale: locale) }
+    return minutes % 60 == 0
+        ? Copy.awakeRemainingHours(hours: minutes / 60, bundle: bundle, locale: locale)
+        : Copy.awakeRemainingHoursMinutes(hours: minutes / 60, minutes: minutes % 60, bundle: bundle, locale: locale)
 }
 
 /// The line of the menu and the page: one sentence that says the state and what ends it.
-public func awakeStatus(_ decision: AwakeDecision, settings: AwakeSettings, now: Date) -> String {
+public func awakeStatus(_ decision: AwakeDecision, settings: AwakeSettings, now: Date, bundle: Bundle? = nil, locale: Locale = .current) -> String {
     if let blocked = decision.blocked {
         switch blocked {
-        case .batteryLow(let percent): return "Paused: battery at \(percent) %"
-        case .unplugged: return "Paused: on battery"
+        case .batteryLow(let percent): return Copy.awakeStatusBatteryLow(percent: percent, bundle: bundle, locale: locale)
+        case .unplugged: return Copy.awakeStatusOnBattery(bundle: bundle, locale: locale)
         }
     }
     switch decision.reason {
-    case .manual(let end?)?: return "Awake · \(awakeRemaining(end.timeIntervalSince(now))) left"
-    case .manual(nil)?: return "Awake until you turn it off"
-    case .agents?: return "Awake while agents work"
-    case .grace(let end)?: return "Awake · \(awakeRemaining(end.timeIntervalSince(now))) after agents finished"
-    case nil: return settings.followsAgents ? "Off · wakes up when agents work" : "Off"
+    case .manual(let end?)?: return Copy.awakeStatusManual(remaining: awakeRemaining(end.timeIntervalSince(now), bundle: bundle, locale: locale), bundle: bundle, locale: locale)
+    case .manual(nil)?: return Copy.awakeStatusManualForever(bundle: bundle, locale: locale)
+    case .agents?: return Copy.awakeStatusAgents(bundle: bundle, locale: locale)
+    case .grace(let end)?: return Copy.awakeStatusGrace(remaining: awakeRemaining(end.timeIntervalSince(now), bundle: bundle, locale: locale), bundle: bundle, locale: locale)
+    case nil: return settings.followsAgents ? Copy.awakeStatusOffAgents(bundle: bundle, locale: locale) : Copy.awakeStatusOff(bundle: bundle, locale: locale)
     }
 }
 
 /// What the menu's first item says it will do when clicked: stop what was asked for by hand, or start the default length.
-public func awakeToggleTitle(manualActive: Bool, defaultMinutes: Int) -> String {
-    if manualActive { return "Stop keeping awake" }
+public func awakeToggleTitle(manualActive: Bool, defaultMinutes: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+    if manualActive { return Copy.awakeStop(bundle: bundle, locale: locale) }
     let length = AwakeLength.valid(defaultMinutes)
-    return length == 0 ? "Keep awake" : "Keep awake for \(AwakeLength.title(length))"
+    return length == 0 ? Copy.awakeKeep(bundle: bundle, locale: locale) : Copy.awakeKeepFor(length: AwakeLength.title(length, bundle: bundle, locale: locale), bundle: bundle, locale: locale)
 }
 
 /// What the notification says when a keep awake ends by itself: the timer ran out, or the battery ended it.
-public func awakeEndedNotice(_ block: AwakeBlock?) -> (title: String, body: String) {
+public func awakeEndedNotice(_ block: AwakeBlock?, bundle: Bundle? = nil, locale: Locale = .current) -> (title: String, body: String) {
     switch block {
-    case .batteryLow(let percent)?: ("Keep awake paused", "The battery is at \(percent) %. Your Mac can sleep now; plug it in and it goes on.")
-    case .unplugged?: ("Keep awake paused", "Your Mac is on battery. It can sleep now; plug it in and it goes on.")
-    case nil: ("Keep awake ended", "Your Mac can sleep again.")
+    case .batteryLow(let percent)?: (Copy.awakePausedTitle(bundle: bundle, locale: locale), Copy.awakeEndedBatteryLow(percent: percent, bundle: bundle, locale: locale))
+    case .unplugged?: (Copy.awakePausedTitle(bundle: bundle, locale: locale), Copy.awakeEndedOnBattery(bundle: bundle, locale: locale))
+    case nil: (Copy.awakeEndedTitle(bundle: bundle, locale: locale), Copy.awakeEndedBody(bundle: bundle, locale: locale))
     }
 }
 
 /// What the notification says when a keep awake was asked for and cannot start because of the battery: the person just did it and the menu closed on nothing.
-public func awakeWaitingNotice(_ block: AwakeBlock) -> (title: String, body: String) {
+public func awakeWaitingNotice(_ block: AwakeBlock, bundle: Bundle? = nil, locale: Locale = .current) -> (title: String, body: String) {
     switch block {
-    case .batteryLow(let percent): ("Keep awake is waiting", "The battery is at \(percent) %. It starts by itself when the Mac is plugged in.")
-    case .unplugged: ("Keep awake is waiting", "Your Mac is on battery, and you chose to keep awake only while plugged in. It starts when it is.")
+    case .batteryLow(let percent): (Copy.awakeWaitingTitle(bundle: bundle, locale: locale), Copy.awakeWaitingBatteryLow(percent: percent, bundle: bundle, locale: locale))
+    case .unplugged: (Copy.awakeWaitingTitle(bundle: bundle, locale: locale), Copy.awakeWaitingOnBattery(bundle: bundle, locale: locale))
     }
 }
 
@@ -213,6 +215,6 @@ public func awakeMenuKey(_ shortcut: DictationShortcut?) -> String? {
 }
 
 /// What the icon says to the pointer and to VoiceOver: the icon is a picture of a count and a bar, so the cup needs its words.
-public func awakeIconWords(awake: Bool) -> (label: String, tip: String?) {
-    awake ? ("Carrier, keeping the Mac awake", "Keeping the Mac awake") : ("Carrier", nil)
+public func awakeIconWords(awake: Bool, bundle: Bundle? = nil, locale: Locale = .current) -> (label: String, tip: String?) {
+    awake ? (Copy.awakeIconAwake(bundle: bundle, locale: locale), Copy.awakeIconTip(bundle: bundle, locale: locale)) : (Copy.appName(bundle: bundle, locale: locale), nil)
 }

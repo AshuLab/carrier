@@ -60,84 +60,90 @@ public struct CarrierFacts: Equatable {
     }
 }
 
-private func macRow(_ title: String, _ tool: HealthTool, _ state: ToolState) -> HealthRow {
+private func macRow(_ title: String, _ tool: HealthTool, _ state: ToolState, bundle: Bundle?, locale: Locale) -> HealthRow {
     switch state {
-    case .ready: HealthRow(title: title, mark: .ok, detail: "Ready", tool: tool, state: state)
-    case .missing: HealthRow(title: title, mark: .problem, detail: "Not installed", tool: tool, state: state)
-    case .signedOut: HealthRow(title: title, mark: .problem, detail: "Signed out", tool: tool, state: state)
-    case .unknown: HealthRow(title: title, mark: .neutral, detail: "Could not check", tool: tool, state: state)
+    case .ready: HealthRow(title: title, mark: .ok, detail: Copy.healthReady(bundle: bundle, locale: locale), tool: tool, state: state)
+    case .missing: HealthRow(title: title, mark: .problem, detail: Copy.healthNotInstalled(bundle: bundle, locale: locale), tool: tool, state: state)
+    case .signedOut: HealthRow(title: title, mark: .problem, detail: Copy.healthSignedOut(bundle: bundle, locale: locale), tool: tool, state: state)
+    case .unknown: HealthRow(title: title, mark: .neutral, detail: Copy.healthCouldNotCheck(bundle: bundle, locale: locale), tool: tool, state: state)
     }
 }
 
 /// `host` is the last reply of `health`; nil is no reply yet: a host that is not running, one too old to report it, or one whose answer is still on its way or failed. Each says so in place of the rows.
-public func healthSections(host: HostHealth?, facts: CarrierFacts, doctor: DoctorState = .idle) -> [HealthSection] {
+public func healthSections(host: HostHealth?, facts: CarrierFacts, doctor: DoctorState = .idle, bundle: Bundle? = nil, locale: Locale = .current) -> [HealthSection] {
     let mac: HealthSection
     if let host {
         mac = HealthSection(
-            id: "this-mac", title: "This Mac", note: nil,
-            rows: [macRow("git", .git, host.git), macRow("gh", .gh, host.gh)]
+            id: "this-mac", title: Copy.healthThisMac(bundle: bundle, locale: locale), note: nil,
+            rows: [macRow("git", .git, host.git, bundle: bundle, locale: locale), macRow("gh", .gh, host.gh, bundle: bundle, locale: locale)]
         )
     } else {
         let note = if facts.hostRunning == false {
-            "The chat host is not running, so this Mac was not checked."
+            Copy.healthHostNotRunning(bundle: bundle, locale: locale)
         } else if facts.hostReportsHealth == false {
-            "The chat host is too old to check this Mac. Restart it to use the installed Carrier."
+            Copy.healthHostTooOld(bundle: bundle, locale: locale)
         } else {
-            "This Mac has not been checked yet, or the check failed. Press Check again."
+            Copy.healthMacNotChecked(bundle: bundle, locale: locale)
         }
-        mac = HealthSection(id: "this-mac", title: "This Mac", note: note, rows: [])
+        mac = HealthSection(id: "this-mac", title: Copy.healthThisMac(bundle: bundle, locale: locale), note: note, rows: [])
     }
 
-    let versionLine = facts.installedVersion.map { " · version \($0)" } ?? ""
+    let found = facts.installedVersion.map { Copy.healthCarrierFoundVersion(version: $0, bundle: bundle, locale: locale) } ?? Copy.healthCarrierFound(bundle: bundle, locale: locale)
     let carrier = facts.carrierFound
-        ? HealthRow(title: "carrier", mark: .ok, detail: "Found" + versionLine)
-        : HealthRow(title: "carrier", mark: .problem, detail: "Not found", tool: .carrier, state: .missing)
+        ? HealthRow(title: "carrier", mark: .ok, detail: found)
+        : HealthRow(title: "carrier", mark: .problem, detail: Copy.healthCarrierNotFound(bundle: bundle, locale: locale), tool: .carrier, state: .missing)
+
+    let chatHost = Copy.healthChatHost(bundle: bundle, locale: locale)
 
     let hostRow: HealthRow
     if facts.hostRunning == false {
-        hostRow = HealthRow(id: "chat-host", title: "Chat host", mark: .problem, detail: "Not running")
+        hostRow = HealthRow(id: "chat-host", title: chatHost, mark: .problem, detail: Copy.healthHostStopped(bundle: bundle, locale: locale))
     } else if let running = facts.hostVersion, let installed = facts.installedVersion,
         hostReplacement(running: running, installed: installed, working: false) != .keep
     {
-        hostRow = HealthRow(id: "chat-host", title: "Chat host", mark: .problem, detail: "Running version \(running), older than the installed \(installed). Restart it to update.")
+        hostRow = HealthRow(id: "chat-host", title: chatHost, mark: .problem, detail: Copy.healthHostOlder(running: running, installed: installed, bundle: bundle, locale: locale))
     } else {
-        hostRow = HealthRow(id: "chat-host", title: "Chat host", mark: .ok, detail: "Running" + (facts.hostVersion.map { " · version \($0)" } ?? ""))
+        hostRow = HealthRow(id: "chat-host", title: chatHost, mark: .ok, detail: facts.hostVersion.map { Copy.healthRunningVersion(version: $0, bundle: bundle, locale: locale) } ?? Copy.healthRunning(bundle: bundle, locale: locale))
     }
 
     let engine: HealthRow
-    if let notConfigured = engineNotConfiguredNotice(configExists: facts.configExists) {
-        engine = HealthRow(id: "engine", title: "Engine", mark: .problem, detail: notConfigured)
+    let engineTitle = Copy.healthEngine(bundle: bundle, locale: locale)
+    if let notConfigured = engineNotConfiguredNotice(configExists: facts.configExists, bundle: bundle, locale: locale) {
+        engine = HealthRow(id: "engine", title: engineTitle, mark: .problem, detail: notConfigured)
     } else if facts.engineRunning {
-        engine = HealthRow(id: "engine", title: "Engine", mark: .ok, detail: "Running")
+        engine = HealthRow(id: "engine", title: engineTitle, mark: .ok, detail: Copy.healthRunning(bundle: bundle, locale: locale))
     } else {
-        engine = HealthRow(id: "engine", title: "Engine", mark: .neutral, detail: "Configured, stopped")
+        engine = HealthRow(id: "engine", title: engineTitle, mark: .neutral, detail: Copy.healthConfiguredStopped(bundle: bundle, locale: locale))
     }
 
-    return [mac, HealthSection(id: "carrier", title: "Carrier", note: nil, rows: [carrier, hostRow, engine]), setupSection(doctor, configExists: facts.configExists)]
+    return [
+        mac, HealthSection(id: "carrier", title: Copy.appName(bundle: bundle, locale: locale), note: nil, rows: [carrier, hostRow, engine]),
+        setupSection(doctor, configExists: facts.configExists, bundle: bundle, locale: locale),
+    ]
 }
 
 /// The engine's setup: the doctor's checks, or one line in place of them when it needs the config, is running, or could not answer.
-private func setupSection(_ doctor: DoctorState, configExists: Bool) -> HealthSection {
-    let title = "Engine setup"
+private func setupSection(_ doctor: DoctorState, configExists: Bool, bundle: Bundle?, locale: Locale) -> HealthSection {
+    let title = Copy.healthEngineSetup(bundle: bundle, locale: locale)
     guard configExists else {
-        return HealthSection(id: "engine-setup", title: title, note: "The engine's setup needs the config: there is no engine.json in the Carrier folder.", rows: [])
+        return HealthSection(id: "engine-setup", title: title, note: Copy.healthSetupNeedsConfig(bundle: bundle, locale: locale), rows: [])
     }
     switch doctor {
-    case .idle: return HealthSection(id: "engine-setup", title: title, note: "Not checked yet.", rows: [])
-    case .running: return HealthSection(id: "engine-setup", title: title, note: "Running carrier doctor…", rows: [])
+    case .idle: return HealthSection(id: "engine-setup", title: title, note: Copy.healthSetupNotChecked(bundle: bundle, locale: locale), rows: [])
+    case .running: return HealthSection(id: "engine-setup", title: title, note: Copy.healthSetupRunning(bundle: bundle, locale: locale), rows: [])
     case .unknown(let reason):
-        return HealthSection(id: "engine-setup", title: title, note: nil, rows: [HealthRow(title: "carrier doctor", mark: .neutral, detail: "Could not check: \(reason)")])
+        return HealthSection(id: "engine-setup", title: title, note: nil, rows: [HealthRow(title: "carrier doctor", mark: .neutral, detail: Copy.healthDoctorCouldNotCheck(reason: reason, bundle: bundle, locale: locale))])
     case .refused(let reason):
-        return HealthSection(id: "engine-setup", title: title, note: nil, rows: [HealthRow(title: "carrier doctor", mark: .neutral, detail: "Carrier refuses the config: \(reason)")])
+        return HealthSection(id: "engine-setup", title: title, note: nil, rows: [HealthRow(title: "carrier doctor", mark: .neutral, detail: Copy.healthDoctorRefused(reason: reason, bundle: bundle, locale: locale))])
     case .checks(let checks):
-        return HealthSection(id: "engine-setup", title: title, note: nil, rows: groupedChecks(checks))
+        return HealthSection(id: "engine-setup", title: title, note: nil, rows: groupedChecks(checks, bundle: bundle, locale: locale))
     }
 }
 
 /// The doctor prints one check per tool, per login and per identity and repository; the tab shows one card for each of those kinds instead,
 /// and any other check as it is. A card is as bad as its worst check, says what it covers while all are well and which checks are not when
 /// not, with the first fix of the checks that have one.
-func groupedChecks(_ checks: [DoctorCheck]) -> [HealthRow] {
+func groupedChecks(_ checks: [DoctorCheck], bundle: Bundle? = nil, locale: Locale = .current) -> [HealthRow] {
     enum Kind: Hashable { case tools, logins, access, single(Int) }
     func kind(_ index: Int, _ check: DoctorCheck) -> Kind {
         // a check that failed says what it is by the code of its detail; one that passed has none, and its name says it
@@ -164,28 +170,28 @@ func groupedChecks(_ checks: [DoctorCheck]) -> [HealthRow] {
     return order.map { found in
         let group = members[found]!
         let mark: HealthRow.Mark = group.contains { $0.status == .fail } ? .problem : group.contains { $0.status == .warn } ? .warning : .ok
-        let fix = group.first { $0.fix != nil && $0.status != .ok }?.shownFix()
+        let fix = group.first { $0.fix != nil && $0.status != .ok }?.shownFix(bundle: bundle, locale: locale)
         if case .single = found, let only = group.first {
-            return HealthRow(title: only.name, mark: mark, detail: only.shownDetail() ?? "", fix: only.shownFix())
+            return HealthRow(title: only.name, mark: mark, detail: only.shownDetail(bundle: bundle, locale: locale) ?? "", fix: only.shownFix(bundle: bundle, locale: locale))
         }
         let title: String
         var covers: String
         switch found {
         case .tools:
-            title = "Tools installed"
+            title = Copy.healthToolsInstalled(bundle: bundle, locale: locale)
             covers = group.map { String($0.name.dropLast(" installed".count)) }.joined(separator: ", ")
         case .logins:
-            title = "Provider logins"
+            title = Copy.healthProviderLogins(bundle: bundle, locale: locale)
             covers = group.map { $0.name.replacingOccurrences(of: " provider ", with: " ").replacingOccurrences(of: " is logged in", with: "") }.joined(separator: ", ")
         default:
-            title = "Repository access"
+            title = Copy.healthRepositoryAccess(bundle: bundle, locale: locale)
             let words = group.map { $0.name.split(separator: " ").map(String.init) }
             let identities = Set(words.compactMap { $0.count > 2 ? $0[2] : nil }).count
             let repos = Set(words.compactMap(\.last)).count
-            covers = "\(repos) \(repos == 1 ? "repository" : "repositories"), \(identities) \(identities == 1 ? "identity" : "identities")"
+            covers = Copy.healthAccessCovers(repos: repos, identities: identities, bundle: bundle, locale: locale)
         }
         if mark == .ok { return HealthRow(title: title, mark: mark, detail: covers) }
-        let bad = group.filter { $0.status != .ok }.map { "\($0.name)\($0.shownDetail().map { ": \($0)" } ?? "")" }
-        return HealthRow(title: title, mark: mark, detail: "\(bad.count) of \(group.count) not ok\n" + bad.joined(separator: "\n"), fix: fix)
+        let bad = group.filter { $0.status != .ok }.map { "\($0.name)\($0.shownDetail(bundle: bundle, locale: locale).map { ": \($0)" } ?? "")" }
+        return HealthRow(title: title, mark: mark, detail: Copy.healthNotOk(bad: bad.count, total: group.count, bundle: bundle, locale: locale) + "\n" + bad.joined(separator: "\n"), fix: fix)
     }
 }

@@ -14,11 +14,11 @@ struct HealthFixButton: View {
         case .command(let words):
             VStack(alignment: .leading, spacing: Tokens.Space.s2) {
                 Button { open() } label: { Label(words.joined(separator: " "), icon: .terminal).scaledFont(12, design: .monospaced) }
-                    .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).help("Opens Terminal and runs this command")
+                    .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).help(Copy.healthFixHelp())
                 if let failure { Text(failure).scaledFont(11).foregroundStyle(.red) }
             }
         case .install(let url):
-            Link("Installation page", destination: url).scaledFont(12)
+            Link(Copy.healthInstallPage(), destination: url).scaledFont(12)
         case nil:
             EmptyView()
         }
@@ -30,7 +30,7 @@ struct HealthFixButton: View {
             failure = nil
         } catch {
             NSLog("Carrier: health fix in Terminal failed: %@", String(describing: error))
-            failure = "Could not open Terminal."
+            failure = Copy.healthTerminalFailed()
         }
     }
 }

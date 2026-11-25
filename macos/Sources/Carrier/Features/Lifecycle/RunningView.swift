@@ -10,7 +10,7 @@ struct RunningView: View {
     var body: some View {
         let section = runningSection(snapshot)
         VStack(alignment: .leading, spacing: Tokens.Space.s8) {
-            OverviewTitle(title: "Running", detail: "\(snapshot.slots.busy) of \(snapshot.slots.total) in use")
+            OverviewTitle(title: Copy.lifecycleRunning(), detail: Copy.lifecycleSlotsInUse(busy: snapshot.slots.busy, total: snapshot.slots.total))
             if section.cards.isEmpty {
                 OverviewCard { EmptyStateView(state: .idle).frame(minHeight: 170) }
             } else {

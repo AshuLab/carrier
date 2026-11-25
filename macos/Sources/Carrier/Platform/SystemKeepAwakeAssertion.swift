@@ -16,7 +16,7 @@ import IOKit.pwr_mgt
         guard ids[kind] == nil else { return true }
         let type = kind == .system ? kIOPMAssertPreventUserIdleSystemSleep : kIOPMAssertPreventUserIdleDisplaySleep
         var id = IOPMAssertionID(0)
-        let made = IOPMAssertionCreateWithName(type as CFString, IOPMAssertionLevel(kIOPMAssertionLevelOn), "Carrier keeps the Mac awake" as CFString, &id)
+        let made = IOPMAssertionCreateWithName(type as CFString, IOPMAssertionLevel(kIOPMAssertionLevelOn), Copy.awakeAssertionReason() as CFString, &id)
         guard made == kIOReturnSuccess else {
             NSLog("Carrier: the Mac could not be kept awake (%@, %d)", type, made)
             return false

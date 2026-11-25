@@ -35,14 +35,14 @@ struct StoppedView: View {
 
     private var icon: AppIcon { state == nil ? .bolt : state == .stopped ? .power : .warning }
 
-    private var title: String { state == nil ? "Connecting…" : state?.menuLine ?? "" }
+    private var title: String { state == nil ? Copy.lifecycleConnecting() : state?.menuLine ?? "" }
 
     private var line: String {
         switch state {
-        case nil: "Looking for Carrier."
-        case .stopped?: "Start it to watch your repositories and run agents on the epics that are ready."
+        case nil: Copy.lifecycleLooking()
+        case .stopped?: Copy.lifecycleStoppedHint()
         case .incompatible(let update?)?: update
-        default: "The app and Carrier speak different versions. Update whichever is older."
+        default: Copy.lifecycleVersionsDiffer()
         }
     }
 
@@ -57,7 +57,7 @@ struct StoppedView: View {
                 Label(banner.title, icon: banner.state == .detecting ? .search : .warningFilled)
                     .font(.callout).foregroundStyle(.orange)
                 if banner.state == .missing {
-                    Button("Open Settings", action: openSettings).buttonStyle(.glass).buttonBorderShape(.capsule).controlSize(.small)
+                    Button(Copy.lifecycleOpenSettings(), action: openSettings).buttonStyle(.glass).buttonBorderShape(.capsule).controlSize(.small)
                 }
             }
         }

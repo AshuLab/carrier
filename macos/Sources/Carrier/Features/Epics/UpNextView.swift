@@ -9,13 +9,13 @@ struct UpNextView: View {
 
     var body: some View {
         let rows = upNext(snapshot)
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s8) {
             OverviewTitle(title: "Up next", detail: "\(rows.count)")
             OverviewCard {
                 ForEach(rows.indices, id: \.self) { index in
                     OverviewLinkRow(action: { selection = rows[index].selection }) {
                         StateGlyph(state: .waiting).frame(width: 28, height: 28)
-                        VStack(alignment: .leading, spacing: 1) {
+                        VStack(alignment: .leading, spacing: Tokens.Space.s1) {
                             Text(rows[index].title).fontWeight(.semibold).lineLimit(1)
                             Text(rows[index].line).font(.caption).foregroundStyle(.secondary)
                         }

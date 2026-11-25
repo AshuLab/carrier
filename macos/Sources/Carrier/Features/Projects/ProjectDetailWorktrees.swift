@@ -15,19 +15,19 @@ extension ProjectDetailView {
                 let items = worktreeRows(worktrees, sizes: figure?.parts ?? [:], now: Date())
                 let shares = diskShares(items)
                 SettingsTabRow(title: "Total", detail: diskTotalWords(figure, measuring: measuring, now: Date()), first: true) {
-                    HStack(spacing: 8) {
+                    HStack(spacing: Tokens.Space.s8) {
                         if measuring { ProgressView().controlSize(.small) }
                         Text(figure?.bytes.map(formatDiskSize) ?? "—").fontWeight(.medium).monospacedDigit()
                     }
                 }
                 if shares.isEmpty == false {
                     DiskBar(shares: shares, color: { diskColor($0, in: items) })
-                        .padding(.vertical, 10).frame(maxWidth: .infinity)
+                        .padding(.vertical, Tokens.Space.s10).frame(maxWidth: .infinity)
                         .overlay(alignment: .top) { SettingsDivider() }
                 }
                 ForEach(items) { item in
                     SettingsTabRow(title: item.branch, detail: item.detail, mono: true, problem: removeProblems[item.id]) {
-                        HStack(spacing: 10) {
+                        HStack(spacing: Tokens.Space.s10) {
                             if let state = item.state, let kind = item.kind { StatusChip(text: state, tint: worktreeTint(kind)) }
                             if item.hasRemove {
                                 Button { Task { await removeWorktree(item.id) } } label: { Label("Remove", icon: .trash) }
@@ -36,7 +36,7 @@ extension ProjectDetailView {
                                     .help(item.removeBlockedBy ?? "Removes this worktree's folder; its branch and its session stay")
                                     .accessibilityLabel("Remove the worktree \(item.branch)")
                             }
-                            HStack(spacing: 6) {
+                            HStack(spacing: Tokens.Space.s6) {
                                 Circle().fill(diskColor(item.id, in: items)).frame(width: 7, height: 7).accessibilityHidden(true)
                                 Text(item.size).font(.scaled(12)).monospacedDigit().foregroundStyle(.secondary)
                             }
@@ -73,7 +73,7 @@ extension ProjectDetailView {
 
     private func worktreeTint(_ state: ProjectWorktree.State) -> Color {
         switch state {
-        case .sessionOpen: .accentColor
+        case .sessionOpen: .themeAccent
         case .merged: .green
         case .uncommitted, .notPushed: .orange
         case .clean: .secondary

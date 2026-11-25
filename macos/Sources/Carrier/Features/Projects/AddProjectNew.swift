@@ -9,19 +9,19 @@ extension AddProjectSheet {
     /// host to make the folder and register it, then closes the sheet and opens the project's page; a name whose folder is there is refused with the reason and nothing is written.
     var newProjectForm: some View {
         let reason = form.problem(taken: model.isTaken)
-        return VStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 14) {
-                HStack(spacing: 12) {
+        return VStack(spacing: Tokens.Space.none) {
+            VStack(alignment: .leading, spacing: Tokens.Space.s14) {
+                HStack(spacing: Tokens.Space.s12) {
                     Glyph(.folderPlus, size: 16).foregroundStyle(Color.themeAccent)
                         .frame(width: 36, height: 36)
-                        .background(RoundedRectangle(cornerRadius: 8).fill(Color.themeAccent.opacity(0.16)))
+                        .background(RoundedRectangle(cornerRadius: Tokens.Radius.control).fill(Color.themeAccent.opacity(0.16)))
                         .accessibilityHidden(true)
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: Tokens.Space.s2) {
                         Text("New project").font(.scaled(16, weight: .semibold))
                         Text(mode.actsAtOnce ? "An empty git folder, added as a project." : "An empty git folder, made when you send the first message.").font(.scaled(12)).foregroundStyle(.secondary)
                     }
                 }
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: Tokens.Space.s6) {
                     Text("Name").sectionLabel()
                     TextField("", text: $form.name, prompt: Text("my-project"))
                         .settingsField(icon: .folder, focused: $nameFocused)
@@ -32,9 +32,9 @@ extension AddProjectSheet {
                         .onChange(of: form.name) { problem = nil }
                     Text("Letters, numbers, dots and dashes").font(.scaled(11)).foregroundStyle(.tertiary)
                 }
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: Tokens.Space.s6) {
                     Text(mode.actsAtOnce ? "Create in" : "Will be created in").sectionLabel()
-                    HStack(spacing: 8) {
+                    HStack(spacing: Tokens.Space.s8) {
                         Text(form.destinationLine().dropFirst("Creates ".count))
                             .font(.scaled(11, design: .monospaced))
                             .foregroundStyle(.secondary)
@@ -51,14 +51,14 @@ extension AddProjectSheet {
                 }
                 if let line = problem ?? reason { ProblemLine(text: line) }
             }
-            .padding(.horizontal, 24)
-            .padding(.top, 22)
-            .padding(.bottom, 16)
+            .padding(.horizontal, Tokens.Space.s24)
+            .padding(.top, Tokens.Space.s22)
+            .padding(.bottom, Tokens.Space.s16)
             .frame(maxWidth: .infinity, alignment: .leading)
 
             Spacer(minLength: 0)
             SettingsDivider()
-            HStack(spacing: 12) {
+            HStack(spacing: Tokens.Space.s12) {
                 Button("Back") {
                     problem = nil
                     creating = false
@@ -72,8 +72,8 @@ extension AddProjectSheet {
                     .buttonStyle(PrimaryCapsuleButtonStyle())
                     .disabled(form.canCreate(taken: model.isTaken) == false || making)
             }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 12)
+            .padding(.horizontal, Tokens.Space.s20)
+            .padding(.vertical, Tokens.Space.s12)
         }
         .frame(width: 580, height: 460)
         .onAppear { nameFocused = true }

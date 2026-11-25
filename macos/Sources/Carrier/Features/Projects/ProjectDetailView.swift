@@ -63,7 +63,7 @@ struct ProjectDetailView: View {
                     ProjectNameField(stored: row.customName ?? "", prompt: row.folderName) { await model.setName($0, path: row.path) }
                 }
                 SettingsTabRow(title: "Icon", detail: "Color and mark, or an image; initials when none is chosen") {
-                    HStack(spacing: 10) {
+                    HStack(spacing: Tokens.Space.s10) {
                         ProjectIcon(tile: row.tile, imageFolder: model.carrierFolder)
                         Button("Change…") { pickingIcon = true }
                             .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
@@ -79,19 +79,19 @@ struct ProjectDetailView: View {
                                     chooseImage: chooseImage,
                                     reset: { Task { await model.resetIcon(path: row.path) } }
                                 )
-                                .padding(14)
+                                .padding(Tokens.Space.s14)
                             }
                     }
                 }
                 SettingsTabRow(title: "Tags", detail: "Press Return to add") {
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: Tokens.Space.s8) {
                         TextField("", text: $newTag, prompt: Text("Add a tag"))
                             .settingsField(width: settingsSelectWidth)
                             .autocorrectionDisabled()
                             .onSubmit(addTag)
                             .accessibilityLabel("Add a tag")
                         if row.tags.isEmpty == false {
-                            FlowLayout(spacing: 6) {
+                            FlowLayout(spacing: Tokens.Space.s6) {
                                 ForEach(row.tags, id: \.self) { tag in
                                     ProjectTagChip(tag: tag) { Task { await model.removeTag(tag, path: row.path) } }
                                 }

@@ -37,12 +37,12 @@ struct ChatTabView: View {
                     )
                 }
             }
-            .padding(.vertical, 12)
+            .padding(.vertical, Tokens.Space.s12)
             .frame(width: previewRoom * messageWidth.points / MessageWidth.widest.points, alignment: .leading)
             .frame(maxWidth: .infinity)
             .onGeometryChange(for: CGFloat.self, of: \.size.width) { previewRoom = $0 }
-            .padding(8)
-            .background(RoundedRectangle(cornerRadius: 12).strokeBorder(Color.secondary.opacity(0.3), style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
+            .padding(Tokens.Space.s8)
+            .background(RoundedRectangle(cornerRadius: Tokens.Radius.card).strokeBorder(Color.secondary.opacity(0.3), style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
         }
     }
 

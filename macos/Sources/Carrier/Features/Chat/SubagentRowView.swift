@@ -17,7 +17,7 @@ struct SubagentRowView: View {
         if let open {
             Button { open(subagent.id) } label: { row }
                 .buttonStyle(.plain).onHover { hovered = $0 }
-                .overlay { if hovered { RoundedRectangle(cornerRadius: 12).fill(Color.primary.opacity(0.04)).allowsHitTesting(false) } }
+                .overlay { if hovered { RoundedRectangle(cornerRadius: Tokens.Radius.card).fill(Color.primary.opacity(0.04)).allowsHitTesting(false) } }
                 .accessibilityHint("Opens the subagent")
         } else {
             row
@@ -28,7 +28,7 @@ struct SubagentRowView: View {
     private var steps: String { "\(subagent.steps) \(subagent.steps == 1 ? "step" : "steps")" }
 
     private var line: some View {
-        HStack(spacing: 9) {
+        HStack(spacing: Tokens.Space.s10) {
             lead.frame(width: 16, height: 16)
             KindChipView(chip: .subagent(type: subagent.type))
             Text(subagent.name).font(.scaled(12.5, weight: .semibold)).foregroundStyle(.primary).lineLimit(1).truncationMode(.tail)
@@ -40,12 +40,12 @@ struct SubagentRowView: View {
             if open != nil { CardChevron(open: false, width: 9) }
         }
         .font(.scaled(12, weight: .medium)).monospacedDigit()
-        .padding(.horizontal, 10)
+        .padding(.horizontal, Tokens.Space.s10)
         .frame(height: 30)
         .workCard()
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(subagent.type) subagent, \(subagent.name), \(subagent.words), \(steps)")
-        .contentShape(RoundedRectangle(cornerRadius: 12))
+        .contentShape(RoundedRectangle(cornerRadius: Tokens.Radius.card))
     }
 
     @ViewBuilder private var lead: some View {

@@ -13,10 +13,10 @@ struct ContextCutDivider: View {
     var failed = false
 
     var body: some View {
-        VStack(spacing: 7) {
-            HStack(spacing: 12) {
+        VStack(spacing: Tokens.Space.s8) {
+            HStack(spacing: Tokens.Space.s12) {
                 line
-                HStack(spacing: 9) {
+                HStack(spacing: Tokens.Space.s10) {
                     Glyph(glyph, size: 12).foregroundStyle(failed ? Color.red : Color.themeAccent).accessibilityHidden(true)
                     Text(title).font(.scaled(12, weight: .semibold)).foregroundStyle(failed ? Color.red : Color.primary).lineLimit(1)
                     ForEach(notes, id: \.self) { note in
@@ -24,14 +24,14 @@ struct ContextCutDivider: View {
                         Text(note).font(.scaled(11.5)).foregroundStyle(.secondary).lineLimit(1)
                     }
                 }
-                .padding(.horizontal, 14).padding(.vertical, 6)
+                .padding(.horizontal, Tokens.Space.s14).padding(.vertical, Tokens.Space.s6)
                 .chatSurface(.regular, flat: Color.primary.opacity(0.07), in: Capsule())
                 line
             }
             Text(detail).font(.scaled(11.5)).foregroundStyle(.secondary).multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true).textSelection(.enabled).padding(.horizontal, 24)
+                .fixedSize(horizontal: false, vertical: true).textSelection(.enabled).padding(.horizontal, Tokens.Space.s24)
         }
-        .padding(.vertical, 6)
+        .padding(.vertical, Tokens.Space.s6)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(([title] + notes + [detail]).joined(separator: ". "))
     }

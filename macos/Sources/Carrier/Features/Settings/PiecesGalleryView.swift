@@ -21,7 +21,7 @@ struct PiecesGalleryView: View {
         let preferences = AppPreferences()
         let surfaces = themeSurfaces(preferences.theme, scheme: dark ? .dark : .light, accent: preferences.accent, tint: preferences.tint, translucent: false)
         ScrollView {
-            VStack(alignment: .leading, spacing: 30) {
+            VStack(alignment: .leading, spacing: Tokens.Space.s30) {
                 header
                 section(.buttons) { PiecesGalleryButtons() }
                 section(.cards) { PiecesGalleryCards() }
@@ -34,7 +34,7 @@ struct PiecesGalleryView: View {
                 section(.rows) { PiecesGalleryRows() }
                 section(.selects) { PiecesGallerySelects() }
             }
-            .padding(.horizontal, 40).padding(.vertical, 16)
+            .padding(.horizontal, Tokens.Space.s40).padding(.vertical, Tokens.Space.s16)
             .frame(maxWidth: 900, alignment: .leading).frame(maxWidth: .infinity)
         }
         .font(.scaled(13))
@@ -45,7 +45,7 @@ struct PiecesGalleryView: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s8) {
             Text(Copy.piecesTitle()).scaledFont(20, weight: .semibold)
             Text(Copy.piecesHint()).foregroundStyle(.secondary)
             SegmentedChoice(
@@ -55,7 +55,7 @@ struct PiecesGalleryView: View {
     }
 
     private func section<Content: View>(_ kind: Copy.PiecesKind, @ViewBuilder _ content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s18) {
             Text(Copy.piecesKind(which: kind)).sectionLabel().tracking(0.6)
             content()
         }
@@ -76,10 +76,10 @@ struct GalleryEntry<Content: View>: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s8) {
             Text(names.joined(separator: " · ")).scaledFont(13, weight: .semibold, design: .monospaced)
             // the states of one piece wrap like words, side by side
-            FlowLayout(spacing: 20) { content }
+            FlowLayout(spacing: Tokens.Space.s20) { content }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -96,7 +96,7 @@ struct GalleryState<Content: View>: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s5) {
             Text(Copy.pieceState(which: state)).scaledFont(11).foregroundStyle(.tertiary)
             content
         }

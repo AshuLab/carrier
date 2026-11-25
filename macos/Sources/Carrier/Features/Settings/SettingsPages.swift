@@ -37,17 +37,17 @@ struct SettingsPages: View {
             Group {
                 if page.usesForm {
                     // the form scrolls by itself; what is said over every page of its own kind stays above it
-                    VStack(spacing: 0) {
-                        notices.padding(.horizontal, 24 + inset).padding(.top, showsNotices ? 24 : 0).padding(.bottom, showsNotices ? 8 : 0)
+                    VStack(spacing: Tokens.Space.none) {
+                        notices.padding(.horizontal, Tokens.Space.s24 + inset).padding(.top, showsNotices ? Tokens.Space.s24 : Tokens.Space.none).padding(.bottom, showsNotices ? Tokens.Space.s8 : Tokens.Space.none)
                         pageContent
                     }
                 } else {
                     ScrollView {
-                        VStack(alignment: .leading, spacing: 14) {
+                        VStack(alignment: .leading, spacing: Tokens.Space.s14) {
                             notices
                             pageContent
                         }
-                        .padding(24).frame(maxWidth: .infinity, alignment: .topLeading)
+                        .padding(Tokens.Space.s24).frame(maxWidth: .infinity, alignment: .topLeading)
                     }
                 }
             }
@@ -82,7 +82,7 @@ struct SettingsPages: View {
 
     @ViewBuilder private var notices: some View {
         if showsNotices {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: Tokens.Space.s8) {
                 if banner.state != .ready {
                     ReadinessBannerView(banner: banner, detecting: setup.detecting) { setup.detect() }
                 }
@@ -152,7 +152,7 @@ struct SettingsPages: View {
                         case .carrier: CarrierChoice(setup: setup, offersHomebrew: row.offersHomebrew)
                         case .node, .path: EmptyView()
                         case .lookAgain:
-                            HStack(spacing: 8) {
+                            HStack(spacing: Tokens.Space.s8) {
                                 // beside the button, so the button keeps its size and its name while it works
                                 if setup.detecting { ProgressView().controlSize(.small).accessibilityLabel("Detecting") }
                                 Button { setup.detect(); start.refreshConfig() } label: { Label("Detect", icon: .refresh).labelStyle(.titleAndIcon) }
@@ -176,7 +176,7 @@ struct SettingsPages: View {
                 }
             }
         }
-        ReloadNote(ReloadStatus.shared).padding(.horizontal, 4)
+        ReloadNote(ReloadStatus.shared).padding(.horizontal, Tokens.Space.s4)
     }
 
     /// The default first, then the profiles of the file; an undeclared one the file names is on the list too (`EngineIdentity.choices`).

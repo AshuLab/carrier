@@ -4,7 +4,7 @@ import SwiftUI
 /// The Meters of `Carrier/UI/` in the states their catalog entries list.
 struct PiecesGalleryMeters: View {
     var body: some View {
-        VStack(alignment: .leading, spacing: 22) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s22) {
             GalleryEntry("QuotaBar") {
                 GalleryState(.empty) { QuotaBar(solid: 0, hatched: 0).frame(width: 200) }
                 GalleryState(.normal) { QuotaBar(solid: 0.3, hatched: 0.2).frame(width: 200) }

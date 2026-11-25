@@ -82,7 +82,7 @@ extension PanelView {
                     toggleSessionTerminal(for: session)
                 }
                 .glassEffect(.regular, in: .capsule)
-                .padding(.trailing, 10)
+                .padding(.trailing, Tokens.Space.s10)
             }
             .sharedBackgroundVisibility(.hidden)
         }
@@ -90,7 +90,7 @@ extension PanelView {
             ToolbarItem(placement: .primaryAction) {
                 CheckAgainButton(skin: .toolbar, checking: AppUsage.store.isRefreshing, failed: AppUsage.store.error != nil) { AppUsage.refresher.checkAgain() }
                     .glassEffect(.regular, in: .capsule)
-                    .padding(.trailing, 10)
+                    .padding(.trailing, Tokens.Space.s10)
                     .help("Asks every provider again, skipping the minute the chat host keeps its answer")
             }
             .sharedBackgroundVisibility(.hidden)
@@ -110,14 +110,14 @@ extension PanelView {
             .sharedBackgroundVisibility(.hidden)
             ToolbarSpacer(.fixed, placement: .primaryAction)
             ToolbarItem(placement: .primaryAction) {
-                HStack(spacing: 0) {
+                HStack(spacing: Tokens.Space.none) {
                     ToolbarPillButton(title: snapshot.paused ? "Resume" : "Pause", icon: snapshot.paused ? .playFilled : .pauseFilled) { MenuControls.shared.pauseOrResume() }
                         .help(snapshot.paused ? "Resume intake" : "Pause intake")
                     ToolbarPillButton(title: "Stop", icon: .stopFilled, iconTint: .red) { MenuControls.shared.stopCarrier() }
                         .help("Stop Carrier")
                 }
                 .glassEffect(.regular, in: .capsule)
-                .padding(.trailing, 10)
+                .padding(.trailing, Tokens.Space.s10)
             }
             .sharedBackgroundVisibility(.hidden)
         }

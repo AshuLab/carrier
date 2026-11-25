@@ -28,7 +28,7 @@ struct SessionSectionsView: View {
         let split = earlierSessions(list.sections.map(roles.resolved))
         let shown = (earlierOpen ? split.earlier?.sections ?? [] : []) + split.recent
         // no spacing: each piece sets its own gap above itself (see `SessionMetrics`)
-        LazyVStack(alignment: .leading, spacing: 0) {
+        LazyVStack(alignment: .leading, spacing: Tokens.Space.none) {
             if let earlier = split.earlier { EarlierSessionsRow(earlier: earlier, open: earlierOpen) { earlierOpen.toggle() } }
             ForEach(Array(shown.enumerated()), id: \.element.id) { index, section in
                 let open = folds.isOpen(section)
@@ -52,7 +52,7 @@ struct SessionSectionsView: View {
                                 card: card, reviewer: section.stage == "review" ? sessionRowText(section).name : nil,
                                 verification: merged ? section.result?.ci : nil, evidenceOpen: folds.isResultOpen(section), toggleEvidence: { folds.toggleResult(section) }
                             )
-                            .padding(.horizontal, LogMetrics.iconColumn).padding(.vertical, 4)
+                            .padding(.horizontal, LogMetrics.iconColumn).padding(.vertical, Tokens.Space.s4)
                         }
                         if let result = section.result, merged == false { ResultCardView(card: result, open: folds.isResultOpen(section)) { folds.toggleResult(section) } }
                         ContinueInTerminalView(section: section) { resume in
@@ -98,9 +98,9 @@ struct EvidenceBlock: View {
     var body: some View {
         Text(linkedText(text)).font(.scaled(11, design: .monospaced)).foregroundStyle(.secondary).textSelection(.enabled)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 10).padding(.vertical, 8)
-            .background(RoundedRectangle(cornerRadius: 8).fill(Color.secondary.opacity(0.1)))
-            .padding(.horizontal, 8).padding(.bottom, 8)
+            .padding(.horizontal, Tokens.Space.s10).padding(.vertical, Tokens.Space.s8)
+            .background(RoundedRectangle(cornerRadius: Tokens.Radius.control).fill(Color.secondary.opacity(0.1)))
+            .padding(.horizontal, Tokens.Space.s8).padding(.bottom, Tokens.Space.s8)
     }
 }
 
@@ -114,7 +114,7 @@ struct ResultCardView: View {
     let toggle: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: Tokens.Space.none) {
             if card.hasDetails {
                 Button(action: toggle) { line }
                     .buttonStyle(.plain)
@@ -126,21 +126,21 @@ struct ResultCardView: View {
             if let reason = card.reason {
                 Text(linkedText(reason)).font(.scaled(12)).foregroundStyle(tint).textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 10).padding(.vertical, 7)
-                    .background(RoundedRectangle(cornerRadius: 8).fill(tint.opacity(0.14)))
-                    .padding(.horizontal, 8).padding(.bottom, 8)
+                    .padding(.horizontal, Tokens.Space.s10).padding(.vertical, Tokens.Space.s8)
+                    .background(RoundedRectangle(cornerRadius: Tokens.Radius.control).fill(tint.opacity(0.14)))
+                    .padding(.horizontal, Tokens.Space.s8).padding(.bottom, Tokens.Space.s8)
             }
             if open, let ci = card.ci { EvidenceBlock(text: ci.evidence) }
         }
         .workCard()
-        .padding(.horizontal, LogMetrics.iconColumn).padding(.vertical, 4)
+        .padding(.horizontal, LogMetrics.iconColumn).padding(.vertical, Tokens.Space.s4)
         .sessionRow()
     }
 
     /// The card's line, as every card of the feed has one: the tone's mark, how it ended in bold, the CI verdict, and the chevron when
     /// there is evidence to open.
     private var line: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: Tokens.Space.s8) {
             Glyph(icon, size: 13).foregroundStyle(tint).frame(width: 16, height: 16)
             Text(card.outcome).fontWeight(.semibold)
             if let ci = card.ci { Text("· \(ciVerdictText(ci.verdict))").foregroundStyle(verdictColor(ci.verdict)) }
@@ -148,7 +148,7 @@ struct ResultCardView: View {
             if card.hasDetails { CardChevron(open: open) }
         }
         .font(.scaled(12.5)).lineLimit(1)
-        .padding(.horizontal, 10).frame(height: 30)
+        .padding(.horizontal, Tokens.Space.s10).frame(height: 30)
         .contentShape(Rectangle())
     }
 
@@ -186,13 +186,13 @@ struct SessionHeaderView: View {
 
     var body: some View {
         let text = sessionRowText(section)
-        VStack(spacing: 9) {
-            HStack(spacing: 18) {
+        VStack(spacing: Tokens.Space.s10) {
+            HStack(spacing: Tokens.Space.s18) {
                 Hairline(leading: true, bright: hovered)
-                HStack(spacing: 12) {
+                HStack(spacing: Tokens.Space.s12) {
                     AgentAvatar(text: text, harness: section.agent, size: 34, working: section.state == .running, account: section.account)
-                    VStack(alignment: .leading, spacing: 3) {
-                        HStack(spacing: 8) {
+                    VStack(alignment: .leading, spacing: Tokens.Space.s3) {
+                        HStack(spacing: Tokens.Space.s8) {
                             Text(text.name).font(.scaled(14, weight: .bold)).lineLimit(1).layoutPriority(1)
                             Text(text.role).font(.scaled(14)).foregroundStyle(.secondary).lineLimit(1)
                         }
@@ -228,9 +228,9 @@ struct SessionHeaderView: View {
     @ViewBuilder private var summary: some View {
         switch sessionSummary(section, open: open) {
         case .stopped(let reason):
-            HStack(spacing: 8) {
+            HStack(spacing: Tokens.Space.s8) {
                 Text("stopped").font(.scaled(11, weight: .semibold)).foregroundStyle(.orange)
-                    .padding(.horizontal, 10).padding(.vertical, 2).background(Capsule().fill(Color.orange.opacity(0.18)))
+                    .padding(.horizontal, Tokens.Space.s10).padding(.vertical, Tokens.Space.s2).background(Capsule().fill(Color.orange.opacity(0.18)))
                 // up to 300 characters from the engine: two lines, cut at the end, whole in the tooltip
                 if let reason {
                     Text(reason).font(.scaled(12)).foregroundStyle(.orange).lineLimit(2).truncationMode(.tail).help(reason)
@@ -304,21 +304,21 @@ private struct EarlierSessionsRow: View {
 
     var body: some View {
         Button(action: toggle) {
-            HStack(spacing: 12) {
-                HStack(spacing: -8) {
+            HStack(spacing: Tokens.Space.s12) {
+                HStack(spacing: -Tokens.Space.s8) {
                     ForEach(earlier.sections.suffix(Self.stacked)) { section in
                         AgentAvatar(text: sessionRowText(section), harness: section.agent, size: 24, working: false, mark: false)
                             .overlay(Circle().strokeBorder(Color.themeWindow, lineWidth: 2))
                     }
                 }
-                HStack(spacing: 4) {
+                HStack(spacing: Tokens.Space.s4) {
                     Text(earlier.title).fontWeight(.semibold).foregroundStyle(.primary)
                     if earlier.detail.isEmpty == false { Text("· \(earlier.detail)") }
                 }
                 .font(.scaled(12.5)).foregroundStyle(.secondary).lineLimit(1)
                 FoldChevron(open: open, hovered: hovered)
             }
-            .padding(.vertical, 12)
+            .padding(.vertical, Tokens.Space.s12)
             .frame(maxWidth: .infinity)
             .contentShape(Rectangle())
             .onHover { hovered = $0 }
@@ -355,7 +355,7 @@ struct AgentAvatar: View {
 
     private var disc: Color {
         if text.identified { return ProjectIcon.palette[projectColorIndex(text.name, count: ProjectIcon.palette.count)] }
-        return Color(white: harness == "Claude" ? 0.37 : 0.49)
+        return Color(harness == "Claude" ? Tokens.Harness.claude : Tokens.Harness.other)
     }
 
     private var corner: some View {

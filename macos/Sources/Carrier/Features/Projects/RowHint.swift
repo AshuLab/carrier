@@ -1,3 +1,4 @@
+import CarrierCore
 import SwiftUI
 
 /// What a click on the row under the pointer does, as a small solid pill at its end. It is always laid out and only shown under the
@@ -9,7 +10,7 @@ struct RowHint: View {
     var body: some View {
         Text(text).font(.caption.weight(.semibold)).foregroundStyle(.white)
             // the deepened accent the title bar's pills have under their white words: the accent itself, a light one, left the word without contrast
-            .padding(.horizontal, 10).padding(.vertical, 3).background(Capsule().fill(Color.accentGlass))
+            .padding(.horizontal, Tokens.Space.s10).padding(.vertical, Tokens.Space.s3).background(Capsule().fill(Color.accentGlass))
             .opacity(shown ? 1 : 0).accessibilityHidden(true)
     }
 }

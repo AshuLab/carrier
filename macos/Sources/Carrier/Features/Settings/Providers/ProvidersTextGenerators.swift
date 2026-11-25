@@ -62,7 +62,7 @@ extension ProvidersTabView {
         }
         let problem: String? = if case .refused(let reason) = store.retitleOutcome { reason } else { nil }
         return SettingsTabRow(id: "titles-of-earlier-sessions", title: "Titles of earlier sessions", detail: detail, problem: problem) {
-            HStack(spacing: 8) {
+            HStack(spacing: Tokens.Space.s8) {
                 if store.retitling {
                     ProgressView().controlSize(.small).accessibilityLabel("Starting")
                 }

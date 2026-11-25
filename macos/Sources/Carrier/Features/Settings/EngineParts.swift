@@ -11,13 +11,13 @@ struct ReadinessBannerView: View {
 
     var body: some View {
         let tint: Color = banner.state == .ready ? .green : .orange
-        HStack(spacing: 12) {
+        HStack(spacing: Tokens.Space.s12) {
             if banner.state == .detecting {
                 ProgressView().controlSize(.small)
             } else {
                 StatusDot(found: banner.state == .ready)
             }
-            VStack(alignment: .leading, spacing: 1) {
+            VStack(alignment: .leading, spacing: Tokens.Space.s1) {
                 Text(banner.title).fontWeight(.semibold)
                 Text(banner.detail).font(.scaled(11)).foregroundStyle(.secondary)
             }
@@ -25,8 +25,8 @@ struct ReadinessBannerView: View {
             Button(action: detectAgain) { Label("Detect", icon: .refresh).labelStyle(.titleAndIcon) }
                 .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).disabled(detecting)
         }
-        .padding(.horizontal, 14).padding(.vertical, 12)
-        .background(RoundedRectangle(cornerRadius: 16).fill(tint.opacity(0.13)))
+        .padding(.horizontal, Tokens.Space.s14).padding(.vertical, Tokens.Space.s12)
+        .background(RoundedRectangle(cornerRadius: Tokens.Radius.panel).fill(tint.opacity(0.13)))
         .accessibilityElement(children: .combine)
     }
 }
@@ -49,7 +49,7 @@ struct CarrierChoice: View {
     let offersHomebrew: Bool
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: Tokens.Space.s8) {
             if offersHomebrew {
                 Button { setup.carrierOverride = "" } label: { Label("Use the Homebrew one", icon: .undo).labelStyle(.titleAndIcon) }
                     .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)

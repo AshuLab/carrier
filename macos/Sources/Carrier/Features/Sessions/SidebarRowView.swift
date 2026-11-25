@@ -50,8 +50,8 @@ private struct SelectableSidebarRow: ViewModifier {
         let dark = scheme == .dark
         content
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: 8).fill(selected ? Color.selectedRow(dark: dark) : Color.primary.opacity(hovered ? (dark ? 0.07 : 0.05) : 0)))
-            .contentShape(RoundedRectangle(cornerRadius: 8))
+            .background(RoundedRectangle(cornerRadius: Tokens.Radius.control).fill(selected ? Color.selectedRow(dark: dark) : Color.primary.opacity(hovered ? (dark ? 0.07 : 0.05) : 0)))
+            .contentShape(RoundedRectangle(cornerRadius: Tokens.Radius.control))
             .environment(\.rowActive, selected || hovered)
             .environment(\.rowState, selected ? .selected : hovered ? .hovered : .resting)
             .onTapGesture(perform: action)

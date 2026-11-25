@@ -6,11 +6,11 @@ struct PiecesGalleryRows: View {
     private let wide: CGFloat = 420
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 22) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s22) {
             GalleryEntry("HoverRow") {
-                GalleryState(.normal) { HoverRow(action: {}) { _ in Text(sample(.row)).padding(8) }.frame(width: 240) }
-                GalleryState(.selected) { HoverRow(action: {}, fill: Color.accentColor.opacity(0.3)) { _ in Text(sample(.row)).padding(8) }.frame(width: 240) }
-                GalleryState(.disabled) { HoverRow(action: {}) { _ in Text(sample(.row)).padding(8) }.frame(width: 240).disabled(true) }
+                GalleryState(.normal) { HoverRow(action: {}) { _ in Text(sample(.row)).padding(Tokens.Space.s8) }.frame(width: 240) }
+                GalleryState(.selected) { HoverRow(action: {}, fill: Color.themeAccent.opacity(0.3)) { _ in Text(sample(.row)).padding(Tokens.Space.s8) }.frame(width: 240) }
+                GalleryState(.disabled) { HoverRow(action: {}) { _ in Text(sample(.row)).padding(Tokens.Space.s8) }.frame(width: 240).disabled(true) }
             }
             GalleryEntry("MonoLines") {
                 GalleryState(.normal) { MonoLines(lines: PiecesGalleryData.lines, monospace: MonospaceSettings()).codeFont(11.5).frame(width: 300) }

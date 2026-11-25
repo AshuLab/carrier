@@ -27,7 +27,7 @@ struct CarrierRow: View {
             Text(card.title)
                 .font(SidebarMetrics.detail.weight(.semibold))
                 .foregroundStyle(Self.tint(card.kind))
-                .padding(.horizontal, 8).padding(.vertical, 2)
+                .padding(.horizontal, Tokens.Space.s8).padding(.vertical, Tokens.Space.s2)
                 .background(Capsule().fill(Self.tint(card.kind).opacity(0.28)))
         }, hoverActions: {
             // the epics exist only while Carrier answers, so there is nothing to search or group before
@@ -53,7 +53,7 @@ struct CarrierRow: View {
                 Text(notice).font(.caption).foregroundStyle(.orange).lineLimit(4).fixedSize(horizontal: false, vertical: true).help(notice)
             }
             if let slots = card.slots {
-                HStack(spacing: 8) {
+                HStack(spacing: Tokens.Space.s8) {
                     SegmentedProgress(done: slots.busy, total: slots.total, tint: Self.tint(card.kind))
                     Text("\(slots.busy)/\(slots.total)").font(.scaled(11).monospacedDigit()).foregroundStyle(.secondary)
                 }
@@ -92,8 +92,8 @@ struct ChoiceMenu<Value: Hashable>: View {
     let close: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(title).font(.caption.weight(.semibold)).foregroundStyle(.secondary).padding(.horizontal, 8).padding(.bottom, 2)
+        VStack(alignment: .leading, spacing: Tokens.Space.s2) {
+            Text(title).font(.caption.weight(.semibold)).foregroundStyle(.secondary).padding(.horizontal, Tokens.Space.s8).padding(.bottom, Tokens.Space.s2)
             ForEach(options.indices, id: \.self) { index in
                 let option = options[index]
                 Button {
@@ -105,14 +105,14 @@ struct ChoiceMenu<Value: Hashable>: View {
                         Spacer(minLength: 0)
                         if selection == option.value { Glyph(.check) }
                     }
-                    .padding(.horizontal, 8).padding(.vertical, 4)
+                    .padding(.horizontal, Tokens.Space.s8).padding(.vertical, Tokens.Space.s4)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityAddTraits(selection == option.value ? .isSelected : [])
             }
         }
-        .padding(8)
+        .padding(Tokens.Space.s8)
         .frame(width: 160)
     }
 }

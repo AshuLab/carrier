@@ -4,7 +4,7 @@ import SwiftUI
 /// The Buttons of `Carrier/UI/` in the states their catalog entries list.
 struct PiecesGalleryButtons: View {
     var body: some View {
-        VStack(alignment: .leading, spacing: 22) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s22) {
             GalleryEntry("IconButton") {
                 GalleryState(.normal) { IconButton(icon: .refresh, name: sample(.label), action: {}) }
                 GalleryState(.open) { IconButton(icon: .refresh, name: sample(.label), pressed: true, action: {}) }

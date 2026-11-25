@@ -12,7 +12,7 @@ struct AudioPlayerView: View {
     }
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: Tokens.Space.s8) {
             IconButton(icon: playback.playing ? .pauseFilled : .playFilled, name: playback.playing ? "Pause audio" : "Play audio", enabled: playback.failed == false, why: "The audio could not be read") {
                 playback.toggle()
             }

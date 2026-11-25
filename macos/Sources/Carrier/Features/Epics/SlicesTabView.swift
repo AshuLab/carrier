@@ -47,7 +47,7 @@ struct SlicesRing: View {
                         .stroke(SliceGroup.allCases[arc.group].color, style: StrokeStyle(lineWidth: Self.lineWidth, lineCap: arc.full ? .butt : .round))
                 }
             }
-            VStack(spacing: 0) {
+            VStack(spacing: Tokens.Space.none) {
                 Text(centre).font(.scaled(24, weight: .bold)).monospacedDigit()
                 Text(caption).font(.caption).foregroundStyle(.secondary)
             }
@@ -72,9 +72,9 @@ struct SlicesTabView: View {
             EmptyStateView(state: .noSlices)
         } else {
             ScrollView {
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: Tokens.Space.s4) {
                     SlicesRing(counts: model.counts, centre: model.centre, caption: model.caption)
-                        .frame(maxWidth: .infinity).padding(.top, 16).padding(.bottom, 22)
+                        .frame(maxWidth: .infinity).padding(.top, Tokens.Space.s16).padding(.bottom, Tokens.Space.s22)
                     ForEach(model.legend, id: \.group) { entry in
                         total(entry.group.title, count: entry.count, color: entry.group.color, filter: .only(entry.group), selected: model.selected)
                     }
@@ -82,10 +82,10 @@ struct SlicesTabView: View {
                     if let why = model.unavailable {
                         EmptyStateView(icon: why.icon, title: why.title, line: why.line).frame(minHeight: 190)
                     }
-                    VStack(spacing: 8) {
+                    VStack(spacing: Tokens.Space.s8) {
                         ForEach(model.rows, id: \.number) { SliceRowView(row: $0) }
                     }
-                    .padding(.top, 12)
+                    .padding(.top, Tokens.Space.s12)
                 }
             }
         }
@@ -94,14 +94,14 @@ struct SlicesTabView: View {
     /// One total. Selected, it is the row filled with the system accent colour: no check mark and no line under the totals.
     private func total(_ title: String, count: Int, color: Color, filter target: SliceFilter, selected: SliceFilter) -> some View {
         Button { filter = target } label: {
-            HStack(spacing: 9) {
+            HStack(spacing: Tokens.Space.s10) {
                 Circle().fill(color).frame(width: 9, height: 9)
                 Text(title).fontWeight(.medium)
                 Spacer()
                 Text("\(count)").foregroundStyle(.secondary)
             }
-            .padding(.horizontal, 10).padding(.vertical, 7)
-            .background(RoundedRectangle(cornerRadius: 10).fill(target == selected ? Color.themeAccent.opacity(0.18) : .clear))
+            .padding(.horizontal, Tokens.Space.s10).padding(.vertical, Tokens.Space.s8)
+            .background(RoundedRectangle(cornerRadius: Tokens.Radius.tile).fill(target == selected ? Color.themeAccent.opacity(0.18) : .clear))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -117,13 +117,13 @@ struct SliceRowView: View {
     private var group: SliceGroup { row.state }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
+        HStack(alignment: .top, spacing: Tokens.Space.s10) {
             mark.frame(width: 20, height: 20)
-            VStack(alignment: .leading, spacing: 5) {
+            VStack(alignment: .leading, spacing: Tokens.Space.s5) {
                 Text(group == .inProgress ? "#\(row.number) \(row.title)" : row.title)
                     .fontWeight(group == .inProgress ? .semibold : .regular)
                     .foregroundStyle(group == .pending ? Color.secondary : .primary).lineLimit(2)
-                HStack(spacing: 6) {
+                HStack(spacing: Tokens.Space.s6) {
                     if group != .inProgress { chip("#\(row.number)", url: row.issueURL, accent: false) }
                     if let number = row.prNumber { chip("PR #\(number)", url: row.prURL, accent: true) }
                     Text(row.detail).font(.caption).foregroundStyle(.secondary).lineLimit(1)
@@ -131,9 +131,9 @@ struct SliceRowView: View {
             }
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 10).padding(.vertical, group == .inProgress ? 10 : 9)
+        .padding(.horizontal, Tokens.Space.s10).padding(.vertical, Tokens.Space.s10)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background { if group == .inProgress { RoundedRectangle(cornerRadius: 12).fill(Color.blue.opacity(0.14)) } }
+        .background { if group == .inProgress { RoundedRectangle(cornerRadius: Tokens.Radius.card).fill(Color.blue.opacity(0.14)) } }
         .contentShape(Rectangle())
         .onTapGesture { open(row.prURL ?? row.issueURL) }
     }
@@ -150,12 +150,12 @@ struct SliceRowView: View {
 
     @ViewBuilder private func chip(_ text: String, url: String?, accent: Bool) -> some View {
         let color: Color = accent ? .themeAccent : .secondary
-        let label = HStack(spacing: 3) {
+        let label = HStack(spacing: Tokens.Space.s3) {
             Text(text)
             if url != nil { Glyph(.arrowUpRight, size: 8) }
         }
         .font(.caption.weight(.semibold).monospacedDigit()).foregroundStyle(color)
-        .padding(.horizontal, 8).padding(.vertical, 2)
+        .padding(.horizontal, Tokens.Space.s8).padding(.vertical, Tokens.Space.s2)
         .background(Capsule().fill(color.opacity(0.16)))
         if let link = url.flatMap(browserURL) {
             Link(destination: link) { label }.buttonStyle(.plain).help(link.absoluteString)

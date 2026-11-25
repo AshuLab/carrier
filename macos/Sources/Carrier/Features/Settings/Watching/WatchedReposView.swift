@@ -10,7 +10,7 @@ struct WatchedReposView: View {
     var body: some View {
         let box = carrierBox(snapshot)
         if box.repoCount > 0 {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: Tokens.Space.s8) {
                 OverviewTitle(title: "Watched repositories", detail: "\(box.repoCount)")
                 OverviewCard {
                     ForEach(box.repos, id: \.name) { repo in
@@ -19,7 +19,7 @@ struct WatchedReposView: View {
                                 .foregroundStyle(.secondary)
                                 .frame(width: 28, height: 28)
                                 .background(Circle().fill(Color.secondary.opacity(0.15)))
-                            VStack(alignment: .leading, spacing: 1) {
+                            VStack(alignment: .leading, spacing: Tokens.Space.s1) {
                                 Text(repo.name).fontWeight(.semibold)
                                 Text(repo.url).font(.scaled(11).monospaced()).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
                                 if let error = repo.error { Text(error).font(.scaled(11)).foregroundStyle(.red) }
@@ -50,7 +50,7 @@ private struct RepoStatusPill: View {
         case .failing: ("Failing", .red)
         }
         Text(text).font(.scaled(11).weight(.semibold)).foregroundStyle(color)
-            .padding(.horizontal, 9).padding(.vertical, 3)
+            .padding(.horizontal, Tokens.Space.s8).padding(.vertical, Tokens.Space.s3)
             .background(Capsule().fill(color.opacity(0.18)))
     }
 }

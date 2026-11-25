@@ -43,9 +43,9 @@ struct AccentSwatches: View {
     @Binding var accent: AccentColor?
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: Tokens.Space.s8) {
             swatch("\(theme.title) accent", color: themeSurfaces(theme, scheme: scheme, translucent: false).accent.map(Color.init) ?? .accentColor, chosen: accent == nil) { accent = nil }
-            SettingsDivider(vertical: true).frame(height: 18).padding(.horizontal, 4)
+            SettingsDivider(vertical: true).frame(height: 18).padding(.horizontal, Tokens.Space.s4)
             ForEach(AccentColor.allCases, id: \.self) { option in
                 swatch(option.title, color: Color(option.color), chosen: accent == option) { accent = option }
             }
@@ -64,10 +64,10 @@ struct AccentSwatches: View {
         } label: {
             ZStack {
                 Circle().fill(AngularGradient(colors: [.red, .yellow, .green, .cyan, .blue, .purple, .red], center: .center))
-                if let accent, chosen { Circle().fill(Color(accent.color)).padding(4) }
+                if let accent, chosen { Circle().fill(Color(accent.color)).padding(Tokens.Space.s4) }
             }
             .frame(width: 18, height: 18)
-            .padding(3).overlay(Circle().strokeBorder(chosen ? Color.primary.opacity(0.7) : .clear, lineWidth: 2))
+            .padding(Tokens.Space.s3).overlay(Circle().strokeBorder(chosen ? Color.primary.opacity(0.7) : .clear, lineWidth: 2))
         }
         .buttonStyle(.plain).help("Custom color").accessibilityLabel("Custom accent color").accessibilityAddTraits(chosen ? .isSelected : [])
     }
@@ -75,7 +75,7 @@ struct AccentSwatches: View {
     private func swatch(_ name: String, color: Color, chosen: Bool, choose: @escaping () -> Void) -> some View {
         Button(action: choose) {
             Circle().fill(color).frame(width: 18, height: 18)
-                .padding(3).overlay(Circle().strokeBorder(chosen ? Color.primary.opacity(0.7) : .clear, lineWidth: 2))
+                .padding(Tokens.Space.s3).overlay(Circle().strokeBorder(chosen ? Color.primary.opacity(0.7) : .clear, lineWidth: 2))
         }
         .buttonStyle(.plain).help(name).accessibilityLabel(name).accessibilityAddTraits(chosen ? .isSelected : [])
     }

@@ -43,6 +43,14 @@ import SwiftUI
 extension Color {
     init(_ color: RGBA) { self.init(.sRGB, red: color.red, green: color.green, blue: color.blue, opacity: color.alpha) }
 
+    /// A semantic color of `design/tokens.json`: its light or its dark version, whichever the appearance in force is.
+    init(_ pair: SchemePair<UInt32>) {
+        self.init(nsColor: NSColor(name: nil) { appearance in
+            let color = RGBA(hex: appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? pair.dark : pair.light)
+            return NSColor(srgbRed: color.red, green: color.green, blue: color.blue, alpha: color.alpha)
+        })
+    }
+
     /// The color of the window under a view that has to blend into it (the halo behind the message box's selects): the theme's, or the
     /// system's while the theme has none of its own (Carrier's translucent windows).
     static var themeWindow: Color {

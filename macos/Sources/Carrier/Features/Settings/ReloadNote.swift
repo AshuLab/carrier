@@ -14,7 +14,7 @@ struct ReloadNote: View {
     var body: some View {
         Group {
             if let words {
-                HStack(spacing: 10) {
+                HStack(spacing: Tokens.Space.s10) {
                     if isProblem {
                         ProblemLine(text: words, announces: false)
                         AskAgainButton(pending: pending, action: ask)

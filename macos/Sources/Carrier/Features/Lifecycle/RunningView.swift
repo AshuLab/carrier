@@ -9,7 +9,7 @@ struct RunningView: View {
 
     var body: some View {
         let section = runningSection(snapshot)
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s8) {
             OverviewTitle(title: "Running", detail: "\(snapshot.slots.busy) of \(snapshot.slots.total) in use")
             if section.cards.isEmpty {
                 OverviewCard { EmptyStateView(state: .idle).frame(minHeight: 170) }
@@ -22,21 +22,21 @@ struct RunningView: View {
 
     /// What is left of the slots, drawn like a row of the cards above but empty: the same fill, with a dashed edge.
     private func freeRoom(_ room: FreeRoom) -> some View {
-        HStack(spacing: 12) {
+        HStack(spacing: Tokens.Space.s12) {
             Glyph(room.hasRoom ? .plus : .circleFilled, size: room.hasRoom ? 12 : 5, bold: true)
                 .foregroundStyle(.tertiary)
                 .frame(width: 28, height: 28)
                 .overlay(Circle().strokeBorder(Color.secondary.opacity(0.4), style: StrokeStyle(lineWidth: 1.5, dash: [3, 3])))
-            VStack(alignment: .leading, spacing: 1) {
+            VStack(alignment: .leading, spacing: Tokens.Space.s1) {
                 Text(room.title).fontWeight(.semibold)
                 Text(room.line).font(.caption).foregroundStyle(.secondary)
             }
             Spacer(minLength: 8)
         }
-        .padding(.horizontal, 14).padding(.vertical, 11)
+        .padding(.horizontal, Tokens.Space.s14).padding(.vertical, Tokens.Space.s12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 16).fill(Color.secondary.opacity(0.08)))
-        .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Color.secondary.opacity(0.4), style: StrokeStyle(lineWidth: 1, dash: [5, 4])))
+        .background(RoundedRectangle(cornerRadius: Tokens.Radius.panel).fill(Color.secondary.opacity(0.08)))
+        .overlay(RoundedRectangle(cornerRadius: Tokens.Radius.panel).strokeBorder(Color.secondary.opacity(0.4), style: StrokeStyle(lineWidth: 1, dash: [5, 4])))
     }
 
     /// One epic: its line and progress on top, a row for each of its agents under it. The first row opens the epic.
@@ -44,13 +44,13 @@ struct RunningView: View {
         OverviewCard(fullWidthDividers: true) {
             OverviewLinkRow(action: { selection = card.selection }) {
                 StateGlyph(state: .running).frame(width: 28, height: 28)
-                VStack(alignment: .leading, spacing: 1) {
+                VStack(alignment: .leading, spacing: Tokens.Space.s1) {
                     Text(card.title).fontWeight(.semibold)
                     Text(card.progressLine).font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 8)
                 if let progress = card.progress {
-                    HStack(spacing: 10) {
+                    HStack(spacing: Tokens.Space.s10) {
                         Text("\(Int((progress * 100).rounded()))%").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
                         if let steps = card.steps {
                             SegmentedProgress(done: steps.done, total: steps.total).frame(width: 120)
@@ -68,7 +68,7 @@ struct RunningView: View {
     private func agent(_ row: AgentRow) -> some View {
         OverviewLinkRow {
             RunningAvatar(initial: row.initial, running: row.running)
-            VStack(alignment: .leading, spacing: 1) {
+            VStack(alignment: .leading, spacing: Tokens.Space.s1) {
                 Text([row.agent, row.role, row.round].compactMap { $0 }.joined(separator: " · ")).fontWeight(.medium)
                 Text(row.action).font(.caption.monospaced()).foregroundStyle(.secondary).lineLimit(1)
             }

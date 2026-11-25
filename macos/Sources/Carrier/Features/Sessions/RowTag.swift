@@ -1,3 +1,4 @@
+import CarrierCore
 import SwiftUI
 
 /// The small outlined capsule beside a session's title (its workspace, "Archived").
@@ -6,6 +7,6 @@ struct RowTag: View {
 
     var body: some View {
         Text(text).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
-            .padding(.horizontal, 6).padding(.vertical, 1).background(Capsule().strokeBorder(Color.secondary.opacity(0.5)))
+            .padding(.horizontal, Tokens.Space.s6).padding(.vertical, Tokens.Space.s1).background(Capsule().strokeBorder(Color.secondary.opacity(0.5)))
     }
 }

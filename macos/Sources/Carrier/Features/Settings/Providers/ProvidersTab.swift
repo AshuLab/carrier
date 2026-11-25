@@ -186,7 +186,7 @@ struct ProvidersTabView: View {
         case .foundNotAdded:
             SettingsGroup(title: "") {
                 SettingsTabRow(title: "Found on this Mac", detail: "Not added as an account yet", first: true) {
-                    HStack(spacing: 10) {
+                    HStack(spacing: Tokens.Space.s10) {
                         if let problem = store.addProblem { ProblemLine(text: problem) }
                         Button("Add") { Task { await store.add(harness: tool.id) } }.buttonStyle(SecondaryCapsuleButtonStyle()).disabled(store.busy)
                     }
@@ -222,7 +222,7 @@ struct ProvidersTabView: View {
                 }
             }
             SettingsTabRow(title: "Sign-ins and quotas", detail: "Tokens and cost are on the Usage page") {
-                HStack(spacing: 8) {
+                HStack(spacing: Tokens.Space.s8) {
                     checkButton
                     Button("Open Usage") { WindowController.shared.showUsage() }.buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).fixedSize()
                 }

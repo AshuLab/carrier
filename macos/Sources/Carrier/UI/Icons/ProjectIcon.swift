@@ -17,14 +17,14 @@ struct ProjectIcon: View {
     var finished = false
     @Environment(\.rowActive) private var active
     static let size: CGFloat = 32
-    static let radius: CGFloat = 9
+    static let radius: CGFloat = Tokens.Radius.tile
     /// 24 muted colours: 12 hues, each in a fuller and a greyer tone, the brightness of each chosen so the white letters keep at least 4.5:1.
     static let palette: [Color] = [
-        (0.042, 0.52, 0.64), (0.125, 0.52, 0.52), (0.208, 0.52, 0.49), (0.292, 0.52, 0.51), (0.375, 0.52, 0.51), (0.458, 0.52, 0.51),
-        (0.542, 0.52, 0.56), (0.625, 0.52, 0.64), (0.708, 0.52, 0.64), (0.792, 0.52, 0.64), (0.875, 0.52, 0.64), (0.958, 0.52, 0.64),
-        (0.042, 0.36, 0.50), (0.125, 0.36, 0.50), (0.208, 0.36, 0.48), (0.292, 0.36, 0.50), (0.375, 0.36, 0.50), (0.458, 0.36, 0.49),
-        (0.542, 0.36, 0.50), (0.625, 0.36, 0.50), (0.708, 0.36, 0.50), (0.792, 0.36, 0.50), (0.875, 0.36, 0.50), (0.958, 0.36, 0.50),
-    ].map { Color(hue: $0.0, saturation: $0.1, brightness: $0.2) }
+        Tokens.ProjectIcon.p01, Tokens.ProjectIcon.p02, Tokens.ProjectIcon.p03, Tokens.ProjectIcon.p04, Tokens.ProjectIcon.p05, Tokens.ProjectIcon.p06,
+        Tokens.ProjectIcon.p07, Tokens.ProjectIcon.p08, Tokens.ProjectIcon.p09, Tokens.ProjectIcon.p10, Tokens.ProjectIcon.p11, Tokens.ProjectIcon.p12,
+        Tokens.ProjectIcon.p13, Tokens.ProjectIcon.p14, Tokens.ProjectIcon.p15, Tokens.ProjectIcon.p16, Tokens.ProjectIcon.p17, Tokens.ProjectIcon.p18,
+        Tokens.ProjectIcon.p19, Tokens.ProjectIcon.p20, Tokens.ProjectIcon.p21, Tokens.ProjectIcon.p22, Tokens.ProjectIcon.p23, Tokens.ProjectIcon.p24,
+    ].map { Color($0) }
 
     var body: some View {
         Group {

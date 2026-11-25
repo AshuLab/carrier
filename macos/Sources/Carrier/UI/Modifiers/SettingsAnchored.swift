@@ -14,7 +14,7 @@ private struct SettingsAnchored: ViewModifier {
         if let page {
             let anchor = settingsAnchor(page, group: group ?? inherited, row: id)
             content.id(anchor)
-                .background(RoundedRectangle(cornerRadius: 8).fill(Color.yellow.opacity(highlight == anchor ? 0.3 : 0)))
+                .background(RoundedRectangle(cornerRadius: Tokens.Radius.control).fill(Color.yellow.opacity(highlight == anchor ? 0.3 : 0)))
                 .animation(.easeOut(duration: 0.5), value: highlight == anchor)
         } else {
             content

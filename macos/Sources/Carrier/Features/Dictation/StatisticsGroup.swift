@@ -33,7 +33,7 @@ struct StatisticsGroup: View {
                 }, content: { cards(figures, wpm: speed) })
                 SettingsGroup(title: "\(metric.title) per day", accessory: {
                     SegmentedChoice(options: StatisticsMetric.allCases.map { (value: $0, title: $0.title, icon: nil) }, selection: $metric)
-                }, content: { StatisticsChart(days: figures.days, metric: metric).padding(.vertical, 8) })
+                }, content: { StatisticsChart(days: figures.days, metric: metric).padding(.vertical, Tokens.Space.s8) })
                 SettingsGroup(id: "by-hour-of-the-day", title: "By hour of the day") { hoursContent(dictationHours(records.counts, range: range, now: Date())) }
                 SettingsGroup(id: "this-week", title: "This week") { weekContent(dictationFigures(records.counts, range: .week, now: Date()), wpm: speed) }
                 recordsGroup(statisticsRecords(records.counts))
@@ -66,16 +66,16 @@ struct StatisticsGroup: View {
         let four = cardsWidth >= 4 * 130 * CGFloat(textScale.percent) / 100 + 30
         return Group {
             if four {
-                HStack(alignment: .top, spacing: 10) { ForEach(cards.indices, id: \.self) { cards[$0] } }
+                HStack(alignment: .top, spacing: Tokens.Space.s10) { ForEach(cards.indices, id: \.self) { cards[$0] } }
             } else {
-                VStack(spacing: 10) {
-                    HStack(alignment: .top, spacing: 10) { cards[0]; cards[1] }
-                    HStack(alignment: .top, spacing: 10) { cards[2]; cards[3] }
+                VStack(spacing: Tokens.Space.s10) {
+                    HStack(alignment: .top, spacing: Tokens.Space.s10) { cards[0]; cards[1] }
+                    HStack(alignment: .top, spacing: Tokens.Space.s10) { cards[2]; cards[3] }
                 }
             }
         }
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { cardsWidth = $0 }
-        .padding(.vertical, 4)
+        .padding(.vertical, Tokens.Space.s4)
         .listRowInsets(EdgeInsets()).listRowBackground(Color.clear)
     }
 
@@ -83,32 +83,32 @@ struct StatisticsGroup: View {
     private func hoursContent(_ hours: DictationHours) -> some View {
         let most = max(hours.dictations.max() ?? 0, 1)
         let line = statisticsHoursLine(hours)
-        return VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 2) {
+        return VStack(alignment: .leading, spacing: Tokens.Space.s4) {
+            HStack(spacing: Tokens.Space.s2) {
                 ForEach(0..<24, id: \.self) { hour in
-                    RoundedRectangle(cornerRadius: 3).fill(Color.themeAccent.opacity(0.08 + 0.92 * Double(hours.dictations[hour]) / Double(most)))
+                    RoundedRectangle(cornerRadius: Tokens.Radius.tiny).fill(Color.themeAccent.opacity(0.08 + 0.92 * Double(hours.dictations[hour]) / Double(most)))
                         .frame(height: 34).help("\(String(format: "%02d", hour)):00 · \(hours.dictations[hour]) dictations")
                 }
             }
-            HStack(spacing: 0) {
+            HStack(spacing: Tokens.Space.none) {
                 ForEach([0, 6, 12, 18], id: \.self) { hour in
                     Text("\(hour)").frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
             .font(.scaled(10)).foregroundStyle(.secondary)
-            Text(line).font(.scaled(11)).foregroundStyle(.secondary).padding(.top, 4)
+            Text(line).font(.scaled(11)).foregroundStyle(.secondary).padding(.top, Tokens.Space.s4)
         }
-        .padding(.vertical, 6).frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, Tokens.Space.s6).frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .ignore).accessibilityLabel("Dictations by hour of the day").accessibilityValue(line)
     }
 
     /// The last 7 days against the 7 before, in a sentence and a small chart of the words of each day.
     private func weekContent(_ week: DictationFigures, wpm: Int) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s8) {
             Text(weeklySummary(week, wpm: wpm)).font(.scaled(12)).fixedSize(horizontal: false, vertical: true)
             WeekChart(days: week.days)
         }
-        .padding(.vertical, 6).frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, Tokens.Space.s6).frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func recordsGroup(_ records: StatisticsRecords) -> some View {
@@ -130,7 +130,7 @@ struct StatisticsGroup: View {
                 problem: unparsable.isEmpty ? nil : "Must be between \(AppPreferences.dictationTypingSpeedRange.lowerBound) and \(AppPreferences.dictationTypingSpeedRange.upperBound)"
             ) {
                 // the counter of Behavior's numbers: a number between the range's ends, − and + by 5; text that is not one keeps the last good value
-                HStack(spacing: 6) {
+                HStack(spacing: Tokens.Space.s6) {
                     NumberField(
                         key: "Typing speed, words per minute", value: $wpm, unparsable: $unparsable,
                         parse: { Int($0).flatMap { AppPreferences.dictationTypingSpeedRange.contains($0) ? $0 : nil } }, format: { String($0) },
@@ -164,15 +164,15 @@ private struct StatisticsCard: View {
     var highlighted = false
 
     var body: some View {
-        let face = VStack(alignment: .leading, spacing: 3) {
+        let face = VStack(alignment: .leading, spacing: Tokens.Space.s3) {
             Text(title).sectionLabel().lineLimit(1)
             Text(value).font(.scaled(24, weight: .bold)).foregroundStyle(.primary).monospacedDigit().lineLimit(1).minimumScaleFactor(0.6)
             Text(line ?? " ").font(.scaled(10)).foregroundStyle(.secondary)
         }
         // every card is as tall as the tallest, whatever each one wraps
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading).padding(.horizontal, 14).padding(.vertical, 12)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading).padding(.horizontal, Tokens.Space.s14).padding(.vertical, Tokens.Space.s12)
         return Group {
-            if highlighted { face.background(RoundedRectangle(cornerRadius: 14).fill(Color.themeAccent.opacity(0.14))) } else { face.settingsCard() }
+            if highlighted { face.background(RoundedRectangle(cornerRadius: Tokens.Radius.roomy).fill(Color.themeAccent.opacity(0.14))) } else { face.settingsCard() }
         }
         .accessibilityElement(children: .combine)
     }

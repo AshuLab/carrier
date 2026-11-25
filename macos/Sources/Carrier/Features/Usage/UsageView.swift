@@ -18,7 +18,7 @@ struct UsageView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: Tokens.Space.s16) {
                 // an older host is a normal state after an update: told quietly, as an engine too old to reload is
                 let tooOld = store.error?.code == Refusal.usageNeedsNewerHost.code
                 if tooOld {
@@ -51,7 +51,7 @@ struct UsageView: View {
                 }
                 ConsumptionSection(store: store)
             }
-            .padding(.vertical, 18).padding(.horizontal, 32).frame(maxWidth: .infinity)
+            .padding(.vertical, Tokens.Space.s18).padding(.horizontal, Tokens.Space.s32).frame(maxWidth: .infinity)
         }
         .onAppear { refresher.appear() }
         .onDisappear { refresher.disappear() }
@@ -86,11 +86,11 @@ private struct ProviderBlock: View {
     let signIn: (String) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: Tokens.Space.none) {
             Button(action: toggleOpen) {
-                HStack(spacing: 12) {
+                HStack(spacing: Tokens.Space.s12) {
                     UsageProviderMark(title: provider.title, size: 18).frame(width: 22)
-                    VStack(alignment: .leading, spacing: 1) {
+                    VStack(alignment: .leading, spacing: Tokens.Space.s1) {
                         Text(provider.title).font(.scaled(13, weight: .semibold))
                         Text(provider.subtitle).font(.scaled(11)).foregroundStyle(.secondary).lineLimit(1)
                     }
@@ -111,17 +111,17 @@ private struct ProviderBlock: View {
                         .rotationEffect(.degrees(open ? 90 : 0))
                         .frame(width: 24, height: 24).background(Circle().fill(Color.primary.opacity(0.08)))
                 }
-                .padding(.vertical, 12).frame(minHeight: 46).contentShape(Rectangle())
+                .padding(.vertical, Tokens.Space.s12).frame(minHeight: 46).contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityHint(open ? "Hides the details" : "Shows the details")
             if open {
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: Tokens.Space.s2) {
                     ForEach(provider.accounts) { account in
                         AccountBlock(account: account, harness: provider.id, alone: provider.accounts.count == 1, checkAgain: checkAgain, signIn: { signIn(account.id) })
                     }
                 }
-                .padding(.leading, 34).padding(.bottom, 8)
+                .padding(.leading, Tokens.Space.s34).padding(.bottom, Tokens.Space.s8)
             }
         }
         .animation(.easeOut(duration: 0.12), value: open)
@@ -149,9 +149,9 @@ private struct AccountBlock: View {
     private var showsHeader: Bool { alone == false || account.mark != .ok || account.canSignIn || account.stale }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s14) {
             if showsHeader {
-                HStack(spacing: 8) {
+                HStack(spacing: Tokens.Space.s8) {
                     // a local server's pool is not an account of providers.json: it has no icon or color to wear
                     if harness != "local" { AccountMark(account: account.id, icon: harness, size: 14).help(account.title).accessibilityHidden(true) }
                     Text(account.title).font(.scaled(12, weight: .semibold))
@@ -167,7 +167,7 @@ private struct AccountBlock: View {
                 LineGroupView(group: group)
             }
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, Tokens.Space.s8)
     }
 }
 
@@ -178,19 +178,19 @@ private struct LineGroupView: View {
     var body: some View {
         let rows = group.lines.filter { $0.shape != nil || $0.value != nil || $0.detail != nil }
         let notes = group.lines.filter { $0.shape == nil && $0.value == nil && $0.detail == nil }
-        VStack(alignment: .leading, spacing: 6) {
-            if let title = group.title { Text(title).sectionLabel().padding(.leading, 4) }
+        VStack(alignment: .leading, spacing: Tokens.Space.s6) {
+            if let title = group.title { Text(title).sectionLabel().padding(.leading, Tokens.Space.s4) }
             if rows.isEmpty == false {
-                VStack(spacing: 0) {
+                VStack(spacing: Tokens.Space.none) {
                     ForEach(Array(rows.enumerated()), id: \.offset) { index, line in
                         if index > 0 { SettingsDivider() }
-                        LineRow(line: line).padding(.vertical, 9)
+                        LineRow(line: line).padding(.vertical, Tokens.Space.s10)
                     }
                 }
-                .padding(.horizontal, 12).background(RoundedRectangle(cornerRadius: 10).fill(Color.primary.opacity(0.05)))
+                .padding(.horizontal, Tokens.Space.s12).background(RoundedRectangle(cornerRadius: Tokens.Radius.tile).fill(Color.primary.opacity(0.05)))
             }
             ForEach(Array(notes.enumerated()), id: \.offset) { _, line in
-                Text(line.title).font(.scaled(11)).foregroundStyle(.secondary).padding(.leading, 4)
+                Text(line.title).font(.scaled(11)).foregroundStyle(.secondary).padding(.leading, Tokens.Space.s4)
             }
         }
     }
@@ -203,7 +203,7 @@ private struct LineRow: View {
 
     var body: some View {
         if let shape = line.shape {
-            HStack(spacing: 14) {
+            HStack(spacing: Tokens.Space.s14) {
                 Text(line.title).font(.scaled(12)).lineLimit(1).frame(width: 90, alignment: .leading)
                 QuotaBar(shape: shape).frame(maxWidth: 360)
                 QuotaPercent(shape: shape).frame(width: 44, alignment: .trailing)
@@ -211,9 +211,9 @@ private struct LineRow: View {
                 Spacer(minLength: 0)
             }
         } else if let detail = line.detail {
-            HStack(alignment: .top, spacing: 12) {
+            HStack(alignment: .top, spacing: Tokens.Space.s12) {
                 UsageProviderMark(title: line.title.replacingOccurrences(of: " ", with: ""), size: 16).frame(width: 20)
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: Tokens.Space.s2) {
                     Text(line.title).font(.scaled(12, weight: .medium))
                     Text(detail).font(.scaled(11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
@@ -221,7 +221,7 @@ private struct LineRow: View {
                 if let value = line.value { ServerState(text: value) }
             }
         } else {
-            HStack(spacing: 10) {
+            HStack(spacing: Tokens.Space.s10) {
                 Text(line.title).font(.scaled(12))
                 Spacer(minLength: 8)
                 Text(line.value ?? "").font(.scaled(12)).foregroundStyle(.secondary)
@@ -235,7 +235,7 @@ private struct ServerState: View {
     let text: String
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: Tokens.Space.s6) {
             Circle().fill(text == "Ready" ? Color.green : Color.secondary.opacity(0.6)).frame(width: 7, height: 7)
             Text(text).font(.scaled(11)).foregroundStyle(.secondary)
         }

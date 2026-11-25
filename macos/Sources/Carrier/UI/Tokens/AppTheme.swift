@@ -51,6 +51,9 @@ extension Color {
         })
     }
 
+    /// A color by hue, saturation and brightness: the dictation's, derived from the accent the person picked.
+    init(_ hsb: HSB) { self.init(hue: hsb.hue, saturation: hsb.saturation, brightness: hsb.brightness) }
+
     /// The color of the window under a view that has to blend into it (the halo behind the message box's selects): the theme's, or the
     /// system's while the theme has none of its own (Carrier's translucent windows).
     static var themeWindow: Color {

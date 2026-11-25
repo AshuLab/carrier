@@ -23,7 +23,7 @@ struct TerminalDetailView: View {
                 // with toolbar buttons and keeping the tab bar anchored cleanly below.
                 GeometryReader { proxy in
                     let tabBarTotalHeight = TerminalTabBarView<EmptyView>.height + 1
-                    VStack(spacing: 0) {
+                    VStack(spacing: Tokens.Space.none) {
                         ScrollView {
                             TerminalSplitLayoutView(
                                 store: store,
@@ -85,7 +85,7 @@ struct TerminalDetailView: View {
     @ToolbarContentBuilder private var toolbar: some ToolbarContent {
         ToolbarItem(placement: .primaryAction) {
             AccentGlassPillButton(title: "New Terminal", icon: .plus, action: newTerminal)
-                .padding(.trailing, 10)
+                .padding(.trailing, Tokens.Space.s10)
                 .help("New terminal")
         }
         .sharedBackgroundVisibility(.hidden)

@@ -33,9 +33,9 @@ struct TerminalTabChip: View {
 
     var body: some View {
         let showsClose = hovered || selected
-        HStack(spacing: showsClose ? 2 : 0) {
+        HStack(spacing: showsClose ? Tokens.Space.s2 : Tokens.Space.none) {
             Button(action: select) {
-                HStack(spacing: 5) {
+                HStack(spacing: Tokens.Space.s5) {
                     Glyph(.terminal, size: 10.5)
                         .foregroundStyle(selected ? Color.themeAccent : .secondary)
                     Text(tab.title)
@@ -47,14 +47,14 @@ struct TerminalTabChip: View {
                         Text("\(tab.paneCount)")
                             .font(.scaled(10, weight: .semibold).monospacedDigit())
                             .foregroundStyle(.secondary)
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 1)
+                            .padding(.horizontal, Tokens.Space.s5)
+                            .padding(.vertical, Tokens.Space.s1)
                             .background(Capsule().fill(Color.primary.opacity(0.08)))
                             .accessibilityHidden(true)
                     }
                 }
-                .padding(.leading, 10)
-                .padding(.trailing, showsClose ? 2 : 10)
+                .padding(.leading, Tokens.Space.s10)
+                .padding(.trailing, showsClose ? Tokens.Space.s2 : Tokens.Space.s10)
                 .frame(maxHeight: .infinity)
                 .contentShape(Rectangle())
             }
@@ -82,7 +82,7 @@ struct TerminalTabChip: View {
             }
         }
         .accessibilityElement(children: .contain)
-        .padding(.trailing, showsClose ? 4 : 0)
+        .padding(.trailing, showsClose ? Tokens.Space.s4 : Tokens.Space.none)
         .frame(height: Self.height)
         .frame(maxWidth: 220)
         .background(backgroundFill)

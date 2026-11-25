@@ -32,32 +32,32 @@ struct NoticeCard<Actions: View, Below: View>: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .center, spacing: 13) {
+        VStack(alignment: .leading, spacing: Tokens.Space.none) {
+            HStack(alignment: .center, spacing: Tokens.Space.s14) {
                 Glyph(symbol, size: 13, bold: true).foregroundStyle(.white)
-                    .frame(width: 30, height: 30).background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(tint.opacity(0.85)))
+                    .frame(width: 30, height: 30).background(RoundedRectangle(cornerRadius: Tokens.Radius.tile, style: .continuous).fill(tint.opacity(0.85)))
                     .accessibilityHidden(true)
                 if let onTap { Button(action: onTap) { text }.buttonStyle(.plain) } else { text }
                 actions()
             }
-            below().padding(.leading, 33)
+            below().padding(.leading, Tokens.Space.s32)
         }
-        .padding(.horizontal, 13).padding(.vertical, 11)
-        .chatSurface(.regular.tint(tint.opacity(0.3)), flat: tint.opacity(0.14), in: RoundedRectangle(cornerRadius: 14))
+        .padding(.horizontal, Tokens.Space.s14).padding(.vertical, Tokens.Space.s12)
+        .chatSurface(.regular.tint(tint.opacity(0.3)), flat: tint.opacity(0.14), in: RoundedRectangle(cornerRadius: Tokens.Radius.roomy))
         .environment(\.noticeTint, tint)
         .accessibilityElement(children: .contain)
     }
 
     private var text: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s3) {
+            HStack(alignment: .firstTextBaseline, spacing: Tokens.Space.s6) {
                 if let account { account.alignmentGuide(.firstTextBaseline) { $0[.bottom] - 2 } }
                 Text(title).scaledFont(13.5, weight: .semibold).multilineTextAlignment(.leading).fixedSize(horizontal: false, vertical: true)
             }
             if tag != nil || detail != nil {
-                HStack(alignment: .firstTextBaseline, spacing: 7) {
+                HStack(alignment: .firstTextBaseline, spacing: Tokens.Space.s8) {
                     if let tag {
-                        Text(tag).scaledFont(11).foregroundStyle(.secondary).padding(.horizontal, 7).padding(.vertical, 1)
+                        Text(tag).scaledFont(11).foregroundStyle(.secondary).padding(.horizontal, Tokens.Space.s8).padding(.vertical, Tokens.Space.s1)
                             .background(Capsule().fill(Color.primary.opacity(0.1)))
                     }
                     if let detail {

@@ -3,8 +3,8 @@ import CarrierCore
 import SwiftUI
 
 private let providerColors: [String: Color] = [
-    "Claude": Color(red: 0.85, green: 0.47, blue: 0.34), "Codex": Color(red: 0.25, green: 0.6, blue: 0.55),
-    "Antigravity": Color(red: 0.4, green: 0.45, blue: 0.85), "Local": Color.gray,
+    "Claude": Color(Tokens.Provider.claude), "Codex": Color(Tokens.Provider.codex),
+    "Antigravity": Color(Tokens.Provider.antigravity), "Local": Color.gray,
 ]
 
 /// The days as stacked bars, one colour a provider. Hovering a day shows its breakdown and a click keeps it (a second click lets go).
@@ -132,15 +132,15 @@ private struct Tooltip: View {
     let tooltip: UsageTooltip
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s8) {
+            HStack(alignment: .firstTextBaseline, spacing: Tokens.Space.s6) {
                 Text(tooltip.title).font(.scaled(12, weight: .semibold))
                 Text(tooltip.weekday).font(.scaled(11)).foregroundStyle(.secondary)
             }
             if tooltip.lines.isEmpty { Text("No use").font(.scaled(11)).foregroundStyle(.secondary) }
-            VStack(spacing: 5) {
+            VStack(spacing: Tokens.Space.s5) {
                 ForEach(tooltip.lines, id: \.provider) { line in
-                    HStack(spacing: 8) {
+                    HStack(spacing: Tokens.Space.s8) {
                         Circle().fill(providerColors[line.provider] ?? .gray).frame(width: 7, height: 7)
                         UsageProviderMark(title: line.provider, size: 12).frame(width: 14)
                         Text(line.provider).font(.scaled(11))
@@ -154,10 +154,10 @@ private struct Tooltip: View {
                 HStack { Text("Total").font(.scaled(11, weight: .semibold)); Spacer(minLength: 14); Text(tooltip.total).font(.scaled(11, weight: .semibold)).monospacedDigit() }
             }
         }
-        .frame(width: 200).padding(12)
-        .background(RoundedRectangle(cornerRadius: 12).fill(Color.themeWindow))
-        .background(RoundedRectangle(cornerRadius: 12).fill(Color.primary.opacity(0.07)))
-        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Color.primary.opacity(0.12), lineWidth: 1))
+        .frame(width: 200).padding(Tokens.Space.s12)
+        .background(RoundedRectangle(cornerRadius: Tokens.Radius.card).fill(Color.themeWindow))
+        .background(RoundedRectangle(cornerRadius: Tokens.Radius.card).fill(Color.primary.opacity(0.07)))
+        .overlay(RoundedRectangle(cornerRadius: Tokens.Radius.card).strokeBorder(Color.primary.opacity(0.12), lineWidth: 1))
         .shadow(color: .black.opacity(0.25), radius: 8, y: 3)
     }
 }

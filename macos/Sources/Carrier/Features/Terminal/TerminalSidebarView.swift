@@ -51,8 +51,8 @@ struct TerminalRows: View {
                     Text("\(terminals.count)")
                         .font(SidebarMetrics.detail.weight(.semibold).monospacedDigit())
                         .foregroundStyle(.secondary)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 1)
+                        .padding(.horizontal, Tokens.Space.s6)
+                        .padding(.vertical, Tokens.Space.s1)
                         .background(Capsule().fill(Color.secondary.opacity(0.15)))
                         .accessibilityLabel(terminals.count == 1 ? "1 terminal" : "\(terminals.count) terminals")
                 }
@@ -149,7 +149,7 @@ private struct TerminalSidebarRowView: View {
     var body: some View {
         HStack(spacing: SidebarMetrics.inset) {
             ZStack {
-                RoundedRectangle(cornerRadius: 9)
+                RoundedRectangle(cornerRadius: Tokens.Radius.tile)
                     .fill(Color.secondary.opacity(0.14))
                     .frame(width: 32, height: 32)
                 Glyph(.terminal, size: 14)

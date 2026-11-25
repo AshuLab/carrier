@@ -19,7 +19,7 @@ struct TerminalPaneHeaderView: View {
     @State private var dragHovered = false
 
     var body: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: Tokens.Space.none) {
             if isSplit, let onBeginDrag {
                 dragHandle(onBeginDrag: onBeginDrag)
                 SettingsDivider(vertical: true)
@@ -68,7 +68,7 @@ struct TerminalPaneHeaderView: View {
     private func dragHandle(onBeginDrag: @escaping () -> NSItemProvider) -> some View {
         Glyph(.arrowsMove, size: 11)
             .foregroundStyle(.primary)
-            .padding(.horizontal, 10)
+            .padding(.horizontal, Tokens.Space.s10)
             .frame(height: ToolbarPillButton.height)
             .background(Capsule().fill(Color.primary.opacity(dragHovered ? 0.1 : 0)))
             .contentShape(Capsule())

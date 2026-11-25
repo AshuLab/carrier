@@ -33,7 +33,7 @@ struct NavigationRow<Trailing: View>: View {
     var body: some View {
         Button(action: action) {
             SettingsTabRow(id: id, title: title, detail: detail, first: first, leading: leading) {
-                HStack(spacing: 10) {
+                HStack(spacing: Tokens.Space.s10) {
                     trailing
                     Glyph(.chevronRight, size: 13, bold: true).foregroundStyle(.tertiary).accessibilityHidden(true)
                 }

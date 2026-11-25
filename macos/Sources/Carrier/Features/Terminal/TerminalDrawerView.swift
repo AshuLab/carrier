@@ -27,7 +27,7 @@ struct TerminalDrawerView: View {
 
     var body: some View {
         let clampedHeight = min(max(dragHeight ?? height, Self.minHeight), max(Self.minHeight, maxHeight))
-        VStack(spacing: 0) {
+        VStack(spacing: Tokens.Space.none) {
             resizeHandle
             TerminalTabBarView(
                 store: store,

@@ -22,7 +22,7 @@ struct SpeechModelsTable: View {
 
     var body: some View {
         let compact = width < Self.narrow
-        VStack(spacing: 0) {
+        VStack(spacing: Tokens.Space.none) {
             if compact == false { header }
             ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
                 if index > 0 || compact == false { SettingsDivider() }
@@ -33,8 +33,8 @@ struct SpeechModelsTable: View {
     }
 
     private var header: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 8) {
+        VStack(spacing: Tokens.Space.none) {
+            HStack(spacing: Tokens.Space.s8) {
                 // a height too: a color with none takes all the row has, and in a form that is a tall blank over the header
                 Color.clear.frame(width: Column.radio, height: 1)
                 Text("Model").frame(maxWidth: .infinity, alignment: .leading)
@@ -43,7 +43,7 @@ struct SpeechModelsTable: View {
                 Text("Text appears").frame(width: Column.text, alignment: .leading)
                 Color.clear.frame(width: Column.action, height: 1)
             }
-            .sectionLabel().padding(.vertical, 10)
+            .sectionLabel().padding(.vertical, Tokens.Space.s10)
             .accessibilityHidden(true)
         }
     }
@@ -58,9 +58,9 @@ private struct SpeechModelRowView: View {
     let delete: (String) -> Void
 
     private var nameAndLicence: some View {
-        VStack(alignment: .leading, spacing: 1) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s1) {
             Text(row.name).font(.scaled(13).weight(.medium)).lineLimit(2)
-            HStack(spacing: 0) {
+            HStack(spacing: Tokens.Space.none) {
                 Text("\(row.recognizer) · ").foregroundStyle(.secondary)
                 // underlined: the accent alone does not say it is a link when it is pale or gray
                 Link(destination: row.card) { Text(row.licence).underline() }.tint(Color.themeAccent).help("Open the card of \(row.name)")
@@ -71,7 +71,7 @@ private struct SpeechModelRowView: View {
 
     var body: some View {
         Group { if compact { narrow } else { wide } }
-            .padding(.vertical, 14)
+            .padding(.vertical, Tokens.Space.s14)
             .contentShape(Rectangle())
             .onTapGesture { if row.radio != nil { choose(row.id) } }
             .accessibilityElement(children: .contain)
@@ -81,11 +81,11 @@ private struct SpeechModelRowView: View {
 
     /// The row of a narrow window: the size, the languages and how the text appears go under the name, the action stays at the end.
     private var narrow: some View {
-        HStack(alignment: .top, spacing: 8) {
+        HStack(alignment: .top, spacing: Tokens.Space.s8) {
             radio.frame(width: SpeechModelsTable.Column.radio)
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: Tokens.Space.s6) {
                 nameAndLicence
-                FlowLayout(spacing: 8) {
+                FlowLayout(spacing: Tokens.Space.s8) {
                     Text(row.size).font(.scaled(12)).monospacedDigit()
                     Text(row.detectsLanguage ? "\(row.languages) · Detects the language" : row.languages).font(.scaled(12)).foregroundStyle(.secondary)
                     StatusChip(text: row.text, tint: row.live ? Color.themeAccent : .secondary)
@@ -107,12 +107,12 @@ private struct SpeechModelRowView: View {
     }
 
     private var wide: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: Tokens.Space.s8) {
             radio.frame(width: SpeechModelsTable.Column.radio)
             nameAndLicence
             .frame(maxWidth: .infinity, alignment: .leading)
             Text(row.size).font(.scaled(12)).monospacedDigit().frame(width: SpeechModelsTable.Column.size, alignment: .leading)
-            VStack(alignment: .leading, spacing: 1) {
+            VStack(alignment: .leading, spacing: Tokens.Space.s1) {
                 Text(row.languages).font(.scaled(12))
                 if row.detectsLanguage { Text("Detects the language").font(.scaled(11)).foregroundStyle(.secondary) }
             }
@@ -140,13 +140,13 @@ private struct SpeechModelRowView: View {
         case .download(let size):
             Button { download(row.id) } label: { Label("Download · \(size)", icon: .download).lineLimit(1).fixedSize() }.buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
         case .downloading(let percent):
-            HStack(spacing: 6) {
+            HStack(spacing: Tokens.Space.s6) {
                 ProgressView(value: Double(percent), total: 100).tint(Color.themeAccent)
                 Text("\(percent)%").font(.scaled(11)).foregroundStyle(.secondary).monospacedDigit()
                 IconButton(icon: .close, name: "Cancel the download of \(row.name)") { cancel(row.id) }
             }
         case .failed(let cause):
-            VStack(alignment: .trailing, spacing: 2) {
+            VStack(alignment: .trailing, spacing: Tokens.Space.s2) {
                 Label(cause, icon: .warningFilled).font(.scaled(11)).foregroundStyle(.orange).multilineTextAlignment(.trailing)
                     .fixedSize(horizontal: false, vertical: true)
                 Button { download(row.id) } label: { Label("Retry", icon: .refresh) }.buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)

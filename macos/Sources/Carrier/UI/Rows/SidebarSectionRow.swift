@@ -36,12 +36,12 @@ struct SidebarSectionRow<Actions: View, HoverActions: View, Below: View>: View {
     var body: some View {
         // the system's selection colour at 45% when selected, a faint grey (5%, 7% dark) when hovered
         let dark = scheme == .dark
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s8) {
+            HStack(spacing: Tokens.Space.s8) {
                 // the one control a keyboard reaches: Tab (with Full Keyboard Access) and Space run `action`; a click anywhere on the
                 // row, but on its actions, still does through the tap below
                 Button(action: action) {
-                    HStack(spacing: 8) {
+                    HStack(spacing: Tokens.Space.s8) {
                         Glyph(icon, size: 18)
                             .foregroundStyle(selected ? .primary : .secondary)
                         Text(title).font(SidebarMetrics.section)
@@ -54,7 +54,7 @@ struct SidebarSectionRow<Actions: View, HoverActions: View, Below: View>: View {
                 .accessibilityAddTraits(selected ? .isSelected : [])
                 // the buttons take their room even while hidden, so the row does not move when the pointer comes in
                 let shown = hovered || keepActions
-                HStack(spacing: 0) { hoverActions }
+                HStack(spacing: Tokens.Space.none) { hoverActions }
                     .opacity(shown ? 1 : 0).allowsHitTesting(shown)
                     .animation(.easeOut(duration: 0.15), value: shown)
                 actions
@@ -64,8 +64,8 @@ struct SidebarSectionRow<Actions: View, HoverActions: View, Below: View>: View {
         }
         .padding(.horizontal, SidebarMetrics.inset).padding(.vertical, SidebarMetrics.sectionPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 8).fill(selected ? Color.selectedRow(dark: dark) : Color.primary.opacity(hovered ? (dark ? 0.07 : 0.05) : 0)))
-        .contentShape(RoundedRectangle(cornerRadius: 8))
+        .background(RoundedRectangle(cornerRadius: Tokens.Radius.control).fill(selected ? Color.selectedRow(dark: dark) : Color.primary.opacity(hovered ? (dark ? 0.07 : 0.05) : 0)))
+        .contentShape(RoundedRectangle(cornerRadius: Tokens.Radius.control))
         .onTapGesture(perform: action)
         .onHover { hovered = $0 }
         .accessibilityElement(children: .contain)

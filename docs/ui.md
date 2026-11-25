@@ -44,8 +44,8 @@ A space token is named by its value (`s8` is 8) so that two areas that add the s
 - `hair` (2): the squares of a file's diff and the stopped mark of a subagent, whose corner was 1.5 or 2; `tiny` would change a mark of eight points by a visible amount.
 - `tiny` (3): the bars of a skeleton and the small blocks of a preview; the 4 that was there is this one, and the 2 is `hair`.
 - `small` (6): chips and the smallest controls.
-- `control` (8): buttons, fields, tiles in a grid and the rows that answer the pointer; the most used radius.
-- `tile` (10): the square marks of a provider and an agent, a hovered Agents row, and a box on the General page.
+- `control` (8): buttons, fields, tiles in a grid and the rows that answer the pointer; the most used radius, and the 7 that was there is this one.
+- `tile` (10): the square marks of a provider and an agent, a hovered Agents row and a box on the General page; the 9 that was there is this one.
 - `card` (12): a card and the group of a sheet.
 - `roomy` (14): the corner of the conversation's surface, which has no step next to it to share.
 - `panel` (16): the cards of the starting and running windows, and the icon tiles of the stopped window and the Engine page.
@@ -63,7 +63,10 @@ A space token is named by its value (`s8` is 8) so that two areas that add the s
 - `s14` (14) and `s16` (16): between blocks and a page's side margin; the 13 that was there is `s14`.
 - `s18` (18), `s20` (20), `s22` (22) and `s24` (24): between the groups of a page and the sections of a sheet; the 25 and the 26 that were there are `s24`.
 - `s28` (28) and `s30` (30): the margin of the stopped window and the gap between the sections of the Pieces gallery.
+- `s32` (32) and `s34` (34): the side margin of the Usage page and the 33 that indented a notice's lower line (`s32`); the indent of a provider's accounts under its row.
 - `s40` (40): the side margin of the gallery pages.
+- `s54` (54): the indent of the context button's text when it shows a share, so it starts under the figure.
+- `s74` (74) and `s110` (110): the indent of an open history row's detail, and of a field's error under a label 110 wide; each lines up with a column beside it.
 - `s90` (90): the inset that makes the second skeleton bar of the cleanup shorter than the first.
 - `bubbleMargin` (120): the empty margin at the leading side of a person's message bubble and of a subagent's answer, so they do not run the width of the conversation.
 - `timelineTop` (160): the room above the first message of the conversation, under the header that floats over it.
@@ -78,6 +81,11 @@ A space token is named by its value (`s8` is 8) so that two areas that add the s
 - `attachment.*` (image, pdf, folder, log, data, archive, other): the tint of an attachment's chip by kind, the same in light and dark.
 - `console.*` (text, added, removed, background): the dark terminal of a conversation's console and the added and removed lines on it, the same in light and dark.
 - `harness.claude` and `harness.other`: the grey of a harness's name in a session row (Claude or another).
+- `status.thought` (`#c9a1ff`): the violet of the agent's thinking and of the ring of a working session, the same in light and dark (`toolCall.thought` is the deeper one of the transcript's chips).
+- `resultMark.*` (green, red): the disc of the check button's result, deeper than the system's colours so its white mark is not lost at 14 pt.
+- `syntax.*` (keyword, string, number, comment, function, type): the colours of a code block's words, as light and dark pairs.
+- `provider.*` (claude, codex, antigravity): the colour of each provider's bars in the Usage chart.
+- `projectIcon.p01` to `p24`: the 24 muted colours a project's icon takes, 12 hues each in a fuller and a greyer tone, kept to the hue and brightness the white initials need for 4.5:1.
 - `milestone.plain` (`#6e6e6e`): the grey of the transcript's marker for the plain steps (read, search, shell, other, mcp).
 
 ## The nine rules of a piece

@@ -17,7 +17,7 @@ struct QuotaMeter: View {
     let shape: MeterShape
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s5) {
             HStack {
                 Text(label).font(.scaled(11)).foregroundStyle(.secondary)
                 Spacer()

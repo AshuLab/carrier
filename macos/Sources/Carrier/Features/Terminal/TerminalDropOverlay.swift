@@ -9,10 +9,10 @@ struct TerminalDropOverlay: View {
     var body: some View {
         GeometryReader { geometry in
             let frame = previewRect(in: geometry.size)
-            RoundedRectangle(cornerRadius: 6)
+            RoundedRectangle(cornerRadius: Tokens.Radius.small)
                 .fill(Color.themeAccent.opacity(0.18))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 6)
+                    RoundedRectangle(cornerRadius: Tokens.Radius.small)
                         .strokeBorder(Color.themeAccent.opacity(0.6), lineWidth: 1.5)
                 )
                 .frame(width: frame.width, height: frame.height)

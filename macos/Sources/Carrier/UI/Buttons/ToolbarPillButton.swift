@@ -22,7 +22,7 @@ struct ToolbarPillButton: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 5) {
+            HStack(spacing: Tokens.Space.s5) {
                 if let mark {
                     mark.renderingMode(.template).resizable().scaledToFit().frame(width: 12, height: 12)
                 } else if let icon {
@@ -31,11 +31,11 @@ struct ToolbarPillButton: View {
                 Text(title).scaledFont(12, weight: .medium)
                 if badge > 0 {
                     Text("\(badge)").scaledFont(10, weight: .semibold).monospacedDigit().foregroundStyle(.white)
-                        .padding(.horizontal, 6).padding(.vertical, 1).background(Capsule().fill(.tint))
+                        .padding(.horizontal, Tokens.Space.s6).padding(.vertical, Tokens.Space.s1).background(Capsule().fill(.tint))
                         .accessibilityLabel("\(badge) filters applied")
                 }
             }
-            .padding(.horizontal, 11).frame(height: Self.height)
+            .padding(.horizontal, Tokens.Space.s12).frame(height: Self.height)
             .background(Capsule().fill(Color.primary.opacity(hovered && enabled ? 0.1 : 0)))
             .contentShape(Capsule())
         }
@@ -63,12 +63,12 @@ struct AccentGlassPillButton: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 5) {
+            HStack(spacing: Tokens.Space.s5) {
                 if let icon { Glyph(icon, size: 11) }
                 Text(title).scaledFont(12, weight: .medium)
             }
             .foregroundStyle(.white)
-            .padding(.horizontal, 13)
+            .padding(.horizontal, Tokens.Space.s14)
             .frame(height: ToolbarPillButton.height)
             .contentShape(Capsule())
         }
@@ -93,7 +93,7 @@ struct ToolbarGlassIconButton: View {
         Button(action: action) {
             Glyph(icon, size: 12)
                 .foregroundStyle(active ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary))
-                .padding(.horizontal, 10)
+                .padding(.horizontal, Tokens.Space.s10)
                 .frame(height: ToolbarPillButton.height)
                 .background(Capsule().fill(active ? AnyShapeStyle(.tint.opacity(0.18)) : AnyShapeStyle(Color.primary.opacity(hovered && enabled ? 0.1 : 0))))
                 .contentShape(Capsule())
@@ -117,7 +117,7 @@ struct ToolbarSearchField: View {
 
     var body: some View {
         if query != nil {
-            HStack(spacing: 6) {
+            HStack(spacing: Tokens.Space.s6) {
                 Glyph(.search, size: 11)
                     .foregroundStyle(.secondary)
                     .frame(width: 16, height: 16)
@@ -138,7 +138,7 @@ struct ToolbarSearchField: View {
                 .help("Close search (Esc)")
                 .accessibilityLabel("Close search")
             }
-            .padding(.horizontal, 11)
+            .padding(.horizontal, Tokens.Space.s12)
             .frame(width: 220, height: ToolbarPillButton.height)
         } else {
             ToolbarPillButton(title: "Search", icon: .search) {

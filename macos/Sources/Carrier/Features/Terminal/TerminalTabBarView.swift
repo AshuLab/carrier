@@ -21,10 +21,10 @@ struct TerminalTabBarView<Trailing: View>: View {
     @State private var dropTargetTabId: UUID?
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: Tokens.Space.s6) {
             ScrollViewReader { proxy in
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 6) {
+                    HStack(spacing: Tokens.Space.s6) {
                         ForEach(Array(tabs.enumerated()), id: \.element.id) { index, tab in
                             TerminalTabChip(
                                 tab: tab,
@@ -48,7 +48,7 @@ struct TerminalTabBarView<Trailing: View>: View {
                             .id(tab.id)
                         }
                     }
-                    .padding(.vertical, 4)
+                    .padding(.vertical, Tokens.Space.s4)
                 }
                 .onChange(of: activeTabId) { _, nextId in
                     guard let nextId else { return }
@@ -60,7 +60,7 @@ struct TerminalTabBarView<Trailing: View>: View {
             TerminalAddTabButton(label: addTabLabel, action: onAddTab)
             trailingAccessory()
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, Tokens.Space.s12)
         .frame(height: Self.height)
     }
 }

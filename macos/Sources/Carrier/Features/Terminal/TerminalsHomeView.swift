@@ -42,7 +42,7 @@ struct TerminalsHomeView: View {
             let ids = shown.map(\.id)
             ScrollViewReader { proxy in
                 ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 2) {
+                    LazyVStack(alignment: .leading, spacing: Tokens.Space.s2) {
                         ForEach(shown) { summary in
                             TerminalHomeRow(
                                 summary: summary,
@@ -57,8 +57,8 @@ struct TerminalsHomeView: View {
                             .id(summary.id)
                         }
                     }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
+                    .padding(.horizontal, Tokens.Space.s12)
+                    .padding(.vertical, Tokens.Space.s8)
                 }
                 .focusable()
                 .focused($listFocused)
@@ -103,7 +103,7 @@ struct TerminalsHomeView: View {
         }
         ToolbarItem(placement: .primaryAction) {
             AccentGlassPillButton(title: "New Terminal", icon: .plus, action: newTerminal)
-                .padding(.trailing, 10)
+                .padding(.trailing, Tokens.Space.s10)
                 .help("New terminal")
         }
         .sharedBackgroundVisibility(.hidden)
@@ -126,20 +126,20 @@ private struct TerminalHomeRow: View {
 
     var body: some View {
         let active = hovered || highlighted
-        HStack(alignment: .center, spacing: 12) {
+        HStack(alignment: .center, spacing: Tokens.Space.s12) {
             ZStack {
-                RoundedRectangle(cornerRadius: 10)
+                RoundedRectangle(cornerRadius: Tokens.Radius.tile)
                     .fill(Color.secondary.opacity(0.14))
                     .frame(width: 36, height: 36)
                 Glyph(.terminal, size: 16)
                     .foregroundStyle(.secondary)
             }
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: Tokens.Space.s3) {
                 Text(summary.title)
                     .font(.scaled(13, weight: .medium))
                     .lineLimit(1)
                     .truncationMode(.tail)
-                HStack(spacing: 6) {
+                HStack(spacing: Tokens.Space.s6) {
                     Label(abbreviatedTerminalPath(summary.workingDirectory), icon: .folder)
                         .labelStyle(.titleAndIcon)
                         .lineLimit(1)
@@ -158,9 +158,9 @@ private struct TerminalHomeRow: View {
                 IconButton(icon: .close, name: "Close \(summary.title)", action: close)
             }
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(RoundedRectangle(cornerRadius: 12).fill(active ? Color.primary.opacity(0.07) : .clear))
+        .padding(.horizontal, Tokens.Space.s10)
+        .padding(.vertical, Tokens.Space.s8)
+        .background(RoundedRectangle(cornerRadius: Tokens.Radius.card).fill(active ? Color.primary.opacity(0.07) : .clear))
         .contentShape(Rectangle())
         .onTapGesture(perform: open)
         .onMiddleClick(perform: close)

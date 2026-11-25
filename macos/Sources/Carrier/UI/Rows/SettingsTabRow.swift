@@ -25,7 +25,7 @@ struct SettingsTabRow<Control: View>: View {
     @Environment(\.settingsForm) private var form
 
     private var words: some View {
-        VStack(alignment: .leading, spacing: 1) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s1) {
             Text(title).fontWeight(.medium)
             if detail.isEmpty == false || problem != nil {
                 Group {
@@ -35,7 +35,7 @@ struct SettingsTabRow<Control: View>: View {
             }
             if let note {
                 // cut in the middle to one line: the whole of it (a long PATH) is in the tooltip, and it can be selected to copy
-                Text(note).scaledFont(10.5, design: .monospaced).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle).padding(.top, 1)
+                Text(note).scaledFont(10.5, design: .monospaced).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle).padding(.top, Tokens.Space.s1)
                     .help(note).textSelection(.enabled)
             }
         }
@@ -45,7 +45,7 @@ struct SettingsTabRow<Control: View>: View {
         if form {
             // an HStack and not a LabeledContent: that one sets the control at the height of the first line, so on a row with a detail line the
             // switches and selects would not sit in the middle of it
-            HStack(spacing: 12) {
+            HStack(spacing: Tokens.Space.s12) {
                 if let leading { leading }
                 words
                 Spacer(minLength: 8)
@@ -54,13 +54,13 @@ struct SettingsTabRow<Control: View>: View {
             .frame(minHeight: 36)
             .settingsAnchored(id)
         } else {
-            HStack(spacing: 12) {
+            HStack(spacing: Tokens.Space.s12) {
                 if let leading { leading }
                 words
                 Spacer(minLength: 8)
                 control.environment(\.settingsInvalid, problem != nil)
             }
-            .padding(.vertical, roomy ? 14 : 10).frame(minHeight: 46)
+            .padding(.vertical, roomy ? Tokens.Space.s14 : Tokens.Space.s10).frame(minHeight: 46)
             .overlay(alignment: .top) { if first == false { SettingsDivider() } }
             .settingsAnchored(id)
         }

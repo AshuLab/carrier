@@ -1,3 +1,4 @@
+import CarrierCore
 import SwiftUI
 
 /// What a page is made of: its groups, as a native `Form` where the page is one (`SettingsPage.usesForm`) and a column of cards elsewhere. A page
@@ -14,7 +15,7 @@ struct SettingsPageBody<Content: View>: View {
             if form {
                 Form { content }.formStyle(.grouped).scrollContentBackground(.hidden)
             } else {
-                VStack(alignment: .leading, spacing: 12) { content }.frame(maxWidth: .infinity, alignment: .leading)
+                VStack(alignment: .leading, spacing: Tokens.Space.s12) { content }.frame(maxWidth: .infinity, alignment: .leading)
             }
         }
         .onAppear { if let reset { resetter?.set(owner, reset) } }

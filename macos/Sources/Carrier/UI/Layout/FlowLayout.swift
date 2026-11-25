@@ -1,9 +1,10 @@
+import CarrierCore
 import SwiftUI
 
 /// Places its views in a row and starts a new row when the next one does not fit: for chips of different widths. Views of different
 /// heights share the middle of their row.
 struct FlowLayout: Layout {
-    var spacing: CGFloat = 8
+    var spacing: CGFloat = Tokens.Space.s8
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         arrange(proposal.width ?? .infinity, subviews).size

@@ -1,3 +1,4 @@
+import CarrierCore
 import SwiftUI
 
 /// The shell of a card in the feed: a fill and glass, rounded 12. The tool group of a session, a markdown table and the epic's
@@ -7,10 +8,10 @@ private struct WorkCardShell: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .background(RoundedRectangle(cornerRadius: 12).fill(Color.primary.opacity(0.045)))
-            .chatSurface(.regular.tint(scheme == .dark ? Color.black.opacity(0.3) : nil), flat: Color.primary.opacity(0.03), in: RoundedRectangle(cornerRadius: 12))
+            .background(RoundedRectangle(cornerRadius: Tokens.Radius.card).fill(Color.primary.opacity(0.045)))
+            .chatSurface(.regular.tint(scheme == .dark ? Color.black.opacity(0.3) : nil), flat: Color.primary.opacity(0.03), in: RoundedRectangle(cornerRadius: Tokens.Radius.card))
             // a solid base under the glass: a card that grows or folds goes over the message next to it for a moment, and the glass alone shows that text through it
-            .background(RoundedRectangle(cornerRadius: 12).fill(Color.themeWindow))
+            .background(RoundedRectangle(cornerRadius: Tokens.Radius.card).fill(Color.themeWindow))
     }
 }
 

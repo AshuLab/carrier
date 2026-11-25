@@ -38,7 +38,7 @@ struct CheckButton: View {
                 Button(action: action) { faces }.buttonStyle(HoverTextButtonStyle(tint: nil))
             case .toolbar:
                 Button(action: action) {
-                    faces.padding(.horizontal, 11).frame(height: ToolbarPillButton.height)
+                    faces.padding(.horizontal, Tokens.Space.s12).frame(height: ToolbarPillButton.height)
                         .background(Capsule().fill(Color.primary.opacity(hovered ? 0.1 : 0)))
                         .contentShape(Capsule())
                 }
@@ -63,7 +63,7 @@ struct CheckButton: View {
 
     private func face<Content: View>(_ own: Phase, @ViewBuilder _ content: () -> Content) -> some View {
         let here = phase == own
-        return HStack(spacing: 5, content: content)
+        return HStack(spacing: Tokens.Space.s5, content: content)
             .opacity(here ? 1 : 0).offset(y: here || reduceMotion ? 0 : 4).blur(radius: here || reduceMotion ? 0 : 3)
             .animation(.easeOut(duration: 0.18), value: phase)
     }
@@ -74,8 +74,8 @@ private struct ResultMark: View {
     enum Kind { case check, cross }
 
     /// Deeper than the system's green and red, which a white mark gets lost on at 14 pt.
-    static let green = Color(red: 0.11, green: 0.50, blue: 0.26)
-    static let red = Color(red: 0.78, green: 0.19, blue: 0.17)
+    static let green = Color(Tokens.ResultMark.green)
+    static let red = Color(Tokens.ResultMark.red)
 
     let kind: Kind
     let tint: Color

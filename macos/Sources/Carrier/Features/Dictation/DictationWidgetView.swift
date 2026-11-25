@@ -132,7 +132,7 @@ struct DictationWidgetView: View {
     /// What the box says before the words come, and the cause when it cannot go on, over what was heard.
     @ViewBuilder private var shown: some View {
         let caption = waitCaption
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s4) {
             if case .failed(let cause) = dictation.state { Text(cause).foregroundStyle(.red) }
             if dictation.text.isEmpty == false {
                 // the raw text shimmers while the model cleans it

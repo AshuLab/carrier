@@ -60,7 +60,7 @@ struct GlobalDictationGroup: View {
                 ? "Carrier can see which field has the cursor and paste into it"
                 : "Without it the text goes on the clipboard instead of being pasted. Already allowed? macOS drops it when Carrier updates: reset it"
         ) {
-            HStack(spacing: 8) {
+            HStack(spacing: Tokens.Space.s8) {
                 StatusChip(text: accessibility.trusted ? "Allowed" : "Not allowed", tint: accessibility.trusted ? .green : .orange)
                 Button { FocusedField.openSettings() } label: { Label("Open System Settings", icon: .settings) }
                     .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
@@ -146,17 +146,17 @@ private struct WidgetThemePicker: View {
     @Binding var selection: DictationWidgetTheme
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: Tokens.Space.s10) {
             ForEach(DictationWidgetTheme.allCases, id: \.self) { theme in
                 let on = theme == selection
                 Button { selection = theme } label: {
-                    VStack(spacing: 8) {
+                    VStack(spacing: Tokens.Space.s8) {
                         swatch(theme).frame(height: 44)
                         Text(theme.title).font(.scaled(11, weight: .medium)).lineLimit(1).minimumScaleFactor(0.8)
                     }
-                    .padding(.vertical, 10).padding(.horizontal, 6).frame(maxWidth: .infinity)
-                    .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(on ? Color.themeAccent.opacity(0.16) : Color.primary.opacity(0.06)))
-                    .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Color.themeAccent, lineWidth: on ? 1.5 : 0))
+                    .padding(.vertical, Tokens.Space.s10).padding(.horizontal, Tokens.Space.s6).frame(maxWidth: .infinity)
+                    .background(RoundedRectangle(cornerRadius: Tokens.Radius.tile, style: .continuous).fill(on ? Color.themeAccent.opacity(0.16) : Color.primary.opacity(0.06)))
+                    .overlay(RoundedRectangle(cornerRadius: Tokens.Radius.tile, style: .continuous).strokeBorder(Color.themeAccent, lineWidth: on ? 1.5 : 0))
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain).accessibilityLabel(theme.title).accessibilityAddTraits(on ? .isSelected : [])
@@ -167,12 +167,12 @@ private struct WidgetThemePicker: View {
 
     /// The widget's own surface over a bright backdrop, with a microphone in the way its text would be drawn.
     private func swatch(_ theme: DictationWidgetTheme) -> some View {
-        let shape = RoundedRectangle(cornerRadius: 8, style: .continuous)
+        let shape = RoundedRectangle(cornerRadius: Tokens.Radius.control, style: .continuous)
         return ZStack {
             shape.fill(LinearGradient(colors: [.pink.opacity(0.7), .orange.opacity(0.7), .teal.opacity(0.7)], startPoint: .topLeading, endPoint: .bottomTrailing))
             Glyph(.microphone, size: 14).foregroundStyle(theme == .clear ? Color.primary.opacity(0.8) : Color.white.opacity(0.9))
                 .frame(width: 34, height: 22)
-                .modifier(WidgetSurface(shape: RoundedRectangle(cornerRadius: 7, style: .continuous), theme: theme))
+                .modifier(WidgetSurface(shape: RoundedRectangle(cornerRadius: Tokens.Radius.control, style: .continuous), theme: theme))
         }
         .frame(maxWidth: .infinity).clipShape(shape)
     }
@@ -184,17 +184,17 @@ private struct WidgetStylePicker: View {
     @Binding var selection: DictationWidgetStyle
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: Tokens.Space.s10) {
             ForEach(DictationWidgetStyle.allCases, id: \.self) { style in
                 let on = style == selection
                 Button { selection = style } label: {
-                    VStack(spacing: 8) {
+                    VStack(spacing: Tokens.Space.s8) {
                         drawing(style).frame(height: 44)
                         Text(style.title).font(.scaled(12, weight: .medium))
                     }
-                    .padding(.vertical, 10).frame(maxWidth: .infinity)
-                    .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(on ? Color.themeAccent.opacity(0.16) : Color.primary.opacity(0.06)))
-                    .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Color.themeAccent, lineWidth: on ? 1.5 : 0))
+                    .padding(.vertical, Tokens.Space.s10).frame(maxWidth: .infinity)
+                    .background(RoundedRectangle(cornerRadius: Tokens.Radius.tile, style: .continuous).fill(on ? Color.themeAccent.opacity(0.16) : Color.primary.opacity(0.06)))
+                    .overlay(RoundedRectangle(cornerRadius: Tokens.Radius.tile, style: .continuous).strokeBorder(Color.themeAccent, lineWidth: on ? 1.5 : 0))
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain).accessibilityLabel(style.title).accessibilityAddTraits(on ? .isSelected : [])
@@ -206,11 +206,11 @@ private struct WidgetStylePicker: View {
     @ViewBuilder private func drawing(_ style: DictationWidgetStyle) -> some View {
         let lines = dictationWidgetLook(.listening, style: style).box?.lines
         if let lines {
-            VStack(spacing: 4) {
+            VStack(spacing: Tokens.Space.s4) {
                 ForEach(0..<lines, id: \.self) { _ in Capsule().fill(Color.white.opacity(0.6)).frame(height: 3) }
             }
-            .padding(.horizontal, 8).padding(.vertical, 7).frame(width: 74)
-            .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.themeAccent.opacity(0.75)))
+            .padding(.horizontal, Tokens.Space.s8).padding(.vertical, Tokens.Space.s8).frame(width: 74)
+            .background(RoundedRectangle(cornerRadius: Tokens.Radius.control, style: .continuous).fill(Color.themeAccent.opacity(0.75)))
         } else {
             Capsule().fill(Color.themeAccent.opacity(0.75)).frame(width: 36, height: 18)
         }
@@ -240,13 +240,13 @@ struct ShortcutRecorderRow: View {
     var body: some View {
         let shown = current()?.text ?? emptyText ?? ""
         SettingsTabRow(id: id, title: title, detail: detail, problem: refusal ?? problem) {
-            HStack(spacing: 8) {
+            HStack(spacing: Tokens.Space.s8) {
                 Text(recording ? "Press the keys…" : shown)
                     .font(.scaled(12, weight: .semibold, design: .monospaced))
                     .foregroundStyle(recording ? Color.themeAccent : Color.primary)
-                    .frame(minWidth: 96).padding(.horizontal, 10).padding(.vertical, 5)
-                    .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.primary.opacity(recording ? 0.12 : 0.08)))
-                    .overlay { if recording { RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(Color.themeAccent, lineWidth: 1.5) } }
+                    .frame(minWidth: 96).padding(.horizontal, Tokens.Space.s10).padding(.vertical, Tokens.Space.s5)
+                    .background(RoundedRectangle(cornerRadius: Tokens.Radius.control, style: .continuous).fill(Color.primary.opacity(recording ? 0.12 : 0.08)))
+                    .overlay { if recording { RoundedRectangle(cornerRadius: Tokens.Radius.control, style: .continuous).strokeBorder(Color.themeAccent, lineWidth: 1.5) } }
                     .accessibilityLabel(name).accessibilityValue(recording ? "Listening for the new keys" : shown)
                 Button { recording ? stop() : start() } label: { Label(recording ? "Cancel" : "Record", icon: recording ? .close : .record) }
                     .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)

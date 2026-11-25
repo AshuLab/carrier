@@ -44,7 +44,7 @@ struct CodeBlockView: View {
 
     private static let numbersFrom = 5
     /// The air over the first line and under the last one, plain code and diff alike.
-    private static let codePadding: CGFloat = 13
+    private static let codePadding: CGFloat = Tokens.Space.s14
 
     /// Long lines wrap or scroll sideways as the monospace settings say.
     private var wrapped: Bool { monospace.wrapLongLines }
@@ -55,22 +55,22 @@ struct CodeBlockView: View {
     private var shownLines: [String] { folds ? Array(lines.prefix(foldAfter)) : lines }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: Tokens.Space.none) {
             header
             // a horizontal scroll offers its content no width to wrap at, so a block that wraps has none: the text takes the width of the card
             if wrapped { content } else { ScrollView(.horizontal) { content } }
             if foldable { foldButton }
         }
         // the header and the fold are tints inside the shape; glass draws the edge, so there is no border to meet the corners badly
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .chatSurface(.regular.tint(scheme == .dark ? Color.black.opacity(0.3) : nil), flat: scheme == .dark ? Color.black.opacity(0.28) : Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 12))
+        .clipShape(RoundedRectangle(cornerRadius: Tokens.Radius.card))
+        .chatSurface(.regular.tint(scheme == .dark ? Color.black.opacity(0.3) : nil), flat: scheme == .dark ? Color.black.opacity(0.28) : Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: Tokens.Radius.card))
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         .onHover { inside in withAnimation(.easeOut(duration: 0.15)) { hovering = inside } }
         .accessibilityElement(children: .contain)
     }
 
     private var header: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: Tokens.Space.s8) {
             if let file {
                 Text(file).scaledFont(11.5, weight: .medium).lineLimit(1).truncationMode(.head)
                 Text(name).scaledFont(11).foregroundStyle(.tertiary)
@@ -80,7 +80,7 @@ struct CodeBlockView: View {
             Spacer(minLength: 0)
             CodeCopyButton(text: copyText, visible: hovering)
         }
-        .padding(.leading, 14).padding(.trailing, 6).padding(.vertical, 6)
+        .padding(.leading, Tokens.Space.s14).padding(.trailing, Tokens.Space.s6).padding(.vertical, Tokens.Space.s6)
         .background(Color.primary.opacity(0.045))
     }
 
@@ -92,7 +92,7 @@ struct CodeBlockView: View {
         if wrapped, lines.count >= Self.numbersFrom {
             wrappedNumbered
         } else {
-            HStack(alignment: .top, spacing: 12) {
+            HStack(alignment: .top, spacing: Tokens.Space.s12) {
                 if lines.count >= Self.numbersFrom {
                     Text((1...shownLines.count).map(String.init).joined(separator: "\n"))
                         .foregroundStyle(.tertiary).multilineTextAlignment(.trailing).textSelection(.disabled).accessibilityHidden(true)
@@ -101,7 +101,7 @@ struct CodeBlockView: View {
             }
             .codeFont(11.5)
             .textSelection(.enabled)
-            .padding(.horizontal, 14).padding(.vertical, Self.codePadding)
+            .padding(.horizontal, Tokens.Space.s14).padding(.vertical, Self.codePadding)
             .fixedSize(horizontal: wrapped == false, vertical: true)
             .frame(maxWidth: wrapped ? .infinity : nil, alignment: .leading)
         }
@@ -121,7 +121,7 @@ struct CodeBlockView: View {
     ) -> some View {
         VStack(alignment: .leading, spacing: rowSpacing) {
             ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
-                HStack(alignment: .top, spacing: 12) {
+                HStack(alignment: .top, spacing: Tokens.Space.s12) {
                     if numbered {
                         ZStack(alignment: .trailing) {
                             Text("\(rows.count)").hidden()
@@ -132,18 +132,18 @@ struct CodeBlockView: View {
                     Text(row.isEmpty ? " " : row).hidden().accessibilityHidden(true).textSelection(.disabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .padding(.horizontal, 14)
+                .padding(.horizontal, Tokens.Space.s14)
                 .frame(minWidth: wrapped ? 0 : width, maxWidth: .infinity, alignment: .leading)
                 .background(index < tint.count ? tint[index] : .clear)
                 .overlay(alignment: .leading) { if index < bar.count, let color = bar[index] { Rectangle().fill(color).frame(width: 2) } }
             }
         }
         .overlay(alignment: .topLeading) {
-            HStack(alignment: .top, spacing: 12) {
+            HStack(alignment: .top, spacing: Tokens.Space.s12) {
                 if numbered { Text("\(rows.count)").hidden().accessibilityHidden(true) }
                 Text(text).frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding(.horizontal, 14)
+            .padding(.horizontal, Tokens.Space.s14)
         }
         .codeFont(11.5)
         .textSelection(.enabled)
@@ -174,7 +174,7 @@ struct CodeBlockView: View {
     private var foldButton: some View {
         Button { withAnimation(.smooth(duration: 0.2)) { expanded.toggle() } } label: {
             Text(expanded ? "Show less" : "Show \(lines.count - foldAfter) more \(lines.count - foldAfter == 1 ? "line" : "lines")")
-                .scaledFont(11.5).foregroundStyle(.secondary).frame(maxWidth: .infinity).padding(.vertical, 7).contentShape(Rectangle())
+                .scaledFont(11.5).foregroundStyle(.secondary).frame(maxWidth: .infinity).padding(.vertical, Tokens.Space.s8).contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .background(Color.primary.opacity(0.04))
@@ -201,7 +201,7 @@ struct CodeBlockView: View {
         var out = AttributedString()
         for run in runs {
             var piece = AttributedString(run.text)
-            if let color = CodeColors.color(run.role, dark: scheme == .dark) { piece.foregroundColor = color }
+            if let color = CodeColors.color(run.role) { piece.foregroundColor = color }
             out.append(piece)
         }
         return out
@@ -210,21 +210,17 @@ struct CodeBlockView: View {
 
 /// The colours of the pieces of code: a palette for each look, readable on the block's tint.
 private enum CodeColors {
-    static func color(_ role: CodeBlockView.Role, dark: Bool) -> Color? {
+    static func color(_ role: CodeBlockView.Role) -> Color? {
         switch role {
         case .plain: nil
         case .prompt: .secondary.opacity(0.7)
-        case .keyword: dark ? rgb(0xC792EA) : rgb(0x8250DF)
-        case .string: dark ? rgb(0xA8E08A) : rgb(0x1A7F37)
-        case .number: dark ? rgb(0xF2A65A) : rgb(0xB35900)
-        case .comment: dark ? rgb(0x8A83A8) : rgb(0x6E7781)
-        case .function: dark ? rgb(0x7CC4FF) : rgb(0x0969DA)
-        case .type: dark ? rgb(0xFFD479) : rgb(0x9A6700)
+        case .keyword: Color(Tokens.Syntax.keyword)
+        case .string: Color(Tokens.Syntax.string)
+        case .number: Color(Tokens.Syntax.number)
+        case .comment: Color(Tokens.Syntax.comment)
+        case .function: Color(Tokens.Syntax.function)
+        case .type: Color(Tokens.Syntax.type)
         }
-    }
-
-    private static func rgb(_ hex: UInt32) -> Color {
-        Color(red: Double(hex >> 16 & 0xFF) / 255, green: Double(hex >> 8 & 0xFF) / 255, blue: Double(hex & 0xFF) / 255)
     }
 }
 

@@ -99,8 +99,8 @@ struct TerminalPaneHostView: View {
                     },
                     close: closeCurrentPane
                 )
-                .padding(.top, 8 + topControlsInset)
-                .padding(.trailing, 8)
+                .padding(.top, Tokens.Space.s8 + topControlsInset)
+                .padding(.trailing, Tokens.Space.s8)
                 .onHover { controlsHovered = $0 }
                 .opacity(showControls ? 1 : 0)
                 .allowsHitTesting(showControls)

@@ -69,7 +69,7 @@ struct HistoryList: View {
             TextField("", text: $query, prompt: Text("Search your dictations")).accessibilityLabel("Search your dictations").settingsField(icon: .search)
             SegmentedChoice(options: [(value: DictationOutcome?.none, title: "All", icon: nil)] + DictationOutcome.allCases.map { (value: Optional($0), title: $0.title, icon: nil) }, selection: $outcome)
                 .accessibilityLabel("Outcome")
-                .padding(.vertical, 4)
+                .padding(.vertical, Tokens.Space.s4)
         }
         .onChange(of: query, initial: true) { startOver() }
         .onChange(of: outcome) { startOver() }
@@ -126,12 +126,12 @@ private struct HistoryRow: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .top, spacing: 10) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s8) {
+            HStack(alignment: .top, spacing: Tokens.Space.s10) {
                 Button(action: toggle) {
-                    HStack(alignment: .top, spacing: 10) {
+                    HStack(alignment: .top, spacing: Tokens.Space.s10) {
                         Text(entry.started.formatted(date: .omitted, time: .shortened)).font(.scaled(11)).monospacedDigit().foregroundStyle(.secondary).frame(width: 64, alignment: .leading)
-                        VStack(alignment: .leading, spacing: 4) {
+                        VStack(alignment: .leading, spacing: Tokens.Space.s4) {
                             Text(entry.shown).lineLimit(open ? nil : 2).italic(entry.outcome == .cancelled)
                                 .foregroundStyle(entry.outcome == .cancelled ? .secondary : .primary)
                             meta
@@ -142,15 +142,15 @@ private struct HistoryRow: View {
                 }
                 .buttonStyle(.plain).accessibilityValue(open ? "Expanded" : "Collapsed").accessibilityHint("Shows the details")
                 // quiet until the pointer is on the row or it is open; still there for the keyboard and VoiceOver
-                HStack(spacing: 2) {
+                HStack(spacing: Tokens.Space.s2) {
                     IconButton(icon: copied ? .check : .copy, name: copied ? "Copied" : "Copy text") { copy(entry.shown) }
                     IconButton(icon: .trash, name: "Delete dictation") { confirmingDelete = true }
                 }
                 .opacity(hovered || open || copied || confirmingDelete ? 1 : 0)
             }
-            if open { detail.padding(.leading, 74) }
+            if open { detail.padding(.leading, Tokens.Space.s74) }
         }
-        .padding(.vertical, 10)
+        .padding(.vertical, Tokens.Space.s10)
         .onHover { hovered = $0 }
         .confirmationDialog("Delete this dictation?", isPresented: $confirmingDelete) {
             Button("Delete", role: .destructive, action: delete)
@@ -174,13 +174,13 @@ private struct HistoryRow: View {
     /// What the line above did not say, with no box of its own: a dashed rule, the text as recognized when cleanup changed it (the row already shows the
     /// text that counts), the model, how long it took, the cleanup, and the audio.
     private var detail: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s10) {
             DashedRule().stroke(Color.primary.opacity(0.14), style: StrokeStyle(lineWidth: 1, dash: [3, 3])).frame(height: 1)
             if entry.cleaned != nil {
-                VStack(alignment: .leading, spacing: 1) {
+                VStack(alignment: .leading, spacing: Tokens.Space.s1) {
                     Text("As recognized").sectionLabel()
                     Text(entry.text).font(.scaled(12)).foregroundStyle(.secondary).textSelection(.enabled)
-                        .padding(.leading, 10).overlay(alignment: .leading) { Rectangle().fill(Color.primary.opacity(0.15)).frame(width: 2) }
+                        .padding(.leading, Tokens.Space.s10).overlay(alignment: .leading) { Rectangle().fill(Color.primary.opacity(0.15)).frame(width: 2) }
                 }
             }
             Grid(alignment: .topLeading, horizontalSpacing: 18, verticalSpacing: 8) {
@@ -191,7 +191,7 @@ private struct HistoryRow: View {
                 }
                 if let audio {
                     GridRow {
-                        VStack(alignment: .leading, spacing: 1) {
+                        VStack(alignment: .leading, spacing: Tokens.Space.s1) {
                             Text("Audio").sectionLabel()
                             AudioPlayerView(url: audio)
                         }
@@ -200,11 +200,11 @@ private struct HistoryRow: View {
                 }
             }
         }
-        .padding(.top, 2).frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.top, Tokens.Space.s2).frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func field(_ title: String, _ value: String) -> some View {
-        VStack(alignment: .leading, spacing: 1) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s1) {
             Text(title).sectionLabel()
             Text(value).font(.scaled(12)).textSelection(.enabled)
         }

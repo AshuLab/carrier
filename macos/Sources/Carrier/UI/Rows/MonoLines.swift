@@ -19,9 +19,9 @@ struct MonoLines: View {
 
     @ViewBuilder private var rows: some View {
         if monospace.lineNumbers {
-            VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: Tokens.Space.none) {
                 ForEach(Array(lines.enumerated()), id: \.offset) { index, line in
-                    HStack(alignment: .top, spacing: 12) {
+                    HStack(alignment: .top, spacing: Tokens.Space.s12) {
                         // the widest number sizes the column
                         ZStack(alignment: .trailing) {
                             Text("\(lines.count)").hidden()

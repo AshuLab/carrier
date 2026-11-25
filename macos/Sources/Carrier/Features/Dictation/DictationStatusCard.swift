@@ -15,15 +15,15 @@ struct DictationStatusCard: View {
         let readiness = dictationReadiness(
             enabled: dictation.enabled, microphone: dictation.microphone, accessibilityTrusted: accessibility.trusted, globalOn: global, model: modelReadiness
         )
-        HStack(alignment: .top, spacing: 14) {
+        HStack(alignment: .top, spacing: Tokens.Space.s14) {
             Glyph(symbol(readiness.tone), size: 18, bold: true).foregroundStyle(.white)
                 .frame(width: 34, height: 34).background(Circle().fill(tint(readiness.tone))).accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: Tokens.Space.s6) {
                 Text(readiness.title).font(.scaled(15).weight(.bold))
                 if readiness.items.isEmpty == false {
-                    FlowLayout(spacing: 14) {
+                    FlowLayout(spacing: Tokens.Space.s14) {
                         ForEach(readiness.items) { item in
-                            HStack(spacing: 6) {
+                            HStack(spacing: Tokens.Space.s6) {
                                 Circle().fill(color(item.mark)).frame(width: 7, height: 7).accessibilityHidden(true)
                                 Text("\(item.title) · \(item.state)").font(.scaled(12)).foregroundStyle(.secondary)
                             }
@@ -43,7 +43,7 @@ struct DictationStatusCard: View {
             Spacer(minLength: 8)
             Toggle("Dictation", isOn: Binding(get: { dictation.enabled }, set: { dictation.setEnabled($0) })).labelsHidden().toggleStyle(.switch)
         }
-        .padding(14).frame(maxWidth: .infinity, alignment: .leading)
+        .padding(Tokens.Space.s14).frame(maxWidth: .infinity, alignment: .leading)
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in accessibility.refresh() }
         .accessibilityElement(children: .contain)
         // the search's "Microphone" lands on the card

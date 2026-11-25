@@ -66,9 +66,9 @@ struct WidgetBox<Content: View, Foot: View>: View {
     var body: some View {
         let lineHeight = box.lineHeight(textSize: textScale.size(box.text))
         let fadesTop = follows && dictationTextFit(textLines: textLines, boxLines: box.lines).fadesTop
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s8) {
             if notices.isEmpty == false {
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: Tokens.Space.s4) {
                     ForEach(notices, id: \.self) { Text($0).foregroundStyle(.orange) }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading).fixedSize(horizontal: false, vertical: true)
@@ -85,7 +85,7 @@ struct WidgetBox<Content: View, Foot: View>: View {
                     if dictationTextFit(textLines: textLines, boxLines: box.lines).fadesTop { position.scrollTo(edge: .bottom) }
                 }
                 .mask {
-                    VStack(spacing: 0) {
+                    VStack(spacing: Tokens.Space.none) {
                         LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom).frame(height: fadesTop ? lineHeight : 0)
                         Rectangle()
                     }
@@ -94,6 +94,6 @@ struct WidgetBox<Content: View, Foot: View>: View {
             HStack { foot }.font(.scaled(11)).foregroundStyle(.secondary).frame(height: 20)
         }
         .font(.scaled(box.text))
-        .padding(.horizontal, 16).padding(.vertical, 12)
+        .padding(.horizontal, Tokens.Space.s16).padding(.vertical, Tokens.Space.s12)
     }
 }

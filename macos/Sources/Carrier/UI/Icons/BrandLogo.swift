@@ -25,7 +25,7 @@ struct BrandLogo: View {
             if isDevBuild {
                 // the badge goes when the sidebar is too narrow for both: the pink mark still says it
                 ViewThatFits(in: .horizontal) {
-                    HStack(spacing: 8) { mark; badge }
+                    HStack(spacing: Tokens.Space.s8) { mark; badge }
                     mark
                 }
             } else {
@@ -38,7 +38,7 @@ struct BrandLogo: View {
 
     private var badge: some View {
         Text("DEV MODE").scaledFont(10, weight: .bold).tracking(0.8).foregroundStyle(Self.devPink).lineLimit(1)
-            .padding(.horizontal, 7).padding(.vertical, 1)
+            .padding(.horizontal, Tokens.Space.s8).padding(.vertical, Tokens.Space.s1)
             .background(Capsule().fill(Self.devPink.opacity(0.14)))
             .overlay(Capsule().strokeBorder(Self.devPink.opacity(0.4), lineWidth: 1))
     }

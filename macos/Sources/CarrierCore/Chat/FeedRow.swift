@@ -121,6 +121,9 @@ public struct FailureBanner: Equatable {
     public let title: String
     public let detail: String
     public let hint: String?
+
+    /// Whether it warns instead of failing: a banner with a hint (the provider is not signed in) is a warning, drawn in orange; one without is a failure, drawn in red.
+    public var warns: Bool { hint != nil }
 }
 
 /// A key like `claude` starts a sentence as `Claude`; a name that already has a capital in it (a label like `iOS`) is the person's own and stays.

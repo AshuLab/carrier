@@ -31,7 +31,7 @@ struct DiffText: View {
 
     var body: some View {
         HStack(spacing: 4) {
-            Text("+\(diff.added)").foregroundStyle(SessionRowView.done)
+            Text("+\(diff.added)").foregroundStyle(Color.sessionDone)
             Text("−\(diff.removed)").foregroundStyle(Color.red)
         }
         .font(.scaled(11).monospacedDigit()).lineLimit(1).fixedSize()
@@ -42,7 +42,7 @@ extension SessionPullRequest {
     /// The colour of its state: green open, red failing, the purple GitHub gives a merged one, grey for a draft or a closed one.
     var tint: Color {
         switch tone {
-        case .open: SessionRowView.done
+        case .open: Color.sessionDone
         case .failing: .red
         case .merged: Color(red: 0.72, green: 0.42, blue: 0.95)
         case .quiet: .secondary

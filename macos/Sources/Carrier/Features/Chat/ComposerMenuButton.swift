@@ -1,20 +1,6 @@
 import CarrierCore
 import SwiftUI
 
-/// The mark of a provider, as the rest of the app draws it (its bundled icon in the text colour, its letter when it has none).
-struct ProviderMark: View {
-    let name: String
-    var size: CGFloat = 14
-
-    var body: some View {
-        if let image = AgentAvatar.mark(name) {
-            Image(nsImage: image).renderingMode(.template).resizable().scaledToFit().frame(width: size, height: size)
-        } else {
-            Text(String(name.prefix(1)).uppercased()).font(.scaled(size * 0.8, weight: .bold)).frame(width: size, height: size)
-        }
-    }
-}
-
 /// A provider the panel offers as a tab.
 struct ProviderTab: Identifiable {
     let name: String

@@ -17,9 +17,9 @@ struct SessionPeekView: View {
         switch card.tone {
         case .quiet: .secondary
         case .working: Self.working
-        case .background: SessionRowView.backgroundWork
+        case .background: Color.backgroundWork
         case .attention: SessionRowView.attention
-        case .done: SessionRowView.done
+        case .done: Color.sessionDone
         }
     }
 
@@ -61,7 +61,7 @@ struct SessionPeekView: View {
                         VStack(alignment: .leading, spacing: 3) {
                             ForEach(card.background.prefix(Self.tasksShown), id: \.id) { task in
                                 HStack(spacing: 6) {
-                                    Circle().fill(SessionRowView.backgroundWork).frame(width: 6, height: 6).accessibilityHidden(true)
+                                    Circle().fill(Color.backgroundWork).frame(width: 6, height: 6).accessibilityHidden(true)
                                     Text(task.name).font(.scaled(10.5, design: .monospaced)).lineLimit(1).truncationMode(.tail)
                                 }
                             }

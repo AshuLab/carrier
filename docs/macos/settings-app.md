@@ -72,7 +72,7 @@ A click on a notification opens the window, on the epic when it is about one (th
 
 ## Terminal
 
-The Terminal page (`Carrier/TerminalTabView.swift`, `SettingsPage.terminal`, in the Workspace group after Sidebar) configures the embedded Ghostty terminal via `AppPreferences.terminal` (`terminal.*` keys) with the toolbar's Reset (`AppPreferences.reset(.terminal)`).
+The Terminal page (`Carrier/Features/Terminal/TerminalTabView.swift`, `SettingsPage.terminal`, in the Workspace group after Sidebar) configures the embedded Ghostty terminal via `AppPreferences.terminal` (`terminal.*` keys) with the toolbar's Reset (`AppPreferences.reset(.terminal)`).
 Appearance lets you keep the global app theme or choose a terminal-only `Theme` override, adjust Ghostty's `minimumContrast` (`1.0...21.0`) and horizontal/vertical padding (`0...32 pt`) and inspect a live `SettingsPreview` rendered from `TerminalAppearanceProfile`.
 Typography inherits `Appearance > Code and output` by default ("Same as Appearance") or overrides font family (`MonospaceStyle.installedFamilies`, preserving any saved custom family), point size (`9...24 pt`), ligatures and font thickening (`fontThicken`).
 Cursor sets `cursorStyle` (`Block`, `Bar`, `Underline` via `SegmentedChoice`) and `cursorBlink`.

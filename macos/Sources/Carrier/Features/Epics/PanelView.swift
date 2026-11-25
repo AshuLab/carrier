@@ -10,22 +10,22 @@ struct PanelView: View {
     @AppStorage(Preference.sidebarSessionSort) private var sessionSort
     @AppStorage(Preference.sidebarArchiveSort) private var archiveSort
     @AppStorage(Preference.terminalDrawerHeight) private var terminalDrawerHeight
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    private let terminalStore = CarrierTerminalStore.shared
+    @Environment(\.accessibilityReduceMotion) var reduceMotion
+    let terminalStore = CarrierTerminalStore.shared
     /// The last Check now pressed from the toolbar, for the button to say it is checking.
-    @State private var checkAsked: CheckAsked?
+    @State var checkAsked: CheckAsked?
     /// The window's size, for the sheets over it.
-    @State private var windowSize = CGSize(width: 1100, height: 700)
+    @State var windowSize = CGSize(width: 1100, height: 700)
     /// The right panel's width: also the empty toolbar item that keeps the epic's buttons off it.
-    private static let inspectorWidth: CGFloat = 316
+    static let inspectorWidth: CGFloat = 316
 
-    private var snapshot: PanelSnapshot? {
+    var snapshot: PanelSnapshot? {
         if case .running(let snapshot)? = model.state { return snapshot }
         return nil
     }
 
     /// The selected epic when it is in the snapshot.
-    private var epic: (subject: EpicSubject, header: EpicHeader, now: Int)? {
+    var epic: (subject: EpicSubject, header: EpicHeader, now: Int)? {
         guard case .epic(let repo, let issue) = model.shell.selection, let snapshot,
             let subject = snapshot.subject(repo: repo, issue: issue)
         else { return nil }
@@ -69,7 +69,7 @@ struct PanelView: View {
     }
 
     /// The row of the session whose conversation is open.
-    private var openSession: SessionRow? {
+    var openSession: SessionRow? {
         guard case .session(let id) = model.shell.selection else { return nil }
         return model.sessions.rows.first { $0.id == id }
     }
@@ -98,89 +98,6 @@ struct PanelView: View {
     private var engineRunning: Bool {
         if case .running? = model.state { return true }
         return false
-    }
-
-    private func createNewTerminal() {
-        let terminalId = terminalStore.createStandaloneTerminal(workingDirectory: NSHomeDirectory())
-        model.shell.selection = .terminal(id: terminalId)
-    }
-
-    private func closeStandaloneTerminal(_ id: UUID) {
-        Task {
-            guard await terminalStore.closeAll(for: .terminal(id)) else { return }
-            reconcileSelectedTerminal()
-        }
-    }
-
-    private func reconcileSelectedTerminal() {
-        guard case .terminal(let currentId) = model.shell.selection else { return }
-        guard terminalStore.standaloneTerminal(id: currentId) == nil else { return }
-        if let nextId = terminalStore.standaloneTerminals().first?.id {
-            model.shell.selection = .terminal(id: nextId)
-        } else {
-            model.shell.selection = .terminals
-        }
-    }
-
-    private func setDrawerOpen(_ open: Bool, for owner: TerminalOwner) {
-        withAnimation(reduceMotion ? nil : .smooth(duration: 0.25)) {
-            model.shell.setTerminalDrawerOpen(open, for: owner)
-        }
-    }
-
-    private func toggleSessionTerminal(for session: SessionRow) {
-        let owner = TerminalOwner.session(session.id)
-        if model.shell.isTerminalDrawerOpen(for: owner) == false,
-           terminalStore.tabs(for: owner).isEmpty {
-            _ = terminalStore.openTab(for: owner, workingDirectory: session.folder)
-        }
-        withAnimation(reduceMotion ? nil : .smooth(duration: 0.25)) {
-            model.shell.toggleTerminalDrawer(for: owner)
-        }
-    }
-
-    /// Launches or focuses a validated epic Continue-in-Terminal session inside the epic's integrated bottom drawer.
-    private func continueEpicInTerminal(epic: EpicRef, section: SessionSection, resume: ValidResume) {
-        let launch = embeddedResumeLaunch(resume)
-        guard isAccessibleTerminalDirectory(launch.workingDirectory) else {
-            NSLog("Carrier: continue in terminal refused because folder is inaccessible: %@", launch.workingDirectory)
-            tell("The session folder is no longer accessible.")
-            return
-        }
-        let owner = TerminalOwner.epic(repo: epic.repo, issue: epic.issue)
-        if let existingTab = terminalStore.tabs(for: owner).first(where: { tab in
-            tab.orderedPanes.contains { $0.command == launch.command }
-        }) {
-            terminalStore.selectTab(existingTab.id, for: owner)
-            setDrawerOpen(true, for: owner)
-            if let matchingPaneId = existingTab.orderedPanes.first(where: { $0.command == launch.command })?.id {
-                terminalStore.selectPane(matchingPaneId)
-                terminalStore.focus(paneId: matchingPaneId)
-            }
-            return
-        }
-        let tab = terminalStore.openTab(
-            for: owner,
-            workingDirectory: launch.workingDirectory,
-            command: launch.command,
-            title: "\(section.agent) · \(section.role)",
-            activate: true
-        )
-        setDrawerOpen(true, for: owner)
-        terminalStore.focus(paneId: tab.activePaneId)
-    }
-
-    /// Bottom terminal drawer target for the currently selected chat session or epic, if any.
-    private var activeDrawerTarget: (owner: TerminalOwner, defaultDirectory: String, isSessionDrawer: Bool)? {
-        if case .session(let id) = model.shell.selection, let session = openSession {
-            return (.session(id), session.folder, true)
-        }
-        if let epic {
-            let owner = TerminalOwner.epic(repo: epic.subject.repo, issue: epic.subject.issue)
-            let directory = terminalStore.activeTab(for: owner)?.workingDirectory ?? NSHomeDirectory()
-            return (owner, directory, false)
-        }
-        return nil
     }
 
     var body: some View {
@@ -340,123 +257,7 @@ struct PanelView: View {
                 }
             }
         }
-        .toolbar {
-            ToolbarItem(placement: .navigation) {
-                Button { withAnimation(.smooth(duration: 0.25)) { shell.toggleSidebar() } } label: { Label("Sidebar", systemIcon: .sidebar) }
-                    .help("Show or hide the sidebar")
-            }
-            // a subagent view has its own ‹ Back, one level up, in the same place: two with the same name would be one too many
-            if shell.subagentHeader == nil {
-                ToolbarItemGroup(placement: .navigation) {
-                    Button { shell.goBack() } label: { Label("Back", systemIcon: .chevronLeft) }
-                        .disabled(shell.history.canGoBack == false).help("Back")
-                    Button { shell.goForward() } label: { Label("Forward", systemIcon: .chevronRight) }
-                        .disabled(shell.history.canGoForward == false).help("Forward")
-                }
-            }
-            if let epic {
-                if let open = shell.subagentHeader {
-                    // a slice card's subagent view wears the same header as a conversation's, with the epic in its subtitle and no Stop
-                    ToolbarItem(placement: .navigation) {
-                        Button { shell.leaveSubagent() } label: { Label("Back", systemIcon: .chevronLeft) }
-                            .help("Back to Agent output")
-                    }
-                    ToolbarItem(placement: .navigation) {
-                        SubagentTitle(title: open.title, subtitle: open.subtitle(of: epic.header.title))
-                            .frame(maxWidth: windowSize.width * 0.35, alignment: .leading)
-                    }
-                    .sharedBackgroundVisibility(.hidden)
-                    ToolbarItem(placement: .primaryAction) { SubagentStatePill(header: open) }
-                        .sharedBackgroundVisibility(.hidden)
-                } else {
-                    ToolbarItem(placement: .primaryAction) { EpicLinks(prURL: epic.header.prURL, issueURL: epic.header.issueURL) }
-                        .sharedBackgroundVisibility(.hidden)
-                }
-                ToolbarSpacer(.fixed, placement: .primaryAction)
-                ToolbarItem(placement: .primaryAction) {
-                    Button { withAnimation(.smooth(duration: 0.25)) { shell.toggleInspector() } } label: { Label("Inspector", systemIcon: .sidebarRight) }
-                        .help("Show or hide the inspector")
-                }
-                if shell.inspectorShown {
-                    // The toolbar is the window's, so its right end is over the panel, which runs up behind the title bar. An empty item
-                    // as wide as the panel at that end keeps the buttons on the centre's side of it.
-                    ToolbarItem(placement: .primaryAction) { Color.clear.frame(width: Self.inspectorWidth, height: 1) }
-                        .sharedBackgroundVisibility(.hidden)
-                }
-            }
-            if let session = openSession {
-                let drawerOpen = shell.isTerminalDrawerOpen(for: .session(session.id))
-                if let open = shell.subagentHeader {
-                    // a subagent view wears the window's header: Back next to the sidebar's button, its title, and its state where the worktree pill is
-                    ToolbarItem(placement: .navigation) {
-                        Button { shell.leaveSubagent() } label: { Label("Back", systemIcon: .chevronLeft) }
-                            .help(shell.subagents.count > 1 ? "Back to the subagent that launched this one" : "Back to the conversation")
-                    }
-                    ToolbarItem(placement: .navigation) {
-                        SubagentTitle(title: open.title, subtitle: open.subtitle(of: conversationTitle(session)))
-                            .frame(maxWidth: windowSize.width * 0.35, alignment: .leading)
-                    }
-                    .sharedBackgroundVisibility(.hidden)
-                    ToolbarItem(placement: .primaryAction) { SubagentStatePill(header: open) }
-                        .sharedBackgroundVisibility(.hidden)
-                    if open.canStop {
-                        ToolbarItem(placement: .primaryAction) {
-                            ToolbarPillButton(title: "Stop", icon: .stopFilled, iconTint: .red) { shell.perform(.conversation(.stopSubagent)) }
-                                .glassEffect(.regular, in: .capsule)
-                                .help("Stop this subagent; the main agent goes on")
-                        }
-                        .sharedBackgroundVisibility(.hidden)
-                    }
-                } else {
-                    ToolbarItem(placement: .primaryAction) { SessionPlacePill(row: session) }
-                        .sharedBackgroundVisibility(.hidden)
-                }
-                ToolbarSpacer(.fixed, placement: .primaryAction)
-                ToolbarItem(placement: .primaryAction) {
-                    ToolbarGlassIconButton(icon: .terminal, active: drawerOpen, name: drawerOpen ? "Hide terminal" : "Open terminal in \(abbreviatedTerminalPath(session.folder))") {
-                        toggleSessionTerminal(for: session)
-                    }
-                    .glassEffect(.regular, in: .capsule)
-                    .padding(.trailing, 10)
-                }
-                .sharedBackgroundVisibility(.hidden)
-            }
-            if shell.selection == .usage {
-                ToolbarItem(placement: .primaryAction) {
-                    CheckAgainButton(skin: .toolbar, checking: AppUsage.store.isRefreshing, failed: AppUsage.store.error != nil) { AppUsage.refresher.checkAgain() }
-                        .glassEffect(.regular, in: .capsule)
-                        .padding(.trailing, 10)
-                        .help("Asks every provider again, skipping the minute the chat host keeps its answer")
-                }
-                .sharedBackgroundVisibility(.hidden)
-            }
-            if let snapshot, shell.selection == .carrier {
-                // two glass pills: the check against GitHub, then what governs Carrier itself (intake and stopping)
-                ToolbarItem(placement: .primaryAction) {
-                    // the engine polls on its own after the answer: the button says so until the next check is scheduled again
-                    let checking = isChecking(snapshot, asked: checkAsked, now: Date())
-                    CheckAgainButton(skin: .toolbar, title: "Check now", checking: checking) {
-                        checkAsked = CheckAsked(at: Date(), nextCheckAt: snapshot.nextCheckAt)
-                        MenuControls.shared.checkNow()
-                    }
-                    .glassEffect(.regular, in: .capsule)
-                    .help(checking ? "Checking GitHub…" : "Check GitHub now")
-                }
-                .sharedBackgroundVisibility(.hidden)
-                ToolbarSpacer(.fixed, placement: .primaryAction)
-                ToolbarItem(placement: .primaryAction) {
-                    HStack(spacing: 0) {
-                        ToolbarPillButton(title: snapshot.paused ? "Resume" : "Pause", icon: snapshot.paused ? .playFilled : .pauseFilled) { MenuControls.shared.pauseOrResume() }
-                            .help(snapshot.paused ? "Resume intake" : "Pause intake")
-                        ToolbarPillButton(title: "Stop", icon: .stopFilled, iconTint: .red) { MenuControls.shared.stopCarrier() }
-                            .help("Stop Carrier")
-                    }
-                    .glassEffect(.regular, in: .capsule)
-                    .padding(.trailing, 10)
-                }
-                .sharedBackgroundVisibility(.hidden)
-            }
-        }
+        .toolbar { panelToolbar }
         // reachable whatever Carrier is doing: it is where a stopped Carrier is made ready
         // what the engine answered to a save belongs to the engine that answered: another one, or none, starts clean
         .onChange(of: engineRunning) { ReloadStatus.shared.reset() }
@@ -488,35 +289,3 @@ struct PanelView: View {
         .environment(\.windowSize, windowSize)
     }
 }
-
-private struct Running: View {
-    let snapshot: PanelSnapshot
-    @Binding var selection: Selection
-
-    var body: some View {
-        switch selection {
-        case .carrier:
-            Overview(snapshot: snapshot, selection: $selection)
-        case .epic(let repo, let issue):
-            // not in the snapshot (any more)
-            Text("\(repo) #\(issue)")
-        case .home, .sessions, .session, .newSession, .terminals, .terminal, .archive, .usage:
-            EmptyView()  // PanelView shows these pages
-        }
-    }
-}
-
-private struct Overview: View {
-    let snapshot: PanelSnapshot
-    @Binding var selection: Selection
-
-    var body: some View {
-        YourTurnView(snapshot: snapshot, selection: $selection)
-        RunningView(snapshot: snapshot, selection: $selection)
-        if snapshot.queue.isEmpty == false { UpNextView(snapshot: snapshot, selection: $selection) }
-        WatchedReposView(snapshot: snapshot)
-    }
-}
-
-private extension PanelEpic { var key: String { "\(repo)#\(issue)" } }
-private extension PanelSnapshot.QueuedEpic { var key: String { "\(repo)#\(issue)" } }

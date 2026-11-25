@@ -13,9 +13,9 @@ Closing a standalone terminal from its hover `×`, middle-click (`onMiddleClick`
 
 ## Workspace, tabs and splits
 
-Selecting a standalone terminal (`Selection.terminal(id:)`) shows `TerminalDetailView` (`Carrier/TerminalWorkspaceView.swift`).
+Selecting a standalone terminal (`Selection.terminal(id:)`) shows `TerminalDetailView` (`Carrier/Features/Terminal/TerminalDetailView.swift`).
 The terminal surface extends under the translucent top toolbar across the full detail height, while top-right pane controls are inset below `safeAreaInsets.top` (`topControlsInset`) so they stay clear of toolbar buttons.
-The tab strip (`Carrier/TerminalTabBarView.swift`, `TerminalTabBarView`) sits along the bottom edge with drag reordering, context-menu and VoiceOver tab move actions, inline rename popovers, a pinned `+` button to add a tab in the active tab's folder, Close Tab / Close Other Tabs in the context menu and middle-click or `×` to close a tab.
+The tab strip (`Carrier/Features/Terminal/TerminalTabBarView.swift`, `TerminalTabBarView`) sits along the bottom edge with drag reordering, context-menu and VoiceOver tab move actions, inline rename popovers, a pinned `+` button to add a tab in the active tab's folder, Close Tab / Close Other Tabs in the context menu and middle-click or `×` to close a tab.
 Hovering near the top of a pane reveals floating glass controls (`TerminalPaneHeaderView`) to split right, split down, zoom or restore a split pane, drag a pane to another pane's edge to move it or center to swap (`terminalDropZone`), equalize splits or detach a pane into a new tab.
 All tab, split, focus, zoom, equalize, detach and close actions are also available via the menu bar (`Terminal` menu, `TerminalMenuControls`), keyboard shortcuts (`⌘⌥T`, `⌘⌃T`, `⌘T`, `⌘D`, `⌘⇧D`, `⌘⇧↩`, `⌘⌥[`, `⌘⌥]`, `⌘⇧[`, `⌘⇧]`, `⌘⇧W`) and pane accessibility actions.
 Split dividers (`SplitContainerView`) and the drawer's top edge (`TerminalDrawerView`) share `TerminalResizeDivider`, resize by drag or accessibility adjustment with `AppKit` resize cursors managed by `hoverCursor`, and highlight using `Color.themeAccent`.
@@ -26,12 +26,12 @@ The embedded terminal follows the app's active `Theme`, Light/Dark scheme, `Acce
 Each of the 9 themes (`carrier`, `graphite`, `ocean`, `forest`, `sunset`, `paper`, `rose`, `lavender`, `midnight`) provides a curated 16-color ANSI palette in both light and dark modes alongside high-contrast foreground, `boldColor`, accent-tinted selection colors, `cursorColor` and `cursorText`.
 When the active theme is `carrier` and **Translucent windows** is active (with system Reduce Transparency off), the Ghostty surface uses `backgroundOpacity = 0` over the window's translucent frosted background and draws `TerminalDrawerView` over a `.regularMaterial` backdrop tinted with `chromeBackground`.
 Opaque themes paint the theme's exact tinted window color (`background`) inside both the surface and chrome without double-tinting the tab bar, and `CarrierTerminalStore` live-reloads changes to `UserDefaults`, system appearance and `NSWorkspace.accessibilityDisplayOptionsDidChangeNotification`.
-Theme, color scheme, cursor style, typography, padding, minimum contrast, inactive-pane dimming, hover-to-focus splits, copy on select and running-process close confirmation apply immediately in **Settings › Terminal** (`Carrier/TerminalTabView.swift`), while scrollback limit, Option-as-Alt mapping and bottom Zsh prompt pinning apply to newly opened panes and shells.
+Theme, color scheme, cursor style, typography, padding, minimum contrast, inactive-pane dimming, hover-to-focus splits, copy on select and running-process close confirmation apply immediately in **Settings › Terminal** (`Carrier/Features/Terminal/TerminalTabView.swift`), while scrollback limit, Option-as-Alt mapping and bottom Zsh prompt pinning apply to newly opened panes and shells.
 When a tab is split, `TerminalPaneHostView` dims unfocused panes when `dimInactivePanes` is enabled and moves active Ghostty focus under the pointer when `focusFollowsMouse` is enabled.
 
 ## Session terminal drawer
 
-Open chat sessions show a terminal glass icon (`terminal`, `terminal.fill` while the drawer is open) in the toolbar, with no words (`ToolbarGlassIconButton`, `PanelView.swift`).
+Open chat sessions show a terminal glass icon (`terminal`, `terminal.fill` while the drawer is open) in the toolbar, with no words (`ToolbarGlassIconButton`, `Carrier/Features/Epics/PanelToolbar.swift`).
 Toggling it opens or hides `TerminalDrawerView` under `ConversationView`, persisted in `WindowShell.terminalDrawerOwners` for the window session and sized by `AppPreferences.terminalDrawerHeightKey` (`"terminal.drawerHeight"`), which is written when the edge is released and not at every tick of the drag (the drawer is drawn from a local height meanwhile).
 The drawer starts a `TerminalOwner.session` tab in the session's folder on first open, reuses the shared bottom-tab chrome with a collapse chevron on the right and collapses automatically when its last tab closes.
 Archiving or deleting a session closes and prunes its terminal tabs (`SessionActions`, `ChatSessionsPoller`).

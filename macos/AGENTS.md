@@ -24,7 +24,7 @@ The decision and command line are in `CarrierCore/Lifecycle/StartCarrier.swift`;
 ## Dev build and release build
 
 `build-app.sh` with no version makes the dev build, with a version the release build ([CONTRIBUTING](../CONTRIBUTING.md#developing-against-a-throwaway-folder)).
-`CarrierChannel` in the plist is `dev` or `release`; `isDevBuild` (`Carrier/AppDelegate.swift`) reads it, and a dev build has no `SUFeedURL`, so `AppUpdater.start` does not start the updater.
+`CarrierChannel` in the plist is `dev` or `release`; `isDevBuild` (`Carrier/App/AppDelegate.swift`) reads it, and a dev build has no `SUFeedURL`, so `AppUpdater.start` does not start the updater.
 `scripts/check-app.sh` asserts id, channel and missing feed for both; a new difference goes into `build-app.sh` and that script.
 
 ## Epics

@@ -1,3 +1,4 @@
+import CarrierCore
 import SwiftUI
 
 /// The glow on the card's edge. Working, a bright arc goes round once every few seconds. Waiting for the person, it does not go anywhere: the
@@ -7,7 +8,7 @@ struct GlowEdge: View {
     let waiting: Bool
     let moves: Bool
     /// The card's corners; the update pill passes half its height, a capsule.
-    var cornerRadius: CGFloat = 12
+    var cornerRadius: CGFloat = Tokens.Radius.card
 
     var body: some View {
         if moves {

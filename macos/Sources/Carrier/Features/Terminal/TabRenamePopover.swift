@@ -12,7 +12,7 @@ struct TabRenamePopover: View {
     @FocusState private var focused: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s10) {
             Text("Rename Tab")
                 .font(.scaled(12, weight: .semibold))
             TextField("Tab name", text: $title)
@@ -22,7 +22,7 @@ struct TabRenamePopover: View {
                     cancel()
                     return .handled
                 }
-            HStack(spacing: 8) {
+            HStack(spacing: Tokens.Space.s8) {
                 if hasCustomTitle {
                     Button(action: reset) {
                         Label("Reset", icon: .rotate)
@@ -44,7 +44,7 @@ struct TabRenamePopover: View {
                 .controlSize(.small)
             }
         }
-        .padding(12)
+        .padding(Tokens.Space.s12)
         .onAppear { focused = true }
     }
 }

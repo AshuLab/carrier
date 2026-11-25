@@ -17,15 +17,15 @@ struct PastedTextCard: View {
 
     var body: some View {
         let summary = summary ?? PasteSummary(text)
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 9) {
+        VStack(alignment: .leading, spacing: Tokens.Space.none) {
+            HStack(spacing: Tokens.Space.s10) {
                 Glyph(.fileText, size: 15, bold: true).foregroundStyle(.white)
                     .frame(width: 32, height: 32)
-                    .background(Color(red: 0.42, green: 0.47, blue: 0.58))
-                    .clipShape(RoundedRectangle(cornerRadius: 9))
-                    .overlay(RoundedRectangle(cornerRadius: 9).strokeBorder(.white.opacity(0.16), lineWidth: 0.5))
+                    .background(Color(Tokens.Attachment.log))
+                    .clipShape(RoundedRectangle(cornerRadius: Tokens.Radius.tile))
+                    .overlay(RoundedRectangle(cornerRadius: Tokens.Radius.tile).strokeBorder(.white.opacity(0.16), lineWidth: 0.5))
                     .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 0) {
+                VStack(alignment: .leading, spacing: Tokens.Space.none) {
                     Text("Pasted text").font(.scaled(12.5, weight: .semibold)).lineLimit(1)
                     Text(summary.stats).font(.scaled(11)).foregroundStyle(.secondary).lineLimit(1)
                 }
@@ -41,28 +41,28 @@ struct PastedTextCard: View {
                     .opacity(hovering ? 1 : 0)
                 }
             }
-            .padding(.leading, 5).padding(.trailing, 7).padding(.vertical, 5)
+            .padding(.leading, Tokens.Space.s5).padding(.trailing, Tokens.Space.s8).padding(.vertical, Tokens.Space.s5)
             if open {
                 Group {
                     if let edit {
                         TextEditor(text: Binding(get: { text }, set: edit))
-                            .font(.scaled(11.5, design: .monospaced)).scrollContentBackground(.hidden).padding(6)
+                            .font(.scaled(11.5, design: .monospaced)).scrollContentBackground(.hidden).padding(Tokens.Space.s6)
                             .frame(height: min(220, max(90, CGFloat(summary.lines) * 17 + 24)))
                             .accessibilityLabel("Pasted text")
                     } else {
                         ScrollView {
                             Text(text).font(.scaled(11.5, design: .monospaced)).textSelection(.enabled)
-                                .frame(maxWidth: .infinity, alignment: .leading).padding(10)
+                                .frame(maxWidth: .infinity, alignment: .leading).padding(Tokens.Space.s10)
                         }
                         .frame(maxHeight: 220)
                     }
                 }
-                .background(RoundedRectangle(cornerRadius: 9).fill(Color.primary.opacity(0.06)))
-                .padding(.horizontal, 6).padding(.bottom, 6)
+                .background(RoundedRectangle(cornerRadius: Tokens.Radius.tile).fill(Color.primary.opacity(0.06)))
+                .padding(.horizontal, Tokens.Space.s6).padding(.bottom, Tokens.Space.s6)
                 .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.98, anchor: .top)))
             }
         }
-        .chatSurface(in: RoundedRectangle(cornerRadius: 12))
+        .chatSurface(in: RoundedRectangle(cornerRadius: Tokens.Radius.card))
         .onHover { hovering = $0 }
         .accessibilityElement(children: .contain)
     }

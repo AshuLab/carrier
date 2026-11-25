@@ -1,3 +1,4 @@
+import CarrierCore
 import SwiftUI
 
 /// A row that goes somewhere: a chevron at its end. Without an `action` it is a plain row. A tap gesture, not a button, so
@@ -7,13 +8,13 @@ struct OverviewLinkRow<Content: View>: View {
     @ViewBuilder let content: Content
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: Tokens.Space.s12) {
             content
             if action != nil {
                 Glyph(.chevronRight, size: 11).foregroundStyle(.tertiary)
             }
         }
-        .padding(.vertical, 11)
+        .padding(.vertical, Tokens.Space.s12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
         .onTapGesture { action?() }

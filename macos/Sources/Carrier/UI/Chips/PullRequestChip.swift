@@ -16,7 +16,7 @@ struct PullRequestChip: View {
     }
 
     private var label: some View {
-        HStack(spacing: 5) {
+        HStack(spacing: Tokens.Space.s5) {
             if let dot { Circle().fill(dot).frame(width: 7, height: 7) }
             Text("PR #\(number)").monospacedDigit()
             if link != nil { Glyph(.arrowUpRight, size: 9).foregroundStyle(.tertiary) }

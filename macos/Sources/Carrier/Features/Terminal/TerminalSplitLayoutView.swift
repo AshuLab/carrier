@@ -130,13 +130,13 @@ private struct SplitContainerView: View {
             let secondExtent = max(0, usable - firstExtent)
 
             if horizontal {
-                HStack(spacing: 0) {
+                HStack(spacing: Tokens.Space.none) {
                     firstPane.frame(width: firstExtent, height: geometry.size.height)
                     divider(usable: usable, horizontal: true)
                     secondPane.frame(width: secondExtent, height: geometry.size.height)
                 }
             } else {
-                VStack(spacing: 0) {
+                VStack(spacing: Tokens.Space.none) {
                     firstPane.frame(width: geometry.size.width, height: firstExtent)
                     divider(usable: usable, horizontal: false)
                     secondPane.frame(width: geometry.size.width, height: secondExtent)

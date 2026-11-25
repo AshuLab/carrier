@@ -75,8 +75,13 @@ public enum Tokens {
         public static let s24: Double = 24
         public static let s28: Double = 28
         public static let s30: Double = 30
+        public static let s32: Double = 32
+        public static let s34: Double = 34
         public static let s40: Double = 40
+        public static let s54: Double = 54
+        public static let s74: Double = 74
         public static let s90: Double = 90
+        public static let s110: Double = 110
         public static let bubbleMargin: Double = 120
         public static let timelineTop: Double = 160
     }
@@ -86,6 +91,7 @@ public enum Tokens {
         public static let background = SchemePair<UInt32>(light: 0x007ab3, dark: 0x59c7fa)
         public static let attention = SchemePair<UInt32>(light: 0xb35c00, dark: 0xff9f0a)
         public static let done = SchemePair<UInt32>(light: 0x1f8c3d, dark: 0x30b34f)
+        public static let thought = SchemePair<UInt32>(light: 0xc9a1ff, dark: 0xc9a1ff)
         public static let slowCall = SchemePair<UInt32>(light: 0xb35c00, dark: 0xff9f0a)
     }
 
@@ -144,6 +150,53 @@ public enum Tokens {
 
     public enum Milestone {
         public static let plain = SchemePair<UInt32>(light: 0x6e6e6e, dark: 0x6e6e6e)
+    }
+
+    public enum ResultMark {
+        public static let green = SchemePair<UInt32>(light: 0x1c8042, dark: 0x1c8042)
+        public static let red = SchemePair<UInt32>(light: 0xc7302b, dark: 0xc7302b)
+    }
+
+    public enum Syntax {
+        public static let keyword = SchemePair<UInt32>(light: 0x8250df, dark: 0xc792ea)
+        public static let string = SchemePair<UInt32>(light: 0x1a7f37, dark: 0xa8e08a)
+        public static let number = SchemePair<UInt32>(light: 0xb35900, dark: 0xf2a65a)
+        public static let comment = SchemePair<UInt32>(light: 0x6e7781, dark: 0x8a83a8)
+        public static let function = SchemePair<UInt32>(light: 0x0969da, dark: 0x7cc4ff)
+        public static let type = SchemePair<UInt32>(light: 0x9a6700, dark: 0xffd479)
+    }
+
+    public enum Provider {
+        public static let claude = SchemePair<UInt32>(light: 0xd97857, dark: 0xd97857)
+        public static let codex = SchemePair<UInt32>(light: 0x40998c, dark: 0x40998c)
+        public static let antigravity = SchemePair<UInt32>(light: 0x6673d9, dark: 0x6673d9)
+    }
+
+    public enum ProjectIcon {
+        public static let p01 = SchemePair<UInt32>(light: 0xa3644e, dark: 0xa3644e)
+        public static let p02 = SchemePair<UInt32>(light: 0x857340, dark: 0x857340)
+        public static let p03 = SchemePair<UInt32>(light: 0x6d7d3c, dark: 0x6d7d3c)
+        public static let p04 = SchemePair<UInt32>(light: 0x4f823e, dark: 0x4f823e)
+        public static let p05 = SchemePair<UInt32>(light: 0x3e824f, dark: 0x3e824f)
+        public static let p06 = SchemePair<UInt32>(light: 0x3e8271, dark: 0x3e8271)
+        public static let p07 = SchemePair<UInt32>(light: 0x457c8f, dark: 0x457c8f)
+        public static let p08 = SchemePair<UInt32>(light: 0x4e64a3, dark: 0x4e64a3)
+        public static let p09 = SchemePair<UInt32>(light: 0x634ea3, dark: 0x634ea3)
+        public static let p10 = SchemePair<UInt32>(light: 0x8e4ea3, dark: 0x8e4ea3)
+        public static let p11 = SchemePair<UInt32>(light: 0xa34e8e, dark: 0xa34e8e)
+        public static let p12 = SchemePair<UInt32>(light: 0xa34e64, dark: 0xa34e64)
+        public static let p13 = SchemePair<UInt32>(light: 0x805d52, dark: 0x805d52)
+        public static let p14 = SchemePair<UInt32>(light: 0x807452, dark: 0x807452)
+        public static let p15 = SchemePair<UInt32>(light: 0x6f7a4e, dark: 0x6f7a4e)
+        public static let p16 = SchemePair<UInt32>(light: 0x5d8052, dark: 0x5d8052)
+        public static let p17 = SchemePair<UInt32>(light: 0x52805d, dark: 0x52805d)
+        public static let p18 = SchemePair<UInt32>(light: 0x507d72, dark: 0x507d72)
+        public static let p19 = SchemePair<UInt32>(light: 0x527480, dark: 0x527480)
+        public static let p20 = SchemePair<UInt32>(light: 0x525d80, dark: 0x525d80)
+        public static let p21 = SchemePair<UInt32>(light: 0x5d5280, dark: 0x5d5280)
+        public static let p22 = SchemePair<UInt32>(light: 0x745280, dark: 0x745280)
+        public static let p23 = SchemePair<UInt32>(light: 0x805274, dark: 0x805274)
+        public static let p24 = SchemePair<UInt32>(light: 0x80525d, dark: 0x80525d)
     }
 
     public enum Accent {

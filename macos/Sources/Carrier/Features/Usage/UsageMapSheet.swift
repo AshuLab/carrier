@@ -23,8 +23,8 @@ struct MapSheet: View {
     private var errors: [UsageOverrideDraft.Field: String] { attempted ? draft.check(model: row.model, catalog: catalog).errors : [:] }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s14) {
+            VStack(alignment: .leading, spacing: Tokens.Space.s2) {
                 Text("Price for \(row.model)").font(.scaled(15).weight(.semibold)).lineLimit(1).truncationMode(.middle)
                 Text("The cost on this page follows what you set here. Nothing is guessed.").font(.scaled(12)).foregroundStyle(.secondary)
             }
@@ -44,7 +44,7 @@ struct MapSheet: View {
                 Button("Save") { Task { await save() } }.buttonStyle(PrimaryCapsuleButtonStyle()).keyboardShortcut(.defaultAction).disabled(saving)
             }
         }
-        .padding(20).frame(width: 480)
+        .padding(Tokens.Space.s20).frame(width: 480)
         .onChange(of: draft) { refusal = nil }
     }
 
@@ -55,13 +55,13 @@ struct MapSheet: View {
         case .clear:
             Text("Goes back to the price table. If the model is not in it, it shows as unpriced again.").font(.scaled(12)).foregroundStyle(.secondary)
         case .alias:
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: Tokens.Space.s4) {
                 Text("Uses the rates of").font(.scaled(12)).foregroundStyle(.secondary)
                 ChoicePopUp(label: "Catalog model", options: [("", "Choose a model")] + catalog.map { ($0, $0) }, selection: $draft.alias)
                 problem(errors[.alias])
             }
         case .custom:
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: Tokens.Space.s8) {
                 Text("US dollars per million tokens").font(.scaled(12)).foregroundStyle(.secondary)
                 rate("Input", "required", $draft.input, .input)
                 rate("Cached read", "optional", $draft.cachedInput, .cachedInput)
@@ -72,13 +72,13 @@ struct MapSheet: View {
     }
 
     private func rate(_ title: String, _ hint: String, _ text: Binding<String>, _ field: UsageOverrideDraft.Field) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s3) {
             HStack {
                 Text(title).frame(width: 110, alignment: .leading)
                 TextField(hint, text: text).settingsField(width: 120).environment(\.settingsInvalid, errors[field] != nil)
                     .accessibilityLabel("\(title) dollars per million tokens")
             }
-            problem(errors[field]).padding(.leading, 110)
+            problem(errors[field]).padding(.leading, Tokens.Space.s110)
         }
     }
 

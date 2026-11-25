@@ -15,14 +15,14 @@ private struct SettingsFieldModifier: ViewModifier {
     private var focused: Bool { focus.wrappedValue }
 
     func body(content: Content) -> some View {
-        let shape = RoundedRectangle(cornerRadius: 8, style: .continuous)
-        HStack(spacing: 7) {
+        let shape = RoundedRectangle(cornerRadius: Tokens.Radius.control, style: .continuous)
+        HStack(spacing: Tokens.Space.s8) {
             if let icon { Glyph(icon, size: 12).foregroundStyle(.secondary) }
             // a form makes a field's title its label, at the left of it, and aligns its text to the trailing edge: here the title is the prompt
             content.textFieldStyle(.plain).labelsHidden().multilineTextAlignment(.leading).focused(focus).focusEffectDisabled()
             if invalid { Glyph(.warningFilled, size: 11).foregroundStyle(.orange).accessibilityHidden(true) }
         }
-            .padding(.horizontal, 10).padding(.vertical, 6)
+            .padding(.horizontal, Tokens.Space.s10).padding(.vertical, Tokens.Space.s6)
             // a fixed width, or the whole width it is given
             .frame(minWidth: width, maxWidth: width ?? .infinity)
             // a fill only while idle: a half-point hairline over a translucent fill drew uneven edges

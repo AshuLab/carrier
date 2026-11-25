@@ -11,7 +11,7 @@ struct ConsumptionSection: View {
     @State private var searched = ""
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s14) {
             filters
             if let snapshot = store.snapshot {
                 kpis(snapshot)
@@ -43,8 +43,8 @@ struct ConsumptionSection: View {
 
     private var filters: some View {
         // the selects have no box, so their words need room of their own: 8 pt between the two segmented controls, 18 pt from them to the selects and between the selects
-        HStack(spacing: 18) {
-            HStack(spacing: 8) {
+        HStack(spacing: Tokens.Space.s18) {
+            HStack(spacing: Tokens.Space.s8) {
                 SegmentedChoice(
                     options: [(UsageMetric.cost, "Cost", AppIcon.coin), (.tokens, "Tokens", .hash)], selection: $store.metric
                 )
@@ -68,17 +68,17 @@ struct ConsumptionSection: View {
 
     private func kpis(_ snapshot: UsageSnapshot) -> some View {
         SettingsTabCard {
-            HStack(alignment: .top, spacing: 0) {
+            HStack(alignment: .top, spacing: Tokens.Space.none) {
                 ForEach(Array(usageKpis(snapshot).enumerated()), id: \.offset) { index, kpi in
-                    if index > 0 { SettingsDivider(vertical: true).padding(.vertical, 12) }
-                    VStack(alignment: .leading, spacing: 3) {
+                    if index > 0 { SettingsDivider(vertical: true).padding(.vertical, Tokens.Space.s12) }
+                    VStack(alignment: .leading, spacing: Tokens.Space.s3) {
                         Text(kpi.title).sectionLabel()
                         Text(kpi.value).font(.scaled(20, weight: .semibold)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.7)
                         // the footnote of the cost is the one that matters: an unpriced model is missing from the number
                         Text(kpi.footnote ?? " ").font(.scaled(11)).foregroundStyle(kpi.title == "Est. API Cost" && kpi.footnote != nil ? .orange : .secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 12).padding(.leading, index > 0 ? 14 : 0)
+                    .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, Tokens.Space.s12).padding(.leading, index > 0 ? Tokens.Space.s14 : Tokens.Space.none)
                     .accessibilityElement(children: .combine)
                 }
             }
@@ -92,7 +92,7 @@ struct ConsumptionSection: View {
     private func chart(_ snapshot: UsageSnapshot) -> some View {
         let bars = usageBars(snapshot, metric: store.metric)
         return SettingsTabCard {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: Tokens.Space.s8) {
                 Text("Daily \(store.metric == .cost ? "estimated API cost" : "tokens")").sectionLabel()
                 if usageIsEmpty(snapshot) {
                     if store.hasActiveFilters {
@@ -117,7 +117,7 @@ struct ConsumptionSection: View {
                     .frame(minHeight: 220)
                 }
             }
-            .padding(.vertical, 12)
+            .padding(.vertical, Tokens.Space.s12)
         }
     }
 
@@ -125,15 +125,15 @@ struct ConsumptionSection: View {
 
     private func modelTable(_ snapshot: UsageSnapshot) -> some View {
         let rows = usageModelRows(snapshot)
-        return VStack(alignment: .leading, spacing: 6) {
-            Text("By model").sectionLabel().padding(.leading, 14)
+        return VStack(alignment: .leading, spacing: Tokens.Space.s6) {
+            Text("By model").sectionLabel().padding(.leading, Tokens.Space.s14)
             SettingsTabCard {
                 if rows.isEmpty { emptyRow("No models used") }
                 ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
                     if index > 0 { SettingsDivider() }
-                    HStack(spacing: 12) {
+                    HStack(spacing: Tokens.Space.s12) {
                         UsageProviderMark(title: row.provider, size: 16).frame(width: 20)
-                        VStack(alignment: .leading, spacing: 1) {
+                        VStack(alignment: .leading, spacing: Tokens.Space.s1) {
                             Text(row.model).font(.scaled(12, weight: .medium)).lineLimit(1).truncationMode(.middle)
                             Text(row.provider).font(.scaled(11)).foregroundStyle(.secondary)
                         }
@@ -141,7 +141,7 @@ struct ConsumptionSection: View {
                         Text(row.detail).font(.scaled(11)).foregroundStyle(.secondary).monospacedDigit().lineLimit(1)
                         costCell(row).frame(width: 150, alignment: .trailing)
                     }
-                    .padding(.vertical, 9).frame(minHeight: 40)
+                    .padding(.vertical, Tokens.Space.s10).frame(minHeight: 40)
                 }
                 if rows.isEmpty == false {
                     let total = usageModelTotal(snapshot)
@@ -152,7 +152,7 @@ struct ConsumptionSection: View {
     }
 
     @ViewBuilder private func costCell(_ row: UsageModelRow) -> some View {
-        HStack(spacing: 6) {
+        HStack(spacing: Tokens.Space.s6) {
             if let cost = row.cost { Text(cost).font(.scaled(12, weight: .medium)).monospacedDigit() }
             if row.unpriced {
                 Button { mapping = row } label: { Badge(text: "Unpriced · Map", icon: .warningFilled, tint: .orange) }
@@ -168,15 +168,15 @@ struct ConsumptionSection: View {
 
     private func workspaceTable(_ snapshot: UsageSnapshot) -> some View {
         let rows = usageWorkspaceRows(snapshot)
-        return VStack(alignment: .leading, spacing: 6) {
-            Text("By workspace & source").sectionLabel().padding(.leading, 14)
+        return VStack(alignment: .leading, spacing: Tokens.Space.s6) {
+            Text("By workspace & source").sectionLabel().padding(.leading, Tokens.Space.s14)
             SettingsTabCard {
                 if rows.isEmpty { emptyRow("No workspaces used") }
                 ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
                     if index > 0 { SettingsDivider() }
-                    HStack(spacing: 12) {
+                    HStack(spacing: Tokens.Space.s12) {
                         Glyph(sourceSymbol(row.source), size: 13).foregroundStyle(.secondary).frame(width: 20).accessibilityHidden(true)
-                        VStack(alignment: .leading, spacing: 1) {
+                        VStack(alignment: .leading, spacing: Tokens.Space.s1) {
                             Text(row.name).font(.scaled(12, weight: .medium)).lineLimit(1).truncationMode(.middle).help(row.path)
                             Text(row.source).font(.scaled(11)).foregroundStyle(.secondary)
                         }
@@ -184,7 +184,7 @@ struct ConsumptionSection: View {
                         Text(row.detail).font(.scaled(11)).foregroundStyle(.secondary).monospacedDigit().lineLimit(1)
                         Text(row.cost).font(.scaled(12, weight: .medium)).monospacedDigit().frame(width: 150, alignment: .trailing)
                     }
-                    .padding(.vertical, 9).frame(minHeight: 40)
+                    .padding(.vertical, Tokens.Space.s10).frame(minHeight: 40)
                 }
                 if rows.isEmpty == false {
                     let total = usageWorkspaceTotal(snapshot)
@@ -204,7 +204,7 @@ struct ConsumptionSection: View {
     }
 
     private func emptyRow(_ text: String) -> some View {
-        Text(text).font(.scaled(12)).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 14)
+        Text(text).font(.scaled(12)).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, Tokens.Space.s14)
     }
 }
 
@@ -215,16 +215,16 @@ private struct UsageFooter: View {
     let cost: String
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: Tokens.Space.s12) {
             Glyph(.sum, size: 13).foregroundStyle(.secondary).frame(width: 20).accessibilityHidden(true)
             Text(title).font(.scaled(12, weight: .semibold)).lineLimit(1).truncationMode(.tail)
             Spacer(minLength: 8)
             Text(detail).font(.scaled(11)).foregroundStyle(.secondary).monospacedDigit().lineLimit(1)
             Text(cost).font(.scaled(13, weight: .semibold)).monospacedDigit().frame(width: 150, alignment: .trailing)
         }
-        .padding(.vertical, 9).padding(.horizontal, 8).frame(minHeight: 40)
-        .background(RoundedRectangle(cornerRadius: 9).fill(Color.primary.opacity(0.07)))
-        .padding(.horizontal, -8).padding(.vertical, 8)
+        .padding(.vertical, Tokens.Space.s10).padding(.horizontal, Tokens.Space.s8).frame(minHeight: 40)
+        .background(RoundedRectangle(cornerRadius: Tokens.Radius.tile).fill(Color.primary.opacity(0.07)))
+        .padding(.horizontal, -Tokens.Space.s8).padding(.vertical, Tokens.Space.s8)
         .accessibilityElement(children: .combine)
     }
 }

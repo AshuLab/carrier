@@ -16,14 +16,14 @@ struct NumberField<Value: Equatable>: View {
     @FocusState private var focused: Bool
 
     var body: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: Tokens.Space.none) {
             stepButton(.minus, -1)
             TextField("", text: $text).textFieldStyle(.plain).multilineTextAlignment(.center).frame(width: 42).focused($focused)
             stepButton(.plus, 1)
         }
-        .padding(2)
-        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.primary.opacity(focused ? 0.09 : 0.07)))
-        .overlay { if invalid { RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(Color.orange, lineWidth: 1.5) } else if focused { RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(.tint, lineWidth: 1.5) } }
+        .padding(Tokens.Space.s2)
+        .background(RoundedRectangle(cornerRadius: Tokens.Radius.control, style: .continuous).fill(Color.primary.opacity(focused ? 0.09 : 0.07)))
+        .overlay { if invalid { RoundedRectangle(cornerRadius: Tokens.Radius.control, style: .continuous).strokeBorder(Color.orange, lineWidth: 1.5) } else if focused { RoundedRectangle(cornerRadius: Tokens.Radius.control, style: .continuous).strokeBorder(.tint, lineWidth: 1.5) } }
             .onAppear { text = format(value) }
             .onChange(of: text) {
                 if let parsed = parse(text) {

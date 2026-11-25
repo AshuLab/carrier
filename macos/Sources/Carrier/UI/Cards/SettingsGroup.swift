@@ -1,3 +1,4 @@
+import CarrierCore
 import SwiftUI
 
 /// A group of a tab: a small uppercase title over a card of rows, or a section of a native `Form`. `footer` is the longer word about the whole
@@ -27,17 +28,17 @@ struct SettingsGroup<Content: View, Accessory: View>: View {
                 if let footer { Text(footer) }
             }
         } else {
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: Tokens.Space.s6) {
                 if title.isEmpty == false {
                     HStack {
                         Text(title).sectionLabel()
                         Spacer(minLength: 8)
                         accessory
                     }
-                    .padding(.leading, 14).padding(.top, 8)
+                    .padding(.leading, Tokens.Space.s14).padding(.top, Tokens.Space.s8)
                 }
                 SettingsTabCard { content }.environment(\.settingsGroup, id ?? "")
-                if let footer { Text(footer).scaledFont(11).foregroundStyle(.secondary).padding(.horizontal, 14) }
+                if let footer { Text(footer).scaledFont(11).foregroundStyle(.secondary).padding(.horizontal, Tokens.Space.s14) }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .settingsAnchored(id, group: id)

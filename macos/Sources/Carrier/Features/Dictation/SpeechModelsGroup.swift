@@ -18,7 +18,7 @@ struct SpeechModelsGroup: View {
             if let missing = speechModelChoice(models: dictation.models, chosen: dictation.chosenModel, state: dictation.store.state(of:)).missing {
                 // another model listens until this one is back: said where it can be downloaded
                 ProblemLine(text: "\(missing.name) is not on disk: download it in the table or choose another", font: .scaled(11), announces: false)
-                    .padding(.vertical, 8)
+                    .padding(.vertical, Tokens.Space.s8)
             }
             SpeechModelsTable(
                 rows: dictation.rows(filter: filter), choose: { id in dictation.models.first { $0.id == id }.map(dictation.choose(model:)) },

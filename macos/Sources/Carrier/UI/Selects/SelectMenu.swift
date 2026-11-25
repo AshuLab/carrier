@@ -1,3 +1,4 @@
+import CarrierCore
 import SwiftUI
 
 /// A choice among a few words, the one select of the app's rows: the system's own pop-up menu (a `Picker` in the menu style), which in a form is drawn as
@@ -23,7 +24,7 @@ struct SelectMenu: View {
                 } label: { EmptyView() }
                 .pickerStyle(.inline).labelsHidden()
             } label: {
-                HStack(spacing: 6) {
+                HStack(spacing: Tokens.Space.s6) {
                     Text(items.indices.contains(selection) ? items[selection] : (items.first ?? "")).lineLimit(1)
                     SelectChevron()
                 }

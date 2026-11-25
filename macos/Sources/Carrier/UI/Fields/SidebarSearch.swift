@@ -24,7 +24,7 @@ struct SidebarSearchField: View {
                         text = ""
                         focus.wrappedValue = true
                     } label: {
-                        Glyph(.closeCircleFilled).foregroundStyle(clearHovered ? .primary : .secondary).padding(.trailing, 5)
+                        Glyph(.closeCircleFilled).foregroundStyle(clearHovered ? .primary : .secondary).padding(.trailing, Tokens.Space.s5)
                     }
                     .buttonStyle(.plain)
                     .onHover { clearHovered = $0 }
@@ -43,14 +43,14 @@ struct SidebarEmptyBlock<Action: View>: View {
     @ViewBuilder let action: Action
 
     var body: some View {
-        VStack(spacing: 4) {
-            Glyph(icon, size: 26).foregroundStyle(.secondary).padding(.bottom, 4)
+        VStack(spacing: Tokens.Space.s4) {
+            Glyph(icon, size: 26).foregroundStyle(.secondary).padding(.bottom, Tokens.Space.s4)
             Text(title).font(.headline)
             Text(line).font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center).lineLimit(3)
-            action.padding(.top, 4)
+            action.padding(.top, Tokens.Space.s4)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 18)
+        .padding(.vertical, Tokens.Space.s18)
         .accessibilityElement(children: .contain)
     }
 }

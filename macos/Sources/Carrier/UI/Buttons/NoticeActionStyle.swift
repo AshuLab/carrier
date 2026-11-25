@@ -1,3 +1,4 @@
+import CarrierCore
 import SwiftUI
 
 /// An action of a `NoticeCard`, in the card's own colour so it reads on the glass the card is filled with and does not depend on the accent
@@ -21,7 +22,7 @@ struct NoticeActionStyle: ButtonStyle {
             let pill = quiet ? Color.primary.opacity(configuration.isPressed ? 0.2 : hovered ? 0.14 : 0) : tint.opacity(configuration.isPressed ? 0.46 : hovered ? 0.38 : 0.24)
             configuration.label
                 .scaledFont(12, weight: .medium).foregroundStyle(words)
-                .padding(.horizontal, 10).frame(minWidth: 26, minHeight: 26)
+                .padding(.horizontal, Tokens.Space.s10).frame(minWidth: 26, minHeight: 26)
                 .background(Capsule().fill(pill))
                 .opacity(enabled ? 1 : 0.4)
                 .contentShape(Capsule())

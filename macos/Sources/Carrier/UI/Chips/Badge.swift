@@ -9,6 +9,6 @@ struct Badge: View {
 
     var body: some View {
         Label(text, icon: icon).font(.caption.weight(.medium)).foregroundStyle(tint)
-            .padding(.horizontal, 7).padding(.vertical, 2).background(Capsule().fill(tint.opacity(0.14)))
+            .padding(.horizontal, Tokens.Space.s8).padding(.vertical, Tokens.Space.s2).background(Capsule().fill(tint.opacity(0.14)))
     }
 }

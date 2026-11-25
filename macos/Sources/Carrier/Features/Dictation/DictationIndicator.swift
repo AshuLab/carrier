@@ -11,7 +11,7 @@ import SwiftUI
 struct DictationIndicator: View {
     let levels: VoiceLevels
     /// The message box's own radius (`MessageBox` writes the same 16; keep the two equal).
-    var radius: CGFloat = 16
+    var radius: CGFloat = Tokens.Radius.panel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @State private var motion = IndicatorMotion()
@@ -23,9 +23,7 @@ struct DictationIndicator: View {
         let accent = NSColor(Color.themeAccent).usingColorSpace(.sRGB) ?? .controlAccentColor
         var (hue, saturation, brightness): (CGFloat, CGFloat, CGFloat) = (0, 0, 0)
         accent.getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: nil)
-        return dictationColors(accent: HSB(hue: hue, saturation: saturation, brightness: brightness)).map {
-            Color(hue: $0.hue, saturation: $0.saturation, brightness: $0.brightness)
-        }
+        return dictationColors(accent: HSB(hue: hue, saturation: saturation, brightness: brightness)).map { Color($0) }
     }
 
     var body: some View {

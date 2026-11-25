@@ -91,12 +91,12 @@ private struct ContextUsageDetail: View {
     let close: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 11) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s12) {
             if let context {
-                VStack(alignment: .leading, spacing: 3) {
+                VStack(alignment: .leading, spacing: Tokens.Space.s3) {
                     if let share = context.share { UsageMeterLine(label: "Context", shape: MeterShape(solid: share)) }
                     Text(context.text + (context.share == nil ? " context" : "")).font(.scaled(10.5)).foregroundStyle(.secondary)
-                        .padding(.leading, context.share == nil ? 0 : 54)
+                        .padding(.leading, context.share == nil ? Tokens.Space.none : Tokens.Space.s54)
                 }
             } else {
                 Text("The context is known after the first answer.").font(.scaled(11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
@@ -113,7 +113,7 @@ private struct ContextUsageDetail: View {
                 Button("Open Usage") { close(); WindowController.shared.showUsage() }.buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
             }
         }
-        .padding(14).frame(width: 290)
+        .padding(Tokens.Space.s14).frame(width: 290)
     }
 
     /// Why there are no meters: the account is signed out, the check is still on its way, or the account has no limits to tell (a local server).

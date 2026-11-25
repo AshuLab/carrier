@@ -34,12 +34,12 @@ struct EmptyStateView: View {
     }
 
     var body: some View {
-        VStack(spacing: 5) {
+        VStack(spacing: Tokens.Space.s5) {
             Glyph(icon, size: 26)
                 .foregroundStyle(.secondary)
                 .frame(width: 54, height: 54)
-                .background(RoundedRectangle(cornerRadius: 16).fill(Color.secondary.opacity(0.12)))
-                .padding(.bottom, 9)
+                .background(RoundedRectangle(cornerRadius: Tokens.Radius.panel).fill(Color.secondary.opacity(0.12)))
+                .padding(.bottom, Tokens.Space.s10)
             Text(title).font(.headline)
             // wraps to as many lines as it needs, whatever height it is given; never narrower than 200, or the window's smallest size
             // (asked with no width) would be one word a line
@@ -52,14 +52,14 @@ struct EmptyStateView: View {
                         if let actionIcon { Label(action.title, icon: actionIcon).labelStyle(.titleAndIcon) } else { Text(action.title) }
                     }
                     .buttonStyle(SecondaryCapsuleButtonStyle())
-                    .padding(.top, 8)
+                    .padding(.top, Tokens.Space.s8)
                 case .accentGlass:
                     AccentGlassPillButton(title: action.title, icon: actionIcon, action: action.run)
-                        .padding(.top, 8)
+                        .padding(.top, Tokens.Space.s8)
                 }
             }
         }
-        .padding(22)
+        .padding(Tokens.Space.s22)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
@@ -72,16 +72,16 @@ struct LoadingStateView: View {
     @State private var shown = false
 
     var body: some View {
-        VStack(spacing: 5) {
+        VStack(spacing: Tokens.Space.s5) {
             ProgressView().controlSize(.regular)
                 .frame(width: 54, height: 54)
-                .background(RoundedRectangle(cornerRadius: 16).fill(Color.secondary.opacity(0.12)))
-                .padding(.bottom, 9)
+                .background(RoundedRectangle(cornerRadius: Tokens.Radius.panel).fill(Color.secondary.opacity(0.12)))
+                .padding(.bottom, Tokens.Space.s10)
             Text(title).font(.headline)
             Text(line).font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true).frame(maxWidth: 280)
         }
-        .padding(22)
+        .padding(Tokens.Space.s22)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .opacity(shown ? 1 : 0)
         .task {

@@ -15,7 +15,7 @@ struct SegmentedChoice<Value: Hashable>: View {
                 Segment(title: option.title, icon: option.icon, on: selection == option.value, thumb: thumb) { selection = option.value }
             }
         }
-        .padding(2)
+        .padding(Tokens.Space.s2)
         .background(Capsule().fill(Color.primary.opacity(0.06)))
         .overlay(Capsule().strokeBorder(Color.primary.opacity(0.06), lineWidth: 1))
         .animation(.smooth(duration: 0.25), value: selection)
@@ -34,13 +34,13 @@ struct SegmentedChoice<Value: Hashable>: View {
 
         var body: some View {
             Button(action: action) {
-                HStack(spacing: 5) {
+                HStack(spacing: Tokens.Space.s5) {
                     if let icon { Glyph(icon, size: 11) }
                     Text(title).scaledFont(12, weight: .medium)
                 }
                 // the chosen one reads in the accent, a little lifted in the dark and deepened in the light so it keeps its contrast on the tinted piece
                 .foregroundStyle(on ? theme.accentInk(scheme) : hovered ? Color.primary : Color.secondary)
-                .padding(.horizontal, 14).padding(.vertical, 4)
+                .padding(.horizontal, Tokens.Space.s14).padding(.vertical, Tokens.Space.s4)
                 // the whole of the slot the row gives it, so the tinted piece (its background) is as wide as the widest choice and not as the words
                 .frame(maxWidth: .infinity)
                 .background {

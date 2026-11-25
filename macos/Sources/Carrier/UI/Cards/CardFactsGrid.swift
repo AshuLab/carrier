@@ -1,3 +1,4 @@
+import CarrierCore
 import SwiftUI
 
 /// The facts of a card that opens on a row (`SessionPeekView`, `EpicCardView`): a quiet label and a value drawn by its kind. A path or a
@@ -34,7 +35,7 @@ struct CardFactsGrid<Extra: View>: View {
             ForEach(facts.indices, id: \.self) { index in
                 GridRow(alignment: .firstTextBaseline) {
                     Text(facts[index].label).foregroundStyle(.secondary)
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: Tokens.Space.s2) {
                         value(facts[index])
                         if let detail = facts[index].detail {
                             Text(detail).scaledFont(10, design: .monospaced).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
@@ -55,13 +56,13 @@ struct CardFactsGrid<Extra: View>: View {
         case .path:
             Text(fact.value).scaledFont(10.5, design: .monospaced).lineLimit(1).truncationMode(.middle).help(fact.value).textSelection(.enabled)
         case .branch:
-            HStack(spacing: 5) {
+            HStack(spacing: Tokens.Space.s5) {
                 Glyph(.gitBranch, size: 10).foregroundStyle(.secondary).accessibilityHidden(true)
                 Text(fact.value).scaledFont(10.5, design: .monospaced).lineLimit(1).truncationMode(.middle).textSelection(.enabled)
             }
             .help(fact.value)
         case .account(let mark, let name):
-            HStack(spacing: 5) {
+            HStack(spacing: Tokens.Space.s5) {
                 mark.accessibilityHidden(true)
                 Text(name).lineLimit(1)
             }

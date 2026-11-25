@@ -1,3 +1,4 @@
+import CarrierCore
 import SwiftUI
 
 /// A Carrier home card: a rounded fill with its rows divided by hairlines.
@@ -7,17 +8,17 @@ struct OverviewCard<Content: View>: View {
     @ViewBuilder let content: Content
 
     var body: some View {
-        VStack(spacing: 0) {
+        VStack(spacing: Tokens.Space.none) {
             Group(subviews: content) { rows in
                 ForEach(rows) { row in
-                    if row.id != rows.first?.id { Divider().padding(.horizontal, fullWidthDividers ? -14 : 0) }
+                    if row.id != rows.first?.id { Divider().padding(.horizontal, fullWidthDividers ? -Tokens.Space.s14 : Tokens.Space.none) }
                     row
                 }
             }
         }
-        .padding(.horizontal, 14)
+        .padding(.horizontal, Tokens.Space.s14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 16).fill(Color.secondary.opacity(0.08)))
-        .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Color.secondary.opacity(0.12), lineWidth: 0.5))
+        .background(RoundedRectangle(cornerRadius: Tokens.Radius.panel).fill(Color.secondary.opacity(0.08)))
+        .overlay(RoundedRectangle(cornerRadius: Tokens.Radius.panel).strokeBorder(Color.secondary.opacity(0.12), lineWidth: 0.5))
     }
 }

@@ -20,11 +20,11 @@ struct UnderlineTabs<ID: Hashable>: View {
     @Namespace private var line
 
     var body: some View {
-        HStack(spacing: fill ? 0 : 18) {
+        HStack(spacing: fill ? Tokens.Space.none : Tokens.Space.s18) {
             ForEach(items) { item in
                 let chosen = item.id == selection
                 Button { withAnimation(.smooth(duration: 0.22)) { selection = item.id } } label: {
-                    HStack(spacing: 5) {
+                    HStack(spacing: Tokens.Space.s5) {
                         if let icon = item.icon { Glyph(icon, size: 11) }
                         Text(item.title).fontWeight(chosen ? .semibold : .regular)
                         if let count = item.count { Text(count).foregroundStyle(item.countColor) }
@@ -32,7 +32,7 @@ struct UnderlineTabs<ID: Hashable>: View {
                     .font(.subheadline).lineLimit(1)
                     .foregroundStyle(chosen ? Color.primary : .secondary)
                     .frame(maxWidth: fill ? .infinity : nil)
-                    .padding(.top, 5).padding(.bottom, 8)
+                    .padding(.top, Tokens.Space.s5).padding(.bottom, Tokens.Space.s8)
                     .overlay(alignment: .bottom) {
                         if chosen { Capsule().fill(.primary).frame(height: 2).matchedGeometryEffect(id: "line", in: line).offset(y: 1) }
                     }

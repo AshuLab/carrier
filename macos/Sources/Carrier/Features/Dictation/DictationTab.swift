@@ -77,7 +77,7 @@ struct DictationTabView: View {
     @ViewBuilder private var offNotice: some View {
         if dictation.enabled == false {
             SettingsGroup(title: "") {
-                HStack(spacing: 12) {
+                HStack(spacing: Tokens.Space.s12) {
                     Glyph(.power, size: 14).foregroundStyle(.secondary).accessibilityHidden(true)
                     Text("Dictation is off, so what is set here waits. Turn it on to change it.").font(.scaled(12)).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)

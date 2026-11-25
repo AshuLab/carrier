@@ -38,8 +38,8 @@ struct TerminalSettingsPreview: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            HStack(spacing: 6) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s5) {
+            HStack(spacing: Tokens.Space.s6) {
                 Text("~/carrier")
                     .font(previewBoldFont)
                     .foregroundStyle(paletteColor(6, fallback: profile.foreground))
@@ -55,7 +55,7 @@ struct TerminalSettingsPreview: View {
                     .lineLimit(1)
             }
 
-            HStack(spacing: 6) {
+            HStack(spacing: Tokens.Space.s6) {
                 Text("✓ PASS")
                     .font(previewBoldFont)
                     .foregroundStyle(paletteColor(2, fallback: profile.boldColor))
@@ -71,7 +71,7 @@ struct TerminalSettingsPreview: View {
                     .lineLimit(1)
             }
 
-            HStack(spacing: 6) {
+            HStack(spacing: Tokens.Space.s6) {
                 Text("WARN")
                     .font(previewBoldFont)
                     .foregroundStyle(paletteColor(3, fallback: profile.foreground))
@@ -84,13 +84,13 @@ struct TerminalSettingsPreview: View {
                 Text("selected text")
                     .font(previewFont)
                     .foregroundStyle(Color(profile.selectionForeground))
-                    .padding(.horizontal, 4)
-                    .background(RoundedRectangle(cornerRadius: 3).fill(Color(profile.selectionBackground)))
+                    .padding(.horizontal, Tokens.Space.s4)
+                    .background(RoundedRectangle(cornerRadius: Tokens.Radius.tiny).fill(Color(profile.selectionBackground)))
             }
 
-            HStack(spacing: 3) {
+            HStack(spacing: Tokens.Space.s3) {
                 ForEach(0..<16, id: \.self) { index in
-                    RoundedRectangle(cornerRadius: 2)
+                    RoundedRectangle(cornerRadius: Tokens.Radius.hair)
                         .fill(rawPaletteColor(index, fallback: profile.foreground))
                         .frame(width: 12, height: 6)
                 }
@@ -99,20 +99,20 @@ struct TerminalSettingsPreview: View {
                     .font(previewFont)
                     .foregroundStyle(paletteColor(8, fallback: profile.foreground))
             }
-            .padding(.top, 2)
+            .padding(.top, Tokens.Space.s2)
 
             if pinPromptToBottom {
                 Spacer(minLength: 6)
             }
 
-            HStack(spacing: 6) {
+            HStack(spacing: Tokens.Space.s6) {
                 Text("~/carrier")
                     .font(previewBoldFont)
                     .foregroundStyle(paletteColor(6, fallback: profile.foreground))
                 Text("❯")
                     .font(previewBoldFont)
                     .foregroundStyle(Color(profile.cursorColor))
-                HStack(spacing: 0) {
+                HStack(spacing: Tokens.Space.none) {
                     Text("cargo test --lib ")
                         .font(previewFont)
                         .foregroundStyle(Color(profile.foreground))
@@ -134,8 +134,8 @@ struct TerminalSettingsPreview: View {
                 Rectangle().fill(Color(profile.background))
             }
         }
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.secondary.opacity(0.3), lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: Tokens.Radius.control))
+        .overlay(RoundedRectangle(cornerRadius: Tokens.Radius.control).strokeBorder(Color.secondary.opacity(0.3), lineWidth: 1))
         .accessibilityHidden(true)
     }
 

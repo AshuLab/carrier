@@ -1,3 +1,4 @@
+import CarrierCore
 import SwiftUI
 
 /// A row that is a button: it takes a faint fill under the pointer, or `fill` when it is the chosen one.
@@ -13,7 +14,7 @@ struct HoverRow<Content: View>: View {
             content(hovering && enabled).frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .background(RoundedRectangle(cornerRadius: 8).fill(fill ?? (hovering && enabled ? Color.secondary.opacity(0.14) : .clear)))
+        .background(RoundedRectangle(cornerRadius: Tokens.Radius.control).fill(fill ?? (hovering && enabled ? Color.secondary.opacity(0.14) : .clear)))
         .onHover { hovering = $0 }
     }
 }

@@ -11,13 +11,13 @@ struct SpeechModelsGroup: View {
     @State private var deleting: String?
 
     var body: some View {
-        SettingsGroup(id: "speech-models", title: "Speech models", footer: "The model in use is the one with its radio lit. A model on disk can be chosen; one that is not has to be downloaded first.", accessory: {
-            SegmentedChoice(options: [(value: RecognizerID?.none, title: "All", icon: nil)] + RecognizerID.allCases.map { (value: Optional($0), title: $0.title, icon: nil) }, selection: $filter)
-                .accessibilityLabel("Recognizer")
+        SettingsGroup(id: "speech-models", title: Copy.dictationGroupModels(), footer: Copy.dictationModelsFooter(), accessory: {
+            SegmentedChoice(options: [(value: RecognizerID?.none, title: Copy.dictationFilterAll(), icon: nil)] + RecognizerID.allCases.map { (value: Optional($0), title: $0.title, icon: nil) }, selection: $filter)
+                .accessibilityLabel(Copy.dictationRecognizerName())
         }, content: {
             if let missing = speechModelChoice(models: dictation.models, chosen: dictation.chosenModel, state: dictation.store.state(of:)).missing {
                 // another model listens until this one is back: said where it can be downloaded
-                ProblemLine(text: "\(missing.name) is not on disk: download it in the table or choose another", size: 11, announces: false)
+                ProblemLine(text: Copy.dictationModelMissing(model: missing.name), size: 11, announces: false)
                     .padding(.vertical, Tokens.Space.s8)
             }
             SpeechModelsTable(
@@ -26,15 +26,15 @@ struct SpeechModelsGroup: View {
             )
         })
         .alert(
-            "Delete \(deleting.flatMap(modelNamed) ?? "the model")?", isPresented: Binding(get: { deleting != nil }, set: { if $0 == false { deleting = nil } })
+            deleting.flatMap(modelNamed).map { Copy.dictationDeleteModelTitle(model: $0) } ?? Copy.dictationDeleteModelTitleGeneric(), isPresented: Binding(get: { deleting != nil }, set: { if $0 == false { deleting = nil } })
         ) {
-            Button("Cancel", role: .cancel) { deleting = nil }
-            Button("Delete", role: .destructive) {
+            Button(Copy.dictationCancel(), role: .cancel) { deleting = nil }
+            Button(Copy.dictationDelete(), role: .destructive) {
                 if let id = deleting { dictation.store.delete(id) }
                 deleting = nil
             }
         } message: {
-            Text("It frees its space on this Mac. You can download it again.")
+            Text(Copy.dictationDeleteModelMessage())
         }
     }
 

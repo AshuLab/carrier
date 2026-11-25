@@ -13,9 +13,9 @@ public struct LocalModelClient: TextModelClient {
     }
 
     public func models(of server: CleanupServer) async throws -> [String] {
-        let data = try await send(server, path: "/v1/models", body: nil, timeout: 3, notFound: .badReply("\(server.title) has no list of models"))
+        let data = try await send(server, path: "/v1/models", body: nil, timeout: 3, notFound: .noModelList(server))
         guard let ids = (try? JSONDecoder().decode(ModelList.self, from: data))?.data.map(\.id) else {
-            throw CleanupFailure.badReply("\(server.title) answered something that is not a list of models")
+            throw CleanupFailure.notAModelList(server)
         }
         return ids
     }
@@ -24,7 +24,7 @@ public struct LocalModelClient: TextModelClient {
         let body = Completion(model: model, messages: [Message(role: "system", content: system), Message(role: "user", content: text)], stream: false)
         let data = try await send(server, path: "/v1/chat/completions", body: JSONEncoder().encode(body), timeout: timeout.inSeconds, notFound: .noModel)
         guard let reply = (try? JSONDecoder().decode(Reply.self, from: data))?.choices.first?.message.content else {
-            throw CleanupFailure.badReply("\(server.title) answered something that is not a completion")
+            throw CleanupFailure.notACompletion(server)
         }
         return reply
     }
@@ -41,7 +41,7 @@ public struct LocalModelClient: TextModelClient {
             let status = (response as? HTTPURLResponse)?.statusCode ?? 0
             // both servers answer 404 for a model they do not have
             if status == 404 { throw notFound }
-            guard (200..<300).contains(status) else { throw CleanupFailure.badReply("\(server.title) answered HTTP \(status)") }
+            guard (200..<300).contains(status) else { throw CleanupFailure.httpStatus(server, status) }
             return data
         } catch let error as URLError where error.code == .timedOut {
             throw CleanupFailure.timeout

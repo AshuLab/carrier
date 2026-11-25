@@ -37,10 +37,10 @@ struct SpeechModelsTable: View {
             HStack(spacing: Tokens.Space.s8) {
                 // a height too: a color with none takes all the row has, and in a form that is a tall blank over the header
                 Color.clear.frame(width: Column.radio, height: 1)
-                Text("Model").frame(maxWidth: .infinity, alignment: .leading)
-                Text("Size").frame(width: Column.size, alignment: .leading)
-                Text("Languages").frame(width: Column.languages, alignment: .leading)
-                Text("Text appears").frame(width: Column.text, alignment: .leading)
+                Text(Copy.dictationColumnModel()).frame(maxWidth: .infinity, alignment: .leading)
+                Text(Copy.dictationColumnSize()).frame(width: Column.size, alignment: .leading)
+                Text(Copy.dictationColumnLanguages()).frame(width: Column.languages, alignment: .leading)
+                Text(Copy.dictationColumnText()).frame(width: Column.text, alignment: .leading)
                 Color.clear.frame(width: Column.action, height: 1)
             }
             .sectionLabel().padding(.vertical, Tokens.Space.s10)
@@ -62,9 +62,9 @@ private struct SpeechModelRowView: View {
         VStack(alignment: .leading, spacing: Tokens.Space.s1) {
             Text(row.name).scaledFont(13, weight: .medium).lineLimit(2)
             HStack(spacing: Tokens.Space.none) {
-                Text("\(row.recognizer) · ").foregroundStyle(.secondary)
+                Text(Copy.dictationRecognizerPrefix(recognizer: row.recognizer)).foregroundStyle(.secondary)
                 // underlined: the accent alone does not say it is a link when it is pale or gray
-                Link(destination: row.card) { Text(row.licence).underline() }.help("Open the card of \(row.name)")
+                Link(destination: row.card) { Text(row.licence).underline() }.help(Copy.dictationOpenCard(model: row.name))
             }
             .scaledFont(11)
         }
@@ -88,7 +88,7 @@ private struct SpeechModelRowView: View {
                 nameAndLicence
                 FlowLayout(spacing: Tokens.Space.s8) {
                     Text(row.size).scaledFont(12).monospacedDigit()
-                    Text(row.detectsLanguage ? "\(row.languages) · Detects the language" : row.languages).scaledFont(12).foregroundStyle(.secondary)
+                    Text(row.detectsLanguage ? Copy.dictationLanguagesDetects(languages: row.languages) : row.languages).scaledFont(12).foregroundStyle(.secondary)
                     StatusChip(text: row.text, tint: row.live ? theme.accent : .secondary)
                 }
             }
@@ -115,7 +115,7 @@ private struct SpeechModelRowView: View {
             Text(row.size).scaledFont(12).monospacedDigit().frame(width: SpeechModelsTable.Column.size, alignment: .leading)
             VStack(alignment: .leading, spacing: Tokens.Space.s1) {
                 Text(row.languages).scaledFont(12)
-                if row.detectsLanguage { Text("Detects the language").scaledFont(11).foregroundStyle(.secondary) }
+                if row.detectsLanguage { Text(Copy.dictationDetectsLanguage()).scaledFont(11).foregroundStyle(.secondary) }
             }
             .frame(width: SpeechModelsTable.Column.languages, alignment: .leading)
             StatusChip(text: row.text, tint: row.live ? theme.accent : .secondary).frame(width: SpeechModelsTable.Column.text, alignment: .leading)
@@ -129,9 +129,9 @@ private struct SpeechModelRowView: View {
             Glyph(row.radio == true ? .radioOn : .circle, size: 16).foregroundStyle(row.radio == true ? theme.accent : .secondary)
         }
         .buttonStyle(.plain).disabled(row.radio == nil).opacity(row.radio == nil ? 0.35 : 1)
-        .accessibilityLabel("Use \(row.name)")
+        .accessibilityLabel(Copy.dictationUseModel(model: row.name))
         .accessibilityAddTraits(row.radio == true ? .isSelected : [])
-        .accessibilityValue(row.radio == true ? "in use" : "")
+        .accessibilityValue(row.radio == true ? Copy.dictationStatusInUse() : "")
         // a model that is not on disk has nothing to choose yet: its row says so ("not downloaded") and its action is Download
         .accessibilityHidden(row.radio == nil)
     }
@@ -139,21 +139,21 @@ private struct SpeechModelRowView: View {
     @ViewBuilder private var action: some View {
         switch row.action {
         case .download(let size):
-            Button { download(row.id) } label: { Label("Download · \(size)", icon: .download).lineLimit(1).fixedSize() }.buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
+            Button { download(row.id) } label: { Label(Copy.dictationDownload(size: size), icon: .download).lineLimit(1).fixedSize() }.buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
         case .downloading(let percent):
             HStack(spacing: Tokens.Space.s6) {
                 ProgressView(value: Double(percent), total: 100)
                 Text("\(percent)%").scaledFont(11).foregroundStyle(.secondary).monospacedDigit()
-                IconButton(icon: .close, name: "Cancel the download of \(row.name)") { cancel(row.id) }
+                IconButton(icon: .close, name: Copy.dictationCancelDownload(model: row.name)) { cancel(row.id) }
             }
         case .failed(let cause):
             VStack(alignment: .trailing, spacing: Tokens.Space.s2) {
                 Label(cause, icon: .warningFilled).scaledFont(11).foregroundStyle(.orange).multilineTextAlignment(.trailing)
                     .fixedSize(horizontal: false, vertical: true)
-                Button { download(row.id) } label: { Label("Retry", icon: .refresh) }.buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
+                Button { download(row.id) } label: { Label(Copy.dictationRetry(), icon: .refresh) }.buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
             }
         case .delete:
-            IconButton(icon: .trash, name: "Delete \(row.name)") { delete(row.id) }
+            IconButton(icon: .trash, name: Copy.dictationDeleteModel(model: row.name)) { delete(row.id) }
         case .none:
             // a frame on an EmptyView collapses, and the whole row would slide a column to the right
             Color.clear.frame(height: 1)

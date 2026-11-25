@@ -4,7 +4,14 @@ import Foundation
 // minutes and the clock, and the slot a recognizer keeps its loaded model in. `DictationController` runs the rule and its timer.
 
 /// The choices of Release the model after: minutes without dictating, and 0 for Never.
-public let dictationReleaseChoices: [(minutes: Int, title: String)] = [(5, "5 minutes"), (15, "15 minutes"), (30, "30 minutes"), (60, "60 minutes"), (0, "Never")]
+public let dictationReleaseChoices = [5, 15, 30, 60, 0].map(DictationReleaseChoice.init(minutes:))
+
+public struct DictationReleaseChoice: Equatable, Sendable {
+    public let minutes: Int
+
+    /// "15 minutes", or "Never" for 0.
+    public func title(bundle: Bundle? = nil, locale: Locale = .current) -> String { Copy.dictationReleaseAfter(minutes: minutes, bundle: bundle, locale: locale) }
+}
 
 public enum SpeechModelStep: Equatable, Sendable { case load, release, none }
 

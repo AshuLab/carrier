@@ -8,7 +8,17 @@ import Observation
 public enum DictationOutcome: String, Codable, CaseIterable, Sendable {
     case pasted, copied, cancelled, failed
 
-    public var title: String { rawValue.capitalized }
+    /// "Pasted", "Copied", "Cancelled" or "Failed".
+    public func title(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        let which: Copy.DictationOutcome =
+            switch self {
+            case .pasted: .pasted
+            case .copied: .copied
+            case .cancelled: .cancelled
+            case .failed: .failed
+            }
+        return Copy.dictationOutcome(which: which, bundle: bundle, locale: locale)
+    }
 }
 
 /// What a message box's dictation ended in: the text stays in the box, so a stop is a paste.
@@ -22,7 +32,8 @@ public func boxOutcome(_ ending: DictationTake.Ending) -> DictationOutcome {
 
 /// One dictation. The cleanup is empty when none ran.
 public struct DictationEntry: Codable, Equatable, Identifiable, Sendable {
-    /// Where a dictation went when it went to no app: the widget only (copied, cancelled or failed).
+    /// Where a dictation went when it went to no app: the widget only (copied, cancelled or failed). It is what the history file holds, in English whatever the
+    /// language of the app, so an entry written in one language reads in another: `destinationShown` says it in the app's.
     public static let widgetOnly = "Widget only"
     /// Where a message box's dictation went.
     public static let carrier = "Carrier"
@@ -72,6 +83,11 @@ public struct DictationEntry: Codable, Equatable, Identifiable, Sendable {
 
     /// What the list shows and Copy copies: the cleaned text when there is one.
     public var shown: String { cleaned ?? text }
+
+    /// Where the dictation went, as the history says it: the name of the app, "Carrier" or "Widget only" in the language of the app.
+    public func destinationShown(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        destination == Self.widgetOnly ? Copy.dictationDestinationWidgetOnly(bundle: bundle, locale: locale) : destination
+    }
 }
 
 @MainActor @Observable public final class DictationRecords {
@@ -351,9 +367,11 @@ public func dictationHistory(
 }
 
 /// "Today", "Yesterday", or the weekday and date, as the day's heading.
-public func dictationDayTitle(_ day: Date, now: Date, calendar: Calendar = .current) -> String {
-    if calendar.isDate(day, inSameDayAs: now) { return "Today" }
-    if let yesterday = calendar.date(byAdding: .day, value: -1, to: now), calendar.isDate(day, inSameDayAs: yesterday) { return "Yesterday" }
+public func dictationDayTitle(_ day: Date, now: Date, calendar: Calendar = .current, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+    if calendar.isDate(day, inSameDayAs: now) { return Copy.dictationDayToday(bundle: bundle, locale: locale) }
+    if let yesterday = calendar.date(byAdding: .day, value: -1, to: now), calendar.isDate(day, inSameDayAs: yesterday) {
+        return Copy.dictationDayYesterday(bundle: bundle, locale: locale)
+    }
     let style = Date.FormatStyle(locale: Locale(identifier: "en_US"), calendar: calendar, timeZone: calendar.timeZone)
     return day.formatted(style.weekday(.wide).month(.abbreviated).day())
 }

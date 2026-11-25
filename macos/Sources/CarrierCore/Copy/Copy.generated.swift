@@ -7076,4 +7076,1313 @@ public enum Copy {
     public static func terminalConfirmQuitUnverified(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         String(localized: "terminalConfirmQuitUnverified", bundle: bundle ?? carrierResources, locale: locale)
     }
+
+    public static func dictationBlockedTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationBlockedTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationBlockedMessage(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationBlockedMessage", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationOpenSystemSettings(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationOpenSystemSettings", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationLabelBlocked(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationLabelBlocked", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationHelpBlocked(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationHelpBlocked", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationDictate(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationDictate", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationGettingReady(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationGettingReady", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationLabelGettingReady(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationLabelGettingReady", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationStop(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationStop", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationTranscribingCaption(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationTranscribingCaption", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationLabelTranscribing(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationLabelTranscribing", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationCleaningCaption(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationCleaningCaption", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationLabelCleaning(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationLabelCleaning", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationHelpCleaning(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationHelpCleaning", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationAnnounceGettingReady(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationAnnounceGettingReady", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationAnnounceListening(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationAnnounceListening", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationAnnounceStopped(words: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationAnnounceStopped \(words)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationAnnounceFailed(cause: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationAnnounceFailed \(cause)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationFailRecognizerSilent(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationFailRecognizerSilent", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationFailModelNotReady(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationFailModelNotReady", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationFailMicrophoneBlocked(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationFailMicrophoneBlocked", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationFailNoSpeechModel(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationFailNoSpeechModel", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationFailSpeechModelStopped(detail: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationFailSpeechModelStopped \(detail)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationFailNotFluidAudio(model: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationFailNotFluidAudio \(model)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationFailNotWhisperKit(model: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationFailNotWhisperKit \(model)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationFailModelCouldNotLoad(model: String, detail: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationFailModelCouldNotLoad \(model) \(detail)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationFailModelNotPrepared(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationFailModelNotPrepared", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationFailNoAudioInput(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationFailNoAudioInput", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationFailMicrophoneCouldNotStart(detail: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationFailMicrophoneCouldNotStart \(detail)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationFailAppleNoLanguage(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationFailAppleNoLanguage", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationFailAppleNotPrepared(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationFailAppleNotPrepared", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationFailAppleNoAudioFormat(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationFailAppleNoAudioFormat", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationFailAppleStopped(detail: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationFailAppleStopped \(detail)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationFailAppleCouldNotConvert(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationFailAppleCouldNotConvert", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationFailCannotDownload(model: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationFailCannotDownload \(model)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationCleanupNoServer(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationCleanupNoServer", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationCleanupNoModel(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationCleanupNoModel", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationCleanupEmptyPrompt(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationCleanupEmptyPrompt", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationCleanupTimeout(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationCleanupTimeout", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationCleanupEmptyAnswer(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationCleanupEmptyAnswer", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationCleanupServerDown(server: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationCleanupServerDown \(server)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationCleanupNoModelList(server: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationCleanupNoModelList \(server)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationCleanupNotAModelList(server: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationCleanupNotAModelList \(server)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationCleanupNotACompletion(server: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationCleanupNotACompletion \(server)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationCleanupHttpStatus(server: String, status: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationCleanupHttpStatus \(server) \(status)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationCleanupSample(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationCleanupSample", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationAudioLimit(days: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationAudioLimit \(days)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationAudioNone(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationAudioNone", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationSizeKB(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationSizeKB \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationAudioOnDisk(size: String, files: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationAudioOnDisk \(size) \(files)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationReleaseAfter(minutes: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationReleaseAfter \(minutes)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public enum DictationScreenTitle: Sendable { case recognition; case global; case cleanup; case sounds; case history; case statistics }
+    public static func dictationScreenTitle(which: DictationScreenTitle, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch which {
+        case .recognition: return String(localized: "dictationScreenTitle.recognition", bundle: bundle ?? carrierResources, locale: locale)
+        case .global: return String(localized: "dictationScreenTitle.global", bundle: bundle ?? carrierResources, locale: locale)
+        case .cleanup: return String(localized: "dictationScreenTitle.cleanup", bundle: bundle ?? carrierResources, locale: locale)
+        case .sounds: return String(localized: "dictationScreenTitle.sounds", bundle: bundle ?? carrierResources, locale: locale)
+        case .history: return String(localized: "dictationScreenTitle.history", bundle: bundle ?? carrierResources, locale: locale)
+        case .statistics: return String(localized: "dictationScreenTitle.statistics", bundle: bundle ?? carrierResources, locale: locale)
+        }
+    }
+
+    public enum DictationScreenDetail: Sendable { case recognition; case global; case cleanup; case sounds; case history; case statistics }
+    public static func dictationScreenDetail(which: DictationScreenDetail, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch which {
+        case .recognition: return String(localized: "dictationScreenDetail.recognition", bundle: bundle ?? carrierResources, locale: locale)
+        case .global: return String(localized: "dictationScreenDetail.global", bundle: bundle ?? carrierResources, locale: locale)
+        case .cleanup: return String(localized: "dictationScreenDetail.cleanup", bundle: bundle ?? carrierResources, locale: locale)
+        case .sounds: return String(localized: "dictationScreenDetail.sounds", bundle: bundle ?? carrierResources, locale: locale)
+        case .history: return String(localized: "dictationScreenDetail.history", bundle: bundle ?? carrierResources, locale: locale)
+        case .statistics: return String(localized: "dictationScreenDetail.statistics", bundle: bundle ?? carrierResources, locale: locale)
+        }
+    }
+
+    public static func dictationReadyOff(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationReadyOff", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationNoteOff(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationNoteOff", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationItemMicrophone(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationItemMicrophone", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationItemAccessibility(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationItemAccessibility", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationStateAllowed(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationStateAllowed", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationStateNotAllowed(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationStateNotAllowed", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationStateNotAsked(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationStateNotAsked", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationStateReady(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationStateReady", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationStateNotOnDisk(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationStateNotOnDisk", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationStateDownloading(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationStateDownloading", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationNoteMicrophoneBlocked(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationNoteMicrophoneBlocked", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationNoteModelMissing(model: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationNoteModelMissing \(model)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationNoteNoAccessibility(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationNoteNoAccessibility", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationNoteAskedFirst(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationNoteAskedFirst", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationReadyBlocked(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationReadyBlocked", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationReadyTitle(attention: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationReadyTitle \(attention)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationItemLine(title: String, state: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationItemLine \(title) \(state)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationOpenMicrophoneSettings(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationOpenMicrophoneSettings", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationOpenAccessibilitySettings(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationOpenAccessibilitySettings", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationSwitch(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationSwitch", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationGroupSetUp(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationGroupSetUp", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationGroupYours(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationGroupYours", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationOffNotice(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationOffNotice", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationTurnOn(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationTurnOn", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationOff(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationOff", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationActivationToggle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationActivationToggle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationActivationHold(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationActivationHold", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationSummaryGlobal(shortcut: String, activation: String, style: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationSummaryGlobal \(shortcut) \(activation) \(style)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationSummaryCleanupOn(server: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationSummaryCleanupOn \(server)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationSummaryCleanupNoServer(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationSummaryCleanupNoServer", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationSummarySounds(start: String, end: String, volume: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationSummarySounds \(start) \(end) \(volume)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationReading(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationReading", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationNoDictationsYet(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationNoDictationsYet", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationCount(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationCount \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationNothingYet(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationNothingYet", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationSummaryMonth(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationSummaryMonth \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationNotCleaned(cause: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationNotCleaned \(cause)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationKeptOnClipboard(reason: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationKeptOnClipboard \(reason)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationPastedRaw(cause: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationPastedRaw \(cause)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationEscToDismiss(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationEscToDismiss", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationPasted(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationPasted", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationCancelled(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationCancelled", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationCleaningSkip(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationCleaningSkip", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationResetPermission(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationResetPermission", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationResetPermissionHelp(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationResetPermissionHelp", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationCopied(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationCopied", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationCopy(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationCopy", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationDismiss(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationDismiss", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationLabelCleaningIcon(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationLabelCleaningIcon", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationListening(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationListening", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationWorking(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationWorking", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationWidgetPreviewSample(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationWidgetPreviewSample", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationWidgetPreviewLabel(style: String, theme: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationWidgetPreviewLabel \(style) \(theme)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationHintHold(shortcut: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationHintHold \(shortcut)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationHintToggle(shortcut: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationHintToggle \(shortcut)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationDestinationWidgetOnly(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationDestinationWidgetOnly", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationDestinationAnotherApp(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationDestinationAnotherApp", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public enum DictationWidgetStyleTitle: Sendable { case pill; case small; case medium; case large }
+    public static func dictationWidgetStyleTitle(which: DictationWidgetStyleTitle, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch which {
+        case .pill: return String(localized: "dictationWidgetStyleTitle.pill", bundle: bundle ?? carrierResources, locale: locale)
+        case .small: return String(localized: "dictationWidgetStyleTitle.small", bundle: bundle ?? carrierResources, locale: locale)
+        case .medium: return String(localized: "dictationWidgetStyleTitle.medium", bundle: bundle ?? carrierResources, locale: locale)
+        case .large: return String(localized: "dictationWidgetStyleTitle.large", bundle: bundle ?? carrierResources, locale: locale)
+        }
+    }
+
+    public enum DictationWidgetThemeTitle: Sendable { case accent; case black; case glassDark; case clear; case glow }
+    public static func dictationWidgetThemeTitle(which: DictationWidgetThemeTitle, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch which {
+        case .accent: return String(localized: "dictationWidgetThemeTitle.accent", bundle: bundle ?? carrierResources, locale: locale)
+        case .black: return String(localized: "dictationWidgetThemeTitle.black", bundle: bundle ?? carrierResources, locale: locale)
+        case .glassDark: return String(localized: "dictationWidgetThemeTitle.glassDark", bundle: bundle ?? carrierResources, locale: locale)
+        case .clear: return String(localized: "dictationWidgetThemeTitle.clear", bundle: bundle ?? carrierResources, locale: locale)
+        case .glow: return String(localized: "dictationWidgetThemeTitle.glow", bundle: bundle ?? carrierResources, locale: locale)
+        }
+    }
+
+    public static func dictationPositionTop(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationPositionTop", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationPositionBottom(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationPositionBottom", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationPositionCustom(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationPositionCustom", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationGroupGlobal(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationGroupGlobal", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationGlobalFooter(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationGlobalFooter", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationAnyApp(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationAnyApp", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationAnyAppDetail(shortcut: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationAnyAppDetail \(shortcut)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationAccessibilityDetailOn(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationAccessibilityDetailOn", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationAccessibilityDetailOff(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationAccessibilityDetailOff", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationReset(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationReset", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationResetHelp(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationResetHelp", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationShortcutTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationShortcutTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationShortcutDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationShortcutDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationShortcutName(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationShortcutName", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationShortcutTakenByAwake(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationShortcutTakenByAwake", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationShortcutNeedsModifier(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationShortcutNeedsModifier", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationShortcutKeyRefused(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationShortcutKeyRefused", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationActivationTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationActivationTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationActivationDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationActivationDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationExplainTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationExplainTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationExplainContinue(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationExplainContinue", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationExplainNotNow(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationExplainNotNow", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationExplainMessage(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationExplainMessage", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationGroupWidget(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationGroupWidget", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationWidgetStyle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationWidgetStyle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationWidgetStyleDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationWidgetStyleDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationWidgetTheme(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationWidgetTheme", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationWidgetThemeDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationWidgetThemeDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationLiveText(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationLiveText", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationLiveTextDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationLiveTextDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationPosition(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationPosition", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationPositionDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationPositionDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationPositionName(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationPositionName", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationShortcutPress(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationShortcutPress", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationShortcutListening(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationShortcutListening", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationShortcutCancel(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationShortcutCancel", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationShortcutRecord(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationShortcutRecord", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationShortcutClear(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationShortcutClear", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationShortcutClearThe(name: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationShortcutClearThe \(name)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationShortcutCleared(name: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationShortcutCleared \(name)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationShortcutAnnounce(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationShortcutAnnounce", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationShortcutSet(shortcut: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationShortcutSet \(shortcut)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationGroupHistory(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationGroupHistory", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationKeepText(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationKeepText", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationKeepTextDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationKeepTextDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationKeepAudio(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationKeepAudio", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationKeepAudioDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationKeepAudioDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationDeleteAudio(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationDeleteAudio", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationTranscriptsStay(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationTranscriptsStay", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationAudioOnDiskTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationAudioOnDiskTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationDeleteAllAudio(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationDeleteAllAudio", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationDeleteAllTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationDeleteAllTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationDeleteAllMessage(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationDeleteAllMessage", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationSearch(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationSearch", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationFilterAll(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationFilterAll", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationOutcomeName(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationOutcomeName", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public enum DictationOutcome: Sendable { case pasted; case copied; case cancelled; case failed }
+    public static func dictationOutcome(which: DictationOutcome, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch which {
+        case .pasted: return String(localized: "dictationOutcome.pasted", bundle: bundle ?? carrierResources, locale: locale)
+        case .copied: return String(localized: "dictationOutcome.copied", bundle: bundle ?? carrierResources, locale: locale)
+        case .cancelled: return String(localized: "dictationOutcome.cancelled", bundle: bundle ?? carrierResources, locale: locale)
+        case .failed: return String(localized: "dictationOutcome.failed", bundle: bundle ?? carrierResources, locale: locale)
+        }
+    }
+
+    public static func dictationNothingMatches(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationNothingMatches", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationEmptyLine(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationEmptyLine", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationNoMatchLine(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationNoMatchLine", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationShownOf(matched: Int, total: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationShownOf \(matched) \(total)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationShowMore(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationShowMore \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationExpanded(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationExpanded", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationCollapsed(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationCollapsed", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationShowsDetails(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationShowsDetails", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationCopyText(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationCopyText", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationDeleteEntry(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationDeleteEntry", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationDeleteTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationDeleteTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationDelete(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationDelete", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationDeleteMessage(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationDeleteMessage", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationMeta(destination: String, audio: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationMeta \(destination) \(audio)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationMetaWords(destination: String, words: Int, audio: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationMetaWords \(destination) \(words) \(audio)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationCleanedTag(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationCleanedTag", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationAsRecognized(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationAsRecognized", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationFieldModel(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationFieldModel", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationFieldTranscription(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationFieldTranscription", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationTranscriptionValue(taken: String, audio: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationTranscriptionValue \(taken) \(audio)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationInstant(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationInstant", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationFieldCleanup(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationFieldCleanup", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationCleanupValue(model: String, seconds: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationCleanupValue \(model) \(seconds)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationNotUsed(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationNotUsed", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationFieldAudio(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationFieldAudio", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationSeconds(seconds: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationSeconds \(seconds)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationNoStats(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationNoStats", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationNoStatsLine(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationNoStatsLine", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationGroupOverview(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationGroupOverview", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationRangeDays(days: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationRangeDays \(days)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationRangeAll(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationRangeAll", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationPerDay(metric: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationPerDay \(metric)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationCardWords(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationCardWords", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationCardDictations(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationCardDictations", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationGroupHours(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationGroupHours", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationGroupWeek(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationGroupWeek", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationResetStatsTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationResetStatsTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationCancel(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationCancel", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationResetStatsMessage(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationResetStatsMessage", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationCardSpeaking(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationCardSpeaking", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationCardSaved(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationCardSaved", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationHourHelp(hour: String, count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationHourHelp \(hour) \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationHoursLabel(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationHoursLabel", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationGroupRecords(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationGroupRecords", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationRecordsFooter(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationRecordsFooter", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationRecordMostDictations(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationRecordMostDictations", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationRecordMostWords(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationRecordMostWords", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationRecordLongest(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationRecordLongest", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationRecordStreak(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationRecordStreak", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationStreakDays(days: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationStreakDays \(days)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationDaysInARow(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationDaysInARow", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationGroupStatsSettings(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationGroupStatsSettings", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationTypingSpeed(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationTypingSpeed", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationTypingSpeedDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationTypingSpeedDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationTypingSpeedProblem(low: Int, high: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationTypingSpeedProblem \(low) \(high)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationTypingSpeedField(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationTypingSpeedField", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationWordsPerMinute(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationWordsPerMinute", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationResetStats(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationResetStats", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationResetStatsDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationResetStatsDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationResetStatsButton(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationResetStatsButton", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationChartDay(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationChartDay", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationWordsCount(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationWordsCount \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationWeekChartLabel(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationWeekChartLabel", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public enum DictationChange: Sendable { case up; case down }
+    public static func dictationChange(direction: DictationChange, percent: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch direction {
+        case .up: return String(localized: "dictationChange.up \(percent)", bundle: bundle ?? carrierResources, locale: locale)
+        case .down: return String(localized: "dictationChange.down \(percent)", bundle: bundle ?? carrierResources, locale: locale)
+        }
+    }
+
+    public static func dictationChangeNone(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationChangeNone", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationDurationSeconds(seconds: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationDurationSeconds \(seconds)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationDurationMinutes(minutes: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationDurationMinutes \(minutes)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationDurationHours(hours: Int, minutes: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationDurationHours \(hours) \(minutes)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationHoursNone(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationHoursNone", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationHoursBusiest(hour: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationHoursBusiest \(hour)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationWeekNone(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationWeekNone", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationWeekNoneAgainst(before: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationWeekNoneAgainst \(before)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public enum DictationWeekSummary: Sendable { case same; case more; case less; case nothingBefore }
+    public static func dictationWeekSummary(change: DictationWeekSummary, words: Int, dictations: Int, percent: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch change {
+        case .same: return String(localized: "dictationWeekSummary.same \(words) \(dictations)", bundle: bundle ?? carrierResources, locale: locale)
+        case .more: return String(localized: "dictationWeekSummary.more \(words) \(dictations) \(percent)", bundle: bundle ?? carrierResources, locale: locale)
+        case .less: return String(localized: "dictationWeekSummary.less \(words) \(dictations) \(percent)", bundle: bundle ?? carrierResources, locale: locale)
+        case .nothingBefore: return String(localized: "dictationWeekSummary.nothingBefore \(words) \(dictations)", bundle: bundle ?? carrierResources, locale: locale)
+        }
+    }
+
+    public static func dictationWeekBusiest(weekday: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationWeekBusiest \(weekday)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationWeekBusiestSaved(weekday: String, saved: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationWeekBusiestSaved \(weekday) \(saved)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationDayToday(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationDayToday", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationDayYesterday(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationDayYesterday", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationGroupSounds(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationGroupSounds", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationSoundsFooter(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationSoundsFooter", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationStartSound(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationStartSound", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationStartSoundDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationStartSoundDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationEndSound(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationEndSound", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationEndSoundDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationEndSoundDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationVolume(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationVolume", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationVolumeDetail(volume: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationVolumeDetail \(volume)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationVolumePercent(volume: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationVolumePercent \(volume)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationPlay(title: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationPlay \(title)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationLanguage(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationLanguage", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationLanguageAutomatic(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationLanguageAutomatic", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationLanguageHintAutomatic(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationLanguageHintAutomatic", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationLanguageHintDetects(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationLanguageHintDetects", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationLanguageHintEnglishOnly(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationLanguageHintEnglishOnly", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationLanguageHintOneLanguage(model: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationLanguageHintOneLanguage \(model)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationGroupMemory(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationGroupMemory", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationMemoryFooter(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationMemoryFooter", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationKeepReady(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationKeepReady", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationKeepReadyDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationKeepReadyDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationReleaseTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationReleaseTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationReleaseDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationReleaseDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationGroupStorage(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationGroupStorage", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationDownloadedModels(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationDownloadedModels", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationDownloadedModelsDetail(size: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationDownloadedModelsDetail \(size)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationShowInFinder(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationShowInFinder", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationGroupModels(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationGroupModels", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationModelsFooter(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationModelsFooter", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationRecognizerName(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationRecognizerName", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationModelMissing(model: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationModelMissing \(model)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationDeleteModelTitle(model: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationDeleteModelTitle \(model)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationDeleteModelTitleGeneric(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationDeleteModelTitleGeneric", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationDeleteModelMessage(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationDeleteModelMessage", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationColumnModel(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationColumnModel", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationColumnSize(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationColumnSize", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationColumnLanguages(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationColumnLanguages", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationColumnText(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationColumnText", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationRecognizerPrefix(recognizer: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationRecognizerPrefix \(recognizer)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationOpenCard(model: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationOpenCard \(model)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationLanguagesDetects(languages: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationLanguagesDetects \(languages)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationDetectsLanguage(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationDetectsLanguage", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationUseModel(model: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationUseModel \(model)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationDownload(size: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationDownload \(size)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationCancelDownload(model: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationCancelDownload \(model)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationRetry(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationRetry", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationDeleteModel(model: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationDeleteModel \(model)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationSystem(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationSystem", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationTextLive(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationTextLive", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationTextAtTheEnd(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationTextAtTheEnd", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationStatusNotDownloaded(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationStatusNotDownloaded", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationStatusDownloading(percent: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationStatusDownloading \(percent)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationStatusFailed(cause: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationStatusFailed \(cause)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationStatusInUse(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationStatusInUse", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationStatusDownloaded(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationStatusDownloaded", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationRowLabel(model: String, recognizer: String, size: String, languages: String, text: String, status: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationRowLabel \(model) \(recognizer) \(size) \(languages) \(text) \(status)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationLanguagesMacOS(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationLanguagesMacOS", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationLanguagesCount(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationLanguagesCount \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationLanguagesOnly(language: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationLanguagesOnly \(language)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationDownloadNoConnection(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationDownloadNoConnection", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationDownloadNoSpace(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationDownloadNoSpace", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationDownloadDidNotCheck(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationDownloadDidNotCheck", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationDownloadFailed(detail: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationDownloadFailed \(detail)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationDownloaded(model: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationDownloaded \(model)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationPastedText(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationPastedText", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationPasteStats(chars: Int, lines: Int, tokens: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationPasteStats \(chars) \(lines) \(tokens)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationPastePreview(lines: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationPastePreview \(lines)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationCollapse(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationCollapse", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationExpand(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationExpand", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationTakeItOut(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationTakeItOut", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationRemovePasted(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationRemovePasted", bundle: bundle ?? carrierResources, locale: locale)
+    }
 }

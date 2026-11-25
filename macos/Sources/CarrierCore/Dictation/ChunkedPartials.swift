@@ -245,7 +245,7 @@ public struct ChunkedRecognizer: Sendable {
                             do {
                                 feed.yield(.done(pass, .success(try await transcriber.transcribe(pass.samples, sampleRate: pass.sampleRate))))
                             } catch {
-                                feed.yield(.done(pass, .failure(DictationFailure("The speech model stopped: \((error as? DictationFailure)?.cause ?? error.localizedDescription)"))))
+                                feed.yield(.done(pass, .failure(DictationFailure(.speechModelStopped((error as? DictationFailure)?.cause ?? error.localizedDescription)))))
                             }
                         }
                     }

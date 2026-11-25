@@ -34,9 +34,9 @@ struct DictationWidgetView: View {
         // the panel is not in front of VoiceOver, so what it cannot be told to read is said
         .onChange(of: dictation.shown) { _, shown in
             switch (shown, dictation.state) {
-            case (.copied, .copied(let reason)): AccessibilityNotification.Announcement("\(reason.explanation) It is on the clipboard.").post()
-            case (.failed, .failed(let cause)): AccessibilityNotification.Announcement("Dictation failed: \(cause)").post()
-            case (.pastedRaw, _): AccessibilityNotification.Announcement("Pasted without cleaning: \(dictation.notCleaned ?? "")").post()
+            case (.copied, .copied(let reason)): AccessibilityNotification.Announcement(dictationKeptNotice(reason: reason)).post()
+            case (.failed, .failed(let cause)): AccessibilityNotification.Announcement(Copy.dictationAnnounceFailed(cause: cause)).post()
+            case (.pastedRaw, _): AccessibilityNotification.Announcement(Copy.dictationPastedRaw(cause: dictation.notCleaned ?? "")).post()
             default: break
             }
         }
@@ -57,14 +57,14 @@ struct DictationWidgetView: View {
             // nothing is running: no clock and no finish key, only the way out
             WidgetBox(box: box) { shown } foot: {
                 Spacer()
-                Text("Esc to dismiss")
+                Text(Copy.dictationEscToDismiss())
             }
         } else if look.fades {
             WidgetBox(box: box) { Text(dictation.text) } foot: {
                 switch dictation.farewell {
-                case .pasted: Label("Pasted", icon: .check)
-                case .pastedRaw: Label("Pasted without cleaning: \(dictation.notCleaned ?? "")", icon: .warning).foregroundStyle(.orange).lineLimit(1)
-                default: Label("Cancelled", icon: .close)
+                case .pasted: Label(Copy.dictationPasted(), icon: .check)
+                case .pastedRaw: Label(Copy.dictationPastedRaw(cause: dictation.notCleaned ?? ""), icon: .warning).foregroundStyle(.orange).lineLimit(1)
+                default: Label(Copy.dictationCancelled(), icon: .close)
                 }
             }
         } else {
@@ -76,7 +76,7 @@ struct DictationWidgetView: View {
                 }
                 Spacer()
                 if dictation.shown == .cleaning {
-                    Label("Cleaning… Esc to skip", icon: .sparkles)
+                    Label(Copy.dictationCleaningSkip(), icon: .sparkles)
                 } else if box.showsText == false, let caption = waitCaption {
                     // no words to say what it waits for: the line of the keys says it
                     Text(caption)
@@ -102,17 +102,17 @@ struct DictationWidgetView: View {
     private func keptRow(_ reason: PasteReason) -> some View {
         HStack {
             if reason == .noPermission {
-                Button { FocusedField.openSettings() } label: { Label("Open System Settings", icon: .settings) }
-                Button { FocusedField.resetPermission() } label: { Label("Reset permission", icon: .refresh) }
-                    .help("Already allowed in System Settings? macOS drops the permission when Carrier updates. This removes it and asks again.")
+                Button { FocusedField.openSettings() } label: { Label(Copy.dictationOpenSystemSettings(), icon: .settings) }
+                Button { FocusedField.resetPermission() } label: { Label(Copy.dictationResetPermission(), icon: .refresh) }
+                    .help(Copy.dictationResetPermissionHelp())
             }
             Spacer()
             Button {
                 dictation.copyAgain()
                 copied = true
-            } label: { Label(copied ? "Copied" : "Copy", icon: copied ? .check : .copy) }
+            } label: { Label(copied ? Copy.dictationCopied() : Copy.dictationCopy(), icon: copied ? .check : .copy) }
             .keyboardShortcut(.defaultAction)
-            Button { dictation.dismissCopied() } label: { Label("Dismiss", icon: .close) }
+            Button { dictation.dismissCopied() } label: { Label(Copy.dictationDismiss(), icon: .close) }
         }
     }
 
@@ -154,13 +154,13 @@ struct PillIcon: View {
     var body: some View {
         switch icon {
         case .sparkle:
-            Glyph(.sparkles, label: "Cleaning").foregroundStyle(.tint).glyphPulsing(reduceMotion == false)
+            Glyph(.sparkles, label: Copy.dictationLabelCleaningIcon()).foregroundStyle(.tint).glyphPulsing(reduceMotion == false)
         case .warning:
-            Glyph(.warningFilled, label: "Pasted without cleaning: \(cause ?? "")").foregroundStyle(.orange)
-        case .mic: Glyph(.microphone, label: "Listening").foregroundStyle(.tint)
-        case .spinner: ProgressView().controlSize(.small).accessibilityLabel("Working")
-        case .check: Glyph(.check, label: "Pasted").foregroundStyle(.green)
-        case .xmark: Glyph(.close, label: "Cancelled").foregroundStyle(.secondary)
+            Glyph(.warningFilled, label: Copy.dictationPastedRaw(cause: cause ?? "")).foregroundStyle(.orange)
+        case .mic: Glyph(.microphone, label: Copy.dictationListening()).foregroundStyle(.tint)
+        case .spinner: ProgressView().controlSize(.small).accessibilityLabel(Copy.dictationWorking())
+        case .check: Glyph(.check, label: Copy.dictationPasted()).foregroundStyle(.green)
+        case .xmark: Glyph(.close, label: Copy.dictationCancelled()).foregroundStyle(.secondary)
         }
     }
 }

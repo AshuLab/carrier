@@ -194,9 +194,9 @@ struct MessageBox<Selects: View>: View {
     /// What a blocked microphone offers: the way to the Microphone pane of System Settings.
     private var blockedPopover: some View {
         VStack(alignment: .leading, spacing: Tokens.Space.s8) {
-            Text(MicrophoneBlockedPopover.title).scaledFont(13, weight: .semibold)
-            Text(MicrophoneBlockedPopover.message).scaledFont(12).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            Button(MicrophoneBlockedPopover.button) {
+            Text(MicrophoneBlockedPopover.title()).scaledFont(13, weight: .semibold)
+            Text(MicrophoneBlockedPopover.message()).scaledFont(12).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            Button(MicrophoneBlockedPopover.button()) {
                 MicrophoneAccess.openSystemSettings()
                 microphoneBlocked = false
             }

@@ -51,7 +51,7 @@ import SwiftUI
         test = .running
         let run = CleanupRun(client: client)
         do {
-            test = .done(try await run.run(server: server, model: model, prompt: prompt, text: cleanupSample))
+            test = .done(try await run.run(server: server, model: model, prompt: prompt, text: cleanupSample()))
         } catch {
             test = .failed(error as? CleanupFailure ?? .badReply(error.localizedDescription))
         }

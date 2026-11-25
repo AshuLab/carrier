@@ -11,9 +11,9 @@ struct LanguageGroup: View {
     var body: some View {
         SettingsGroup(title: "") {
             if let choices = dictation.languages {
-                SettingsTabRow(id: "language", title: "Language", detail: choices.hint, first: true) {
+                SettingsTabRow(id: "language", title: Copy.dictationLanguage(), detail: choices.hint, first: true) {
                     ChoicePopUp(
-                        label: "Language", options: choices.offered.map { (value: $0, title: dictationLanguageName($0)) },
+                        label: Copy.dictationLanguage(), options: choices.offered.map { (value: $0, title: dictationLanguageName($0)) },
                         selection: Binding(get: { choices.selected }, set: { dictation.choose(language: $0) })
                     )
                 }
@@ -24,7 +24,7 @@ struct LanguageGroup: View {
 
 /// A language as the page says it: Automatic, or its name in the language of the Mac.
 func dictationLanguageName(_ code: String) -> String {
-    code == automaticLanguage ? "Automatic" : Locale.current.localizedString(forLanguageCode: code)?.localizedCapitalized ?? code
+    code == automaticLanguage ? Copy.dictationLanguageAutomatic() : Locale.current.localizedString(forLanguageCode: code)?.localizedCapitalized ?? code
 }
 
 /// The Memory group: when the model is kept in memory. With Dictation off both rows are drawn at 40%.
@@ -35,15 +35,15 @@ struct MemoryGroup: View {
 
     var body: some View {
         let enabled = dictation.enabled
-        SettingsGroup(id: "memory", title: "Memory", footer: "It is released 5, 15, 30 or 60 minutes after the last dictation, or never.") {
-            SettingsTabRow(id: "keep-the-speech-model-ready", title: "Keep the speech model ready", detail: "Loads it when Carrier opens, so the first dictation does not wait for it", first: true) {
-                Toggle("Keep the speech model ready", isOn: Binding(get: { AppPreferences().dictationKeepReady }, set: { dictation.setKeepReady($0) }))
+        SettingsGroup(id: "memory", title: Copy.dictationGroupMemory(), footer: Copy.dictationMemoryFooter()) {
+            SettingsTabRow(id: "keep-the-speech-model-ready", title: Copy.dictationKeepReady(), detail: Copy.dictationKeepReadyDetail(), first: true) {
+                Toggle(Copy.dictationKeepReady(), isOn: Binding(get: { AppPreferences().dictationKeepReady }, set: { dictation.setKeepReady($0) }))
                     .labelsHidden().toggleStyle(.switch)
             }
             .live(.keepReady, enabled: enabled)
-            SettingsTabRow(id: "release-the-model-after", title: "Release the model after", detail: "Without dictating, to give its memory back; the next dictation loads it again") {
+            SettingsTabRow(id: "release-the-model-after", title: Copy.dictationReleaseTitle(), detail: Copy.dictationReleaseDetail()) {
                 ChoicePopUp(
-                    label: "Release the model after", options: dictationReleaseChoices.map { (value: $0.minutes, title: $0.title) },
+                    label: Copy.dictationReleaseTitle(), options: dictationReleaseChoices.map { (value: $0.minutes, title: $0.title()) },
                     selection: Binding(get: { AppPreferences().dictationReleaseAfter }, set: { dictation.setReleaseAfter($0) })
                 )
             }

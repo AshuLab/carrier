@@ -59,18 +59,22 @@ private let keyNames: [Int: String] = [
 
 /// A combination is taken when it has ⌃, ⌥ or ⌘ with it (⇧ alone would stop the key from typing), and the key has a name or one printable
 /// character. `characters` is what the key types with no modifier held.
-public func recordShortcut(keyCode: Int, characters: String, modifiers: ShortcutModifiers) -> ShortcutRecording {
+public func recordShortcut(
+    keyCode: Int, characters: String, modifiers: ShortcutModifiers, bundle: Bundle? = nil, locale: Locale = .current
+) -> ShortcutRecording {
     guard modifiers.isDisjoint(with: [.command, .control, .option]) == false else {
-        return .refused("Add ⌃, ⌥ or ⌘: a key with no modifier would stop typing in every app")
+        return .refused(Copy.dictationShortcutNeedsModifier(bundle: bundle, locale: locale))
     }
     if let name = keyNames[keyCode] { return .accepted(DictationShortcut(keyCode: keyCode, modifiers: modifiers, key: name)) }
     guard characters.count == 1, characters.unicodeScalars.allSatisfy({ ![.control, .privateUse, .spaceSeparator].contains($0.properties.generalCategory) }) else {
-        return .refused("That key cannot be used")
+        return .refused(Copy.dictationShortcutKeyRefused(bundle: bundle, locale: locale))
     }
     return .accepted(DictationShortcut(keyCode: keyCode, modifiers: modifiers, key: characters.uppercased()))
 }
 
 /// The keys line of the widget: what ends the dictation, and Esc.
-public func dictationHint(shortcut: DictationShortcut, activation: DictationActivation) -> String {
-    (activation == .hold ? "Release \(shortcut.text) to finish" : "\(shortcut.text) to finish") + " · Esc to cancel"
+public func dictationHint(shortcut: DictationShortcut, activation: DictationActivation, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+    activation == .hold
+        ? Copy.dictationHintHold(shortcut: shortcut.text, bundle: bundle, locale: locale)
+        : Copy.dictationHintToggle(shortcut: shortcut.text, bundle: bundle, locale: locale)
 }

@@ -40,12 +40,10 @@ public func timeSaved(words: Int, speaking: Duration, wpm: Int) -> Duration {
 public enum StatisticsRange: CaseIterable, Sendable {
     case week, month, quarter, all
 
-    public var title: String {
-        switch self {
-        case .week: "7 days"
-        case .month: "30 days"
-        case .quarter: "90 days"
-        case .all: "All time"
+    public func title(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch days {
+        case let days?: Copy.dictationRangeDays(days: days, bundle: bundle, locale: locale)
+        case nil: Copy.dictationRangeAll(bundle: bundle, locale: locale)
         }
     }
 
@@ -134,18 +132,21 @@ extension DictationTotals {
 }
 
 /// The change from `previous` to `current` as a line under a card ("▲ 12% vs previous"); nil when there is nothing before it to compare with.
-public func statisticsChange(_ current: Double, from previous: Double?) -> String? {
+public func statisticsChange(_ current: Double, from previous: Double?, bundle: Bundle? = nil, locale: Locale = .current) -> String? {
     guard let previous, previous > 0 else { return nil }
     let percent = Int(((current - previous) / previous * 100).rounded())
-    return percent == 0 ? "No change vs previous" : "\(percent > 0 ? "▲" : "▼") \(abs(percent))% vs previous"
+    return percent == 0
+        ? Copy.dictationChangeNone(bundle: bundle, locale: locale)
+        : Copy.dictationChange(direction: percent > 0 ? .up : .down, percent: abs(percent), bundle: bundle, locale: locale)
 }
 
 /// A length of time as a card shows it: "42 s", "12 min", "1 h 05 min".
-public func statisticsDuration(_ seconds: Double) -> String {
+public func statisticsDuration(_ seconds: Double, bundle: Bundle? = nil, locale: Locale = .current) -> String {
     let total = Int(seconds.rounded())
-    if total < 60 { return "\(total) s" }
+    if total < 60 { return Copy.dictationDurationSeconds(seconds: total, bundle: bundle, locale: locale) }
     let minutes = total / 60
-    return minutes < 60 ? "\(minutes) min" : "\(minutes / 60) h " + String(format: "%02d", minutes % 60) + " min"
+    if minutes < 60 { return Copy.dictationDurationMinutes(minutes: minutes, bundle: bundle, locale: locale) }
+    return Copy.dictationDurationHours(hours: minutes / 60, minutes: String(format: "%02d", minutes % 60), bundle: bundle, locale: locale)
 }
 
 extension Duration {
@@ -180,9 +181,9 @@ public func dictationHours(_ counts: [DictationCount], range: StatisticsRange, n
 }
 
 /// The line under the hours: "You dictate most around 09:00."
-public func statisticsHoursLine(_ hours: DictationHours) -> String {
-    guard let hour = hours.busiest else { return "Nothing dictated in this range yet." }
-    return "You dictate most around " + String(format: "%02d:00", hour) + "."
+public func statisticsHoursLine(_ hours: DictationHours, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+    guard let hour = hours.busiest else { return Copy.dictationHoursNone(bundle: bundle, locale: locale) }
+    return Copy.dictationHoursBusiest(hour: String(format: "%02d:00", hour), bundle: bundle, locale: locale)
 }
 
 /// The busiest day of `days` by words, the earliest on a tie; nil when none has any.
@@ -191,31 +192,36 @@ public func busiestDay(_ days: [StatisticsDay]) -> StatisticsDay? {
 }
 
 /// The last 7 days against the 7 before as a sentence, from the figures of `.week`. It says what it can: with nothing in the week there is no busiest
-/// day, and with nothing the week before there is no percent to give.
-public func weeklySummary(_ week: DictationFigures, wpm: Int, calendar: Calendar = .current) -> String {
+/// day, and with nothing the week before there is no percent to give. Each of the three parts is one key, since the order of the words is the language's.
+public func weeklySummary(_ week: DictationFigures, wpm: Int, calendar: Calendar = .current, bundle: Bundle? = nil, locale: Locale = .current) -> String {
     let now = week.current
     let before = week.previous ?? DictationTotals()
     guard now.dictations > 0 else {
-        let earlier = before.dictations > 0 ? ", against \(counted(before.dictations, "dictation")) in the 7 before" : ""
-        return "No dictations in the last 7 days" + earlier + "."
+        return before.dictations > 0
+            ? Copy.dictationWeekNoneAgainst(before: before.dictations, bundle: bundle, locale: locale)
+            : Copy.dictationWeekNone(bundle: bundle, locale: locale)
     }
-    var sentence = "You dictated \(counted(now.words, "word")) in \(counted(now.dictations, "dictation"))"
+    let change: Copy.DictationWeekSummary
+    var percent = 0
     if before.words > 0 {
-        let percent = Int(((Double(now.words) - Double(before.words)) / Double(before.words) * 100).rounded())
-        sentence += percent == 0 ? ", the same as the 7 days before" : ", \(abs(percent))% \(percent > 0 ? "more" : "less") than the 7 days before"
+        percent = Int(((Double(now.words) - Double(before.words)) / Double(before.words) * 100).rounded())
+        change = percent == 0 ? .same : percent > 0 ? .more : .less
     } else {
-        sentence += ", with nothing the 7 days before to compare with"
+        change = .nothingBefore
     }
-    sentence += "."
+    var sentence = Copy.dictationWeekSummary(
+        change: change, words: now.words, dictations: now.dictations, percent: abs(percent), bundle: bundle, locale: locale)
     if let day = busiestDay(week.days) {
-        sentence += " \(calendar.weekdaySymbols[calendar.component(.weekday, from: day.day) - 1]) was your busiest day"
+        let weekday = calendar.weekdaySymbols[calendar.component(.weekday, from: day.day) - 1]
         let saved = now.saved(wpm: wpm).inSeconds
-        sentence += saved > 0 ? ", and you saved about \(statisticsDuration(saved))." : "."
+        sentence += " "
+            + (saved > 0
+                ? Copy.dictationWeekBusiestSaved(
+                    weekday: weekday, saved: statisticsDuration(saved, bundle: bundle, locale: locale), bundle: bundle, locale: locale)
+                : Copy.dictationWeekBusiest(weekday: weekday, bundle: bundle, locale: locale))
     }
     return sentence
 }
-
-private func counted(_ number: Int, _ noun: String) -> String { "\(number.formatted()) \(noun)\(number == 1 ? "" : "s")" }
 
 /// A best of all the counters: its figure and the day it was first reached.
 public struct StatisticsRecord<Value: Equatable & Sendable>: Equatable, Sendable {

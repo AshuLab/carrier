@@ -15,13 +15,20 @@ public struct AudioClip: Sendable, Equatable {
 }
 
 /// The days after which the audio is deleted that the History settings offer, 0 being never.
-public let dictationAudioLimits: [(days: Int, title: String)] = [(7, "7 days"), (30, "30 days"), (90, "90 days"), (0, "Never")]
+public let dictationAudioLimits = [DictationAudioLimit(days: 7), DictationAudioLimit(days: 30), DictationAudioLimit(days: 90), DictationAudioLimit(days: 0)]
+
+public struct DictationAudioLimit: Equatable, Sendable {
+    public let days: Int
+
+    /// "7 days", or "Never" for 0.
+    public func title(bundle: Bundle? = nil, locale: Locale = .current) -> String { Copy.dictationAudioLimit(days: days, bundle: bundle, locale: locale) }
+}
 
 /// "182 MB in 214 files", "12 KB in 1 file" or "No audio" (decimal, as `formatModelSize`).
-public func formatAudioOnDisk(bytes: Int, files: Int) -> String {
-    guard files > 0 else { return "No audio" }
-    let size = bytes >= 1_000_000 ? formatModelSize(Int64(bytes)) : "\(max(1, bytes / 1000)) KB"
-    return "\(size) in \(files) \(files == 1 ? "file" : "files")"
+public func formatAudioOnDisk(bytes: Int, files: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+    guard files > 0 else { return Copy.dictationAudioNone(bundle: bundle, locale: locale) }
+    let size = bytes >= 1_000_000 ? formatModelSize(Int64(bytes)) : Copy.dictationSizeKB(count: max(1, bytes / 1000), bundle: bundle, locale: locale)
+    return Copy.dictationAudioOnDisk(size: size, files: files, bundle: bundle, locale: locale)
 }
 
 /// The clip as a WAV file: 16-bit PCM, mono.

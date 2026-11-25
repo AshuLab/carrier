@@ -19,7 +19,9 @@ public struct LanguageChoices: Equatable, Sendable {
 /// The languages a model offers: Automatic first where it detects the language, then the languages of macOS that it understands, in the
 /// order of macOS, then the others by code. The chosen one is the saved one when the model offers it, and the first on offer otherwise, so
 /// Apple's, which takes one language and has no Automatic, starts on the first language of macOS that it supports.
-public func languageChoices(for model: SpeechModel, macOSLanguages: [String], saved: String?) -> LanguageChoices {
+public func languageChoices(
+    for model: SpeechModel, macOSLanguages: [String], saved: String?, bundle: Bundle? = nil, locale: Locale = .current
+) -> LanguageChoices {
     var codes: [String] = []
     for code in macOSLanguages.map(baseLanguage) + model.languages.sorted() where model.languages.contains(code) && codes.contains(code) == false {
         codes.append(code)
@@ -28,13 +30,13 @@ public func languageChoices(for model: SpeechModel, macOSLanguages: [String], sa
     let selected = saved.flatMap { offered.contains($0) ? $0 : nil } ?? offered.first ?? ""
     let hint: String
     if selected == automaticLanguage {
-        hint = "Picks the language as you speak, so you can mix Spanish and English"
+        hint = Copy.dictationLanguageHintAutomatic(bundle: bundle, locale: locale)
     } else if model.detectsLanguage {
-        hint = "Choose Automatic to mix languages"
+        hint = Copy.dictationLanguageHintDetects(bundle: bundle, locale: locale)
     } else if codes == ["en"] {
-        hint = "This model only understands English"
+        hint = Copy.dictationLanguageHintEnglishOnly(bundle: bundle, locale: locale)
     } else {
-        hint = "\(model.name) listens in one language; pick a model that detects it to mix them"
+        hint = Copy.dictationLanguageHintOneLanguage(model: model.name, bundle: bundle, locale: locale)
     }
     return LanguageChoices(offered: offered, selected: selected, hint: hint)
 }

@@ -26,18 +26,18 @@ struct PastedTextCard: View {
                     .overlay(RoundedRectangle(cornerRadius: Tokens.Radius.tile).strokeBorder(.white.opacity(0.16), lineWidth: 0.5))
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: Tokens.Space.none) {
-                    Text("Pasted text").scaledFont(12.5, weight: .semibold).lineLimit(1)
+                    Text(Copy.dictationPastedText()).scaledFont(12.5, weight: .semibold).lineLimit(1)
                     Text(summary.stats).scaledFont(11).foregroundStyle(.secondary).lineLimit(1)
                 }
                 Spacer(minLength: 12)
-                Button { toggle() } label: { Label(open ? "Collapse" : "Expand", icon: open ? .chevronUp : .chevronDown) }
+                Button { toggle() } label: { Label(open ? Copy.dictationCollapse() : Copy.dictationExpand(), icon: open ? .chevronUp : .chevronDown) }
                     .buttonStyle(HoverTextButtonStyle(tint: nil))
                 if let remove {
                     Button(action: remove) {
                         Glyph(.close, size: 9).foregroundStyle(.secondary)
                             .frame(width: 18, height: 18).background(Circle().fill(Color.primary.opacity(0.14))).contentShape(Circle())
                     }
-                    .buttonStyle(.plain).help("Take it out").accessibilityLabel("Remove the pasted text")
+                    .buttonStyle(.plain).help(Copy.dictationTakeItOut()).accessibilityLabel(Copy.dictationRemovePasted())
                     .opacity(hovering ? 1 : 0)
                 }
             }
@@ -48,7 +48,7 @@ struct PastedTextCard: View {
                         TextEditor(text: Binding(get: { text }, set: edit))
                             .scaledFont(11.5, design: .monospaced).scrollContentBackground(.hidden).padding(Tokens.Space.s6)
                             .frame(height: min(220, max(90, CGFloat(summary.lines) * 17 + 24)))
-                            .accessibilityLabel("Pasted text")
+                            .accessibilityLabel(Copy.dictationPastedText())
                     } else {
                         ScrollView {
                             Text(text).scaledFont(11.5, design: .monospaced).textSelection(.enabled)

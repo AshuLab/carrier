@@ -20,42 +20,41 @@ struct StatisticsGroup: View {
             if records.counts.isEmpty {
                 SettingsGroup(title: "") {
                     EmptyStateView(
-                        icon: .chartBar, title: "No statistics yet",
-                        line: "Dictate with the microphone or the shortcut and finish with the text pasted or copied: the numbers start here."
+                        icon: .chartBar, title: Copy.dictationNoStats(), line: Copy.dictationNoStatsLine()
                     )
                     .frame(minHeight: 220)
                 }
             } else {
                 let speed = min(max(wpm, AppPreferences.dictationTypingSpeedRange.lowerBound), AppPreferences.dictationTypingSpeedRange.upperBound)
                 let figures = dictationFigures(records.counts, range: range, now: Date())
-                SettingsGroup(id: "overview", title: "Overview", accessory: {
-                    SegmentedChoice(options: StatisticsRange.allCases.map { (value: $0, title: $0.title, icon: nil) }, selection: $range)
+                SettingsGroup(id: "overview", title: Copy.dictationGroupOverview(), accessory: {
+                    SegmentedChoice(options: StatisticsRange.allCases.map { (value: $0, title: $0.title(), icon: nil) }, selection: $range)
                 }, content: { cards(figures, wpm: speed) })
-                SettingsGroup(title: "\(metric.title) per day", accessory: {
-                    SegmentedChoice(options: StatisticsMetric.allCases.map { (value: $0, title: $0.title, icon: nil) }, selection: $metric)
+                SettingsGroup(title: Copy.dictationPerDay(metric: metric.title()), accessory: {
+                    SegmentedChoice(options: StatisticsMetric.allCases.map { (value: $0, title: $0.title(), icon: nil) }, selection: $metric)
                 }, content: { StatisticsChart(days: figures.days, metric: metric).padding(.vertical, Tokens.Space.s8) })
-                SettingsGroup(id: "by-hour-of-the-day", title: "By hour of the day") { hoursContent(dictationHours(records.counts, range: range, now: Date())) }
-                SettingsGroup(id: "this-week", title: "This week") { weekContent(dictationFigures(records.counts, range: .week, now: Date()), wpm: speed) }
+                SettingsGroup(id: "by-hour-of-the-day", title: Copy.dictationGroupHours()) { hoursContent(dictationHours(records.counts, range: range, now: Date())) }
+                SettingsGroup(id: "this-week", title: Copy.dictationGroupWeek()) { weekContent(dictationFigures(records.counts, range: .week, now: Date()), wpm: speed) }
                 recordsGroup(statisticsRecords(records.counts))
             }
             settings
         }
-        .alert("Reset statistics?", isPresented: $confirmingReset) {
-            Button("Cancel", role: .cancel) {}
-            Button("Reset", role: .destructive) { records.resetStatistics() }
+        .alert(Copy.dictationResetStatsTitle(), isPresented: $confirmingReset) {
+            Button(Copy.dictationCancel(), role: .cancel) {}
+            Button(Copy.dictationReset(), role: .destructive) { records.resetStatistics() }
         } message: {
-            Text("It deletes the counters of every day. The history of dictations stays as it is.")
+            Text(Copy.dictationResetStatsMessage())
         }
     }
 
     private func cards(_ figures: DictationFigures, wpm: Int) -> some View {
         let now = figures.current
         let before = figures.previous
-        let dictations = StatisticsCard(title: "Dictations", value: now.dictations.formatted(), line: statisticsChange(Double(now.dictations), from: before.map { Double($0.dictations) }))
-        let words = StatisticsCard(title: "Words", value: now.words.formatted(), line: statisticsChange(Double(now.words), from: before.map { Double($0.words) }))
-        let speaking = StatisticsCard(title: "Speaking time", value: statisticsDuration(now.seconds), line: statisticsChange(now.seconds, from: before?.seconds))
+        let dictations = StatisticsCard(title: Copy.dictationCardDictations(), value: now.dictations.formatted(), line: statisticsChange(Double(now.dictations), from: before.map { Double($0.dictations) }))
+        let words = StatisticsCard(title: Copy.dictationCardWords(), value: now.words.formatted(), line: statisticsChange(Double(now.words), from: before.map { Double($0.words) }))
+        let speaking = StatisticsCard(title: Copy.dictationCardSpeaking(), value: statisticsDuration(now.seconds), line: statisticsChange(now.seconds, from: before?.seconds))
         let saved = StatisticsCard(
-            title: "Time saved", value: statisticsDuration(now.saved(wpm: wpm).inSeconds),
+            title: Copy.dictationCardSaved(), value: statisticsDuration(now.saved(wpm: wpm).inSeconds),
             line: statisticsChange(now.saved(wpm: wpm).inSeconds, from: before.map { $0.saved(wpm: wpm).inSeconds }), highlighted: true)
         return cardGrid([dictations, words, speaking, saved])
     }
@@ -87,7 +86,7 @@ struct StatisticsGroup: View {
             HStack(spacing: Tokens.Space.s2) {
                 ForEach(0..<24, id: \.self) { hour in
                     RoundedRectangle(cornerRadius: Tokens.Radius.tiny).fill(.tint.opacity(0.08 + 0.92 * Double(hours.dictations[hour]) / Double(most)))
-                        .frame(height: 34).help("\(String(format: "%02d", hour)):00 · \(hours.dictations[hour]) dictations")
+                        .frame(height: 34).help(Copy.dictationHourHelp(hour: String(format: "%02d:00", hour), count: hours.dictations[hour]))
                 }
             }
             HStack(spacing: Tokens.Space.none) {
@@ -99,7 +98,7 @@ struct StatisticsGroup: View {
             Text(line).scaledFont(11).foregroundStyle(.secondary).padding(.top, Tokens.Space.s4)
         }
         .padding(.vertical, Tokens.Space.s6).frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityElement(children: .ignore).accessibilityLabel("Dictations by hour of the day").accessibilityValue(line)
+        .accessibilityElement(children: .ignore).accessibilityLabel(Copy.dictationHoursLabel()).accessibilityValue(line)
     }
 
     /// The last 7 days against the 7 before, in a sentence and a small chart of the words of each day.
@@ -112,27 +111,30 @@ struct StatisticsGroup: View {
     }
 
     private func recordsGroup(_ records: StatisticsRecords) -> some View {
-        func on(_ day: Date?) -> String { day?.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day()) ?? "Nothing yet" }
-        return SettingsGroup(id: "records", title: "Records", footer: "The statistics are their own counters: they hold no text, and turning the history off or deleting entries does not change them.") {
+        func on(_ day: Date?) -> String { day?.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day()) ?? Copy.dictationNothingYet() }
+        return SettingsGroup(id: "records", title: Copy.dictationGroupRecords(), footer: Copy.dictationRecordsFooter()) {
             cardGrid([
-                StatisticsCard(title: "Most dictations", value: (records.mostDictations?.value ?? 0).formatted(), line: on(records.mostDictations?.day)),
-                StatisticsCard(title: "Most words", value: (records.mostWords?.value ?? 0).formatted(), line: on(records.mostWords?.day)),
-                StatisticsCard(title: "Longest dictation", value: statisticsDuration(records.longest?.value ?? 0), line: on(records.longest?.day)),
-                StatisticsCard(title: "Longest streak", value: "\(records.streak) \(records.streak == 1 ? "day" : "days")", line: "Days in a row"),
+                StatisticsCard(title: Copy.dictationRecordMostDictations(), value: (records.mostDictations?.value ?? 0).formatted(), line: on(records.mostDictations?.day)),
+                StatisticsCard(title: Copy.dictationRecordMostWords(), value: (records.mostWords?.value ?? 0).formatted(), line: on(records.mostWords?.day)),
+                StatisticsCard(title: Copy.dictationRecordLongest(), value: statisticsDuration(records.longest?.value ?? 0), line: on(records.longest?.day)),
+                StatisticsCard(title: Copy.dictationRecordStreak(), value: Copy.dictationStreakDays(days: records.streak), line: Copy.dictationDaysInARow()),
             ])
         }
     }
 
     private var settings: some View {
-        SettingsGroup(id: "statistics-settings", title: "Statistics settings") {
+        SettingsGroup(id: "statistics-settings", title: Copy.dictationGroupStatsSettings()) {
             SettingsTabRow(
-                id: "typing-speed", title: "Typing speed", detail: "Used for the time saved: words ÷ speed, minus the time you spent speaking", first: true,
-                problem: unparsable.isEmpty ? nil : "Must be between \(AppPreferences.dictationTypingSpeedRange.lowerBound) and \(AppPreferences.dictationTypingSpeedRange.upperBound)"
+                id: "typing-speed", title: Copy.dictationTypingSpeed(), detail: Copy.dictationTypingSpeedDetail(), first: true,
+                problem: unparsable.isEmpty
+                    ? nil
+                    : Copy.dictationTypingSpeedProblem(
+                        low: AppPreferences.dictationTypingSpeedRange.lowerBound, high: AppPreferences.dictationTypingSpeedRange.upperBound)
             ) {
                 // the counter of Behavior's numbers: a number between the range's ends, − and + by 5; text that is not one keeps the last good value
                 HStack(spacing: Tokens.Space.s6) {
                     NumberField(
-                        key: "Typing speed, words per minute", value: $wpm, unparsable: $unparsable,
+                        key: Copy.dictationTypingSpeedField(), value: $wpm, unparsable: $unparsable,
                         parse: { Int($0).flatMap { AppPreferences.dictationTypingSpeedRange.contains($0) ? $0 : nil } }, format: { String($0) },
                         // a click goes to the end of the range when 5 would pass it, and nowhere when it is already there
                         step: { value, direction in
@@ -140,11 +142,11 @@ struct StatisticsGroup: View {
                             let next = min(max(value + direction * 5, range.lowerBound), range.upperBound)
                             return next == value ? nil : next
                         })
-                    Text("words/min").scaledFont(11).foregroundStyle(.secondary)
+                    Text(Copy.dictationWordsPerMinute()).scaledFont(11).foregroundStyle(.secondary)
                 }
             }
-            SettingsTabRow(id: "reset-statistics", title: "Reset statistics", detail: "Deletes the counters. The history stays, and deleting history never changes the statistics") {
-                Button(role: .destructive) { confirmingReset = true } label: { Label("Reset statistics…", icon: .trash) }
+            SettingsTabRow(id: "reset-statistics", title: Copy.dictationResetStats(), detail: Copy.dictationResetStatsDetail()) {
+                Button(role: .destructive) { confirmingReset = true } label: { Label(Copy.dictationResetStatsButton(), icon: .trash) }
                     .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
             }
         }
@@ -154,7 +156,7 @@ struct StatisticsGroup: View {
 enum StatisticsMetric: CaseIterable {
     case words, dictations
 
-    var title: String { self == .words ? "Words" : "Dictations" }
+    func title() -> String { self == .words ? Copy.dictationCardWords() : Copy.dictationCardDictations() }
 }
 
 private struct StatisticsCard: View {
@@ -188,14 +190,14 @@ private struct StatisticsChart: View {
     var body: some View {
         let most = days.map(value).max() ?? 0
         Chart(days) { day in
-            BarMark(x: .value("Day", day.day, unit: .day), y: .value(metric.title, value(day)))
+            BarMark(x: .value(Copy.dictationChartDay(), day.day, unit: .day), y: .value(metric.title(), value(day)))
                 .foregroundStyle(.tint.opacity(value(day) == most && most > 0 ? 1 : 0.7))
                 .accessibilityLabel(day.day.formatted(.dateTime.weekday(.wide).month().day()))
-                .accessibilityValue("\(value(day)) \(metric == .words ? "words" : "dictations")")
+                .accessibilityValue(metric == .words ? Copy.dictationWordsCount(count: value(day)) : Copy.dictationCount(count: value(day)))
         }
         .chartXAxis { AxisMarks(values: .automatic(desiredCount: 6)) { _ in AxisValueLabel(format: .dateTime.month(.abbreviated).day()) } }
         .frame(height: 150)
-        .accessibilityLabel("\(metric.title) per day")
+        .accessibilityLabel(Copy.dictationPerDay(metric: metric.title()))
     }
 }
 
@@ -206,14 +208,14 @@ private struct WeekChart: View {
     var body: some View {
         let busiest = busiestDay(days)?.day
         Chart(days) { day in
-            BarMark(x: .value("Day", day.day, unit: .day), y: .value("Words", day.words))
+            BarMark(x: .value(Copy.dictationChartDay(), day.day, unit: .day), y: .value(Copy.dictationCardWords(), day.words))
                 .foregroundStyle(.tint.opacity(day.day == busiest ? 1 : 0.6))
                 .accessibilityLabel(day.day.formatted(.dateTime.weekday(.wide).month().day()))
-                .accessibilityValue("\(day.words) words")
+                .accessibilityValue(Copy.dictationWordsCount(count: day.words))
         }
         .chartXAxis { AxisMarks(values: .stride(by: .day)) { _ in AxisValueLabel(format: .dateTime.weekday(.narrow)) } }
         .chartYAxis(.hidden)
         .frame(height: 70)
-        .accessibilityLabel("Words per day, last 7 days")
+        .accessibilityLabel(Copy.dictationWeekChartLabel())
     }
 }

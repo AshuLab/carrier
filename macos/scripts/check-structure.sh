@@ -87,4 +87,23 @@ if [ -s /tmp/check-structure-frameworks.$$ ]; then
 fi
 rm -f /tmp/check-structure-frameworks.$$
 
+# Rule: every piece is named by an entry of the pieces gallery.
+# A piece is a type declared at the top level of a file under Sources/Carrier/UI/ outside Tokens/ and Modifiers/: a `struct`, `enum`, `class`, `protocol` or
+# `actor` that starts the line (with `final` or an attribute such as `@MainActor` before it), so a nested type does not count. An entry names it when its name
+# is in quotes in a `GalleryEntry(` line of Sources/Carrier/Features/Settings/PiecesGallery*.swift: `GalleryEntry("SpinningRing", "RingLayer")` names both.
+# Ignores: `private` and `fileprivate` types (they start with those words, so the pattern does not see them), and extensions, which declare no type.
+GALLERY=(Sources/Carrier/Features/Settings/PiecesGallery*.swift)
+grep -rnE '^(@[A-Za-z]+ )*(final )?(struct|enum|class|protocol|actor) [A-Za-z0-9_]+' Sources/Carrier/UI --include='*.swift' |
+  grep -vE '^Sources/Carrier/UI/(Tokens|Modifiers)/' |
+  while IFS= read -r hit; do
+    name=$(echo "$hit" | sed -E 's/^[^:]+:[0-9]+:(@[A-Za-z]+ )*(final )?(struct|enum|class|protocol|actor) ([A-Za-z0-9_]+).*/\4/')
+    grep -h 'GalleryEntry(' "${GALLERY[@]}" 2>/dev/null | grep -q "\"$name\"" ||
+      echo "$hit" | sed -E "s/^([^:]+:[0-9]+):.*/\1: $name is a piece that no GalleryEntry of the pieces gallery names: add its entry to PiecesGallery<Kind>.swift/"
+  done > /tmp/check-structure-gallery.$$
+if [ -s /tmp/check-structure-gallery.$$ ]; then
+  cat /tmp/check-structure-gallery.$$
+  FAILED=1
+fi
+rm -f /tmp/check-structure-gallery.$$
+
 exit $FAILED

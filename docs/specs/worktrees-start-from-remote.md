@@ -114,7 +114,7 @@ Testing seams, by story:
 - Story 8: `src/chat/session-data.test.ts`, its fake git keyed by arguments, which already has the merge-base cases.
 - The capabilities `worktreeStart` and `fetchIfStale` are in the host's list (`server.ts`), in the app's `ControlClient.Capability` and in the fixture server's hello, so fixture mode behaves as a current host.
 - Stories 9, 10, 11, in the app's logic: `macos/Tests/CarrierCoreTests` (`WorktreeChoiceTests` for the picker's tabs and badges, `NewSessionTests` for the model's default, `startFrom` and send steps, the writer of the key beside `SessionAgesTests`).
-  The SwiftUI views themselves have no tests of their own: they are checked by the `macos-ui-change` procedure against fixtures, every state of the row and the picker, and `docs/macos-ui.md` is updated if a pattern changes.
+  The SwiftUI views themselves have no tests of their own: they are checked by the `macos-ui-change` procedure against fixtures, every state of the row and the picker, and `docs/ui.md` is updated if a pattern changes.
 - Story 12: no tests; the docs are read in review.
 
 ## Out of scope

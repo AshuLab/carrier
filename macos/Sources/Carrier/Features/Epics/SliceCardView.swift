@@ -2,7 +2,7 @@ import AppKit
 import CarrierCore
 import SwiftUI
 
-// A slice of the epic as a work card, where it was taken (docs/macos-ui.md, "The slice card"; the mockup is S1 of
+// A slice of the epic as a work card, where it was taken (docs/ui.md, "The slice card"; the mockup is S1 of
 // docs/research/macos-app-design/explorations/carrier-view-cards.html): its mark, `#730` and the title, a quiet line and its pull request.
 
 /// The epic's repository ("owner/name"), so a pull request chip can open GitHub; without it the chip is a label. Set once on the view

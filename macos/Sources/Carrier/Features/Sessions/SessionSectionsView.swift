@@ -76,7 +76,7 @@ struct SessionFlowArrow: View {
     }
 }
 
-/// The scale of the feed (docs/macos-ui.md): every gap is one of these.
+/// The scale of the feed (docs/ui.md): every gap is one of these.
 enum SessionMetrics {
     /// Between two sessions, open or folded: a session is the unit the eye scans by.
     static let between: CGFloat = 76

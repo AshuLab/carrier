@@ -1,6 +1,6 @@
 import Foundation
 
-// A slice of the epic as a card in the builder's session, where it was taken (docs/macos-ui.md, "The slice card"): its mark, `#730` and the
+// A slice of the epic as a card in the builder's session, where it was taken (docs/ui.md, "The slice card"): its mark, `#730` and the
 // title, a quiet line of what it cost and its pull request. A pure function of what a session already has, its subagent (`LaneSection`); a
 // number that is missing is left out of the line, never made up.
 

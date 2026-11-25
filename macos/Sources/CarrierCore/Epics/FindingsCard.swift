@@ -1,7 +1,7 @@
 import Foundation
 
 // The findings of one review round as a card in the session that raised them (the reviewer's) or answers them (the fixer's), from the
-// `epic` reply's rounds (docs/macos-ui.md, "The review findings card"). Blockers come first, then suggestions (the review's observations).
+// `epic` reply's rounds (docs/ui.md, "The review findings card"). Blockers come first, then suggestions (the review's observations).
 // A part the reply does not give (an id, a link, a mark) is left out of the row, never made up.
 
 public enum FindingMark: Equatable {

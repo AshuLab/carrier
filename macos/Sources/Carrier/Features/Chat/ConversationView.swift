@@ -59,8 +59,8 @@ struct ConversationView: View {
     }
 
     var body: some View {
-        // the fixture's one session that is not a conversation: all the notices together, to look at them
-        (NoticesGalleryView.shows(model.sessionId) ? AnyView(NoticesGalleryView()) : AnyView(conversation))
+        // the fixture's two sessions that are not conversations: all the notices together and all the pieces, to look at them
+        (NoticesGalleryView.shows(model.sessionId) ? AnyView(NoticesGalleryView()) : PiecesGalleryView.shows(model.sessionId) ? AnyView(PiecesGalleryView()) : AnyView(conversation))
             // the conversation stays mounted under the subagent view, so Back finds its feed and its place as they were, but it is not drawn: the
             // subagent view replaces it, and nothing of it shows through the window's translucent surfaces; nothing under it takes keys or taps
             .opacity(subagents.isEmpty ? 1 : 0)

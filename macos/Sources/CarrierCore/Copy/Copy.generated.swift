@@ -36,4 +36,111 @@ public enum Copy {
         case .other: return String(localized: "epicsByState.other \(count)", bundle: bundle ?? carrierResources, locale: locale)
         }
     }
+
+    public static func piecesTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "piecesTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func piecesHint(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "piecesHint", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public enum PiecesScheme: Sendable { case light; case dark }
+    public static func piecesScheme(which: PiecesScheme, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch which {
+        case .light: return String(localized: "piecesScheme.light", bundle: bundle ?? carrierResources, locale: locale)
+        case .dark: return String(localized: "piecesScheme.dark", bundle: bundle ?? carrierResources, locale: locale)
+        }
+    }
+
+    public enum PiecesKind: Sendable { case buttons; case cards; case chips; case feedback; case fields; case icons; case layout; case meters; case rows; case selects }
+    public static func piecesKind(which: PiecesKind, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch which {
+        case .buttons: return String(localized: "piecesKind.buttons", bundle: bundle ?? carrierResources, locale: locale)
+        case .cards: return String(localized: "piecesKind.cards", bundle: bundle ?? carrierResources, locale: locale)
+        case .chips: return String(localized: "piecesKind.chips", bundle: bundle ?? carrierResources, locale: locale)
+        case .feedback: return String(localized: "piecesKind.feedback", bundle: bundle ?? carrierResources, locale: locale)
+        case .fields: return String(localized: "piecesKind.fields", bundle: bundle ?? carrierResources, locale: locale)
+        case .icons: return String(localized: "piecesKind.icons", bundle: bundle ?? carrierResources, locale: locale)
+        case .layout: return String(localized: "piecesKind.layout", bundle: bundle ?? carrierResources, locale: locale)
+        case .meters: return String(localized: "piecesKind.meters", bundle: bundle ?? carrierResources, locale: locale)
+        case .rows: return String(localized: "piecesKind.rows", bundle: bundle ?? carrierResources, locale: locale)
+        case .selects: return String(localized: "piecesKind.selects", bundle: bundle ?? carrierResources, locale: locale)
+        }
+    }
+
+    public enum PieceState: Sendable { case bold; case byShape; case changes; case checking; case closed; case danger; case disabled; case done; case empty; case error; case failed; case finished; case folded; case high; case idle; case image; case info; case initials; case large; case loading; case long; case noResults; case normal; case open; case plain; case quiet; case record; case selected; case sets; case small; case still; case symbol; case tinted; case tool; case waiting; case warning; case withActions; case withBadge; case withDetail; case withFooter; case withIcon; case withLink; case withoutDetail; case working }
+    public static func pieceState(which: PieceState, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch which {
+        case .bold: return String(localized: "pieceState.bold", bundle: bundle ?? carrierResources, locale: locale)
+        case .byShape: return String(localized: "pieceState.byShape", bundle: bundle ?? carrierResources, locale: locale)
+        case .changes: return String(localized: "pieceState.changes", bundle: bundle ?? carrierResources, locale: locale)
+        case .checking: return String(localized: "pieceState.checking", bundle: bundle ?? carrierResources, locale: locale)
+        case .closed: return String(localized: "pieceState.closed", bundle: bundle ?? carrierResources, locale: locale)
+        case .danger: return String(localized: "pieceState.danger", bundle: bundle ?? carrierResources, locale: locale)
+        case .disabled: return String(localized: "pieceState.disabled", bundle: bundle ?? carrierResources, locale: locale)
+        case .done: return String(localized: "pieceState.done", bundle: bundle ?? carrierResources, locale: locale)
+        case .empty: return String(localized: "pieceState.empty", bundle: bundle ?? carrierResources, locale: locale)
+        case .error: return String(localized: "pieceState.error", bundle: bundle ?? carrierResources, locale: locale)
+        case .failed: return String(localized: "pieceState.failed", bundle: bundle ?? carrierResources, locale: locale)
+        case .finished: return String(localized: "pieceState.finished", bundle: bundle ?? carrierResources, locale: locale)
+        case .folded: return String(localized: "pieceState.folded", bundle: bundle ?? carrierResources, locale: locale)
+        case .high: return String(localized: "pieceState.high", bundle: bundle ?? carrierResources, locale: locale)
+        case .idle: return String(localized: "pieceState.idle", bundle: bundle ?? carrierResources, locale: locale)
+        case .image: return String(localized: "pieceState.image", bundle: bundle ?? carrierResources, locale: locale)
+        case .info: return String(localized: "pieceState.info", bundle: bundle ?? carrierResources, locale: locale)
+        case .initials: return String(localized: "pieceState.initials", bundle: bundle ?? carrierResources, locale: locale)
+        case .large: return String(localized: "pieceState.large", bundle: bundle ?? carrierResources, locale: locale)
+        case .loading: return String(localized: "pieceState.loading", bundle: bundle ?? carrierResources, locale: locale)
+        case .long: return String(localized: "pieceState.long", bundle: bundle ?? carrierResources, locale: locale)
+        case .noResults: return String(localized: "pieceState.noResults", bundle: bundle ?? carrierResources, locale: locale)
+        case .normal: return String(localized: "pieceState.normal", bundle: bundle ?? carrierResources, locale: locale)
+        case .open: return String(localized: "pieceState.open", bundle: bundle ?? carrierResources, locale: locale)
+        case .plain: return String(localized: "pieceState.plain", bundle: bundle ?? carrierResources, locale: locale)
+        case .quiet: return String(localized: "pieceState.quiet", bundle: bundle ?? carrierResources, locale: locale)
+        case .record: return String(localized: "pieceState.record", bundle: bundle ?? carrierResources, locale: locale)
+        case .selected: return String(localized: "pieceState.selected", bundle: bundle ?? carrierResources, locale: locale)
+        case .sets: return String(localized: "pieceState.sets", bundle: bundle ?? carrierResources, locale: locale)
+        case .small: return String(localized: "pieceState.small", bundle: bundle ?? carrierResources, locale: locale)
+        case .still: return String(localized: "pieceState.still", bundle: bundle ?? carrierResources, locale: locale)
+        case .symbol: return String(localized: "pieceState.symbol", bundle: bundle ?? carrierResources, locale: locale)
+        case .tinted: return String(localized: "pieceState.tinted", bundle: bundle ?? carrierResources, locale: locale)
+        case .tool: return String(localized: "pieceState.tool", bundle: bundle ?? carrierResources, locale: locale)
+        case .waiting: return String(localized: "pieceState.waiting", bundle: bundle ?? carrierResources, locale: locale)
+        case .warning: return String(localized: "pieceState.warning", bundle: bundle ?? carrierResources, locale: locale)
+        case .withActions: return String(localized: "pieceState.withActions", bundle: bundle ?? carrierResources, locale: locale)
+        case .withBadge: return String(localized: "pieceState.withBadge", bundle: bundle ?? carrierResources, locale: locale)
+        case .withDetail: return String(localized: "pieceState.withDetail", bundle: bundle ?? carrierResources, locale: locale)
+        case .withFooter: return String(localized: "pieceState.withFooter", bundle: bundle ?? carrierResources, locale: locale)
+        case .withIcon: return String(localized: "pieceState.withIcon", bundle: bundle ?? carrierResources, locale: locale)
+        case .withLink: return String(localized: "pieceState.withLink", bundle: bundle ?? carrierResources, locale: locale)
+        case .withoutDetail: return String(localized: "pieceState.withoutDetail", bundle: bundle ?? carrierResources, locale: locale)
+        case .working: return String(localized: "pieceState.working", bundle: bundle ?? carrierResources, locale: locale)
+        }
+    }
+
+    public enum PieceSample: Sendable { case account; case action; case cancel; case choiceOne; case choiceTwo; case choiceThree; case detail; case field; case group; case groupFooter; case hint; case label; case placeholder; case problem; case query; case row; case rowDetail; case tag; case title }
+    public static func pieceSample(which: PieceSample, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch which {
+        case .account: return String(localized: "pieceSample.account", bundle: bundle ?? carrierResources, locale: locale)
+        case .action: return String(localized: "pieceSample.action", bundle: bundle ?? carrierResources, locale: locale)
+        case .cancel: return String(localized: "pieceSample.cancel", bundle: bundle ?? carrierResources, locale: locale)
+        case .choiceOne: return String(localized: "pieceSample.choiceOne", bundle: bundle ?? carrierResources, locale: locale)
+        case .choiceTwo: return String(localized: "pieceSample.choiceTwo", bundle: bundle ?? carrierResources, locale: locale)
+        case .choiceThree: return String(localized: "pieceSample.choiceThree", bundle: bundle ?? carrierResources, locale: locale)
+        case .detail: return String(localized: "pieceSample.detail", bundle: bundle ?? carrierResources, locale: locale)
+        case .field: return String(localized: "pieceSample.field", bundle: bundle ?? carrierResources, locale: locale)
+        case .group: return String(localized: "pieceSample.group", bundle: bundle ?? carrierResources, locale: locale)
+        case .groupFooter: return String(localized: "pieceSample.groupFooter", bundle: bundle ?? carrierResources, locale: locale)
+        case .hint: return String(localized: "pieceSample.hint", bundle: bundle ?? carrierResources, locale: locale)
+        case .label: return String(localized: "pieceSample.label", bundle: bundle ?? carrierResources, locale: locale)
+        case .placeholder: return String(localized: "pieceSample.placeholder", bundle: bundle ?? carrierResources, locale: locale)
+        case .problem: return String(localized: "pieceSample.problem", bundle: bundle ?? carrierResources, locale: locale)
+        case .query: return String(localized: "pieceSample.query", bundle: bundle ?? carrierResources, locale: locale)
+        case .row: return String(localized: "pieceSample.row", bundle: bundle ?? carrierResources, locale: locale)
+        case .rowDetail: return String(localized: "pieceSample.rowDetail", bundle: bundle ?? carrierResources, locale: locale)
+        case .tag: return String(localized: "pieceSample.tag", bundle: bundle ?? carrierResources, locale: locale)
+        case .title: return String(localized: "pieceSample.title", bundle: bundle ?? carrierResources, locale: locale)
+        }
+    }
 }

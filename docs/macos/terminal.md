@@ -56,3 +56,11 @@ Pressing `⌘K` while a terminal pane has focus runs `CarrierTerminalStore.clear
 
 Workspace layout, tab order and split trees are persisted in `<Carrier folder>/app/state/terminals.json` (`0600`) without environment variables (`TerminalWorkspaceFileStore`).
 Ephemeral `TerminalOwner.epic` tabs are excluded from both persistence export and restore so resumed CLI processes and their scoped environment variables never respawn across app launches.
+
+## Where it lives in the code
+
+What the person sees: [terminal](terminal.md).
+Pure rules (`Terminal{Core,SplitTree,Persistence,Settings,ZshBottomPromptShim}.swift`) are in `CarrierCore` (`TerminalCoreTests`, `TerminalZshBottomPromptShimTests`); Continue in Terminal's launch is `ContinueInTerminal.swift` (`embeddedResumeLaunch`).
+The AppKit runtime (`Carrier/Platform/Terminal{Host,Store*,Appearance,ProcessInspector}.swift`, `CarrierTerminalView.swift`, `Features/Terminal/TerminalConfirmationCopy.swift`) owns the `paneId`-keyed `GhosttyKit` surface cache, live settings reload, `ZDOTDIR` bottom-prompt preparation, `⌘K` scrollback clear and close confirmation; the views are the `Terminal*View.swift` files, `MainMenu.swift`, `PanelView.swift` and friends.
+Window selection and drawer state: `CarrierCore/WindowShell.swift` (`WindowShellTests`).
+`libghostty-spm` (`GhosttyTerminal`) is linked by `Carrier` only; `build-app.sh` and `scripts/check-app.sh` bundle and verify `GhosttyKit_GhosttyTerminal.bundle` and `THIRD-PARTY-NOTICES.md`.

@@ -21,65 +21,66 @@ struct NotificationsTabView: View {
     @State private var testAdvice: String?
 
     var body: some View {
+        let page = notificationsPage()
         SettingsPageBody(reset: { AppPreferences().reset(.notifications) }) {
-            SettingsGroup(id: "carrier", title: "Carrier") {
-                SettingsTabRow(id: "needs-attention", title: "Needs attention", detail: "An epic stopped and waits for a person", first: true) {
-                    Toggle("Needs attention", isOn: $needsYou).labelsHidden().toggleStyle(.switch)
+            SettingsGroup(id: "carrier", title: page.groupCarrier) {
+                SettingsTabRow(id: "needs-attention", title: page.needsAttention.title, detail: page.needsAttention.detail, first: true) {
+                    Toggle(page.needsAttention.title, isOn: $needsYou).labelsHidden().toggleStyle(.switch)
                 }
-                SettingsTabRow(id: "ready-for-test", title: "Ready for test", detail: "An epic finished and has a PR to try") {
-                    Toggle("Ready for test", isOn: $readyForTest).labelsHidden().toggleStyle(.switch)
+                SettingsTabRow(id: "ready-for-test", title: page.ready.title, detail: page.ready.detail) {
+                    Toggle(page.ready.title, isOn: $readyForTest).labelsHidden().toggleStyle(.switch)
                 }
-                SettingsTabRow(id: "a-problem", title: "A problem", detail: "GitHub refuses a repo, or Carrier stops by itself") {
-                    Toggle("A problem", isOn: $problem).labelsHidden().toggleStyle(.switch)
-                }
-            }
-            SettingsGroup(id: "chat", title: "Chat") {
-                SettingsTabRow(id: "needs-attention", title: "Needs attention", detail: "A session waits for an approval", first: true) {
-                    Toggle("Chat needs attention", isOn: $chatNeedsAttention).labelsHidden().toggleStyle(.switch)
-                }
-                SettingsTabRow(id: "done", title: "Done", detail: "A session finished its turn") {
-                    Toggle("Chat done", isOn: $chatDone).labelsHidden().toggleStyle(.switch)
+                SettingsTabRow(id: "a-problem", title: page.problem.title, detail: page.problem.detail) {
+                    Toggle(page.problem.title, isOn: $problem).labelsHidden().toggleStyle(.switch)
                 }
             }
-            SettingsGroup(id: "delivery", title: "Delivery") {
-                SettingsTabRow(id: "only-when-carrier-is-not-in-front", title: "Only when Carrier is not in front", detail: "No banner while its window is the one you are looking at", first: true) {
-                    Toggle("Only when Carrier is not in front", isOn: $onlyWhenAway).labelsHidden().toggleStyle(.switch)
+            SettingsGroup(id: "chat", title: page.groupChat) {
+                SettingsTabRow(id: "needs-attention", title: page.chatNeedsAttention.title, detail: page.chatNeedsAttention.detail, first: true) {
+                    Toggle(page.chatNeedsAttentionLabel, isOn: $chatNeedsAttention).labelsHidden().toggleStyle(.switch)
                 }
-                SettingsTabRow(id: "dock-badge", title: "Dock badge", detail: "The Dock icon counts the epics that need a person and the sessions that wait for an approval") {
-                    Toggle("Dock badge", isOn: $dockBadge).labelsHidden().toggleStyle(.switch)
+                SettingsTabRow(id: "done", title: page.chatDone.title, detail: page.chatDone.detail) {
+                    Toggle(page.chatDoneLabel, isOn: $chatDone).labelsHidden().toggleStyle(.switch)
                 }
-                SettingsTabRow(id: "play-a-sound", title: "Play a sound", detail: "A banner plays the notification sound") {
-                    Toggle("Play a sound", isOn: $sound).labelsHidden().toggleStyle(.switch)
+            }
+            SettingsGroup(id: "delivery", title: page.groupDelivery) {
+                SettingsTabRow(id: "only-when-carrier-is-not-in-front", title: page.onlyAway.title, detail: page.onlyAway.detail, first: true) {
+                    Toggle(page.onlyAway.title, isOn: $onlyWhenAway).labelsHidden().toggleStyle(.switch)
                 }
-                SettingsTabRow(id: "remind-me-again", title: "Remind me again", detail: "While an epic or a session still needs attention. Ready for test and Done never remind") {
+                SettingsTabRow(id: "dock-badge", title: page.dock.title, detail: page.dock.detail) {
+                    Toggle(page.dock.title, isOn: $dockBadge).labelsHidden().toggleStyle(.switch)
+                }
+                SettingsTabRow(id: "play-a-sound", title: page.sound.title, detail: page.sound.detail) {
+                    Toggle(page.sound.title, isOn: $sound).labelsHidden().toggleStyle(.switch)
+                }
+                SettingsTabRow(id: "remind-me-again", title: page.remind.title, detail: page.remind.detail) {
                     // a saved value that is not a choice reads as Never, as the watcher does
                     ChoicePopUp(
-                        label: "Remind me again", options: ReminderInterval.allCases.map { (value: $0, title: $0.title) },
+                        label: page.remind.title, options: ReminderInterval.allCases.map { (value: $0, title: $0.title()) },
                         selection: Binding(get: { ReminderInterval(rawValue: reminder) ?? .never }, set: { reminder = $0.rawValue })
                     )
                 }
-                SettingsTabRow(id: "quiet-hours", title: "Quiet hours", detail: "No banner and no sound: notifications wait in the Notification Center") {
-                    Toggle("Quiet hours", isOn: $quiet).labelsHidden().toggleStyle(.switch)
+                SettingsTabRow(id: "quiet-hours", title: page.quiet.title, detail: page.quiet.detail) {
+                    Toggle(page.quiet.title, isOn: $quiet).labelsHidden().toggleStyle(.switch)
                 }
-                SettingsTabRow(id: "from", title: "From", detail: "When the quiet starts") {
-                    timePicker("From", $quietStart)
+                SettingsTabRow(id: "from", title: page.from.title, detail: page.from.detail) {
+                    timePicker(page.from.title, $quietStart)
                 }
                 .disabled(quiet == false)
-                SettingsTabRow(id: "until", title: "Until", detail: "When it ends, the next day if it is earlier than the start") {
-                    timePicker("Until", $quietEnd)
+                SettingsTabRow(id: "until", title: page.until.title, detail: page.until.detail) {
+                    timePicker(page.until.title, $quietEnd)
                 }
                 .disabled(quiet == false)
             }
-            SettingsGroup(id: "permission", title: "Permission") {
-                SettingsTabRow(id: "system-permission", title: "System permission", detail: permission?.text ?? "Checking…", first: true) {
+            SettingsGroup(id: "permission", title: page.groupPermission) {
+                SettingsTabRow(id: "system-permission", title: page.permission, detail: permission?.text() ?? page.checking, first: true) {
                     HStack {
                         if permission != .noBundle {
-                            Button { NSWorkspace.shared.open(Self.systemSettingsURL) } label: { Label("Open System Settings", icon: .settings) }
+                            Button { NSWorkspace.shared.open(Self.systemSettingsURL) } label: { Label(page.openSystemSettings, icon: .settings) }
                         }
                         if permission == .notAsked {
-                            Button { send() } label: { Label("Allow", icon: .check) }.buttonStyle(PrimaryCapsuleButtonStyle())
+                            Button { send() } label: { Label(page.allow, icon: .check) }.buttonStyle(PrimaryCapsuleButtonStyle())
                         }
-                        Button { send() } label: { Label("Send a test", icon: .send) }.disabled(permission == .noBundle)
+                        Button { send() } label: { Label(page.sendTest, icon: .send) }.disabled(permission == .noBundle)
                     }
                 }
             }
@@ -109,7 +110,7 @@ struct NotificationsTabView: View {
 
     /// A test that macOS would swallow says why instead; otherwise it is sent (the first one also asks for the permission).
     private func send() {
-        testAdvice = permission?.testAdvice
+        testAdvice = permission?.testAdvice()
         guard testAdvice == nil else { return }
         centre.sendTest()
     }
@@ -117,7 +118,7 @@ struct NotificationsTabView: View {
     private func refresh() {
         readPermission(bundleIdentifier: Bundle.main.bundleIdentifier, reader: reader) {
             permission = $0
-            if $0.testAdvice == nil { testAdvice = nil }
+            if $0.testAdvice() == nil { testAdvice = nil }
         }
     }
 }

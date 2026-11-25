@@ -17,7 +17,7 @@ struct SettingsSidebar: View {
     private var pages: some View {
         List(selection: Binding(get: { navigator.page }, set: { if let page = $0 { navigator.go(page) } })) {
             ForEach(SettingsPage.Group.allCases, id: \.self) { group in
-                if let heading = group.heading {
+                if let heading = group.heading() {
                     Section(heading) { rows(group) }
                 } else {
                     Section { rows(group) }
@@ -60,7 +60,7 @@ struct SettingsSidebar: View {
                             .buttonStyle(.plain)
                         }
                     } header: {
-                        Label { Text(page.title) } icon: { SettingsTile(page: page) }
+                        Label { Text(page.title()) } icon: { SettingsTile(page: page) }
                     }
                 }
             }
@@ -84,7 +84,7 @@ struct SettingsSidebar: View {
 
     private func rows(_ group: SettingsPage.Group) -> some View {
         ForEach(SettingsPage.pages(in: group), id: \.self) { page in
-            Label { Text(page.title) } icon: { SettingsTile(page: page) }.tag(page).help(page.detail)
+            Label { Text(page.title()) } icon: { SettingsTile(page: page) }.tag(page).help(page.detail())
                 // what Carrier is missing is fixed on these two pages: the sidebar says so, and the banner is on them alone
                 .badge(page == .engine || page == .health ? missing : 0)
         }

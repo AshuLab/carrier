@@ -51,14 +51,14 @@ struct AppearanceTabView: View {
 
     @AppStorage(Preference.appearanceStatesByShape) private var statesByShape
     /// The four states as the app draws them now, with or without their symbols, larger than they are in a row so the mark inside reads.
-    private var statesPreview: some View {
+    private func statesPreview(_ page: AppearancePage) -> some View {
         SettingsPreview {
             // together in the middle, not one to a quarter of the width
             HStack(alignment: .top, spacing: Tokens.Space.none) {
-                state("Working") { StateGlyph(state: .running) }
-                state("Needs attention") { StateGlyph(state: .needsYou, attention: .input) }
-                state("Ready for test") { StateGlyph(state: .ready) }
-                state("A problem") { StateGlyph(state: .needsYou, attention: .error) }
+                state(page.stateWorking) { StateGlyph(state: .running) }
+                state(page.stateNeedsAttention) { StateGlyph(state: .needsYou, attention: .input) }
+                state(page.stateReady) { StateGlyph(state: .ready) }
+                state(page.stateProblem) { StateGlyph(state: .needsYou, attention: .error) }
             }
             .frame(maxWidth: .infinity)
         }
@@ -74,81 +74,82 @@ struct AppearanceTabView: View {
     }
 
     var body: some View {
+        let page = appearancePage(textSize: textSize, iconWeight: iconWeight, codeSize: Int(codeSize))
         SettingsPageBody(reset: { AppPreferences().reset(.appearance) }) {
-            SettingsGroup(id: "theme", title: "Theme") {
+            SettingsGroup(id: "theme", title: page.theme) {
                 ThemeGallery(theme: $theme)
             }
-            SettingsGroup(id: "look", title: "Look") {
-                SettingsTabRow(id: "color-scheme", title: "Color scheme", detail: "System follows the Mac", first: true) {
-                    ChoicePopUp(label: "Color scheme", options: ColorSchemeChoice.allCases.map { (value: $0, title: $0.title) }, selection: $colorScheme)
+            SettingsGroup(id: "look", title: page.look) {
+                SettingsTabRow(id: "color-scheme", title: page.colorScheme.title, detail: page.colorScheme.detail, first: true) {
+                    ChoicePopUp(label: page.colorScheme.title, options: ColorSchemeChoice.allCases.map { (value: $0, title: $0.title()) }, selection: $colorScheme)
                 }
-                SettingsTabRow(id: "text-size", title: "Text size", detail: "The size of the text of the interface, \(textSize)%; the messages have their own in Chat") {
+                SettingsTabRow(id: "text-size", title: page.textSize.title, detail: page.textSize.detail) {
                     Slider(
                         value: Binding(get: { Double(textSize) }, set: { textSize = Int($0) }),
                         in: Double(TypeScale.range.lowerBound)...Double(TypeScale.range.upperBound), step: 5
                     )
-                    .labelsHidden().frame(width: settingsSliderWidth).accessibilityLabel("Text size").accessibilityValue("\(textSize) percent")
+                    .labelsHidden().frame(width: settingsSliderWidth).accessibilityLabel(page.textSize.title).accessibilityValue(page.textSizeValue)
                 }
-                SettingsTabRow(id: "icon-set", title: "Icon set", detail: "The look of the icons of the app: SF Symbols are the Mac's own") {
+                SettingsTabRow(id: "icon-set", title: page.iconSet.title, detail: page.iconSet.detail) {
                     ChoicePopUp(
-                        label: "Icon set", options: IconSet.allCases.map { (value: $0, title: $0.title) },
+                        label: page.iconSet.title, options: IconSet.allCases.map { (value: $0, title: $0.title) },
                         selection: $iconSet
                     )
                 }
-                SettingsTabRow(id: "icon-weight", title: "Icon weight", detail: "How thick the strokes of the icons are, \(iconWeight.formatted(.number.precision(.fractionLength(0...2))))") {
+                SettingsTabRow(id: "icon-weight", title: page.iconWeight.title, detail: page.iconWeight.detail) {
                     Slider(value: $iconWeight, in: IconWeight.range, step: IconWeight.step)
                         .labelsHidden().frame(width: settingsSliderWidth)
-                        .accessibilityLabel("Icon weight").accessibilityValue(iconWeight.formatted(.number.precision(.fractionLength(0...2))))
+                        .accessibilityLabel(page.iconWeight.title).accessibilityValue(page.iconWeightValue)
                 }
                 iconsPreview
-                SettingsTabRow(id: "density", title: "Density", detail: "The space in the sidebar rows") {
-                    ChoicePopUp(label: "Density", options: Density.allCases.map { (value: $0, title: $0.title) }, selection: $density)
+                SettingsTabRow(id: "density", title: page.density.title, detail: page.density.detail) {
+                    ChoicePopUp(label: page.density.title, options: Density.allCases.map { (value: $0, title: $0.title()) }, selection: $density)
                 }
-                SettingsTabRow(id: "tell-states-apart-by-shape", title: "Tell states apart by shape", detail: "A symbol in each state, so that color is not the only clue") {
-                    Toggle("Tell states apart by shape", isOn: $statesByShape).labelsHidden().toggleStyle(.switch)
+                SettingsTabRow(id: "tell-states-apart-by-shape", title: page.byShape.title, detail: page.byShape.detail) {
+                    Toggle(page.byShape.title, isOn: $statesByShape).labelsHidden().toggleStyle(.switch)
                 }
-                statesPreview
+                statesPreview(page)
             }
-            SettingsGroup(id: "color", title: "Color") {
-                SettingsTabRow(id: "accent-color", title: "Accent color", detail: "Buttons, switches and the selection", first: true) {
+            SettingsGroup(id: "color", title: page.color) {
+                SettingsTabRow(id: "accent-color", title: page.accent.title, detail: page.accent.detail, first: true) {
                     AccentSwatches(theme: theme, scheme: scheme == .dark ? .dark : .light, accent: accent)
                 }
-                SettingsTabRow(id: "tint-the-windows", title: "Tint the windows", detail: "A touch of the theme's own color on the backgrounds") {
-                    ChoicePopUp(label: "Tint the windows", options: Tint.allCases.map { (value: $0, title: $0.title) }, selection: $tint)
+                SettingsTabRow(id: "tint-the-windows", title: page.tint.title, detail: page.tint.detail) {
+                    ChoicePopUp(label: page.tint.title, options: Tint.allCases.map { (value: $0, title: $0.title) }, selection: $tint)
                 }
-                SettingsTabRow(id: "translucent-windows", title: "Translucent windows", detail: "Off draws solid backgrounds") {
-                    Toggle("Translucent windows", isOn: Binding(
+                SettingsTabRow(id: "translucent-windows", title: page.translucent.title, detail: page.translucent.detail) {
+                    Toggle(page.translucent.title, isOn: Binding(
                         get: { translucentChoice ?? (reduceTransparency == false) }, set: { translucentChoice = $0 }
                     ))
                     .labelsHidden().toggleStyle(.switch)
                 }
             }
-            SettingsGroup(id: "code-and-output", title: "Code and output") {
-                SettingsTabRow(id: "font", title: "Font", detail: "The monospaced fonts installed on this Mac", first: true) {
+            SettingsGroup(id: "code-and-output", title: page.code) {
+                SettingsTabRow(id: "font", title: page.font.title, detail: page.font.detail, first: true) {
                     // a family that is no longer installed shows as the system's, as the views draw it
                     ChoicePopUp(
-                        label: "Font", options: ([MonospaceSettings.systemFamily] + MonospaceStyle.installedFamilies).map { (value: $0, title: $0) },
+                        label: page.font.title, options: ([MonospaceSettings.systemFamily] + MonospaceStyle.installedFamilies).map { (value: $0, title: $0) },
                         selection: Binding(
                             get: { MonospaceStyle.installedFamilies.contains(family) ? family : MonospaceSettings.systemFamily },
                             set: { family = $0 }
                         )
                     )
                 }
-                SettingsTabRow(id: "size", title: "Size", detail: "In points, before the text size of the whole app") {
+                SettingsTabRow(id: "size", title: page.size.title, detail: page.size.detail) {
                     Slider(value: $codeSize, in: Double(MonospaceSettings.sizeRange.lowerBound)...Double(MonospaceSettings.sizeRange.upperBound), step: 1)
-                        .labelsHidden().frame(width: settingsSliderWidth).accessibilityLabel("Code size").accessibilityValue("\(Int(codeSize)) points")
+                        .labelsHidden().frame(width: settingsSliderWidth).accessibilityLabel(page.codeSize).accessibilityValue(page.codeSizeValue)
                 }
-                SettingsTabRow(id: "line-height", title: "Line height", detail: "The room between the lines of code and output") {
-                    ChoicePopUp(label: "Line height", options: LineHeight.allCases.map { (value: $0, title: $0.title) }, selection: $lineHeight)
+                SettingsTabRow(id: "line-height", title: page.lineHeight.title, detail: page.lineHeight.detail) {
+                    ChoicePopUp(label: page.lineHeight.title, options: LineHeight.allCases.map { (value: $0, title: $0.title) }, selection: $lineHeight)
                 }
-                SettingsTabRow(id: "ligatures", title: "Ligatures", detail: "Joins pairs such as != and >= where the font has them") {
-                    Toggle("Ligatures", isOn: $ligatures).labelsHidden().toggleStyle(.switch)
+                SettingsTabRow(id: "ligatures", title: page.ligatures.title, detail: page.ligatures.detail) {
+                    Toggle(page.ligatures.title, isOn: $ligatures).labelsHidden().toggleStyle(.switch)
                 }
-                SettingsTabRow(id: "wrap-long-lines", title: "Wrap long lines", detail: "Off keeps each line whole and scrolls sideways") {
-                    Toggle("Wrap long lines", isOn: $wrapLongLines).labelsHidden().toggleStyle(.switch)
+                SettingsTabRow(id: "wrap-long-lines", title: page.wrap.title, detail: page.wrap.detail) {
+                    Toggle(page.wrap.title, isOn: $wrapLongLines).labelsHidden().toggleStyle(.switch)
                 }
-                SettingsTabRow(id: "line-numbers", title: "Line numbers", detail: "In code blocks and the output of a command") {
-                    Toggle("Line numbers", isOn: $lineNumbers).labelsHidden().toggleStyle(.switch)
+                SettingsTabRow(id: "line-numbers", title: page.lineNumbers.title, detail: page.lineNumbers.detail) {
+                    Toggle(page.lineNumbers.title, isOn: $lineNumbers).labelsHidden().toggleStyle(.switch)
                 }
                 codePreview()
             }

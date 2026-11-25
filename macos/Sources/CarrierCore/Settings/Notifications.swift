@@ -61,11 +61,11 @@ private func needsAttention(_ row: SessionRow) -> EpicNotification {
 public enum ReminderInterval: Int, CaseIterable {
     case never = 0, quarterHour = 900, hour = 3600
 
-    public var title: String {
+    public func title(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         switch self {
-        case .never: "Never"
-        case .quarterHour: "After 15 minutes"
-        case .hour: "After an hour"
+        case .never: Copy.notificationsReminderNever(bundle: bundle, locale: locale)
+        case .quarterHour: Copy.notificationsReminderQuarterHour(bundle: bundle, locale: locale)
+        case .hour: Copy.notificationsReminderHour(bundle: bundle, locale: locale)
         }
     }
 }

@@ -27,31 +27,32 @@ struct GeneralTabView: View {
     @AppStorage(Preference.displayClock) private var clockHours
 
     var body: some View {
+        let page = generalPage()
         SettingsPageBody(reset: { AppPreferences().reset(.general) }) {
-            SettingsGroup(id: "menu-bar", title: "Menu bar") {
-                SettingsTabRow(id: "icon-style", title: "Icon style", detail: "What the icon in the menu bar shows", first: true) {
+            SettingsGroup(id: "menu-bar", title: page.menuBar) {
+                SettingsTabRow(id: "icon-style", title: page.iconStyle.title, detail: page.iconStyle.detail, first: true) {
                     ChoicePopUp(
-                        label: "Icon style", options: IconStyle.allCases.map { (value: $0, title: $0.title) },
+                        label: page.iconStyle.title, options: IconStyle.allCases.map { (value: $0, title: $0.title) },
                         selection: $style
                     )
                 }
-                SettingsTabRow(id: "animate-the-icon", title: "Animate the icon", detail: "A segment moves over the bar while epics run, except in Low Power Mode") {
-                    Toggle("Animate the icon", isOn: $animates).labelsHidden().toggleStyle(.switch)
+                SettingsTabRow(id: "animate-the-icon", title: page.animate.title, detail: page.animate.detail) {
+                    Toggle(page.animate.title, isOn: $animates).labelsHidden().toggleStyle(.switch)
                 }
-                SettingsTabRow(id: "list-epics-in-the-menu", title: "List epics in the menu", detail: "The epics that run or wait show under the status") {
-                    Toggle("List epics in the menu", isOn: $showsEpics).labelsHidden().toggleStyle(.switch)
+                SettingsTabRow(id: "list-epics-in-the-menu", title: page.listEpics.title, detail: page.listEpics.detail) {
+                    Toggle(page.listEpics.title, isOn: $showsEpics).labelsHidden().toggleStyle(.switch)
                 }
             }
-            SettingsGroup(id: "display", title: "Display") {
-                SettingsTabRow(id: "time-format", title: "Time format", detail: "Ages read \"11m\" or as a time, \"14:32\"", first: true) {
+            SettingsGroup(id: "display", title: page.display) {
+                SettingsTabRow(id: "time-format", title: page.timeFormat.title, detail: page.timeFormat.detail, first: true) {
                     ChoicePopUp(
-                        label: "Time format", options: [(value: TimeStyle.relative, title: "Relative"), (value: .clock, title: "Clock")],
+                        label: page.timeFormat.title, options: [(value: TimeStyle.relative, title: page.relative), (value: .clock, title: page.clockOption)],
                         selection: $timeStyle
                     )
                 }
-                SettingsTabRow(id: "clock", title: "Clock", detail: "How clock times count the hours") {
+                SettingsTabRow(id: "clock", title: page.clock.title, detail: page.clock.detail) {
                     ChoicePopUp(
-                        label: "Clock", options: [(value: ClockHours.system, title: "System"), (value: .h12, title: "12 hours"), (value: .h24, title: "24 hours")],
+                        label: page.clock.title, options: [(value: ClockHours.system, title: page.system), (value: .h12, title: page.hours12), (value: .h24, title: page.hours24)],
                         selection: $clockHours
                     )
                 }

@@ -18,7 +18,7 @@ import Testing
     let translated = SettingsEntry(page: .appearance, groupID: "code-and-output", group: "Código y salida", rowID: "font", title: "Fuente")
     #expect(font.anchor == "appearance.code-and-output.font" && translated.anchor == font.anchor && translated.id == font.id)
     // the page's own identifier is not its title, and nothing in an anchor is a title
-    for page in SettingsPage.allCases { #expect(page.rawValue != page.title) }
+    for page in SettingsPage.allCases { #expect(page.rawValue != page.title(bundle: english.bundle, locale: english.locale)) }
     for entry in settingsIndex { #expect(entry.anchor.hasPrefix(entry.page.rawValue) && entry.anchor.contains(" ") == false, Comment(rawValue: entry.anchor)) }
     // and every row of the index has one
     #expect(settingsIndex.filter { $0.isPage == false }.allSatisfy { $0.rowID.isEmpty == false })

@@ -44,7 +44,7 @@ struct AccentSwatches: View {
 
     var body: some View {
         HStack(spacing: Tokens.Space.s8) {
-            swatch("\(theme.title) accent", color: themeSurfaces(theme, scheme: scheme, translucent: false).accent.map(Color.init) ?? .accentColor, chosen: accent == nil) { accent = nil }
+            swatch(Copy.appearanceAccentName(theme: theme.title), color: themeSurfaces(theme, scheme: scheme, translucent: false).accent.map(Color.init) ?? .accentColor, chosen: accent == nil) { accent = nil }
             SettingsDivider(vertical: true).frame(height: 18).padding(.horizontal, Tokens.Space.s4)
             ForEach(AccentColor.allCases, id: \.self) { option in
                 swatch(option.title, color: Color(option.color), chosen: accent == option) { accent = option }
@@ -69,7 +69,7 @@ struct AccentSwatches: View {
             .frame(width: 18, height: 18)
             .padding(Tokens.Space.s3).overlay(Circle().strokeBorder(chosen ? Color.primary.opacity(0.7) : .clear, lineWidth: 2))
         }
-        .buttonStyle(.plain).help("Custom color").accessibilityLabel("Custom accent color").accessibilityAddTraits(chosen ? .isSelected : [])
+        .buttonStyle(.plain).help(Copy.appearanceCustomColor()).accessibilityLabel(Copy.appearanceCustomAccent()).accessibilityAddTraits(chosen ? .isSelected : [])
     }
 
     private func swatch(_ name: String, color: Color, chosen: Bool, choose: @escaping () -> Void) -> some View {

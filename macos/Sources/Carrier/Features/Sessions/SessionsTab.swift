@@ -66,7 +66,7 @@ struct SessionsTabView: View {
                     .task { await catalog.load() }
                 }
                 SettingsTabRow(id: "work-in", title: Copy.sessionsSettingsWorkIn(), detail: Copy.sessionsSettingsWorkInDetail()) {
-                    ChoicePopUp(label: Copy.sessionsSettingsWorkIn(), options: WorkIn.allCases.map { (value: $0, title: $0.title) }, selection: $workIn)
+                    ChoicePopUp(label: Copy.sessionsSettingsWorkIn(), options: WorkIn.allCases.map { (value: $0, title: $0.title()) }, selection: $workIn)
                 }
                 let startOff = worktreeStartOffReason(workIn: workIn)
                 SettingsTabRow(id: "start-from", title: Copy.sessionsSettingsStartFrom(), detail: startOff ?? Copy.sessionsSettingsStartFromDetail()) {

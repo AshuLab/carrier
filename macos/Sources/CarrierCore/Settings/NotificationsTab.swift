@@ -89,25 +89,31 @@ public enum SystemNotificationAnswer: Equatable {
 public enum NotificationPermission: Equatable {
     case allowed(NotificationDelivery), denied, notAsked, noBundle
 
-    public var text: String {
+    public func text(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         switch self {
         case .allowed(let delivery):
-            switch delivery.style {
-            case .none: "Allowed · notifications set to None"
-            case .banners: "Allowed · banners · sound \(delivery.soundOn ? "on" : "off")"
-            case .alerts: "Allowed · alerts · sound \(delivery.soundOn ? "on" : "off")"
-            }
-        case .denied: "Denied in System Settings"
-        case .notAsked: "Not asked yet · the first notification asks"
-        case .noBundle: "Only available from Carrier.app"
+            Copy.notificationsAllowed(state: Self.allowedState(delivery), bundle: bundle, locale: locale)
+        case .denied: Copy.notificationsDenied(bundle: bundle, locale: locale)
+        case .notAsked: Copy.notificationsNotAsked(bundle: bundle, locale: locale)
+        case .noBundle: Copy.notificationsNoBundle(bundle: bundle, locale: locale)
+        }
+    }
+
+    private static func allowedState(_ delivery: NotificationDelivery) -> Copy.NotificationsAllowed {
+        switch (delivery.style, delivery.soundOn) {
+        case (.none, _): .none
+        case (.banners, true): .bannersOn
+        case (.banners, false): .bannersOff
+        case (.alerts, true): .alertsOn
+        case (.alerts, false): .alertsOff
         }
     }
 
     /// Why "Send a test" would show nothing; nil when it will, or when pressing it is what asks.
-    public var testAdvice: String? {
+    public func testAdvice(bundle: Bundle? = nil, locale: Locale = .current) -> String? {
         switch self {
-        case .denied: "Notifications are off for Carrier in System Settings."
-        case .allowed(let delivery) where delivery.style == .none: "Notifications are set to None for Carrier in System Settings."
+        case .denied: Copy.notificationsAdviceDenied(bundle: bundle, locale: locale)
+        case .allowed(let delivery) where delivery.style == .none: Copy.notificationsAdviceNone(bundle: bundle, locale: locale)
         default: nil
         }
     }

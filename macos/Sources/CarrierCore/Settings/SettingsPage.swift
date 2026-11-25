@@ -1,3 +1,5 @@
+import Foundation
+
 /// A page of Settings: its raw value is its identifier (what an anchor and the remembered page are made of, never shown), and it carries its
 /// title, its group and its row of the sidebar. The sidebar is built from these, in the order of the cases.
 public enum SettingsPage: String, CaseIterable, Sendable {
@@ -8,30 +10,31 @@ public enum SettingsPage: String, CaseIterable, Sendable {
 
     /// The page for what was stored as the last page: its identifier, or the English title an earlier build stored; General for anything else.
     public init(stored value: String) {
-        self = Self(rawValue: value) ?? Self.allCases.first { $0.title == value } ?? .general
+        let english = Copy.bundle("en"), locale = Locale(identifier: "en_US")
+        self = Self(rawValue: value) ?? Self.allCases.first { $0.title(bundle: english, locale: locale) == value } ?? .general
     }
 
     /// The page's name, as the sidebar, the results of a search and the window's title show it.
-    public var title: String {
+    public func title(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         switch self {
-        case .general: "General"
-        case .providers: "Providers"
-        case .appearance: "Appearance"
-        case .notifications: "Notifications"
-        case .keybindings: "Keybindings"
-        case .dictation: "Dictation"
-        case .keepAwake: "Keep awake"
-        case .chat: "Chat"
-        case .sessions: "Sessions"
-        case .projects: "Projects"
-        case .sidebar: "Sidebar"
-        case .terminal: "Terminal"
-        case .agents: "Agents"
-        case .watching: "Watching"
-        case .behavior: "Behavior"
-        case .engine: "Engine"
-        case .health: "Health"
-        case .about: "About"
+        case .general: Copy.settingsPageGeneral(bundle: bundle, locale: locale)
+        case .providers: Copy.settingsPageProviders(bundle: bundle, locale: locale)
+        case .appearance: Copy.settingsPageAppearance(bundle: bundle, locale: locale)
+        case .notifications: Copy.settingsPageNotifications(bundle: bundle, locale: locale)
+        case .keybindings: Copy.settingsPageKeybindings(bundle: bundle, locale: locale)
+        case .dictation: Copy.settingsPageDictation(bundle: bundle, locale: locale)
+        case .keepAwake: Copy.settingsPageKeepAwake(bundle: bundle, locale: locale)
+        case .chat: Copy.settingsPageChat(bundle: bundle, locale: locale)
+        case .sessions: Copy.settingsPageSessions(bundle: bundle, locale: locale)
+        case .projects: Copy.settingsPageProjects(bundle: bundle, locale: locale)
+        case .sidebar: Copy.settingsPageSidebar(bundle: bundle, locale: locale)
+        case .terminal: Copy.settingsPageTerminal(bundle: bundle, locale: locale)
+        case .agents: Copy.settingsPageAgents(bundle: bundle, locale: locale)
+        case .watching: Copy.settingsPageWatching(bundle: bundle, locale: locale)
+        case .behavior: Copy.settingsPageBehavior(bundle: bundle, locale: locale)
+        case .engine: Copy.settingsPageEngine(bundle: bundle, locale: locale)
+        case .health: Copy.settingsPageHealth(bundle: bundle, locale: locale)
+        case .about: Copy.settingsPageAbout(bundle: bundle, locale: locale)
         }
     }
 
@@ -39,12 +42,12 @@ public enum SettingsPage: String, CaseIterable, Sendable {
     public enum Group: CaseIterable, Sendable {
         case app, workspace, carrier, system
 
-        public var heading: String? {
+        public func heading(bundle: Bundle? = nil, locale: Locale = .current) -> String? {
             switch self {
             case .app: nil
-            case .workspace: "Workspace"
-            case .carrier: "Carrier"
-            case .system: "System"
+            case .workspace: Copy.settingsGroupWorkspace(bundle: bundle, locale: locale)
+            case .carrier: Copy.settingsGroupCarrier(bundle: bundle, locale: locale)
+            case .system: Copy.settingsGroupSystem(bundle: bundle, locale: locale)
             }
         }
     }
@@ -101,26 +104,26 @@ public enum SettingsPage: String, CaseIterable, Sendable {
     }
 
     /// The line under the title.
-    public var detail: String {
+    public func detail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         switch self {
-        case .general: "The menu bar and how times read"
-        case .notifications: "What to tell you"
-        case .appearance: "Theme, color, text size, density and the font of code"
-        case .terminal: "Theme, font, cursor, padding and shell behavior"
-        case .sidebar: "What the sessions list shows"
-        case .chat: "The message box and the conversation"
-        case .dictation: "Speak instead of typing"
-        case .keybindings: "The keys that run the app's actions"
-        case .keepAwake: "Keep the Mac from sleeping, by hand or while agents work"
-        case .about: "This version, its links and whether Carrier updates by itself"
-        case .providers: "The AI providers on this Mac and their accounts"
-        case .engine: "How the app runs Carrier"
-        case .behavior: "How Carrier runs epics"
-        case .watching: "The repositories Carrier takes epics from"
-        case .agents: "Who works on an epic and where it goes when its tokens run out"
-        case .sessions: "How sessions start and age out"
-        case .projects: "The folders you work in"
-        case .health: "Is this Mac ready?"
+        case .general: Copy.settingsPageGeneralDetail(bundle: bundle, locale: locale)
+        case .providers: Copy.settingsPageProvidersDetail(bundle: bundle, locale: locale)
+        case .appearance: Copy.settingsPageAppearanceDetail(bundle: bundle, locale: locale)
+        case .notifications: Copy.settingsPageNotificationsDetail(bundle: bundle, locale: locale)
+        case .keybindings: Copy.settingsPageKeybindingsDetail(bundle: bundle, locale: locale)
+        case .dictation: Copy.settingsPageDictationDetail(bundle: bundle, locale: locale)
+        case .keepAwake: Copy.settingsPageKeepAwakeDetail(bundle: bundle, locale: locale)
+        case .chat: Copy.settingsPageChatDetail(bundle: bundle, locale: locale)
+        case .sessions: Copy.settingsPageSessionsDetail(bundle: bundle, locale: locale)
+        case .projects: Copy.settingsPageProjectsDetail(bundle: bundle, locale: locale)
+        case .sidebar: Copy.settingsPageSidebarDetail(bundle: bundle, locale: locale)
+        case .terminal: Copy.settingsPageTerminalDetail(bundle: bundle, locale: locale)
+        case .agents: Copy.settingsPageAgentsDetail(bundle: bundle, locale: locale)
+        case .watching: Copy.settingsPageWatchingDetail(bundle: bundle, locale: locale)
+        case .behavior: Copy.settingsPageBehaviorDetail(bundle: bundle, locale: locale)
+        case .engine: Copy.settingsPageEngineDetail(bundle: bundle, locale: locale)
+        case .health: Copy.settingsPageHealthDetail(bundle: bundle, locale: locale)
+        case .about: Copy.settingsPageAboutDetail(bundle: bundle, locale: locale)
         }
     }
 

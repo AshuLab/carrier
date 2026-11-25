@@ -5,14 +5,17 @@ import Foundation
 // Carrier and of an engine too old to reload. A save the engine did not apply says so, whatever the engine can do.
 
 /// `canReload`: the hello of the engine the app talks to lists `reload`. `outcome`: what the engine answered to the last save; `repo` is
-/// what the note calls the repo ("this repository" on its own page).
-public func settingsNote(state: ConnectionState?, canReload: Bool, outcome: ReloadOutcome?, repo: String = "this repository") -> String {
+/// what the note calls the repo (nil: "this repository", on its own page).
+public func settingsNote(
+    state: ConnectionState?, canReload: Bool, outcome: ReloadOutcome?, repo: String? = nil, bundle: Bundle? = nil, locale: Locale = .current
+) -> String {
+    let repo = repo ?? Copy.settingsNoteThisRepository(bundle: bundle, locale: locale)
     // what the engine answered belongs to a running engine: a stopped Carrier reads the file when it starts, whatever it once said
-    guard case .running? = state else { return reads(repo) }
+    guard case .running? = state else { return reads(repo, bundle: bundle, locale: locale) }
     switch outcome {
-    case .refused?: return "Not in use: Carrier kept its previous settings"
-    case .noAnswer?: return "Carrier did not answer: it may not have applied \(repo)"
-    default: return canReload ? applies(repo) : reads(repo)
+    case .refused?: return Copy.settingsNoteRefused(bundle: bundle, locale: locale)
+    case .noAnswer?: return Copy.settingsNoteNoAnswer(repo: repo, bundle: bundle, locale: locale)
+    default: return canReload ? applies(repo, bundle: bundle, locale: locale) : reads(repo, bundle: bundle, locale: locale)
     }
 }
 
@@ -23,14 +26,14 @@ public func appliesWhileRunning(state: ConnectionState?, canReload: Bool) -> Boo
 }
 
 /// What the new session says of the repo it added, from what the engine answered.
-public func addedRepoNote(_ repo: String, outcome: ReloadOutcome) -> (text: String, failed: Bool) {
+public func addedRepoNote(_ repo: String, outcome: ReloadOutcome, bundle: Bundle? = nil, locale: Locale = .current) -> (text: String, failed: Bool) {
     switch outcome {
-    case .applied: (applies(repo), false)
-    case .nobody, .unsupported: (reads(repo), false)
-    case .refused(let problem): ("\(repo) was added to Carrier's list, but Carrier kept its settings: \(problem.shown())", true)
-    case .noAnswer: ("\(repo) was added to Carrier's list, but Carrier did not answer: it may not have applied it.", true)
+    case .applied: (applies(repo, bundle: bundle, locale: locale), false)
+    case .nobody, .unsupported: (reads(repo, bundle: bundle, locale: locale), false)
+    case .refused(let problem): (Copy.settingsNoteAddedRefused(repo: repo, problem: problem.shown(bundle: bundle, locale: locale), bundle: bundle, locale: locale), true)
+    case .noAnswer: (Copy.settingsNoteAddedNoAnswer(repo: repo, bundle: bundle, locale: locale), true)
     }
 }
 
-private func applies(_ repo: String) -> String { "Carrier applies \(repo) to the next epic" }
-private func reads(_ repo: String) -> String { "Carrier reads \(repo) when it starts" }
+private func applies(_ repo: String, bundle: Bundle?, locale: Locale) -> String { Copy.settingsNoteApplies(repo: repo, bundle: bundle, locale: locale) }
+private func reads(_ repo: String, bundle: Bundle?, locale: Locale) -> String { Copy.settingsNoteReads(repo: repo, bundle: bundle, locale: locale) }

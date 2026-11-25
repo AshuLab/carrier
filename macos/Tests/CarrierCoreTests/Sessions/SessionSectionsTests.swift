@@ -237,10 +237,10 @@ func everySessionIsShownOldestFirstAndOnlyTheNewestIsOpen(total: Int) {
 @Test func theResultRowOpensOnlyWhenThereIsEvidenceAndSaysSo() {
     let stop = resultCard(SessionResult(outcome: "needs_human", summary: "s", verification: nil, reason: "Which?"), bundle: english.bundle, locale: english.locale)!
     #expect(stop.hasDetails == false)
-    #expect(resultAccessibilityLabel(stop, open: false) == "Needs a human")
+    #expect(resultAccessibilityLabel(stop, open: false, bundle: english.bundle, locale: english.locale) == "Needs a human")
     let done = resultCard(SessionResult(outcome: "completed", summary: "s", verification: .init(ci: "passed", evidence: "e"), reason: nil), bundle: english.bundle, locale: english.locale)!
-    #expect(resultAccessibilityLabel(done, open: false) == "Completed, CI passed, closed")
-    #expect(resultAccessibilityLabel(done, open: true) == "Completed, CI passed, open")
+    #expect(resultAccessibilityLabel(done, open: false, bundle: english.bundle, locale: english.locale) == "Completed, CI passed, closed")
+    #expect(resultAccessibilityLabel(done, open: true, bundle: english.bundle, locale: english.locale) == "Completed, CI passed, open")
     let list = sessionList(reply(session("a", "ship", status: "finished", until: 5)), bundle: english.bundle, locale: english.locale)
     var folds = SessionFolds()
     #expect(folds.isResultOpen(list.sections[0]) == false)

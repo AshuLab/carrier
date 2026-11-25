@@ -34,7 +34,7 @@ public func projectWatchRow(
     }
     let isOn = isWatched(repo, in: repos)
     let detail = isOn
-        ? settingsNote(state: state, canReload: canReload, outcome: outcome, repo: repo)
+        ? settingsNote(state: state, canReload: canReload, outcome: outcome, repo: repo, bundle: bundle, locale: locale)
         : appliesWhileRunning(state: state, canReload: canReload)
             ? Copy.projectsWatchOff(repo: repo, bundle: bundle, locale: locale)
             : Copy.projectsWatchOffStopped(repo: repo, bundle: bundle, locale: locale)

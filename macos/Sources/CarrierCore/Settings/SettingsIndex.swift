@@ -56,7 +56,7 @@ private let indexLocale = Locale(identifier: "en_US")
 
 /// Every searchable place, in the order of the sidebar and of each page, so a search lists its results as the pages are listed.
 public let settingsIndex: [SettingsEntry] = SettingsPage.allCases.flatMap { settingsPage in
-    [SettingsEntry(page: settingsPage, title: settingsPage.title, detail: settingsPage.detail, isPage: true)] + settingsRows(settingsPage)
+    [SettingsEntry(page: settingsPage, title: settingsPage.title(bundle: indexBundle, locale: indexLocale), detail: settingsPage.detail(bundle: indexBundle, locale: indexLocale), isPage: true)] + settingsRows(settingsPage)
 }
 
 private func settingsRows(_ settingsPage: SettingsPage) -> [SettingsEntry] {
@@ -271,7 +271,7 @@ public func settingsResults(_ query: String, in entries: [SettingsEntry] = setti
     let words = fold(query).split(whereSeparator: \.isWhitespace).map(String.init)
     guard words.isEmpty == false else { return [] }
     func rank(_ entry: SettingsEntry) -> Int? {
-        let title = fold(entry.title), place = fold(entry.group + " " + entry.page.title), detail = fold(entry.detail)
+        let title = fold(entry.title), place = fold(entry.group + " " + entry.page.title(bundle: indexBundle, locale: indexLocale)), detail = fold(entry.detail)
         guard words.allSatisfy({ title.contains($0) || place.contains($0) || detail.contains($0) }) else { return nil }
         if words.allSatisfy({ title.contains($0) }) { return 0 }
         if words.allSatisfy({ title.contains($0) || place.contains($0) }) { return 1 }

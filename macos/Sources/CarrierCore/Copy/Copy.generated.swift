@@ -10607,4 +10607,869 @@ public enum Copy {
     public static func providersAddFolderDetail(variable: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
         String(localized: "providersAddFolderDetail \(variable)", bundle: bundle ?? carrierResources, locale: locale)
     }
+
+    public static func settingsWindowTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsWindowTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsSearchPrompt(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsSearchPrompt", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsBack(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsBack", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsForward(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsForward", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsPageActions(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsPageActions", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsResetMenu(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsResetMenu", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsResetTitle(page: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsResetTitle \(page)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsResetCancel(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsResetCancel", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsResetConfirm(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsResetConfirm", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsResetMessage(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsResetMessage", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsCopy(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsCopy", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsGroupWorkspace(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsGroupWorkspace", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsGroupCarrier(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsGroupCarrier", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsGroupSystem(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsGroupSystem", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsPageGeneral(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsPageGeneral", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsPageGeneralDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsPageGeneralDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsPageProviders(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsPageProviders", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsPageProvidersDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsPageProvidersDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsPageAppearance(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsPageAppearance", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsPageAppearanceDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsPageAppearanceDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsPageNotifications(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsPageNotifications", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsPageNotificationsDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsPageNotificationsDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsPageKeybindings(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsPageKeybindings", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsPageKeybindingsDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsPageKeybindingsDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsPageDictation(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsPageDictation", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsPageDictationDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsPageDictationDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsPageKeepAwake(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsPageKeepAwake", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsPageKeepAwakeDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsPageKeepAwakeDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsPageChat(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsPageChat", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsPageChatDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsPageChatDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsPageSessions(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsPageSessions", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsPageSessionsDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsPageSessionsDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsPageProjects(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsPageProjects", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsPageProjectsDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsPageProjectsDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsPageSidebar(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsPageSidebar", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsPageSidebarDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsPageSidebarDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsPageTerminal(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsPageTerminal", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsPageTerminalDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsPageTerminalDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsPageAgents(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsPageAgents", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsPageAgentsDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsPageAgentsDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsPageWatching(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsPageWatching", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsPageWatchingDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsPageWatchingDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsPageBehavior(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsPageBehavior", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsPageBehaviorDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsPageBehaviorDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsPageEngine(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsPageEngine", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsPageEngineDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsPageEngineDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsPageHealth(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsPageHealth", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsPageHealthDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsPageHealthDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsPageAbout(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsPageAbout", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsPageAboutDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsPageAboutDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func generalMenuBar(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "generalMenuBar", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func generalIconStyle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "generalIconStyle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func generalIconStyleDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "generalIconStyleDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func generalAnimate(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "generalAnimate", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func generalAnimateDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "generalAnimateDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func generalListEpics(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "generalListEpics", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func generalListEpicsDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "generalListEpicsDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func generalDisplay(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "generalDisplay", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func generalTimeFormat(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "generalTimeFormat", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func generalTimeFormatDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "generalTimeFormatDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func generalTimeRelative(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "generalTimeRelative", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func generalTimeClock(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "generalTimeClock", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func generalClock(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "generalClock", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func generalClockDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "generalClockDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func generalClockSystem(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "generalClockSystem", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func generalClock12(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "generalClock12", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func generalClock24(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "generalClock24", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func appearanceTheme(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "appearanceTheme", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func appearanceLook(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "appearanceLook", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func appearanceColor(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "appearanceColor", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func appearanceCode(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "appearanceCode", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func appearanceColorScheme(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "appearanceColorScheme", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func appearanceColorSchemeDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "appearanceColorSchemeDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func appearanceTextSize(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "appearanceTextSize", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func appearanceTextSizeDetail(size: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "appearanceTextSizeDetail \(size)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func appearanceTextSizeValue(size: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "appearanceTextSizeValue \(size)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func appearanceIconSet(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "appearanceIconSet", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func appearanceIconSetDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "appearanceIconSetDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func appearanceIconWeight(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "appearanceIconWeight", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func appearanceIconWeightDetail(weight: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "appearanceIconWeightDetail \(weight)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func appearanceDensity(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "appearanceDensity", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func appearanceDensityDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "appearanceDensityDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func appearanceByShape(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "appearanceByShape", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func appearanceByShapeDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "appearanceByShapeDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func appearanceStateWorking(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "appearanceStateWorking", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func appearanceStateNeedsAttention(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "appearanceStateNeedsAttention", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func appearanceStateReady(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "appearanceStateReady", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func appearanceStateProblem(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "appearanceStateProblem", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func appearanceAccent(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "appearanceAccent", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func appearanceAccentDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "appearanceAccentDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func appearanceTint(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "appearanceTint", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func appearanceTintDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "appearanceTintDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func appearanceTranslucent(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "appearanceTranslucent", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func appearanceTranslucentDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "appearanceTranslucentDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func appearanceFont(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "appearanceFont", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func appearanceFontDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "appearanceFontDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func appearanceSize(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "appearanceSize", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func appearanceSizeDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "appearanceSizeDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func appearanceCodeSize(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "appearanceCodeSize", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func appearanceCodeSizeValue(size: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "appearanceCodeSizeValue \(size)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func appearanceLineHeight(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "appearanceLineHeight", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func appearanceLineHeightDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "appearanceLineHeightDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func appearanceLigatures(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "appearanceLigatures", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func appearanceLigaturesDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "appearanceLigaturesDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func appearanceWrap(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "appearanceWrap", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func appearanceWrapDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "appearanceWrapDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func appearanceLineNumbers(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "appearanceLineNumbers", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func appearanceLineNumbersDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "appearanceLineNumbersDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func appearanceAccentName(theme: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "appearanceAccentName \(theme)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func appearanceCustomColor(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "appearanceCustomColor", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func appearanceCustomAccent(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "appearanceCustomAccent", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func notificationsGroupCarrier(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "notificationsGroupCarrier", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func notificationsGroupChat(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "notificationsGroupChat", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func notificationsGroupDelivery(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "notificationsGroupDelivery", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func notificationsGroupPermission(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "notificationsGroupPermission", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func notificationsNeedsAttention(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "notificationsNeedsAttention", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func notificationsNeedsAttentionDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "notificationsNeedsAttentionDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func notificationsReady(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "notificationsReady", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func notificationsReadyDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "notificationsReadyDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func notificationsProblem(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "notificationsProblem", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func notificationsProblemDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "notificationsProblemDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func notificationsChatNeedsAttentionDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "notificationsChatNeedsAttentionDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func notificationsChatNeedsAttentionLabel(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "notificationsChatNeedsAttentionLabel", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func notificationsChatDone(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "notificationsChatDone", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func notificationsChatDoneDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "notificationsChatDoneDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func notificationsChatDoneLabel(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "notificationsChatDoneLabel", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func notificationsOnlyAway(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "notificationsOnlyAway", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func notificationsOnlyAwayDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "notificationsOnlyAwayDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func notificationsDock(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "notificationsDock", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func notificationsDockDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "notificationsDockDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func notificationsSound(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "notificationsSound", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func notificationsSoundDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "notificationsSoundDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func notificationsRemind(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "notificationsRemind", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func notificationsRemindDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "notificationsRemindDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func notificationsQuiet(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "notificationsQuiet", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func notificationsQuietDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "notificationsQuietDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func notificationsFrom(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "notificationsFrom", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func notificationsFromDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "notificationsFromDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func notificationsUntil(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "notificationsUntil", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func notificationsUntilDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "notificationsUntilDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func notificationsPermission(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "notificationsPermission", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func notificationsChecking(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "notificationsChecking", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func notificationsOpenSystemSettings(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "notificationsOpenSystemSettings", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func notificationsAllow(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "notificationsAllow", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func notificationsSendTest(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "notificationsSendTest", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func notificationsReminderNever(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "notificationsReminderNever", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func notificationsReminderQuarterHour(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "notificationsReminderQuarterHour", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func notificationsReminderHour(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "notificationsReminderHour", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public enum NotificationsAllowed: Sendable { case none; case bannersOn; case bannersOff; case alertsOn; case alertsOff }
+    public static func notificationsAllowed(state: NotificationsAllowed, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch state {
+        case .none: return String(localized: "notificationsAllowed.none", bundle: bundle ?? carrierResources, locale: locale)
+        case .bannersOn: return String(localized: "notificationsAllowed.bannersOn", bundle: bundle ?? carrierResources, locale: locale)
+        case .bannersOff: return String(localized: "notificationsAllowed.bannersOff", bundle: bundle ?? carrierResources, locale: locale)
+        case .alertsOn: return String(localized: "notificationsAllowed.alertsOn", bundle: bundle ?? carrierResources, locale: locale)
+        case .alertsOff: return String(localized: "notificationsAllowed.alertsOff", bundle: bundle ?? carrierResources, locale: locale)
+        }
+    }
+
+    public static func notificationsDenied(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "notificationsDenied", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func notificationsNotAsked(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "notificationsNotAsked", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func notificationsNoBundle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "notificationsNoBundle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func notificationsAdviceDenied(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "notificationsAdviceDenied", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func notificationsAdviceNone(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "notificationsAdviceNone", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func keybindingsPressKeys(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "keybindingsPressKeys", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func keybindingsNone(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "keybindingsNone", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func keybindingsDefault(combo: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "keybindingsDefault \(combo)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func keybindingsDefaultNone(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "keybindingsDefaultNone", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func keybindingsSystems(combo: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "keybindingsSystems \(combo)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func keybindingsAlso(action: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "keybindingsAlso \(action)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func keybindingsDefaultButton(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "keybindingsDefaultButton", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func keybindingsBackToDefault(action: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "keybindingsBackToDefault \(action)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func keybindingsShortcutFor(action: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "keybindingsShortcutFor \(action)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsNoteThisRepository(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsNoteThisRepository", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsNoteRefused(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsNoteRefused", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsNoteNoAnswer(repo: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsNoteNoAnswer \(repo)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsNoteApplies(repo: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsNoteApplies \(repo)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsNoteReads(repo: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsNoteReads \(repo)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsNoteAddedRefused(repo: String, problem: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsNoteAddedRefused \(repo) \(problem)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsNoteAddedNoAnswer(repo: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsNoteAddedNoAnswer \(repo)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public enum PublishedVerb: Sendable { case created; case pushed; case updated; case published; case merged; case closed }
+    public static func publishedVerb(verb: PublishedVerb, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch verb {
+        case .created: return String(localized: "publishedVerb.created", bundle: bundle ?? carrierResources, locale: locale)
+        case .pushed: return String(localized: "publishedVerb.pushed", bundle: bundle ?? carrierResources, locale: locale)
+        case .updated: return String(localized: "publishedVerb.updated", bundle: bundle ?? carrierResources, locale: locale)
+        case .published: return String(localized: "publishedVerb.published", bundle: bundle ?? carrierResources, locale: locale)
+        case .merged: return String(localized: "publishedVerb.merged", bundle: bundle ?? carrierResources, locale: locale)
+        case .closed: return String(localized: "publishedVerb.closed", bundle: bundle ?? carrierResources, locale: locale)
+        }
+    }
+
+    public static func logSpokenMilliseconds(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "logSpokenMilliseconds \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func logSpokenSeconds(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "logSpokenSeconds \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func logSpokenMinutes(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "logSpokenMinutes \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func logSpokenHours(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "logSpokenHours \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func logSpokenSecondsTenths(seconds: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "logSpokenSecondsTenths \(seconds)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public enum LogCallStatus: Sendable { case failed; case running; case stopped; case ok }
+    public static func logCallStatus(status: LogCallStatus, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch status {
+        case .failed: return String(localized: "logCallStatus.failed", bundle: bundle ?? carrierResources, locale: locale)
+        case .running: return String(localized: "logCallStatus.running", bundle: bundle ?? carrierResources, locale: locale)
+        case .stopped: return String(localized: "logCallStatus.stopped", bundle: bundle ?? carrierResources, locale: locale)
+        case .ok: return String(localized: "logCallStatus.ok", bundle: bundle ?? carrierResources, locale: locale)
+        }
+    }
+
+    public static func logCiPassed(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "logCiPassed", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func logCiAbsent(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "logCiAbsent", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func logCiOther(verdict: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "logCiOther \(verdict)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func logResultOpen(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "logResultOpen", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func logResultClosed(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "logResultClosed", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func choiceWorkInBase(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "choiceWorkInBase", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func choiceWorkInWorktree(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "choiceWorkInWorktree", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func choiceSchemeSystem(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "choiceSchemeSystem", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func choiceSchemeLight(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "choiceSchemeLight", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func choiceSchemeDark(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "choiceSchemeDark", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func choiceDensityCompact(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "choiceDensityCompact", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func choiceDensityComfortable(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "choiceDensityComfortable", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func choiceLineTight(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "choiceLineTight", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func choiceLineNormal(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "choiceLineNormal", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func choiceLineLoose(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "choiceLineLoose", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func choiceSpacingCompact(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "choiceSpacingCompact", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func choiceSpacingComfortable(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "choiceSpacingComfortable", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func choiceSpacingSpacious(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "choiceSpacingSpacious", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func choiceWidthNarrow(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "choiceWidthNarrow", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func choiceWidthMedium(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "choiceWidthMedium", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func choiceWidthWide(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "choiceWidthWide", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func choiceWidthUltraWide(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "choiceWidthUltraWide", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func choiceWidthWidest(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "choiceWidthWidest", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func choiceSurfaceGlass(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "choiceSurfaceGlass", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func choiceSurfaceFlat(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "choiceSurfaceFlat", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func choiceTimesNever(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "choiceTimesNever", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func choiceTimesHover(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "choiceTimesHover", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func choiceTimesAlways(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "choiceTimesAlways", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func choiceToolsHidden(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "choiceToolsHidden", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func choiceToolsCollapsed(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "choiceToolsCollapsed", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func choiceToolsExpanded(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "choiceToolsExpanded", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func choiceDiffUnified(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "choiceDiffUnified", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func choiceDiffSplit(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "choiceDiffSplit", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func choiceOutputLines(lines: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "choiceOutputLines \(lines)", bundle: bundle ?? carrierResources, locale: locale)
+    }
 }

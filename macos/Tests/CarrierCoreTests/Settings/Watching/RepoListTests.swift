@@ -20,16 +20,16 @@ func anOwnerSlashNameIsARepoName(name: String) { #expect(isRepoName(name)) }
 func anythingElseIsNot(name: String) { #expect(isRepoName(name) == false) }
 
 @Test func aRepoIsRefusedForItsFormatItsNameOrItsFolder() {
-    #expect(repoProblem("acme/api", joining: ["acme/web"]) == nil)
-    #expect(repoProblem("bad name", joining: []) == "bad name must be owner/name")
-    #expect(repoProblem("ACME/Web", joining: ["acme/web"]) == "ACME/Web is already watched")
-    #expect(repoProblem("other/web", joining: ["acme/web"]) == "other/web has the same folder name as acme/web; Solve's worktree paths have no owner")
+    #expect(repoProblem("acme/api", joining: ["acme/web"], bundle: english.bundle, locale: english.locale) == nil)
+    #expect(repoProblem("bad name", joining: [], bundle: english.bundle, locale: english.locale) == "bad name must be owner/name")
+    #expect(repoProblem("ACME/Web", joining: ["acme/web"], bundle: english.bundle, locale: english.locale) == "ACME/Web is already watched")
+    #expect(repoProblem("other/web", joining: ["acme/web"], bundle: english.bundle, locale: english.locale) == "other/web has the same folder name as acme/web; Solve's worktree paths have no owner")
 }
 
 @Test func theWholeListHasNoProblemsAndMayBeEmpty() {
-    #expect(reposProblem([]) == nil)
-    #expect(reposProblem(["acme/web", "acme/api"]) == nil)
-    #expect(reposProblem(["acme/web", "other/web"])?.contains("same folder name as acme/web") == true)
+    #expect(reposProblem([], bundle: english.bundle, locale: english.locale) == nil)
+    #expect(reposProblem(["acme/web", "acme/api"], bundle: english.bundle, locale: english.locale) == nil)
+    #expect(reposProblem(["acme/web", "other/web"], bundle: english.bundle, locale: english.locale)?.contains("same folder name as acme/web") == true)
 }
 
 @Test func theReposInTheFileAreRead() {
@@ -50,11 +50,11 @@ func anythingElseIsNot(name: String) { #expect(isRepoName(name) == false) }
 
 @Test func theLineAndTheConfirmationSayWhatHappensToTheEpics() {
     let some = RepoEpics(running: 0, queued: 2, needsYou: 1)
-    #expect(some.line() == "2 queued · 1 needs you" && RepoEpics().line() == "")
-    #expect(removalText(some, appliesNow: true) == "It has epics (2 queued, 1 needs you). They stop where they are, untouched, and continue if you add the repository again. Nothing is deleted. It takes effect right away.")
-    #expect(removalText(RepoEpics(), appliesNow: true) == "It has no epics. You can add it again whenever you want. It takes effect right away.")
-    #expect(removalText(nil, appliesNow: true).hasPrefix("Its epics, if it has any, stop where they are"))
-    #expect(removalText(RepoEpics(), appliesNow: false) == "It has no epics. You can add it again whenever you want. Carrier reads the list when it starts.")
+    #expect(some.line(bundle: english.bundle, locale: english.locale) == "2 queued · 1 needs you" && RepoEpics().line(bundle: english.bundle, locale: english.locale) == "")
+    #expect(removalText(some, appliesNow: true, bundle: english.bundle, locale: english.locale) == "It has epics (2 queued, 1 needs you). They stop where they are, untouched, and continue if you add the repository again. Nothing is deleted. It takes effect right away.")
+    #expect(removalText(RepoEpics(), appliesNow: true, bundle: english.bundle, locale: english.locale) == "It has no epics. You can add it again whenever you want. It takes effect right away.")
+    #expect(removalText(nil, appliesNow: true, bundle: english.bundle, locale: english.locale).hasPrefix("Its epics, if it has any, stop where they are"))
+    #expect(removalText(RepoEpics(), appliesNow: false, bundle: english.bundle, locale: english.locale) == "It has no epics. You can add it again whenever you want. Carrier reads the list when it starts.")
 }
 
 @Test func theRowsSayHowEachRepoIs() throws {
@@ -62,13 +62,13 @@ func anythingElseIsNot(name: String) { #expect(isRepoName(name) == false) }
     let name = try #require(snapshot.watched?.first?.repo)
     snapshot.watched = [PanelSnapshot.Watched(repo: name, lastCheckedAt: snapshot.now - 120_000, ok: true, error: nil, agents: snapshot.watched!.first!.agents),
                         PanelSnapshot.Watched(repo: "bad/repo", lastCheckedAt: snapshot.now, ok: false, error: "GitHub refused the profile", agents: snapshot.watched!.first!.agents)]
-    let rows = repoRows(draft: [name, "bad/repo", "later/one", "new/repo"], saved: [name, "bad/repo", "later/one"], snapshot: snapshot)
+    let rows = repoRows(draft: [name, "bad/repo", "later/one", "new/repo"], saved: [name, "bad/repo", "later/one"], snapshot: snapshot, bundle: english.bundle, locale: english.locale)
     #expect(rows[0].health == .ok && rows[0].line.hasPrefix("Checked 2m"))
     #expect(rows[1].health == .error && rows[1].line == "GitHub refused the profile")
     #expect(rows[2].health == .unknown && rows[2].line == "Not in use yet")
     #expect(rows[3].isNew && rows[3].line.hasPrefix("Not checked yet"))
 
-    let stopped = repoRows(draft: ["a/b"], saved: ["a/b"], snapshot: nil)
+    let stopped = repoRows(draft: ["a/b"], saved: ["a/b"], snapshot: nil, bundle: english.bundle, locale: english.locale)
     #expect(stopped == [RepoRow(name: "a/b", health: .unknown, line: "Carrier is stopped", epics: nil, isNew: false)])
     #expect(stopped[0].owner == "a" && stopped[0].repo == "b" && stopped[0].gitHubURL?.absoluteString == "https://github.com/a/b")
     #expect(stopped[0].clonePath(engine: "/data/carrier/engine") == "/data/carrier/engine/repos/a/b")

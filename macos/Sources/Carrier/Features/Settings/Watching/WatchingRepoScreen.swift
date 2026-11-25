@@ -21,55 +21,55 @@ struct RepoScreen: View {
     let stop: () -> Void
 
     var body: some View {
-        SettingsGroup(id: "status", title: "Status") {
+        SettingsGroup(id: "status", title: Copy.watchingGroupStatus()) {
             if let note = status.note {
-                SettingsTabRow(id: "epics", title: "Epics", detail: note, first: true) { EmptyView() }
+                SettingsTabRow(id: "epics", title: Copy.watchingEpics(), detail: note, first: true) { EmptyView() }
             } else {
-                SettingsTabRow(id: "epics", title: "Epics", detail: epics, first: true) { EmptyView() }
-                SettingsTabRow(id: "last-check", title: "Last check", detail: row.health == .error ? "" : status.lastCheck ?? "", problem: row.health == .error ? status.lastCheck : nil) { EmptyView() }
+                SettingsTabRow(id: "epics", title: Copy.watchingEpics(), detail: epics, first: true) { EmptyView() }
+                SettingsTabRow(id: "last-check", title: Copy.watchingLastCheck(), detail: row.health == .error ? "" : status.lastCheck ?? "", problem: row.health == .error ? status.lastCheck : nil) { EmptyView() }
             }
         }
-        SettingsGroup(id: "ready-for-carrier", title: "Ready for Carrier", footer: checking ? nil : checks.note) {
+        SettingsGroup(id: "ready-for-carrier", title: Copy.watchingGroupReady(), footer: checking ? nil : checks.note) {
             ForEach(Array(checks.rows.enumerated()), id: \.element.id) { index, check in
                 checkRow(check, first: index == 0)
             }
         }
         if let roles {
-            SettingsGroup(id: "who-works-here", title: "Who works here", footer: refusal ?? "Every repository follows the roles of Agents unless it has its own settings.") {
+            SettingsGroup(id: "who-works-here", title: Copy.watchingGroupWho(), footer: refusal ?? Copy.watchingWhoFooter()) {
                 EpicRail(page: roles.page, readiness: agentsReadiness(roles.page), icons: icons, own: roles.own, open: openRole)
             }
         }
-        SettingsGroup(id: "repository", title: "Repository") {
-            SettingsTabRow(id: "project", title: "Project", detail: project ?? "Not a project yet", first: true) {
-                Button(project == nil ? "Add project…" : "Open project", action: openProject).controlSize(.small)
+        SettingsGroup(id: "repository", title: Copy.watchingGroupRepository()) {
+            SettingsTabRow(id: "project", title: Copy.watchingProject(), detail: project ?? Copy.watchingNotAProject(), first: true) {
+                Button(project == nil ? Copy.watchingAddProject() : Copy.watchingOpenProject(), action: openProject).controlSize(.small)
             }
-            SettingsTabRow(id: "clone", title: "Clone", detail: tildePath(status.clonePath), mono: true) {
+            SettingsTabRow(id: "clone", title: Copy.watchingClone(), detail: tildePath(status.clonePath), mono: true) {
                 if status.canRevealClone {
-                    Button("Reveal") { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: status.clonePath)]) }.controlSize(.small)
+                    Button(Copy.watchingReveal()) { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: status.clonePath)]) }.controlSize(.small)
                 }
             }
-            SettingsTabRow(id: "on-github", title: "On GitHub", detail: status.gitHubURL.map { "github.com\($0.path)" } ?? "", mono: true) { EmptyView() }
+            SettingsTabRow(id: "on-github", title: Copy.watchingOnGitHub(), detail: status.gitHubURL.map { "github.com\($0.path)" } ?? "", mono: true) { EmptyView() }
         }
         SettingsGroup(title: "") {
-            SettingsTabRow(id: "stop-watching", title: "Stop watching", detail: "Its epics stop where they are and continue if you watch it again. Nothing is deleted.", first: true) {
-                Button(role: .destructive, action: stop) { Label("Stop watching…", icon: .trash) }.controlSize(.small)
+            SettingsTabRow(id: "stop-watching", title: Copy.watchingStopTitle(), detail: Copy.watchingStopDetail(), first: true) {
+                Button(role: .destructive, action: stop) { Label(Copy.watchingStopButton(), icon: .trash) }.controlSize(.small)
             }
         }
     }
 
     /// What the repository has in flight, with a word for none.
     private var epics: String {
-        guard let epics = row.epics, epics.isNone == false else { return "None" }
+        guard let epics = row.epics, epics.isNone == false else { return Copy.watchingNone() }
         return epics.line(separator: ", ")
     }
 
     /// One check of the doctor: its mark at the left, the title, and under it what is wrong with the fix in orange, or how the check stands.
     private func checkRow(_ check: RepoCheckRow, first: Bool) -> some View {
-        let wrong = check.status == .ok || check.status == .waiting ? nil : [check.detail, check.fix.map { "Fix: \($0)" }].compactMap { $0 }.joined(separator: " ")
-        let detail = check.status == .waiting ? (checking ? "Checking…" : "Waiting") : check.status == .ok ? (check.detail ?? "") : ""
+        let wrong = check.status == .ok || check.status == .waiting ? nil : [check.detail, check.fix.map { Copy.watchingFix(fix: $0) }].compactMap { $0 }.joined(separator: " ")
+        let detail = check.status == .waiting ? (checking ? Copy.watchingChecking() : Copy.watchingWaiting()) : check.status == .ok ? (check.detail ?? "") : ""
         return SettingsTabRow(title: check.title, detail: detail, first: first, problem: wrong, wrapsDetail: true, leading: AnyView(mark(check.status))) {
             if let role = check.anotherIdentity {
-                Button("Use another identity") { openRole(role) }.controlSize(.small)
+                Button(Copy.watchingUseAnotherIdentity()) { openRole(role) }.controlSize(.small)
             }
         }
     }
@@ -77,13 +77,13 @@ struct RepoScreen: View {
     private func mark(_ status: RepoCheckRow.Status) -> some View {
         // a row still waiting while the doctor runs turns instead of showing the grey dots
         if status == .waiting && checking {
-            return AnyView(ProgressView().controlSize(.mini).frame(width: 16, height: 16).accessibilityLabel("Checking"))
+            return AnyView(ProgressView().controlSize(.mini).frame(width: 16, height: 16).accessibilityLabel(Copy.watchingMark(which: .checking)))
         }
         let (symbol, color, label): (AppIcon, Color, String) = switch status {
-        case .ok: (.check, .green, "Ready")
-        case .warn: (.exclamation, .yellow, "Warning")
-        case .fail: (.close, .orange, "Failed")
-        case .waiting: (.dots, .gray, "Waiting")
+        case .ok: (.check, .green, Copy.watchingMark(which: .ok))
+        case .warn: (.exclamation, .yellow, Copy.watchingMark(which: .warn))
+        case .fail: (.close, .orange, Copy.watchingMark(which: .fail))
+        case .waiting: (.dots, .gray, Copy.watchingMark(which: .waiting))
         }
         return AnyView(StatusMark(symbol: symbol, color: color, label: label))
     }

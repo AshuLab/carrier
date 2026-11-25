@@ -7,11 +7,11 @@ import Foundation
 public enum IdleCompaction: Equatable, CaseIterable {
     case useDefault, never, always
 
-    public var title: String {
+    public func title(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         switch self {
-        case .useDefault: "Use default"
-        case .never: "Never"
-        case .always: "Always"
+        case .useDefault: Copy.providersIdle(which: .useDefault, bundle: bundle, locale: locale)
+        case .never: Copy.providersIdle(which: .never, bundle: bundle, locale: locale)
+        case .always: Copy.providersIdle(which: .always, bundle: bundle, locale: locale)
         }
     }
 }
@@ -88,12 +88,12 @@ public func accountSharingFolder(configDir: String, harness: String, except name
 }
 
 /// A name the engine accepts: `optionNamePattern`, `^[a-z][a-z0-9-]{0,39}$`.
-public func nameProblem(_ name: String) -> String? {
+public func nameProblem(_ name: String, bundle: Bundle? = nil, locale: Locale = .current) -> String? {
     let scalars = Array(name.unicodeScalars)
     let valid = (1...40).contains(scalars.count)
         && ("a"..."z").contains(scalars[0])
         && scalars.allSatisfy { ("a"..."z").contains($0) || ("0"..."9").contains($0) || $0 == "-" }
-    return valid ? nil : "Name must be a lowercase word: letters, digits and hyphens, starting with a letter, up to 40 characters."
+    return valid ? nil : Copy.providersNameProblem(bundle: bundle, locale: locale)
 }
 
 private let refusedFlags = [
@@ -103,7 +103,7 @@ private let refusedFlags = [
 private let refusedCodexKeys = ["model_provider", "carrier_marker", "model_auto_compact_token_limit"]
 
 /// What an argument repeats of what Carrier sets (`src/config/launch-args.ts`): the flag, or the Codex config key; nil when none does.
-private func refusedLaunchArg(harness: String, _ args: [String]) -> String? {
+private func refusedLaunchArg(harness: String, _ args: [String], bundle: Bundle?, locale: Locale) -> String? {
     for (index, token) in args.enumerated() {
         if token.hasPrefix("-") {
             let flag = String(token.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)[0])
@@ -119,52 +119,52 @@ private func refusedLaunchArg(harness: String, _ args: [String]) -> String? {
             pair = String(token.dropFirst(2))
         }
         if let key = pair?.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false).first.map({ $0.trimmingCharacters(in: .whitespaces) }), refusedCodexKeys.contains(key) {
-            return "the config key \(key)"
+            return Copy.providersConfigKey(key: key, bundle: bundle, locale: locale)
         }
     }
     return nil
 }
 
 /// What is wrong with the draft for an account of `harness`, by the key of the field, in words that name it. Empty when the engine would take it.
-public func draftProblems(_ draft: AccountDraft, harness: String) -> [String: String] {
+public func draftProblems(_ draft: AccountDraft, harness: String, bundle: Bundle? = nil, locale: Locale = .current) -> [String: String] {
     var problems: [String: String] = [:]
     let name = draft.displayName.trimmingCharacters(in: .whitespaces)
     if name.count > 60 || name.contains(where: \.isNewline) {
-        problems["displayName"] = "Display name is a single line of at most 60 characters."
+        problems["displayName"] = Copy.providersProblemDisplayName(bundle: bundle, locale: locale)
     }
     let label = draft.label.trimmingCharacters(in: .whitespaces)
     if label.count > ProviderIdentity.labelLimit || label.contains(where: \.isNewline) {
-        problems["label"] = "Label is a single line of at most \(ProviderIdentity.labelLimit) characters."
+        problems["label"] = Copy.providersProblemLabel(limit: ProviderIdentity.labelLimit, bundle: bundle, locale: locale)
     }
     if draft.command.isEmpty == false, isAbsolute(draft.command) == false {
-        problems["command"] = "Binary path must be an absolute path, or start with ~/."
+        problems["command"] = Copy.providersProblemCommand(bundle: bundle, locale: locale)
     }
     if draft.configDir.isEmpty == false {
         if harness == "agy" {
-            problems["configDir"] = "Antigravity has no config folder setting."
+            problems["configDir"] = Copy.providersProblemNoConfigDir(bundle: bundle, locale: locale)
         } else if draft.configDir.unicodeScalars.contains(where: { $0.value < 0x20 || $0.value == 0x7F }) {
-            problems["configDir"] = "Config folder has a character that a path cannot have."
+            problems["configDir"] = Copy.providersProblemConfigDirCharacter(bundle: bundle, locale: locale)
         }
     }
     if draft.autoCompact.isEmpty == false {
         switch harness {
         case "claude":
             if draft.autoCompact != "auto", (Int(draft.autoCompact).map { (100_000...1_000_000).contains($0) } ?? false) == false {
-                problems["autoCompact"] = "Auto-compact after for Claude is \"auto\" or a token count from 100000 to 1000000."
+                problems["autoCompact"] = Copy.providersProblemCompactClaude(bundle: bundle, locale: locale)
             }
         case "codex":
             if (Int(draft.autoCompact).map { $0 > 0 } ?? false) == false {
-                problems["autoCompact"] = "Auto-compact after for Codex is a token count above zero."
+                problems["autoCompact"] = Copy.providersProblemCompactCodex(bundle: bundle, locale: locale)
             }
         default:
-            problems["autoCompact"] = "Antigravity has no auto-compact setting."
+            problems["autoCompact"] = Copy.providersProblemCompactAgy(bundle: bundle, locale: locale)
         }
     }
-    if let refused = refusedLaunchArg(harness: harness, draft.arguments) {
-        problems["launchArgs"] = "Launch arguments cannot repeat \(refused), Carrier sets it."
+    if let refused = refusedLaunchArg(harness: harness, draft.arguments, bundle: bundle, locale: locale) {
+        problems["launchArgs"] = Copy.providersProblemLaunchArgs(refused: refused, bundle: bundle, locale: locale)
     }
     if draft.idle != .useDefault, harness != "claude" {
-        problems["idleCompaction"] = "Compact idle threads is for Claude only."
+        problems["idleCompaction"] = Copy.providersProblemIdle(bundle: bundle, locale: locale)
     }
     return problems
 }

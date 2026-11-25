@@ -5,8 +5,8 @@ import Foundation
 
 /// How a row is edited.
 public enum BehaviorControl: Equatable {
-    /// a number field with its unit; `minimum` is the least the engine takes
-    case number(minimum: Int, unit: String?)
+    /// a number field; `minimum` is the least the engine takes
+    case number(minimum: Int)
     /// a decimal number of minutes
     case minutes
     /// a number of hours or Unlimited
@@ -20,6 +20,8 @@ public struct BehaviorRow: Equatable {
     public let title: String
     public let detail: String
     public let control: BehaviorControl
+    /// the unit said after the number field (`min`, `days`, `s`, `h`), in the language it is asked in; nil when the row has none
+    public let unit: String?
 }
 
 public struct BehaviorGroup: Equatable {
@@ -29,20 +31,38 @@ public struct BehaviorGroup: Equatable {
     public let rows: [BehaviorRow]
 }
 
-public let behaviorGroups: [BehaviorGroup] = [
-    BehaviorGroup(id: "pace", title: "Pace", rows: [
-        BehaviorRow(key: "pollIntervalMinutes", title: "Look for ready epics every", detail: "In minutes", control: .minutes),
-        BehaviorRow(key: "maxConcurrentEpics", title: "Epics at once", detail: "Running at the same time", control: .number(minimum: 1, unit: nil)),
-    ]),
-    BehaviorGroup(id: "when-something-goes-wrong", title: "When something goes wrong", rows: [
-        BehaviorRow(key: "maxReviews", title: "Review rounds before asking you", detail: "Then the epic waits for a person (needs-human)", control: .number(minimum: 1, unit: nil)),
-        BehaviorRow(key: "maxExecutionRetries", title: "Retries after a technical failure", detail: "Of an agent run", control: .number(minimum: 0, unit: nil)),
-        BehaviorRow(key: "maxExecutionHours", title: "Time per agent run", detail: "Limit of one agent run", control: .runTime),
-    ]),
-    BehaviorGroup(id: "housekeeping", title: "Housekeeping", rows: [
-        BehaviorRow(key: "finishedWindowDays", title: "Show finished epics for", detail: "1 to 30 days", control: .number(minimum: 1, unit: "days")),
-        BehaviorRow(key: "githubCallTimeoutSeconds", title: "GitHub call timeout", detail: "Each short call", control: .number(minimum: 1, unit: "s")),
-        BehaviorRow(key: "logLevel", title: "Log level", detail: "How much Carrier writes to its log", control: .logLevel),
-    ]),
-]
+public func behaviorGroups(bundle: Bundle? = nil, locale: Locale = .current) -> [BehaviorGroup] {
+    [
+        BehaviorGroup(id: "pace", title: Copy.behaviorPace(bundle: bundle, locale: locale), rows: [
+            BehaviorRow(
+                key: "pollIntervalMinutes", title: Copy.behaviorPollTitle(bundle: bundle, locale: locale), detail: Copy.behaviorPollDetail(bundle: bundle, locale: locale),
+                control: .minutes, unit: Copy.behaviorUnit(which: .minutes, bundle: bundle, locale: locale)),
+            BehaviorRow(
+                key: "maxConcurrentEpics", title: Copy.behaviorConcurrentTitle(bundle: bundle, locale: locale), detail: Copy.behaviorConcurrentDetail(bundle: bundle, locale: locale),
+                control: .number(minimum: 1), unit: nil),
+        ]),
+        BehaviorGroup(id: "when-something-goes-wrong", title: Copy.behaviorWrong(bundle: bundle, locale: locale), rows: [
+            BehaviorRow(
+                key: "maxReviews", title: Copy.behaviorReviewsTitle(bundle: bundle, locale: locale), detail: Copy.behaviorReviewsDetail(bundle: bundle, locale: locale),
+                control: .number(minimum: 1), unit: nil),
+            BehaviorRow(
+                key: "maxExecutionRetries", title: Copy.behaviorRetriesTitle(bundle: bundle, locale: locale), detail: Copy.behaviorRetriesDetail(bundle: bundle, locale: locale),
+                control: .number(minimum: 0), unit: nil),
+            BehaviorRow(
+                key: "maxExecutionHours", title: Copy.behaviorRunTimeTitle(bundle: bundle, locale: locale), detail: Copy.behaviorRunTimeDetail(bundle: bundle, locale: locale),
+                control: .runTime, unit: Copy.behaviorUnit(which: .hours, bundle: bundle, locale: locale)),
+        ]),
+        BehaviorGroup(id: "housekeeping", title: Copy.behaviorHousekeeping(bundle: bundle, locale: locale), rows: [
+            BehaviorRow(
+                key: "finishedWindowDays", title: Copy.behaviorFinishedTitle(bundle: bundle, locale: locale), detail: Copy.behaviorFinishedDetail(bundle: bundle, locale: locale),
+                control: .number(minimum: 1), unit: Copy.behaviorUnit(which: .days, bundle: bundle, locale: locale)),
+            BehaviorRow(
+                key: "githubCallTimeoutSeconds", title: Copy.behaviorTimeoutTitle(bundle: bundle, locale: locale), detail: Copy.behaviorTimeoutDetail(bundle: bundle, locale: locale),
+                control: .number(minimum: 1), unit: Copy.behaviorUnit(which: .seconds, bundle: bundle, locale: locale)),
+            BehaviorRow(
+                key: "logLevel", title: Copy.behaviorLogTitle(bundle: bundle, locale: locale), detail: Copy.behaviorLogDetail(bundle: bundle, locale: locale),
+                control: .logLevel, unit: nil),
+        ]),
+    ]
+}
 

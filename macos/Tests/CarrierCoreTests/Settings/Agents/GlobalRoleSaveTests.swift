@@ -14,11 +14,11 @@ private let base = #"""
 
 @Test func theSamePersonAsAuthorAndReviewerGetsTheSignatureNote() throws {
     let names = ForgeBots(names: bots, note: nil)
-    let shown = try #require(agentsPage(config: Data(base.utf8), providers: nil, bots: names))
+    let shown = try #require(agentsPage(config: Data(base.utf8), providers: nil, bots: names, bundle: english.bundle, locale: english.locale))
     #expect(shown.sharedNote == "Author and Reviewer both work as spare: the signature will show it.")
 
     // two profile names for the same bot are one account too
     let twoNames = base.replacingOccurrences(of: #""reviewer": {"profile": "spare""#, with: #""reviewer": {"profile": "again""#)
-    let page = try #require(agentsPage(config: Data(twoNames.utf8), providers: nil, bots: names))
+    let page = try #require(agentsPage(config: Data(twoNames.utf8), providers: nil, bots: names, bundle: english.bundle, locale: english.locale))
     #expect(page.sharedNote?.contains("are one account") == true)
 }

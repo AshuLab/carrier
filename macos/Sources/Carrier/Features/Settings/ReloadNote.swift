@@ -2,7 +2,7 @@ import CarrierCore
 import SwiftUI
 
 /// What the engine answered to the last save when it did not apply it (`ReloadStatus`): the same on every page, until a save is applied or
-/// Carrier stops. The page passes the words (`ReloadStatus.words`) and whether they are a problem; a problem is said to VoiceOver once, when the answer
+/// Carrier stops. The page passes the words (`ReloadStatus.words()`) and whether they are a problem; a problem is said to VoiceOver once, when the answer
 /// comes (`answers` counts them, so two refusals in a row are two), not each time the person comes back to the page, and has a way out: Ask Carrier again.
 struct ReloadNote: View {
     let words: String?
@@ -31,7 +31,7 @@ struct ReloadNote: View {
 extension ReloadNote {
     /// The note of what `status` last answered.
     init(_ status: ReloadStatus) {
-        self.init(words: status.words, isProblem: status.isProblem, pending: status.pending, answers: status.answers, ask: { status.ask() })
+        self.init(words: status.words(), isProblem: status.isProblem, pending: status.pending, answers: status.answers, ask: { status.ask() })
     }
 }
 

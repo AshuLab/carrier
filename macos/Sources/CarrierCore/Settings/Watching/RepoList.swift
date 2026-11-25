@@ -18,19 +18,19 @@ public func isRepoName(_ name: String) -> Bool {
 public func repoFolder(_ name: String) -> String { String(name.split(separator: "/").last ?? "").lowercased() }
 
 /// Why `name` cannot join `others`; nil when it can.
-public func repoProblem(_ name: String, joining others: [String]) -> String? {
-    guard isRepoName(name) else { return "\(name) must be owner/name" }
-    if others.contains(where: { $0.lowercased() == name.lowercased() }) { return "\(name) is already watched" }
+public func repoProblem(_ name: String, joining others: [String], bundle: Bundle? = nil, locale: Locale = .current) -> String? {
+    guard isRepoName(name) else { return Copy.watchingMustBeOwnerName(name: name, bundle: bundle, locale: locale) }
+    if others.contains(where: { $0.lowercased() == name.lowercased() }) { return Copy.watchingAlreadyWatched(name: name, bundle: bundle, locale: locale) }
     if let clash = others.first(where: { repoFolder($0) == repoFolder(name) }) {
-        return "\(name) has the same folder name as \(clash); Solve's worktree paths have no owner"
+        return Copy.watchingSameFolder(name: name, other: clash, bundle: bundle, locale: locale)
     }
     return nil
 }
 
 /// What the engine would refuse in the whole list; nil when it is fine (an empty list is fine: nothing is watched yet). The first problem, in list order.
-public func reposProblem(_ names: [String]) -> String? {
+public func reposProblem(_ names: [String], bundle: Bundle? = nil, locale: Locale = .current) -> String? {
     for (index, name) in names.enumerated() {
-        if let problem = repoProblem(name, joining: Array(names[..<index])) { return problem }
+        if let problem = repoProblem(name, joining: Array(names[..<index]), bundle: bundle, locale: locale) { return problem }
     }
     return nil
 }
@@ -50,9 +50,12 @@ public struct RepoEpics: Equatable {
     public var isNone: Bool { running + queued + needsYou == 0 }
 
     /// "1 running · 2 queued · 1 needs you"; empty when none.
-    public func line(separator: String = " · ") -> String {
-        [running > 0 ? "\(running) running" : nil, queued > 0 ? "\(queued) queued" : nil, needsYou > 0 ? "\(needsYou) needs you" : nil]
-            .compactMap { $0 }.joined(separator: separator)
+    public func line(separator: String = " · ", bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        [
+            running > 0 ? Copy.watchingRunning(count: running, bundle: bundle, locale: locale) : nil,
+            queued > 0 ? Copy.watchingQueued(count: queued, bundle: bundle, locale: locale) : nil,
+            needsYou > 0 ? Copy.watchingNeedsYou(count: needsYou, bundle: bundle, locale: locale) : nil,
+        ].compactMap { $0 }.joined(separator: separator)
     }
 }
 
@@ -68,13 +71,16 @@ public func repoEpics(_ repo: String, snapshot: PanelSnapshot?) -> RepoEpics? {
 
 /// The confirmation under the list when the person presses ✕ on a repo. `appliesNow`: Carrier applies the change while it runs
 /// (`appliesWhileRunning`); else it reads the list when it starts.
-public func removalText(_ epics: RepoEpics?, appliesNow: Bool) -> String {
-    let when = appliesNow ? " It takes effect right away." : " Carrier reads the list when it starts."
+public func removalText(_ epics: RepoEpics?, appliesNow: Bool, bundle: Bundle? = nil, locale: Locale = .current) -> String {
     guard let epics else {
-        return "Its epics, if it has any, stop where they are, untouched, and continue if you add the repository again. Nothing is deleted." + when
+        return appliesNow ? Copy.watchingRemovalUnknown(when: .now, bundle: bundle, locale: locale) : Copy.watchingRemovalUnknown(when: .other, bundle: bundle, locale: locale)
     }
-    if epics.isNone { return "It has no epics. You can add it again whenever you want." + when }
-    return "It has epics (\(epics.line(separator: ", "))). They stop where they are, untouched, and continue if you add the repository again. Nothing is deleted." + when
+    if epics.isNone {
+        return appliesNow ? Copy.watchingRemovalNone(when: .now, bundle: bundle, locale: locale) : Copy.watchingRemovalNone(when: .other, bundle: bundle, locale: locale)
+    }
+    let line = epics.line(separator: ", ", bundle: bundle, locale: locale)
+    return appliesNow
+        ? Copy.watchingRemovalSome(when: .now, epics: line, bundle: bundle, locale: locale) : Copy.watchingRemovalSome(when: .other, epics: line, bundle: bundle, locale: locale)
 }
 
 public struct RepoRow: Equatable, Identifiable {
@@ -105,20 +111,27 @@ public func tildePath(_ path: String, home: String = NSHomeDirectory()) -> Strin
 }
 
 /// One row per repo of the `draft`; `saved` is the file's list, `snapshot` what Carrier says (nil when stopped).
-public func repoRows(draft: [String], saved: [String], snapshot: PanelSnapshot?) -> [RepoRow] {
+public func repoRows(draft: [String], saved: [String], snapshot: PanelSnapshot?, bundle: Bundle? = nil, locale: Locale = .current) -> [RepoRow] {
     draft.map { name in
         let epics = repoEpics(name, snapshot: snapshot)
         if saved.contains(name) == false {
-            return RepoRow(name: name, health: .unknown, line: "Not checked yet", epics: nil, isNew: true)
+            return RepoRow(name: name, health: .unknown, line: Copy.watchingNotCheckedYet(bundle: bundle, locale: locale), epics: nil, isNew: true)
         }
-        guard let snapshot else { return RepoRow(name: name, health: .unknown, line: "Carrier is stopped", epics: nil, isNew: false) }
+        guard let snapshot else {
+            return RepoRow(name: name, health: .unknown, line: Copy.watchingCarrierStopped(bundle: bundle, locale: locale), epics: nil, isNew: false)
+        }
         guard let watched = snapshot.watched?.first(where: { $0.repo == name }) else {
-            return RepoRow(name: name, health: .unknown, line: "Not in use yet", epics: epics, isNew: false)
+            return RepoRow(name: name, health: .unknown, line: Copy.watchingNotInUse(bundle: bundle, locale: locale), epics: epics, isNew: false)
         }
         if watched.ok == false {
-            return RepoRow(name: name, health: .error, line: watched.error ?? "GitHub refused it", epics: epics, isNew: false, isLoaded: true)
+            return RepoRow(
+                name: name, health: .error, line: watched.error ?? Copy.watchingGitHubRefused(bundle: bundle, locale: locale), epics: epics, isNew: false, isLoaded: true)
         }
-        guard let at = watched.lastCheckedAt else { return RepoRow(name: name, health: .unknown, line: "Not checked yet", epics: epics, isNew: false, isLoaded: true) }
-        return RepoRow(name: name, health: .ok, line: "Checked \(agoLine(at, now: snapshot.now))", epics: epics, isNew: false, isLoaded: true)
+        guard let at = watched.lastCheckedAt else {
+            return RepoRow(name: name, health: .unknown, line: Copy.watchingNotCheckedYet(bundle: bundle, locale: locale), epics: epics, isNew: false, isLoaded: true)
+        }
+        return RepoRow(
+            name: name, health: .ok, line: Copy.watchingCheckedAgo(ago: agoLine(at, now: snapshot.now, bundle: bundle, locale: locale), bundle: bundle, locale: locale),
+            epics: epics, isNew: false, isLoaded: true)
     }
 }

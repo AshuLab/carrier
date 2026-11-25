@@ -29,7 +29,7 @@ struct AgentsStatusCard: View {
                     Text(note).scaledFont(12).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
                 if let fix = readiness.fix {
-                    Button { open(fix) } label: { Label("Open \(fix.title)", icon: .arrowRight).labelStyle(.titleAndIcon) }
+                    Button { open(fix) } label: { Label(Copy.agentsOpenRole(role: fix.title()), icon: .arrowRight).labelStyle(.titleAndIcon) }
                         .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).padding(.top, Tokens.Space.s4)
                 }
             }
@@ -52,7 +52,7 @@ struct EpicRail: View {
     let open: (AgentRole) -> Void
 
     /// The title of the group the rows are in, which the search finds them by.
-    static let group = "How an epic runs"
+    static var group: String { Copy.agentsRailGroup() }
     static let groupID = "how-an-epic-runs"
 
     var body: some View {
@@ -73,12 +73,12 @@ struct EpicRail: View {
         if next.role == .reviewer {
             RailLink(dashed: false) {
                 FlowLayout(spacing: Tokens.Space.s8) {
-                    Text("Opens the pull request")
-                    StatusChip(text: "\u{21BA} asks for changes, the author answers", tint: .secondary)
+                    Text(Copy.agentsRailOpens())
+                    StatusChip(text: Copy.agentsRailAsks(), tint: .secondary)
                 }
             }
         } else {
-            RailLink(dashed: next.off) { Text(next.off ? "Lead reviewer is off" : "When the review passes") }
+            RailLink(dashed: next.off) { Text(next.off ? Copy.agentsRailLeadOff() : Copy.agentsRailPasses()) }
         }
     }
 }
@@ -98,12 +98,12 @@ private struct RoleRailRow: View {
             HStack(spacing: Tokens.Space.s12) {
                 avatar
                 VStack(alignment: .leading, spacing: Tokens.Space.s1) {
-                    Text(row.title).fontWeight(.medium)
+                    Text(row.title()).fontWeight(.medium)
                     Text(row.what).scaledFont(11).foregroundStyle(.secondary).lineLimit(2).multilineTextAlignment(.leading)
                 }
                 Spacer(minLength: 8)
                 trailing
-                if let own { StatusChip(text: own ? "Own" : "Same as everywhere", tint: own ? theme.accent : .secondary) }
+                if let own { StatusChip(text: own ? Copy.agentsOwn() : Copy.agentsSameAsEverywhere(), tint: own ? theme.accent : .secondary) }
                 Glyph(.chevronRight, size: 13, bold: true).foregroundStyle(.tertiary)
             }
             .padding(.horizontal, Tokens.Space.s8).frame(minHeight: 54)
@@ -118,14 +118,14 @@ private struct RoleRailRow: View {
 
     @ViewBuilder private var trailing: some View {
         if row.off {
-            StatusChip(text: "Off", tint: .secondary)
+            StatusChip(text: Copy.agentsOff(), tint: .secondary)
         } else if needsAttention {
-            StatusChip(text: "Needs attention", tint: .orange)
+            StatusChip(text: Copy.agentsNeedsAttention(), tint: .orange)
         } else {
             let model = [row.fields.model, row.fields.effort].compactMap { $0 }.filter { $0.isEmpty == false }.joined(separator: " \u{00b7} ")
             VStack(alignment: .trailing, spacing: Tokens.Space.s1) {
-                Text(model.isEmpty ? "No model" : model).scaledFont(12).foregroundStyle(model.isEmpty ? .secondary : .primary)
-                Text(row.fields.profile ?? "No identity").scaledFont(12).foregroundStyle(.secondary)
+                Text(model.isEmpty ? Copy.agentsNoModel() : model).scaledFont(12).foregroundStyle(model.isEmpty ? .secondary : .primary)
+                Text(row.fields.profile ?? Copy.agentsNoIdentity()).scaledFont(12).foregroundStyle(.secondary)
             }
             .lineLimit(1).truncationMode(.middle).frame(maxWidth: 250, alignment: .trailing)
         }
@@ -171,7 +171,7 @@ struct RoleHero: View {
             roleAvatar(row, page: page, icons: icons, size: 64)
             VStack(alignment: .leading, spacing: Tokens.Space.s3) {
                 Text(name).scaledFont(16, weight: .bold).lineLimit(1).truncationMode(.middle)
-                Text(row.headline).scaledFont(12).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+                Text(row.headline()).scaledFont(12).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
                 source
             }
             Spacer(minLength: 8)
@@ -183,18 +183,18 @@ struct RoleHero: View {
     private var name: String {
         switch row.identity {
         case .forge(let bot): bot
-        case .gh: "Your gh login"
-        case .missing: row.fields.profile ?? "Unknown identity"
-        case .unset: "No identity yet"
+        case .gh: Copy.agentsIdentityGh()
+        case .missing: row.fields.profile ?? Copy.agentsUnknownIdentity()
+        case .unset: Copy.agentsNoIdentityYet()
         }
     }
 
     @ViewBuilder private var source: some View {
         switch row.identity {
         case .forge(let bot):
-            StatusChip(text: store.image(for: page.bots.appIds[bot]) == nil ? "Initials" : "Picture from the bot\u{2019}s GitHub App", tint: .secondary)
-        case .gh: StatusChip(text: "Your own account", tint: .secondary)
-        case .missing: StatusChip(text: "Not in Agent Forge", tint: .orange)
+            StatusChip(text: store.image(for: page.bots.appIds[bot]) == nil ? Copy.agentsInitials() : Copy.agentsPicture(), tint: .secondary)
+        case .gh: StatusChip(text: Copy.agentsOwnAccount(), tint: .secondary)
+        case .missing: StatusChip(text: Copy.agentsNotInForge(), tint: .orange)
         case .unset: EmptyView()
         }
     }
@@ -208,18 +208,18 @@ struct RoleFlowStrip: View {
 
     var body: some View {
         FlowLayout(spacing: Tokens.Space.s8) {
-            Text("In an epic").scaledFont(11.5).foregroundStyle(.secondary)
+            Text(Copy.agentsInAnEpic()).scaledFont(11.5).foregroundStyle(.secondary)
             ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
                 if index > 0 {
                     Glyph(index == 1 ? .exchange : .arrowRight, size: 11).foregroundStyle(.tertiary).accessibilityHidden(true)
                 }
                 if row.role == current {
-                    Text(row.title).scaledFont(12, weight: .medium).padding(.horizontal, Tokens.Space.s10).padding(.vertical, Tokens.Space.s2)
+                    Text(row.title()).scaledFont(12, weight: .medium).padding(.horizontal, Tokens.Space.s10).padding(.vertical, Tokens.Space.s2)
                         .background(Capsule().fill(.tint.opacity(0.18))).overlay(Capsule().strokeBorder(.tint, lineWidth: 1.5))
                         .accessibilityAddTraits(.isSelected)
                 } else {
                     // a role that is off says so in words, not only in a lighter button
-                    Button { open(row.role) } label: { Text(row.off ? "\(row.title) \u{00b7} Off" : row.title) }
+                    Button { open(row.role) } label: { Text(row.off ? Copy.agentsRoleOff(role: row.title()) : row.title()) }
                         .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
                 }
             }

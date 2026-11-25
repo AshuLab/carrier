@@ -70,7 +70,7 @@ public func reloadOffMain(_ reload: @escaping Reload) async -> ReloadOutcome {
     public init(reload: @escaping Reload = { reloadEngine() }) { self.reload = reload }
 
     /// What the page says when the engine did not apply what was saved; nil when it did, or there was no one to ask.
-    public var words: String? { outcome.flatMap(reloadWords) }
+    public func words(bundle: Bundle? = nil, locale: Locale = .current) -> String? { outcome.flatMap { reloadWords($0, bundle: bundle, locale: locale) } }
 
     /// `words` is a problem (the engine refused or did not answer), not a plain fact.
     public var isProblem: Bool { outcome?.isProblem ?? false }
@@ -121,11 +121,11 @@ public func reloadOffMain(_ reload: @escaping Reload) async -> ReloadOutcome {
 }
 
 /// What the page says when the file is saved and the engine did not apply it: nil when it did, there was no one to ask, or the answer is on its way.
-public func reloadWords(_ outcome: ReloadOutcome) -> String? {
+public func reloadWords(_ outcome: ReloadOutcome, bundle: Bundle? = nil, locale: Locale = .current) -> String? {
     switch outcome {
     // an older Carrier that cannot reload reads the file when it starts: nothing to tell, the next Carrier applies it live
     case .applied, .nobody, .unsupported: nil
-    case .refused(let problem): "Saved, but Carrier kept its settings: \(problem.shown())"
-    case .noAnswer: "Saved, but Carrier did not answer: it may not have applied it."
+    case .refused(let problem): Copy.engineReloadRefused(reason: problem.shown(bundle: bundle, locale: locale), bundle: bundle, locale: locale)
+    case .noAnswer: Copy.engineReloadNoAnswer(bundle: bundle, locale: locale)
     }
 }

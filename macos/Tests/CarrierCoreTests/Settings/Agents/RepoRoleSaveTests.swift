@@ -13,7 +13,7 @@ private let base = #"""
 
 @Test func aNameThatIsNotDeclaredIsSaidInWordsWhileTheFieldsAreChecked() {
     let profiles = ["author", "reviewer", "other"]
-    func problems(_ fields: RoleFields) -> [String] { fields.normalized().problems(profiles: profiles, accounts: accounts) }
+    func problems(_ fields: RoleFields) -> [String] { fields.normalized().problems(profiles: profiles, accounts: accounts, bundle: english.bundle, locale: english.locale) }
     #expect(problems(RoleFields(profile: "ghost")) == ["Identity “ghost” is not declared in profiles. Pick another one."])
     #expect(problems(RoleFields(provider: "ollama")) == ["Provider “ollama” is not an account of providers.json. Pick another one."])
     #expect(problems(RoleFields(effort: "ultra")) == ["Effort must be one of low, medium, high, xhigh, max."])
@@ -25,10 +25,10 @@ private let base = #"""
 
 @Test func theSameIdentityOnAuthorAndReviewerIsAcceptedAndTheSignatureNoteSaysSo() throws {
     let roles = try #require(repoRoles(json: Data(base.utf8), repo: "a/b"))
-    #expect(signatureNote(roles.rows) == nil)
+    #expect(signatureNote(roles.rows, bundle: english.bundle, locale: english.locale) == nil)
     let same = base.replacingOccurrences(of: #""profile": "reviewer""#, with: #""profile": "author""#)
     let after = try #require(repoRoles(json: Data(same.utf8), repo: "a/b"))
-    #expect(signatureNote(after.rows)?.contains("signature will show it") == true)
+    #expect(signatureNote(after.rows, bundle: english.bundle, locale: english.locale)?.contains("signature will show it") == true)
 }
 
 @Test func theAccountsAreThoseOfProvidersJSONOrTheThreeDefaults() {

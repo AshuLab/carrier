@@ -50,6 +50,10 @@ private func page(_ page: SettingsPage, _ groupID: String, _ group: String, _ ro
     rows.map { SettingsEntry(page: page, groupID: groupID, group: group, rowID: $0.id, title: $0.title, detail: $0.detail, path: path) }
 }
 
+/// The words the index is searched by are still English: the step that translates the index replaces these two.
+private let indexBundle = Copy.bundle("en")
+private let indexLocale = Locale(identifier: "en_US")
+
 /// Every searchable place, in the order of the sidebar and of each page, so a search lists its results as the pages are listed.
 public let settingsIndex: [SettingsEntry] = SettingsPage.allCases.flatMap { settingsPage in
     [SettingsEntry(page: settingsPage, title: settingsPage.title, detail: settingsPage.detail, isPage: true)] + settingsRows(settingsPage)
@@ -210,14 +214,15 @@ private func settingsRows(_ settingsPage: SettingsPage) -> [SettingsEntry] {
     case .agents:
         // the rows of a role's screen are the same for the three roles: the search opens the Author's, and the Lead reviewer's switch opens its own
         let role = [AgentRole.author.rawValue]
-        var entries = page(.agents, "how-an-epic-runs", "How an epic runs", AgentRole.allCases.map { ($0.rawValue, $0.title, $0.purpose) })
+        var entries = page(.agents, "how-an-epic-runs", "How an epic runs", AgentRole.allCases.map { ($0.rawValue, $0.title(bundle: indexBundle, locale: indexLocale), $0.purpose(bundle: indexBundle, locale: indexLocale)) })
         entries += page(.agents, "identities", "Identities", [("create-a-bot", "Create a bot…", "Opens Terminal on agent-forge add, to make a GitHub identity for a role")])
         entries += page(.agents, "", "", [("use-a-lead-reviewer", "Use a lead reviewer", "A second reviewer checks the first")], path: [AgentRole.leadReviewer.rawValue])
         entries += page(.agents, "who", "Who", [("identity", "Identity", "The GitHub identity an agent acts as"), ("model", "Model", "The model and reasoning of the role")], path: role)
         entries += page(.agents, "persona", "Persona", [("persona-name", "Persona name", "Optional, one line up to 40 characters"), ("persona-prompt", "Persona prompt", "Optional instructions")], path: role)
         for skillRole in AgentRole.allCases {
-            var rows = skillRole.stages.map { ($0.id, $0.title, "\($0.detail). Runs the skill \($0.skill)") }
-            if skillRole.stages.isEmpty { rows.append(("not-used-by-the-engine-yet", "Not used by the engine yet", "The Lead reviewer has no stage, so no skill")) }
+            let stages = skillRole.stages(bundle: indexBundle, locale: indexLocale)
+            var rows = stages.map { ($0.id, $0.title, "\($0.detail). Runs the skill \($0.skill)") }
+            if stages.isEmpty { rows.append(("not-used-by-the-engine-yet", "Not used by the engine yet", "The Lead reviewer has no stage, so no skill")) }
             entries += page(.agents, "skills", "Skills", rows, path: [skillRole.rawValue])
         }
         entries += page(.agents, "when-it-runs-out-of-tokens", "When it runs out of tokens", [("switch-automatically", "Switch automatically", "Usage limit, rate limit or service down")], path: role)
@@ -232,7 +237,7 @@ private func settingsRows(_ settingsPage: SettingsPage) -> [SettingsEntry] {
             ])
             + page(.watching, "stop-watching", "Stop watching", [("stop-watching", "Stop watching", "Its epics stop where they are; nothing is deleted")])
     case .behavior:
-        return behaviorGroups.flatMap { group in page(.behavior, group.id, group.title, group.rows.map { ($0.key, $0.title, $0.detail) }) }
+        return behaviorGroups(bundle: indexBundle, locale: indexLocale).flatMap { group in page(.behavior, group.id, group.title, group.rows.map { ($0.key, $0.title, $0.detail) }) }
     case .engine:
         return page(.engine, "starting", "Starting", [
             ("startOnOpen", "Start Carrier when the app opens", "Carrier starts working on ready epics as soon as the app opens"),

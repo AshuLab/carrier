@@ -39,7 +39,7 @@ private final class GatedEngine: @unchecked Sendable {
     #expect(status.pending)
     await answered(status)
     #expect(engine.calls == 1 && status.outcome == .refused(.words("limits.maxReviews: bad")))
-    #expect(status.words == "Saved, but Carrier kept its settings: limits.maxReviews: bad")
+    #expect(status.words(bundle: english.bundle, locale: english.locale) == "Saved, but Carrier kept its settings: limits.maxReviews: bad")
 }
 
 @MainActor @Test func theAnswerToAnOlderSaveIsDroppedWhenANewerOneWasMade() async throws {
@@ -53,16 +53,16 @@ private final class GatedEngine: @unchecked Sendable {
     #expect(status.outcome == .applied && status.pending == false)
     engine.open(0)
     await first.value
-    #expect(status.outcome == .applied && status.words == nil)
+    #expect(status.outcome == .applied && status.words(bundle: english.bundle, locale: english.locale) == nil)
 }
 
 @MainActor @Test func anAppliedAnswerClearsTheRefusalOfBefore() async {
     let engine = GatedEngine(answers: [.refused(.words("bad")), .applied])
     let status = ReloadStatus(reload: engine.reload)
     await status.ask().value
-    #expect(status.words != nil)
+    #expect(status.words(bundle: english.bundle, locale: english.locale) != nil)
     await status.ask().value
-    #expect(status.words == nil)
+    #expect(status.words(bundle: english.bundle, locale: english.locale) == nil)
 }
 
 @MainActor @Test func twoEqualRefusalsInARowAreTwoAnswersSoThePageSaysTheSecondAgain() async {
@@ -74,9 +74,9 @@ private final class GatedEngine: @unchecked Sendable {
 }
 
 @MainActor @Test func anEngineThatDoesNotListReloadOrDidNotAnswerIsSaidSoAndNobodyToAskIsNot() {
-    #expect(reloadWords(.nobody) == nil && reloadWords(.applied) == nil)
-    #expect(reloadWords(.unsupported) == nil)
-    #expect(reloadWords(.noAnswer)?.contains("did not answer") == true)
+    #expect(reloadWords(.nobody, bundle: english.bundle, locale: english.locale) == nil && reloadWords(.applied, bundle: english.bundle, locale: english.locale) == nil)
+    #expect(reloadWords(.unsupported, bundle: english.bundle, locale: english.locale) == nil)
+    #expect(reloadWords(.noAnswer, bundle: english.bundle, locale: english.locale)?.contains("did not answer") == true)
 }
 
 @MainActor @Test func aStoppedOrRestartedCarrierStartsWithoutTheAnswerOfTheOneBefore() async {
@@ -84,9 +84,9 @@ private final class GatedEngine: @unchecked Sendable {
     let status = ReloadStatus(reload: engine.reload)
     status.ask()
     await answered(status)
-    #expect(status.isProblem && status.words != nil)
+    #expect(status.isProblem && status.words(bundle: english.bundle, locale: english.locale) != nil)
     status.reset()
-    #expect(status.outcome == nil && status.words == nil && status.pending == false)
+    #expect(status.outcome == nil && status.words(bundle: english.bundle, locale: english.locale) == nil && status.pending == false)
     // an ask that was on its way when it was reset does not bring its answer back
     status.ask()
     status.reset()
@@ -98,5 +98,5 @@ private final class GatedEngine: @unchecked Sendable {
 @Test func anOlderEnginesReadsItWhenItStartsIsAFactAndARefusalOrSilenceIsAProblem() {
     #expect(ReloadOutcome.unsupported.isProblem == false && ReloadOutcome.applied.isProblem == false && ReloadOutcome.nobody.isProblem == false)
     #expect(ReloadOutcome.refused(.words("x")).isProblem && ReloadOutcome.noAnswer.isProblem)
-    #expect(reloadWords(.noAnswer)?.contains("may not have applied it") == true)
+    #expect(reloadWords(.noAnswer, bundle: english.bundle, locale: english.locale)?.contains("may not have applied it") == true)
 }

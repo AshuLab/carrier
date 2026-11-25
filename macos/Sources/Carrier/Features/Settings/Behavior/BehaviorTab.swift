@@ -29,21 +29,21 @@ struct BehaviorTabView: View {
     /// Said at the right of the header only when there is something to say: why it could not save, or what the engine answered.
     private var headerNote: SettingsHeaderNote? {
         if unreadable {
-            return SettingsHeaderNote(text: "The engine is not configured: engine.json in the Carrier folder is missing or is not a JSON object.", tone: .problem)
+            return SettingsHeaderNote(text: Copy.engineConfigUnreadable(), tone: .problem)
         }
         if let failure { return SettingsHeaderNote(text: failure, tone: .problem) }
         // the page says a problem answer to VoiceOver itself, once, when it comes (`announcesReloadProblems`)
-        if let words = engine.words { return SettingsHeaderNote(text: words, tone: engine.isProblem ? .problem : .plain, announces: false, asksAgain: engine.isProblem) }
+        if let words = engine.words() { return SettingsHeaderNote(text: words, tone: engine.isProblem ? .problem : .plain, announces: false, asksAgain: engine.isProblem) }
         return nil
     }
 
     private var problems: [String: String] {
-        draft.problems.merging(unparsable.map { ($0, "Must be a number") }) { _, text in text }
+        draft.problems().merging(unparsable.map { ($0, Copy.behaviorMustBeNumber()) }) { _, text in text }
     }
 
     var body: some View {
         SettingsPageBody(reset: { if unreadable == false { draft = EngineConfig(); unparsable = [] } }) {
-            ForEach(behaviorGroups, id: \.title) { page in
+            ForEach(behaviorGroups(), id: \.title) { page in
                 SettingsGroup(id: page.id, title: page.title) {
                     ForEach(Array(page.rows.enumerated()), id: \.element.key) { index, item in
                         row(item, first: index == 0)
@@ -55,7 +55,7 @@ struct BehaviorTabView: View {
         // nothing to edit until the file reads; it is read again when it appears or goes (`StartController` checks every 3 seconds)
         .disabled(unreadable)
         .preference(key: SettingsHeaderNoteKey.self, value: headerNote)
-        .announcesReloadProblems(answers: engine.answers, isProblem: engine.isProblem, words: engine.words)
+        .announcesReloadProblems(answers: engine.answers, isProblem: engine.isProblem, words: engine.words())
         .onAppear(perform: load)
         // the send that waits for a pause is made when the person leaves, not lost
         .onDisappear { flush() }
@@ -79,16 +79,16 @@ struct BehaviorTabView: View {
     @ViewBuilder private func control(_ item: BehaviorRow) -> some View {
         switch item.control {
         case .minutes:
-            field(item.key, $draft.pollIntervalMinutes, unit: "min", parse: { Double($0.replacingOccurrences(of: ",", with: ".")) }, format: shownNumber, step: { $0 + Double($1) > 0 ? $0 + Double($1) : nil })
-        case .number(let minimum, let unit):
-            integer(item.key, intBinding(item.key), min: minimum, unit: unit)
+            field(item.key, $draft.pollIntervalMinutes, unit: item.unit, parse: { Double($0.replacingOccurrences(of: ",", with: ".")) }, format: shownNumber, step: { $0 + Double($1) > 0 ? $0 + Double($1) : nil })
+        case .number(let minimum):
+            integer(item.key, intBinding(item.key), min: minimum, unit: item.unit)
         case .runTime:
             HStack(spacing: Tokens.Space.s10) {
                 if draft.maxExecutionHours != nil {
-                    integer(item.key, Binding(get: { draft.maxExecutionHours ?? 4 }, set: { draft.maxExecutionHours = $0 }), min: 1, unit: "h")
+                    integer(item.key, Binding(get: { draft.maxExecutionHours ?? 4 }, set: { draft.maxExecutionHours = $0 }), min: 1, unit: item.unit)
                 }
                 ChoicePopUp(
-                    label: item.title, options: [(value: false, title: "Limit"), (value: true, title: "Unlimited")],
+                    label: item.title, options: [(value: false, title: Copy.behaviorLimit()), (value: true, title: Copy.behaviorUnlimited())],
                     selection: Binding(get: { draft.maxExecutionHours == nil }, set: { unlimited in
                         unparsable.remove(item.key)
                         draft.maxExecutionHours = unlimited ? nil : 4

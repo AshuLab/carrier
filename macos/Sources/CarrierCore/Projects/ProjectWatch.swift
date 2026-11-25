@@ -38,8 +38,8 @@ public func projectWatchRow(
         : appliesWhileRunning(state: state, canReload: canReload)
             ? Copy.projectsWatchOff(repo: repo, bundle: bundle, locale: locale)
             : Copy.projectsWatchOffStopped(repo: repo, bundle: bundle, locale: locale)
-    let answer = isOn && outcome?.isProblem == true ? outcome.flatMap(reloadWords) : nil
-    return ProjectWatchRow(isOn: isOn, canChange: true, detail: detail, problem: failure ?? reposProblem(repos) ?? answer)
+    let answer = isOn && outcome?.isProblem == true ? outcome.flatMap { reloadWords($0, bundle: bundle, locale: locale) } : nil
+    return ProjectWatchRow(isOn: isOn, canChange: true, detail: detail, problem: failure ?? reposProblem(repos, bundle: bundle, locale: locale) ?? answer)
 }
 
 /// What turning the switch of `repo` asks: the list for `setWatchedRepos` (the one `names`, the config's list now, with `repo` added or taken out; it keeps every other key and every other repo's fields

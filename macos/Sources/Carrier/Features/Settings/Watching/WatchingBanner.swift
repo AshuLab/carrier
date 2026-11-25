@@ -14,9 +14,9 @@ struct RefusalBannerView: View {
             Glyph(.warningFilled, size: 16).foregroundStyle(.orange).padding(.top, Tokens.Space.s1).accessibilityHidden(true)
             VStack(alignment: .leading, spacing: Tokens.Space.s6) {
                 Text(banner.title).scaledFont(13, weight: .semibold)
-                Text([banner.detail, RefusalBanner.consequence].compactMap { $0 }.joined(separator: " ")).scaledFont(12).foregroundStyle(.secondary)
+                Text([banner.detail, banner.consequence].compactMap { $0 }.joined(separator: " ")).scaledFont(12).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-                DisclosureGroup("What Carrier said", isExpanded: $showingRaw) {
+                DisclosureGroup(Copy.watchingRawLabel(), isExpanded: $showingRaw) {
                     Text(banner.raw).scaledFont(11, design: .monospaced).foregroundStyle(.secondary).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading).padding(.top, Tokens.Space.s4)
                 }
@@ -30,7 +30,7 @@ struct RefusalBannerView: View {
             Spacer(minLength: 0)
         }
         .padding(.vertical, Tokens.Space.s4).frame(maxWidth: .infinity, alignment: .leading)
-        .announcesReloadProblems(answers: reloaded.answers, isProblem: reloaded.isProblem, words: reloaded.words)
+        .announcesReloadProblems(answers: reloaded.answers, isProblem: reloaded.isProblem, words: reloaded.words())
         .accessibilityElement(children: .contain)
     }
 }

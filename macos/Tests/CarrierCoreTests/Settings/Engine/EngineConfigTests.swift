@@ -19,7 +19,7 @@ private func object(_ data: Data?) -> [String: Any] {
 
 @Test func whatTheEngineWouldRefuseIsNamed() {
     var config = EngineConfig()
-    #expect(config.problems.isEmpty)
+    #expect(config.problems(bundle: english.bundle, locale: english.locale).isEmpty)
     config.pollIntervalMinutes = 0
     config.logLevel = "loud"
     config.maxConcurrentEpics = 0
@@ -28,10 +28,10 @@ private func object(_ data: Data?) -> [String: Any] {
     config.maxExecutionHours = 0
     config.githubCallTimeoutSeconds = 0
     config.finishedWindowDays = 0
-    #expect(Set(config.problems.keys) == ["pollIntervalMinutes", "logLevel", "maxConcurrentEpics", "maxReviews", "maxExecutionRetries", "maxExecutionHours", "githubCallTimeoutSeconds", "finishedWindowDays"])
+    #expect(Set(config.problems(bundle: english.bundle, locale: english.locale).keys) == ["pollIntervalMinutes", "logLevel", "maxConcurrentEpics", "maxReviews", "maxExecutionRetries", "maxExecutionHours", "githubCallTimeoutSeconds", "finishedWindowDays"])
     config.maxExecutionRetries = 0
     config.maxExecutionHours = nil
-    #expect(config.problems["maxExecutionRetries"] == nil && config.problems["maxExecutionHours"] == nil)
+    #expect(config.problems(bundle: english.bundle, locale: english.locale)["maxExecutionRetries"] == nil && config.problems(bundle: english.bundle, locale: english.locale)["maxExecutionHours"] == nil)
 }
 
 @Test func theFinishedWindowDefaultsTo15AndIsReadFromTheFile() {
@@ -44,11 +44,11 @@ private func object(_ data: Data?) -> [String: Any] {
     var config = EngineConfig()
     for days in [0, 31, -1] {
         config.finishedWindowDays = days
-        #expect(config.problems["finishedWindowDays"] == "Must be a whole number from 1 to 30")
+        #expect(config.problems(bundle: english.bundle, locale: english.locale)["finishedWindowDays"] == "Must be a whole number from 1 to 30")
     }
     for days in [1, 30] {
         config.finishedWindowDays = days
-        #expect(config.problems.isEmpty)
+        #expect(config.problems(bundle: english.bundle, locale: english.locale).isEmpty)
     }
 }
 

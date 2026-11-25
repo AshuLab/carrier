@@ -27,20 +27,20 @@ struct RepoRoleScreen: View {
                 RoleHero(row: row, page: page, icons: icons)
                 RoleFlowStrip(current: row.role, rows: page.rows, open: open)
             }
-            SettingsGroup(id: "who", title: "Who", footer: mine.isOwn ? nil : "Nothing here is set for this repository: the \(row.title) follows Agents.") {
-                SettingsTabRow(title: "Identity", detail: "The GitHub account it signs as", first: true) { identityPicker }
-                SettingsTabRow(id: "model", title: "Model", detail: "Provider, model and how hard it thinks") { modelPicker }
+            SettingsGroup(id: "who", title: Copy.agentsGroupWho(), footer: mine.isOwn ? nil : Copy.watchingRoleWhoFooter(role: row.title())) {
+                SettingsTabRow(title: Copy.agentsIdentity(), detail: Copy.watchingIdentityDetail(), first: true) { identityPicker }
+                SettingsTabRow(id: "model", title: Copy.agentsModel(), detail: Copy.agentsModelDetail()) { modelPicker }
                 if let problem { ProblemLine(text: problem, size: 11).textSelection(.enabled).padding(.vertical, Tokens.Space.s8) }
             }
-            SettingsGroup(id: "persona", title: "Persona") {
-                SettingsTabRow(id: "persona-name", title: "Persona name", detail: "Optional, one line up to 40 characters", first: true) {
-                    CommitField(label: "Persona name", text: mine.own.persona?.name ?? "", width: settingsSelectWidth, mono: false, prompt: mine.inherited.persona?.name ?? "Same as everywhere") {
+            SettingsGroup(id: "persona", title: Copy.agentsGroupPersona()) {
+                SettingsTabRow(id: "persona-name", title: Copy.agentsPersonaName(), detail: Copy.agentsPersonaNameDetail(), first: true) {
+                    CommitField(label: Copy.agentsPersonaName(), text: mine.own.persona?.name ?? "", width: settingsSelectWidth, mono: false, prompt: mine.inherited.persona?.name ?? Copy.agentsSameAsEverywhere()) {
                         await commit(persona: RolePersona(name: blankIsNil($0), prompt: mine.own.persona?.prompt))
                     }
                     .id(row.role)
                 }
-                SettingsStackedRow(id: "persona-prompt", title: "Persona prompt", detail: "Optional instructions") {
-                    CommitEditor(label: "Persona prompt", text: mine.own.persona?.prompt ?? "", prompt: mine.inherited.persona?.prompt ?? "Same as everywhere") {
+                SettingsStackedRow(id: "persona-prompt", title: Copy.agentsPersonaPrompt(), detail: Copy.agentsPersonaPromptDetail()) {
+                    CommitEditor(label: Copy.agentsPersonaPrompt(), text: mine.own.persona?.prompt ?? "", prompt: mine.inherited.persona?.prompt ?? Copy.agentsSameAsEverywhere()) {
                         await commit(persona: RolePersona(name: mine.own.persona?.name, prompt: blankIsNil($0)))
                     }
                     .id(row.role)
@@ -48,8 +48,8 @@ struct RepoRoleScreen: View {
             }
             if mine.isOwn {
                 SettingsGroup(title: "") {
-                    SettingsTabRow(title: "Reset to Agents", detail: "Takes out what this repository sets for the \(row.title); it follows Agents again", first: true) {
-                        Button { Task { problem = await save(nil).problem } } label: { Label("Reset to Agents", icon: .refresh) }.controlSize(.small)
+                    SettingsTabRow(title: Copy.watchingResetTitle(), detail: Copy.watchingResetDetail(role: row.title()), first: true) {
+                        Button { Task { problem = await save(nil).problem } } label: { Label(Copy.watchingResetTitle(), icon: .refresh) }.controlSize(.small)
                     }
                 }
             }
@@ -78,8 +78,8 @@ struct RepoRoleScreen: View {
     /// The profiles of the file; the first choice is the global one, which writes nothing.
     private var identityPicker: some View {
         let inherited = mine.inherited.profile
-        var items = ["Same as everywhere" + (inherited.map { " (\($0))" } ?? "")] + profiles
-        if let own = mine.own.profile, profiles.contains(own) == false { items.append("\(own) (missing)") }
+        var items = [inherited.map { Copy.watchingSameAs(profile: $0) } ?? Copy.agentsSameAsEverywhere()] + profiles
+        if let own = mine.own.profile, profiles.contains(own) == false { items.append(Copy.agentsMissingProfile(profile: own)) }
         let index = Binding<Int>(
             get: { mine.own.profile.flatMap { own in profiles.firstIndex(of: own).map { $0 + 1 } ?? items.count - 1 } ?? 0 },
             set: { next in
@@ -88,7 +88,7 @@ struct RepoRoleScreen: View {
                 Task { _ = await commit(fields) }
             }
         )
-        return SelectMenu(items: items, selection: index).accessibilityLabel("Identity")
+        return SelectMenu(items: items, selection: index).accessibilityLabel(Copy.agentsIdentity())
     }
 
     /// The provider, the model and the reasoning of the role, from the one panel Agents has; what is left alone follows the global role.
@@ -100,10 +100,10 @@ struct RepoRoleScreen: View {
             provider: own.provider, model: own.model, effort: own.effort,
             accounts: pickerAccounts(reply, declared: accounts, icons: icons, current: [own.provider ?? followed.provider].compactMap { $0 }), catalog: catalog,
             effortFallback: (
-                label: "Same as everywhere",
-                detail: followed.effort.map { "Follows the global role: \($0)." } ?? "Follows the global role, which names none: the CLI's own."
+                label: Copy.agentsSameAsEverywhere(),
+                detail: followed.effort.map { Copy.watchingFollowsDetail(effort: $0) } ?? Copy.watchingFollowsNone()
             ),
-            inherited: PickerInherited(provider: followed.provider, model: followed.model, effort: followed.effort, follows: "Agents")
+            inherited: PickerInherited(provider: followed.provider, model: followed.model, effort: followed.effort, follows: Copy.watchingAgentsPage())
         ) { pick in
             var fields = own
             switch pick {

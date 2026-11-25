@@ -33,23 +33,23 @@ extension RoleFields {
     }
 
     /// What the engine would refuse in these (normalized) fields, in words: a name that is not declared, an effort or persona out of its limits.
-    public func problems(profiles: [String], accounts: [String]) -> [String] {
+    public func problems(profiles: [String], accounts: [String], bundle: Bundle? = nil, locale: Locale = .current) -> [String] {
         var found: [String] = []
-        if let profile, profiles.contains(profile) == false { found.append("Identity “\(profile)” is not declared in profiles. Pick another one.") }
-        if let provider, accounts.contains(provider) == false { found.append("Provider “\(provider)” is not an account of providers.json. Pick another one.") }
-        if let effort, roleEfforts.contains(effort) == false { found.append("Effort must be one of \(roleEfforts.joined(separator: ", ")).") }
-        if let name = persona?.name, name.count > 40 || name.contains(where: \.isNewline) { found.append("The persona’s name is one line of up to 40 characters.") }
-        if let prompt = persona?.prompt, prompt.count > 4000 { found.append("The persona’s prompt is up to 4000 characters.") }
+        if let profile, profiles.contains(profile) == false { found.append(Copy.agentsFieldIdentity(profile: profile, bundle: bundle, locale: locale)) }
+        if let provider, accounts.contains(provider) == false { found.append(Copy.agentsFieldProvider(provider: provider, bundle: bundle, locale: locale)) }
+        if let effort, roleEfforts.contains(effort) == false { found.append(Copy.agentsFieldEffort(efforts: roleEfforts.joined(separator: ", "), bundle: bundle, locale: locale)) }
+        if let name = persona?.name, name.count > 40 || name.contains(where: \.isNewline) { found.append(Copy.agentsFieldPersonaName(bundle: bundle, locale: locale)) }
+        if let prompt = persona?.prompt, prompt.count > 4000 { found.append(Copy.agentsFieldPersonaPrompt(bundle: bundle, locale: locale)) }
         return found
     }
 }
 
 /// Said under a repo's roles when Author and Reviewer resolve to one identity: the engine accepts it and shares the epic's account.
-public func signatureNote(_ rows: [RepoRoleRow]) -> String? {
+public func signatureNote(_ rows: [RepoRoleRow], bundle: Bundle? = nil, locale: Locale = .current) -> String? {
     guard let author = rows.first(where: { $0.role == .author })?.value.profile,
           rows.first(where: { $0.role == .reviewer })?.value.profile == author
     else { return nil }
-    return "Author and Reviewer both work as \(author): the signature will show it."
+    return Copy.agentsSharedSame(profile: author, bundle: bundle, locale: locale)
 }
 
 public enum RoleSave: Equatable {

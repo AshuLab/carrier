@@ -39,7 +39,8 @@ extension FixtureServer {
             config.maxExecutionRetries = (limits["maxExecutionRetries"] as? Int) ?? config.maxExecutionRetries
             config.githubCallTimeoutSeconds = (limits["githubCallTimeoutSeconds"] as? Int) ?? config.githubCallTimeoutSeconds
             if limits["maxExecutionHours"] as? String == "unlimited" { config.maxExecutionHours = nil } else if let hours = limits["maxExecutionHours"] as? Int { config.maxExecutionHours = hours }
-            if let (key, words) = config.problems.sorted(by: { $0.key < $1.key }).first {
+            // the fixture engine answers in English, as the engine does
+            if let (key, words) = config.problems(bundle: Copy.bundle("en"), locale: Locale(identifier: "en_US")).sorted(by: { $0.key < $1.key }).first {
                 let path = ["pollIntervalMinutes", "logLevel", "finishedWindowDays"].contains(key) ? key : "limits.\(key)"
                 return refusal(path, "invalid", words)
             }
@@ -169,7 +170,7 @@ extension FixtureServer {
         } else if creating {
             entry = [:]
         } else {
-            return "\(role.title) has no entry in engine.json. Add it there first."
+            return "\(role.title(bundle: Copy.bundle("en"), locale: Locale(identifier: "en_US"))) has no entry in engine.json. Add it there first."
         }
         var profiles = file["profiles"] as? [String: Any] ?? [:]
         /// The profile of that kind (and agent) the file has, else a new one named `name`, or `name-2`, `name-3`… when `name` already means something else.
@@ -198,9 +199,9 @@ extension FixtureServer {
         }
         let fields = roleFields(entry).normalized()
         if fields.profile == nil || fields.provider == nil || fields.model == nil {
-            return fields.model == nil ? "The model cannot be empty." : "\(role.title) needs an identity, a provider and a model."
+            return fields.model == nil ? "The model cannot be empty." : "\(role.title(bundle: Copy.bundle("en"), locale: Locale(identifier: "en_US"))) needs an identity, a provider and a model."
         }
-        let problems = fields.problems(profiles: Array(profiles.keys), accounts: accounts)
+        let problems = fields.problems(profiles: Array(profiles.keys), accounts: accounts, bundle: Copy.bundle("en"), locale: Locale(identifier: "en_US"))
         if problems.isEmpty == false { return problems.joined(separator: " ") }
         agents[role.rawValue] = entry
         file["agents"] = agents
@@ -221,7 +222,7 @@ extension FixtureServer {
     /// `fields` as the repo's own `role` in `file` (nil resets it: the entry goes, and `agents` with the last), other keys kept.
     private static func applyRepoRole(_ fields: RoleFields?, role: AgentRole, repo: String, accounts: [String], to file: inout [String: Any]) -> String? {
         let fields = fields?.normalized()
-        if let found = fields?.problems(profiles: Array((file["profiles"] as? [String: Any] ?? [:]).keys), accounts: accounts), found.isEmpty == false { return found.joined(separator: " ") }
+        if let found = fields?.problems(profiles: Array((file["profiles"] as? [String: Any] ?? [:]).keys), accounts: accounts, bundle: Copy.bundle("en"), locale: Locale(identifier: "en_US")), found.isEmpty == false { return found.joined(separator: " ") }
         guard var repos = file["repos"] as? [[String: Any]], let index = repos.firstIndex(where: { $0["name"] as? String == repo }) else { return "\(repo) is no longer in the config file." }
         var agents = repos[index]["agents"] as? [String: Any] ?? [:]
         var entry: [String: Any] = [:]
@@ -245,10 +246,10 @@ extension FixtureServer {
             return "The persona’s \(label) cannot be empty. Leave it out instead."
         }
         let persona = RoleFields(persona: RolePersona(name: name, prompt: prompt)).normalized().persona
-        let problems = RoleFields(persona: persona).problems(profiles: [], accounts: [])
+        let problems = RoleFields(persona: persona).problems(profiles: [], accounts: [], bundle: Copy.bundle("en"), locale: Locale(identifier: "en_US"))
         if problems.isEmpty == false { return problems.joined(separator: " ") }
         var agents = file["agents"] as? [String: Any] ?? [:]
-        guard var entry = agents[role.rawValue] as? [String: Any] else { return "\(role.title) has no entry in engine.json. Add it there first." }
+        guard var entry = agents[role.rawValue] as? [String: Any] else { return "\(role.title(bundle: Copy.bundle("en"), locale: Locale(identifier: "en_US"))) has no entry in engine.json. Add it there first." }
         entry["persona"] = persona.map { ["name": $0.name, "prompt": $0.prompt].compactMapValues { $0 } }
         agents[role.rawValue] = entry
         file["agents"] = agents
@@ -267,7 +268,7 @@ extension FixtureServer {
         for (index, step) in edited.enumerated() where accounts.contains(step.provider) == false {
             return "\(index == 0 ? "First" : "Then"): “\(step.provider)” is not an account of providers.json. Pick another one."
         }
-        guard let own = (file["agents"] as? [String: Any])?[role.rawValue] as? [String: Any] else { return "\(role.title) has no entry in engine.json. Add it there first." }
+        guard let own = (file["agents"] as? [String: Any])?[role.rawValue] as? [String: Any] else { return "\(role.title(bundle: Copy.bundle("en"), locale: Locale(identifier: "en_US"))) has no entry in engine.json. Add it there first." }
         var failover = file["failover"] as? [String: Any] ?? [:]
         var roles = failover["roles"] as? [String: Any] ?? [:]
         if edited.isEmpty {

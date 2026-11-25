@@ -24,7 +24,7 @@ public struct AccountUsage: Equatable {
 /// The 5h, Weekly and Monthly meters of the account named `account` in `providers.json`, from the host's quotas (`now` in milliseconds). Nil when the
 /// quotas have nothing for it: signed out, not checked, or a provider with no such window. A window that is neither (Claude's `7d Opus`) is left
 /// to the Usage page.
-public func accountUsage(_ account: String, in quotas: [UsageQuota], now: Int) -> AccountUsage? {
+public func accountUsage(_ account: String, in quotas: [UsageQuota], now: Int, bundle: Bundle? = nil, locale: Locale = .current) -> AccountUsage? {
     guard let quota = quotas.first(where: { $0.account == account }), quota.status == .ok || quota.stale else { return nil }
     // the windows the Usage page pools: a model's or a limit's own window (Claude's `7d Opus`, Codex's Spark) is not one, and Antigravity's pools all are
     let main = quota.windows.filter { ($0.group == nil || quota.provider == "agy") && $0.group != "model_scoped" }
@@ -38,7 +38,7 @@ public func accountUsage(_ account: String, in quotas: [UsageQuota], now: Int) -
     return AccountUsage(
         five: fives.isEmpty ? nil : meterShape(fives), weekly: weeks.isEmpty ? nil : meterShape(weeks),
         monthly: months.isEmpty ? nil : meterShape(months),
-        reset: next.flatMap { resetText(resetsAt: $0.resetsAt, label: $0.resetLabel, now: now) }, stale: quota.stale
+        reset: next.flatMap { resetText(resetsAt: $0.resetsAt, label: $0.resetLabel, now: now, bundle: bundle, locale: locale) }, stale: quota.stale
     )
 }
 
@@ -82,23 +82,25 @@ public struct ProvidersDirectory: Equatable {
 }
 
 /// `1 account needs attention`, `All signed in`, or the provider's own state when it has no account.
-private func providerSummary(_ tool: ProviderTool, attention: Int) -> (String, DirectoryProvider.Mark) {
+private func providerSummary(_ tool: ProviderTool, attention: Int, bundle: Bundle?, locale: Locale) -> (String, DirectoryProvider.Mark) {
     // not on this Mac is what its screen says too, even with accounts in the file
-    guard tool.accounts.isEmpty == false, tool.status != .missing else { return (tool.status.text, .off) }
-    if attention > 0 { return ("\(attention) \(attention == 1 ? "account needs" : "accounts need") attention", .attention) }
-    if tool.accounts.allSatisfy({ $0.state == .ready }) { return ("All signed in", .ok) }
-    return ("Could not check", .off)
+    guard tool.accounts.isEmpty == false, tool.status != .missing else { return (tool.status.text(bundle: bundle, locale: locale), .off) }
+    if attention > 0 { return (Copy.providersNeedAttention(count: attention, bundle: bundle, locale: locale), .attention) }
+    if tool.accounts.allSatisfy({ $0.state == .ready }) { return (Copy.providersAllSignedIn(bundle: bundle, locale: locale), .ok) }
+    return (Copy.providersStatus(which: .unknown, bundle: bundle, locale: locale), .off)
 }
 
 /// The first screen of the page. `filter` keeps a provider, an account or a server whose name has it (case ignored); the accounts that need
 /// someone come first, in the order of their providers.
-public func providersDirectory(_ page: ProvidersPage, quotas: [UsageQuota], filter: String = "", now: Int) -> ProvidersDirectory {
+public func providersDirectory(
+    _ page: ProvidersPage, quotas: [UsageQuota], filter: String = "", now: Int, bundle: Bundle? = nil, locale: Locale = .current
+) -> ProvidersDirectory {
     let text = filter.trimmingCharacters(in: .whitespaces).lowercased()
     func matches(_ words: [String]) -> Bool { text.isEmpty || words.contains { $0.lowercased().contains(text) } }
     var attention: [DirectoryAccount] = []
     var providers: [DirectoryProvider] = []
     for tool in page.tools {
-        let usages = tool.accounts.map { ($0, accountUsage($0.name, in: quotas, now: now)) }
+        let usages = tool.accounts.map { ($0, accountUsage($0.name, in: quotas, now: now, bundle: bundle, locale: locale)) }
         // a provider not on this Mac has nothing to sign in to: its screen shows no accounts, so none of them is asked for here
         let needing = tool.status == .missing ? [] : usages.compactMap { account, usage in attentionReason(account, usage: usage).map { (account, usage, $0) } }
         let toolMatches = matches([tool.title, tool.id])
@@ -106,7 +108,7 @@ public func providersDirectory(_ page: ProvidersPage, quotas: [UsageQuota], filt
             attention.append(DirectoryAccount(tool: tool.id, toolTitle: tool.title, icon: tool.icon, account: account, usage: usage, reason: reason))
         }
         if toolMatches || tool.accounts.contains(where: { matches([$0.name, $0.title]) }) {
-            let (summary, mark) = providerSummary(tool, attention: needing.count)
+            let (summary, mark) = providerSummary(tool, attention: needing.count, bundle: bundle, locale: locale)
             providers.append(DirectoryProvider(tool: tool, summary: summary, mark: mark))
         }
     }
@@ -114,17 +116,24 @@ public func providersDirectory(_ page: ProvidersPage, quotas: [UsageQuota], filt
 }
 
 /// Every provider, account and server of this Mac as a place the Settings search can open (the static index cannot know them).
-public func providersSearchEntries(_ page: ProvidersPage) -> [SettingsEntry] {
+public func providersSearchEntries(_ page: ProvidersPage, bundle: Bundle? = nil, locale: Locale = .current) -> [SettingsEntry] {
     page.tools.flatMap { tool in
         [SettingsEntry(
-            page: .providers, groupID: "ai-providers", group: "AI providers", rowID: tool.id, title: tool.title,
-            detail: tool.accounts.isEmpty || tool.status == .missing ? tool.status.text : "\(tool.accounts.count) \(tool.accounts.count == 1 ? "account" : "accounts")", path: [tool.id]
+            page: .providers, groupID: "ai-providers", group: Copy.providersGroupAI(bundle: bundle, locale: locale), rowID: tool.id, title: tool.title,
+            detail: tool.accounts.isEmpty || tool.status == .missing
+                ? tool.status.text(bundle: bundle, locale: locale) : Copy.providersAccountCount(count: tool.accounts.count, bundle: bundle, locale: locale),
+            path: [tool.id]
         )]
             + tool.accounts.map {
                 SettingsEntry(
                     page: .providers, groupID: tool.id, group: tool.title, rowID: $0.name, title: $0.title,
-                    detail: "Account of \(tool.title)" + ($0.name == $0.title ? "" : " · \($0.name)"), path: [tool.id, $0.name]
+                    detail: Copy.providersAccountOf(tool: tool.title, bundle: bundle, locale: locale) + ($0.name == $0.title ? "" : " · \($0.name)"), path: [tool.id, $0.name]
                 )
             }
-    } + page.servers.map { SettingsEntry(page: .providers, groupID: "local-servers", group: "Local servers", rowID: $0.id, title: $0.title, detail: $0.status, path: [$0.id]) }
+    }
+        + page.servers.map {
+            SettingsEntry(
+                page: .providers, groupID: "local-servers", group: Copy.providersGroupServers(bundle: bundle, locale: locale), rowID: $0.id, title: $0.title,
+                detail: $0.status(bundle: bundle, locale: locale), path: [$0.id])
+        }
 }

@@ -30,6 +30,9 @@ import Observation
     @ObservationIgnored private let file: () -> ProvidersFile
     @ObservationIgnored private let log: (String) -> Void
     @ObservationIgnored private let status: ReloadStatus
+    /// The language the words the store says are in: the app's, and a test's own.
+    @ObservationIgnored private let bundle: Bundle?
+    @ObservationIgnored private let locale: Locale
     /// The look at the host after a write.
     @ObservationIgnored private var follow: Task<Void, Never>?
 
@@ -37,12 +40,14 @@ import Observation
     public init(
         host: ChatHost, file: @escaping () -> ProvidersFile = ProvidersFile.current,
         log: @escaping (String) -> Void = { FileHandle.standardError.write(Data("carrier: \($0)\n".utf8)) },
-        status: ReloadStatus? = nil
+        status: ReloadStatus? = nil, bundle: Bundle? = nil, locale: Locale = .current
     ) {
         self.host = host
         self.file = file
         self.log = log
         self.status = status ?? .shared
+        self.bundle = bundle
+        self.locale = locale
     }
 
     /// When the app opens: with no `providers.json`, asks for one account per harness the host found, named after it. With a file there it asks for nothing, so an account that was removed stays removed; with nothing found
@@ -57,7 +62,10 @@ import Observation
             let saved = try await host.changeProviders(.setAccounts(found))
             status.record(saved.outcome)
             // no page is asking for this file, so the engine's refusal goes to the log
-            if let problem = reloadWords(saved.outcome) { log("providers: the engine did not apply the new providers.json: \(problem)") }
+            // a log is for whoever reads it later, in English whatever the app's language
+            if let problem = reloadWords(saved.outcome, bundle: Copy.bundle("en"), locale: Locale(identifier: "en_US")) {
+                log("providers: the engine did not apply the new providers.json: \(problem)")
+            }
         } catch {
             log("providers: could not create providers.json: \(error)")
             return
@@ -92,22 +100,22 @@ import Observation
     /// What the engine answered to a write: a problem is `editProblem`, a plain fact `editNote`. The answer is also the shared one, which other pages show.
     private func engineSaid(_ outcome: ReloadOutcome) {
         status.record(outcome)
-        let words = reloadWords(outcome)
+        let words = reloadWords(outcome, bundle: bundle, locale: locale)
         editProblem = outcome.isProblem ? words : nil
         editNote = outcome.isProblem ? nil : words
     }
 
     /// What a failed request says: Carrier's own words for a refusal, a fixed sentence (the error goes to the log) for anything else.
     private func problem(_ error: Error, _ what: String) -> String {
-        if case ControlError.remote(let refusal) = error { return refusal.shown() }
+        if case ControlError.remote(let refusal) = error { return refusal.shown(bundle: bundle, locale: locale) }
         log("providers: could not \(what): \(error)")
-        return "providers.json could not be written; the file stays as it was."
+        return Copy.providersWriteFailed(bundle: bundle, locale: locale)
     }
 
     /// A quiet line when another account of `harness` already has this config folder, which makes it the same login and not a new one; nil otherwise.
     public func sharedFolderNote(configDir: String, harness: String, except name: String? = nil) -> String? {
         let json = (try? file().read()).flatMap { $0 }
-        return accountSharingFolder(configDir: configDir, harness: harness, except: name, in: json).map { "\($0) already uses this folder, so this is the same login, not another one." }
+        return accountSharingFolder(configDir: configDir, harness: harness, except: name, in: json).map { Copy.providersSharedFolder(name: $0, bundle: bundle, locale: locale) }
     }
 
     /// The Add account of a tool: a new account with a name and, when given, a config folder.
@@ -128,7 +136,7 @@ import Observation
     /// Choose the text generator (a model of a local server), or clear the choice with nil; written only while the host lists `textGenerators`.
     @discardableResult public func chooseTextGenerator(_ choice: (server: String, model: String)?) async -> Bool {
         guard generatorEditable else {
-            editProblem = "The chat host does not know text generators yet. Update carrier (brew upgrade carrier) and restart the chat host."
+            editProblem = Copy.providersNoGenerators(bundle: bundle, locale: locale)
             return false
         }
         retitleOutcome = nil

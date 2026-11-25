@@ -101,11 +101,11 @@ struct WatchingTabView: View {
             autosave()
         }
         .alert(
-            "Stop watching \(removing ?? "")?",
+            Copy.watchingStopAlert(repo: removing ?? ""),
             isPresented: Binding(get: { removing.map { draft.contains($0) } ?? false }, set: { if $0 == false { removing = nil } })
         ) {
-            Button("Cancel", role: .cancel) { removing = nil }
-            Button("Stop watching", role: .destructive) {
+            Button(Copy.watchingCancel(), role: .cancel) { removing = nil }
+            Button(Copy.watchingStopTitle(), role: .destructive) {
                 if let name = removing { draft.removeAll { $0 == name } }
                 removing = nil
                 go(SettingsPlace(.watching))
@@ -120,7 +120,7 @@ struct WatchingTabView: View {
     /// What the toolbar says: a repo's name, or a role's with the repo and its model under it.
     private func title(_ repo: RepoRow?, _ role: RoleRow?) -> SettingsTitle? {
         guard let repo else { return nil }
-        if let role { return SettingsTitle(text: role.title, subtitle: "\(repo.name) · \(role.headline)") }
+        if let role { return SettingsTitle(text: role.title(), subtitle: Copy.watchingRoleSubtitle(repo: repo.name, headline: role.headline())) }
         return SettingsTitle(text: repo.name, subtitle: subtitle(repo))
     }
 
@@ -130,12 +130,12 @@ struct WatchingTabView: View {
         if let repo {
             let checking = doctor.state == .running
             return [
-                (SettingsHeaderButton(title: "Open on GitHub", icon: .externalLink), { if let url = repo.gitHubURL { NSWorkspace.shared.open(url) } }),
-                (SettingsHeaderButton(title: "Check again", icon: .refresh, enabled: checking == false, spinning: checking, help: "Run the checks again"), runDoctor),
+                (SettingsHeaderButton(title: Copy.watchingOpenOnGitHub(), icon: .externalLink), { if let url = repo.gitHubURL { NSWorkspace.shared.open(url) } }),
+                (SettingsHeaderButton(title: Copy.watchingCheckAgain(), icon: .refresh, enabled: checking == false, spinning: checking, help: Copy.watchingCheckAgainHelp()), runDoctor),
             ]
         }
-        return (rows.isEmpty ? [] : [(SettingsHeaderButton(title: "Check now", icon: .refresh, enabled: snapshot != nil, help: "Look for ready epics now"), { MenuControls.shared.checkNow() })])
-            + [(SettingsHeaderButton(title: "Watch a project…", icon: .plus), { picking = true })]
+        return (rows.isEmpty ? [] : [(SettingsHeaderButton(title: Copy.watchingCheckNow(), icon: .refresh, enabled: snapshot != nil, help: Copy.watchingCheckNowHelp()), { MenuControls.shared.checkNow() })])
+            + [(SettingsHeaderButton(title: Copy.watchingWatchProject(), icon: .plus), { picking = true })]
     }
 
     private func publishHeader(rows: [RepoRow], repo: RepoRow?, role: RoleRow?) {
@@ -147,7 +147,7 @@ struct WatchingTabView: View {
     @ViewBuilder private var notices: some View {
         if unreadable {
             SettingsGroup(title: "") {
-                Label("The engine is not configured: engine.json in the Carrier folder is missing or is not a JSON object.", icon: .warningFilled)
+                Label(Copy.engineConfigUnreadable(), icon: .warningFilled)
                     .scaledFont(12).foregroundStyle(.orange)
             }
         }
@@ -159,9 +159,9 @@ struct WatchingTabView: View {
     /// What the toolbar says under a repo's name.
     private func subtitle(_ row: RepoRow) -> String {
         switch row.health {
-        case .error: "Watching · needs attention"
-        case .ok: "Watching"
-        case .unknown: snapshot == nil ? "Watching · Carrier is stopped" : "Watching"
+        case .error: Copy.watchingSubtitle(which: .attention)
+        case .ok: Copy.watchingSubtitle(which: .watching)
+        case .unknown: snapshot == nil ? Copy.watchingSubtitle(which: .stopped) : Copy.watchingSubtitle(which: .watching)
         }
     }
 
@@ -230,7 +230,7 @@ struct WatchingTabView: View {
     }
 
     private var refusal: String? {
-        if case .refused(let reason) = doctor.state { return "Carrier refuses the config: \(reason)" }
+        if case .refused(let reason) = doctor.state { return Copy.watchingDoctorRefused(reason: reason) }
         return nil
     }
 

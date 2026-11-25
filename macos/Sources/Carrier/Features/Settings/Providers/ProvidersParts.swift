@@ -39,7 +39,7 @@ struct AccountRow: View {
 
     private var chevron: some View {
         Button(action: edit) { Glyph(.chevronRight, size: 13, bold: true).foregroundStyle(.tertiary) }
-            .buttonStyle(HoverTextButtonStyle(tint: nil)).accessibilityLabel("Edit \(account.name)").help("Edit \(account.name)")
+            .buttonStyle(HoverTextButtonStyle(tint: nil)).accessibilityLabel(Copy.providersEdit(account: account.name)).help(Copy.providersEdit(account: account.name))
     }
 
     private var text: some View {
@@ -50,9 +50,9 @@ struct AccountRow: View {
                 Text(account.title).fontWeight(.medium)
             }
             // one line, with the whole of it as a tooltip: who uses the account is on its own screen too
-            Text(account.usedBy).scaledFont(11).foregroundStyle(.secondary).lineLimit(1).truncationMode(.tail).help(account.usedBy)
+            Text(account.usedBy()).scaledFont(11).foregroundStyle(.secondary).lineLimit(1).truncationMode(.tail).help(account.usedBy())
             if tool.id != "agy" {
-                let folder = account.configDir ?? "This Mac's login"
+                let folder = account.configDir ?? Copy.providersThisMacsLogin()
                 Text(folder).scaledFont(10.5, design: .monospaced).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
                     .help(folder).textSelection(.enabled)
             }
@@ -63,7 +63,7 @@ struct AccountRow: View {
         if account.state == .signedOut {
             HStack(spacing: Tokens.Space.s10) {
                 AccountStateLabel(state: account.state)
-                Button("Sign in", action: signIn).buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).fixedSize().help("Opens Terminal and signs this account in")
+                Button(Copy.providersSignIn(), action: signIn).buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).fixedSize().help(Copy.providersSignInHelp())
             }
         } else if let usage {
             AccountUsageMeters(usage: usage)
@@ -79,12 +79,12 @@ struct AccountUsageMeters: View {
 
     var body: some View {
         VStack(alignment: .trailing, spacing: Tokens.Space.s4) {
-            if let five = usage.five { UsageMeterLine(label: "5h", shape: five) }
-            if let weekly = usage.weekly { UsageMeterLine(label: "Weekly", shape: weekly) }
-            if let monthly = usage.monthly { UsageMeterLine(label: "Monthly", shape: monthly) }
+            if let five = usage.five { UsageMeterLine(label: QuotaKind.fiveHour.title(), shape: five) }
+            if let weekly = usage.weekly { UsageMeterLine(label: QuotaKind.weekly.title(), shape: weekly) }
+            if let monthly = usage.monthly { UsageMeterLine(label: QuotaKind.monthly.title(), shape: monthly) }
             if usage.stale || usage.reset != nil {
                 HStack(spacing: Tokens.Space.s6) {
-                    if usage.stale { StatusChip(text: "Stale", tint: .orange) }
+                    if usage.stale { StatusChip(text: Copy.usageStale(), tint: .orange) }
                     if let reset = usage.reset { Text(reset).lineLimit(1) }
                 }
                 .scaledFont(10.5).foregroundStyle(.secondary).fixedSize()
@@ -185,10 +185,10 @@ private extension ToolState {
 
     var words: String {
         switch self {
-        case .ready: "Signed in"
-        case .signedOut: "Signed out"
-        case .missing: "Not installed"
-        case .unknown: "Could not check"
+        case .ready: Copy.providersStatus(which: .ready)
+        case .signedOut: Copy.providersStatus(which: .signedOut)
+        case .missing: Copy.providersStatus(which: .missing)
+        case .unknown: Copy.providersStatus(which: .unknown)
         }
     }
 }

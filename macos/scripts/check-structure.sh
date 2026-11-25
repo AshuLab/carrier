@@ -115,8 +115,13 @@ rm -f /tmp/check-structure-gallery.$$
 # Files and folders:
 #   Sources/Carrier/Features/Dictation, Sources/CarrierCore/Dictation  the Dictation area; its recognizers' sentences are `DictationFailure` reasons
 #   Sources/Carrier/Features/Usage, Sources/CarrierCore/Usage  the Usage area: the page, the consumption view and the context button
+#   Sources/Carrier/Features/Settings/{Agents,Watching,Behavior,Providers,Engine}, Sources/CarrierCore/Settings/{...}  the five pages of Settings that are Carrier's config;
+#   the engine's reload note and its Ask again button are the Engine page's pieces that every page of Settings shows
 COPY_AREAS=(Sources/Carrier/Features/Dictation Sources/CarrierCore/Dictation Sources/Carrier/Platform/AppleRecognizer.swift Sources/Carrier/Platform/FluidAudioRecognizer.swift
-  Sources/Carrier/Platform/WhisperKitRecognizer.swift Sources/Carrier/Platform/MicrophoneCapture.swift Sources/Carrier/Features/Usage Sources/CarrierCore/Usage)
+  Sources/Carrier/Platform/WhisperKitRecognizer.swift Sources/Carrier/Platform/MicrophoneCapture.swift Sources/Carrier/Features/Usage Sources/CarrierCore/Usage
+  Sources/Carrier/Features/Settings/Agents Sources/Carrier/Features/Settings/Watching Sources/Carrier/Features/Settings/Behavior Sources/Carrier/Features/Settings/Providers
+  Sources/Carrier/Features/Settings/Engine Sources/Carrier/Features/Settings/ReloadNote.swift Sources/Carrier/Features/Settings/AskAgainButton.swift
+  Sources/CarrierCore/Settings/Agents Sources/CarrierCore/Settings/Watching Sources/CarrierCore/Settings/Behavior Sources/CarrierCore/Settings/Providers Sources/CarrierCore/Settings/Engine)
 find "${COPY_AREAS[@]}" -name '*.swift' | sort |
   while IFS= read -r file; do
     perl -0777 -ne '

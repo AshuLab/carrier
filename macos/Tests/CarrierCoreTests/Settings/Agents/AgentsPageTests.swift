@@ -29,7 +29,7 @@ private let full = #"""
 private let bots = ForgeBots(names: ["acme-author", "acme-reviewer", "acme-lead"], note: nil)
 
 private func page(_ json: String = full, providers: String? = nil, bots: ForgeBots = bots) throws -> AgentsPage {
-    try #require(agentsPage(config: Data(json.utf8), providers: providers.map { Data($0.utf8) }, bots: bots))
+    try #require(agentsPage(config: Data(json.utf8), providers: providers.map { Data($0.utf8) }, bots: bots, bundle: english.bundle, locale: english.locale))
 }
 
 private func row(_ page: AgentsPage, _ role: AgentRole) throws -> RoleRow { try #require(page.rows.first { $0.role == role }) }
@@ -39,8 +39,8 @@ private func row(_ page: AgentsPage, _ role: AgentRole) throws -> RoleRow { try 
     #expect(found.rows.map(\.role) == [.author, .reviewer, .leadReviewer])
     let author = try row(found, .author)
     #expect(author.fields == RoleFields(profile: "acme-author", provider: "claude", model: "sonnet", effort: "high", persona: RolePersona(name: "Ada", prompt: "Be brief")))
-    #expect(author.identity == .forge("acme-author") && author.summary == "acme-author · claude · sonnet · high")
-    #expect(try row(found, .reviewer).summary == "acme-reviewer · codex · gpt-5 · max")
+    #expect(author.identity == .forge("acme-author") && author.summary(bundle: english.bundle, locale: english.locale) == "acme-author · claude · sonnet · high")
+    #expect(try row(found, .reviewer).summary(bundle: english.bundle, locale: english.locale) == "acme-reviewer · codex · gpt-5 · max")
     #expect(try row(found, .leadReviewer).off == false)
     #expect(found.bots == bots && found.sharedNote == nil)
 }
@@ -60,13 +60,13 @@ private func row(_ page: AgentsPage, _ role: AgentRole) throws -> RoleRow { try 
 @Test func aRoleWithNoEffortShowsItWithoutOne() throws {
     let lead = try row(page(), .leadReviewer)
     #expect(lead.fields.effort == nil)
-    #expect(lead.summary == "acme-lead · claude · opus")
+    #expect(lead.summary(bundle: english.bundle, locale: english.locale) == "acme-lead · claude · opus")
 }
 
 @Test func aConfigWithoutALeadReviewerShowsItOffAndDimmedWithTheSwitchOnTop() throws {
     let json = #"{"profiles": {"me": {"kind": "gh"}}, "agents": {"author": {"profile": "me", "provider": "claude", "model": "m"}, "reviewer": {"profile": "me", "provider": "codex", "model": "m"}}}"#
     let lead = try row(page(json), .leadReviewer)
-    #expect(lead.off && lead.hasSwitch && lead.summary == "Off" && lead.fields.isEmpty && lead.identity == .unset)
+    #expect(lead.off && lead.hasSwitch && lead.summary(bundle: english.bundle, locale: english.locale) == "Off" && lead.fields.isEmpty && lead.identity == .unset)
     #expect(try row(page(json), .author).off == false && (try row(page(json), .author).hasSwitch == false))
 }
 
@@ -74,7 +74,7 @@ private func row(_ page: AgentsPage, _ role: AgentRole) throws -> RoleRow { try 
     let found = try page(bots: ForgeBots(names: ["acme-author"], note: nil))
     let reviewer = try row(found, .reviewer)
     #expect(reviewer.identity == .missing && reviewer.fields.profile == "acme-reviewer")
-    #expect(reviewer.identityDetail.contains("acme-reviewer"))
+    #expect(reviewer.identityDetail(bundle: english.bundle, locale: english.locale).contains("acme-reviewer"))
     #expect(try row(found, .author).identity == .forge("acme-author"))
 }
 
@@ -89,9 +89,9 @@ private func row(_ page: AgentsPage, _ role: AgentRole) throws -> RoleRow { try 
 }
 
 @Test func theRegistryMissingOrUnreadableGivesNoBotsAndANoteNotAnError() {
-    let missing = forgeBots(registry: nil)
+    let missing = forgeBots(registry: nil, bundle: english.bundle, locale: english.locale)
     #expect(missing.names.isEmpty && missing.note?.contains("No Agent Forge registry") == true)
-    let broken = forgeBots(registry: Data("not json".utf8))
+    let broken = forgeBots(registry: Data("not json".utf8), bundle: english.bundle, locale: english.locale)
     #expect(broken.names.isEmpty && broken.note?.contains("could not be read") == true)
     let list = forgeBots(registry: Data(#"{"agents": [{"name": "a", "privateKey": "secret"}, {"label": "x"}, {"name": "b"}]}"#.utf8))
     #expect(list == ForgeBots(names: ["a", "b"], note: nil))

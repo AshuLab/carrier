@@ -43,7 +43,7 @@ private func golden(_ name: String) throws -> [String: Any] {
         let path = field.split(separator: ".").map(String.init)
         let file: [String: Any] = path.count == 1 ? [path[0]: item["value"]!] : [path[0]: [path[1]: item["value"]!]]
         let config = EngineConfig(json: try JSONSerialization.data(withJSONObject: file))
-        #expect((config.problems[path.last!] == nil) == valid, "\(field) = \(item["value"]!)")
+        #expect((config.problems()[path.last!] == nil) == valid, "\(field) = \(item["value"]!)")
     }
 }
 

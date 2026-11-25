@@ -12,15 +12,15 @@ struct WatchingListScreen: View {
     let watch: () -> Void
 
     /// The title of the group of rows.
-    static let group = "Repositories"
+    static var group: String { Copy.watchingGroupRepositories() }
 
     var body: some View {
         SettingsGroup(id: "repositories", title: rows.isEmpty ? "" : Self.group) {
             if rows.isEmpty {
                 EmptyStateView(
-                    icon: .inbox, title: "Carrier isn\u{2019}t watching anything",
-                    line: "Pick a project and Carrier takes its ready epics, runs the author and the reviewer, and leaves them for you to test.",
-                    action: (title: "Watch a project…", run: watch), actionIcon: .plus, actionStyle: .accentGlass
+                    icon: .inbox, title: Copy.watchingEmptyTitle(),
+                    line: Copy.watchingEmptyLine(),
+                    action: (title: Copy.watchingWatchProject(), run: watch), actionIcon: .plus, actionStyle: .accentGlass
                 )
                 .frame(minHeight: 260)
             } else {
@@ -56,21 +56,21 @@ private struct WatchingRowView: View {
         }
         .buttonStyle(.plain)
         .accessibilityElement(children: .combine)
-        .accessibilityHint("Opens the repository")
+        .accessibilityHint(Copy.watchingOpensRepo())
     }
 
     /// The project (or that there is none) and what the last check said, which is red when GitHub refused the repo.
     private var detail: Text {
-        Text("\(projectName ?? "No project") \u{00B7} ").foregroundStyle(.secondary) + Text(row.line).foregroundStyle(row.health == .error ? Color.red : .secondary)
+        Text(verbatim: (projectName ?? Copy.watchingNoProject()) + " \u{00B7} ").foregroundStyle(.secondary) + Text(row.line).foregroundStyle(row.health == .error ? Color.red : .secondary)
     }
 
     /// What the repo has in flight, as chips; none when nothing is or nobody knows (Carrier is stopped).
     @ViewBuilder private var chips: some View {
         if let epics = row.epics, epics.isNone == false {
             HStack(spacing: Tokens.Space.s4) {
-                if epics.needsYou > 0 { StatusChip(text: "\(epics.needsYou) needs you", tint: .orange) }
-                if epics.running > 0 { StatusChip(text: "\(epics.running) running", tint: .green) }
-                if epics.queued > 0 { StatusChip(text: "\(epics.queued) queued", tint: .blue) }
+                if epics.needsYou > 0 { StatusChip(text: Copy.watchingNeedsYou(count: epics.needsYou), tint: .orange) }
+                if epics.running > 0 { StatusChip(text: Copy.watchingRunning(count: epics.running), tint: .green) }
+                if epics.queued > 0 { StatusChip(text: Copy.watchingQueued(count: epics.queued), tint: .blue) }
             }
             .fixedSize()
         }
@@ -106,9 +106,9 @@ private struct WatchingRowView: View {
 
     private var health: String {
         switch row.health {
-        case .ok: "Healthy"
-        case .error: "Error"
-        case .unknown: "Not checked"
+        case .ok: Copy.watchingHealth(which: .ok)
+        case .error: Copy.watchingHealth(which: .error)
+        case .unknown: Copy.watchingHealth(which: .unknown)
         }
     }
 }
@@ -130,9 +130,9 @@ struct WatchPicker: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Tokens.Space.s8) {
-            TextField("", text: $query, prompt: Text("Search your projects")).accessibilityLabel("Search your projects").settingsField(icon: .search)
+            TextField("", text: $query, prompt: Text(Copy.watchingSearchProjects())).accessibilityLabel(Copy.watchingSearchProjects()).settingsField(icon: .search)
             if shown.isEmpty {
-                Text(choices.isEmpty ? "Every project with a GitHub origin is watched." : "No project matches.").scaledFont(12).foregroundStyle(.secondary)
+                Text(choices.isEmpty ? Copy.watchingEveryWatched() : Copy.watchingNoMatch()).scaledFont(12).foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .center).padding(.vertical, Tokens.Space.s18)
             } else {
                 ScrollView {
@@ -144,8 +144,8 @@ struct WatchPicker: View {
             }
             Divider()
             HStack(spacing: Tokens.Space.s8) {
-                Button(action: addProject) { Label("Add project…", icon: .folderPlus) }.buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
-                Text("Clone one from GitHub or open a folder").scaledFont(11).foregroundStyle(.secondary)
+                Button(action: addProject) { Label(Copy.watchingAddProject(), icon: .folderPlus) }.buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
+                Text(Copy.watchingCloneOrOpen()).scaledFont(11).foregroundStyle(.secondary)
             }
         }
         .padding(Tokens.Space.s12).frame(width: 360)
@@ -167,6 +167,6 @@ struct WatchPicker: View {
             .opacity(choice.canWatch ? 1 : 0.5)
         }
         .buttonStyle(.plain).disabled(choice.canWatch == false)
-        .accessibilityHint(choice.canWatch ? "Watches it" : (choice.reason ?? ""))
+        .accessibilityHint(choice.canWatch ? Copy.watchingWatchesIt() : (choice.reason ?? ""))
     }
 }

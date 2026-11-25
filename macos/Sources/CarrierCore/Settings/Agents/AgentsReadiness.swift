@@ -7,9 +7,16 @@ import Foundation
 public struct RoleProblem: Equatable, Identifiable {
     public let role: AgentRole
     public let text: String
+    /// The text with the role's name in front, in the language it was made in.
+    public let line: String
     /// A role can have several, so the line is the id, not the role.
     public var id: String { line }
-    public var line: String { "\(role.title): \(text)" }
+
+    public init(role: AgentRole, text: String, bundle: Bundle? = nil, locale: Locale = .current) {
+        self.role = role
+        self.text = text
+        line = Copy.agentsProblemLine(role: role.title(bundle: bundle, locale: locale), text: text, bundle: bundle, locale: locale)
+    }
 }
 
 public struct AgentsReadiness: Equatable {
@@ -26,21 +33,26 @@ public struct AgentsReadiness: Equatable {
 
 /// Whether Author, Reviewer and (when it is on) the Lead reviewer each have an identity, an account of `providers.json` and a model. It says nothing
 /// of whether an account is signed in: that is the Providers page's answer.
-public func agentsReadiness(_ page: AgentsPage) -> AgentsReadiness {
+public func agentsReadiness(_ page: AgentsPage, bundle: Bundle? = nil, locale: Locale = .current) -> AgentsReadiness {
     let active = page.rows.filter { $0.off == false }
     var problems: [RoleProblem] = []
     for row in active {
         switch row.identity {
         case .forge, .gh: break
-        case .missing: problems.append(RoleProblem(role: row.role, text: "the identity “\(row.fields.profile ?? "")” is not in Agent Forge or in profiles. Choose another."))
-        case .unset: problems.append(RoleProblem(role: row.role, text: "it has no identity yet."))
+        case .missing:
+            problems.append(RoleProblem(role: row.role, text: Copy.agentsProblemIdentity(profile: row.fields.profile ?? "", bundle: bundle, locale: locale), bundle: bundle, locale: locale))
+        case .unset: problems.append(RoleProblem(role: row.role, text: Copy.agentsProblemNoIdentity(bundle: bundle, locale: locale), bundle: bundle, locale: locale))
         }
         if let provider = row.fields.provider, provider.isEmpty == false {
-            if row.providerMissing { problems.append(RoleProblem(role: row.role, text: "the account “\(provider)” is not in providers.json.")) }
+            if row.providerMissing {
+                problems.append(RoleProblem(role: row.role, text: Copy.agentsProblemAccount(provider: provider, bundle: bundle, locale: locale), bundle: bundle, locale: locale))
+            }
         } else {
-            problems.append(RoleProblem(role: row.role, text: "it has no account yet."))
+            problems.append(RoleProblem(role: row.role, text: Copy.agentsProblemNoAccount(bundle: bundle, locale: locale), bundle: bundle, locale: locale))
         }
-        if row.fields.model?.isEmpty ?? true { problems.append(RoleProblem(role: row.role, text: "it has no model yet.")) }
+        if row.fields.model?.isEmpty ?? true {
+            problems.append(RoleProblem(role: row.role, text: Copy.agentsProblemNoModel(bundle: bundle, locale: locale), bundle: bundle, locale: locale))
+        }
     }
     let lead = page.rows.first { $0.role == .leadReviewer }
     var notes: [String]
@@ -48,12 +60,12 @@ public func agentsReadiness(_ page: AgentsPage) -> AgentsReadiness {
     let tone: AgentsReadiness.Tone
     if problems.isEmpty {
         tone = .ready
-        title = lead?.off == true ? "Author and Reviewer are set up" : "All three roles are set up"
-        notes = [lead?.off == true ? "The Lead reviewer is off." : "Each has an identity, an account and a model."]
+        title = lead?.off == true ? Copy.agentsTwoSet(bundle: bundle, locale: locale) : Copy.agentsAllSet(bundle: bundle, locale: locale)
+        notes = [lead?.off == true ? Copy.agentsLeadOff(bundle: bundle, locale: locale) : Copy.agentsEachHas(bundle: bundle, locale: locale)]
     } else {
         tone = .attention
         let roles = Set(problems.map(\.role)).count
-        title = roles == 1 ? "One role needs attention" : "\(roles) roles need attention"
+        title = Copy.agentsNeedAttention(count: roles, bundle: bundle, locale: locale)
         notes = problems.map(\.line)
     }
     if let shared = page.sharedNote { notes.append(shared) }
@@ -72,15 +84,19 @@ public struct RoleStage: Equatable, Identifiable {
 extension AgentRole {
     /// What the engine runs for the role, in the order an epic goes through it. The Lead reviewer has no stage here: the engine runs it,
     /// once after the reviewers agree, but the app does not list its skills yet.
-    public var stages: [RoleStage] {
+    public func stages(bundle: Bundle? = nil, locale: Locale = .current) -> [RoleStage] {
         switch self {
         case .author: [
-            RoleStage(title: "First pass", detail: "Drains the epic into its own worktree and leaves the final pull request open", skill: "ship"),
-            RoleStage(title: "Answering a review", detail: "Answers every finding of the last review and fixes what applies", skill: "code-resolve"),
+            RoleStage(
+                title: Copy.agentsStageTitle(which: .first, bundle: bundle, locale: locale), detail: Copy.agentsStageDetail(which: .first, bundle: bundle, locale: locale), skill: "ship"),
+            RoleStage(
+                title: Copy.agentsStageTitle(which: .answer, bundle: bundle, locale: locale), detail: Copy.agentsStageDetail(which: .answer, bundle: bundle, locale: locale), skill: "code-resolve"),
         ]
         case .reviewer: [
-            RoleStage(title: "Review", detail: "Checks the epic against its spec and tickets", skill: "code-review"),
-            RoleStage(title: "Post findings", detail: "Publishes the findings on the pull request", skill: "code-post"),
+            RoleStage(
+                title: Copy.agentsStageTitle(which: .review, bundle: bundle, locale: locale), detail: Copy.agentsStageDetail(which: .review, bundle: bundle, locale: locale), skill: "code-review"),
+            RoleStage(
+                title: Copy.agentsStageTitle(which: .post, bundle: bundle, locale: locale), detail: Copy.agentsStageDetail(which: .post, bundle: bundle, locale: locale), skill: "code-post"),
         ]
         case .leadReviewer: []
         }

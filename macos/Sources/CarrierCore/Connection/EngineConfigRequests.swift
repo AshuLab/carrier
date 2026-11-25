@@ -164,15 +164,17 @@ public typealias SendEngineConfig = (EngineConfigChange) async throws -> EngineC
 
 /// Sends `change` and keeps what the engine answered in `status`, which every page that saves listens to; as the pages save: `.saved` when the file is saved (the engine may still have kept
 /// its settings, which `status` says), `.refused` with the words, code and key path the schema gave when the change was refused, and `.failed` when nothing could be asked.
-@MainActor public func saveEngineConfig(_ change: EngineConfigChange, send: SendEngineConfig, status: ReloadStatus? = nil) async -> RoleSave {
+@MainActor public func saveEngineConfig(
+    _ change: EngineConfigChange, send: SendEngineConfig, status: ReloadStatus? = nil, bundle: Bundle? = nil, locale: Locale = .current
+) async -> RoleSave {
     do {
         (status ?? .shared).record(try await send(change).outcome)
         return .saved
     } catch ControlError.remote(let refusal) {
-        return .refused(refusal.shown())
+        return .refused(refusal.shown(bundle: bundle, locale: locale))
     } catch {
         FileHandle.standardError.write(Data("carrier: saving engine.json failed: \(error)\n".utf8))
-        return .failed("Could not save the config file: \(error.localizedDescription)")
+        return .failed(Copy.engineSaveFailed(reason: error.localizedDescription, bundle: bundle, locale: locale))
     }
 }
 

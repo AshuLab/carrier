@@ -20,7 +20,9 @@ public struct EngineFile: Equatable {
     public let action: Action
     public let exists: Bool
     /// The button's words: its verb, or "Not created yet" (the button is disabled) while the path is missing.
-    public var buttonTitle: String { exists ? (action == .reveal ? "Reveal" : "Open") : "Not created yet" }
+    public func buttonTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        Copy.engineFileButton(which: exists ? (action == .reveal ? .reveal : .open) : .missing, bundle: bundle, locale: locale)
+    }
 }
 
 public struct EngineRow: Equatable {
@@ -76,63 +78,68 @@ public struct EngineGroup: Equatable {
 /// `folder` is the Carrier folder; `exists` says whether a path is there (a folder or a file).
 public func engineGroups(
     configured: Bool, programs: EnginePrograms, identity: EngineIdentity?, identityFailure: String? = nil, folder: String, home: String,
-    exists: (String) -> Bool
+    exists: (String) -> Bool, bundle: Bundle? = nil, locale: Locale = .current
 ) -> [EngineGroup] {
     func file(_ id: EngineRowID, _ title: String, _ detail: String, _ path: String, _ action: EngineFile.Action) -> EngineRow {
         EngineRow(id: id, title: title, detail: detail, file: EngineFile(shown: tildePath(path, home: home), path: path, action: action, exists: exists(path)))
     }
     let places = ["CARRIER_HOME": folder]
     return [
-        EngineGroup(id: "starting", title: "Starting", rows: [
+        EngineGroup(id: "starting", title: Copy.engineGroupStarting(bundle: bundle, locale: locale), rows: [
             EngineRow(
-                id: .startOnOpen, title: "Start Carrier when the app opens",
-                detail: configured ? "Carrier starts working on ready epics as soon as the app opens" : "Does nothing until the engine is configured"
+                id: .startOnOpen, title: Copy.engineStartOnOpenTitle(bundle: bundle, locale: locale),
+                detail: configured ? Copy.engineStartOnOpenDetail(bundle: bundle, locale: locale) : Copy.engineStartOnOpenNotConfigured(bundle: bundle, locale: locale)
             ),
-            EngineRow(id: .confirmStop, title: "Ask before stopping Carrier", detail: "Only when stopping would interrupt epics that are running"),
+            EngineRow(id: .confirmStop, title: Copy.engineConfirmStopTitle(bundle: bundle, locale: locale), detail: Copy.engineConfirmStopDetail(bundle: bundle, locale: locale)),
         ]),
-        EngineGroup(id: "programs", title: "Programs", rows: programRows(programs)),
-        EngineGroup(id: "github-identity", title: "GitHub identity", rows: [
+        EngineGroup(id: "programs", title: Copy.engineGroupPrograms(bundle: bundle, locale: locale), rows: programRows(programs, bundle: bundle, locale: locale)),
+        EngineGroup(id: "github-identity", title: Copy.engineGroupGitHub(bundle: bundle, locale: locale), rows: [
             EngineRow(
-                id: .orchestratorProfile, title: "Carrier acts on GitHub as",
-                detail: configured ? "Reads issues and PRs and changes labels. Default is the author's identity" : "Available once the engine is configured",
-                problem: identityFailure ?? identityProblem(configured: configured, identity: identity)
+                id: .orchestratorProfile, title: Copy.engineProfileTitle(bundle: bundle, locale: locale),
+                detail: configured ? Copy.engineProfileDetail(bundle: bundle, locale: locale) : Copy.engineProfileNotConfigured(bundle: bundle, locale: locale),
+                problem: identityFailure ?? identityProblem(configured: configured, identity: identity, bundle: bundle, locale: locale)
             ),
         ]),
-        EngineGroup(id: "files", title: "Files", rows: [
-            file(.carrierFolder, "Carrier folder", "Where Carrier keeps its config, clones and logs", folder, .reveal),
-            file(.logs, "Logs", "What Carrier wrote while it ran", CarrierPlaces(environment: places, home: home).engineLogs, .reveal),
-            file(.startLog, "Start log", "What the app saw the last time it started Carrier", CarrierPlaces(environment: places, home: home).engineStartLog, .open),
+        EngineGroup(id: "files", title: Copy.engineGroupFiles(bundle: bundle, locale: locale), rows: [
+            file(.carrierFolder, Copy.engineFolderTitle(bundle: bundle, locale: locale), Copy.engineFolderDetail(bundle: bundle, locale: locale), folder, .reveal),
+            file(.logs, Copy.engineLogsTitle(bundle: bundle, locale: locale), Copy.engineLogsDetail(bundle: bundle, locale: locale), CarrierPlaces(environment: places, home: home).engineLogs, .reveal),
+            file(
+                .startLog, Copy.engineStartLogTitle(bundle: bundle, locale: locale), Copy.engineStartLogDetail(bundle: bundle, locale: locale),
+                CarrierPlaces(environment: places, home: home).engineStartLog, .open),
         ]),
     ]
 }
 
 /// A file that is there but is not a JSON object says so; one that names an undeclared profile says it is kept.
-private func identityProblem(configured: Bool, identity: EngineIdentity?) -> String? {
-    guard let identity else { return configured ? "engine.json in the Carrier folder could not be read or is not a JSON object" : nil }
-    return identity.undeclared.map { "“\($0)” is not in profiles; it is kept until you pick another" }
+private func identityProblem(configured: Bool, identity: EngineIdentity?, bundle: Bundle?, locale: Locale) -> String? {
+    guard let identity else { return configured ? Copy.engineIdentityUnreadable(bundle: bundle, locale: locale) : nil }
+    return identity.undeclared.map { Copy.engineIdentityUndeclared(name: $0, bundle: bundle, locale: locale) }
 }
 
 /// What a row says of a version: still reading, the version, or that the program did not answer (a problem).
-private func versionLine(_ version: String?, read: Bool, program: String) -> (detail: String?, problem: String?) {
-    guard read else { return ("Reading version…", nil) }
-    guard let version else { return (nil, "Did not answer “\(program) --version”") }
-    return ("Version \(version.trimmingPrefix("v"))", nil)
+private func versionLine(_ version: String?, read: Bool, program: String, bundle: Bundle?, locale: Locale) -> (detail: String?, problem: String?) {
+    guard read else { return (Copy.engineVersionReading(bundle: bundle, locale: locale), nil) }
+    guard let version else { return (nil, Copy.engineVersionNoAnswer(program: program, bundle: bundle, locale: locale)) }
+    return (Copy.engineVersion(version: String(version.trimmingPrefix("v")), bundle: bundle, locale: locale), nil)
 }
 
-private func programRows(_ programs: EnginePrograms) -> [EngineRow] {
+/// The programs' names are the commands, not words: the same in every language.
+private let carrierProgram = "carrier", nodeProgram = "node", pathVariable = "PATH"
+
+private func programRows(_ programs: EnginePrograms, bundle: Bundle?, locale: Locale) -> [EngineRow] {
     let setup = programs.setup
     let nodeFound = setup.node.isEmpty == false
-    var carrierRow = EngineRow(id: .carrier, title: "carrier", detail: "", note: programs.carrier ?? "Not found", offersHomebrew: programs.carrierIsOwn)
+    var carrierRow = EngineRow(id: .carrier, title: carrierProgram, detail: "", note: programs.carrier ?? Copy.engineNotFound(bundle: bundle, locale: locale), offersHomebrew: programs.carrierIsOwn)
     if let carrier = programs.carrier {
         // a script with no node is not run for its version: the node row already says what is missing
         let version = carrierNeedsNode(carrier) && nodeFound == false
-            ? (detail: nil, problem: nil) : versionLine(programs.carrierVersion, read: programs.versionsRead, program: "carrier")
-        carrierRow.detail = [programs.carrierIsOwn ? "Your own carrier" : nil, version.detail].compactMap { $0 }.joined(separator: " · ")
-        carrierRow.problem = programs.carrierRuns ? version.problem : "Nothing runs at this path"
+            ? (detail: nil, problem: nil) : versionLine(programs.carrierVersion, read: programs.versionsRead, program: carrierProgram, bundle: bundle, locale: locale)
+        carrierRow.detail = [programs.carrierIsOwn ? Copy.engineOwnCarrier(bundle: bundle, locale: locale) : nil, version.detail].compactMap { $0 }.joined(separator: " · ")
+        carrierRow.problem = programs.carrierRuns ? version.problem : Copy.engineNothingRuns(bundle: bundle, locale: locale)
     }
-    var nodeRow = EngineRow(id: .node, title: "node", detail: "", note: nodeFound ? setup.node : "Not found")
+    var nodeRow = EngineRow(id: .node, title: nodeProgram, detail: "", note: nodeFound ? setup.node : Copy.engineNotFound(bundle: bundle, locale: locale))
     if nodeFound {
-        let version = versionLine(programs.nodeVersion, read: programs.versionsRead, program: "node")
+        let version = versionLine(programs.nodeVersion, read: programs.versionsRead, program: nodeProgram, bundle: bundle, locale: locale)
         nodeRow.detail = version.detail ?? ""
         nodeRow.problem = version.problem
     }
@@ -140,13 +147,13 @@ private func programRows(_ programs: EnginePrograms) -> [EngineRow] {
         carrierRow,
         nodeRow,
         EngineRow(
-            id: .path, title: "PATH",
-            detail: setup.path.isEmpty ? "Not found yet, so the engine and the chat host start from the system's" : "What the engine and the chat host run with",
+            id: .path, title: pathVariable,
+            detail: setup.path.isEmpty ? Copy.enginePathMissing(bundle: bundle, locale: locale) : Copy.enginePathDetail(bundle: bundle, locale: locale),
             note: enginePath(detected: setup.path, node: setup.node)
         ),
         EngineRow(
-            id: .lookAgain, title: "Look for the tools again",
-            detail: "Asks your shell where node and the PATH are. Use it after installing a tool while the app was open"
+            id: .lookAgain, title: Copy.engineLookAgainTitle(bundle: bundle, locale: locale),
+            detail: Copy.engineLookAgainDetail(bundle: bundle, locale: locale)
         ),
     ]
 }

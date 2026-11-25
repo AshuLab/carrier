@@ -22,7 +22,7 @@ struct ReadinessBannerView: View {
                 Text(banner.detail).scaledFont(11).foregroundStyle(.secondary)
             }
             Spacer(minLength: 8)
-            Button(action: detectAgain) { Label("Detect", icon: .refresh).labelStyle(.titleAndIcon) }
+            Button(action: detectAgain) { Label(Copy.engineDetect(), icon: .refresh).labelStyle(.titleAndIcon) }
                 .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).disabled(detecting)
         }
         .padding(.horizontal, Tokens.Space.s14).padding(.vertical, Tokens.Space.s12)
@@ -39,7 +39,7 @@ struct StatusDot: View {
         Glyph(found ? .check : .exclamation, size: 11, bold: true).foregroundStyle(.white)
             .frame(width: 18, height: 18)
             .background(Circle().fill(found ? Color.green : Color.orange))
-            .accessibilityElement(children: .ignore).accessibilityLabel(found ? "Found" : "Not found")
+            .accessibilityElement(children: .ignore).accessibilityLabel(found ? Copy.engineFound() : Copy.engineNotFound())
     }
 }
 
@@ -51,10 +51,10 @@ struct CarrierChoice: View {
     var body: some View {
         HStack(spacing: Tokens.Space.s8) {
             if offersHomebrew {
-                Button { setup.carrierOverride = "" } label: { Label("Use the Homebrew one", icon: .undo).labelStyle(.titleAndIcon) }
+                Button { setup.carrierOverride = "" } label: { Label(Copy.engineUseHomebrew(), icon: .undo).labelStyle(.titleAndIcon) }
                     .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
             }
-            Button { choose() } label: { Label("Use another…", icon: .folderPlus).labelStyle(.titleAndIcon) }
+            Button { choose() } label: { Label(Copy.engineUseAnother(), icon: .folderPlus).labelStyle(.titleAndIcon) }
                 .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
         }
     }
@@ -65,7 +65,7 @@ struct CarrierChoice: View {
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = false
         panel.showsHiddenFiles = true
-        panel.prompt = "Choose"
+        panel.prompt = Copy.engineChoose()
         if panel.runModal() == .OK, let url = panel.url { setup.carrierOverride = url.path }
     }
 }

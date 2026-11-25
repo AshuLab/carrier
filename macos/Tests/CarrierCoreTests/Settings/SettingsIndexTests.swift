@@ -47,7 +47,8 @@ import Testing
 }
 
 @Test func theIndexReadsTheRowsOfTheBehaviorAndKeybindingsPagesFromTheirOwnModels() {
-    for group in behaviorGroups { for row in group.rows { #expect(settingsIndex.contains { $0.page == .behavior && $0.groupID == group.id && $0.rowID == row.key && $0.title == row.title }) } }
+    let groups = behaviorGroups(bundle: english.bundle, locale: english.locale)
+    for group in groups { for row in group.rows { #expect(settingsIndex.contains { $0.page == .behavior && $0.groupID == group.id && $0.rowID == row.key && $0.title == row.title }) } }
     for command in ShortcutCommand.allCases {
         #expect(settingsIndex.contains { $0.page == .keybindings && $0.groupID == command.group.rawValue && $0.rowID == command.rawValue && $0.title == command.title })
     }

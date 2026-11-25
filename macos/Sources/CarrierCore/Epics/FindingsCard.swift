@@ -21,11 +21,11 @@ public enum FindingMark: Equatable {
         }
     }
 
-    public var text: String {
+    public func text(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         switch self {
-        case .new: "new"
-        case .carried: "carried"
-        case .fixed: "fixed"
+        case .new: Copy.epicsMarkNew(bundle: bundle, locale: locale)
+        case .carried: Copy.epicsMarkCarried(bundle: bundle, locale: locale)
+        case .fixed: Copy.epicsMarkFixed(bundle: bundle, locale: locale)
         }
     }
 }
@@ -62,8 +62,6 @@ public struct FindingsCard: Equatable {
     public var prURL: String?
 }
 
-private func plural(_ n: Int, _ noun: String) -> String { "\(n) \(noun)\(n == 1 ? "" : "s")" }
-
 private func normal(_ title: String) -> String { title.split(whereSeparator: \.isWhitespace).joined(separator: " ").lowercased() }
 
 /// The same finding in two rounds: by id when both have one, else by title (the Review tab's rule).
@@ -77,15 +75,19 @@ private func row(_ blocker: EpicReply.Blocker, mark: FindingMark?, approximate: 
 }
 
 /// "2 blockers · 1 suggestion": the open blockers (with "open" once some are fixed), the fixed ones, the suggestions.
-func findingsSummary(_ rows: [FindingRow]) -> String {
+func findingsSummary(_ rows: [FindingRow], bundle: Bundle? = nil, locale: Locale = .current) -> String {
     let open = rows.filter { $0.kind == .blocker && $0.isFixed == false }.count
     let fixed = rows.filter { $0.kind == .blocker && $0.isFixed }.count
     let suggestions = rows.filter { $0.kind == .suggestion }.count
-    if rows.isEmpty { return "no findings" }
+    if rows.isEmpty { return Copy.epicsFindingsNone(bundle: bundle, locale: locale) }
     var parts: [String] = []
-    if open > 0 { parts.append(plural(open, "blocker") + (fixed > 0 ? " open" : "")) } else if fixed == 0 { parts.append("0 blockers") }
-    if fixed > 0 { parts.append("\(fixed) fixed") }
-    if suggestions > 0 { parts.append(plural(suggestions, "suggestion")) }
+    if open > 0 {
+        parts.append(fixed > 0 ? Copy.epicsBlockersOpen(count: open, bundle: bundle, locale: locale) : Copy.epicsBlockers(count: open, bundle: bundle, locale: locale))
+    } else if fixed == 0 {
+        parts.append(Copy.epicsBlockers(count: 0, bundle: bundle, locale: locale))
+    }
+    if fixed > 0 { parts.append(Copy.epicsFindingsFixed(count: fixed, bundle: bundle, locale: locale)) }
+    if suggestions > 0 { parts.append(Copy.epicsSuggestions(count: suggestions, bundle: bundle, locale: locale)) }
     return parts.joined(separator: " · ")
 }
 
@@ -96,7 +98,7 @@ func findingsSummary(_ rows: [FindingRow]) -> String {
 /// the observations. The fixer's is what the round left to answer: the open blockers, each marked fixed once the next round verified it
 /// (the next round lists it as fixed), or, after an approved round, its observations (the observations pass). A round number that
 /// repeats, as after a requeue, is read as its latest.
-public func findingsCard(_ reply: EpicReply?, stage: String, round: Int?) -> FindingsCard? {
+public func findingsCard(_ reply: EpicReply?, stage: String, round: Int?, bundle: Bundle? = nil, locale: Locale = .current) -> FindingsCard? {
     guard let reply, let round, stage == "review" || stage == "fix", let index = reply.rounds.lastIndex(where: { $0.round == round }) else { return nil }
     let found = reply.rounds[index]
     let later = reply.rounds.dropFirst(index + 1).first
@@ -115,7 +117,8 @@ public func findingsCard(_ reply: EpicReply?, stage: String, round: Int?) -> Fin
     guard stage == "review" || rows.isEmpty == false else { return nil }
     let ready = found.verdict == "approved"
     return FindingsCard(
-        round: round, verdict: ready ? .ready : .changesRequested, title: ready ? "Ready" : "Changes requested", summary: findingsSummary(rows), rows: rows,
+        round: round, verdict: ready ? .ready : .changesRequested, title: ready ? Copy.epicsFindingsReady(bundle: bundle, locale: locale) : Copy.epicsFindingsChangesRequested(bundle: bundle, locale: locale),
+        summary: findingsSummary(rows, bundle: bundle, locale: locale), rows: rows,
         prNumber: reply.pr?.number, prURL: reply.pr?.url
     )
 }

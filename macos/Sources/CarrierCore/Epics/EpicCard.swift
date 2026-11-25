@@ -27,40 +27,46 @@ public struct EpicCard: Equatable {
     public var repo: String
 }
 
-public func epicCard(_ subject: EpicSubject, now: Int) -> EpicCard {
-    let header = epicHeader(subject)
+public func epicCard(_ subject: EpicSubject, now: Int, bundle: Bundle? = nil, locale: Locale = .current) -> EpicCard {
+    let header = epicHeader(subject, bundle: bundle, locale: locale)
     var steps: [EpicCard.Step] = []
     var facts: [EpicCard.Fact] = []
     var times: [String] = []
-    func ago(_ label: String, _ at: Int?) { if let at { times.append("\(label) \(agoLine(at, now: now))") } }
+    func ago(_ when: Copy.EpicsCardTime, _ at: Int?) {
+        if let at { times.append(Copy.epicsCardTime(when: when, ago: agoLine(at, now: now, bundle: bundle, locale: locale), bundle: bundle, locale: locale)) }
+    }
+    func say(_ key: (Bundle?, Locale) -> String) -> String { key(bundle, locale) }
 
     switch subject {
     case .queued(let epic, _):
-        ago("queued", epic.queuedAt)
+        ago(.queued, epic.queuedAt)
     case .active(let epic):
-        steps = pipelineSteps(subject).dropFirst().map { step in
-            let progress: Double? = switch step.name {
-            case "Ship": epic.slices.flatMap { $0.total > 0 ? Double($0.done) / Double($0.total) : nil }
-            case "Review / Fix": epic.round.map { Double($0) / Double(max(epic.maxReviews, 1)) }
+        steps = pipelineSteps(subject, bundle: bundle, locale: locale).dropFirst().enumerated().map { index, step in
+            // Ship, Review / Fix, then Ready
+            let progress: Double? = switch index {
+            case 0: epic.slices.flatMap { $0.total > 0 ? Double($0.done) / Double($0.total) : nil }
+            case 1: epic.round.map { Double($0) / Double(max(epic.maxReviews, 1)) }
             default: nil
             }
             return EpicCard.Step(name: step.name, state: step.state, progress: step.state == .done || step.state == .waiting ? nil : progress)
         }
-        facts.append(.init(label: "In this step", value: formatDuration(now - epic.stageSince)))
-        if let round = roundLine(epic) { facts.append(.init(label: "Review", value: round)) }
-        if let slices = epic.slices, slices.total > 0 { facts.append(.init(label: "Slices", value: "\(slices.done)/\(slices.total) closed")) }
-        ago("queued", epic.queuedAt)
-        ago("started", epic.startedAt)
+        facts.append(.init(label: say(Copy.epicsCardInThisStep), value: formatDuration(now - epic.stageSince)))
+        if let round = roundLine(epic, bundle: bundle, locale: locale) { facts.append(.init(label: say(Copy.epicsCardReview), value: round)) }
+        if let slices = epic.slices, slices.total > 0 {
+            facts.append(.init(label: say(Copy.epicsDetailsLabelSlices), value: Copy.epicsCardClosed(done: slices.done, total: slices.total, bundle: bundle, locale: locale)))
+        }
+        ago(.queued, epic.queuedAt)
+        ago(.started, epic.startedAt)
     case .finished(let done):
-        steps = pipelineSteps(subject).dropFirst().map { EpicCard.Step(name: $0.name, state: $0.state, progress: nil) }
-        ago("finished", done.finishedAt)
+        steps = pipelineSteps(subject, bundle: bundle, locale: locale).dropFirst().map { EpicCard.Step(name: $0.name, state: $0.state, progress: nil) }
+        ago(.finished, done.finishedAt)
     case .ended(let epic):
-        steps = pipelineSteps(subject).dropFirst().map { EpicCard.Step(name: $0.name, state: $0.state, progress: nil) }
-        if epic.status == .cancelled, let reason = epic.cancelReason, reason.isEmpty == false { facts.append(.init(label: "Reason", value: reason)) }
-        ago("finished", epic.finishedAt)
+        steps = pipelineSteps(subject, bundle: bundle, locale: locale).dropFirst().map { EpicCard.Step(name: $0.name, state: $0.state, progress: nil) }
+        if epic.status == .cancelled, let reason = epic.cancelReason, reason.isEmpty == false { facts.append(.init(label: say(Copy.epicsCardReason), value: reason)) }
+        ago(.finished, epic.finishedAt)
     }
-    if let pr = header.prLabel { facts.append(.init(label: "PR", value: String(pr.dropFirst(3)))) }
-    if case .active(let epic) = subject, let branch = epic.branch, branch.isEmpty == false { facts.append(.init(label: "Branch", value: branch, kind: .branch)) }
+    if let pr = header.prNumber { facts.append(.init(label: say(Copy.epicsCardPr), value: "#\(pr)")) }
+    if case .active(let epic) = subject, let branch = epic.branch, branch.isEmpty == false { facts.append(.init(label: say(Copy.epicsDetailsLabelBranch), value: branch, kind: .branch)) }
 
     return EpicCard(title: header.title, name: header.repo.split(separator: "/").last.map(String.init) ?? header.repo, subtitle: header.subtitle, steps: steps, facts: facts, timeline: times.isEmpty ? nil : times.joined(separator: " · "), repo: header.repo)
 }

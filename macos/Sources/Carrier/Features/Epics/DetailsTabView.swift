@@ -104,23 +104,23 @@ private struct DetailsBadge: View {
 }
 
 private extension DetailsRow {
-    /// An SF Symbol for the row, by its label; a plain dot for one this app does not know.
+    /// An SF Symbol for the row, by what it says; a plain dot for one this app does not know.
     var icon: AppIcon {
-        switch label {
-        case "Stage": .flag
-        case "Last activity": .activity
-        case "Started": .calendar
-        case "Total time": .timer
-        case "Slices": .stack
-        case "Review round": .refresh
-        case "Blockers": .hand
-        case "Pull request": .gitPullRequest
-        case "Checks": .shieldCheck
-        case "Branch": .gitBranch
-        case "Agent": .cpu
-        case "Lanes": .layoutGrid
-        case "Repository": .package
-        default: .circleFilled
+        switch field {
+        case .stage: .flag
+        case .lastActivity: .activity
+        case .started: .calendar
+        case .totalTime: .timer
+        case .slices: .stack
+        case .reviewRound: .refresh
+        case .blockers: .hand
+        case .pullRequest: .gitPullRequest
+        case .checks: .shieldCheck
+        case .branch: .gitBranch
+        case .agent: .cpu
+        case .lanes: .layoutGrid
+        case .repository: .package
+        case .other: .circleFilled
         }
     }
 }

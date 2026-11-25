@@ -26,13 +26,15 @@ struct FindingsCardView: View {
         VStack(alignment: .leading, spacing: Tokens.Space.none) {
             header
                 .accessibilityElement(children: .ignore)
-                .accessibilityLabel("\(card.title), \(card.summary), \(roundText)\(card.prNumber.map { ", pull request \($0)" } ?? "")")
+                .accessibilityLabel(
+                    [card.title, card.summary, roundText, card.prNumber.map { Copy.epicsFindingsPrSpoken(number: String($0)) }].compactMap { $0 }.joined(separator: ", ")
+                )
             if foldsRows {
                 SettingsDivider()
                 Button { flipCard { suggestionsOpen.toggle() } } label: { foldLine }
                     .buttonStyle(.plain)
                     .accessibilityLabel(card.summary)
-                    .accessibilityHint(suggestionsOpen ? "Hides the findings" : "Shows the findings")
+                    .accessibilityHint(suggestionsOpen ? Copy.epicsFindingsHide() : Copy.epicsFindingsShow())
             }
             if foldsRows == false || suggestionsOpen {
                 ForEach(Array(card.rows.enumerated()), id: \.offset) { _, row in
@@ -44,8 +46,8 @@ struct FindingsCardView: View {
                 SettingsDivider()
                 Button(action: toggleEvidence) { foot(verification) }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("Verified, \(ciVerdictText(verification.verdict))")
-                    .accessibilityHint(evidenceOpen ? "Hides the evidence" : "Shows the evidence")
+                    .accessibilityLabel(Copy.epicsVerifiedSpoken(verdict: ciVerdictText(verification.verdict)))
+                    .accessibilityHint(evidenceOpen ? Copy.epicsEvidenceHide() : Copy.epicsEvidenceShow())
                 if evidenceOpen { EvidenceBlock(text: verification.evidence).padding(.top, Tokens.Space.s8) }
             }
         }
@@ -53,7 +55,7 @@ struct FindingsCardView: View {
         .workCard()
     }
 
-    private var roundText: String { "Round \(card.round)" + (reviewer.map { " · \($0)" } ?? "") }
+    private var roundText: String { [Copy.sessionPlaceRound(round: String(card.round)), reviewer].compactMap { $0 }.joined(separator: " · ") }
 
     private var header: some View {
         HStack(spacing: Tokens.Space.s8) {
@@ -77,7 +79,7 @@ struct FindingsCardView: View {
     /// The one line an approval's suggestions wait behind.
     private var foldLine: some View {
         HStack(spacing: Tokens.Space.s8) {
-            Text(plural(card.rows.count, "suggestion")).scaledFont(12.5).foregroundStyle(.secondary)
+            Text(Copy.epicsSuggestions(count: card.rows.count)).scaledFont(12.5).foregroundStyle(.secondary)
             Spacer(minLength: 8)
             CardChevron(open: suggestionsOpen, width: 12)
         }
@@ -88,15 +90,13 @@ struct FindingsCardView: View {
 
     private func foot(_ ci: ResultCard.CI) -> some View {
         HStack(spacing: Tokens.Space.s8) {
-            Text("Verified · \(ciVerdictText(ci.verdict))").scaledFont(12).foregroundStyle(.secondary).lineLimit(1)
+            Text(Copy.epicsVerified(verdict: ciVerdictText(ci.verdict))).scaledFont(12).foregroundStyle(.secondary).lineLimit(1)
             Spacer(minLength: 8)
             CardChevron(open: evidenceOpen)
         }
         .padding(.horizontal, Tokens.Space.s10).frame(height: 30).frame(maxWidth: .infinity)
         .contentShape(Rectangle())
     }
-
-    private func plural(_ n: Int, _ noun: String) -> String { "\(n) \(noun)\(n == 1 ? "" : "s")" }
 }
 
 /// A finding: its kind as a word, its id, what it says and, at the right, its mark and the arrow that shows under the pointer. With a link
@@ -108,7 +108,7 @@ private struct FindingRowView: View {
         if let link = row.url.flatMap(browserURL) {
             Link(destination: link) { content(linked: true) }
                 .buttonStyle(.plain).help(link.absoluteString)
-                .accessibilityHint("Opens the discussion")
+                .accessibilityHint(Copy.epicsFindingsOpensDiscussion())
         } else {
             content(linked: false)
         }
@@ -118,7 +118,7 @@ private struct FindingRowView: View {
         HStack(alignment: .top, spacing: Tokens.Space.s10) {
             VStack(alignment: .leading, spacing: Tokens.Space.s3) {
                 HStack(spacing: Tokens.Space.s8) {
-                    Text(row.kind == .blocker ? "BLOCKER" : "SUGGESTION").scaledFont(10.5, weight: .bold).foregroundStyle(kindTint)
+                    Text(kindWord).textCase(.uppercase).scaledFont(10.5, weight: .bold).foregroundStyle(kindTint)
                     if let id = row.id { Text(id).scaledFont(12, weight: .semibold, design: .monospaced).lineLimit(1).truncationMode(.middle) }
                 }
                 Text(row.text).scaledFont(12.5).foregroundStyle(.secondary).lineSpacing(2).fixedSize(horizontal: false, vertical: true)
@@ -135,8 +135,12 @@ private struct FindingRowView: View {
         .contentShape(Rectangle())
         .modifier(HoverFillIf(enabled: linked))
         .accessibilityElement(children: .combine)
-        .accessibilityLabel([row.kind == .blocker ? "Blocker" : "Suggestion", row.id, row.text, row.mark.map { $0.text + (row.approximate ? " approximately" : "") }].compactMap { $0 }.joined(separator: ", "))
+        .accessibilityLabel(
+            [kindWord, row.id, row.text, row.mark.map { row.approximate ? Copy.epicsFindingApproximately(mark: $0.text()) : $0.text() }].compactMap { $0 }.joined(separator: ", ")
+        )
     }
+
+    private var kindWord: String { row.kind == .blocker ? Copy.epicsFindingBlocker() : Copy.epicsFindingSuggestion() }
 
     /// Orange for a blocker, grey for a suggestion, green once verified fixed.
     private var kindTint: Color {
@@ -151,10 +155,10 @@ private struct FindingRowView: View {
         case .fixed: .green
         }
         // an approximate mark was found by matching titles; the words say so
-        return Text(mark.text + (row.approximate ? " ≈" : "")).scaledFont(10.5, weight: .semibold).foregroundStyle(tint)
+        return Text(mark.text() + (row.approximate ? " ≈" : "")).scaledFont(10.5, weight: .semibold).foregroundStyle(tint)
             .padding(.horizontal, Tokens.Space.s8).padding(.vertical, Tokens.Space.s1)
             .background(Capsule().fill(tint.opacity(0.16)))
-            .help(row.approximate ? "The reviewer gave no ids, so this mark comes from matching titles" : "")
+            .help(row.approximate ? Copy.epicsFindingApproximateHelp() : "")
     }
 }
 

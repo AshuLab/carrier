@@ -22,20 +22,20 @@ extension Attention {
 
 extension EpicMenuState {
     /// What the state is called where it has no words beside it.
-    public var label: String {
+    public func label(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         switch self {
-        case .needsYou: "Needs attention"
-        case .running: "Running"
-        case .waiting: "Up next"
-        case .ready: "Ready for test"
-        case .done: "Done"
-        case .cancelled: "Cancelled"
+        case .needsYou: Copy.epicsStateNeedsAttention(bundle: bundle, locale: locale)
+        case .running: Copy.epicsStateRunning(bundle: bundle, locale: locale)
+        case .waiting: Copy.epicsStateUpNext(bundle: bundle, locale: locale)
+        case .ready: Copy.epicsStateReady(bundle: bundle, locale: locale)
+        case .done: Copy.epicsStateDone(bundle: bundle, locale: locale)
+        case .cancelled: Copy.epicsStateCancelled(bundle: bundle, locale: locale)
         }
     }
 
     /// The glyph of the state: a turning ring while it runs, a disc with a mark when it needs you (red when `attention` says it failed), a hollow circle while
     /// it waits, a blue disc with a tick when it is ready, and a green or grey one when it is done or cancelled.
-    public func glyphLook(attention: Attention? = nil) -> StateGlyphLook {
+    public func glyphLook(attention: Attention? = nil, bundle: Bundle? = nil, locale: Locale = .current) -> StateGlyphLook {
         let (form, tint, mark): (StateGlyphLook.Form, GlyphTint, String) =
             switch self {
             case .running: (.ring, .green, "")
@@ -45,6 +45,6 @@ extension EpicMenuState {
             case .done: (.disc, .green, "✓")
             case .cancelled: (.disc, .gray, "✕")
             }
-        return StateGlyphLook(form: form, tint: tint, mark: mark, shape: shape(attention: attention), label: label)
+        return StateGlyphLook(form: form, tint: tint, mark: mark, shape: shape(attention: attention), label: label(bundle: bundle, locale: locale))
     }
 }

@@ -7,7 +7,7 @@ struct QueuedPlanView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Tokens.Space.none) {
-            Text("WHEN IT STARTS").font(.caption.weight(.semibold)).foregroundStyle(.tertiary).padding(.bottom, Tokens.Space.s6)
+            Text(Copy.epicsPlanHeading()).textCase(.uppercase).font(.caption.weight(.semibold)).foregroundStyle(.tertiary).padding(.bottom, Tokens.Space.s6)
             ForEach(plan.rows, id: \.number) { row in
                 if row.number > 1 { Divider() }
                 HStack(spacing: Tokens.Space.s12) {

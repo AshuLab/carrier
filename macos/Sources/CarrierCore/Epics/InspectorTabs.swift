@@ -6,7 +6,13 @@ import Foundation
 public enum InspectorTab: String, CaseIterable {
     case slices, review, details
 
-    public var title: String { rawValue.prefix(1).uppercased() + rawValue.dropFirst() }
+    public func title(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch self {
+        case .slices: Copy.epicsTabSlices(bundle: bundle, locale: locale)
+        case .review: Copy.epicsTabReview(bundle: bundle, locale: locale)
+        case .details: Copy.epicsTabDetails(bundle: bundle, locale: locale)
+        }
+    }
 }
 
 /// The tab the person picked, kept in user defaults so it holds for every epic and survives a relaunch.

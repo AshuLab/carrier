@@ -15,7 +15,7 @@ struct ResumeCardView: View {
     var body: some View {
         NoticeCard(symbol: .exclamation, tint: card.attention.color, title: card.title, detail: card.words) {
             if card.showsButton {
-                Button { confirming = true } label: { Label(resuming ? "Resuming…" : "Resume", icon: .playFilled) }
+                Button { confirming = true } label: { Label(resuming ? Copy.epicsResuming() : Copy.epicsResume(), icon: .playFilled) }
                     .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).labelStyle(.titleAndIcon).disabled(resuming)
             }
         } below: {
@@ -26,18 +26,18 @@ struct ResumeCardView: View {
 
     private var confirmation: some View {
         VStack(alignment: .leading, spacing: Tokens.Space.s12) {
-            Text("Resume this epic?").font(.title3.weight(.semibold))
+            Text(Copy.epicsResumeQuestion()).font(.title3.weight(.semibold))
             VStack(alignment: .leading, spacing: Tokens.Space.s6) {
                 ForEach(card.sheet, id: \.self) { line in Text("• " + line) }
             }
             HStack(spacing: Tokens.Space.s10) {
                 Spacer()
-                Button { confirming = false } label: { Label("Cancel", icon: .close) }
+                Button { confirming = false } label: { Label(Copy.epicsCancel(), icon: .close) }
                     .buttonStyle(SecondaryCapsuleButtonStyle()).keyboardShortcut(.cancelAction)
                 Button {
                     confirming = false
                     resume()
-                } label: { Label("Resume", icon: .playFilled) }
+                } label: { Label(Copy.epicsResume(), icon: .playFilled) }
                     .buttonStyle(PrimaryCapsuleButtonStyle()).keyboardShortcut(.defaultAction)
             }
             .labelStyle(.titleAndIcon).padding(.top, Tokens.Space.s10)

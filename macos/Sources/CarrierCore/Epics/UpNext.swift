@@ -10,10 +10,11 @@ public struct UpNextRow: Equatable {
     public var line: String
 }
 
-public func upNext(_ snapshot: PanelSnapshot) -> [UpNextRow] {
+public func upNext(_ snapshot: PanelSnapshot, bundle: Bundle? = nil, locale: Locale = .current) -> [UpNextRow] {
     snapshot.queue.enumerated().map { index, epic in
-        let header = epicHeader(.queued(epic, position: index + 1))
-        let waiting = epic.queuedAt.map { " · waiting \(formatDuration(snapshot.now - $0))" } ?? ""
-        return UpNextRow(selection: .epic(repo: epic.repo, issue: epic.issue), title: header.title, line: "\(ordinal(index + 1)) in queue\(waiting)")
+        let header = epicHeader(.queued(epic, position: index + 1), bundle: bundle, locale: locale)
+        let waiting = epic.queuedAt.map { Copy.epicsUpNextWaiting(duration: formatDuration(snapshot.now - $0), bundle: bundle, locale: locale) }
+        let line = [queuePlaceLine(index + 1, bundle: bundle, locale: locale), waiting].compactMap { $0 }.joined(separator: " · ")
+        return UpNextRow(selection: .epic(repo: epic.repo, issue: epic.issue), title: header.title, line: line)
     }
 }

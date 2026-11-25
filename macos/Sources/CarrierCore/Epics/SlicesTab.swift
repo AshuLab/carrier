@@ -6,11 +6,11 @@ import Foundation
 public enum SliceGroup: CaseIterable, Hashable {
     case merged, inProgress, pending
 
-    public var title: String {
+    public func title(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         switch self {
-        case .merged: "Merged"
-        case .inProgress: "In progress"
-        case .pending: "Pending"
+        case .merged: Copy.epicsGroupMerged(bundle: bundle, locale: locale)
+        case .inProgress: Copy.epicsGroupInProgress(bundle: bundle, locale: locale)
+        case .pending: Copy.epicsGroupPending(bundle: bundle, locale: locale)
         }
     }
 }
@@ -48,17 +48,17 @@ public enum SlicesUnavailable: Equatable {
         }
     }
 
-    public var title: String {
+    public func title(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         switch self {
-        case .notShared: "Slice list unavailable"
-        case .notReadYet: "Reading the slices"
+        case .notShared: Copy.epicsSlicesUnavailableTitle(bundle: bundle, locale: locale)
+        case .notReadYet: Copy.epicsSlicesReadingTitle(bundle: bundle, locale: locale)
         }
     }
 
-    public var line: String {
+    public func line(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         switch self {
-        case .notShared: "This Carrier shares totals only. The count above still updates."
-        case .notReadYet: "Carrier has not read them from GitHub yet. They appear after its next check."
+        case .notShared: Copy.epicsSlicesUnavailableLine(bundle: bundle, locale: locale)
+        case .notReadYet: Copy.epicsSlicesReadingLine(bundle: bundle, locale: locale)
         }
     }
 }
@@ -84,12 +84,16 @@ public struct SlicesTabModel: Equatable {
     /// The ring's counts in `SliceGroup.allCases` order.
     public var counts: [Int] { SliceGroup.allCases.map { group in legend.first { $0.group == group }?.count ?? 0 } }
     public var centre: String { "\(merged)/\(total)" }
-    public var caption: String { merged == total && total > 0 ? "all merged" : "merged" }
+    public func caption(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        merged == total && total > 0 ? Copy.epicsSlicesAllMerged(bundle: bundle, locale: locale) : Copy.epicsSlicesMerged(bundle: bundle, locale: locale)
+    }
 }
 
 /// Every non-skipped slice by number, filtered. A queued epic has nothing in progress: its open slices all wait. A filter whose group has no slices
 /// behaves as `.all`. Without the `epic` list the snapshot's counts make the ring (merged and pending) and the list is replaced by an empty state.
-public func slicesTabModel(_ subject: EpicSubject?, reply: EpicReply?, filter: SliceFilter = .all, now: Int) -> SlicesTabModel {
+public func slicesTabModel(
+    _ subject: EpicSubject?, reply: EpicReply?, filter: SliceFilter = .all, now: Int, bundle: Bundle? = nil, locale: Locale = .current
+) -> SlicesTabModel {
     let slices = (reply?.slices ?? []).filter { $0.state != "skipped" }.sorted { $0.number < $1.number }
     var rows: [SliceRow] = []
     let titles = Dictionary((reply?.slices ?? []).map { ($0.number, $0.title) }, uniquingKeysWith: { first, _ in first })
@@ -98,12 +102,13 @@ public func slicesTabModel(_ subject: EpicSubject?, reply: EpicReply?, filter: S
     for slice in slices {
         let (group, detail): (SliceGroup, String)
         switch slice.state {
-        case "closed": (group, detail) = (.merged, slice.closedAt.map { agoLine($0, now: now) } ?? "merged")
+        case "closed": (group, detail) = (.merged, slice.closedAt.map { agoLine($0, now: now, bundle: bundle, locale: locale) } ?? Copy.sidebarMerged(bundle: bundle, locale: locale))
         case "in_progress" where queued == false:
-            let hints = [slice.lane.map { "lane \($0)" }, slice.activity].compactMap { $0 }
-            (group, detail) = (.inProgress, hints.first.map { _ in hints.joined(separator: " · ") } ?? "working")
+            let hints = [slice.lane.map { Copy.epicsSliceLaneHint(number: $0, bundle: bundle, locale: locale) }, slice.activity].compactMap { $0 }
+            (group, detail) = (.inProgress, hints.first.map { _ in hints.joined(separator: " · ") } ?? Copy.epicsWorking(bundle: bundle, locale: locale))
         default:
-            (group, detail) = (.pending, slice.blockedBy.isEmpty ? "ready to start" : "after " + slice.blockedBy.map { "#\($0)" + (titles[$0].map { " \($0)" } ?? "") }.joined(separator: ", "))
+            let blockers = slice.blockedBy.map { "#\($0)" + (titles[$0].map { " \($0)" } ?? "") }.joined(separator: ", ")
+            (group, detail) = (.pending, slice.blockedBy.isEmpty ? Copy.epicsSliceReady(bundle: bundle, locale: locale) : Copy.epicsSliceAfter(blockers: blockers, bundle: bundle, locale: locale))
         }
         let base = subject.map { "https://github.com/\($0.repo)" }
         rows.append(SliceRow(

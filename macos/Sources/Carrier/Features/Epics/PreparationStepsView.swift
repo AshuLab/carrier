@@ -48,10 +48,10 @@ struct PreparationStepsView: View {
                 }
                 Spacer(minLength: 0)
                 switch preparation {
-                case .failed: Button("Try again", action: retry).buttonStyle(.glassProminent).buttonBorderShape(.capsule).controlSize(.small)
+                case .failed: Button(Copy.epicsTryAgain(), action: retry).buttonStyle(.glassProminent).buttonBorderShape(.capsule).controlSize(.small)
                 case .running:
                     // its shape shows on hover; the shape reaches a little into the card's margin so the word keeps its place near the edge
-                    Button(action: cancel) { Text("Cancel").padding(.horizontal, Tokens.Space.s10).padding(.vertical, Tokens.Space.s5).contentShape(Rectangle()) }
+                    Button(action: cancel) { Text(Copy.epicsCancel()).padding(.horizontal, Tokens.Space.s10).padding(.vertical, Tokens.Space.s5).contentShape(Rectangle()) }
                         .buttonStyle(HoverFillButtonStyle()).foregroundStyle(.secondary).padding(.trailing, -Tokens.Space.s4)
                 case nil: EmptyView()
                 }
@@ -73,18 +73,19 @@ struct PreparationStepsView: View {
     }
 
     private func title(slow: Bool, elapsed: TimeInterval) -> String {
-        guard let current else { return "Preparing the session…" }
-        if slow { return "Still waiting for the agent · \(clock(elapsed))" }
+        guard let current else { return Copy.epicsPrepPreparing() }
+        if slow { return Copy.epicsPrepStillWaiting(clock: clock(elapsed)) }
         if failed == false, elapsed >= Self.timerAfter { return "\(current.line) · \(clock(elapsed))" }
         return current.line
     }
 
     private func subtitle(slow: Bool) -> String {
-        if failed { return current?.reason ?? "The preparation stopped." }
-        if slow { return "It usually answers in a few seconds. It may be busy, or not signed in." }
-        guard let current, let index = items.firstIndex(of: current) else { return "Getting everything ready" }
-        let clone = current.step == "clone" ? " · only this first time" : ""
-        return "Step \(index + 1) of \(items.count)\(clone)"
+        if failed { return current?.reason ?? Copy.epicsPrepStopped() }
+        if slow { return Copy.epicsPrepSlowDetail() }
+        guard let current, let index = items.firstIndex(of: current) else { return Copy.epicsPrepReady() }
+        return current.step == "clone"
+            ? Copy.epicsPrepStepFirstTime(step: index + 1, total: items.count)
+            : Copy.epicsPrepStep(step: index + 1, total: items.count)
     }
 
     private func clock(_ seconds: TimeInterval) -> String {

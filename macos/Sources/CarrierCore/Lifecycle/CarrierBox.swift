@@ -50,7 +50,7 @@ public struct CarrierBox: Equatable {
 }
 
 public func carrierBox(_ snapshot: PanelSnapshot, bundle: Bundle? = nil, locale: Locale = .current) -> CarrierBox {
-    var rows = [CarrierBox.Row(label: Copy.lifecycleBoxNextCheck(bundle: bundle, locale: locale), value: nextCheckLine(snapshot).replacingOccurrences(of: "next check ", with: ""))]
+    var rows = [CarrierBox.Row(label: Copy.lifecycleBoxNextCheck(bundle: bundle, locale: locale), value: nextCheckValue(snapshot, bundle: bundle, locale: locale))]
     if let limit = snapshot.engine?.rateLimit {
         let reset = limit.resetAt <= snapshot.now
             ? Copy.lifecycleBoxRateReset(bundle: bundle, locale: locale)
@@ -66,7 +66,7 @@ public func carrierBox(_ snapshot: PanelSnapshot, bundle: Bundle? = nil, locale:
             url: "github.com/\(watched.repo)",
             status: watched.ok ? (snapshot.paused ? .paused : .watching) : .failing,
             ok: watched.ok,
-            lastCheck: watched.lastCheckedAt.map { agoLine($0, now: snapshot.now) } ?? Copy.lifecycleBoxNotChecked(bundle: bundle, locale: locale),
+            lastCheck: watched.lastCheckedAt.map { agoLine($0, now: snapshot.now, bundle: bundle, locale: locale) } ?? Copy.lifecycleBoxNotChecked(bundle: bundle, locale: locale),
             error: watched.ok ? nil : (watched.error ?? Copy.lifecycleBoxCheckFailed(bundle: bundle, locale: locale))
         )
     }
@@ -77,7 +77,7 @@ public func carrierBox(_ snapshot: PanelSnapshot, bundle: Bundle? = nil, locale:
         actionTitle: paused ? Copy.lifecycleIntakeResume(bundle: bundle, locale: locale) : Copy.lifecycleIntakePause(bundle: bundle, locale: locale)
     )
     return CarrierBox(
-        title: Copy.lifecycleBoxTitle(bundle: bundle, locale: locale), uptime: uptimeLine(snapshot), problem: snapshot.problem, rows: rows,
+        title: Copy.lifecycleBoxTitle(bundle: bundle, locale: locale), uptime: uptimeLine(snapshot, bundle: bundle, locale: locale), problem: snapshot.problem, rows: rows,
         intake: intake, repos: repos, repoCount: snapshot.watched?.count ?? snapshot.repos
     )
 }

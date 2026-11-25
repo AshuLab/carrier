@@ -50,7 +50,7 @@ struct EpicView: View {
         .accessibilityHidden(subagents.isEmpty == false)
         .overlay {
             if let work {
-                SubagentView(work: work, backToChat: { subagents = [] }, backTitle: "Back to Agent output")
+                SubagentView(work: work, backToChat: { subagents = [] }, backTitle: Copy.epicsToolbarBackToOutput())
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(Color.themeWindow)
             }
@@ -69,7 +69,7 @@ struct EpicView: View {
                 EpicHeaderView(header: epicHeader(subject, reply: reply))
                 UnderlineTabs(
                     items: EpicTab.allCases.map { item in
-                        UnderlineTabs.Item(id: item, title: item.title, icon: item.icon, count: item == .filesChanged && filesChanged > 0 ? "\(filesChanged)" : nil)
+                        UnderlineTabs.Item(id: item, title: item.title(), icon: item.icon, count: item == .filesChanged && filesChanged > 0 ? "\(filesChanged)" : nil)
                     },
                     selection: $tab
                 )
@@ -103,7 +103,7 @@ struct EpicView: View {
             EmptyStateView(state: empty).frame(minHeight: 260)
             if let plan { QueuedPlanView(plan: plan) }
         } else if sessions.loaded == false {
-            LoadingStateView(title: "Loading activity", line: "Reading what the agents did on this epic.").frame(minHeight: 260)
+            LoadingStateView(title: Copy.epicsLoadingTitle(), line: Copy.epicsLoadingLine()).frame(minHeight: 260)
         } else if sessions.sections.isEmpty {
             if case .active(let epic) = subject, isStarting(epic) {
                 StartingView(epic: epic, reply: reply)
@@ -136,11 +136,11 @@ private struct EpicHeaderView: View {
                     StatePill(state: header.state, text: header.status)
                     if let url = URL(string: "https://github.com/\(header.repo)") {
                         Button { NSWorkspace.shared.open(url) } label: { Chip(text: header.repo, mark: GitHubMark.image, opens: true) }
-                            .buttonStyle(.plain).help("Open the repository")
+                            .buttonStyle(.plain).help(Copy.epicsOpenRepository())
                     }
                     if let url = browserURL(header.issueURL) {
                         Button { NSWorkspace.shared.open(url) } label: { Chip(text: "#\(header.issue)", mark: nil, opens: true) }
-                            .buttonStyle(.plain).help("Open the issue")
+                            .buttonStyle(.plain).help(Copy.epicsOpenIssueHelp())
                     }
                     ForEach(header.labels, id: \.self) { label in
                         Text(label).scaledFont(12, weight: .medium).padding(.horizontal, Tokens.Space.s8).padding(.vertical, Tokens.Space.s2)
@@ -268,12 +268,12 @@ struct PipelineStepView: View {
 
     private var spoken: String {
         switch step.state {
-        case .done: "done"
-        case .current: "in progress"
-        case .waiting: "not started"
-        case .input: "needs your input"
-        case .error: "failed"
-        case .cancelled: "cancelled"
+        case .done: Copy.epicsStepSpokenDone()
+        case .current: Copy.epicsStepSpokenCurrent()
+        case .waiting: Copy.epicsStepSpokenWaiting()
+        case .input: Copy.epicsStepSpokenInput()
+        case .error: Copy.epicsStepSpokenError()
+        case .cancelled: Copy.epicsStepSpokenCancelled()
         }
     }
 
@@ -315,8 +315,8 @@ struct EpicLinks: View {
     var body: some View {
         let pr = prURL.flatMap(browserURL), issue = issueURL.flatMap(browserURL)
         HStack(spacing: Tokens.Space.none) {
-            if let pr { ToolbarPillButton(title: "Open PR", mark: GitHubMark.image) { NSWorkspace.shared.open(pr) }.help("Open the pull request") }
-            if let issue { ToolbarPillButton(title: "Open issue", icon: .hash) { NSWorkspace.shared.open(issue) }.help("Open the issue") }
+            if let pr { ToolbarPillButton(title: Copy.epicsOpenPr(), mark: GitHubMark.image) { NSWorkspace.shared.open(pr) }.help(Copy.epicsOpenPullRequestHelp()) }
+            if let issue { ToolbarPillButton(title: Copy.epicsOpenIssue(), icon: .hash) { NSWorkspace.shared.open(issue) }.help(Copy.epicsOpenIssueHelp()) }
         }
         .glassEffect(.regular, in: .capsule)
     }

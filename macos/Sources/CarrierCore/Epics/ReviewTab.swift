@@ -15,12 +15,12 @@ public enum ReviewMark: Equatable {
     case carriedOver
     case fixed
 
-    public var text: String {
+    public func text(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         switch self {
-        case .new: "new"
-        case .since(let round): "since R\(round)"
-        case .carriedOver: "carried over"
-        case .fixed: "fixed"
+        case .new: Copy.epicsMarkNew(bundle: bundle, locale: locale)
+        case .since(let round): Copy.epicsMarkSince(round: round, bundle: bundle, locale: locale)
+        case .carriedOver: Copy.epicsMarkCarriedOver(bundle: bundle, locale: locale)
+        case .fixed: Copy.epicsMarkFixed(bundle: bundle, locale: locale)
         }
     }
 }
@@ -163,7 +163,7 @@ private func same(_ a: Blocker, _ b: Blocker) -> Bool {
 /// The blockers a round left open: the reply also lists, marked fixed, the earlier ones that disappeared.
 private func open(_ round: EpicReply.Round) -> [Blocker] { round.blockers.filter { $0.mark != "fixed" } }
 
-public func reviewTab(_ subject: EpicSubject?, reply: EpicReply?) -> ReviewTabModel {
+public func reviewTab(_ subject: EpicSubject?, reply: EpicReply?, bundle: Bundle? = nil, locale: Locale = .current) -> ReviewTabModel {
     let rounds = reply?.rounds ?? []
     var epic: PanelEpic?
     if case .active(let active)? = subject { epic = active }
@@ -220,8 +220,8 @@ public func reviewTab(_ subject: EpicSubject?, reply: EpicReply?) -> ReviewTabMo
     /// `index` nil is the round being reviewed, which has no result yet.
     func view(_ index: Int?, round number: Int, latest: Bool) -> ReviewRoundView {
         let result = index.map { rounds[$0] }
-        let author = epic?.agents.map { agentLabel($0.author) } ?? "The author"
-        let reviewer = result.map { agentLabel($0.reviewer) } ?? epic?.agents.map { agentLabel($0.reviewer) } ?? "The reviewer"
+        let author = epic?.agents.map { agentLabel($0.author) } ?? Copy.epicsReviewTheAuthor(bundle: bundle, locale: locale)
+        let reviewer = result.map { agentLabel($0.reviewer) } ?? epic?.agents.map { agentLabel($0.reviewer) } ?? Copy.epicsReviewTheReviewer(bundle: bundle, locale: locale)
         let list = index.map(blockers) ?? []
         let nextExists = index.flatMap(next) != nil
         let isFixing = latest && fixing && result?.verdict == "changes_requested"
@@ -229,17 +229,19 @@ public func reviewTab(_ subject: EpicSubject?, reply: EpicReply?) -> ReviewTabMo
         var steps: [ReviewStep] = []
         guard let result else {
             steps = [
-                ReviewStep(number: 1, state: .current, title: "\(reviewer) is reviewing", subtitle: "round \(number)"),
-                ReviewStep(number: 2, state: .waiting, title: "Fix", subtitle: "if it finds blockers"),
-                ReviewStep(number: 3, state: .waiting, title: "Verdict", subtitle: "after the review"),
+                ReviewStep(number: 1, state: .current, title: Copy.epicsReviewIsReviewing(who: reviewer, bundle: bundle, locale: locale), subtitle: Copy.epicsReviewRound(round: number, bundle: bundle, locale: locale)),
+                ReviewStep(number: 2, state: .waiting, title: Copy.sessionPlaceFix(bundle: bundle, locale: locale), subtitle: Copy.epicsReviewIfBlockers(bundle: bundle, locale: locale)),
+                ReviewStep(number: 3, state: .waiting, title: Copy.epicsReviewVerdict(bundle: bundle, locale: locale), subtitle: Copy.epicsReviewAfterReview(bundle: bundle, locale: locale)),
             ]
-            return ReviewRoundView(id: rounds.count, round: number, chip: ReviewChip(text: "reviewing", tone: .live), delta: nil, steps: steps, approximate: false)
+            return ReviewRoundView(
+                id: rounds.count, round: number, chip: ReviewChip(text: Copy.epicsChipReviewing(bundle: bundle, locale: locale), tone: .live), delta: nil, steps: steps, approximate: false
+            )
         }
         let count = result.blockers.filter { $0.mark != "fixed" }.count
-        let counts = result.verdict == "approved" ? "no blockers" : "\(count) blocker\(count == 1 ? "" : "s")"
+        let counts = result.verdict == "approved" ? Copy.epicsNoBlockers(bundle: bundle, locale: locale) : Copy.epicsBlockers(count: count, bundle: bundle, locale: locale)
         steps.append(
             ReviewStep(
-                number: 1, state: .done, title: "\(reviewer) reviewed",
+                number: 1, state: .done, title: Copy.epicsReviewReviewed(who: reviewer, bundle: bundle, locale: locale),
                 subtitle: ([counts] + (result.reviewMs.map { [formatDuration($0)] } ?? [])).joined(separator: " · "), blockers: list,
                 observations: result.observations
             )
@@ -247,46 +249,55 @@ public func reviewTab(_ subject: EpicSubject?, reply: EpicReply?) -> ReviewTabMo
         let commits = result.commits
         if result.verdict == "changes_requested" || hasFix(result) {
             if isFixing {
-                steps.append(ReviewStep(number: 2, state: .current, title: "\(author) is fixing", subtitle: "fixing now"))
+                steps.append(ReviewStep(number: 2, state: .current, title: Copy.epicsReviewIsFixing(who: author, bundle: bundle, locale: locale), subtitle: Copy.epicsChipFixingNow(bundle: bundle, locale: locale)))
             } else if hasFix(result) {
                 steps.append(
                     ReviewStep(
                         number: 2, state: .done,
-                        title: commits.isEmpty ? "\(author) pushed a fix" : "\(author) pushed \(commits.count) commit\(commits.count == 1 ? "" : "s")",
+                        title: commits.isEmpty
+                            ? Copy.epicsReviewPushedFix(who: author, bundle: bundle, locale: locale)
+                            : Copy.epicsReviewPushedCommits(who: author, count: commits.count, bundle: bundle, locale: locale),
                         subtitle: result.fixMs.map(formatDuration) ?? "",
                         commits: commits.prefix(3).map { ReviewCommit(sha: String($0.sha.prefix(7)), subject: $0.subject) },
                         moreCommits: max(0, commits.count - 3)
                     )
                 )
             } else {
-                steps.append(ReviewStep(number: 2, state: .waiting, title: "Fix", subtitle: "waiting for the author"))
+                steps.append(ReviewStep(number: 2, state: .waiting, title: Copy.sessionPlaceFix(bundle: bundle, locale: locale), subtitle: Copy.epicsReviewWaitingAuthor(bundle: bundle, locale: locale)))
             }
         }
         switch result.verdict {
         case "approved":
-            steps.append(ReviewStep(number: 3, state: .done, title: "Approved", subtitle: "Ready for test"))
+            steps.append(ReviewStep(number: 3, state: .done, title: Copy.epicsReviewApproved(bundle: bundle, locale: locale), subtitle: EpicMenuState.ready.label(bundle: bundle, locale: locale)))
         case "limit_reached":
-            steps.append(ReviewStep(number: 3, state: .stopped, title: "Limit reached", subtitle: "Carrier stopped and is waiting for you"))
+            steps.append(
+                ReviewStep(number: 3, state: .stopped, title: Copy.epicsReviewLimit(bundle: bundle, locale: locale), subtitle: Copy.epicsReviewLimitDetail(bundle: bundle, locale: locale))
+            )
         default:
             steps.append(
                 nextExists
-                    ? ReviewStep(number: 3, state: .done, title: "Re-reviewed", subtitle: "in round \(number + 1)")
-                    : ReviewStep(number: 3, state: .waiting, title: "Re-review", subtitle: "\(reviewer) checks again when the fixes are in")
+                    ? ReviewStep(number: 3, state: .done, title: Copy.epicsReviewReReviewed(bundle: bundle, locale: locale), subtitle: Copy.epicsReviewInRound(round: number + 1, bundle: bundle, locale: locale))
+                    : ReviewStep(
+                        number: 3, state: .waiting, title: Copy.epicsReviewReReview(bundle: bundle, locale: locale),
+                        subtitle: Copy.epicsReviewChecksAgain(who: reviewer, bundle: bundle, locale: locale)
+                    )
             )
         }
 
         let chip: ReviewChip
         switch result.verdict {
-        case "approved": chip = ReviewChip(text: "approved", tone: .good)
-        case "limit_reached": chip = ReviewChip(text: "still open", tone: .attention)
+        case "approved": chip = ReviewChip(text: Copy.epicsChipApproved(bundle: bundle, locale: locale), tone: .good)
+        case "limit_reached": chip = ReviewChip(text: Copy.epicsChipStillOpen(bundle: bundle, locale: locale), tone: .attention)
         default:
             if isFixing {
-                chip = ReviewChip(text: "fixing now", tone: .live)
+                chip = ReviewChip(text: Copy.epicsChipFixingNow(bundle: bundle, locale: locale), tone: .live)
             } else if nextExists {
                 let carried = list.filter { $0.mark == .carriedOver }.count
-                chip = carried == 0 ? ReviewChip(text: "all fixed", tone: .good) : ReviewChip(text: "\(carried) carried over", tone: .attention)
+                chip = carried == 0
+                    ? ReviewChip(text: Copy.epicsChipAllFixed(bundle: bundle, locale: locale), tone: .good)
+                    : ReviewChip(text: Copy.epicsChipCarriedOver(count: carried, bundle: bundle, locale: locale), tone: .attention)
             } else {
-                chip = ReviewChip(text: "changes requested", tone: .neutral)
+                chip = ReviewChip(text: Copy.epicsChipChangesRequested(bundle: bundle, locale: locale), tone: .neutral)
             }
         }
 
@@ -310,22 +321,26 @@ public func reviewTab(_ subject: EpicSubject?, reply: EpicReply?) -> ReviewTabMo
     if pending {
         // after a requeue the numbering starts again from 1
         let number = epic?.round ?? latest.map { rounds[$0].verdict == "changes_requested" ? rounds[$0].round + 1 : 1 } ?? 1
-        card = ReviewCard(heading: "Now · Round \(number)", view: view(nil, round: number, latest: true))
+        card = ReviewCard(heading: Copy.epicsReviewHeading(kind: .now, round: number, bundle: bundle, locale: locale), view: view(nil, round: number, latest: true))
     } else if let latest, shipping == false {
         let round = view(latest, round: rounds[latest].round, latest: true)
-        card = ReviewCard(heading: "\(rounds[latest].verdict == "approved" ? "Result" : "Now") · Round \(rounds[latest].round)", view: round)
+        let kind: Copy.EpicsReviewHeading = rounds[latest].verdict == "approved" ? .result : .now
+        card = ReviewCard(heading: Copy.epicsReviewHeading(kind: kind, round: rounds[latest].round, bundle: bundle, locale: locale), view: round)
         historyEnd = latest
     }
     let history = rounds[..<historyEnd].indices.reversed().map { view($0, round: rounds[$0].round, latest: false) }
-    let headline = card.map { "round \($0.view.round)" + (maxReviews.map { " of \($0)" } ?? "") }
-    return ReviewTabModel(headline: headline, card: card, history: history, threads: reply?.threads.flatMap { $0.isEmpty && reply?.pr == nil ? nil : threadsModel($0, truncated: reply?.threadsTruncated == true) })
+    let headline = card.map { card in
+        maxReviews.map { Copy.epicsReviewHeadlineOf(round: card.view.round, max: $0, bundle: bundle, locale: locale) } ?? Copy.epicsReviewRound(round: card.view.round, bundle: bundle, locale: locale)
+    }
+    let threads = reply?.threads.flatMap { $0.isEmpty && reply?.pr == nil ? nil : threadsModel($0, truncated: reply?.threadsTruncated == true, bundle: bundle, locale: locale) }
+    return ReviewTabModel(headline: headline, card: card, history: history, threads: threads)
 }
 
-private func threadsModel(_ threads: [EpicReply.ReviewThread], truncated: Bool) -> ReviewThreadsModel {
+private func threadsModel(_ threads: [EpicReply.ReviewThread], truncated: Bool, bundle: Bundle?, locale: Locale) -> ReviewThreadsModel {
     let rows = (threads.filter { $0.resolved == false } + threads.filter(\.resolved)).map { thread in
-        let name = thread.author ?? "unknown"
+        let name = thread.author ?? Copy.epicsThreadUnknown(bundle: bundle, locale: locale)
         return ReviewThreadRow(
-            id: thread.id, author: thread.bot ? "\(name) (bot)" : name,
+            id: thread.id, author: thread.bot ? Copy.epicsThreadBot(name: name, bundle: bundle, locale: locale) : name,
             location: thread.line.map { "\(thread.path):\($0)" } ?? thread.path,
             resolved: thread.resolved, outdated: thread.outdated || thread.line == nil,
             firstLine: thread.firstLine.isEmpty ? nil : thread.firstLine, url: thread.url

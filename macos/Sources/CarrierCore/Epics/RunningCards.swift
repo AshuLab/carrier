@@ -56,29 +56,33 @@ public struct RunningSection: Equatable {
     public var room: FreeRoom
 }
 
-public func runningSection(_ snapshot: PanelSnapshot, time: TimeFormat = .stored()) -> RunningSection {
+public func runningSection(_ snapshot: PanelSnapshot, time: TimeFormat = .stored(), bundle: Bundle? = nil, locale: Locale = .current) -> RunningSection {
     let cards = snapshot.epics.filter { $0.status == .running }.map { epic in
         let sessions = (snapshot.sessions ?? []).filter { $0.repo == epic.repo && $0.issue == epic.issue }
-        let header = epicHeader(.active(epic))
-        let (line, progress, steps) = progress(epic)
+        let header = epicHeader(.active(epic), bundle: bundle, locale: locale)
+        let (line, progress, steps) = progress(epic, bundle: bundle, locale: locale)
         return RunningCard(
             selection: .epic(repo: epic.repo, issue: epic.issue), title: header.title, subtitle: header.subtitle,
-            progressLine: line, progress: progress, steps: steps, agents: sessions.map { agentRow($0, epic: epic, time: time) }
+            progressLine: line, progress: progress, steps: steps, agents: sessions.map { agentRow($0, epic: epic, time: time, bundle: bundle, locale: locale) }
         )
     }
-    return RunningSection(cards: cards, room: freeRoom(snapshot))
+    return RunningSection(cards: cards, room: freeRoom(snapshot, bundle: bundle, locale: locale))
 }
 
 /// ponytail: the role comes from the stage; the snapshot has a session for each running execution of an epic (an epic with several reviewers has several) and no lane, so a ship row has no lane label.
-func agentRow(_ session: PanelSnapshot.Session, epic: PanelEpic, time: TimeFormat = .stored()) -> AgentRow {
+func agentRow(_ session: PanelSnapshot.Session, epic: PanelEpic, time: TimeFormat = .stored(), bundle: Bundle? = nil, locale: Locale = .current) -> AgentRow {
     let agent = agentName(session.harness)
     let action = session.last?.text.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     return AgentRow(
         agent: agent, initial: session.harness == "codex" ? "X" : String(agent.prefix(1)),
-        role: ["ship": "Builder", "review": "Reviewer", "fix": "Fixer"][session.stage.rawValue] ?? session.stage.rawValue,
-        round: session.round.map { "round \($0)/\(epic.maxReviews)" },
-        action: action.isEmpty ? "working" : action,
-        since: "since " + clockTime(session.startedAt, time: time),
+        role: switch session.stage {
+        case .ship: Copy.sessionRoleShip(bundle: bundle, locale: locale)
+        case .review: Copy.sessionRoleReview(bundle: bundle, locale: locale)
+        case .fix: Copy.sessionRoleFix(bundle: bundle, locale: locale)
+        },
+        round: session.round.map { Copy.epicsRoundLine(round: $0, max: epic.maxReviews, bundle: bundle, locale: locale) },
+        action: action.isEmpty ? Copy.epicsWorking(bundle: bundle, locale: locale) : action,
+        since: Copy.epicsSince(time: clockTime(session.startedAt, time: time), bundle: bundle, locale: locale),
         running: epic.status == .running
     )
 }
@@ -93,20 +97,25 @@ func agentName(_ harness: String) -> String {
 }
 
 /// Slices merged over total in ship, round over maximum rounds otherwise.
-private func progress(_ epic: PanelEpic) -> (String, Double?, RunningCard.Steps?) {
+private func progress(_ epic: PanelEpic, bundle: Bundle?, locale: Locale) -> (String, Double?, RunningCard.Steps?) {
     if epic.stage == .ship || epic.stage == nil {
-        if let slices = epic.slices, let line = slicesLine(slices) {
+        if let slices = epic.slices, let line = slicesLine(slices, bundle: bundle, locale: locale) {
             return (line, Double(slices.done) / Double(slices.total), .init(done: slices.done, total: slices.total))
         }
-        return (epic.stage?.rawValue ?? "starting", nil, nil)
+        return (stageName(epic.stage, bundle: bundle, locale: locale), nil, nil)
     }
-    guard let round = epic.round, epic.maxReviews > 0 else { return (epic.stage?.rawValue ?? "starting", nil, nil) }
-    return ("round \(round)/\(epic.maxReviews)", Double(round) / Double(epic.maxReviews), .init(done: round, total: epic.maxReviews))
+    guard let round = epic.round, epic.maxReviews > 0 else { return (stageName(epic.stage, bundle: bundle, locale: locale), nil, nil) }
+    return (
+        Copy.epicsRoundLine(round: round, max: epic.maxReviews, bundle: bundle, locale: locale), Double(round) / Double(epic.maxReviews),
+        .init(done: round, total: epic.maxReviews)
+    )
 }
 
-private func freeRoom(_ snapshot: PanelSnapshot) -> FreeRoom {
+private func freeRoom(_ snapshot: PanelSnapshot, bundle: Bundle?, locale: Locale) -> FreeRoom {
     let (free, total) = (max(0, snapshot.slots.total - snapshot.slots.busy), snapshot.slots.total)
     let next = snapshot.queue.first.map { "\($0.repo.split(separator: "/").last.map(String.init) ?? $0.repo) #\($0.issue)" }
-    let line = next.map { "\($0) starts " + (free > 0 ? "on the next check" : "when one finishes") } ?? "Nothing waiting"
-    return FreeRoom(title: free > 0 ? "\(free) free" : "All \(total) in use", line: line, hasRoom: free > 0)
+    let line = next.map { free > 0 ? Copy.epicsRoomStartsNext(name: $0, bundle: bundle, locale: locale) : Copy.epicsRoomStartsWhenFree(name: $0, bundle: bundle, locale: locale) }
+        ?? Copy.epicsRoomNothing(bundle: bundle, locale: locale)
+    let title = free > 0 ? Copy.epicsRoomFree(count: free, bundle: bundle, locale: locale) : Copy.epicsRoomAllUsed(total: total, bundle: bundle, locale: locale)
+    return FreeRoom(title: title, line: line, hasRoom: free > 0)
 }

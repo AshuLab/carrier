@@ -42,11 +42,24 @@ public struct LaneSection: Equatable, Identifiable {
     public var isStarting: Bool { state == .running && items.isEmpty }
 
     /// "resumed once", "resumed 2 times"; nil for one that never ran again.
-    public var resumedLabel: String? { resumes > 0 ? "resumed " + (resumes == 1 ? "once" : "\(resumes) times") : nil }
+    public func resumedLabel(bundle: Bundle? = nil, locale: Locale = .current) -> String? {
+        resumes > 0 ? Copy.epicsLaneResumed(count: resumes, bundle: bundle, locale: locale) : nil
+    }
 }
 
 /// A subagent's latest run: running (a start with no end), finished (the end event completed) or failed (it did not complete).
 public enum SubagentState: Equatable { case running, finished, failed }
+
+/// The state of a slice's pull request as the lane's line names it; a state this app does not know is left out, like an older engine's.
+private func laneRequestState(_ state: String?) -> Copy.EpicsLanePullRequest {
+    switch state {
+    case "merged": .merged
+    case "open": .open
+    case "draft": .draft
+    case "closed": .closed
+    default: .plain
+    }
+}
 
 /// The digits right after `marker`, ignoring case: `number(after: "slice #", in: "Build slice #653")` is 653.
 func number(after marker: String, in text: String) -> Int? {
@@ -79,11 +92,13 @@ struct LaneState: Equatable {
     }
 
     /// `running` is whether the session is: a start with no end in one that is not did not complete.
-    func section(slices: [EpicReply.Slice], running: Bool, now: Int, time: TimeFormat) -> LaneSection {
+    func section(slices: [EpicReply.Slice], running: Bool, now: Int, time: TimeFormat, bundle: Bundle?, locale: Locale) -> LaneSection {
         let slice = description.flatMap { number(after: "slice #", in: $0) }
         let match = slice.flatMap { number in slices.first { $0.number == number } }
         let sliceTitle = match?.title
-        let pullRequest = match?.prNumber.map { "PR #\($0)" + (match?.prState.map { " \($0)" } ?? "") } ?? "no PR yet"
+        let pullRequest = match?.prNumber.map { number in
+            Copy.epicsLanePullRequest(state: laneRequestState(match?.prState), number: String(number), bundle: bundle, locale: locale)
+        } ?? Copy.epicsLaneNoPullRequest(bundle: bundle, locale: locale)
         // Progress `task` events carry `tool` and no `status`; lifecycle events are starts (`tool == nil`) and ends (`status != nil`).
         let runs = events.filter { $0.kind == "task" && ($0.status != nil || $0.tool == nil) }
         let start = runs.first { $0.status == nil }
@@ -100,10 +115,10 @@ struct LaneState: Equatable {
             : nil
         let timeLabel = start.flatMap { start in
             end.map { "\(clockTime(start.at, time: time))–\(clockTime($0.at, time: time))" }
-                ?? (state == .running ? "since \(clockTime(start.at, time: time))" : nil)
+                ?? (state == .running ? Copy.epicsSince(time: clockTime(start.at, time: time), bundle: bundle, locale: locale) : nil)
         }
         return LaneSection(
-            id: agentId, startId: (start ?? events[0]).id, title: sliceTitle ?? description ?? "Subagent", sliceTitle: sliceTitle,
+            id: agentId, startId: (start ?? events[0]).id, title: sliceTitle ?? description ?? Copy.epicsLaneSubagent(bundle: bundle, locale: locale), sliceTitle: sliceTitle,
             state: state,
             duration: start.flatMap { start in (end?.at ?? (state == .running ? now : nil)).map { $0 - start.at } },
             startedAt: start?.at, endedAt: end?.at,
@@ -119,17 +134,19 @@ extension Transcript {
     /// The session's list in event order: the main rows with the subagents at the place they were taken (`flowItems`). The main
     /// thread's call that launched a subagent shares its `callId` with the subagent's `task` start and is left out: the slice stands for it.
     public func flow(
-        slices: [EpicReply.Slice] = [], running: Bool = false, now: Int = Int(Date().timeIntervalSince1970 * 1000), time: TimeFormat = .stored()
+        slices: [EpicReply.Slice] = [], running: Bool = false, now: Int = Int(Date().timeIntervalSince1970 * 1000), time: TimeFormat = .stored(),
+        bundle: Bundle? = nil, locale: Locale = .current
     ) -> [FlowItem] {
         let launches = Set(lanes.flatMap { $0.events.filter { $0.kind == "task" && $0.status == nil }.compactMap(\.callId) })
         let launched = Set(events.filter { $0.agentId == nil && $0.callId.map(launches.contains) == true }.map(\.id))
-        return flowItems(items.filter { launched.contains($0.id) == false }, slices: laneSections(slices: slices, running: running, now: now, time: time), running: running)
+        return flowItems(items.filter { launched.contains($0.id) == false }, slices: laneSections(slices: slices, running: running, now: now, time: time, bundle: bundle, locale: locale), running: running)
     }
 
     /// The subagents with events, in order of appearance. Events with no agent id are in `items`.
     public func laneSections(
-        slices: [EpicReply.Slice] = [], running: Bool = false, now: Int = Int(Date().timeIntervalSince1970 * 1000), time: TimeFormat = .stored()
+        slices: [EpicReply.Slice] = [], running: Bool = false, now: Int = Int(Date().timeIntervalSince1970 * 1000), time: TimeFormat = .stored(),
+        bundle: Bundle? = nil, locale: Locale = .current
     ) -> [LaneSection] {
-        lanes.map { $0.section(slices: slices, running: running, now: now, time: time) }
+        lanes.map { $0.section(slices: slices, running: running, now: now, time: time, bundle: bundle, locale: locale) }
     }
 }

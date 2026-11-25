@@ -22,27 +22,27 @@ public struct YourTurnItem: Equatable {
 
 /// Order: the engine problem, then epics that need a person (most recent first), then finished epics in the snapshot's order.
 /// Empty means nothing needs the person: the view shows `EmptyState.nothingNeedsYou`.
-public func yourTurn(_ snapshot: PanelSnapshot) -> [YourTurnItem] {
+public func yourTurn(_ snapshot: PanelSnapshot, bundle: Bundle? = nil, locale: Locale = .current) -> [YourTurnItem] {
     func name(_ repo: String, _ issue: Int) -> String { "\(repo.split(separator: "/").last.map(String.init) ?? repo) #\(issue)" }
 
     let problem = snapshot.problem.map {
-        YourTurnItem(kind: .problem, title: "Carrier", detail: $0, selection: nil, issueLink: nil, prLink: nil)
+        YourTurnItem(kind: .problem, title: Copy.appName(bundle: bundle, locale: locale), detail: $0, selection: nil, issueLink: nil, prLink: nil)
     }
     // ponytail: recency is when the epic stopped, else its last activity, else its stage start; nothing better in the snapshot
     func stoppedAt(_ epic: PanelEpic) -> Int { epic.finishedAt ?? epic.lastActivityAt ?? epic.stageSince }
     let needsYou = snapshot.epics.filter { $0.status == .needsHuman }.sorted { stoppedAt($0) > stoppedAt($1) }.map { epic in
-        var parts = [needsYouLine(epic)]
-        if epic.blockers > 0 { parts.append("\(blockersLine(epic.blockers)) open") }
-        parts.append(agoLine(stoppedAt(epic), now: snapshot.now))
+        var parts = [needsYouLine(epic, bundle: bundle, locale: locale)]
+        if epic.blockers > 0 { parts.append(Copy.epicsBlockersOpen(count: epic.blockers, bundle: bundle, locale: locale)) }
+        parts.append(agoLine(stoppedAt(epic), now: snapshot.now, bundle: bundle, locale: locale))
         return YourTurnItem(
             kind: .needsYou, title: name(epic.repo, epic.issue), detail: parts.joined(separator: " · "),
             selection: .epic(repo: epic.repo, issue: epic.issue), issueLink: browserURL(epic.issueUrl), prLink: nil
         )
     }
     let ready = snapshot.done.map { done in
-        var parts = ["Ready for test"]
-        if let pr = done.prNumber { parts.append("PR #\(pr)") }
-        parts.append(agoLine(done.finishedAt, now: snapshot.now))
+        var parts = [EpicMenuState.ready.label(bundle: bundle, locale: locale)]
+        if let pr = done.prNumber { parts.append(Copy.sidebarPr(number: String(pr), bundle: bundle, locale: locale)) }
+        parts.append(agoLine(done.finishedAt, now: snapshot.now, bundle: bundle, locale: locale))
         return YourTurnItem(
             kind: .ready, title: name(done.repo, done.issue), detail: parts.joined(separator: " · "),
             selection: .epic(repo: done.repo, issue: done.issue), issueLink: nil, prLink: donePullURL(done).flatMap(browserURL)
@@ -52,11 +52,11 @@ public func yourTurn(_ snapshot: PanelSnapshot) -> [YourTurnItem] {
 }
 
 /// The kind, capitalised, then the engine's own reason when it adds something; review limit also says the round.
-private func needsYouLine(_ epic: PanelEpic) -> String {
-    let kind = interventionLine(epic)
+private func needsYouLine(_ epic: PanelEpic, bundle: Bundle?, locale: Locale) -> String {
+    let kind = interventionLine(epic, bundle: bundle, locale: locale)
     var line = kind.prefix(1).uppercased() + kind.dropFirst()
     if epic.needsHumanKind == "review_limit", let round = epic.round { line += " (\(round)/\(epic.maxReviews))" }
-    if epic.needsHumanKind != nil, let reason = epic.shownNeedsHumanReason(), reason.isEmpty == false, reason.lowercased() != kind.lowercased() {
+    if epic.needsHumanKind != nil, let reason = epic.shownNeedsHumanReason(bundle: bundle, locale: locale), reason.isEmpty == false, reason.lowercased() != kind.lowercased() {
         line += " · \(reason)"
     }
     return line

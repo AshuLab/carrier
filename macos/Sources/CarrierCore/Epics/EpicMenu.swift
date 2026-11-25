@@ -51,14 +51,14 @@ public struct EpicMenu: Equatable {
 }
 
 /// The section for `snapshot`, or nil when the setting is off or there are no epics. Order: needs attention, running, waiting, ready.
-public func epicMenu(_ snapshot: PanelSnapshot, showEpics: Bool) -> EpicMenu? {
+public func epicMenu(_ snapshot: PanelSnapshot, showEpics: Bool, bundle: Bundle? = nil, locale: Locale = .current) -> EpicMenu? {
     guard showEpics else { return nil }
     func name(_ repo: String, _ issue: Int) -> String { "\(repo.split(separator: "/").last.map(String.init) ?? repo) #\(issue)" }
 
     let needsYou = snapshot.epics.filter { $0.status == .needsHuman }.map { epic in
         EpicMenuItem(
             repo: epic.repo, issue: epic.issue, state: .needsYou, title: name(epic.repo, epic.issue),
-            detail: epic.shownNeedsHumanReason() ?? "needs attention", badge: slicesBadge(epic.slices)
+            detail: epic.shownNeedsHumanReason(bundle: bundle, locale: locale) ?? Copy.epicsMenuNeedsAttention(bundle: bundle, locale: locale), badge: slicesBadge(epic.slices)
         )
     }
     let running = snapshot.epics.filter { $0.status == .running }.map { epic in
@@ -67,23 +67,25 @@ public func epicMenu(_ snapshot: PanelSnapshot, showEpics: Bool) -> EpicMenu? {
         let badge = inReview ? roundBadge(epic) ?? slicesBadge(epic.slices) : slicesBadge(epic.slices)
         return EpicMenuItem(
             repo: epic.repo, issue: epic.issue, state: .running, title: name(epic.repo, epic.issue),
-            detail: [epic.stage?.rawValue, roundLine(epic)].compactMap { $0 }.joined(separator: " · ").nilIfEmpty ?? "starting", badge: badge
+            detail: [epic.stage.map { stageName($0, bundle: bundle, locale: locale) }, roundLine(epic, bundle: bundle, locale: locale)].compactMap { $0 }.joined(separator: " · ").nilIfEmpty
+                ?? Copy.sidebarStageStarting(bundle: bundle, locale: locale),
+            badge: badge
         )
     }
     let waiting = snapshot.queue.map {
-        EpicMenuItem(repo: $0.repo, issue: $0.issue, state: .waiting, title: name($0.repo, $0.issue), detail: "waiting", badge: nil)
+        EpicMenuItem(repo: $0.repo, issue: $0.issue, state: .waiting, title: name($0.repo, $0.issue), detail: Copy.epicsMenuWaiting(bundle: bundle, locale: locale), badge: nil)
     }
     let ready = snapshot.done.map {
         EpicMenuItem(
             repo: $0.repo, issue: $0.issue, state: .ready, title: name($0.repo, $0.issue),
-            detail: $0.prNumber.map { "ready for test · PR #\($0)" } ?? "ready for test", badge: nil
+            detail: $0.prNumber.map { Copy.epicsMenuReadyPr(number: String($0), bundle: bundle, locale: locale) } ?? Copy.sidebarReadyForTest(bundle: bundle, locale: locale), badge: nil
         )
     }
 
     let all = needsYou + running + waiting + ready
     guard all.isEmpty == false else { return nil }
     let hidden = all.count - EpicMenu.limit
-    return EpicMenu(items: Array(all.prefix(EpicMenu.limit)), more: hidden > 0 ? "… and \(hidden) more" : nil)
+    return EpicMenu(items: Array(all.prefix(EpicMenu.limit)), more: hidden > 0 ? Copy.epicsMenuMore(count: hidden, bundle: bundle, locale: locale) : nil)
 }
 
 private func roundBadge(_ epic: PanelEpic) -> String? { epic.round.map { "\($0)/\(epic.maxReviews)" } }

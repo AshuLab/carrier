@@ -140,8 +140,8 @@ struct AgentsTabView: View {
         // a Group and not a stack: the groups below are sections of the page's form
         Group {
             if row.hasSwitch {
-                SettingsGroup(title: "", footer: turningOnLead ? leadDraft.hint : nil) {
-                    SettingsTabRow(id: "use-a-lead-reviewer", title: "Use a lead reviewer", detail: row.switchDetail, first: true) {
+                SettingsGroup(title: "", footer: turningOnLead ? leadDraft.hint() : nil) {
+                    SettingsTabRow(id: "use-a-lead-reviewer", title: "Use a lead reviewer", detail: row.switchDetail(), first: true) {
                         Toggle("Use a lead reviewer", isOn: Binding(get: { row.usable(turningOn: turningOnLead) }, set: { setLeadSwitch(on: $0, row: row) }))
                             .labelsHidden().toggleStyle(.switch)
                     }

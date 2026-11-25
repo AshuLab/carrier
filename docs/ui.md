@@ -27,7 +27,8 @@ They hold for every front-end; the sections after the catalog say how the Mac ap
 - **A line is one whole point, and its padding is inside the row.** A half-point line over a translucent fill is drawn uneven on a Retina screen.
 - **Spacing is 14 between blocks and 4 inside a block**, 12 between a tile and its text; a row is one line, and what does not fit goes to the group's footer.
 - **A radius, a padding or a `spacing:` is a step of the scales in `design/tokens.json`** (`Tokens.Radius`, `Tokens.Space`), never a number; a frame size and an opacity stay literals.
-  A value that has a step is that step (3 is `s3`, 5 is `s5`, 18 is `s18`, 22 is `s22`); a value between two steps takes the nearest, by one point (7 is `s8`, 9 is `s10`, 11 is `s12`, 13 is `s14`, 25 and 26 are `s24`).
+  A value that has a step is that step (3 is `s3`, 5 is `s5`, 18 is `s18`, 22 is `s22`); a value between two steps takes the nearest, by at most one point (7 is `s8`, 9 is `s10`, 11 is `s12`, 13 is `s14`, 25 is `s24`).
+  The one exception is 26, which is `s24` too and moves two points: it had no step of its own, and the spacing scale stays one set of steps rather than gaining an `s26` for the two places that drew it (the gap between the sections of the Epics panel and the trailing padding of the background-work card's rows).
   A value no step is near is a step of its own with a name for what it is (`bubbleMargin`, `timelineTop`, `Radius.hair`, `Radius.roomy`, `Radius.sheet`).
 - **Under the pointer a piece answers**: a faint fill in 0.12 s, a stronger one while pressed, dimmed and no fill when disabled.
 - **Motion stops when nobody looks**: a motion runs only while the window can be seen and Reduce Motion is off.
@@ -41,7 +42,7 @@ A space token is named by its value (`s8` is 8) so that two areas that add the s
 **Radius**
 
 - `hair` (2): the squares of a file's diff and the stopped mark of a subagent, whose corner was 1.5 or 2; `tiny` would change a mark of eight points by a visible amount.
-- `tiny` (3): the bars of a skeleton and the small blocks of a preview; the 2 and the 4 that were there are this one.
+- `tiny` (3): the bars of a skeleton and the small blocks of a preview; the 4 that was there is this one, and the 2 is `hair`.
 - `small` (6): chips and the smallest controls.
 - `control` (8): buttons, fields, tiles in a grid and the rows that answer the pointer; the most used radius.
 - `tile` (10): the square marks of a provider and an agent, a hovered Agents row, and a box on the General page.

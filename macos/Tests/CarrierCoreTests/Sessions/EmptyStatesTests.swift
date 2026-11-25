@@ -4,15 +4,15 @@ import Testing
 @Test func thereAreSixteenEmptyStatesEachWithAnIconATitleAndOneLine() {
     #expect(EmptyState.allCases.count == 16)
     for state in EmptyState.allCases {
-                #expect(state.title.isEmpty == false)
-        #expect(state.line.isEmpty == false)
-        #expect(state.line.contains("\n") == false)
+        #expect(state.title(bundle: english.bundle, locale: english.locale).isEmpty == false)
+        #expect(state.line(bundle: english.bundle, locale: english.locale).isEmpty == false)
+        #expect(state.line(bundle: english.bundle, locale: english.locale).contains("\n") == false)
     }
 }
 
 @Test func noTwoEmptyStatesShareAnIconOrATitle() {
     #expect(Set(EmptyState.allCases.map(\.icon)).count == 16)
-    #expect(Set(EmptyState.allCases.map(\.title)).count == 16)
+    #expect(Set(EmptyState.allCases.map { $0.title(bundle: english.bundle, locale: english.locale) }).count == 16)
 }
 
 @Test func slicesUnavailableHasItsOwnIconTitleAndLine() {
@@ -22,18 +22,18 @@ import Testing
 }
 
 @Test func theSessionsHomeHasAnEmptyStateForNoSessionsAndOneForNoMatches() {
-    #expect((EmptyState.noSessions.title, EmptyState.noSessions.line) == ("No sessions yet", "Sessions you start are listed here."))
-    #expect(EmptyState.noSessionsMatch.title == "No sessions match")
+    #expect((EmptyState.noSessions.title(bundle: english.bundle, locale: english.locale), EmptyState.noSessions.line(bundle: english.bundle, locale: english.locale)) == ("No sessions yet", "Sessions you start are listed here."))
+    #expect(EmptyState.noSessionsMatch.title(bundle: english.bundle, locale: english.locale) == "No sessions match")
 }
 
 @Test func noEpicsHasItsOwnIconTitleAndALineThatNamesTheLabelThatStartsOne() {
-    #expect(EmptyState.noEpics.title == "No epics yet")
-    #expect(EmptyState.noEpics.line.contains("solve:epic:ready"))
+    #expect(EmptyState.noEpics.title(bundle: english.bundle, locale: english.locale) == "No epics yet")
+    #expect(EmptyState.noEpics.line(bundle: english.bundle, locale: english.locale).contains("solve:epic:ready"))
     #expect(EmptyState.allCases.filter { $0.icon == EmptyState.noEpics.icon }.count == 1)
 }
 
 @Test func noTerminalsHasItsOwnIconTitleAndLine() {
-    #expect((EmptyState.noTerminals.icon, EmptyState.noTerminals.title, EmptyState.noTerminals.line) == (
+    #expect((EmptyState.noTerminals.icon, EmptyState.noTerminals.title(bundle: english.bundle, locale: english.locale), EmptyState.noTerminals.line(bundle: english.bundle, locale: english.locale)) == (
         .terminal,
         "No terminals yet",
         "Terminal sessions you start are listed here."

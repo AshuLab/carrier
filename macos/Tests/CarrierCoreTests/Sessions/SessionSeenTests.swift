@@ -53,6 +53,6 @@ private func row(_ id: String, _ state: SessionState = .idle, at seconds: Double
     }
     #expect(status(.waiting) == .needsYou && status(.working) == .working && status(.idle) == .idle)
     #expect(status(.idle, asleep: true) == .asleep && status(.idle, asleep: true, unread: true) == .unread)
-    let groups = sessionGroups([row("a", .waiting, at: 1), row("b", at: 2, asleep: true), row("c", .working, at: 3), row("d", at: 4)], by: .status)
+    let groups = sessionGroups([row("a", .waiting, at: 1), row("b", at: 2, asleep: true), row("c", .working, at: 3), row("d", at: 4)], by: .status, bundle: english.bundle, locale: english.locale)
     #expect(groups.map(\.title) == ["Needs you", "Working", "Idle", "Asleep"])
 }

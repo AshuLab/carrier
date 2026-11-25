@@ -71,11 +71,11 @@ private func decodedSession(_ extra: String, state: String = "idle", live: Bool 
 
 @Test func aSessionSaysWhatItWaitsForInOneLineAndANilWhenItWaitsForNothing() {
     func task(_ description: String, kind: String = "local_bash") -> BackgroundTask { BackgroundTask(id: description, kind: kind, description: description) }
-    #expect(waitingOnText([]) == nil)
-    #expect(waitingOnText([task("pnpm build")]) == "Waiting on pnpm build")
-    #expect(waitingOnText([task("pnpm build"), task("pnpm test"), task("review", kind: "local_agent")]) == "Waiting on pnpm build and 2 more")
+    #expect(waitingOnText([], bundle: english.bundle, locale: english.locale) == nil)
+    #expect(waitingOnText([task("pnpm build")], bundle: english.bundle, locale: english.locale) == "Waiting on pnpm build")
+    #expect(waitingOnText([task("pnpm build"), task("pnpm test"), task("review", kind: "local_agent")], bundle: english.bundle, locale: english.locale) == "Waiting on pnpm build and 2 more")
     // a task with no description is named by its kind
-    #expect(waitingOnText([task("", kind: "monitor")]) == "Waiting on monitor")
+    #expect(waitingOnText([task("", kind: "monitor")], bundle: english.bundle, locale: english.locale) == "Waiting on monitor")
 }
 
 @Test func twoSessionsThatWorkKeepTheirPlaceWhateverTheirAgentsDoAndTakeItOnceWhenTheyStop() {
@@ -83,7 +83,7 @@ private func decodedSession(_ extra: String, state: String = "idle", live: Bool 
     func row(_ id: String, _ state: SessionState, at seconds: Double, background: [BackgroundTask] = []) -> SessionRow {
         SessionRow(id: id, title: id, workspace: "w", agent: "a", state: state, updatedAt: base.addingTimeInterval(seconds), background: background)
     }
-    func order(_ rows: [SessionRow]) -> [String] { sessionGroups(rows).flatMap(\.rows).map(\.id) }
+    func order(_ rows: [SessionRow]) -> [String] { sessionGroups(rows, bundle: english.bundle, locale: english.locale).flatMap(\.rows).map(\.id) }
     var keeper = WorkingOrder()
 
     // A began first, B a minute later: B is on top
@@ -124,29 +124,29 @@ private func decodedSession(_ extra: String, state: String = "idle", live: Bool 
     // it began ten days ago and its agent just spoke: by age it is not in Today, it is where it began, above the older one
     var working = SessionRow(id: "w", title: "w", workspace: "a", agent: "a", state: .working, updatedAt: now, orderedAt: now.addingTimeInterval(-10 * day))
     let idle = SessionRow(id: "i", title: "i", workspace: "b", agent: "a", state: .idle, updatedAt: now.addingTimeInterval(-12 * day))
-    let groups = sessionGroups([working, idle], by: .age, now: now, calendar: calendar)
+    let groups = sessionGroups([working, idle], by: .age, now: now, calendar: calendar, bundle: english.bundle, locale: english.locale)
     #expect(groups.map(\.title) == ["Older"] && groups[0].rows.map(\.id) == ["w", "i"])
     // without the place it has, its last activity puts it in Today
     working.orderedAt = nil
-    #expect(sessionGroups([working, idle], by: .age, now: now, calendar: calendar).map(\.title) == ["Today", "Older"])
+    #expect(sessionGroups([working, idle], by: .age, now: now, calendar: calendar, bundle: english.bundle, locale: english.locale).map(\.title) == ["Today", "Older"])
     // and a search lists the active matches by the place too
     working.orderedAt = now.addingTimeInterval(-100)
     var other = idle
     other.updatedAt = now.addingTimeInterval(-50)
-    #expect(sessionsPage([working, other], by: .age, query: "a", now: now).groups.first?.rows.map(\.id) == ["i", "w"])
+    #expect(sessionsPage([working, other], by: .age, query: "a", now: now, bundle: english.bundle, locale: english.locale).groups.first?.rows.map(\.id) == ["i", "w"])
 }
 
 @Test func aPullRequestSaysItsStateAndHowItsChecksWent() {
     func pr(_ state: PullRequestState, _ checks: PullRequestChecks? = nil) -> SessionPullRequest { SessionPullRequest(number: 412, url: "u", state: state, checks: checks) }
-    #expect(pr(.draft).chipText == "#412 · Draft" && pr(.draft).tone == .quiet)
-    #expect(pr(.open).chipText == "#412" && pr(.open).tone == .open)
-    #expect(pr(.open, .passing).chipText == "#412 · ✓" && pr(.open, .passing).tone == .open)
-    #expect(pr(.open, .failing).chipText == "#412 · CI ✕" && pr(.open, .failing).tone == .failing)
-    #expect(pr(.open, .pending).chipText == "#412 · CI running" && pr(.open, .pending).tone == .open)
-    #expect(pr(.merged).chipText == "#412 · Merged" && pr(.merged).tone == .merged)
-    #expect(pr(.closed).chipText == "#412 · Closed" && pr(.closed).tone == .quiet)
-    #expect(pr(.open, .passing).spoken == "Pull request 412, open, checks passing")
-    #expect(pr(.merged).spoken == "Pull request 412, merged")
+    #expect(pr(.draft).chipText(bundle: english.bundle, locale: english.locale) == "#412 · Draft" && pr(.draft).tone == .quiet)
+    #expect(pr(.open).chipText(bundle: english.bundle, locale: english.locale) == "#412" && pr(.open).tone == .open)
+    #expect(pr(.open, .passing).chipText(bundle: english.bundle, locale: english.locale) == "#412 · ✓" && pr(.open, .passing).tone == .open)
+    #expect(pr(.open, .failing).chipText(bundle: english.bundle, locale: english.locale) == "#412 · CI ✕" && pr(.open, .failing).tone == .failing)
+    #expect(pr(.open, .pending).chipText(bundle: english.bundle, locale: english.locale) == "#412 · CI running" && pr(.open, .pending).tone == .open)
+    #expect(pr(.merged).chipText(bundle: english.bundle, locale: english.locale) == "#412 · Merged" && pr(.merged).tone == .merged)
+    #expect(pr(.closed).chipText(bundle: english.bundle, locale: english.locale) == "#412 · Closed" && pr(.closed).tone == .quiet)
+    #expect(pr(.open, .passing).spoken(bundle: english.bundle, locale: english.locale) == "Pull request 412, open, checks passing")
+    #expect(pr(.merged).spoken(bundle: english.bundle, locale: english.locale) == "Pull request 412, merged")
 }
 
 @Test func aWorktreeSessionRowCarriesItsBranchAndAFolderSessionHasNone() throws {
@@ -220,7 +220,7 @@ private func decodedSession(_ extra: String, state: String = "idle", live: Bool 
         try session("tree", folder: "/Users/dev/.carrier/worktrees/web/fix", base: "/Users/dev/web"), try session("plain", folder: "/Users/dev/web"),
     ])
     #expect(rows.map(\.workspace) == ["web", "web"])
-    #expect(sessionGroups(rows).map(\.title) == ["web"])
+    #expect(sessionGroups(rows, bundle: english.bundle, locale: english.locale).map(\.title) == ["web"])
 }
 
 @Test func theSessionsOfARemovedProjectStayGroupedUnderItsFolderAsAPlainFolderWould() throws {
@@ -231,7 +231,7 @@ private func decodedSession(_ extra: String, state: String = "idle", live: Bool 
     #expect(try readProjects(Data(#"{"projects":[]}"#.utf8)).isEmpty)
     // the grouping reads the sessions' base folders, never the projects list: the same rows, the same group
     #expect(rows.map(\.base) == ["/Users/dev/web", "/Users/dev/web"])
-    #expect(sessionGroups(rows).map(\.title) == ["web"] && sessionGroups(rows)[0].rows.count == 2)
+    #expect(sessionGroups(rows, bundle: english.bundle, locale: english.locale).map(\.title) == ["web"] && sessionGroups(rows, bundle: english.bundle, locale: english.locale)[0].rows.count == 2)
 }
 
 @Test func twoGroupsWithTheSameNameShowTheirParentFolderAndOthersDoNot() throws {
@@ -240,7 +240,7 @@ private func decodedSession(_ extra: String, state: String = "idle", live: Bool 
         try session("4", folder: "/Users/dev/web"),
     ])
     #expect(rows.map(\.workspace) == ["dev/web", "work/web", "carrier", "dev/web"])
-    #expect(sessionGroups(rows).map(\.title) == ["carrier", "dev/web", "work/web"])
+    #expect(sessionGroups(rows, bundle: english.bundle, locale: english.locale).map(\.title) == ["carrier", "dev/web", "work/web"])
 }
 
 private let fixtures = testPaths().fixtures.path
@@ -250,7 +250,7 @@ private let fixtures = testPaths().fixtures.path
     defer { server.stop() }
     let host = SocketChatHost(socketPath: { server.chatSocketPath })
     let rows = sessionRows(try await host.list(archived: false) + (try await host.list(archived: true)))
-    #expect(sessionGroups(rows).map(\.title) == ["agent-forge", "carrier", "dev/web", "work/web"])
+    #expect(sessionGroups(rows, bundle: english.bundle, locale: english.locale).map(\.title) == ["agent-forge", "carrier", "dev/web", "work/web"])
     #expect(archivedCount(rows) == 2)
 }
 
@@ -548,28 +548,28 @@ private let sample = [
 ]
 
 @Test func theSubtitleCountsActiveSessionsAndTheOnesThatWaitForThePerson() {
-    #expect(sessionsPage(sample, now: now).subtitle == "4 active · 1 waits for you")
-    #expect(sessionsPage([sample[0], sample[1], row("w", state: .waiting)], now: now).subtitle == "3 active · 2 wait for you")
-    #expect(sessionsPage([sample[0], sample[2]], now: now).subtitle == "2 active")
-    #expect(sessionsPage([sample[4]], now: now).subtitle == "")
+    #expect(sessionsPage(sample, now: now, bundle: english.bundle, locale: english.locale).subtitle == "4 active · 1 waits for you")
+    #expect(sessionsPage([sample[0], sample[1], row("w", state: .waiting)], now: now, bundle: english.bundle, locale: english.locale).subtitle == "3 active · 2 wait for you")
+    #expect(sessionsPage([sample[0], sample[2]], now: now, bundle: english.bundle, locale: english.locale).subtitle == "2 active")
+    #expect(sessionsPage([sample[4]], now: now, bundle: english.bundle, locale: english.locale).subtitle == "")
 }
 
 @Test func aFilterKeepsWhatMatchesAndTheSubtitleSaysHowManyOfTheActiveOnes() {
-    let page = sessionsPage(sample, filter: SessionFilter(statuses: [.needsYou]), now: now)
+    let page = sessionsPage(sample, filter: SessionFilter(statuses: [.needsYou]), now: now, bundle: english.bundle, locale: english.locale)
     #expect(page.groups.flatMap(\.rows).map(\.id) == ["b"])
     #expect(page.subtitle == "1 of 4 · 1 waits for you")
-    let codex = sessionsPage(sample, filter: SessionFilter(agents: ["codex"]), now: now)
+    let codex = sessionsPage(sample, filter: SessionFilter(agents: ["codex"]), now: now, bundle: english.bundle, locale: english.locale)
     #expect(codex.groups.flatMap(\.rows).map(\.id) == ["b", "d"])
     // statuses and agents together both have to hold; within a kind any of the ticked ones does
     let both = SessionFilter(statuses: [.idle, .needsYou], agents: ["codex"])
-    #expect(sessionsPage(sample, filter: both, now: now).groups.flatMap(\.rows).map(\.id) == ["b", "d"])
+    #expect(sessionsPage(sample, filter: both, now: now, bundle: english.bundle, locale: english.locale).groups.flatMap(\.rows).map(\.id) == ["b", "d"])
 }
 
 @Test func theFilterCountsItsTickedValuesAndHasAChipForEachThatRemovesIt() {
     var filter = SessionFilter(statuses: [.working, .needsYou], agents: ["codex"])
     #expect(filter.count == 3 && SessionFilter().count == 0)
     #expect(filter.chips == [.status(.needsYou), .status(.working), .agent("codex")])
-    #expect(filter.chips.map(\.title) == ["Needs you", "Working", "codex"])
+    #expect(filter.chips.map { $0.title(bundle: english.bundle, locale: english.locale) } == ["Needs you", "Working", "codex"])
     filter.remove(.status(.working))
     #expect(filter.chips == [.status(.needsYou), .agent("codex")])
     filter.remove(.agent("codex"))
@@ -578,35 +578,35 @@ private let sample = [
 }
 
 @Test func searchFindsActiveThenArchivedByTitleWorkspaceOrAgentAndSaysHowManyResults() {
-    let page = sessionsPage(sample, query: "rate", now: now)
+    let page = sessionsPage(sample, query: "rate", now: now, bundle: english.bundle, locale: english.locale)
     #expect(page.groups.flatMap(\.rows).map(\.id) == ["a", "x"])
     #expect(page.subtitle == "2 results")
-    #expect(sessionsPage(sample, query: "API", now: now).groups.flatMap(\.rows).map(\.id) == ["a", "b", "x"])
-    #expect(sessionsPage(sample, query: "codex", now: now).groups.flatMap(\.rows).map(\.id) == ["b", "d"])
-    #expect(sessionsPage(sample, query: "billing", now: now).subtitle == "1 result")
+    #expect(sessionsPage(sample, query: "API", now: now, bundle: english.bundle, locale: english.locale).groups.flatMap(\.rows).map(\.id) == ["a", "b", "x"])
+    #expect(sessionsPage(sample, query: "codex", now: now, bundle: english.bundle, locale: english.locale).groups.flatMap(\.rows).map(\.id) == ["b", "d"])
+    #expect(sessionsPage(sample, query: "billing", now: now, bundle: english.bundle, locale: english.locale).subtitle == "1 result")
 }
 
 @Test func aFilterNarrowsASearchToo() {
-    let page = sessionsPage(sample, query: "rate", filter: SessionFilter(statuses: [.working]), now: now)
+    let page = sessionsPage(sample, query: "rate", filter: SessionFilter(statuses: [.working]), now: now, bundle: english.bundle, locale: english.locale)
     #expect(page.groups.flatMap(\.rows).map(\.id) == ["a"])
 }
 
 @Test func theSortsGroupByWorkspaceByAgeAndByStatus() {
-    #expect(sessionsPage(sample, by: .workspace, now: now).groups.map(\.title) == ["api", "web"])
-    #expect(sessionsPage(sample, by: .age, now: now).groups.map(\.title) == ["Today", "Last 7 days"])
-    #expect(sessionsPage(sample, by: .status, now: now).groups.map(\.title) == ["Needs you", "Working", "Idle"])
+    #expect(sessionsPage(sample, by: .workspace, now: now, bundle: english.bundle, locale: english.locale).groups.map(\.title) == ["api", "web"])
+    #expect(sessionsPage(sample, by: .age, now: now, bundle: english.bundle, locale: english.locale).groups.map(\.title) == ["Today", "Last 7 days"])
+    #expect(sessionsPage(sample, by: .status, now: now, bundle: english.bundle, locale: english.locale).groups.map(\.title) == ["Needs you", "Working", "Idle"])
 }
 
 @Test func withNoActiveSessionsThePageIsNoSessionsYetEvenWhenSomethingIsArchived() {
-    #expect(sessionsPage([], now: now).emptyState == .noSessions)
-    #expect(sessionsPage([sample[4]], now: now).emptyState == .noSessions)
-    #expect(sessionsPage(sample, now: now).emptyState == nil)
+    #expect(sessionsPage([], now: now, bundle: english.bundle, locale: english.locale).emptyState == .noSessions)
+    #expect(sessionsPage([sample[4]], now: now, bundle: english.bundle, locale: english.locale).emptyState == .noSessions)
+    #expect(sessionsPage(sample, now: now, bundle: english.bundle, locale: english.locale).emptyState == nil)
 }
 
 @Test func aSearchOrAFilterThatMatchesNothingIsNoSessionsMatch() {
-    #expect(sessionsPage(sample, query: "zzz", now: now).emptyState == .noSessionsMatch)
-    #expect(sessionsPage(sample, filter: SessionFilter(statuses: [.working], agents: ["codex"]), now: now).emptyState == .noSessionsMatch)
-    #expect(sessionsPage([], query: "x", now: now).emptyState == .noSessionsMatch)
+    #expect(sessionsPage(sample, query: "zzz", now: now, bundle: english.bundle, locale: english.locale).emptyState == .noSessionsMatch)
+    #expect(sessionsPage(sample, filter: SessionFilter(statuses: [.working], agents: ["codex"]), now: now, bundle: english.bundle, locale: english.locale).emptyState == .noSessionsMatch)
+    #expect(sessionsPage([], query: "x", now: now, bundle: english.bundle, locale: english.locale).emptyState == .noSessionsMatch)
 }
 
 private func worktreeSession() throws -> ChatSession {
@@ -679,7 +679,7 @@ private let archived = [
 @Test func anArchiveWithNothingIsNothingArchivedAndASearchWithNoResultIsNoSessionsMatch() {
     let empty = archivePage(sample.filter { $0.archived == false }, now: now)
     #expect(empty.emptyState == .nothingArchived && empty.subtitle == "" && empty.canClear == false)
-    #expect(EmptyState.nothingArchived.title == "Nothing archived" && EmptyState.nothingArchived.line == "Archived sessions are kept here.")
+    #expect(EmptyState.nothingArchived.title(bundle: english.bundle, locale: english.locale) == "Nothing archived" && EmptyState.nothingArchived.line(bundle: english.bundle, locale: english.locale) == "Archived sessions are kept here.")
     #expect(archivePage(archived, query: "zzz", now: now).emptyState == .noSessionsMatch)
     #expect(archivePage(archived, query: "zzz", now: now).canClear)
     #expect(archivePage([], query: "zzz", now: now).emptyState == .nothingArchived)

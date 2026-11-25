@@ -37,12 +37,12 @@ private func transcript(_ events: [ExecEvent], structured: Bool = true) -> Trans
 // MARK: the counts line
 
 @Test func theCountsLineKeepsTheToolCallsAndDropsWhatIsZero() {
-    #expect(countsLine(SessionCounts()) == "0 tool calls")
-    #expect(countsLine(SessionCounts(calls: 1)) == "1 tool call")
-    #expect(countsLine(SessionCounts(calls: 8, edits: 2, added: 42, removed: 8, tests: 1, errors: 2)) == "8 tool calls · 2 edits +42 −8 · 1 test run · 2 errors")
-    #expect(countsLine(SessionCounts(calls: 3, edits: 1, added: 0, removed: 0)) == "3 tool calls · 1 edit +0 −0")
-    #expect(countsLine(SessionCounts(calls: 2, tests: 2)) == "2 tool calls · 2 test runs")
-    #expect(countsLine(SessionCounts(calls: 2, errors: 1)) == "2 tool calls · 1 error")
+    #expect(countsLine(SessionCounts(), bundle: english.bundle, locale: english.locale) == "0 tool calls")
+    #expect(countsLine(SessionCounts(calls: 1), bundle: english.bundle, locale: english.locale) == "1 tool call")
+    #expect(countsLine(SessionCounts(calls: 8, edits: 2, added: 42, removed: 8, tests: 1, errors: 2), bundle: english.bundle, locale: english.locale) == "8 tool calls · 2 edits +42 −8 · 1 test run · 2 errors")
+    #expect(countsLine(SessionCounts(calls: 3, edits: 1, added: 0, removed: 0), bundle: english.bundle, locale: english.locale) == "3 tool calls · 1 edit +0 −0")
+    #expect(countsLine(SessionCounts(calls: 2, tests: 2), bundle: english.bundle, locale: english.locale) == "2 tool calls · 2 test runs")
+    #expect(countsLine(SessionCounts(calls: 2, errors: 1), bundle: english.bundle, locale: english.locale) == "2 tool calls · 1 error")
 }
 
 @Test func theCountsComeFromTheEventsAJoinedCallIsOneCallAndAnErrorIsAnEventOrAFailedCall() {
@@ -79,7 +79,7 @@ func otherCommandsAreNot(command: String) {
         session("c", "fix", round: 2, status: "running", at: 90_000),
         session("b", "review", round: 2, status: "finished", harness: "codex", at: 60_000, until: 85_000),
         session("a", "ship", status: "finished", at: 1000, until: 39_000)
-    ), time: TimeFormat(hours: .h24, timeZone: TimeZone(identifier: "UTC")!))
+    ), time: TimeFormat(hours: .h24, timeZone: TimeZone(identifier: "UTC")!), bundle: english.bundle, locale: english.locale)
     // oldest first, the running one at the bottom
     #expect(list.sections.map(\.id) == ["a", "b", "c"])
     #expect(list.sections.map(\.state) == [.done, .done, .running])
@@ -93,7 +93,7 @@ func otherCommandsAreNot(command: String) {
 
 @Test func aStoppedSessionIsOpenHasTheBadgeStateAndNoTime() {
     for status in ["failed", "timed_out", "interrupted", "invalid_result"] {
-        let list = sessionList(reply(session("b", "fix", round: 1, status: status), session("a", "ship", status: "finished", until: 5)))
+        let list = sessionList(reply(session("b", "fix", round: 1, status: status), session("a", "ship", status: "finished", until: 5)), bundle: english.bundle, locale: english.locale)
         #expect(list.sections.map(\.state) == [.done, .stopped])
         #expect(list.sections.map(\.openByDefault) == [false, true])
         #expect(list.sections[1].timeLabel == nil)
@@ -101,25 +101,25 @@ func otherCommandsAreNot(command: String) {
 }
 
 @Test func whenEverySessionIsFinishedTheNewestIsOpen() {
-    let list = sessionList(reply(session("c", "review", round: 1, status: "finished"), session("b", "ship", status: "finished")))
+    let list = sessionList(reply(session("c", "review", round: 1, status: "finished"), session("b", "ship", status: "finished")), bundle: english.bundle, locale: english.locale)
     #expect(list.sections.map(\.openByDefault) == [false, true])
 }
 
 @Test func aFailedSessionSaysItsKindAndDetailAndOneWithNoFailureSaysNothing() {
     let killed = SessionFailure(kind: "killed", detail: "SIGKILL", exitCode: nil, signal: "SIGKILL", hostFreeMemMb: 812, hostLoad: 6.4)
-    #expect(sessionList(reply(failed(killed))).sections[0].failure == "killed: SIGKILL")
-    #expect(sessionList(reply(failed(SessionFailure(kind: "unknown", detail: "", exitCode: 1)))).sections[0].failure == "unknown")
+    #expect(sessionList(reply(failed(killed)), bundle: english.bundle, locale: english.locale).sections[0].failure == "killed: SIGKILL")
+    #expect(sessionList(reply(failed(SessionFailure(kind: "unknown", detail: "", exitCode: 1))), bundle: english.bundle, locale: english.locale).sections[0].failure == "unknown")
     // the same session with no failure, as an engine from before sends it, is the section it always was
-    let plain = sessionList(reply(failed(nil))).sections[0]
+    let plain = sessionList(reply(failed(nil)), bundle: english.bundle, locale: english.locale).sections[0]
     #expect(plain.failure == nil)
-    var withFailure = sessionList(reply(failed(killed))).sections[0]
+    var withFailure = sessionList(reply(failed(killed)), bundle: english.bundle, locale: english.locale).sections[0]
     withFailure.failure = nil
     #expect(withFailure == plain)
-    #expect(sessionList(reply(session("ok", "ship", status: "finished"))).sections[0].failure == nil)
+    #expect(sessionList(reply(session("ok", "ship", status: "finished")), bundle: english.bundle, locale: english.locale).sections[0].failure == nil)
 }
 
 @Test func aShipSessionIsTheBuilderAndHasNoRound() {
-    let section = sessionList(reply(session("a", "ship", status: "running"))).sections[0]
+    let section = sessionList(reply(session("a", "ship", status: "running")), bundle: english.bundle, locale: english.locale).sections[0]
     #expect((section.role, section.place, section.state, section.openByDefault) == ("Builder", "Ship", .running, true))
 }
 
@@ -129,7 +129,7 @@ private func many(_ n: Int, stopped: Set<Int> = []) -> SessionsReply {
 
 @Test(arguments: [0, 1, 5, 12])
 func everySessionIsShownOldestFirstAndOnlyTheNewestIsOpen(total: Int) {
-    let list = sessionList(many(total, stopped: [3, 7]))
+    let list = sessionList(many(total, stopped: [3, 7]), bundle: english.bundle, locale: english.locale)
     #expect(list.sections.map(\.id) == (0..<total).reversed().map { "s\($0)" })
     #expect(list.sections.map(\.openByDefault) == (0..<total).map { $0 == total - 1 })
 }
@@ -139,19 +139,19 @@ func everySessionIsShownOldestFirstAndOnlyTheNewestIsOpen(total: Int) {
     let list = sessionList(sessions, transcripts: [
         "c": transcript(call(1, "a", "Read") + call(3, "b", "Read")),
         "b": transcript(call(1, "a", "Read"), structured: false),
-    ])
+    ], bundle: english.bundle, locale: english.locale)
     #expect(list.sections.map { $0.counts.map(countsLine) } == [nil, nil, "2 tool calls"])
 }
 
 @Test func anEmptyTranscriptShowsZeroToolCalls() {
-    let list = sessionList(reply(session("c", "fix", status: "running")), transcripts: ["c": transcript([])])
+    let list = sessionList(reply(session("c", "fix", status: "running")), transcripts: ["c": transcript([])], bundle: english.bundle, locale: english.locale)
     #expect(list.sections[0].counts.map(countsLine) == "0 tool calls")
 }
 
 // MARK: folding
 
 @Test func foldingAndUnfoldingASectionIsKeptWhateverTheRepliesDoAfterwards() {
-    let before = sessionList(reply(session("b", "fix", status: "running"), session("a", "ship", status: "finished"))).sections
+    let before = sessionList(reply(session("b", "fix", status: "running"), session("a", "ship", status: "finished")), bundle: english.bundle, locale: english.locale).sections
     var folds = SessionFolds()
     #expect(before.map { folds.isOpen($0) } == [false, true])
 
@@ -160,7 +160,7 @@ func everySessionIsShownOldestFirstAndOnlyTheNewestIsOpen(total: Int) {
     #expect(before.map { folds.isOpen($0) } == [true, false])
 
     // the running one stops and a new one arrives: what was chosen stays, what was not follows its default
-    let after = sessionList(reply(session("c", "review", status: "running"), session("b", "fix", status: "finished"), session("a", "ship", status: "finished"))).sections
+    let after = sessionList(reply(session("c", "review", status: "running"), session("b", "fix", status: "finished"), session("a", "ship", status: "finished")), bundle: english.bundle, locale: english.locale).sections
     #expect(after.map { folds.isOpen($0) } == [true, false, true])
 
     folds.toggle(after[0])
@@ -178,7 +178,7 @@ func everySessionIsShownOldestFirstAndOnlyTheNewestIsOpen(total: Int) {
     #expect(focus.transcript == "c" && focus.counting == ["b", "a"])
 
     // folded: not followed
-    folds.toggle(sessionList(data.sessions).sections.last!)
+    folds.toggle(sessionList(data.sessions, bundle: english.bundle, locale: english.locale).sections.last!)
     #expect(epicFocus(ref, running: true, data: data, folds: folds, filesShown: true).transcript == nil)
     #expect(epicFocus(ref, running: true, data: nil, folds: folds, filesShown: true) == EpicFocus(epic: ref, epicRunning: true, filesTabVisible: true))
 }
@@ -203,45 +203,45 @@ func everySessionIsShownOldestFirstAndOnlyTheNewestIsOpen(total: Int) {
 
 @Test func aSessionWhoseEventsHaveNotArrivedIsLoadingAndOneWithNoEventsIsEmpty() {
     let sessions = reply(session("a", "ship", status: "finished"))
-    #expect(sessionList(sessions).sections[0].body == .loading)
-    #expect(sessionList(sessions, transcripts: ["a": transcript([])]).sections[0].body == .items([]))
+    #expect(sessionList(sessions, bundle: english.bundle, locale: english.locale).sections[0].body == .loading)
+    #expect(sessionList(sessions, transcripts: ["a": transcript([])], bundle: english.bundle, locale: english.locale).sections[0].body == .items([]))
 }
 
 @Test func theListIsLoadingUntilTheSessionsReplyArrives() {
-    #expect(sessionList(nil).loaded == false)
-    #expect(sessionList(SessionsReply(sessions: [])).loaded)
+    #expect(sessionList(nil, bundle: english.bundle, locale: english.locale).loaded == false)
+    #expect(sessionList(SessionsReply(sessions: []), bundle: english.bundle, locale: english.locale).loaded)
 }
 
 @Test func onlyTheOpenSessionsGetABodyWhenTheFoldsAreGiven() {
     let sessions = reply(session("b", "fix", status: "finished"), session("a", "ship", status: "finished"))
     let all = ["a": transcript(call(1, "x", "Read")), "b": transcript(call(1, "y", "Read"))]
-    #expect(sessionList(sessions, transcripts: all).sections.map(\.body) != [.items([]), .items([])])
+    #expect(sessionList(sessions, transcripts: all, bundle: english.bundle, locale: english.locale).sections.map(\.body) != [.items([]), .items([])])
     var folds = SessionFolds()
-    let list = sessionList(sessions, transcripts: all, folds: folds)
+    let list = sessionList(sessions, transcripts: all, folds: folds, bundle: english.bundle, locale: english.locale)
     #expect(list.sections[0].body == .items([]))
     #expect(list.sections[1].body != .items([]))
     folds.toggle(list.sections[0])
-    #expect(sessionList(sessions, transcripts: all, folds: folds).sections[0].body != .items([]))
+    #expect(sessionList(sessions, transcripts: all, folds: folds, bundle: english.bundle, locale: english.locale).sections[0].body != .items([]))
 }
 
 // MARK: the result card
 
 @Test func aCompletedResultShowsTheCIVerdictAndNotTheSummary() {
     let result = SessionResult(outcome: "completed", summary: "Built it.", verification: .init(ci: "passed", evidence: "Run 12 succeeded."), reason: nil)
-    #expect(resultCard(result) == ResultCard(outcome: "Completed", tone: .good, ci: .init(verdict: "passed", evidence: "Run 12 succeeded."), reason: nil))
+    #expect(resultCard(result, bundle: english.bundle, locale: english.locale) == ResultCard(outcome: "Completed", tone: .good, ci: .init(verdict: "passed", evidence: "Run 12 succeeded."), reason: nil))
     let absent = SessionResult(outcome: "completed", summary: "Built it.", verification: .init(ci: "absent", evidence: "No CI configured."), reason: nil)
-    #expect(resultCard(absent)?.ci == .init(verdict: "absent", evidence: "No CI configured."))
-    #expect(resultCard(result)?.hasDetails == true)
+    #expect(resultCard(absent, bundle: english.bundle, locale: english.locale)?.ci == .init(verdict: "absent", evidence: "No CI configured."))
+    #expect(resultCard(result, bundle: english.bundle, locale: english.locale)?.hasDetails == true)
 }
 
 @Test func theResultRowOpensOnlyWhenThereIsEvidenceAndSaysSo() {
-    let stop = resultCard(SessionResult(outcome: "needs_human", summary: "s", verification: nil, reason: "Which?"))!
+    let stop = resultCard(SessionResult(outcome: "needs_human", summary: "s", verification: nil, reason: "Which?"), bundle: english.bundle, locale: english.locale)!
     #expect(stop.hasDetails == false)
     #expect(resultAccessibilityLabel(stop, open: false) == "Needs a human")
-    let done = resultCard(SessionResult(outcome: "completed", summary: "s", verification: .init(ci: "passed", evidence: "e"), reason: nil))!
+    let done = resultCard(SessionResult(outcome: "completed", summary: "s", verification: .init(ci: "passed", evidence: "e"), reason: nil), bundle: english.bundle, locale: english.locale)!
     #expect(resultAccessibilityLabel(done, open: false) == "Completed, CI passed, closed")
     #expect(resultAccessibilityLabel(done, open: true) == "Completed, CI passed, open")
-    let list = sessionList(reply(session("a", "ship", status: "finished", until: 5)))
+    let list = sessionList(reply(session("a", "ship", status: "finished", until: 5)), bundle: english.bundle, locale: english.locale)
     var folds = SessionFolds()
     #expect(folds.isResultOpen(list.sections[0]) == false)
     folds.toggleResult(list.sections[0])
@@ -250,28 +250,28 @@ func everySessionIsShownOldestFirstAndOnlyTheNewestIsOpen(total: Int) {
 
 @Test func aStoppedResultShowsItsReasonAndNoCILine() {
     let result = SessionResult(outcome: "needs_human", summary: "Stopped.", verification: nil, reason: "Which of the two wins?")
-    #expect(resultCard(result) == ResultCard(outcome: "Needs a human", tone: .stop, ci: nil, reason: "Which of the two wins?"))
+    #expect(resultCard(result, bundle: english.bundle, locale: english.locale) == ResultCard(outcome: "Needs a human", tone: .stop, ci: nil, reason: "Which of the two wins?"))
 }
 
 @Test func aReviewThatAsksForChangesHasNeitherCIOrReason() {
     let result = SessionResult(outcome: "changes_requested", summary: "Two blockers.", verification: nil, reason: "ignored")
-    #expect(resultCard(result) == ResultCard(outcome: "Changes requested", tone: .warning, ci: nil, reason: nil))
+    #expect(resultCard(result, bundle: english.bundle, locale: english.locale) == ResultCard(outcome: "Changes requested", tone: .warning, ci: nil, reason: nil))
 }
 
 @Test func anOutcomeAddedLaterStillGetsALabel() {
-    #expect(resultCard(SessionResult(outcome: "gave_up", summary: "s"))?.outcome == "Gave Up")
+    #expect(resultCard(SessionResult(outcome: "gave_up", summary: "s"), bundle: english.bundle, locale: english.locale)?.outcome == "Gave Up")
 }
 
 @Test func noResultMeansNoCard() {
-    #expect(resultCard(nil) == nil)
-    let list = sessionList(reply(session("a", "ship", status: "finished", until: 5)))
+    #expect(resultCard(nil, bundle: english.bundle, locale: english.locale) == nil)
+    let list = sessionList(reply(session("a", "ship", status: "finished", until: 5)), bundle: english.bundle, locale: english.locale)
     #expect(list.sections[0].result == nil)
 }
 
 @Test func theSessionSectionCarriesItsCard() {
     var done = session("a", "review", round: 1, status: "finished", until: 5)
     done.result = SessionResult(outcome: "completed", summary: "Approved.", verification: .init(ci: "passed", evidence: "ok"), reason: nil)
-    #expect(sessionList(reply(done)).sections[0].result?.outcome == "Completed")
+    #expect(sessionList(reply(done), bundle: english.bundle, locale: english.locale).sections[0].result?.outcome == "Completed")
 }
 
 @Test func onlyWebAddressesInTheTextBecomeLinks() {
@@ -318,7 +318,7 @@ private func say(_ id: Int) -> [ExecEvent] { [ExecEvent(id: id, at: id, kind: "s
 /// The shape of a section's rows: `i` a message or a note, `g3` a run of three calls, `k` a skill.
 private func shape(_ events: [ExecEvent], status: String = "running") -> [String] {
     let sessions = reply(session("x", "ship", status: status))
-    guard case .items(let flow) = sessionList(sessions, transcripts: ["x": transcript(events)]).sections[0].body else { return ["tail"] }
+    guard case .items(let flow) = sessionList(sessions, transcripts: ["x": transcript(events)], bundle: english.bundle, locale: english.locale).sections[0].body else { return ["tail"] }
     return flow.map {
         switch $0 {
         case .tools(_, let group, _): "g\(group.calls.count)"
@@ -330,7 +330,7 @@ private func shape(_ events: [ExecEvent], status: String = "running") -> [String
 
 private func lastRun(_ events: [ExecEvent], status: String = "running") -> (id: Int, group: ToolGroup, live: Bool)? {
     let sessions = reply(session("x", "ship", status: status))
-    guard case .items(let flow) = sessionList(sessions, transcripts: ["x": transcript(events)]).sections[0].body else { return nil }
+    guard case .items(let flow) = sessionList(sessions, transcripts: ["x": transcript(events)], bundle: english.bundle, locale: english.locale).sections[0].body else { return nil }
     for item in flow.reversed() { if case .tools(let id, let group, let live) = item { return (id, group, live) } }
     return nil
 }
@@ -388,5 +388,5 @@ private func lastRun(_ events: [ExecEvent], status: String = "running") -> (id: 
     plain.apply(EventsReply(events: [], next: 0, running: true, structured: false))
     plain.tail = ["ran tests"]
     let sessions = reply(session("x", "ship", status: "running", harness: "codex"))
-    #expect(sessionList(sessions, transcripts: ["x": plain]).sections[0].body == .tail(["ran tests"]))
+    #expect(sessionList(sessions, transcripts: ["x": plain], bundle: english.bundle, locale: english.locale).sections[0].body == .tail(["ran tests"]))
 }

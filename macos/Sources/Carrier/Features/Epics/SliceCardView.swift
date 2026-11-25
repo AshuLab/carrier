@@ -48,7 +48,7 @@ struct SliceCardView: View {
     var body: some View {
         let row = sliceCard(lane: lane)
         SliceCardRowView(row: row, prURL: prURL(row), open: { open?(lane.id) })
-            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .clipShape(RoundedRectangle(cornerRadius: Tokens.Radius.card))
             .workCard()
     }
 
@@ -67,25 +67,25 @@ private struct SliceCardRowView: View {
     @State private var hovered = false
 
     var body: some View {
-        HStack(alignment: .top, spacing: 0) {
+        HStack(alignment: .top, spacing: Tokens.Space.none) {
             Button(action: open) {
-                HStack(alignment: .top, spacing: 11) {
-                    mark.frame(width: 22, height: 18, alignment: .leading).padding(.top, 1).accessibilityHidden(true)
-                    VStack(alignment: .leading, spacing: 3) {
+                HStack(alignment: .top, spacing: Tokens.Space.s12) {
+                    mark.frame(width: 22, height: 18, alignment: .leading).padding(.top, Tokens.Space.s1).accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: Tokens.Space.s3) {
                         title.font(.scaled(13, weight: .semibold)).fixedSize(horizontal: false, vertical: true)
                         quiet
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .padding(.leading, 12).padding(.vertical, 10)
+                .padding(.leading, Tokens.Space.s12).padding(.vertical, Tokens.Space.s10)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel(row.spoken).accessibilityHint("Opens the subagent")
-            if let number = row.prNumber { PullRequestChip(number: number, dot: row.prState.dot, url: prURL).padding(.top, 11).padding(.leading, 10) }
+            if let number = row.prNumber { PullRequestChip(number: number, dot: row.prState.dot, url: prURL).padding(.top, Tokens.Space.s12).padding(.leading, Tokens.Space.s10) }
             // the chevron is the same click, away from the chip; the row's button is the one the keyboard reaches
             Button(action: open) {
-                CardChevron(open: false, width: 12).padding(.leading, 10).padding(.trailing, 12).padding(.top, 11).padding(.bottom, 10).contentShape(Rectangle())
+                CardChevron(open: false, width: 12).padding(.leading, Tokens.Space.s10).padding(.trailing, Tokens.Space.s12).padding(.top, Tokens.Space.s12).padding(.bottom, Tokens.Space.s10).contentShape(Rectangle())
             }
             .buttonStyle(.plain).focusable(false).accessibilityHidden(true)
         }
@@ -99,7 +99,7 @@ private struct SliceCardRowView: View {
     }
 
     private var quiet: some View {
-        FlowLayout(spacing: 6) {
+        FlowLayout(spacing: Tokens.Space.s6) {
             ForEach(Array(row.quiet.enumerated()), id: \.offset) { index, part in
                 if index > 0 { Text("·").foregroundStyle(.tertiary) }
                 switch part.kind {
@@ -107,7 +107,7 @@ private struct SliceCardRowView: View {
                 case .step: Text(part.text).foregroundStyle(.primary).fontWeight(.medium).lineLimit(1)
                 case .error: Text(part.text).foregroundStyle(.red)
                 case .lane:
-                    Text(part.text).font(.scaled(10.5, weight: .semibold)).padding(.horizontal, 7)
+                    Text(part.text).font(.scaled(10.5, weight: .semibold)).padding(.horizontal, Tokens.Space.s8)
                         .background(Capsule().fill(Color.primary.opacity(0.1))).help("The lane the agent worked in, read from its worktree")
                 }
             }

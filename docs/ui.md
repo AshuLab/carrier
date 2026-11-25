@@ -26,6 +26,10 @@ They hold for every front-end; the sections after the catalog say how the Mac ap
 - **One main action.** A form or a row has one accent button (Save, Add); every other button is quiet.
 - **A line is one whole point, and its padding is inside the row.** A half-point line over a translucent fill is drawn uneven on a Retina screen.
 - **Spacing is 14 between blocks and 4 inside a block**, 12 between a tile and its text; a row is one line, and what does not fit goes to the group's footer.
+- **A radius, a padding or a `spacing:` is a step of the scales in `design/tokens.json`** (`Tokens.Radius`, `Tokens.Space`), never a number; a frame size and an opacity stay literals.
+  A value that has a step is that step (3 is `s3`, 5 is `s5`, 18 is `s18`, 22 is `s22`); a value between two steps takes the nearest, by at most one point (7 is `s8`, 9 is `s10`, 11 is `s12`, 13 is `s14`, 25 is `s24`).
+  The one exception is 26, which is `s24` too and moves two points: it had no step of its own, and the spacing scale stays one set of steps rather than gaining an `s26` for the two places that drew it (the gap between the sections of the Epics panel and the trailing padding of the background-work card's rows).
+  A value no step is near is a step of its own with a name for what it is (`bubbleMargin`, `timelineTop`, `Radius.hair`, `Radius.roomy`, `Radius.sheet`).
 - **Under the pointer a piece answers**: a faint fill in 0.12 s, a stronger one while pressed, dimmed and no fill when disabled.
 - **Motion stops when nobody looks**: a motion runs only while the window can be seen and Reduce Motion is off.
 
@@ -37,12 +41,15 @@ A space token is named by its value (`s8` is 8) so that two areas that add the s
 
 **Radius**
 
-- `tiny` (3): the bars of a skeleton and the small blocks of a preview; the 2 and the 4 that were there are this one.
+- `hair` (2): the squares of a file's diff and the stopped mark of a subagent, whose corner was 1.5 or 2; `tiny` would change a mark of eight points by a visible amount.
+- `tiny` (3): the bars of a skeleton and the small blocks of a preview; the 4 that was there is this one, and the 2 is `hair`.
 - `small` (6): chips and the smallest controls.
 - `control` (8): buttons, fields, tiles in a grid and the rows that answer the pointer; the most used radius.
 - `tile` (10): the square marks of a provider and an agent, a hovered Agents row, and a box on the General page.
 - `card` (12): a card and the group of a sheet.
+- `roomy` (14): the corner of the conversation's surface, which has no step next to it to share.
 - `panel` (16): the cards of the starting and running windows, and the icon tiles of the stopped window and the Engine page.
+- `sheet` (18): the approval card of the conversation, drawn at that corner.
 
 **Space** (padding and `spacing:`)
 
@@ -51,19 +58,27 @@ A space token is named by its value (`s8` is 8) so that two areas that add the s
 - `s3` (3), `s4` (4) and `s5` (5): inside a chip and between the lines of a block.
 - `s6` (6): between an icon and its words, and the vertical padding of a chip.
 - `s8` (8): the standard gap between two controls; the 7 and the 9 that were there are this one.
-- `s10` (10): between the lines of a row, and a row's own padding.
+- `s10` (10): between the lines of a row, and a row's own padding; the 9 that was there is this one.
 - `s12` (12): inside a card, and between a tile and its text; the 11 that was there is this one.
-- `s14` (14) and `s16` (16): between blocks and a page's side margin.
-- `s18` (18), `s20` (20), `s22` (22) and `s24` (24): between the groups of a page and the sections of a sheet.
+- `s14` (14) and `s16` (16): between blocks and a page's side margin; the 13 that was there is `s14`.
+- `s18` (18), `s20` (20), `s22` (22) and `s24` (24): between the groups of a page and the sections of a sheet; the 25 and the 26 that were there are `s24`.
 - `s28` (28) and `s30` (30): the margin of the stopped window and the gap between the sections of the Pieces gallery.
 - `s40` (40): the side margin of the gallery pages.
 - `s90` (90): the inset that makes the second skeleton bar of the cleanup shorter than the first.
+- `bubbleMargin` (120): the empty margin at the leading side of a person's message bubble and of a subagent's answer, so they do not run the width of the conversation.
+- `timelineTop` (160): the room above the first message of the conversation, under the header that floats over it.
 
 **Semantic colours**
 
 - `tile.terminal` (`#404040`): the dark grey tile of the Terminal page in Settings' sidebar, the same in light and dark.
 - `projectColor.*` (red, orange, yellow, green, teal, blue, purple, pink): the eight muted hues of a project's tile, the same in light and dark; `ThemeTests` pins each to the hue it was drawn from.
   White initials stay readable over every one of them.
+- `status.*`, `toolCall.*` and `attention.approval`: the kinds of tool call, the slow call, the working, background and done marks and the approval, as light and dark pairs where they differ; the Sessions and Chat views read them, never a `Color(red:)`.
+- `pullRequest.merged` (`#b86bf2`): the purple of a merged pull request's chip and dot.
+- `attachment.*` (image, pdf, folder, log, data, archive, other): the tint of an attachment's chip by kind, the same in light and dark.
+- `console.*` (text, added, removed, background): the dark terminal of a conversation's console and the added and removed lines on it, the same in light and dark.
+- `harness.claude` and `harness.other`: the grey of a harness's name in a session row (Claude or another).
+- `milestone.plain` (`#6e6e6e`): the grey of the transcript's marker for the plain steps (read, search, shell, other, mcp).
 
 ## The nine rules of a piece
 

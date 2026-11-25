@@ -18,12 +18,12 @@ struct ArchiveView: View {
     var body: some View {
         let page = archivePage(rows, by: sort, query: query ?? "")
         let searched = (query ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: Tokens.Space.none) {
             if let empty = page.emptyState {
                 EmptyStateView(state: empty, action: empty == .noSessionsMatch ? ("Clear search", { query = nil }) : nil).inPageScroll()
             } else {
                 ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 2) {
+                    LazyVStack(alignment: .leading, spacing: Tokens.Space.s2) {
                         ForEach(page.groups, id: \.title) { group in
                             if searched == false { groupHeader(group) }
                             ForEach(group.rows, id: \.id) { row in
@@ -31,7 +31,7 @@ struct ArchiveView: View {
                             }
                         }
                     }
-                    .padding(.horizontal, 12).padding(.vertical, 8)
+                    .padding(.horizontal, Tokens.Space.s12).padding(.vertical, Tokens.Space.s8)
                 }
             }
         }
@@ -63,7 +63,7 @@ struct ArchiveView: View {
 
     @ToolbarContentBuilder private func toolbar(canClear: Bool) -> some ToolbarContent {
         ToolbarItem(placement: .primaryAction) {
-            HStack(spacing: 0) {
+            HStack(spacing: Tokens.Space.none) {
                 searchHalf
                 ToolbarPillButton(title: "Filter", icon: .filter) { sortOpen.toggle() }
                     .popover(isPresented: $sortOpen, arrowEdge: .bottom) { sortPopover }
@@ -75,7 +75,7 @@ struct ArchiveView: View {
         ToolbarItem(placement: .primaryAction) {
             ToolbarPillButton(title: "Clear sessions…", icon: .trash, action: clear)
                 .glassEffect(.regular, in: .capsule)
-                .padding(.trailing, 10)
+                .padding(.trailing, Tokens.Space.s10)
                 .disabled(canClear == false)
         }
         .sharedBackgroundVisibility(.hidden)
@@ -86,7 +86,7 @@ struct ArchiveView: View {
     }
 
     private var sortPopover: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s4) {
             Text("Sort by").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
             ForEach(ArchiveSort.allCases, id: \.self) { option in
                 Button {
@@ -103,15 +103,15 @@ struct ArchiveView: View {
                 .buttonStyle(.plain).accessibilityAddTraits(sort == option ? .isSelected : [])
             }
         }
-        .padding(12).frame(width: 200)
+        .padding(Tokens.Space.s12).frame(width: 200)
     }
 
     private func groupHeader(_ group: SessionGroup) -> some View {
-        HStack(spacing: 6) {
+        HStack(spacing: Tokens.Space.s6) {
             Text(group.title).font(.callout.weight(.semibold))
             Text(group.rows.count == 1 ? "1 session" : "\(group.rows.count) sessions").font(.caption).foregroundStyle(.secondary)
         }
-        .padding(.horizontal, 8).padding(.top, 14).padding(.bottom, 4)
+        .padding(.horizontal, Tokens.Space.s8).padding(.top, Tokens.Space.s14).padding(.bottom, Tokens.Space.s4)
         .accessibilityAddTraits(.isHeader)
     }
 }
@@ -141,10 +141,10 @@ private struct ArchiveRow: View {
 
     var body: some View {
         let active = hovered || actionsFocused
-        HStack(alignment: .top, spacing: 12) {
+        HStack(alignment: .top, spacing: Tokens.Space.s12) {
             ProjectIcon(base: row.base, name: row.workspace, colorKey: projectColorKey(row.base)).environment(\.rowActive, active)
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 6) {
+            VStack(alignment: .leading, spacing: Tokens.Space.s3) {
+                HStack(spacing: Tokens.Space.s6) {
                     Text(row.title).font(.scaled(13, weight: .medium)).lineLimit(1).truncationMode(.tail)
                     RowTag(text: row.workspace)
                 }
@@ -152,7 +152,7 @@ private struct ArchiveRow: View {
                 meta
             }
             Spacer(minLength: 8)
-            VStack(alignment: .trailing, spacing: 6) {
+            VStack(alignment: .trailing, spacing: Tokens.Space.s6) {
                 Text(timeText(row.updatedAt, now: Date(), format: timeChanges.format)).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
                     .accessibilityLabel(spokenAge(row.updatedAt, now: Date()))
                 ProviderMarks(names: row.providers)
@@ -161,7 +161,7 @@ private struct ArchiveRow: View {
         }
         // faded out, not removed or made untouchable, so they stay in the keyboard's and VoiceOver's reach
         .overlay(alignment: .trailing) {
-            HStack(spacing: 4) {
+            HStack(spacing: Tokens.Space.s4) {
                 RowIconButton(symbol: .fileText, title: "Open", action: open)
                 RowIconButton(symbol: .undo, title: "Resume", action: resume)
                 RowIconButton(symbol: .trash, title: "Delete", action: delete)
@@ -170,8 +170,8 @@ private struct ArchiveRow: View {
             .opacity(active ? 1 : 0)
         }
         .animation(.easeInOut(duration: 0.15), value: active)
-        .padding(.horizontal, 10).padding(.vertical, 8)
-        .background(RoundedRectangle(cornerRadius: 12).fill(active ? Color.primary.opacity(0.07) : .clear))
+        .padding(.horizontal, Tokens.Space.s10).padding(.vertical, Tokens.Space.s8)
+        .background(RoundedRectangle(cornerRadius: Tokens.Radius.card).fill(active ? Color.primary.opacity(0.07) : .clear))
         .contentShape(Rectangle())
         .onTapGesture(perform: open)
         .onHover { hovered = $0 }
@@ -184,7 +184,7 @@ private struct ArchiveRow: View {
 
     /// Where it worked, how many turns it took and the model of the last.
     private var meta: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: Tokens.Space.s6) {
             Label(row.branch ?? "Base folder", icon: row.branch == nil ? .folder : .gitBranch)
                 .labelStyle(.titleAndIcon).lineLimit(1).truncationMode(.middle)
             if row.turns > 0 { Text("·"); Text(row.turns == 1 ? "1 turn" : "\(row.turns) turns") }

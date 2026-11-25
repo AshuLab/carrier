@@ -4,31 +4,29 @@ import SwiftUI
 /// The capsule at the start of a live line naming what the agent waits on; long names (e.g. an MCP server) are cut on one line.
 struct KindChipView: View {
     let chip: KindChip
-    @Environment(\.colorScheme) private var scheme
 
     var body: some View {
         CappedWidth(maxWidth: 160) {
-            HStack(spacing: 4) {
+            HStack(spacing: Tokens.Space.s4) {
                 if let icon = chip.icon {
                     Glyph(icon, size: 9.5)
                 }
                 Text(chip.label).font(.scaled(11, weight: .semibold)).lineLimit(1).truncationMode(.tail)
             }
             .foregroundStyle(foreground)
-            .padding(.leading, chip.icon == nil ? 8 : 6).padding(.trailing, 8).padding(.vertical, 1)
+            .padding(.leading, chip.icon == nil ? Tokens.Space.s8 : Tokens.Space.s6).padding(.trailing, Tokens.Space.s8).padding(.vertical, Tokens.Space.s1)
             .background(Capsule().fill(background))
         }
         .fixedSize()
     }
 
     private var foreground: Color {
-        let dark = scheme == .dark
-        return switch chip.tint {
-        case .thought: dark ? .thought : Color(red: 0.48, green: 0.29, blue: 0.75)
-        case .files: dark ? Color(red: 0.42, green: 0.71, blue: 1.0) : Color(red: 0.04, green: 0.39, blue: 0.78)
-        case .shell: dark ? Color(red: 0.31, green: 0.85, blue: 0.45) : Color(red: 0.11, green: 0.54, blue: 0.24)
-        case .mcp: dark ? Color(red: 1.0, green: 0.70, blue: 0.25) : Color(red: 0.66, green: 0.39, blue: 0.0)
-        case .subagents: dark ? Color(red: 0.84, green: 0.55, blue: 1.0) : Color(red: 0.54, green: 0.18, blue: 0.75)
+        switch chip.tint {
+        case .thought: Color(Tokens.ToolCall.thought)
+        case .files: Color(Tokens.ToolCall.files)
+        case .shell: Color(Tokens.ToolCall.shell)
+        case .mcp: Color(Tokens.ToolCall.mcp)
+        case .subagents: Color(Tokens.ToolCall.subagents)
         case .attention: .attention
         }
     }

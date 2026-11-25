@@ -20,12 +20,12 @@ struct ConversationTimeline: View {
         let shown = markers.first { $0.id == hovered }
         ScrollViewReader { proxy in
             ScrollView(.vertical, showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 0) {
+                VStack(alignment: .leading, spacing: Tokens.Space.none) {
                     ForEach(Array(markers.enumerated()), id: \.element.id) { index, marker in
                         tick(marker, index: index).id(marker.id)
                     }
                 }
-                .padding(.vertical, 22)
+                .padding(.vertical, Tokens.Space.s22)
             }
             .scrollClipDisabled(false)
             .frame(width: 34, height: min(height, CGFloat(markers.count) * pitch + 44))
@@ -60,7 +60,7 @@ struct ConversationTimeline: View {
                 .fill(active ? Color.themeAccent : Color.primary.opacity(over ? 0.7 : 0.28))
                 .frame(width: width(at: index), height: 2.5)
                 .frame(width: 34, height: pitch, alignment: .leading)
-                .padding(.leading, 8)
+                .padding(.leading, Tokens.Space.s8)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -70,7 +70,7 @@ struct ConversationTimeline: View {
 
     /// What the turn was: the person's message over the start of the answer. Always laid out, so it fades in and out.
     private func card(_ marker: TurnMarker?) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s8) {
             Text(marker?.title ?? "").font(.scaled(13.5, weight: .semibold)).lineLimit(2).lineSpacing(2)
             if marker?.preview.isEmpty == false {
                 // the start of the answer is a step quieter than the title, not so quiet that the glass behind it wins
@@ -79,8 +79,8 @@ struct ConversationTimeline: View {
         }
         .fixedSize(horizontal: false, vertical: true)
         .frame(width: 320, alignment: .leading)
-        .padding(.horizontal, 16).padding(.vertical, 14)
-        .chatSurface(in: RoundedRectangle(cornerRadius: 14))
+        .padding(.horizontal, Tokens.Space.s16).padding(.vertical, Tokens.Space.s14)
+        .chatSurface(in: RoundedRectangle(cornerRadius: Tokens.Radius.roomy))
         .opacity(marker == nil ? 0 : 1)
         .animation(.easeOut(duration: 0.15), value: marker?.id)
     }

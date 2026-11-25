@@ -22,9 +22,9 @@ struct AttachmentChip: View {
     }
 
     var body: some View {
-        HStack(spacing: 9) {
+        HStack(spacing: Tokens.Space.s10) {
             badge
-            VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: Tokens.Space.none) {
                 Text(Self.shortened(file.name)).font(.scaled(12.5, weight: .semibold)).lineLimit(1)
                 Text(file.problemText ?? file.detail).font(.scaled(11)).foregroundStyle(tint ?? .secondary).lineLimit(1)
             }
@@ -38,11 +38,11 @@ struct AttachmentChip: View {
                 .animation(.easeOut(duration: 0.12), value: hovering)
             }
         }
-        .padding(.leading, 5).padding(.trailing, remove == nil ? 12 : 7).padding(.vertical, 5)
+        .padding(.leading, Tokens.Space.s5).padding(.trailing, remove == nil ? Tokens.Space.s12 : Tokens.Space.s8).padding(.vertical, Tokens.Space.s5)
         // as wide as its words and no wider (the name is cut by `shortened`): a flexible frame would stretch the glass and leave the × in its middle
         .fixedSize(horizontal: true, vertical: false)
-        .chatSurface(.regular.tint(tint?.opacity(0.3)), flat: tint.map { $0.opacity(0.16) } ?? Color.primary.opacity(0.07), in: RoundedRectangle(cornerRadius: 12))
-        .contentShape(RoundedRectangle(cornerRadius: 12))
+        .chatSurface(.regular.tint(tint?.opacity(0.3)), flat: tint.map { $0.opacity(0.16) } ?? Color.primary.opacity(0.07), in: RoundedRectangle(cornerRadius: Tokens.Radius.card))
+        .contentShape(RoundedRectangle(cornerRadius: Tokens.Radius.card))
         .onHover { hovering = $0 }
         .onTapGesture { if let open { open() } else { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: file.path)]) } }
         .help(file.path)
@@ -61,8 +61,8 @@ struct AttachmentChip: View {
         .frame(width: 32, height: 32)
         // the badge of the session notices: the colour itself, vivid, with the symbol in white
         .background(color)
-        .clipShape(RoundedRectangle(cornerRadius: 9))
-        .overlay(RoundedRectangle(cornerRadius: 9).strokeBorder(.white.opacity(0.16), lineWidth: 0.5))
+        .clipShape(RoundedRectangle(cornerRadius: Tokens.Radius.tile))
+        .overlay(RoundedRectangle(cornerRadius: Tokens.Radius.tile).strokeBorder(.white.opacity(0.16), lineWidth: 0.5))
         .accessibilityHidden(true)
     }
 
@@ -83,14 +83,14 @@ struct AttachmentChip: View {
     private var color: Color {
         if file.problem != nil { return tint ?? .red }
         return switch file.kind {
-        case .image: Color(red: 0.43, green: 0.36, blue: 0.91)
-        case .pdf: Color(red: 0.88, green: 0.27, blue: 0.35)
-        case .folder: Color(red: 0.89, green: 0.63, blue: 0.19)
-        case .log: Color(red: 0.42, green: 0.47, blue: 0.58)
+        case .image: Color(Tokens.Attachment.image)
+        case .pdf: Color(Tokens.Attachment.pdf)
+        case .folder: Color(Tokens.Attachment.folder)
+        case .log: Color(Tokens.Attachment.log)
         case .code: Color.themeAccent
-        case .data: Color(red: 0.12, green: 0.64, blue: 0.58)
-        case .archive: Color(red: 0.62, green: 0.43, blue: 0.28)
-        case .other: Color(red: 0.48, green: 0.50, blue: 0.56)
+        case .data: Color(Tokens.Attachment.data)
+        case .archive: Color(Tokens.Attachment.archive)
+        case .other: Color(Tokens.Attachment.other)
         }
     }
 
@@ -119,7 +119,7 @@ struct SentAttachments: View {
     @State private var previewing: AttachedFile?
 
     var body: some View {
-        FlowLayout(spacing: 8) {
+        FlowLayout(spacing: Tokens.Space.s8) {
             ForEach(files) { file in AttachmentChip(file: file, open: file.canPreview ? { previewing = file } : nil) }
         }
         .attachmentPreview(of: files, showing: $previewing)

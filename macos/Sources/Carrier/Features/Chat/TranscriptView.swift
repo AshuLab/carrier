@@ -23,7 +23,7 @@ struct TranscriptRows: View {
         case .tail(let lines):
             MonoLines(lines: lines.isEmpty ? ["No output yet"] : lines, monospace: MonospaceStyle.shared.settings)
                 .codeFont(12).foregroundStyle(.secondary)
-                .textSelection(.enabled).padding(12).sessionRow()
+                .textSelection(.enabled).padding(Tokens.Space.s12).sessionRow()
         }
     }
 }
@@ -31,7 +31,7 @@ struct TranscriptRows: View {
 /// What a session or the tab shows while its events have not arrived: a spinner and one word, in the place of the rows.
 struct LoadingRow: View {
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: Tokens.Space.s8) {
             ProgressView().controlSize(.small)
             Text("Loading…").foregroundStyle(.secondary)
         }
@@ -55,29 +55,29 @@ struct FlowItemView: View {
             Group {
                 if let json = jsonMessage(text) { JSONMessageView(message: json) } else { MarkdownView(text: text) }
             }
-            .padding(.horizontal, LogMetrics.iconColumn).padding(.vertical, 8)
+            .padding(.horizontal, LogMetrics.iconColumn).padding(.vertical, Tokens.Space.s8)
         case .note(_, let text):
             if let published = publishedNote(text) {
                 PublishedNoteRow(note: published)
             } else {
                 Text(text).font(.scaled(12)).foregroundStyle(.secondary).textSelection(.enabled)
-                    .padding(.horizontal, LogMetrics.iconColumn).padding(.vertical, 6)
+                    .padding(.horizontal, LogMetrics.iconColumn).padding(.vertical, Tokens.Space.s6)
             }
         case .error(_, let text):
             FailureBannerView(banner: failedTurnBanner(agent: "", error: text), copyDetails: true, retry: nil)
-                .padding(.horizontal, LogMetrics.iconColumn).padding(.vertical, 6)
+                .padding(.horizontal, LogMetrics.iconColumn).padding(.vertical, Tokens.Space.s6)
         case .skill(_, let call):
-            SkillRowView(call: call).padding(.horizontal, LogMetrics.iconColumn).padding(.vertical, 4)
+            SkillRowView(call: call).padding(.horizontal, LogMetrics.iconColumn).padding(.vertical, Tokens.Space.s4)
         case .tools(let id, let group, let live):
             // the rows of the subagents the run launched (a subagent view's own groups have them; the epic's have none)
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: Tokens.Space.s6) {
                 ChatToolGroupView(id: "t\(id)", group: group, live: live, startsOpen: mode == .expanded || (opensFailed && group.failed > 0), flipped: $flipped)
                 ForEach(group.subagents) { SubagentRowView(subagent: $0) }
             }
-            .padding(.horizontal, LogMetrics.iconColumn).padding(.vertical, 4)
+            .padding(.horizontal, LogMetrics.iconColumn).padding(.vertical, Tokens.Space.s4)
         case .slice(let lane):
             SliceCardView(lane: lane)
-                .padding(.horizontal, LogMetrics.iconColumn).padding(.vertical, 4)
+                .padding(.horizontal, LogMetrics.iconColumn).padding(.vertical, Tokens.Space.s4)
         }
     }
 }
@@ -123,7 +123,7 @@ struct PublishedNoteRow: View {
     @Environment(\.epicRepo) private var repo
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: Tokens.Space.s6) {
             Glyph(.gitPullRequest, size: 10).foregroundStyle(.tertiary)
             Text(note.verb).foregroundStyle(.secondary)
             if let number = note.number {
@@ -137,7 +137,7 @@ struct PublishedNoteRow: View {
             Spacer(minLength: 0)
         }
         .font(.scaled(12)).lineLimit(1)
-        .padding(.horizontal, LogMetrics.iconColumn).padding(.vertical, 6)
+        .padding(.horizontal, LogMetrics.iconColumn).padding(.vertical, Tokens.Space.s6)
         .accessibilityElement(children: .combine)
     }
 }
@@ -152,14 +152,14 @@ struct SkillRowView: View {
     var body: some View {
         HStack(spacing: LogMetrics.gap) {
             Glyph(call.kind.icon, size: 9, bold: true).foregroundStyle(.white)
-                .frame(width: LogMetrics.iconWidth, height: LogMetrics.iconWidth).background(RoundedRectangle(cornerRadius: 5).fill(call.kind.color))
+                .frame(width: LogMetrics.iconWidth, height: LogMetrics.iconWidth).background(RoundedRectangle(cornerRadius: Tokens.Radius.small).fill(call.kind.color))
             Text("Skill").fontWeight(.semibold).foregroundStyle(failed ? Color.red : .primary)
             Text(call.arg).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
             Spacer(minLength: 8)
             if failed { Text("failed").foregroundStyle(.red) } else if let ms = call.durationMs { Text(formatCallDuration(ms)).foregroundStyle(.tertiary).monospacedDigit() }
         }
         .font(.scaled(12.5)).lineLimit(1)
-        .padding(.horizontal, 10).frame(height: LogMetrics.skillRow)
+        .padding(.horizontal, Tokens.Space.s10).frame(height: LogMetrics.skillRow)
         .workCard()
         .help(call.arg)
         .accessibilityElement(children: .ignore)
@@ -190,7 +190,7 @@ extension ToolKind {
     var color: Color {
         switch self {
         case .edit: .blue
-        case .read, .search, .shell, .other, .mcp: Color(white: 0.43)
+        case .read, .search, .shell, .other, .mcp: Color(Tokens.Milestone.plain)
         }
     }
 }

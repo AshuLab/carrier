@@ -40,17 +40,17 @@ struct ComposerMenuButton: View {
             .buttonStyle(.plain)
             // the panel hangs from a point at the pill's left, not from the pill: the pill grows and shrinks with the model it names
             .background(alignment: .leading) {
-                Color.clear.frame(width: 1, height: 28).padding(.leading, 20).popover(isPresented: $open, arrowEdge: .top) { panel }
+                Color.clear.frame(width: 1, height: 28).padding(.leading, Tokens.Space.s20).popover(isPresented: $open, arrowEdge: .top) { panel }
             }
             .help("Provider, model, reasoning and access").accessibilityLabel("Provider, model, reasoning and access")
             .accessibilityValue([agent, menu.pillModel, menu.pillReasoning, menu.accessFlag].compactMap { $0 }.joined(separator: ", "))
     }
 
     private var pill: some View {
-        HStack(spacing: 7) {
+        HStack(spacing: Tokens.Space.s8) {
             AccountMark(account: agent, icon: icon)
             // the dot is its own element so it sits the same distance from the word on each side
-            HStack(spacing: 5) {
+            HStack(spacing: Tokens.Space.s5) {
                 if let label {
                     Text(label).fontWeight(.semibold).lineLimit(1)
                     Text("·").foregroundStyle(.secondary)
@@ -63,7 +63,7 @@ struct ComposerMenuButton: View {
             }
             Glyph(.chevronDown, size: 9).foregroundStyle(.secondary)
         }
-        .font(.callout).padding(.horizontal, 10).frame(height: 28)
+        .font(.callout).padding(.horizontal, Tokens.Space.s10).frame(height: 28)
         .chatSurface(.regular.interactive(), flat: Color.primary.opacity(0.08), in: Capsule())
         .contentShape(Capsule())
     }
@@ -77,11 +77,11 @@ struct ComposerMenuButton: View {
     }
 
     private var panelContent: some View {
-        VStack(spacing: 0) {
+        VStack(spacing: Tokens.Space.none) {
             tabs
             if menu.models.isEmpty {
                 Text(emptyNote).font(.scaled(12)).foregroundStyle(.secondary).multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity).padding(20)
+                    .frame(maxWidth: .infinity).padding(Tokens.Space.s20)
             } else {
                 if menu.models.count > 5 { search }
                 models
@@ -110,17 +110,17 @@ struct ComposerMenuButton: View {
 
     private var tabs: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 2) {
+            HStack(spacing: Tokens.Space.s2) {
                 ForEach(providers) { provider in
                     let on = provider.name == agent
                     let enabled = provider.available && (locked == false || on)
                     Button { if on == false { chooseAgent(provider.name) } } label: {
-                        VStack(spacing: 3) {
+                        VStack(spacing: Tokens.Space.s3) {
                             AccountMark(account: provider.name, icon: provider.icon, size: 18)
                             Text(ProviderIdentityStore.shared.shortName(of: provider.name)).font(.scaled(10, weight: .medium)).lineLimit(1)
                         }
-                        .frame(minWidth: 54).padding(.horizontal, 6).padding(.vertical, 6)
-                        .overlay(alignment: .bottom) { if on { Capsule().fill(.primary).frame(height: 2).padding(.horizontal, 8) } }
+                        .frame(minWidth: 54).padding(.horizontal, Tokens.Space.s6).padding(.vertical, Tokens.Space.s6)
+                        .overlay(alignment: .bottom) { if on { Capsule().fill(.primary).frame(height: 2).padding(.horizontal, Tokens.Space.s8) } }
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain).disabled(enabled == false).opacity(enabled ? (on ? 1 : 0.7) : 0.3)
@@ -128,31 +128,31 @@ struct ComposerMenuButton: View {
                     .accessibilityAddTraits(on ? .isSelected : [])
                 }
             }
-            .padding(.horizontal, 12).padding(.top, 4)
+            .padding(.horizontal, Tokens.Space.s12).padding(.top, Tokens.Space.s4)
         }
         .overlay(alignment: .bottom) { Divider() }
     }
 
     private var search: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: Tokens.Space.s8) {
             Glyph(.search, size: 12).foregroundStyle(.secondary)
             TextField("Search models", text: $query).textFieldStyle(.plain).font(.scaled(13))
         }
-        .padding(.horizontal, 10).frame(height: 30)
-        .background(RoundedRectangle(cornerRadius: 9).fill(Color.primary.opacity(0.08)))
-        .padding(.horizontal, 12).padding(.top, 10)
+        .padding(.horizontal, Tokens.Space.s10).frame(height: 30)
+        .background(RoundedRectangle(cornerRadius: Tokens.Radius.tile).fill(Color.primary.opacity(0.08)))
+        .padding(.horizontal, Tokens.Space.s12).padding(.top, Tokens.Space.s10)
     }
 
     private var models: some View {
         let shown = menu.models.filter { query.isEmpty || $0.label.localizedCaseInsensitiveContains(query) }
         let chosen = pendingModel ?? menu.models.first(where: \.ticked)?.id
         return ScrollViewReader { proxy in ScrollView {
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: Tokens.Space.s2) {
                 ForEach(shown) { model in
                     let ticked = model.id == chosen
                     HoverRow(action: { pendingModel = model.id; choose("model", model.id) }, fill: ticked ? Color.themeAccent.opacity(0.18) : nil) { _ in
-                        HStack(spacing: 8) {
-                            VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: Tokens.Space.s8) {
+                            VStack(alignment: .leading, spacing: Tokens.Space.s2) {
                                 Text(model.label).font(.scaled(13, weight: .medium)).lineLimit(1)
                                 // the exact model, only when it says more than the name does
                                 if let line = modelLine(model) { Text(line).font(.scaled(11.5)).foregroundStyle(.secondary).lineLimit(2) }
@@ -160,13 +160,13 @@ struct ComposerMenuButton: View {
                             Spacer(minLength: 8)
                             if ticked { ChosenMark() }
                         }
-                        .padding(.horizontal, 10).padding(.vertical, 7)
+                        .padding(.horizontal, Tokens.Space.s10).padding(.vertical, Tokens.Space.s8)
                     }
                     .id(model.id)
                 }
-                if shown.isEmpty { Text("No model matches").font(.scaled(12)).foregroundStyle(.secondary).frame(maxWidth: .infinity).padding(14) }
+                if shown.isEmpty { Text("No model matches").font(.scaled(12)).foregroundStyle(.secondary).frame(maxWidth: .infinity).padding(Tokens.Space.s14) }
             }
-            .padding(.horizontal, 8).padding(.vertical, 8)
+            .padding(.horizontal, Tokens.Space.s8).padding(.vertical, Tokens.Space.s8)
         }
         // the chosen model may be down the list: opening the panel brings it into view
         .onAppear { if let chosen { DispatchQueue.main.async { proxy.scrollTo(chosen, anchor: .center) } } }
@@ -231,7 +231,7 @@ struct ScaleRow: View {
         let steps = scale?.steps ?? []
         let shown = dragging ?? pending ?? scale?.index ?? 0
         let tint = steps.isEmpty ? Color.secondary : color(shown, steps.count)
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s8) {
             HStack(alignment: .firstTextBaseline) {
                 Text((scale?.title ?? title).uppercased()).font(.scaled(11, weight: .semibold)).tracking(0.6).foregroundStyle(.secondary)
                 Spacer(minLength: 8)
@@ -262,7 +262,7 @@ struct ScaleRow: View {
             Text(note ?? (steps.indices.contains(shown) ? steps[shown].detail : nil) ?? "").font(.scaled(12)).foregroundStyle(.primary.opacity(0.75))
                 .frame(maxWidth: .infinity, minHeight: 16, alignment: .topLeading).fixedSize(horizontal: false, vertical: true)
         }
-        .padding(.horizontal, panelMargin).padding(.vertical, 14)
+        .padding(.horizontal, panelMargin).padding(.vertical, Tokens.Space.s14)
         .overlay(alignment: .top) { Divider() }
         .modifier(Pending(pending: $pending, current: scale?.index))
     }
@@ -277,8 +277,8 @@ struct SwitchRow: View {
 
     var body: some View {
         let on = (pending ?? scale.index) == 1
-        HStack(alignment: .center, spacing: 12) {
-            VStack(alignment: .leading, spacing: 3) {
+        HStack(alignment: .center, spacing: Tokens.Space.s12) {
+            VStack(alignment: .leading, spacing: Tokens.Space.s3) {
                 Text(scale.steps[1].label).font(.scaled(13, weight: .semibold))
                 Text(scale.steps[on ? 1 : 0].detail ?? "").font(.scaled(12)).foregroundStyle(.primary.opacity(0.75)).fixedSize(horizontal: false, vertical: true)
             }
@@ -286,7 +286,7 @@ struct SwitchRow: View {
             Toggle("", isOn: Binding(get: { on }, set: { pending = $0 ? 1 : 0; commit($0 ? 1 : 0) })).labelsHidden().toggleStyle(.switch).tint(.themeAccent)
                 .accessibilityLabel(scale.steps[1].label)
         }
-        .padding(.horizontal, panelMargin).padding(.vertical, 14)
+        .padding(.horizontal, panelMargin).padding(.vertical, Tokens.Space.s14)
         .overlay(alignment: .top) { Divider() }
         .modifier(Pending(pending: $pending, current: scale.index))
     }

@@ -147,7 +147,7 @@ struct ConversationView: View {
                 if let failure = model.failure { ProblemNotice(text: failure, failed: true) }
             }
             .scrollTargetLayout()
-            .padding(.horizontal, 40).padding(.vertical, 16)
+            .padding(.horizontal, Tokens.Space.s40).padding(.vertical, Tokens.Space.s16)
             .frame(maxWidth: messageWidth.points, alignment: .leading)
             .frame(maxWidth: .infinity)
             // the count and whether the agent is busy (the dots of Thinking come and go with it)
@@ -166,7 +166,7 @@ struct ConversationView: View {
             if markers.count >= timelineMinimumTurns {
                 TimelineOverlay(markers: markers, scroll: scroll)
                 // the toolbar takes the top and the box the bottom: the middle of the window's body, not of the scroll view's frame
-                .padding(.top, 160)
+                .padding(.top, Tokens.Space.timelineTop)
                 .transition(.opacity)
             }
         }
@@ -195,7 +195,7 @@ struct ConversationView: View {
             }
         }
         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { paneHeight = $0 }
-        .safeAreaInset(edge: .bottom, spacing: 0) { if model.archived { archivedBox } else { box.environment(\.conversationHeight, paneHeight) } }
+        .safeAreaInset(edge: .bottom, spacing: Tokens.Space.none) { if model.archived { archivedBox } else { box.environment(\.conversationHeight, paneHeight) } }
         .font(.scaled(13))
         .task {
             if let first = draft?.takeFirstMessage(of: model.sessionId) { model.show(firstMessage: first) }
@@ -235,7 +235,7 @@ struct ConversationView: View {
     private var archivedBox: some View {
         // two lines at most: with no limit this detail made the whole window lay out taller than it is, the notice below its edge
         ArchivedSessionNotice(resume: { Task { if let refusal = await actions.restore(model.sessionId) { tell(refusal) } } })
-        .padding(.horizontal, 40).padding(.vertical, 12)
+        .padding(.horizontal, Tokens.Space.s40).padding(.vertical, Tokens.Space.s12)
         .frame(maxWidth: messageWidth.points).frame(maxWidth: .infinity)
     }
 

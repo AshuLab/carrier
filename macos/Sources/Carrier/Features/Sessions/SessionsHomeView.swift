@@ -22,10 +22,10 @@ struct SessionsHomeView: View {
     var body: some View {
         let page = sessionsPage(sessions.rows, by: sort, query: query ?? "", filter: filter, pinned: pinnedIds(pinnedStored))
         let searched = (query ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
-        VStack(spacing: 0) {
+        VStack(spacing: Tokens.Space.none) {
             if ChatHostStarter.shared.restartAdvised {
                 ProblemNotice(title: chatHostRestartNotice.title, detail: chatHostRestartNotice.line, symbol: .refresh)
-                    .padding(.horizontal, 20).padding(.vertical, 8)
+                    .padding(.horizontal, Tokens.Space.s20).padding(.vertical, Tokens.Space.s8)
             }
             sessionsContent(page: page, searched: searched)
         }
@@ -38,8 +38,8 @@ struct SessionsHomeView: View {
             if let notice = chatHostNotice(missing: ChatHostStarter.shared.missing) {
                 EmptyStateView(icon: .warning, title: notice.title, line: notice.line).inPageScroll()
             } else if let empty = page.emptyState {
-                VStack(alignment: .leading, spacing: 0) {
-                    if filter.chips.isEmpty == false { chips.padding(.horizontal, 20).padding(.vertical, 8) }
+                VStack(alignment: .leading, spacing: Tokens.Space.none) {
+                    if filter.chips.isEmpty == false { chips.padding(.horizontal, Tokens.Space.s20).padding(.vertical, Tokens.Space.s8) }
                     EmptyStateView(state: empty, action: empty == .noSessionsMatch ? ("Clear filters", clear) : nil)
                 }
                 .inPageScroll()
@@ -48,8 +48,8 @@ struct SessionsHomeView: View {
                 let ids = page.groups.flatMap { $0.rows.map(\.id) }
                 ScrollViewReader { proxy in
                     ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 2) {
-                            if filter.chips.isEmpty == false { chips.padding(.horizontal, 8).padding(.bottom, 8) }
+                        LazyVStack(alignment: .leading, spacing: Tokens.Space.s2) {
+                            if filter.chips.isEmpty == false { chips.padding(.horizontal, Tokens.Space.s8).padding(.bottom, Tokens.Space.s8) }
                             ForEach(page.groups, id: \.title) { group in
                                 if searched == false { groupHeader(group) }
                                 ForEach(group.rows, id: \.id) { row in
@@ -61,7 +61,7 @@ struct SessionsHomeView: View {
                                 }
                             }
                         }
-                        .padding(.horizontal, 12).padding(.vertical, 8)
+                        .padding(.horizontal, Tokens.Space.s12).padding(.vertical, Tokens.Space.s8)
                     }
                     // Up and Down move through the rows and Return opens the one they are on
                     .focusable().focused($listFocused).focusEffectDisabled()
@@ -99,7 +99,7 @@ struct SessionsHomeView: View {
     /// these labels need and cannot be made smaller.
     @ToolbarContentBuilder private var toolbar: some ToolbarContent {
         ToolbarItem(placement: .primaryAction) {
-            HStack(spacing: 0) {
+            HStack(spacing: Tokens.Space.none) {
                 searchItem
                 filterItem
             }
@@ -109,7 +109,7 @@ struct SessionsHomeView: View {
         ToolbarSpacer(.fixed, placement: .primaryAction)
         ToolbarItem(placement: .primaryAction) {
             AccentGlassPillButton(title: "New session", icon: .plus, action: newSession)
-                .padding(.trailing, 10)
+                .padding(.trailing, Tokens.Space.s10)
                 .help("New session")
         }
         .sharedBackgroundVisibility(.hidden)
@@ -127,15 +127,15 @@ struct SessionsHomeView: View {
     }
 
     private var chips: some View {
-        FlowLayout(spacing: 6) {
+        FlowLayout(spacing: Tokens.Space.s6) {
             ForEach(filter.chips, id: \.self) { chip in
                 Button { filter.remove(chip) } label: {
-                    HStack(spacing: 4) {
+                    HStack(spacing: Tokens.Space.s4) {
                         Text(chip.title)
                         Glyph(.close, size: 8)
                     }
                     .font(.caption.weight(.medium)).foregroundStyle(.white)
-                    .padding(.horizontal, 9).padding(.vertical, 3).background(Capsule().fill(Color.themeAccent))
+                    .padding(.horizontal, Tokens.Space.s10).padding(.vertical, Tokens.Space.s3).background(Capsule().fill(Color.themeAccent))
                 }
                 .buttonStyle(.plain).accessibilityLabel("Remove filter \(chip.title)")
             }
@@ -144,11 +144,11 @@ struct SessionsHomeView: View {
     }
 
     private func groupHeader(_ group: SessionGroup) -> some View {
-        HStack(spacing: 6) {
+        HStack(spacing: Tokens.Space.s6) {
             Text(group.title).font(.callout.weight(.semibold))
             Text(group.rows.count == 1 ? "1 session" : "\(group.rows.count) sessions").font(.caption).foregroundStyle(.secondary)
         }
-        .padding(.horizontal, 8).padding(.top, 14).padding(.bottom, 4)
+        .padding(.horizontal, Tokens.Space.s8).padding(.top, Tokens.Space.s14).padding(.bottom, Tokens.Space.s4)
         .accessibilityAddTraits(.isHeader)
     }
 }
@@ -168,7 +168,7 @@ private struct SessionFilterPopover: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s4) {
             heading("Sort by")
             ForEach(SessionSort.allCases, id: \.self) { option in
                 Button { sort = option } label: {
@@ -181,20 +181,20 @@ private struct SessionFilterPopover: View {
                 }
                 .buttonStyle(.plain).accessibilityAddTraits(sort == option ? .isSelected : [])
             }
-            Divider().padding(.vertical, 4)
+            Divider().padding(.vertical, Tokens.Space.s4)
             heading("Show")
             ForEach(SessionFilter.offeredStatuses, id: \.self) { Toggle($0.title, isOn: ticked(\.statuses, $0)) }
             if agents.isEmpty == false {
-                Divider().padding(.vertical, 4)
+                Divider().padding(.vertical, Tokens.Space.s4)
                 heading("Agent")
                 ForEach(agents, id: \.self) { Toggle($0, isOn: ticked(\.agents, $0)) }
             }
             if filter.count > 0 {
-                Divider().padding(.vertical, 4)
+                Divider().padding(.vertical, Tokens.Space.s4)
                 Button("Clear filters") { filter = SessionFilter() }.buttonStyle(.plain).foregroundStyle(.secondary)
             }
         }
-        .padding(12)
+        .padding(Tokens.Space.s12)
         .frame(width: 220)
     }
 
@@ -233,11 +233,11 @@ private struct SessionHomeRow: View {
 
     var body: some View {
         let active = hovered || highlighted
-        HStack(alignment: .top, spacing: 12) {
+        HStack(alignment: .top, spacing: Tokens.Space.s12) {
             ProjectIcon(base: row.base, name: row.workspace, colorKey: projectColorKey(row.base), working: row.isWorking, background: row.isWorking && row.state != .working)
                 .environment(\.rowActive, active)
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 6) {
+            VStack(alignment: .leading, spacing: Tokens.Space.s3) {
+                HStack(spacing: Tokens.Space.s6) {
                     if pinned { Glyph(.pinFilled, size: 10, label: "Pinned").foregroundStyle(.secondary) }
                     Text(row.title).font(.scaled(13, weight: .medium)).lineLimit(1).truncationMode(.tail)
                     if showsWorkspace { RowTag(text: row.workspace) }
@@ -247,7 +247,7 @@ private struct SessionHomeRow: View {
                 meta
             }
             Spacer(minLength: 8)
-            VStack(alignment: .trailing, spacing: 6) {
+            VStack(alignment: .trailing, spacing: Tokens.Space.s6) {
                 SessionTimeLabel(row: row, age: timeText(row.updatedAt, now: Date(), format: timeChanges.format)).font(.scaled(12).monospacedDigit()).lineLimit(1)
                 ProviderMarks(names: row.providers)
             }
@@ -257,8 +257,8 @@ private struct SessionHomeRow: View {
         .overlay(alignment: .trailing) { actionButtons.opacity(active ? 1 : 0).allowsHitTesting(active) }
         .animation(.easeInOut(duration: 0.15), value: active)
         .opacity(row.archived ? 0.55 : 1)
-        .padding(.horizontal, 10).padding(.vertical, 8)
-        .background(RoundedRectangle(cornerRadius: 12).fill(active ? Color.primary.opacity(0.07) : .clear))
+        .padding(.horizontal, Tokens.Space.s10).padding(.vertical, Tokens.Space.s8)
+        .background(RoundedRectangle(cornerRadius: Tokens.Radius.card).fill(active ? Color.primary.opacity(0.07) : .clear))
         .contentShape(Rectangle())
         .onTapGesture(perform: open)
         .onHover { hovered = $0 }
@@ -289,7 +289,7 @@ private struct SessionHomeRow: View {
 
     /// Where it works (a branch in monospace), how many turns it took, the model of the last, and its pull request with the lines it changed.
     private var meta: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: Tokens.Space.s6) {
             Group {
                 if let branch = row.branch {
                     Text("\(Image(inline: .gitBranch)) \(Text(branch).font(.scaled(11, design: .monospaced)))").lineLimit(1).truncationMode(.middle)
@@ -300,14 +300,14 @@ private struct SessionHomeRow: View {
                 if let model = TurnSummary(model: row.model).shortModel { Text("·"); Text(model) }
             }
             .font(.caption).foregroundStyle(.tertiary)
-            if let pullRequest = row.pullRequest { SessionPullRequestChip(pr: pullRequest).padding(.leading, 4) }
+            if let pullRequest = row.pullRequest { SessionPullRequestChip(pr: pullRequest).padding(.leading, Tokens.Space.s4) }
             if let diff = row.diff { DiffText(diff: diff) }
         }
         .lineLimit(1)
     }
 
     private var actionButtons: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: Tokens.Space.s4) {
             RowIconButton(symbol: pinned ? .pinOff : .pin, title: pinned ? "Unpin" : "Pin", selected: pinned) {
                 let ids = pinnedIds(pinnedStored)
                 pinnedStored = storedPins(pinned ? ids.subtracting([row.id]) : ids.union([row.id]))

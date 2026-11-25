@@ -9,7 +9,7 @@ import Testing
         updatedAt: now.addingTimeInterval(-7200), branch: "carrier/void-corsair-pylon", branchFrom: "origin/main", folder: "/srv/wt/void-corsair-pylon",
         lastMessage: "Done: the pill has room now.", turns: 3, reportsActivity: true
     )
-    let card = sessionPeek(row, now: now)
+    let card = sessionPeek(row, now: now, bundle: english.bundle, locale: english.locale)
     #expect(card.title == "A title that the row would cut" && card.name == "carrier" && card.subtitle == "Idle")
     #expect(card.lastMessage == "Done: the pill has room now.")
     #expect(card.facts.map(\.label) == ["Where", "Branch", "Folder", "Agent", "Turns"])
@@ -23,14 +23,14 @@ import Testing
 
 @Test func aSessionInThePlainFolderSaysBaseFolderAndOneWaitingForYouSaysSo() {
     let row = SessionRow(id: "s2", title: "t", workspace: "web", agent: "", state: .waiting, updatedAt: Date(), folder: "")
-    let card = sessionPeek(row, now: Date())
+    let card = sessionPeek(row, now: Date(), bundle: english.bundle, locale: english.locale)
     #expect(card.subtitle == "Waiting for you" && card.tone == .attention && card.lastMessage == nil)
     #expect(card.facts == [.init(label: "Where", value: "Base folder")])
 }
 
 @Test func theStateOfASessionIsSaidInTheWordsAndColourOfItsRow() {
     func peek(_ state: SessionState, unread: Bool = false) -> SessionPeek {
-        sessionPeek(SessionRow(id: "s", title: "t", workspace: "w", agent: "", state: state, updatedAt: Date(), unread: unread), now: Date())
+        sessionPeek(SessionRow(id: "s", title: "t", workspace: "w", agent: "", state: state, updatedAt: Date(), unread: unread), now: Date(), bundle: english.bundle, locale: english.locale)
     }
     #expect(peek(.working).subtitle == "Working…" && peek(.working).tone == .working)
     #expect(peek(.idle).subtitle == "Idle" && peek(.idle).tone == .quiet)
@@ -39,7 +39,7 @@ import Testing
     #expect(peek(.done, unread: true).subtitle == "Done" && peek(.done).subtitle == "Idle")
     // a session the host put to sleep says so; a turn that ended unread outranks it, as it does for the row
     func asleep(unread: Bool) -> SessionPeek {
-        sessionPeek(SessionRow(id: "s", title: "t", workspace: "w", agent: "", state: .idle, updatedAt: Date(), asleep: true, unread: unread), now: Date())
+        sessionPeek(SessionRow(id: "s", title: "t", workspace: "w", agent: "", state: .idle, updatedAt: Date(), asleep: true, unread: unread), now: Date(), bundle: english.bundle, locale: english.locale)
     }
     #expect(asleep(unread: false).subtitle == "Asleep" && asleep(unread: false).tone == .quiet)
     #expect(asleep(unread: true).subtitle == "Done")
@@ -47,12 +47,12 @@ import Testing
     #expect(peek(.waiting, unread: true).subtitle == "Waiting for you" && peek(.waiting, unread: true).tone == .attention)
     #expect(peek(.working, unread: true).subtitle == "Working…" && peek(.working, unread: true).tone == .working)
     // a turn that ended with the agent still waiting for what it started is cyan, and not done or asleep
-    #expect(sessionPeek(SessionRow(id: "s", title: "t", workspace: "w", agent: "", state: .idle, updatedAt: Date(), asleep: true, background: [BackgroundTask(id: "b", kind: "local_bash", description: "x")]), now: Date()).tone == .background)
+    #expect(sessionPeek(SessionRow(id: "s", title: "t", workspace: "w", agent: "", state: .idle, updatedAt: Date(), asleep: true, background: [BackgroundTask(id: "b", kind: "local_bash", description: "x")]), now: Date(), bundle: english.bundle, locale: english.locale).tone == .background)
 }
 
 @Test func aPeekTintsTheStateAsTheRowDoesAndSaysItsPullRequestItsLinesAndWhatItWaitsFor() {
     func peek(_ state: SessionState, unread: Bool = false, background: [BackgroundTask] = []) -> SessionPeek {
-        sessionPeek(SessionRow(id: "s", title: "t", workspace: "w", agent: "claude", state: state, updatedAt: Date(), unread: unread, background: background), now: Date())
+        sessionPeek(SessionRow(id: "s", title: "t", workspace: "w", agent: "claude", state: state, updatedAt: Date(), unread: unread, background: background), now: Date(), bundle: english.bundle, locale: english.locale)
     }
     #expect(peek(.working).tone == .working && peek(.waiting).tone == .attention && peek(.idle).tone == .quiet)
     let done = peek(.idle, unread: true)
@@ -64,12 +64,12 @@ import Testing
     var row = SessionRow(id: "s", title: "t", workspace: "w", agent: "", state: .idle, updatedAt: Date(), branch: "fix/x", folder: "/srv/wt")
     row.pullRequest = SessionPullRequest(number: 9, url: "https://github.com/o/r/pull/9", state: .draft)
     row.diff = SessionDiff(added: 5, removed: 2)
-    let card = sessionPeek(row, now: Date())
+    let card = sessionPeek(row, now: Date(), bundle: english.bundle, locale: english.locale)
     #expect(card.pullRequest?.number == 9 && card.diff == SessionDiff(added: 5, removed: 2))
     // a branch and a path are drawn as such (monospaced, on one line)
     #expect(card.facts.map(\.kind) == [.text, .branch, .path])
     // the card shows the lines changed even for a session with no pull request, which its row does not
     row.pullRequest = nil
-    #expect(sessionPeek(row, now: Date()).diff != nil && sessionPeek(row, now: Date()).pullRequest == nil)
-    #expect(sessionPeek(SessionRow(id: "s", title: "t", workspace: "w", agent: "", state: .idle, updatedAt: Date()), now: Date()).facts.map(\.kind) == [.text])
+    #expect(sessionPeek(row, now: Date(), bundle: english.bundle, locale: english.locale).diff != nil && sessionPeek(row, now: Date(), bundle: english.bundle, locale: english.locale).pullRequest == nil)
+    #expect(sessionPeek(SessionRow(id: "s", title: "t", workspace: "w", agent: "", state: .idle, updatedAt: Date()), now: Date(), bundle: english.bundle, locale: english.locale).facts.map(\.kind) == [.text])
 }

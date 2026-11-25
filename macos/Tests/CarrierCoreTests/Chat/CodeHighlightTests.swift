@@ -46,7 +46,7 @@ private func kinds(_ code: String, _ language: String) -> [(String, CodeTokenKin
     #expect(resolvedCodeLanguage(nil, code: "{\"a\": [1, 2]}") == "json")
     #expect(resolvedCodeLanguage(nil, code: "{ not json") == nil)
     #expect(resolvedCodeLanguage("text", code: "$ ls") == nil)
-    #expect(codeLanguageName("js", resolved: "javascript") == "JavaScript" && codeLanguageName("toml", resolved: nil) == "toml" && codeLanguageName(nil, resolved: nil) == "Code")
+    #expect(codeLanguageName("js", resolved: "javascript") == "JavaScript" && codeLanguageName("toml", resolved: nil) == "toml" && codeLanguageName(nil, resolved: nil, bundle: english.bundle, locale: english.locale) == "Code")
 }
 
 @Test func theFenceGivesTheLanguageAndTheFile() {

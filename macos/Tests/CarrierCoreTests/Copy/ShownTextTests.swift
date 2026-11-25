@@ -103,7 +103,7 @@ private let es = (bundle: Copy.bundle("es"), locale: Locale(identifier: "es_AR")
     #expect(ChatEvent(id: 3, at: 3, kind: "notice", text: "stored words").shown("stored words", bundle: es.bundle, locale: es.locale) == "stored words")
     // the feed and the steps go through it
     func line(_ event: ChatEvent) -> String? {
-        chatFeed([event], working: false).compactMap { if case .line(_, let text) = $0 { text } else { nil } }.first
+        chatFeed([event], working: false, bundle: english.bundle, locale: english.locale).compactMap { if case .line(_, let text) = $0 { text } else { nil } }.first
     }
     #expect(line(notice) == Copy.text("session.notice.conversationLost"))
     #expect(line(ChatEvent(id: 2, at: 2, kind: "notice", text: "words", code: "session.notice.noSuchCode")) == "words")

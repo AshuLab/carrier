@@ -19,7 +19,7 @@ private func feed(secondFails: Bool = true) -> [FeedRow] {
         ChatEvent(id: 3, at: 3, kind: "assistant", text: "first"),
         ChatEvent(id: 4, at: 4, kind: "tool_start", callId: "b", tool: "Bash", arg: "ls"),
         ChatEvent(id: 5, at: 5, kind: "tool_end", callId: "b", status: secondFails ? "err" : "ok"),
-    ])
+    ], bundle: english.bundle, locale: english.locale)
 }
 
 private func groupIds(_ rows: [FeedRow]) -> [String] { rows.compactMap { if case .tools(let id, _) = $0 { id } else { nil } } }

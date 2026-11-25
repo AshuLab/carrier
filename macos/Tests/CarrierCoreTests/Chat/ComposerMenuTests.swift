@@ -10,7 +10,7 @@ private func claude(model: String = "default", effort: String? = "medium", mode:
 }
 
 @Test func theMenuHasTheModelsAReasoningScaleAndAnAccessScaleFromTheCarefulToTheFree() {
-    let menu = composerMenu(claude())
+    let menu = composerMenu(claude(), bundle: english.bundle, locale: english.locale)
     #expect(menu.models.map(\.id) == ["default", "opus"] && menu.pillModel == "Default")
     #expect(menu.reasoning?.steps.map(\.label) == ["Low", "Medium", "High", "Extra high"] && menu.pillReasoning == "Medium")
     #expect(menu.access.count == 1 && menu.access[0].title == "Access")
@@ -18,27 +18,27 @@ private func claude(model: String = "default", effort: String? = "medium", mode:
 }
 
 @Test func aModelWithNoEffortHasNoReasoningScale() {
-    #expect(composerMenu(claude(effort: nil)).reasoning == nil && composerMenu(claude(effort: nil)).pillReasoning == nil)
+    #expect(composerMenu(claude(effort: nil), bundle: english.bundle, locale: english.locale).reasoning == nil && composerMenu(claude(effort: nil), bundle: english.bundle, locale: english.locale).pillReasoning == nil)
 }
 
 @Test func thePillFlagsAnAccessFreerThanTheCarefulDefaultAndNeverAStricterOne() {
-    #expect(composerMenu(claude()).accessFlag == nil)
-    #expect(composerMenu(claude(mode: "auto")).accessFlag == "Auto")
-    #expect(composerMenu(claude(mode: "plan")).accessFlag == nil)
+    #expect(composerMenu(claude(), bundle: english.bundle, locale: english.locale).accessFlag == nil)
+    #expect(composerMenu(claude(mode: "auto"), bundle: english.bundle, locale: english.locale).accessFlag == "Auto")
+    #expect(composerMenu(claude(mode: "plan"), bundle: english.bundle, locale: english.locale).accessFlag == nil)
 }
 
 @Test func anOptionWithTwoValuesIsASwitchWhoseOnIsTheFreerOne() {
-    let menu = composerMenu([ChatOption(id: "sandbox", label: "Sandbox", values: [.init(id: "workspace-write", label: "Write in the folder"), .init(id: "read-only", label: "Read only")], current: "read-only")])
+    let menu = composerMenu([ChatOption(id: "sandbox", label: "Sandbox", values: [.init(id: "workspace-write", label: "Write in the folder"), .init(id: "read-only", label: "Read only")], current: "read-only")], bundle: english.bundle, locale: english.locale)
     #expect(menu.access[0].isSwitch && menu.access[0].steps.map(\.id) == ["read-only", "workspace-write"] && menu.access[0].index == 0)
     #expect(menu.access[0].current?.detail == "It can read the folder; it changes nothing." && menu.accessFlag == nil)
-    #expect(composerMenu(claude()).access[0].isSwitch == false)
+    #expect(composerMenu(claude(), bundle: english.bundle, locale: english.locale).access[0].isSwitch == false)
 }
 
 @Test func codexListsTwoScalesAndAnUnknownValueGoesLast() {
     let menu = composerMenu([
         ChatOption(id: "approvalPolicy", label: "Approval policy", values: ["never", "untrusted", "surprise"].map { .init(id: $0, label: $0) }, current: "untrusted"),
         ChatOption(id: "sandbox", label: "Sandbox", values: ["workspace-write", "read-only"].map { .init(id: $0, label: $0) }, current: "workspace-write"),
-    ])
+    ], bundle: english.bundle, locale: english.locale)
     #expect(menu.access.map(\.title) == ["Approval policy", "Sandbox"])
     #expect(menu.access[0].steps.map(\.id) == ["untrusted", "never", "surprise"] && menu.access[1].steps.map(\.id) == ["read-only", "workspace-write"])
     #expect(menu.access.map(\.isSwitch) == [false, true])
@@ -46,6 +46,6 @@ private func claude(model: String = "default", effort: String? = "medium", mode:
 }
 
 @Test func nothingListedGivesAnEmptyMenu() {
-    let menu = composerMenu([])
+    let menu = composerMenu([], bundle: english.bundle, locale: english.locale)
     #expect(menu.models.isEmpty && menu.reasoning == nil && menu.access.isEmpty && menu.pillModel == nil && menu.accessFlag == nil)
 }

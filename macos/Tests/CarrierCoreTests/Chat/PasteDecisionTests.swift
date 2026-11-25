@@ -15,7 +15,7 @@ import Testing
 }
 
 @Test func everyReasonSaysWhyInItsOwnWords() {
-    let words = [PasteReason.noField, .noPermission, .secureField].map(\.explanation)
+    let words = [PasteReason.noField, .noPermission, .secureField].map { $0.explanation(bundle: english.bundle, locale: english.locale) }
     #expect(Set(words).count == 3)
     #expect(words[0].contains("text field") && words[1].contains("Accessibility") && words[2].contains("secure"))
 }

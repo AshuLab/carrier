@@ -34,10 +34,10 @@ private let icons = ["pro": "claude", "teams": "claude", "codex": "codex", "agy"
             ChatOption.Value(id: "sonnet", label: "Sonnet", detail: nil, version: "sonnet"),
         ], current: "default"),
     ])
-    let models = modelOptions(offer)
+    let models = modelOptions(offer, bundle: english.bundle, locale: english.locale)
     #expect(models.map(\.id) == ["opus", "sonnet"])
     #expect(models.map(\.detail) == ["claude-opus-5-5", nil])
-    #expect(modelOptions(nil).isEmpty)
+    #expect(modelOptions(nil, bundle: english.bundle, locale: english.locale).isEmpty)
 }
 
 @Test func theAgentThatListsAHarnessesModelsIsTheFirstOfItThatWasFound() {
@@ -77,5 +77,5 @@ private let icons = ["pro": "claude", "teams": "claude", "codex": "codex", "agy"
 }
 
 @Test func theEffortStepsAreTheEnginesLevelsAfterTheDefault() {
-    #expect(effortSteps.map(\.id) == [""] + roleEfforts)
+    #expect(effortSteps(bundle: english.bundle, locale: english.locale).map(\.id) == [""] + roleEfforts)
 }

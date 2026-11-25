@@ -19,7 +19,7 @@ private func session(
     let rows = sessionRows([
         try session("w", state: "working"), try session("a", state: "waiting_approval", archived: true), try session("i"),
         try session("n", title: nil, lastActiveAt: 1_792_000_123_456),
-    ])
+    ], bundle: english.bundle, locale: english.locale)
     #expect(rows.map(\.state) == [.working, .waiting, .idle, .idle])
     #expect(rows.map(\.agent) == ["codex", "codex", "codex", "codex"])
     #expect(rows.map(\.archived) == [false, true, false, false])
@@ -41,22 +41,22 @@ private func decodedSession(_ extra: String, state: String = "idle", live: Bool 
         ,"diff":{"added":86,"removed":12},"pr":{"repo":"AshuLab/carrier","number":983,"url":"https://github.com/AshuLab/carrier/pull/983","state":"draft","checks":null},
          "background":[{"id":"b1","kind":"local_bash","description":"pnpm build"}]
         """)
-    let row = try #require(sessionRows([full]).first)
+    let row = try #require(sessionRows([full], bundle: english.bundle, locale: english.locale).first)
     #expect(row.diff == SessionDiff(added: 86, removed: 12))
     #expect(row.pullRequest == SessionPullRequest(number: 983, url: "https://github.com/AshuLab/carrier/pull/983", state: .draft))
     #expect(row.background == [BackgroundTask(id: "b1", kind: "local_bash", description: "pnpm build")])
     // a host that says none of it, or a shape this app does not know, is no data and never a list that cannot be read
-    let bare = try #require(sessionRows([try decodedSession("")]).first)
+    let bare = try #require(sessionRows([try decodedSession("")], bundle: english.bundle, locale: english.locale).first)
     #expect(bare.diff == nil && bare.pullRequest == nil && bare.background.isEmpty)
-    let odd = try #require(sessionRows([try decodedSession(#","diff":"lots","pr":{"number":"x"},"background":7"#)]).first)
+    let odd = try #require(sessionRows([try decodedSession(#","diff":"lots","pr":{"number":"x"},"background":7"#)], bundle: english.bundle, locale: english.locale).first)
     #expect(odd.diff == nil && odd.pullRequest == nil && odd.background.isEmpty)
-    let unknownState = try #require(sessionRows([try decodedSession(#","pr":{"number":1,"url":"https://x","state":"queued","checks":null}"#)]).first)
+    let unknownState = try #require(sessionRows([try decodedSession(#","pr":{"number":1,"url":"https://x","state":"queued","checks":null}"#)], bundle: english.bundle, locale: english.locale).first)
     #expect(unknownState.pullRequest == nil)
 }
 
 @Test func aSessionThatWaitsForBackgroundWorkIsWorkingNotIdleOrDoneAndAWaitingOneStaysWaiting() throws {
     let task = #","background":[{"id":"b","kind":"local_bash","description":"pnpm build"}]"#
-    let idle = try #require(sessionRows([try decodedSession(task)]).first)
+    let idle = try #require(sessionRows([try decodedSession(task)], bundle: english.bundle, locale: english.locale).first)
     #expect(idle.state == .idle && idle.isWorking && idle.status == .working)
     // it answered and was not opened: with the build still running it is not "Done" yet
     var unread = idle
@@ -65,7 +65,7 @@ private func decodedSession(_ extra: String, state: String = "idle", live: Bool 
     unread.background = []
     #expect(unread.isWorking == false && unread.status == .unread)
     // waiting for an answer is what it is for the person, whatever else it runs
-    let waiting = try #require(sessionRows([try decodedSession(task, state: "waiting_approval")]).first)
+    let waiting = try #require(sessionRows([try decodedSession(task, state: "waiting_approval")], bundle: english.bundle, locale: english.locale).first)
     #expect(waiting.status == .needsYou && waiting.isWorking == false)
 }
 
@@ -157,11 +157,11 @@ private func decodedSession(_ extra: String, state: String = "idle", live: Bool 
             {"id":"t","agent":"claude","harness":"claude","folder":"/w/fix","workspace":{"kind":"worktree","base":"/Users/dev/web","branch":"carrier/fix","from":"main","path":"/w/fix"},
              "title":"t","state":"idle","createdAt":1,"lastActiveAt":2,"archived":false,"live":false}
             """.utf8))
-    #expect(sessionRows([tree, try session("plain")]).map(\.branch) == ["carrier/fix", nil])
+    #expect(sessionRows([tree, try session("plain")], bundle: english.bundle, locale: english.locale).map(\.branch) == ["carrier/fix", nil])
 }
 
 @Test func aRowCarriesTheBaseFolderItIsGroupedUnder() throws {
-    let rows = sessionRows([try session("w", folder: "/w/fix", base: "/Users/dev/web"), try session("plain", folder: "/Users/dev/api")])
+    let rows = sessionRows([try session("w", folder: "/w/fix", base: "/Users/dev/web"), try session("plain", folder: "/Users/dev/api")], bundle: english.bundle, locale: english.locale)
     #expect(rows.map(\.base) == ["/Users/dev/web", "/Users/dev/api"])
     #expect(rows.map(\.providers) == [["codex"], ["codex"]])
 }
@@ -171,7 +171,7 @@ private func decodedSession(_ extra: String, state: String = "idle", live: Bool 
         try readProjects(Data(#"{"projects":[{"path":"/Users/dev/web","origin":"added","name":"Site"},{"path":"/Users/dev/api","origin":"added"}]}"#.utf8)),
         remote: { _ in nil }
     )
-    let rows = sessionRows([try session("a", folder: "/Users/dev/web"), try session("b", folder: "/Users/dev/api"), try session("c", folder: "/Users/dev/other")])
+    let rows = sessionRows([try session("a", folder: "/Users/dev/web"), try session("b", folder: "/Users/dev/api"), try session("c", folder: "/Users/dev/other")], bundle: english.bundle, locale: english.locale)
     #expect(retitled(rows, projects: projects).map(\.workspace) == ["Site", "api", "other"])
     #expect(retitled(rows, projects: []).map(\.workspace) == rows.map(\.workspace))
 
@@ -179,46 +179,46 @@ private func decodedSession(_ extra: String, state: String = "idle", live: Bool 
     let clash = projectRows(
         try readProjects(Data(#"{"projects":[{"path":"/Users/dev/web","origin":"added","name":"api"}]}"#.utf8)), remote: { _ in nil }
     )
-    let apis = sessionRows([try session("a", folder: "/Users/dev/web"), try session("b", folder: "/Users/me/api")])
+    let apis = sessionRows([try session("a", folder: "/Users/dev/web"), try session("b", folder: "/Users/me/api")], bundle: english.bundle, locale: english.locale)
     #expect(retitled(apis, projects: clash).map(\.workspace) == ["dev/api", "me/api"])
     let twoNames = projectRows(
         try readProjects(Data(#"{"projects":[{"path":"/Users/dev/web","origin":"added","name":"Site"},{"path":"/Users/me/web","origin":"added","name":"Site"}]}"#.utf8)),
         remote: { _ in nil }
     )
-    let moved = sessionRows([try session("a", folder: "/Users/dev/web"), try session("b", folder: "/Users/me/web")])
+    let moved = sessionRows([try session("a", folder: "/Users/dev/web"), try session("b", folder: "/Users/me/web")], bundle: english.bundle, locale: english.locale)
     #expect(retitled(moved, projects: twoNames).map(\.workspace) == ["dev/Site", "me/Site"])
 }
 
 @Test func aSessionThatIsNotLiveIsIdle() throws {
-    let rows = sessionRows([try session("w", state: "working", live: false), try session("a", state: "waiting_approval", live: false)])
+    let rows = sessionRows([try session("w", state: "working", live: false), try session("a", state: "waiting_approval", live: false)], bundle: english.bundle, locale: english.locale)
     #expect(rows.map(\.state) == [.idle, .idle])
 }
 
 /// The host says `working` for a turn and for a session held by running subagents after its turn ended in the same words, so the app
 /// draws both alike: the row, the clock and the menu say working, and Archive is off with the reason.
 @MainActor @Test func aSessionTheHostReportsWorkingAfterItsTurnEndedIsDrawnWorkingWithArchiveOff() throws {
-    let rows = sessionRows([try session("turn", state: "working"), try session("subagents", state: "working")])
+    let rows = sessionRows([try session("turn", state: "working"), try session("subagents", state: "working")], bundle: english.bundle, locale: english.locale)
     #expect(rows.map(\.state) == [.working, .working])
     let row = rows[1]
     #expect(WorkingClock().since(row) == row.updatedAt)
-    #expect(archiveBlock(row) == "Stop the session to archive it")
-    let menu = sessionMenu(row).flatMap { $0 }
+    #expect(archiveBlock(row, bundle: english.bundle, locale: english.locale) == "Stop the session to archive it")
+    let menu = sessionMenu(row, bundle: english.bundle, locale: english.locale).flatMap { $0 }
     #expect(menu.first { $0.title == "Archive" }?.disabledReason == "Stop the session to archive it")
     #expect(menu.first { $0.title == "Stop" }?.disabledReason == nil)
     // the same session once the last subagent ended: idle, Archive on
-    let idle = sessionRows([try session("subagents", state: "idle")])[0]
-    #expect(idle.state == .idle && archiveBlock(idle) == nil)
+    let idle = sessionRows([try session("subagents", state: "idle")], bundle: english.bundle, locale: english.locale)[0]
+    #expect(idle.state == .idle && archiveBlock(idle, bundle: english.bundle, locale: english.locale) == nil)
 }
 
 @Test func aSessionThatIsPreparingShowsAtOnceAsWorkingWhetherOrNotItsAgentHasStarted() throws {
-    let rows = sessionRows([try session("p", state: "preparing", live: false), try session("q", state: "preparing", live: true)])
+    let rows = sessionRows([try session("p", state: "preparing", live: false), try session("q", state: "preparing", live: true)], bundle: english.bundle, locale: english.locale)
     #expect(rows.map(\.state) == [.working, .working])
 }
 
 @Test func aWorktreeSessionIsGroupedUnderItsBaseFolderAndAFolderSessionUnderItsFolder() throws {
     let rows = sessionRows([
         try session("tree", folder: "/Users/dev/.carrier/worktrees/web/fix", base: "/Users/dev/web"), try session("plain", folder: "/Users/dev/web"),
-    ])
+    ], bundle: english.bundle, locale: english.locale)
     #expect(rows.map(\.workspace) == ["web", "web"])
     #expect(sessionGroups(rows, bundle: english.bundle, locale: english.locale).map(\.title) == ["web"])
 }
@@ -226,7 +226,7 @@ private func decodedSession(_ extra: String, state: String = "idle", live: Bool 
 @Test func theSessionsOfARemovedProjectStayGroupedUnderItsFolderAsAPlainFolderWould() throws {
     let rows = sessionRows([
         try session("tree", folder: "/Users/dev/.carrier/worktrees/web/fix", base: "/Users/dev/web"), try session("plain", folder: "/Users/dev/web"),
-    ])
+    ], bundle: english.bundle, locale: english.locale)
     // the host took the entry out of projects.json
     #expect(try readProjects(Data(#"{"projects":[]}"#.utf8)).isEmpty)
     // the grouping reads the sessions' base folders, never the projects list: the same rows, the same group
@@ -238,7 +238,7 @@ private func decodedSession(_ extra: String, state: String = "idle", live: Bool 
     let rows = sessionRows([
         try session("1", folder: "/Users/dev/web"), try session("2", folder: "/Users/dev/work/web"), try session("3", folder: "/Users/dev/carrier"),
         try session("4", folder: "/Users/dev/web"),
-    ])
+    ], bundle: english.bundle, locale: english.locale)
     #expect(rows.map(\.workspace) == ["dev/web", "work/web", "carrier", "dev/web"])
     #expect(sessionGroups(rows, bundle: english.bundle, locale: english.locale).map(\.title) == ["carrier", "dev/web", "work/web"])
 }
@@ -249,7 +249,7 @@ private let fixtures = testPaths().fixtures.path
     let server = try FixtureServer(fixtures: fixtures)
     defer { server.stop() }
     let host = SocketChatHost(socketPath: { server.chatSocketPath })
-    let rows = sessionRows(try await host.list(archived: false) + (try await host.list(archived: true)))
+    let rows = sessionRows(try await host.list(archived: false) + (try await host.list(archived: true)), bundle: english.bundle, locale: english.locale)
     #expect(sessionGroups(rows, bundle: english.bundle, locale: english.locale).map(\.title) == ["agent-forge", "carrier", "dev/web", "work/web"])
     #expect(archivedCount(rows) == 2)
 }
@@ -620,27 +620,27 @@ private func worktreeSession() throws -> ChatSession {
 }
 
 @Test func theTitleBarSaysTheTitleAndWhereAFolderSessionWorks() throws {
-    let row = sessionRows([try session("plain", folder: "/Users/dev/web", title: "Explore")])[0]
-    #expect(conversationTitle(row) == "Explore")
+    let row = sessionRows([try session("plain", folder: "/Users/dev/web", title: "Explore")], bundle: english.bundle, locale: english.locale)[0]
+    #expect(conversationTitle(row, bundle: english.bundle, locale: english.locale) == "Explore")
     #expect(conversationSubtitle(row) == "web")
-    #expect(openMenuItems(row) == [
+    #expect(openMenuItems(row, bundle: english.bundle, locale: english.locale) == [
         OpenItem(title: "Reveal in Finder", action: .reveal(path: "/Users/dev/web")), OpenItem(title: "Copy path", action: .copy("/Users/dev/web")),
     ])
 }
 
 @Test func theTitleBarSaysTheBranchOfAWorktreeSessionAndItsMenuCopiesIt() throws {
-    let row = sessionRows([try worktreeSession()])[0]
+    let row = sessionRows([try worktreeSession()], bundle: english.bundle, locale: english.locale)[0]
     // the project and, after it, the worktree's folder
     #expect(conversationSubtitle(row) == "web · fix")
     #expect(row.branchFrom == "main")
-    #expect(openMenuItems(row) == [
+    #expect(openMenuItems(row, bundle: english.bundle, locale: english.locale) == [
         OpenItem(title: "Reveal in Finder", action: .reveal(path: "/w/fix")), OpenItem(title: "Copy path", action: .copy("/w/fix")),
         OpenItem(title: "Copy branch name", action: .copy("carrier/fix")),
     ])
 }
 
 @Test func aSessionWithoutATitleIsANewSessionInTheTitleBar() throws {
-    #expect(conversationTitle(sessionRows([try session("n", title: nil)])[0]) == "New session")
+    #expect(conversationTitle(sessionRows([try session("n", title: nil)])[0], bundle: english.bundle, locale: english.locale) == "New session")
 }
 
 // The Archive page: the archived rows, searched and sorted, counted, with its empty states.
@@ -655,41 +655,41 @@ private let archived = [
 ]
 
 @Test func theArchiveListsOnlyArchivedSessionsByDateArchivedNewestFirst() {
-    let page = archivePage(activeSample + archived, now: now)
+    let page = archivePage(activeSample + archived, now: now, bundle: english.bundle, locale: english.locale)
     #expect(page.groups.map(\.title) == ["Last 30 days", "Older"])
     #expect(page.groups.map { $0.rows.map(\.id) } == [["z", "x"], ["w", "y"]])
     #expect(page.subtitle == "4 sessions" && page.emptyState == nil && page.canClear)
 }
 
 @Test func theArchiveSortsByProjectIgnoringCaseAndANonEmptyGroupOnly() {
-    let page = archivePage(archived, by: .project, now: now)
+    let page = archivePage(archived, by: .project, now: now, bundle: english.bundle, locale: english.locale)
     #expect(page.groups.map(\.title) == ["api", "web", "Web2"])
     #expect(page.groups.map { $0.rows.map(\.id) } == [["z", "x"], ["y"], ["w"]])
-    #expect(archivePage([archived[0]], now: now).groups.map(\.title) == ["Last 30 days"])
+    #expect(archivePage([archived[0]], now: now, bundle: english.bundle, locale: english.locale).groups.map(\.title) == ["Last 30 days"])
 }
 
 @Test func archiveSearchFindsByTitleWorkspaceOrAgentAndNeverListsActiveSessions() {
-    #expect(archivePage(activeSample + archived, query: "rate", now: now).groups.flatMap(\.rows).map(\.id) == ["x"])
-    #expect(archivePage(activeSample + archived, query: "API", now: now).groups.flatMap(\.rows).map(\.id) == ["z", "x"])
-    let codex = archivePage(activeSample + archived, query: "codex", now: now)
+    #expect(archivePage(activeSample + archived, query: "rate", now: now, bundle: english.bundle, locale: english.locale).groups.flatMap(\.rows).map(\.id) == ["x"])
+    #expect(archivePage(activeSample + archived, query: "API", now: now, bundle: english.bundle, locale: english.locale).groups.flatMap(\.rows).map(\.id) == ["z", "x"])
+    let codex = archivePage(activeSample + archived, query: "codex", now: now, bundle: english.bundle, locale: english.locale)
     #expect(codex.groups.flatMap(\.rows).map(\.id) == ["z", "y"] && codex.subtitle == "2 results")
-    #expect(archivePage(archived, query: "billing", now: now).subtitle == "1 result")
+    #expect(archivePage(archived, query: "billing", now: now, bundle: english.bundle, locale: english.locale).subtitle == "1 result")
 }
 
 @Test func anArchiveWithNothingIsNothingArchivedAndASearchWithNoResultIsNoSessionsMatch() {
-    let empty = archivePage(sample.filter { $0.archived == false }, now: now)
+    let empty = archivePage(sample.filter { $0.archived == false }, now: now, bundle: english.bundle, locale: english.locale)
     #expect(empty.emptyState == .nothingArchived && empty.subtitle == "" && empty.canClear == false)
     #expect(EmptyState.nothingArchived.title(bundle: english.bundle, locale: english.locale) == "Nothing archived" && EmptyState.nothingArchived.line(bundle: english.bundle, locale: english.locale) == "Archived sessions are kept here.")
-    #expect(archivePage(archived, query: "zzz", now: now).emptyState == .noSessionsMatch)
-    #expect(archivePage(archived, query: "zzz", now: now).canClear)
-    #expect(archivePage([], query: "zzz", now: now).emptyState == .nothingArchived)
+    #expect(archivePage(archived, query: "zzz", now: now, bundle: english.bundle, locale: english.locale).emptyState == .noSessionsMatch)
+    #expect(archivePage(archived, query: "zzz", now: now, bundle: english.bundle, locale: english.locale).canClear)
+    #expect(archivePage([], query: "zzz", now: now, bundle: english.bundle, locale: english.locale).emptyState == .nothingArchived)
 }
 
 @Test func theCountIsOfTheArchivedSessionsAndFollowsAnArchiveOrARestore() {
     var rows = sample
     #expect(archivedCount(rows) == 1)
     rows[0].archived = true
-    #expect(archivedCount(rows) == 2 && archivePage(rows, now: now).subtitle == "2 sessions")
+    #expect(archivedCount(rows) == 2 && archivePage(rows, now: now, bundle: english.bundle, locale: english.locale).subtitle == "2 sessions")
     rows[0].archived = false
     rows[4].archived = false
     #expect(archivedCount(rows) == 0)
@@ -704,10 +704,10 @@ private let archived = [
 }
 
 @Test func clearSessionsNamesTheCountAndDeleteNamesTheSession() {
-    #expect(clearSessionsQuestion(count: 5).title == "Delete all 5 archived sessions?")
-    #expect(clearSessionsQuestion(count: 5).confirm == "Delete all")
-    #expect(clearSessionsQuestion(count: 1).title == "Delete the archived session?")
-    #expect(deleteSessionQuestion(row("x", "Old spike")).title == "Delete \u{201C}Old spike\u{201D}?")
+    #expect(clearSessionsQuestion(count: 5, bundle: english.bundle, locale: english.locale).title == "Delete all 5 archived sessions?")
+    #expect(clearSessionsQuestion(count: 5, bundle: english.bundle, locale: english.locale).confirm == "Delete all")
+    #expect(clearSessionsQuestion(count: 1, bundle: english.bundle, locale: english.locale).title == "Delete the archived session?")
+    #expect(deleteSessionQuestion(row("x", "Old spike"), bundle: english.bundle, locale: english.locale).title == "Delete \u{201C}Old spike\u{201D}?")
 }
 
 private func worktree(dirty: Int, unpushed: Int) -> SessionDeletePreview.Worktree {
@@ -717,43 +717,43 @@ private func worktree(dirty: Int, unpushed: Int) -> SessionDeletePreview.Worktre
 private func preview(_ id: String, _ worktree: SessionDeletePreview.Worktree?) -> SessionDeletePreview { SessionDeletePreview(sessionId: id, worktree: worktree) }
 
 @Test func deletingASessionInABaseFolderKeepsThePlainText() {
-    let plain = deleteSessionQuestion(row("x", "Old spike"))
+    let plain = deleteSessionQuestion(row("x", "Old spike"), bundle: english.bundle, locale: english.locale)
     #expect(plain.message == "Its transcript is removed and cannot be brought back.")
-    #expect(deleteSessionQuestion(row("x", "Old spike"), worktree: nil) == plain)
+    #expect(deleteSessionQuestion(row("x", "Old spike"), worktree: nil, bundle: english.bundle, locale: english.locale) == plain)
 }
 
 @Test func deletingASessionInAWorktreeSaysWhatWouldBeLost() {
     let t = "Its transcript is removed and cannot be brought back."
-    #expect(deleteSessionQuestion(row("x", "t"), worktree: worktree(dirty: 3, unpushed: 2)).message
+    #expect(deleteSessionQuestion(row("x", "t"), worktree: worktree(dirty: 3, unpushed: 2), bundle: english.bundle, locale: english.locale).message
         == "3 uncommitted files and 2 commits that exist nowhere else will be removed with its worktree. " + t)
-    #expect(deleteSessionQuestion(row("x", "t"), worktree: worktree(dirty: 1, unpushed: 0)).message == "1 uncommitted file will be removed with its worktree. " + t)
-    #expect(deleteSessionQuestion(row("x", "t"), worktree: worktree(dirty: 0, unpushed: 1)).message == "1 commit that exists nowhere else will be removed with its worktree. " + t)
-    #expect(deleteSessionQuestion(row("x", "t"), worktree: worktree(dirty: 0, unpushed: 4)).message == "4 commits that exist nowhere else will be removed with its worktree. " + t)
+    #expect(deleteSessionQuestion(row("x", "t"), worktree: worktree(dirty: 1, unpushed: 0), bundle: english.bundle, locale: english.locale).message == "1 uncommitted file will be removed with its worktree. " + t)
+    #expect(deleteSessionQuestion(row("x", "t"), worktree: worktree(dirty: 0, unpushed: 1), bundle: english.bundle, locale: english.locale).message == "1 commit that exists nowhere else will be removed with its worktree. " + t)
+    #expect(deleteSessionQuestion(row("x", "t"), worktree: worktree(dirty: 0, unpushed: 4), bundle: english.bundle, locale: english.locale).message == "4 commits that exist nowhere else will be removed with its worktree. " + t)
 }
 
 @Test func deletingASessionInAWorktreeThatHoldsNothingSaysOnlyThatTheWorktreeGoes() {
-    #expect(deleteSessionQuestion(row("x", "t"), worktree: worktree(dirty: 0, unpushed: 0)).message
+    #expect(deleteSessionQuestion(row("x", "t"), worktree: worktree(dirty: 0, unpushed: 0), bundle: english.bundle, locale: english.locale).message
         == "Its worktree will be removed. Its transcript is removed and cannot be brought back.")
 }
 
 @Test func theClearAlertNamesTheTotalAndSaysWhatTheWorktreesWouldLose() {
     let t = "Their transcripts are removed and cannot be brought back."
     // none: base folders only, or no preview at all
-    #expect(clearSessionsQuestion(count: 3, previews: [preview("a", nil), preview("b", nil), preview("c", nil)]).message == t)
-    #expect(clearSessionsQuestion(count: 3).title == "Delete all 3 archived sessions?")
+    #expect(clearSessionsQuestion(count: 3, previews: [preview("a", nil), preview("b", nil), preview("c", nil)], bundle: english.bundle, locale: english.locale).message == t)
+    #expect(clearSessionsQuestion(count: 3, bundle: english.bundle, locale: english.locale).title == "Delete all 3 archived sessions?")
     // worktrees that hold nothing
-    #expect(clearSessionsQuestion(count: 3, previews: [preview("a", worktree(dirty: 0, unpushed: 0)), preview("b", nil)]).message == t + " 1 of them works in a worktree, which will be removed too.")
-    #expect(clearSessionsQuestion(count: 3, previews: [preview("a", worktree(dirty: 0, unpushed: 0)), preview("b", worktree(dirty: 0, unpushed: 0))]).message
+    #expect(clearSessionsQuestion(count: 3, previews: [preview("a", worktree(dirty: 0, unpushed: 0)), preview("b", nil)], bundle: english.bundle, locale: english.locale).message == t + " 1 of them works in a worktree, which will be removed too.")
+    #expect(clearSessionsQuestion(count: 3, previews: [preview("a", worktree(dirty: 0, unpushed: 0)), preview("b", worktree(dirty: 0, unpushed: 0))], bundle: english.bundle, locale: english.locale).message
         == t + " 2 of them work in worktrees, which will be removed too.")
     // dirty only, unpushed only, both
-    #expect(clearSessionsQuestion(count: 2, previews: [preview("a", worktree(dirty: 2, unpushed: 0)), preview("b", nil)]).message
+    #expect(clearSessionsQuestion(count: 2, previews: [preview("a", worktree(dirty: 2, unpushed: 0)), preview("b", nil)], bundle: english.bundle, locale: english.locale).message
         == t + " 1 of them works in a worktree that would lose work: 2 uncommitted files will be removed with it.")
-    #expect(clearSessionsQuestion(count: 2, previews: [preview("a", worktree(dirty: 0, unpushed: 1)), preview("b", nil)]).message
+    #expect(clearSessionsQuestion(count: 2, previews: [preview("a", worktree(dirty: 0, unpushed: 1)), preview("b", nil)], bundle: english.bundle, locale: english.locale).message
         == t + " 1 of them works in a worktree that would lose work: 1 commit that exists nowhere else will be removed with it.")
     // several: the totals add up, a worktree that loses nothing is not counted among them
     #expect(clearSessionsQuestion(count: 5, previews: [
         preview("a", worktree(dirty: 2, unpushed: 1)), preview("b", worktree(dirty: 1, unpushed: 3)), preview("c", worktree(dirty: 0, unpushed: 0)), preview("d", nil), preview("e", nil),
-    ]).message == t + " 2 of them work in worktrees that would lose work: 3 uncommitted files and 4 commits that exist nowhere else will be removed with them.")
+    ], bundle: english.bundle, locale: english.locale).message == t + " 2 of them work in worktrees that would lose work: 3 uncommitted files and 4 commits that exist nowhere else will be removed with them.")
 }
 
 // Archive, restore, delete and clear through a fake host.
@@ -998,8 +998,8 @@ private func freshPreferences() -> AppPreferences { AppPreferences(defaults: Use
     let host = FakeHost()
     host.worktrees["a"] = worktree(dirty: 2, unpushed: 1)
     let actions = SessionActions(host: host, preferences: freshPreferences(), log: { _ in })
-    #expect(await actions.confirmDelete(row("a", "Fix login")) == .ask(deleteSessionQuestion(row("a", "Fix login"), worktree: worktree(dirty: 2, unpushed: 1))))
-    #expect(await actions.confirmDelete(row("b", "Spike")) == .ask(deleteSessionQuestion(row("b", "Spike"))))
+    #expect(await actions.confirmDelete(row("a", "Fix login")) == .ask(deleteSessionQuestion(row("a", "Fix login"), worktree: worktree(dirty: 2, unpushed: 1), bundle: english.bundle, locale: english.locale)))
+    #expect(await actions.confirmDelete(row("b", "Spike")) == .ask(deleteSessionQuestion(row("b", "Spike"), bundle: english.bundle, locale: english.locale)))
     #expect(host.previewed == [["a"], ["b"]] && host.changes.isEmpty)
 }
 
@@ -1028,7 +1028,7 @@ private func freshPreferences() -> AppPreferences { AppPreferences(defaults: Use
     host.worktrees["b"] = worktree(dirty: 0, unpushed: 5)
     let actions = SessionActions(host: host, log: { _ in })
     let asked = await actions.confirmClear(["a", "b", "c"])
-    #expect(asked == .ask(clearSessionsQuestion(count: 3, previews: [preview("a", nil), preview("b", worktree(dirty: 0, unpushed: 5)), preview("c", nil)])))
+    #expect(asked == .ask(clearSessionsQuestion(count: 3, previews: [preview("a", nil), preview("b", worktree(dirty: 0, unpushed: 5)), preview("c", nil)], bundle: english.bundle, locale: english.locale)))
     #expect(host.previewed == [["a", "b", "c"]])
 }
 
@@ -1083,11 +1083,11 @@ private func clockSession(_ extra: String) throws -> ChatSession {
 }
 
 @Test func aRowCarriesKeptAndTheDeleteDateAndAHostThatLeavesThemOutIsNotKeepingItAndGivesNoDate() throws {
-    let kept = sessionRows([try clockSession(",\"kept\":true,\"deleteAt\":null")])[0]
+    let kept = sessionRows([try clockSession(",\"kept\":true,\"deleteAt\":null")], bundle: english.bundle, locale: english.locale)[0]
     #expect(kept.kept && kept.deleteAt == nil)
-    let due = sessionRows([try clockSession(",\"kept\":false,\"deleteAt\":1792000123456")])[0]
+    let due = sessionRows([try clockSession(",\"kept\":false,\"deleteAt\":1792000123456")], bundle: english.bundle, locale: english.locale)[0]
     #expect(due.kept == false && due.deleteAt == Date(timeIntervalSince1970: 1_792_000_123.456))
-    let older = sessionRows([try clockSession("")])[0]
+    let older = sessionRows([try clockSession("")], bundle: english.bundle, locale: english.locale)[0]
     #expect(older.kept == false && older.deleteAt == nil)
 }
 
@@ -1099,12 +1099,12 @@ private func clockSession(_ extra: String) throws -> ChatSession {
     let page = archivePage([
         archivedRow("due", deleteIn: 12 * day), archivedRow("part", deleteIn: 11.2 * day), archivedRow("tomorrow", deleteIn: day),
         archivedRow("late", deleteIn: -3600), archivedRow("kept", kept: true), archivedRow("never"),
-    ], now: now)
+    ], now: now, bundle: english.bundle, locale: english.locale)
     #expect(page.notes == [
         "due": "Deletes in 12 days", "part": "Deletes in 12 days", "tomorrow": "Deletes in 1 day", "late": "Deletes soon",
         "kept": "Kept because its worktree has unsaved work",
     ])
-    #expect(archivePage(activeSample, now: now).notes.isEmpty)
+    #expect(archivePage(activeSample, now: now, bundle: english.bundle, locale: english.locale).notes.isEmpty)
 }
 
 @Test func aRowHasEveryProviderTheSessionRanOnAndAHostThatDoesNotSayLeavesItsOwn() throws {
@@ -1114,6 +1114,6 @@ private func clockSession(_ extra: String) throws -> ChatSession {
             {"id":"p","agent":"codex","harness":"codex","folder":"/w","title":"Hola","state":"idle","createdAt":1,"lastActiveAt":2,"archived":false,"live":false\(extra)}
             """.utf8))
     }
-    #expect(sessionRows([try decoded(#","providers":["claude","codex"]"#)])[0].providers == ["claude", "codex"])
-    #expect(sessionRows([try decoded("")])[0].providers == ["codex"])
+    #expect(sessionRows([try decoded(#","providers":["claude","codex"]"#)], bundle: english.bundle, locale: english.locale)[0].providers == ["claude", "codex"])
+    #expect(sessionRows([try decoded("")], bundle: english.bundle, locale: english.locale)[0].providers == ["codex"])
 }

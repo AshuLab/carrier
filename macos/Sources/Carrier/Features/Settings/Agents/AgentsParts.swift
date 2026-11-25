@@ -142,7 +142,7 @@ private struct RailLink<Caption: View>: View {
         HStack(spacing: Tokens.Space.s12) {
             // the line goes 8 points past the link on each side, to reach the avatars the rows leave that much room around
             RailLine().stroke(.tertiary, style: StrokeStyle(lineWidth: 2, lineCap: .round, dash: dashed ? [3, 4] : []))
-                .frame(width: 38).padding(.vertical, -8)
+                .frame(width: 38).padding(.vertical, -Tokens.Space.s8)
             caption.scaledFont(11.5).foregroundStyle(.secondary)
             Spacer(minLength: 0)
         }

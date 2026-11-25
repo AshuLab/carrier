@@ -1,15 +1,11 @@
 import AppKit
 import CarrierCore
-import IOKit.ps
-import IOKit.pwr_mgt
 
 /// Keeps the Mac from sleeping (docs/macos/keep-awake.md). One power assertion for the system, and one for the display when the person
-/// asked for the screen too: both are the system's own, so they go when the app does and leave nothing behind (no `pmset`, no admin password).
+/// asked for the screen too, taken through a `KeepAwakeAssertion`; the shortcut is a `GlobalShortcut`.
 /// What to hold is decided by `awakeDecision` from what the person asked, what the agents do and the battery; this class only feeds it
 /// and acts on the answer. Closing the lid still sleeps the Mac: an assertion cannot stop that. Main thread only.
 @MainActor @Observable final class KeepAwakeController {
-    static let shared = KeepAwakeController()
-
     /// What the person asked for by hand, and the length it was asked with (to check it in the menu).
     private(set) var manual: AwakeManual?
     private(set) var manualMinutes = AwakeLength.defaultMinutes
@@ -22,37 +18,36 @@ import IOKit.pwr_mgt
     @ObservationIgnored private var epicsWorking = 0
     @ObservationIgnored private var sessionsWorking = 0
     @ObservationIgnored private var lastWorked: Date?
-    @ObservationIgnored private var systemAssertion = IOPMAssertionID(0)
-    @ObservationIgnored private var displayAssertion = IOPMAssertionID(0)
     @ObservationIgnored private var timer: Timer?
-    @ObservationIgnored private var hotKey: GlobalHotKey?
+    @ObservationIgnored private var hotKey: AnyObject?
     /// The shortcut that is registered, and the one the system refused (not tried again until the keys are recorded or Carrier comes back to the front).
     @ObservationIgnored private var registered: DictationShortcut?
     @ObservationIgnored private var refused: DictationShortcut?
-    @ObservationIgnored private var powerSource: CFRunLoopSource?
     @ObservationIgnored private var started = false
     /// The Settings recorder listens: the registered shortcut is let go, so pressing it records it and does not toggle.
     @ObservationIgnored var recordingShortcut = false { didSet { registerShortcut() } }
     /// Where the menu bar icon hears of a change.
     @ObservationIgnored var onChange: (AwakeDecision) -> Void = { _ in }
     /// Where a stop by itself is told; the tests and the self-test put their own.
-    @ObservationIgnored var notify: (String, String) -> Void = { title, body in
-        SystemNotificationCentre.shared.post([EpicNotification(title: title, body: body, sound: false, always: true)])
-    }
+    @ObservationIgnored var notify: (String, String) -> Void
     @ObservationIgnored var now: () -> Date = Date.init
-    /// How the Mac is powered; the tests say their own.
-    @ObservationIgnored var readPower: () -> PowerFacts = { KeepAwakeController.systemPower() }
     @ObservationIgnored private let preferences: AppPreferences
     @ObservationIgnored private let defaults: UserDefaults
+    @ObservationIgnored private let assertion: any KeepAwakeAssertion
+    @ObservationIgnored private let shortcuts: any GlobalShortcut
 
-    init(defaults: UserDefaults = .standard) {
+    /// `centre` hears of a stop by itself.
+    init(defaults: UserDefaults = .standard, assertion: any KeepAwakeAssertion, shortcuts: any GlobalShortcut, centre: any NotificationCentre) {
         self.defaults = defaults
+        self.assertion = assertion
+        self.shortcuts = shortcuts
+        notify = { title, body in centre.post([EpicNotification(title: title, body: body, sound: false, always: true)]) }
         preferences = AppPreferences(defaults: defaults)
     }
 
     /// Whether the system's assertion is held now, and the display's.
-    var holdsSystem: Bool { systemAssertion != 0 }
-    var holdsDisplay: Bool { displayAssertion != 0 }
+    var holdsSystem: Bool { assertion.isHeld(.system) }
+    var holdsDisplay: Bool { assertion.isHeld(.display) }
 
     var working: Bool { epicsWorking + sessionsWorking > 0 }
 
@@ -64,17 +59,8 @@ import IOKit.pwr_mgt
     func start() {
         guard started == false else { return }
         started = true
-        power = readPower()
-        let context = Unmanaged.passUnretained(self).toOpaque()
-        // fires when the battery's level or the source changes; the common modes keep it coming while the status menu is open
-        if let source = IOPSNotificationCreateRunLoopSource({ context in
-            guard let context else { return }
-            let controller = Unmanaged<KeepAwakeController>.fromOpaque(context).takeUnretainedValue()
-            DispatchQueue.main.async { MainActor.assumeIsolated { controller.powerChanged() } }
-        }, context)?.takeRetainedValue() {
-            CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
-            powerSource = source
-        }
+        power = assertion.powerFacts()
+        assertion.watchPower { [unowned self] in powerChanged() }
         NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.settingsChanged() }
         }
@@ -150,7 +136,7 @@ import IOKit.pwr_mgt
     }
 
     func powerChanged() {
-        let read = readPower()
+        let read = assertion.powerFacts()
         guard read != power else { return }
         power = read
         refresh()
@@ -180,21 +166,14 @@ import IOKit.pwr_mgt
     }
 
     private func apply(_ decision: AwakeDecision) {
-        hold(&systemAssertion, kIOPMAssertPreventUserIdleSystemSleep, on: decision.holds)
-        hold(&displayAssertion, kIOPMAssertPreventUserIdleDisplaySleep, on: decision.holds && settings.keepsScreenOn)
+        hold(.system, on: decision.holds)
+        hold(.display, on: decision.holds && settings.keepsScreenOn)
     }
 
-    private func hold(_ id: inout IOPMAssertionID, _ type: String, on: Bool) {
-        switch (on, id != 0) {
-        case (true, false):
-            let made = IOPMAssertionCreateWithName(type as CFString, IOPMAssertionLevel(kIOPMAssertionLevelOn), "Carrier keeps the Mac awake" as CFString, &id)
-            if made != kIOReturnSuccess {
-                id = 0
-                NSLog("Carrier: the Mac could not be kept awake (%@, %d)", type, made)
-            }
-        case (false, true):
-            IOPMAssertionRelease(id)
-            id = 0
+    private func hold(_ kind: AwakeAssertionKind, on: Bool) {
+        switch (on, assertion.isHeld(kind)) {
+        case (true, false): _ = assertion.take(kind)
+        case (false, true): assertion.release(kind)
         default: break
         }
     }
@@ -229,9 +208,9 @@ import IOKit.pwr_mgt
         registered = nil
         refused = nil
         shortcutProblem = nil
-        let key = GlobalHotKey(GlobalHotKey.Shortcut(wanted), pressed: { [weak self] in
+        let key = shortcuts.register(wanted) { [weak self] in
             MainActor.assumeIsolated { self?.toggle() }
-        })
+        }
         // the system said no (another app, or Carrier's own Dictation, holds the keys): nothing is shown as active, and the page says why
         guard let key else {
             refused = wanted
@@ -240,22 +219,5 @@ import IOKit.pwr_mgt
         }
         hotKey = key
         registered = wanted
-    }
-
-    // MARK: the battery
-
-    private static func systemPower() -> PowerFacts {
-        guard let info = IOPSCopyPowerSourcesInfo()?.takeRetainedValue() else { return PowerFacts(onBattery: false, percent: nil) }
-        let providing = IOPSGetProvidingPowerSourceType(info)?.takeUnretainedValue() as String?
-        let sources = (IOPSCopyPowerSourcesList(info)?.takeRetainedValue() as? [CFTypeRef]) ?? []
-        var percent: Int?
-        for source in sources {
-            guard let description = IOPSGetPowerSourceDescription(info, source)?.takeUnretainedValue() as? [String: Any],
-                description[kIOPSTypeKey] as? String == kIOPSInternalBatteryType,
-                let current = description[kIOPSCurrentCapacityKey] as? Int, let maximum = description[kIOPSMaxCapacityKey] as? Int, maximum > 0
-            else { continue }
-            percent = current * 100 / maximum
-        }
-        return PowerFacts(onBattery: providing == kIOPSBatteryPowerValue, percent: percent)
     }
 }

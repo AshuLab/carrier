@@ -1,49 +1,12 @@
 import CarrierCore
 import Foundation
-import Sparkle
 import SwiftUI
-
-/// The updater's two choices and its last check, read from Sparkle's own preferences (they are KVO-compliant) and written back to them.
-/// Without an updater (a fixture, `swift run`) the page shows that and changes nothing.
-@MainActor @Observable final class UpdatePrefs {
-    private(set) var checks = false
-    private(set) var installs = false
-    private(set) var canCheck = false
-    private(set) var last: Date?
-    let updater: SPUUpdater?
-    @ObservationIgnored private var watching: [NSKeyValueObservation] = []
-
-    init(updater: SPUUpdater?) {
-        self.updater = updater
-        guard let updater else { return }
-        refresh()
-        watching = [
-            updater.observe(\.automaticallyChecksForUpdates) { [weak self] _, _ in Task { @MainActor in self?.refresh() } },
-            updater.observe(\.automaticallyDownloadsUpdates) { [weak self] _, _ in Task { @MainActor in self?.refresh() } },
-            updater.observe(\.canCheckForUpdates) { [weak self] _, _ in Task { @MainActor in self?.refresh() } },
-            updater.observe(\.lastUpdateCheckDate) { [weak self] _, _ in Task { @MainActor in self?.refresh() } },
-        ]
-    }
-
-    private func refresh() {
-        guard let updater else { return }
-        checks = updater.automaticallyChecksForUpdates
-        installs = updater.automaticallyDownloadsUpdates
-        canCheck = updater.canCheckForUpdates
-        last = updater.lastUpdateCheckDate
-    }
-
-    func setChecks(_ on: Bool) { updater?.automaticallyChecksForUpdates = on }
-    func setInstalls(_ on: Bool) { updater?.automaticallyDownloadsUpdates = on }
-    func checkNow() { updater?.checkForUpdates() }
-}
 
 /// The About page: what this Carrier is (icon, version, links), how it updates and the engine's own update.
 struct AboutTabView: View {
-    @State private var prefs = UpdatePrefs(updater: AppUpdater.updater)
+    /// The same updater as the sidebar's pill: an update found keeps Sparkle's session open, so `canCheck` is false until it is taken or dismissed.
+    let updater: any Updater
     @AppStorage(Preference.updatesDelayDays) private var delay
-    /// The same model as the sidebar's pill: an update found keeps Sparkle's session open, so `canCheckForUpdates` is false until it is taken or dismissed.
-    private let model = AppUpdater.model
     private var engine: EngineUpdateState { ChatHostStarter.shared.engineUpdate }
 
     private var version: String {
@@ -73,20 +36,20 @@ struct AboutTabView: View {
     }
 
     private var thisCarrierDetail: String {
-        if let update = model.flow.phase.settingsDetail { return update }
-        return prefs.updater == nil ? "This build does not look for updates" : "Last checked: \(updateCheckedText(prefs.last, now: Date()))"
+        if let update = updater.flow.phase.settingsDetail { return update }
+        return updater.isRunning ? "Last checked: \(updateCheckedText(updater.lastCheck, now: Date()))" : "This build does not look for updates"
     }
 
     @ViewBuilder private var thisCarrierAction: some View {
-        if let action = model.flow.phase.settingsAction {
+        if let action = updater.flow.phase.settingsAction {
             HStack(spacing: 10) {
                 if action.working { ProgressView().controlSize(.mini).frame(width: 16, height: 16).accessibilityLabel("Updating") }
-                Button { model.press() } label: { Label(action.title, icon: action.symbol) }
+                Button { updater.press() } label: { Label(action.title, icon: action.symbol) }
                     .buttonStyle(PrimaryCapsuleButtonStyle()).disabled(action.working)
             }
         } else {
-            Button { prefs.checkNow() } label: { Label("Check now", icon: .refresh) }
-                .buttonStyle(SecondaryCapsuleButtonStyle()).disabled(prefs.canCheck == false)
+            Button { updater.checkNow() } label: { Label("Check now", icon: .refresh) }
+                .buttonStyle(SecondaryCapsuleButtonStyle()).disabled(updater.canCheck == false)
         }
     }
 
@@ -102,19 +65,19 @@ struct AboutTabView: View {
             SettingsGroup(title: "Updates") {
                 SettingsTabRow(title: "Carrier \(version)", detail: thisCarrierDetail, first: true) { thisCarrierAction }
                 SettingsTabRow(title: "Check by itself", detail: "Looks for a newer Carrier when it opens and from time to time") {
-                    Toggle("Check by itself", isOn: Binding(get: { prefs.checks }, set: prefs.setChecks))
-                        .labelsHidden().toggleStyle(.switch).disabled(prefs.updater == nil)
+                    Toggle("Check by itself", isOn: Binding(get: { updater.checksAutomatically }, set: { updater.checksAutomatically = $0 }))
+                        .labelsHidden().toggleStyle(.switch).disabled(updater.isRunning == false)
                 }
                 SettingsTabRow(title: "Install by itself", detail: "Installs when you quit; off, it asks before it installs") {
-                    Toggle("Install by itself", isOn: Binding(get: { prefs.installs }, set: prefs.setInstalls))
-                        .labelsHidden().toggleStyle(.switch).disabled(prefs.updater == nil || prefs.checks == false)
+                    Toggle("Install by itself", isOn: Binding(get: { updater.installsAutomatically }, set: { updater.installsAutomatically = $0 }))
+                        .labelsHidden().toggleStyle(.switch).disabled(updater.isRunning == false || updater.checksAutomatically == false)
                 }
                 SettingsStackedRow(title: "Update delay", detail: "Waits this long after a release before offering it by itself, so a new version is tried by others first. Check now ignores it") {
                     SegmentedChoice(
                         options: updateDelayChoices.map { (value: $0, title: $0 == 0 ? "None" : $0 == 1 ? "1 day" : "\($0) days", icon: nil) },
                         selection: Binding(get: { clampedUpdateDelay(delay) }, set: { delay = $0 })
                     )
-                    .accessibilityLabel("Update delay").disabled(prefs.updater == nil)
+                    .accessibilityLabel("Update delay").disabled(updater.isRunning == false)
                 }
             }
             SettingsGroup(title: "Engine") {

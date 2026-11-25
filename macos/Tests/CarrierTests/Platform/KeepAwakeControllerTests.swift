@@ -1,38 +1,77 @@
 import CarrierCore
 import Foundation
-import IOKit.pwr_mgt
 import Testing
 @testable import Carrier
 
-/// What the system itself says this process holds, by the name the controller gives its assertions: a hold that was never let go shows here
-/// even when the controller believes it let go.
-private func assertionsHeldBySystem() -> [String] {
-    var byProcess: Unmanaged<CFDictionary>?
-    guard IOPMCopyAssertionsByProcess(&byProcess) == kIOReturnSuccess, let all = byProcess?.takeRetainedValue() as? [Int: [[String: Any]]] else { return [] }
-    return (all[Int(getpid())] ?? []).compactMap { $0[kIOPMAssertionTypeKey as String] as? String }
-        .filter { $0 == kIOPMAssertPreventUserIdleSystemSleep as String || $0 == kIOPMAssertPreventUserIdleDisplaySleep as String }
+/// The assertions the controller holds, written down; the system's real ones are tried by `SystemKeepAwakeAssertionTests`.
+@MainActor private final class FakeAssertion: KeepAwakeAssertion {
+    var held: Set<AwakeAssertionKind> = []
+    var power = PowerFacts(onBattery: false, percent: 90)
+
+    func isHeld(_ kind: AwakeAssertionKind) -> Bool { held.contains(kind) }
+    func take(_ kind: AwakeAssertionKind) -> Bool {
+        held.insert(kind)
+        return true
+    }
+    func release(_ kind: AwakeAssertionKind) { held.remove(kind) }
+    func powerFacts() -> PowerFacts { power }
+    func watchPower(_ changed: @escaping @MainActor () -> Void) {}
 }
 
-/// A controller of its own: its own preferences, a clock and a battery the test moves, and a notification that is written down. The assertions
-/// are the system's real ones, so each test lets go of them before it ends (`finish`).
+/// The keys the controllers of a test hold. As the system does, it refuses keys that are already registered, and frees them when the registration goes.
+private final class HeldKeys {
+    var taken: [DictationShortcut] = []
+}
+
+private final class Registration {
+    let keys: DictationShortcut
+    let board: HeldKeys
+
+    init(_ keys: DictationShortcut, _ board: HeldKeys) {
+        self.keys = keys
+        self.board = board
+        board.taken.append(keys)
+    }
+
+    deinit { board.taken.removeAll { $0 == keys } }
+}
+
+@MainActor private struct FakeShortcuts: GlobalShortcut {
+    let board: HeldKeys
+
+    func register(_ shortcut: DictationShortcut, pressed: @escaping () -> Void, released: @escaping () -> Void) -> AnyObject? {
+        board.taken.contains(shortcut) ? nil : Registration(shortcut, board)
+    }
+}
+
+private struct NullCentre: NotificationCentre {
+    func post(_ notifications: [EpicNotification]) {}
+    func sendTest() {}
+}
+
+/// A controller of its own: its own preferences, a clock and a battery the test moves, and a notification that is written down. Each test lets go
+/// of what it took (`finish`).
 @MainActor private final class Rig {
     let controller: KeepAwakeController
     let defaults: UserDefaults
+    let assertion = FakeAssertion()
     private let suite = "keepawake-controller-\(UUID().uuidString)"
     var clock = Date()
-    var power = PowerFacts(onBattery: false, percent: 90)
+    var power: PowerFacts {
+        get { assertion.power }
+        set { assertion.power = newValue }
+    }
     var notices: [String] = []
     var changes: [Bool] = []
 
-    init(agents: Bool = false, grace: Int = 5, screen: Bool = false, shortcut: DictationShortcut? = nil) {
+    init(agents: Bool = false, grace: Int = 5, screen: Bool = false, shortcut: DictationShortcut? = nil, keys: HeldKeys = HeldKeys()) {
         defaults = UserDefaults(suiteName: suite)!
         AppPreferences(defaults: defaults).awakeShortcut = shortcut
         defaults.set(agents, forKey: AppPreferences.awakeAgentsKey)
         defaults.set(grace, forKey: AppPreferences.awakeGraceKey)
         defaults.set(screen, forKey: AppPreferences.awakeScreenKey)
-        controller = KeepAwakeController(defaults: defaults)
+        controller = KeepAwakeController(defaults: defaults, assertion: assertion, shortcuts: FakeShortcuts(board: keys), centre: NullCentre())
         controller.now = { [unowned self] in clock }
-        controller.readPower = { [unowned self] in power }
         controller.notify = { [unowned self] title, _ in notices.append(title) }
         controller.onChange = { [unowned self] in changes.append($0.holds) }
         controller.settingsChanged()
@@ -68,10 +107,10 @@ private func assertionsHeldBySystem() -> [String] {
     #expect(rig.controller.holdsSystem)
     #expect(rig.controller.holdsDisplay == false)
     #expect(rig.controller.manualMinutes == 30)
-    #expect(assertionsHeldBySystem() == [kIOPMAssertPreventUserIdleSystemSleep as String])
+    #expect(rig.assertion.held == [.system])
     rig.controller.stopManual()
     #expect(rig.controller.holdsSystem == false)
-    #expect(assertionsHeldBySystem().isEmpty)
+    #expect(rig.assertion.held.isEmpty)
     #expect(rig.changes == [true, false])
     #expect(rig.notices.isEmpty)
 }
@@ -95,7 +134,7 @@ private func assertionsHeldBySystem() -> [String] {
     #expect(rig.notices.isEmpty)
     rig.advance(minutes: 2)
     #expect(rig.controller.holdsSystem == false)
-    #expect(assertionsHeldBySystem().isEmpty)
+    #expect(rig.assertion.held.isEmpty)
     #expect(rig.controller.manual == nil)
     #expect(rig.notices == ["Keep awake ended"])
 }
@@ -114,12 +153,12 @@ private func assertionsHeldBySystem() -> [String] {
     defer { rig.finish() }
     rig.controller.start(minutes: 30)
     #expect(rig.controller.holdsSystem && rig.controller.holdsDisplay)
-    #expect(Set(assertionsHeldBySystem()) == [kIOPMAssertPreventUserIdleSystemSleep as String, kIOPMAssertPreventUserIdleDisplaySleep as String])
+    #expect(rig.assertion.held == [.system, .display])
     rig.defaults.set(false, forKey: AppPreferences.awakeScreenKey)
     rig.controller.settingsChanged()
     #expect(rig.controller.holdsSystem)
     #expect(rig.controller.holdsDisplay == false)
-    #expect(assertionsHeldBySystem() == [kIOPMAssertPreventUserIdleSystemSleep as String])
+    #expect(rig.assertion.held == [.system])
 }
 
 @Test @MainActor func agentsHoldTheMacOnlyWithTheSwitchOnAndForTheGraceAfter() {
@@ -181,14 +220,14 @@ private func assertionsHeldBySystem() -> [String] {
     #expect(rig.controller.holdsSystem)
     rig.plug(PowerFacts(onBattery: true, percent: 15))
     #expect(rig.controller.holdsSystem == false)
-    #expect(assertionsHeldBySystem().isEmpty)
+    #expect(rig.assertion.held.isEmpty)
     #expect(rig.controller.decision.blocked == .batteryLow(15))
     #expect(rig.notices == ["Keep awake paused"])
     // still asked for: the toggle still says Stop, and the page says Paused
     #expect(rig.controller.decision.isManual)
     rig.plug(PowerFacts(onBattery: false, percent: 15))
     #expect(rig.controller.holdsSystem)
-    #expect(assertionsHeldBySystem().count == 1)
+    #expect(rig.assertion.held.count == 1)
 }
 
 @Test @MainActor func startingOnALowBatteryHoldsNothingAndSaysItIsWaiting() {
@@ -226,8 +265,9 @@ private func oddShortcut() -> DictationShortcut? {
 
 @Test @MainActor func aShortcutTheSystemRefusesIsNotShownAsActiveAndIsTriedAgainOnceItIsFree() throws {
     let shortcut = try #require(oddShortcut())
-    let first = Rig(shortcut: shortcut)
-    let second = Rig(shortcut: shortcut)
+    let keys = HeldKeys()
+    let first = Rig(shortcut: shortcut, keys: keys)
+    let second = Rig(shortcut: shortcut, keys: keys)
     defer {
         first.finish()
         second.finish()
@@ -264,8 +304,9 @@ private func otherShortcut() -> DictationShortcut? {
 
 @Test @MainActor func aRefusedShortcutIsNotActiveAndClearingItLeavesNoProblemBehind() throws {
     let shortcut = try #require(oddShortcut())
-    let first = Rig(shortcut: shortcut)
-    let second = Rig(shortcut: shortcut)
+    let keys = HeldKeys()
+    let first = Rig(shortcut: shortcut, keys: keys)
+    let second = Rig(shortcut: shortcut, keys: keys)
     defer {
         first.finish()
         second.finish()
@@ -288,8 +329,9 @@ private func otherShortcut() -> DictationShortcut? {
 @Test @MainActor func aRefusalSurvivesNoOtherChangeAndRecordingOtherKeysReplacesIt() throws {
     let shortcut = try #require(oddShortcut())
     let other = try #require(otherShortcut())
-    let first = Rig(shortcut: shortcut)
-    let second = Rig(shortcut: shortcut)
+    let keys = HeldKeys()
+    let first = Rig(shortcut: shortcut, keys: keys)
+    let second = Rig(shortcut: shortcut, keys: keys)
     defer {
         first.finish()
         second.finish()

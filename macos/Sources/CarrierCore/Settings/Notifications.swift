@@ -133,11 +133,6 @@ private struct EpicKey: Hashable {
     var issue: Int
 }
 
-/// Where notifications go; the app's is the system's notification centre.
-public protocol NotificationCentre {
-    func post(_ notifications: [EpicNotification])
-}
-
 /// Turns the stream of states into notifications for a centre. It remembers the last snapshot; any state that is not a
 /// running Carrier forgets it, so the first snapshot after Carrier was stopped and started again seeds like the first ever.
 public final class NotificationWatcher {

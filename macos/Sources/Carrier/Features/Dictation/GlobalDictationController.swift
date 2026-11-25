@@ -5,15 +5,16 @@ import CarrierCore
 /// registered only while Dictate in any app and the Dictation switch are both on (and not while the recorder of Settings listens for another), and Esc only
 /// while the widget is open, so Carrier never holds a key it is not using.
 @MainActor final class GlobalDictationController {
-    static let shared = GlobalDictationController(dictation: .shared)
+    static let shared = GlobalDictationController(dictation: .shared, shortcuts: SystemGlobalShortcut(), clipboard: SystemClipboard())
 
     private let dictation: DictationController
     private let preferences: AppPreferences
-    private let board: NSPasteboard
+    private let shortcuts: any GlobalShortcut
+    private let clipboard: any Clipboard
     private var machine: GlobalDictation!
     private var widget: DictationWidget!
-    private var shortcut: GlobalHotKey?
-    private var escape: GlobalHotKey?
+    private var shortcut: AnyObject?
+    private var escape: AnyObject?
     /// The combination `shortcut` holds, so a new one replaces it at once.
     private var registered: DictationShortcut?
     /// The recorder of Settings is waiting for keys: the shortcut is let go so that pressing it records it instead of dictating.
@@ -25,11 +26,11 @@ import CarrierCore
     /// The first dictation waits for macOS to answer the microphone's question; a press meanwhile is the same one.
     private var asking = false
 
-    /// `board` is the one a paste goes through, the general pasteboard of a real build.
-    init(dictation: DictationController, preferences: AppPreferences = AppPreferences(), board: NSPasteboard = .general) {
+    init(dictation: DictationController, preferences: AppPreferences = AppPreferences(), shortcuts: any GlobalShortcut, clipboard: any Clipboard) {
         self.dictation = dictation
         self.preferences = preferences
-        self.board = board
+        self.shortcuts = shortcuts
+        self.clipboard = clipboard
         machine = GlobalDictation(
             session: dictation.session, speechModel: { dictation.speechModel }, microphone: { dictation.microphoneStatus() },
             decision: FocusedField.decision, activation: { preferences.dictationActivation },
@@ -57,8 +58,8 @@ import CarrierCore
         registered = wanted
         shortcut = nil
         if let wanted {
-            shortcut = GlobalHotKey(
-                .init(wanted), pressed: { [weak self] in MainActor.assumeIsolated { self?.shortcutPressed() } },
+            shortcut = shortcuts.register(
+                wanted, pressed: { [weak self] in MainActor.assumeIsolated { self?.shortcutPressed() } },
                 released: { [weak self] in MainActor.assumeIsolated { self?.shortcutReleased() } })
         } else {
             // a dictation under way when it is turned off is cancelled, as Esc does
@@ -101,21 +102,20 @@ import CarrierCore
         }
     }
 
-    private func perform(_ effect: GlobalDictationEffect) {
+    func perform(_ effect: GlobalDictationEffect) {
         switch effect {
         case .show:
             widget.show()
-            escape = GlobalHotKey(.escape) { [weak self] in MainActor.assumeIsolated { self?.machine.handle(.escape) } }
+            escape = shortcuts.register(.escape) { [weak self] in MainActor.assumeIsolated { self?.machine.handle(.escape) } }
         case .close:
             widget.close()
             escape = nil
-        case .paste(let text): Task { await ClipboardPaste(board: board).paste(text) }
+        case .paste(let text): Task { await clipboard.paste(text) }
         case .copy(let text):
             // the widget is left open with buttons, which take clicks and the keyboard: the hot key of Esc is let go, so the panel's own Esc (and Dismiss, and the shortcut) closes it
             widget.takeClicks()
             escape = nil
-            board.clearContents()
-            board.setString(text, forType: .string)
+            clipboard.copy(text)
         }
     }
 }

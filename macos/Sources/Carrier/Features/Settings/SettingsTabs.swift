@@ -1,6 +1,5 @@
 import AppKit
 import CarrierCore
-import ServiceManagement
 import SwiftUI
 
 // The page pattern of Settings (a header, cards of rows, a preview, a Reset) and the General and Notifications pages.
@@ -1335,6 +1334,8 @@ struct ChatTabView: View {
 }
 
 struct NotificationsTabView: View {
+    let centre: any NotificationCentre
+    let reader: any NotificationPermissionReader
     @AppStorage(Preference.notifyNeedsYou) private var needsYou
     @AppStorage(Preference.notifyReadyForTest) private var readyForTest
     @AppStorage(Preference.notifyProblem) private var problem
@@ -1441,11 +1442,11 @@ struct NotificationsTabView: View {
     private func send() {
         testAdvice = permission?.testAdvice
         guard testAdvice == nil else { return }
-        SystemNotificationCentre.shared.sendTest()
+        centre.sendTest()
     }
 
     private func refresh() {
-        readPermission(bundleIdentifier: Bundle.main.bundleIdentifier, reader: SystemNotificationCentre.shared) {
+        readPermission(bundleIdentifier: Bundle.main.bundleIdentifier, reader: reader) {
             permission = $0
             if $0.testAdvice == nil { testAdvice = nil }
         }

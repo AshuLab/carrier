@@ -86,6 +86,7 @@ private final class FakeCentre: NotificationCentre {
         sounds += notifications.map(\.sound)
         quiets += notifications.map(\.quiet)
     }
+    func sendTest() {}
 }
 
 private func running(_ snapshot: PanelSnapshot) -> ConnectionState { .running(snapshot) }

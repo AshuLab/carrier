@@ -62,7 +62,7 @@ struct ProjectsTabView: View {
         }
         .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { pageWidth = $0 }
         .preference(key: SettingsTitleKey.self, value: chosen.map {
-            showingActions ? SettingsTitle(text: "Actions", subtitle: $0.name) : SettingsTitle(text: $0.name, subtitle: $0.line)
+            showingActions ? SettingsTitle(text: Copy.projectsActionsTitle(), subtitle: $0.name) : SettingsTitle(text: $0.name, subtitle: $0.line())
         })
         .sheet(isPresented: $adding, onDismiss: { model.clearFailure() }) {
             AddProjectSheet(
@@ -96,42 +96,42 @@ struct ProjectsTabView: View {
             if shown.isEmpty {
                 SettingsGroup(title: "") {
                     EmptyStateView(
-                        icon: .folder, title: "No projects yet", line: "Add a folder you work in and it shows here.",
-                        action: (title: "Add project", run: { adding = true }), actionIcon: .folderPlus, actionStyle: .accentGlass
+                        icon: .folder, title: Copy.projectsNoneYet(), line: Copy.projectsNoneYetLine(),
+                        action: (title: Copy.projectsAddProject(), run: { adding = true }), actionIcon: .folderPlus, actionStyle: .accentGlass
                     )
                     .frame(minHeight: 260)
                 }
             } else {
                 VStack(alignment: .leading, spacing: Tokens.Space.s10) {
                     HStack(spacing: Tokens.Space.s10) {
-                        TextField("", text: $query, prompt: Text("Search projects"))
-                            .accessibilityLabel("Search projects")
+                        TextField("", text: $query, prompt: Text(Copy.projectsSearch()))
+                            .accessibilityLabel(Copy.projectsSearch())
                             .settingsField(icon: .search)
                         HStack(spacing: Tokens.Space.s6) {
-                            Text("Group").scaledFont(12).foregroundStyle(.secondary)
+                            Text(Copy.projectsGroup()).scaledFont(12).foregroundStyle(.secondary)
                             ChoicePopUp(
-                                label: "Group",
-                                options: ProjectGrouping.allCases.map { (value: $0, title: $0.title) },
+                                label: Copy.projectsGroup(),
+                                options: ProjectGrouping.allCases.map { (value: $0, title: $0.title()) },
                                 selection: $groupBy
                             )
                         }
-                        Button { adding = true } label: { Label("Add project", icon: .folderPlus).labelStyle(.titleAndIcon) }
+                        Button { adding = true } label: { Label(Copy.projectsAddProject(), icon: .folderPlus).labelStyle(.titleAndIcon) }
                             .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
                     }
                     FlowLayout(spacing: Tokens.Space.s6) {
-                        FilterChip(title: "All", on: filter == .all) { filter = .all }
+                        FilterChip(title: Copy.projectsFilterAll(), on: filter == .all) { filter = .all }
                         ForEach(tags, id: \.self) { tag in
                             FilterChip(title: tag, on: filter == .tag(tag)) {
                                 filter = filter == .tag(tag) ? .all : .tag(tag)
                             }
                         }
-                        FilterChip(title: "Watched", on: filter == .watched) {
+                        FilterChip(title: Copy.projectsFilterWatched(), on: filter == .watched) {
                             filter = filter == .watched ? .all : .watched
                         }
-                        FilterChip(title: "Local only", on: filter == .localOnly) {
+                        FilterChip(title: Copy.projectsFilterLocalOnly(), on: filter == .localOnly) {
                             filter = filter == .localOnly ? .all : .localOnly
                         }
-                        FilterChip(title: "Hidden", on: filter == .hidden) {
+                        FilterChip(title: Copy.projectsFilterHidden(), on: filter == .hidden) {
                             filter = filter == .hidden ? .all : .hidden
                         }
                     }
@@ -139,8 +139,8 @@ struct ProjectsTabView: View {
                 if groups.isEmpty {
                     SettingsGroup(title: "") {
                         EmptyStateView(
-                            icon: .search, title: "Nothing matches", line: "Try another word or filter.",
-                            action: (title: "Clear filters", run: { query = ""; filter = .all }), actionIcon: .close
+                            icon: .search, title: Copy.projectsNothingMatches(), line: Copy.projectsNothingMatchesLine(),
+                            action: (title: Copy.projectsClearFilters(), run: { query = ""; filter = .all }), actionIcon: .close
                         )
                         .frame(minHeight: 220)
                     }
@@ -149,14 +149,14 @@ struct ProjectsTabView: View {
                         SettingsGroup(title: group.title ?? "") {
                             if groupIndex == 0 {
                                 HStack(spacing: ProjectColumns.gap) {
-                                    sortTitle("Project", key: .name).frame(minWidth: ProjectColumns.project, maxWidth: .infinity, alignment: .leading)
+                                    sortTitle(Copy.projectsColProject(), key: .name).frame(minWidth: ProjectColumns.project, maxWidth: .infinity, alignment: .leading)
                                     if columns.showsTags {
-                                        Text("Tags").frame(width: ProjectColumns.tags, alignment: .leading).accessibilityHidden(true)
+                                        Text(Copy.projectsColTags()).frame(width: ProjectColumns.tags, alignment: .leading).accessibilityHidden(true)
                                     }
-                                    sortTitle("Last active", key: .lastActive).frame(width: ProjectColumns.lastActive, alignment: .leading)
-                                    sortTitle("Disk", key: .disk).frame(width: ProjectColumns.disk, alignment: .leading)
+                                    sortTitle(Copy.projectsColLastActive(), key: .lastActive).frame(width: ProjectColumns.lastActive, alignment: .leading)
+                                    sortTitle(Copy.projectsColDisk(), key: .disk).frame(width: ProjectColumns.disk, alignment: .leading)
                                     if columns.showsCarrier {
-                                        Text("Carrier").frame(width: ProjectColumns.carrier, alignment: .leading).accessibilityHidden(true)
+                                        Text(Copy.projectsColCarrier()).frame(width: ProjectColumns.carrier, alignment: .leading).accessibilityHidden(true)
                                     }
                                     Color.clear.frame(width: ProjectColumns.trailing, height: 1)
                                 }
@@ -187,8 +187,8 @@ struct ProjectsTabView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Sort by \(title)")
-        .accessibilityValue(sorted ? (order.ascending ? "ascending" : "descending") : "")
+        .accessibilityLabel(Copy.projectsSortBy(title: title))
+        .accessibilityValue(sorted ? (order.ascending ? Copy.projectsSortAscending() : Copy.projectsSortDescending()) : "")
     }
 
     /// A clone that is running or failed: it is not a project yet, so the row has no chevron and cannot be opened. It shows git's progress line, or the
@@ -200,19 +200,19 @@ struct ProjectsTabView: View {
                 HStack(spacing: Tokens.Space.s6) {
                     Text(row.name).fontWeight(.medium).lineLimit(1).truncationMode(.tail)
                     switch clone.state {
-                    case .cloning: StatusChip(text: "Cloning", tint: theme.accent)
-                    case .failed: StatusChip(text: "Failed", tint: .orange)
+                    case .cloning: StatusChip(text: Copy.projectsCloningChip(), tint: theme.accent)
+                    case .failed: StatusChip(text: Copy.projectsFailedChip(), tint: .orange)
                     }
                 }
-                Text(row.line)
+                Text(row.line())
                     .scaledFont(11).foregroundStyle(clone.state == .failed ? Color.orange : .secondary)
                     .lineLimit(clone.state == .failed ? 3 : 1).truncationMode(.tail)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             if clone.state == .failed {
-                Button("Dismiss") { Task { await model.dismissClone(clone.repo) } }
+                Button(Copy.projectsDismiss()) { Task { await model.dismissClone(clone.repo) } }
                     .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
-                    .accessibilityLabel("Dismiss the failed clone of \(clone.repo)")
+                    .accessibilityLabel(Copy.projectsDismissClone(repo: clone.repo))
             }
         }
         .padding(.vertical, Tokens.Space.s10).frame(minHeight: 46)
@@ -234,12 +234,12 @@ struct ProjectsTabView: View {
                     ProjectIcon(tile: row.tile, imageFolder: model.carrierFolder)
                     VStack(alignment: .leading, spacing: Tokens.Space.s1) {
                         Text(row.name).fontWeight(.medium).lineLimit(1).truncationMode(.tail)
-                        if let status = row.status.text {
+                        if let status = row.status.text() {
                             Label(status, icon: .warningFilled, size: 11).scaledFont(11).foregroundStyle(.orange).lineLimit(1)
                         } else if row.hidden {
-                            Label("Hidden", icon: .eyeOff, size: 11).scaledFont(11).foregroundStyle(.secondary).lineLimit(1)
+                            Label(Copy.projectsHidden(), icon: .eyeOff, size: 11).scaledFont(11).foregroundStyle(.secondary).lineLimit(1)
                         } else {
-                            Text(row.line).scaledFont(11).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+                            Text(row.line()).scaledFont(11).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -271,14 +271,14 @@ struct ProjectsTabView: View {
                     .frame(width: ProjectColumns.disk, alignment: .leading)
 
                 if columns.showsCarrier {
-                    Text(row.carrierText)
+                    Text(row.carrierText())
                         .scaledFont(12).foregroundStyle(row.watched ? Color.primary : .secondary).lineLimit(1)
                         .frame(width: ProjectColumns.carrier, alignment: .leading)
                 }
 
                 HStack(spacing: Tokens.Space.s10) {
                     Spacer(minLength: 0)
-                    if row.pinned { Glyph(.pinFilled, size: 11, label: "Pinned").foregroundStyle(.secondary) }
+                    if row.pinned { Glyph(.pinFilled, size: 11, label: Copy.projectsPinned()).foregroundStyle(.secondary) }
                     Glyph(.chevronRight, size: 13, bold: true).foregroundStyle(.tertiary).accessibilityHidden(true)
                 }
                 .frame(width: ProjectColumns.trailing, alignment: .trailing)
@@ -293,7 +293,7 @@ struct ProjectsTabView: View {
     private var cloneDestinationLine: some View {
         VStack(alignment: .leading, spacing: Tokens.Space.s6) {
             HStack(spacing: Tokens.Space.s6) {
-                Text("New clones go to ")
+                Text(Copy.projectsClonesGoTo())
                     .scaledFont(12)
                     .foregroundStyle(.secondary)
                     .fixedSize()
@@ -304,10 +304,10 @@ struct ProjectsTabView: View {
                     .truncationMode(.middle)
                     .textSelection(.enabled)
                     .help(model.projectsPath)
-                Button("Change…", action: changeProjectsFolder)
+                Button(Copy.projectsChange(), action: changeProjectsFolder)
                     .buttonStyle(SecondaryCapsuleButtonStyle())
                     .controlSize(.small)
-                    .help("Where repositories are cloned and new projects are made")
+                    .help(Copy.projectsChangeHelp())
                 Spacer(minLength: 0)
             }
             if let problem = model.projectsFolderProblem {
@@ -326,7 +326,7 @@ struct ProjectsTabView: View {
         panel.canCreateDirectories = true
         panel.allowsMultipleSelection = false
         panel.directoryURL = URL(fileURLWithPath: model.projectsPath)
-        panel.prompt = "Choose"
+        panel.prompt = Copy.projectsChoose()
         if panel.runModal() == .OK, let url = panel.url {
             Task { await model.changeProjectsFolder(to: url.path) }
         }
@@ -349,9 +349,9 @@ struct ProjectsTabView: View {
     // MARK: a file that does not match
 
     private var problems: some View {
-        SettingsGroup(title: "", footer: "Fix the file and the page follows. Nothing is written to it while it is wrong.") {
+        SettingsGroup(title: "", footer: Copy.projectsProblemsFooter()) {
             VStack(alignment: .leading, spacing: Tokens.Space.s8) {
-                ForEach(Array(model.problems.enumerated()), id: \.offset) { _, problem in ProblemLine(text: problem.text) }
+                ForEach(Array(model.problems.enumerated()), id: \.offset) { _, problem in ProblemLine(text: problem.text()) }
             }
             .padding(.vertical, Tokens.Space.s10).frame(maxWidth: .infinity, alignment: .leading)
         }

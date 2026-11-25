@@ -13,12 +13,12 @@ struct WhereItWorksSheet: View {
                 header
                 VStack(spacing: Tokens.Space.s10) {
                     option(
-                        "Current folder", .folder, chosen: model.worktree == false, worktree: false,
-                        "Works in the folder itself, on the branch that is checked out (\(model.workspace?.branch ?? "detached HEAD")). What the agent changes lands in your working tree."
+                        Copy.newSessionCurrentFolder(), .folder, chosen: model.worktree == false, worktree: false,
+                        Copy.newSessionWhereFolderDetail(branch: model.workspace?.branch ?? Copy.newSessionDetachedHead())
                     )
                     option(
-                        "New worktree", .copy, chosen: model.worktree, worktree: true,
-                        "Works in a copy of the folder, on a new branch cut from the branch you pick. Your folder stays as it is."
+                        Copy.newSessionNewWorktree(), .copy, chosen: model.worktree, worktree: true,
+                        Copy.newSessionWhereWorktreeDetail()
                     )
                 }
             }
@@ -26,7 +26,7 @@ struct WhereItWorksSheet: View {
             Divider()
             HStack {
                 Spacer(minLength: 0)
-                Button("Cancel") { dismiss() }.buttonStyle(SecondaryCapsuleButtonStyle()).keyboardShortcut(.cancelAction)
+                Button(Copy.projectsCancel()) { dismiss() }.buttonStyle(SecondaryCapsuleButtonStyle()).keyboardShortcut(.cancelAction)
             }
             .padding(.horizontal, Tokens.Space.s20).padding(.vertical, Tokens.Space.s12)
         }
@@ -40,8 +40,8 @@ struct WhereItWorksSheet: View {
                 .background(RoundedRectangle(cornerRadius: Tokens.Radius.control).fill(.tint.opacity(0.16)))
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: Tokens.Space.s2) {
-                Text("Where it works").font(.title3.weight(.semibold))
-                Text("How the session uses the folder.").font(.callout).foregroundStyle(.secondary)
+                Text(Copy.newSessionWhereItWorks()).font(.title3.weight(.semibold))
+                Text(Copy.newSessionWhereSubtitle()).font(.callout).foregroundStyle(.secondary)
             }
         }
     }
@@ -61,7 +61,7 @@ struct WhereItWorksSheet: View {
                 if chosen {
                     ChosenMark()
                 } else {
-                    Glyph(.circle, size: 16, label: "Not chosen").foregroundStyle(.secondary.opacity(0.5))
+                    Glyph(.circle, size: 16, label: Copy.newSessionNotChosen()).foregroundStyle(.secondary.opacity(0.5))
                 }
             }
             .padding(Tokens.Space.s12)

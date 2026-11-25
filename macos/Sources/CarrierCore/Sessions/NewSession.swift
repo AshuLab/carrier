@@ -34,10 +34,10 @@ public struct AgentChoice: Equatable {
     public var available: Bool { state.blocks == false }
     /// What to do about it: the fixed list's command or installation page for this provider in this state.
     public var fix: HealthFix? { healthFix(.agent(harness: harness), state) }
-    public var note: String? {
+    public func note(bundle: Bundle? = nil, locale: Locale = .current) -> String? {
         switch state {
-        case .missing: "not installed"
-        case .signedOut: "signed out"
+        case .missing: Copy.newSessionAgentMissing(bundle: bundle, locale: locale)
+        case .signedOut: Copy.newSessionAgentSignedOut(bundle: bundle, locale: locale)
         case .ready, .unknown: nil
         }
     }
@@ -63,6 +63,9 @@ public struct WatchNote: Equatable {
     public internal(set) var recent: [RecentFolder] = []
     /// The host's agents, with the health the app last had for them.
     public var agents: [AgentChoice] { agentChoices(listed, health: health?.latest) }
+    /// The language the draft says its sentences in: the app's, unless a test says another.
+    @ObservationIgnored let bundle: Bundle?
+    @ObservationIgnored let locale: Locale
     var listed: [ChatAgent] = []
     /// The chosen workspace's path, nil until one is chosen.
     public internal(set) var folder: String?
@@ -117,7 +120,7 @@ public struct WatchNote: Equatable {
     /// Whether a host answered and its hello does not list `plan`: it cannot take the first message as a plan, so the draft sends nothing.
     public internal(set) var hostOlder = false
     /// What the draft says then, and why nothing is sent.
-    public static let olderHostNotice = "The chat host is older than this app, so it cannot start a session. Restart it to use the installed Carrier."
+    public var olderHostNotice: String { Copy.newSessionOlderHost(bundle: bundle, locale: locale) }
     /// Whether the host can make a new project (its hello lists `createProject`): the sheet offers New project… only then.
     public internal(set) var hostCreates = false
     /// The repository `owner/name` the plan is for, nil when it is for a folder or a new project. Nothing is cloned and nothing is written
@@ -182,7 +185,7 @@ public struct WatchNote: Equatable {
     public internal(set) var starts = 0
 
     /// `ensureHost` starts the chat host when it is not running (#503) and says whether it answers now.
-    /// `sleep` is the wait before a typed name is checked. `projectsFolder` is where `chat.json` says the projects folder is, and
+    /// `bundle` and `locale` say the language of the draft's sentences. `sleep` is the wait before a typed name is checked. `projectsFolder` is where `chat.json` says the projects folder is, and
     /// `readChatConfig` is that file; `readConfig` is the engine's config file, which holds the watched repositories, and `send` asks the engine, or `carrier config`, to change it.
     public init(
         host: ChatHost, health: HealthStore? = nil, offers: AgentOfferStore? = nil, ensureHost: @escaping @MainActor () async -> Bool = { true },
@@ -194,8 +197,12 @@ public struct WatchNote: Equatable {
         readChatConfig: @escaping () throws -> Data? = currentChatConfig,
         start: @escaping () -> NewSessionStart = { AppPreferences().newSessionStart },
         workIn: @escaping () -> WorkIn = { AppPreferences().workIn },
-        projects: ProjectsModel? = nil
+        projects: ProjectsModel? = nil,
+        bundle: Bundle? = nil,
+        locale: Locale = .current
     ) {
+        self.bundle = bundle
+        self.locale = locale
         self.start = start
         self.workIn = workIn
         self.host = host
@@ -222,4 +229,28 @@ public struct SendStep: Equatable {
     public let title: String
     public let parts: [Part]
     public let help: String?
+}
+
+/// The parts of a step's sentence: `build` says the sentence with a marker where each of `codes` goes, and the parts are the words between the markers and the
+/// names in them, which the view sets apart. A sentence is one copy key, so the names stay arguments of it and the order they come in is the language's.
+func sendParts(_ codes: [String], _ build: ([String]) -> String) -> [SendStep.Part] {
+    let open: Character = "\u{1}", close: Character = "\u{2}"
+    let sentence = build(codes.indices.map { "\(open)\($0)\(close)" })
+    var parts: [SendStep.Part] = []
+    var words = ""
+    var index = sentence.startIndex
+    while index < sentence.endIndex {
+        let char = sentence[index]
+        if char == open, let end = sentence[index...].firstIndex(of: close), let number = Int(sentence[sentence.index(after: index)..<end]), codes.indices.contains(number) {
+            if words.isEmpty == false { parts.append(.text(words)) }
+            words = ""
+            parts.append(.code(codes[number]))
+            index = sentence.index(after: end)
+        } else {
+            words.append(char)
+            index = sentence.index(after: index)
+        }
+    }
+    if words.isEmpty == false { parts.append(.text(words)) }
+    return parts
 }

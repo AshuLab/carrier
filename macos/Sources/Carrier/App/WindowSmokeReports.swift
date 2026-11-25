@@ -50,7 +50,7 @@ extension WindowController {
         model.shell.selection = .newSession
         await model.newSession.load()
         let draft = model.newSession
-        var lines = ["new session: \"\(draft.sentence)\", agents \(draft.agents.map { choice in choice.note.map { "\(choice.name) (\($0))" } ?? choice.name }), agent \(draft.agent ?? "none"), recent \(draft.recent.map(\.name))"]
+        var lines = ["new session: \"\(draft.sentence)\", agents \(draft.agents.map { choice in choice.note().map { "\(choice.name) (\($0))" } ?? choice.name }), agent \(draft.agent ?? "none"), recent \(draft.recent.map(\.name))"]
         // the worktree half, for the first recent folder: what the host says it is, then the sentence in a new worktree
         if let folder = draft.recent.first?.path {
             await draft.choose(folder: folder)

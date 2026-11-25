@@ -99,11 +99,11 @@ public enum ProjectGrouping: String, CaseIterable, Equatable, Hashable, Sendable
     /// Under Watching and Not watched, the words of the Carrier column.
     case carrier
 
-    public var title: String {
+    public func title(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         switch self {
-        case .none: "None"
-        case .tag: "Tag"
-        case .carrier: "Carrier"
+        case .none: Copy.projectsGroupNone(bundle: bundle, locale: locale)
+        case .tag: Copy.projectsGroupTag(bundle: bundle, locale: locale)
+        case .carrier: Copy.projectsGroupCarrier(bundle: bundle, locale: locale)
         }
     }
 }
@@ -153,13 +153,15 @@ public func projectTagsInUse(_ rows: [ProjectRow]) -> [String] {
 
 /// Filters `rows` by `query` (name, remote or tag) and `filter`, orders pinned first then by `order` (a project no session worked in, or never measured, goes last by
 /// last activity or disk, either way), and groups by `groupBy` (`none`; `tag` under each project's first tag and `"untagged"` when it has none; or `carrier` under
-/// "Watching" then "Not watched", leaving out the one with no rows). Returns empty when nothing matches.
+/// "Watching" then "Not watched" (`bundle` and `locale` say the titles), leaving out the one with no rows). Returns empty when nothing matches.
 public func projectList(
     _ rows: [ProjectRow],
     query: String = "",
     filter: ProjectFilter = .all,
     groupBy: ProjectGrouping = .none,
-    order: ProjectOrder = ProjectOrder()
+    order: ProjectOrder = ProjectOrder(),
+    bundle: Bundle? = nil,
+    locale: Locale = .current
 ) -> [ProjectGroup] {
     let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
     let matched = rows.filter { row in
@@ -216,11 +218,11 @@ public func projectList(
             ProjectGroup(id: "tag:\(tag)", title: tag, rows: ordered(byTag[tag]!))
         }
         if untagged.isEmpty == false {
-            groups.append(ProjectGroup(id: "untagged", title: "untagged", rows: ordered(untagged)))
+            groups.append(ProjectGroup(id: "untagged", title: Copy.projectsUntagged(bundle: bundle, locale: locale), rows: ordered(untagged)))
         }
         return groups
     case .carrier:
-        return [(true, "Watching"), (false, "Not watched")].compactMap { watched, title in
+        return [(true, Copy.projectsWatching(bundle: bundle, locale: locale)), (false, Copy.projectsNotWatched(bundle: bundle, locale: locale))].compactMap { watched, title in
             let rows = matched.filter { $0.watched == watched }
             return rows.isEmpty ? nil : ProjectGroup(id: "carrier:\(watched)", title: title, rows: ordered(rows))
         }
@@ -229,8 +231,12 @@ public func projectList(
 
 extension ProjectsProblem {
     /// The problem as the page says it: the file, the field and what is wrong with it.
-    public var text: String { path == "(file)" || path == "(root)" ? "projects.json \(message)" : "projects.json: \(path) \(message)" }
+    public func text(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        path == "(file)" || path == "(root)"
+            ? Copy.projectsProblemOfFile(message: message, bundle: bundle, locale: locale)
+            : Copy.projectsProblemOfField(path: path, message: message, bundle: bundle, locale: locale)
+    }
 }
 
 /// What the Remove question says: only the entry goes, and everything else stays where it is.
-public let projectRemovalWords = "Its folder and its worktrees stay where they are, and so do its sessions. If Carrier watches it, that stays as it is."
+public func projectRemovalWords(bundle: Bundle? = nil, locale: Locale = .current) -> String { Copy.projectsRemovalWords(bundle: bundle, locale: locale) }

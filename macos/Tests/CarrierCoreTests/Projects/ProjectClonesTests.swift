@@ -104,10 +104,10 @@ private func temporaryFolder() throws -> String {
 @Test func aCloneRowIsNamedAsTheRepositoryShowsGitsProgressAndCannotBeOpened() {
     let running = ProjectRow(clone: ProjectClone(repo: "acme/web", folder: "/p/acme/web", state: .cloning, progress: "Receiving objects: 45%"))
     #expect(running.name == "web" && running.repo == "acme/web" && running.path == "/p/acme/web")
-    #expect(running.line == "Receiving objects: 45%" && running.isOpenable == false)
-    #expect(ProjectRow(clone: ProjectClone(repo: "acme/web", folder: "/p/acme/web", state: .cloning)).line == "Cloning…")
+    #expect(running.line(bundle: english.bundle, locale: english.locale) == "Receiving objects: 45%" && running.isOpenable == false)
+    #expect(ProjectRow(clone: ProjectClone(repo: "acme/web", folder: "/p/acme/web", state: .cloning)).line(bundle: english.bundle, locale: english.locale) == "Cloning…")
     let failed = ProjectRow(clone: ProjectClone(repo: "acme/web", folder: "/p/acme/web", state: .failed, error: "git could not clone acme/web"))
-    #expect(failed.line == "git could not clone acme/web" && failed.isOpenable == false)
+    #expect(failed.line(bundle: english.bundle, locale: english.locale) == "git could not clone acme/web" && failed.isOpenable == false)
     // a project is open as ever
     #expect(ProjectRow(path: "/p/x", name: "x", repo: nil).isOpenable)
 }
@@ -116,7 +116,7 @@ private func temporaryFolder() throws -> String {
     let folder = try temporaryFolder()
     defer { try? FileManager.default.removeItem(atPath: folder) }
     let host = CloneHost()
-    let model = ProjectsModel(host: host, file: ProjectsFile(folder: folder)) { _ in nil }
+    let model = ProjectsModel(host: host, file: ProjectsFile(folder: folder), bundle: english.bundle, locale: english.locale) { _ in nil }
     model.reload()
     let started = try await model.startClone("acme/web", into: "/work")
     #expect(started.folder == "/work/acme/web")
@@ -134,7 +134,7 @@ private func temporaryFolder() throws -> String {
     defer { try? FileManager.default.removeItem(atPath: folder) }
     let host = CloneHost()
     host.failure = ControlError.remote(.words("acme/web is already a project"))
-    let model = ProjectsModel(host: host, file: ProjectsFile(folder: folder)) { _ in nil }
+    let model = ProjectsModel(host: host, file: ProjectsFile(folder: folder), bundle: english.bundle, locale: english.locale) { _ in nil }
     await #expect(throws: ControlError.remote(.words("acme/web is already a project"))) { try await model.startClone("acme/web", into: nil) }
     #expect(model.cloneRows.isEmpty)
 }
@@ -144,14 +144,14 @@ private func temporaryFolder() throws -> String {
     defer { try? FileManager.default.removeItem(atPath: folder) }
     let file = ProjectsFile(folder: folder)
     let host = CloneHost([ProjectClone(repo: "acme/web", folder: "/p/acme/web", state: .cloning, progress: "Receiving objects: 10%")])
-    let model = ProjectsModel(host: host, file: file) { _ in nil }
+    let model = ProjectsModel(host: host, file: file, bundle: english.bundle, locale: english.locale) { _ in nil }
     let following = Task { await model.follow(every: .milliseconds(10)) }
     defer { following.cancel() }
     func wait(_ done: () -> Bool) async { for _ in 0..<300 where done() == false { try? await Task.sleep(for: .milliseconds(10)) } }
-    await wait { model.cloneRows.first?.line == "Receiving objects: 10%" }
+    await wait { model.cloneRows.first?.line(bundle: english.bundle, locale: english.locale) == "Receiving objects: 10%" }
     host.current = [ProjectClone(repo: "acme/web", folder: "/p/acme/web", state: .cloning, progress: "Receiving objects: 80%")]
-    await wait { model.cloneRows.first?.line == "Receiving objects: 80%" }
-    #expect(model.cloneRows.first?.line == "Receiving objects: 80%")
+    await wait { model.cloneRows.first?.line(bundle: english.bundle, locale: english.locale) == "Receiving objects: 80%" }
+    #expect(model.cloneRows.first?.line(bundle: english.bundle, locale: english.locale) == "Receiving objects: 80%")
     // the host writes the entry, then stops listing the clone: the project is there when the clone is gone
     try Data(#"{"projects":[{"path":"/p/acme/web","origin":"cloned"}]}"#.utf8).write(to: file.url, options: .atomic)
     host.current = []
@@ -163,11 +163,11 @@ private func temporaryFolder() throws -> String {
     let folder = try temporaryFolder()
     defer { try? FileManager.default.removeItem(atPath: folder) }
     let host = CloneHost([ProjectClone(repo: "acme/web", folder: "/p/acme/web", state: .failed, error: "git could not clone acme/web")])
-    let model = ProjectsModel(host: host, file: ProjectsFile(folder: folder)) { _ in nil }
+    let model = ProjectsModel(host: host, file: ProjectsFile(folder: folder), bundle: english.bundle, locale: english.locale) { _ in nil }
     let following = Task { await model.follow(every: .milliseconds(10)) }
     func wait(_ done: () -> Bool) async { for _ in 0..<300 where done() == false { try? await Task.sleep(for: .milliseconds(10)) } }
     await wait { model.cloneRows.count == 1 }
-    #expect(model.cloneRows.first?.line == "git could not clone acme/web")
+    #expect(model.cloneRows.first?.line(bundle: english.bundle, locale: english.locale) == "git could not clone acme/web")
     // a failure is asked for once: nothing is running, so the page does not keep talking to the host
     try await Task.sleep(for: .milliseconds(150))
     following.cancel()
@@ -180,7 +180,7 @@ private func temporaryFolder() throws -> String {
     let folder = try temporaryFolder()
     defer { try? FileManager.default.removeItem(atPath: folder) }
     let host = CloneHost()
-    let model = ProjectsModel(host: host, file: ProjectsFile(folder: folder)) { _ in nil }
+    let model = ProjectsModel(host: host, file: ProjectsFile(folder: folder), bundle: english.bundle, locale: english.locale) { _ in nil }
     try await model.startClone("acme/web", into: nil)
     host.failure = ControlError.closed
     await model.refreshClones()
@@ -195,7 +195,7 @@ private func temporaryFolder() throws -> String {
     let file = ProjectsFile(folder: folder)
     let host = CloneHost()
     host.registerIn = file
-    let model = ProjectsModel(host: host, file: file) { _ in nil }
+    let model = ProjectsModel(host: host, file: file, bundle: english.bundle, locale: english.locale) { _ in nil }
     #expect(model.rows.isEmpty)
     let made = try await model.createProject("my-app", into: "/Volumes/work")
     #expect(made == "/Volumes/work/local/my-app")
@@ -209,7 +209,7 @@ private func temporaryFolder() throws -> String {
     defer { try? FileManager.default.removeItem(atPath: folder) }
     let host = CloneHost()
     host.failure = ControlError.remote(.words("mine is already a project; choose another name"))
-    let model = ProjectsModel(host: host, file: ProjectsFile(folder: folder)) { _ in nil }
+    let model = ProjectsModel(host: host, file: ProjectsFile(folder: folder), bundle: english.bundle, locale: english.locale) { _ in nil }
     await #expect(throws: ControlError.remote(.words("mine is already a project; choose another name"))) { _ = try await model.createProject("mine", into: nil) }
     #expect(model.rows.isEmpty)
 }
@@ -219,7 +219,7 @@ private func temporaryFolder() throws -> String {
     defer { try? FileManager.default.removeItem(atPath: folder) }
     let file = ProjectsFile(folder: folder)
     try file.add(folder: folder + "/gone")
-    let model = ProjectsModel(host: CloneHost(), file: file) { _ in nil }
+    let model = ProjectsModel(host: CloneHost(), file: file, bundle: english.bundle, locale: english.locale) { _ in nil }
     model.reload()
     #expect(model.isTaken(folder + "/gone"), "a project whose folder is gone still holds its path")
     #expect(model.isTaken(folder), "a folder that is there")

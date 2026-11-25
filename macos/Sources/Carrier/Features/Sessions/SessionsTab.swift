@@ -70,7 +70,7 @@ struct SessionsTabView: View {
                 }
                 let startOff = worktreeStartOffReason(workIn: workIn)
                 SettingsTabRow(id: "start-from", title: Copy.sessionsSettingsStartFrom(), detail: startOff ?? Copy.sessionsSettingsStartFromDetail()) {
-                    ChoicePopUp(label: Copy.sessionsSettingsStartFrom(), options: WorktreeStart.allCases.map { (value: $0, title: $0.title) }, selection: $start)
+                    ChoicePopUp(label: Copy.sessionsSettingsStartFrom(), options: WorktreeStart.allCases.map { (value: $0, title: $0.title()) }, selection: $start)
                         .disabled(startOff != nil || unreadable)
                 }
                 .foregroundStyle(startOff == nil ? Color.primary : Color.secondary)

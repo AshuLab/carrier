@@ -21,7 +21,7 @@ extension NewSessionModel {
         } catch {
             guard folder == path else { return }
             // the draft still works in the base folder: the host refuses the same folder at `open`, in words
-            workspaceProblem = report(error, "read the workspace").text
+            workspaceProblem = report(error, "read the workspace").shown(bundle: bundle, locale: locale)
         }
     }
 
@@ -104,23 +104,32 @@ extension NewSessionModel {
     }
 
     public var sentence: String {
-        return workSentence(folder: folder, workspace: workspace, worktree: worktree ? (worktreeName, startPoint?.ref) : nil, gitMissing: gitMissing)
+        return workSentence(
+            folder: folder, workspace: workspace, worktree: worktree ? (worktreeName, startPoint?.ref) : nil, gitMissing: gitMissing, bundle: bundle, locale: locale)
+    }
+
+    /// What `sentence` says after "Work in <workspace>": the words the view puts after the chips it draws for those.
+    public var sentenceRest: String {
+        let name = folder.map { URL(fileURLWithPath: $0).lastPathComponent } ?? ""
+        let head = Copy.newSessionWorkHead(name: name, bundle: bundle, locale: locale)
+        let full = sentence
+        return full.hasPrefix(head) ? String(full.dropFirst(head.count)).trimmingCharacters(in: .whitespaces) : full
     }
 
     /// The branch the folder will be switched to when the message is sent: the person picked one other than the checked-out one and
     /// asked for no worktree (a worktree is cut from the pick and changes no folder). Nil when the folder keeps its branch.
     public var branchChange: (from: String, to: String)? {
         guard worktree == false, gitMissing == false, let workspace, workspace.git, workspace.bare == false, let to = picked, to != workspace.branch else { return nil }
-        return (workspace.branch ?? "detached HEAD", to)
+        return (workspace.branch ?? Copy.newSessionDetachedHead(bundle: bundle, locale: locale), to)
     }
 
     /// The line under the sentence: the uncommitted files of the base folder, which a worktree would keep out of the agent's way; when the
     /// branch is to change, that this step will fail (sending is still allowed).
     public var warning: String? {
         guard worktree == false, gitMissing == false, let workspace else { return nil }
-        guard branchChange != nil else { return uncommittedWarning(workspace) }
+        guard branchChange != nil else { return uncommittedWarning(workspace, bundle: bundle, locale: locale) }
         guard workspace.dirty > 0 else { return nil }
-        return "\(workspace.dirty) uncommitted \(workspace.dirty == 1 ? "file" : "files") in the folder, so changing its branch will fail and it keeps the branch it is on. Save the work first, or use a worktree."
+        return Copy.newSessionBranchChangeWarning(count: workspace.dirty, bundle: bundle, locale: locale)
     }
 
     /// What the host last said of `gh`; nil while it has not said (an older host, or none yet).
@@ -132,10 +141,10 @@ extension NewSessionModel {
     public var offersWorktree: Bool { workspace?.offersWorktree == true && gitMissing == false }
 
     /// The picker's lists for the chosen folder.
-    public func picker(query: String, now: Date = Date()) -> BranchPicker? { workspace.map { branchPicker($0, query: query, now: now, unreachable: unreachable) } }
+    public func picker(query: String, now: Date = Date()) -> BranchPicker? { workspace.map { branchPicker($0, query: query, now: now, unreachable: unreachable, bundle: bundle, locale: locale) } }
 
     /// What the picker's summary warns of under the "from" chip: the branch is behind (Local) or has commits not pushed (Remote).
-    public var startWarning: String? { CarrierCore.startWarning(startPoint, in: workspace) }
+    public var startWarning: String? { CarrierCore.startWarning(startPoint, in: workspace, bundle: bundle, locale: locale) }
 
     /// "base folder" and "in a new worktree" are one control: choosing the worktree asks the host for a name the first time.
     public func useWorktree(_ on: Bool) async {
@@ -161,7 +170,7 @@ extension NewSessionModel {
             nameState = .free
         } catch {
             guard folder == path else { return }
-            nameState = .problem(report(error, "suggest a name").text)
+            nameState = .problem(report(error, "suggest a name").shown(bundle: bundle, locale: locale))
         }
     }
 
@@ -175,12 +184,12 @@ extension NewSessionModel {
             let check = try await host.checkName(path, name)
             guard name == worktreeName else { return }
             verifiedName = name
-            nameState = stateOfName(check)
+            nameState = stateOfName(check, bundle: bundle, locale: locale)
         } catch is CancellationError {
             return
         } catch {
             guard name == worktreeName else { return }
-            nameState = .problem(report(error, "check the name").text)
+            nameState = .problem(report(error, "check the name").shown(bundle: bundle, locale: locale))
         }
     }
 
@@ -207,7 +216,7 @@ extension NewSessionModel {
                 unreachable = true
                 _ = report(error, "fetch on choosing")
             } else {
-                fetchProblem = report(error, "fetch").text
+                fetchProblem = report(error, "fetch").shown(bundle: bundle, locale: locale)
             }
         }
     }

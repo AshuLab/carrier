@@ -8,10 +8,10 @@ public enum ProjectActionWhen: String, CaseIterable, Equatable, Sendable {
     case newWorktree
     case afterClone
 
-    public var title: String {
+    public func title(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         switch self {
-        case .newWorktree: "New worktree"
-        case .afterClone: "After clone"
+        case .newWorktree: Copy.projectsActionWhenNewWorktree(bundle: bundle, locale: locale)
+        case .afterClone: Copy.projectsActionWhenAfterClone(bundle: bundle, locale: locale)
         }
     }
 }
@@ -21,10 +21,10 @@ public enum ProjectActionOnFail: String, CaseIterable, Equatable, Sendable {
     case warn
     case stop
 
-    public var title: String {
+    public func title(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         switch self {
-        case .warn: "Warn and continue"
-        case .stop: "Stop the session"
+        case .warn: Copy.projectsActionOnFailWarn(bundle: bundle, locale: locale)
+        case .stop: Copy.projectsActionOnFailStop(bundle: bundle, locale: locale)
         }
     }
 }
@@ -70,13 +70,13 @@ public struct ProjectActionDraft: Equatable, Identifiable, Sendable {
 public enum ProjectActionField: Equatable, Hashable, Sendable { case name, command }
 
 /// What is wrong with an action, by field, in words; empty when both name and command contain non-whitespace characters.
-public func projectActionProblems(_ action: ProjectAction) -> [ProjectActionField: String] {
+public func projectActionProblems(_ action: ProjectAction, bundle: Bundle? = nil, locale: Locale = .current) -> [ProjectActionField: String] {
     var problems: [ProjectActionField: String] = [:]
     if action.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-        problems[.name] = "Name must not be blank"
+        problems[.name] = Copy.projectsActionNameBlank(bundle: bundle, locale: locale)
     }
     if action.command.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-        problems[.command] = "Command must not be blank"
+        problems[.command] = Copy.projectsActionCommandBlank(bundle: bundle, locale: locale)
     }
     return problems
 }
@@ -118,10 +118,6 @@ public func mergedProjectActions(drafts: [ProjectActionDraft], saved: [UUID: Pro
 }
 
 /// Summary text shown on the project page's Actions row.
-public func projectActionsSummary(_ count: Int) -> String {
-    switch count {
-    case 0: "None"
-    case 1: "1 action"
-    default: "\(count) actions"
-    }
+public func projectActionsSummary(_ count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+    Copy.projectsActionsSummary(count: count, bundle: bundle, locale: locale)
 }

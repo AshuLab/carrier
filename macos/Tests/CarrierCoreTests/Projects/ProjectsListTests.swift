@@ -34,17 +34,17 @@ private func temporaryFolder() throws -> String {
 }
 
 @Test func aRowIsNamedAfterItsFolderAndSaysItsRepositoryOrElseItsPath() throws {
-    let entries = try readProjects(Data(#"{"projects":[{"path":"/a/web","origin":"added"},{"path":"~/b","name":"Bee","origin":"cloned"}]}"#.utf8))
+    let entries = try readProjects(Data(#"{"projects":[{"path":"/a/web","origin":"added"},{"path":"~/b","name":"Bee","origin":"cloned"}]}"#.utf8), bundle: english.bundle, locale: english.locale)
     let rows = projectRows(entries) { $0 == "~/b" ? "ana/bee" : nil }
     #expect(rows.map(\.name) == ["web", "Bee"])
-    #expect(rows.map(\.line) == ["/a/web", "ana/bee"])
+    #expect(rows.map { $0.line(bundle: english.bundle, locale: english.locale) } == ["/a/web", "ana/bee"])
     #expect(rows.map(\.colorKey) == ["web", "b"])
     #expect(projectRows([]).isEmpty)
 }
 
 @Test func theProblemsOfTheFileAreSaidWithTheFieldNamed() {
-    #expect(ProjectsProblem(path: "projects.1.name", message: "must not be blank").text == "projects.json: projects.1.name must not be blank")
-    #expect(ProjectsProblem(path: "(file)", message: "is not valid JSON").text == "projects.json is not valid JSON")
+    #expect(ProjectsProblem(path: "projects.1.name", message: "must not be blank").text(bundle: english.bundle, locale: english.locale) == "projects.json: projects.1.name must not be blank")
+    #expect(ProjectsProblem(path: "(file)", message: "is not valid JSON").text(bundle: english.bundle, locale: english.locale) == "projects.json is not valid JSON")
 }
 
 @MainActor @Test func theModelListsTheFileAndAddsWithoutReopening() async throws {
@@ -54,7 +54,7 @@ private func temporaryFolder() throws -> String {
         try? FileManager.default.removeItem(atPath: folder)
         try? FileManager.default.removeItem(atPath: project)
     }
-    let model = ProjectsModel(host: CloneHost(writing: folder), file: ProjectsFile(folder: folder)) { _ in nil }
+    let model = ProjectsModel(host: CloneHost(writing: folder), file: ProjectsFile(folder: folder), bundle: english.bundle, locale: english.locale) { _ in nil }
     model.reload()
     #expect(model.rows.isEmpty && model.problems.isEmpty)
     #expect(await model.add(folder: project) == .added(project))
@@ -73,7 +73,7 @@ private func temporaryFolder() throws -> String {
     }
     for name in ["first", "second", "third"] { try FileManager.default.createDirectory(atPath: work + "/" + name, withIntermediateDirectories: true) }
     let repos = [work + "/first": "acme/app", work + "/second": "acme/app", work + "/third": "other/app"]
-    let model = ProjectsModel(host: CloneHost(writing: carrier), file: ProjectsFile(folder: carrier)) { repos[$0] }
+    let model = ProjectsModel(host: CloneHost(writing: carrier), file: ProjectsFile(folder: carrier), bundle: english.bundle, locale: english.locale) { repos[$0] }
     model.reload()
     #expect(await model.add(folder: work + "/first") == .added(work + "/first"))
     #expect(await model.add(folder: work + "/second") == nil)
@@ -97,7 +97,7 @@ private func temporaryFolder() throws -> String {
     let repos = [gone: "acme/app", kept: "acme/app", clash: "acme/app", free: "other/app"]
     let file = ProjectsFile(folder: carrier)
     try Data(#"{"projects":[{"path":"\#(gone)","origin":"cloned"},{"path":"\#(kept)","name":"Kept","origin":"added"}]}"#.utf8).write(to: file.url)
-    let model = ProjectsModel(host: CloneHost(writing: file.folder), file: file) { repos[$0] }
+    let model = ProjectsModel(host: CloneHost(writing: file.folder), file: file, bundle: english.bundle, locale: english.locale) { repos[$0] }
     model.reload()
     #expect(await model.locate(path: gone, to: clash) == false)
     #expect(model.failure == "The worktrees of Kept already use the folder acme/app; two projects cannot share it")
@@ -130,7 +130,7 @@ private func temporaryFolder() throws -> String {
     try fm.createDirectory(atPath: ordinary, withIntermediateDirectories: true)
 
     let projectsFile = ProjectsFile(folder: carrier)
-    let model = ProjectsModel(host: CloneHost(writing: projectsFile.folder), file: projectsFile) { _ in nil }
+    let model = ProjectsModel(host: CloneHost(writing: projectsFile.folder), file: projectsFile, bundle: english.bundle, locale: english.locale) { _ in nil }
     model.reload()
 
     for (bad, expected) in [
@@ -157,7 +157,7 @@ private func temporaryFolder() throws -> String {
     let folder = try temporaryFolder()
     defer { try? FileManager.default.removeItem(atPath: folder) }
     let file = ProjectsFile(folder: folder)
-    let model = ProjectsModel(host: CloneHost(), file: file) { _ in nil } // a host of its own: `follow` asks it, and a test never asks the machine's
+    let model = ProjectsModel(host: CloneHost(), file: file, bundle: english.bundle, locale: english.locale) { _ in nil } // a host of its own: `follow` asks it, and a test never asks the machine's
     let following = Task { await model.follow(every: .milliseconds(10)) }
     defer { following.cancel() }
     func wait(_ done: () -> Bool) async { for _ in 0..<300 where done() == false { try? await Task.sleep(for: .milliseconds(10)) } }
@@ -186,7 +186,7 @@ private func temporaryFolder() throws -> String {
     let file = ProjectsFile(folder: folder)
     let bad = Data("{".utf8)
     try bad.write(to: file.url)
-    let model = ProjectsModel(host: CloneHost(writing: file.folder), file: file) { _ in nil }
+    let model = ProjectsModel(host: CloneHost(writing: file.folder), file: file, bundle: english.bundle, locale: english.locale) { _ in nil }
     model.reload()
     #expect(model.problems.map(\.message) == ["is not valid JSON"])
     #expect(await model.add(folder: project) == nil)
@@ -216,7 +216,7 @@ private func temporaryFolder() throws -> String {
       {"path":"/a/carrier","origin":"cloned","name":"Carrier","pinned":true,"tags":["swift"],"icon":{"color":"teal","mark":"bolt"}},
       {"path":"/a/notes","origin":"added"}
     ]}
-    """#.utf8))
+    """#.utf8), bundle: english.bundle, locale: english.locale)
     let rows = projectRows(entries) { _ in nil }
     #expect(rows[0].pinned && rows[0].tags == ["swift"] && rows[0].customName == "Carrier")
     #expect(rows[0].tile == ProjectTile(name: "Carrier", color: .named(.teal), content: .mark(.bolt)))
@@ -234,7 +234,7 @@ private func temporaryFolder() throws -> String {
     ]}
     """#
     try Data(initial.utf8).write(to: file.url)
-    let model = ProjectsModel(host: CloneHost(writing: file.folder), file: file) { _ in nil }
+    let model = ProjectsModel(host: CloneHost(writing: file.folder), file: file, bundle: english.bundle, locale: english.locale) { _ in nil }
     model.reload()
 
     // blank name is not written and emptying goes back to the folder's name
@@ -292,7 +292,7 @@ private func temporaryFolder() throws -> String {
     let file = ProjectsFile(folder: folder)
     let store = ProjectIconStore(folder: folder)
     try Data(#"{"projects":[{"path":"/a/carrier","origin":"cloned","icon":{"color":"teal","mark":"bolt"}}]}"#.utf8).write(to: file.url)
-    let model = ProjectsModel(host: CloneHost(writing: file.folder), file: file) { _ in nil }
+    let model = ProjectsModel(host: CloneHost(writing: file.folder), file: file, bundle: english.bundle, locale: english.locale) { _ in nil }
     model.reload()
 
     func writePNG(_ name: String) throws -> URL {
@@ -387,14 +387,14 @@ private func temporaryFolder() throws -> String {
     #expect(projectList(withHidden, filter: .localOnly).flatMap(\.rows).map(\.name) == ["Beta", "Notes", "Old"])
 
     // grouped by tag: each appears under its first tag only, untagged last, pinned first inside each group
-    #expect(projectList(table, groupBy: .tag) == [
+    #expect(projectList(table, groupBy: .tag, bundle: english.bundle, locale: english.locale) == [
         ProjectGroup(id: "tag:swift", title: "swift", rows: [table[2], table[0]]),
         ProjectGroup(id: "tag:web", title: "web", rows: [table[1]]),
         ProjectGroup(id: "untagged", title: "untagged", rows: [table[4], table[3]]),
     ])
 
     // grouped by tag + filter: empty groups are omitted
-    #expect(projectList(table, filter: .localOnly, groupBy: .tag) == [
+    #expect(projectList(table, filter: .localOnly, groupBy: .tag, bundle: english.bundle, locale: english.locale) == [
         ProjectGroup(id: "tag:swift", title: "swift", rows: [table[2]]),
         ProjectGroup(id: "untagged", title: "untagged", rows: [table[3]]),
     ])
@@ -409,15 +409,15 @@ private func temporaryFolder() throws -> String {
     ], repos: ["Acme/Zeta", "acme/beta"])
 
     // Watching first, then Not watched, pinned first and then by name inside each
-    #expect(projectList(table, groupBy: .carrier) == [
+    #expect(projectList(table, groupBy: .carrier, bundle: english.bundle, locale: english.locale) == [
         ProjectGroup(id: "carrier:true", title: "Watching", rows: [table[2], table[0]]),
         ProjectGroup(id: "carrier:false", title: "Not watched", rows: [table[1], table[3]]),
     ])
     // the filters apply first, and a group with no rows is not there
-    #expect(projectList(table, filter: .watched, groupBy: .carrier).map(\.title) == ["Watching"])
-    #expect(projectList(table, filter: .localOnly, groupBy: .carrier).map(\.title) == ["Not watched"])
+    #expect(projectList(table, filter: .watched, groupBy: .carrier, bundle: english.bundle, locale: english.locale).map(\.title) == ["Watching"])
+    #expect(projectList(table, filter: .localOnly, groupBy: .carrier, bundle: english.bundle, locale: english.locale).map(\.title) == ["Not watched"])
     #expect(projectList(table, query: "nothing", groupBy: .carrier).isEmpty)
-    #expect(ProjectGrouping.allCases.map(\.title) == ["None", "Tag", "Carrier"])
+    #expect(ProjectGrouping.allCases.map { $0.title(bundle: english.bundle, locale: english.locale) } == ["None", "Tag", "Carrier"])
 }
 
 @MainActor @Test func changingTheDefaultCloneFolderWritesChatJsonAndRefusesCarrierFolders() async throws {
@@ -432,6 +432,8 @@ private func temporaryFolder() throws -> String {
     let model = ProjectsModel(
         host: CloneHost(writing: carrier),
         file: ProjectsFile(folder: carrier),
+        bundle: english.bundle,
+        locale: english.locale,
         remote: { _ in nil },
         readChatConfig: { try? Data(contentsOf: chatFile) },
         home: "/Users/ana"
@@ -478,11 +480,11 @@ private func session(_ base: String, _ ago: TimeInterval, now: Date) -> SessionR
 
 @Test func theFileHoldsNoActivityTime() throws {
     let before = Data(#"{"projects":[{"path":"/a","origin":"added","pinned":true}]}"#.utf8)
-    let entries = try readProjects(before)
+    let entries = try readProjects(before, bundle: english.bundle, locale: english.locale)
     let joined = projectsWithLastActive(projectRows(entries) { _ in nil }, sessions: [session("/a", 5, now: Date())])
     #expect(joined[0].lastActive != nil)
     // the entry and the file are what they were: activity is on the row and nowhere else
-    #expect(try readProjects(before) == entries && Set(entries[0].json.keys) == ["path", "origin", "pinned"])
+    #expect(try readProjects(before, bundle: english.bundle, locale: english.locale) == entries && Set(entries[0].json.keys) == ["path", "origin", "pinned"])
 }
 
 @Test func theListSortsByNameOrLastActivePinnedFirstAndNeverActiveLast() {
@@ -531,7 +533,7 @@ private func session(_ base: String, _ ago: TimeInterval, now: Date) -> SessionR
     ]}
     """#
     try Data(initial.utf8).write(to: file.url)
-    let model = ProjectsModel(host: CloneHost(writing: file.folder), file: file) { _ in "acme/app" }
+    let model = ProjectsModel(host: CloneHost(writing: file.folder), file: file, bundle: english.bundle, locale: english.locale) { _ in "acme/app" }
     model.reload()
 
     #expect(await model.remove(path: project))
@@ -555,7 +557,7 @@ private func session(_ base: String, _ ago: TimeInterval, now: Date) -> SessionR
     try Data(#"{"projects":[{"path":"/a/app","origin":"added","icon":{"image":"kept.png"}}]}"#.utf8).write(to: file.url)
     let host = CloneHost(writing: carrier)
     host.failure = ControlError.remote(Refusal(code: "project.missing", params: ["path": "/a/app"], text: "No project has the path /a/app"))
-    let model = ProjectsModel(host: host, file: file) { _ in nil }
+    let model = ProjectsModel(host: host, file: file, bundle: english.bundle, locale: english.locale) { _ in nil }
     model.reload()
 
     #expect(await model.remove(path: "/a/app") == false)
@@ -573,7 +575,7 @@ private func session(_ base: String, _ ago: TimeInterval, now: Date) -> SessionR
     let file = ProjectsFile(folder: carrier)
     try Data(#"{"projects":[{"path":"/a/app","origin":"added","tags":["x"]}]}"#.utf8).write(to: file.url)
     let host = CloneHost(writing: carrier)
-    let model = ProjectsModel(host: host, file: file) { _ in nil }
+    let model = ProjectsModel(host: host, file: file, bundle: english.bundle, locale: english.locale) { _ in nil }
     model.reload()
     _ = await model.setName("  Mine ", path: "/a/app")
     _ = await model.setName(" ", path: "/a/app")
@@ -604,13 +606,13 @@ private func session(_ base: String, _ ago: TimeInterval, now: Date) -> SessionR
 @Test func aProjectWhoseFolderIsGoneIsNotFoundAndOneThatIsThereIsReady() throws {
     let folder = try temporaryFolder()
     defer { try? FileManager.default.removeItem(atPath: folder) }
-    let entries = try readProjects(Data(#"{"projects":[{"path":"\#(folder)","origin":"added"},{"path":"\#(folder)/gone","origin":"added"},{"path":"~/nowhere-carrier-test","origin":"added"}]}"#.utf8))
+    let entries = try readProjects(Data(#"{"projects":[{"path":"\#(folder)","origin":"added"},{"path":"\#(folder)/gone","origin":"added"},{"path":"~/nowhere-carrier-test","origin":"added"}]}"#.utf8), bundle: english.bundle, locale: english.locale)
     let rows = projectRows(entries) { _ in nil }
     #expect(rows.map(\.status) == [.ready, .notFound, .notFound])
-    #expect(rows.map(\.status.text) == [nil, "Folder not found", "Folder not found"])
+    #expect(rows.map { $0.status.text(bundle: english.bundle, locale: english.locale) } == [nil, "Folder not found", "Folder not found"])
     // a file is not a folder to open
     try Data("x".utf8).write(to: URL(fileURLWithPath: folder + "/file"))
-    #expect(projectRows(try readProjects(Data(#"{"projects":[{"path":"\#(folder)/file","origin":"added"}]}"#.utf8))) { _ in nil }.map(\.status) == [.notFound])
+    #expect(projectRows(try readProjects(Data(#"{"projects":[{"path":"\#(folder)/file","origin":"added"}]}"#.utf8), bundle: english.bundle, locale: english.locale)) { _ in nil }.map(\.status) == [.notFound])
 }
 
 @MainActor @Test func locateChecksTheFolderThenPointsTheProjectAtItAndKeepsTheRest() async throws {
@@ -621,7 +623,7 @@ private func session(_ base: String, _ ago: TimeInterval, now: Date) -> SessionR
     let file = ProjectsFile(folder: carrier)
     let gone = carrier + "/gone/app"
     try Data(#"{"projects":[{"path":"\#(gone)","name":"App","origin":"cloned","tags":["x"]},{"path":"\#(taken)","origin":"added"}]}"#.utf8).write(to: file.url)
-    let model = ProjectsModel(host: CloneHost(writing: file.folder), file: file) { _ in nil }
+    let model = ProjectsModel(host: CloneHost(writing: file.folder), file: file, bundle: english.bundle, locale: english.locale) { _ in nil }
     model.reload()
     #expect(model.rows.first?.status == .notFound)
 
@@ -645,7 +647,7 @@ private func session(_ base: String, _ ago: TimeInterval, now: Date) -> SessionR
         ProjectRow(path: "/p/notes", name: "Notes", repo: nil),
     ]
     let marked = projectsWithWatched(rows, repos: ["acme/web", "other/thing"])
-    #expect(marked.map(\.carrierText) == ["Watching", "Not watched", "Not watched"])
+    #expect(marked.map { $0.carrierText(bundle: english.bundle, locale: english.locale) } == ["Watching", "Not watched", "Not watched"])
     #expect(projectList(marked, filter: .watched).flatMap(\.rows).map(\.name) == ["Web"])
     #expect(projectList(marked, query: "api", filter: .watched).isEmpty)
     #expect(projectList(marked).flatMap(\.rows).count == 3)
@@ -659,7 +661,7 @@ private func session(_ base: String, _ ago: TimeInterval, now: Date) -> SessionR
     #expect(isGitRepository(folder) == false)
     try FileManager.default.createDirectory(atPath: folder + "/.git", withIntermediateDirectories: true)
     #expect(isGitRepository(folder))
-    let entries = try readProjects(Data(#"{"projects":[{"path":"\#(folder)","origin":"added"}]}"#.utf8))
+    let entries = try readProjects(Data(#"{"projects":[{"path":"\#(folder)","origin":"added"}]}"#.utf8), bundle: english.bundle, locale: english.locale)
     #expect(projectRows(entries) { _ in nil }.map(\.isGit) == [true])
 }
 
@@ -670,7 +672,7 @@ private func session(_ base: String, _ ago: TimeInterval, now: Date) -> SessionR
     #expect(repo.workIn == [.baseFolder, .newWorktree])
     #expect(repo.notice == nil)
 
-    let plain = ProjectPage(for: ProjectRow(path: "/p/notes", name: "Notes", repo: nil, isGit: false))
+    let plain = ProjectPage(for: ProjectRow(path: "/p/notes", name: "Notes", repo: nil, isGit: false), bundle: english.bundle, locale: english.locale)
     #expect(plain.worktrees == false && plain.baseBranch == false && plain.carrier == false && plain.remote == false)
     #expect(repo.remote)
     #expect(plain.workIn == [.baseFolder])

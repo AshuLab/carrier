@@ -68,9 +68,11 @@ public func diskShares(_ rows: [WorktreeRow]) -> [DiskShare] {
 }
 
 /// What the total of a project's page says under it: that it is being measured, when the figure on show was taken, or that there is none yet.
-public func diskTotalWords(_ figure: ProjectDiskFigure?, measuring: Bool, now: Date, format: TimeFormat = .stored()) -> String {
-    if measuring { return "Measuring now" }
-    guard let taken = figure?.measuredAt else { return "Not measured yet" }
+public func diskTotalWords(
+    _ figure: ProjectDiskFigure?, measuring: Bool, now: Date, format: TimeFormat = .stored(), bundle: Bundle? = nil, locale: Locale = .current
+) -> String {
+    if measuring { return Copy.projectsDiskMeasuring(bundle: bundle, locale: locale) }
+    guard let taken = figure?.measuredAt else { return Copy.projectsDiskNotMeasured(bundle: bundle, locale: locale) }
     let age = timeText(Date(timeIntervalSince1970: taken / 1000), now: now, format: format)
-    return age == "now" ? "Measured just now" : "Measured \(age) ago"
+    return age == "now" ? Copy.projectsDiskMeasuredNow(bundle: bundle, locale: locale) : Copy.projectsDiskMeasuredAgo(age: age, bundle: bundle, locale: locale)
 }

@@ -65,7 +65,7 @@ extension AddProjectSheet {
             } catch ControlError.remote(let refusal) {
                 problem = refusal.shown()
             } catch {
-                problem = hostNotRunning
+                problem = hostNotRunningWords()
             }
         }
     }
@@ -78,8 +78,8 @@ extension AddProjectSheet {
         panel.canCreateDirectories = true
         panel.allowsMultipleSelection = false
         panel.directoryURL = URL(fileURLWithPath: current)
-        panel.prompt = "Choose"
-        panel.message = "Choose the folder \(repo) is cloned into"
+        panel.prompt = Copy.projectsChoose()
+        panel.message = Copy.projectsCloneIntoMessage(repo: repo)
         guard panel.runModal() == .OK, let url = panel.url else { return }
         if let refusal = projectsFolderRefusal(url.path, carrierFolder: currentCarrierFolder()) {
             problem = refusal.shown()

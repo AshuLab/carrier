@@ -8,10 +8,9 @@ public func canDeleteFromDisk(origin: String) -> Bool { origin == "cloned" || or
 
 /// What "Also delete from disk" says it does: the folder and the worktrees go to the Trash, with what they hold (the project's total, when known), and the
 /// space is freed only when the Trash is emptied.
-public func deleteFromDiskWords(worktrees: Int, bytes: Int?) -> String {
-    let what = worktrees == 0 ? "its folder" : "its folder and \(worktreeCount(worktrees))"
-    let size = bytes.map { " (\(ByteCountFormatter.string(fromByteCount: Int64($0), countStyle: .file)))" } ?? ""
-    return "Moves \(what)\(size) to the Trash. The space is freed when the Trash is emptied."
+public func deleteFromDiskWords(worktrees: Int, bytes: Int?, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+    guard let bytes else { return Copy.projectsDeleteFromDisk(worktrees: worktrees, bundle: bundle, locale: locale) }
+    return Copy.projectsDeleteFromDiskSized(worktrees: worktrees, size: ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .file), bundle: bundle, locale: locale)
 }
 
 /// What the host's fresh answer about a project says of deleting it: `refusals` stop it for good (a session of the project is working, waiting or open), and
@@ -26,34 +25,34 @@ public struct ProjectDeletionCheck: Equatable, Sendable {
 
 /// Reads the host's `projectWorktrees` answer and the sessions it lists, both asked just before acting. A session of the project is one whose base folder is
 /// its path; one that is not idle, or whose agent runs, refuses. The main clone and each worktree with uncommitted changes or commits no remote holds are listed.
-public func projectDeletionCheck(path: String, reply: ProjectWorktrees, sessions: [ChatSession]) -> ProjectDeletionCheck {
+public func projectDeletionCheck(path: String, reply: ProjectWorktrees, sessions: [ChatSession], bundle: Bundle? = nil, locale: Locale = .current) -> ProjectDeletionCheck {
     var refusals: [String] = []
     var covered: Set<String> = []
     for session in sessions where isSameFolder(session.workspace?.base ?? session.folder, path) && (session.live || session.state != .idle) {
         covered.insert(session.id)
-        let name = "“\(session.title ?? "Untitled session")”"
+        let name = session.title ?? Copy.projectsWorktreeUntitled(bundle: bundle, locale: locale)
         switch session.state {
-        case .working, .preparing: refusals.append("\(name) is working")
-        case .waitingApproval: refusals.append("\(name) is waiting for you")
-        case .idle: refusals.append("\(name) is open")
+        case .working, .preparing: refusals.append(Copy.projectsDeleteSessionWorking(name: name, bundle: bundle, locale: locale))
+        case .waitingApproval: refusals.append(Copy.projectsDeleteSessionWaiting(name: name, bundle: bundle, locale: locale))
+        case .idle: refusals.append(Copy.projectsDeleteSessionOpen(name: name, bundle: bundle, locale: locale))
         }
     }
     // the host's own view of a worktree whose session the list did not name
     for worktree in reply.worktrees where worktree.state == .sessionOpen && covered.contains(worktree.session?.id ?? "") == false {
-        refusals.append("A session of \(worktree.branch ?? "a worktree") is open")
+        refusals.append(Copy.projectsDeleteWorktreeSessionOpen(branch: worktree.branch ?? Copy.projectsDeleteAWorktree(bundle: bundle, locale: locale), bundle: bundle, locale: locale))
     }
     var unsaved: [String] = []
     switch reply.main.state {
-    case nil: refusals.append("The chat host is older and cannot say whether the folder has unsaved work; restart it")
-    case .uncommitted?: unsaved.append("\(projectFolderName(reply.main.path)) has uncommitted changes")
-    case .notPushed?: unsaved.append("\(projectFolderName(reply.main.path)) has commits that are not pushed")
+    case nil: refusals.append(Copy.projectsDeleteHostOlder(bundle: bundle, locale: locale))
+    case .uncommitted?: unsaved.append(Copy.projectsDeleteUncommitted(name: projectFolderName(reply.main.path), bundle: bundle, locale: locale))
+    case .notPushed?: unsaved.append(Copy.projectsDeleteNotPushed(name: projectFolderName(reply.main.path), bundle: bundle, locale: locale))
     default: break
     }
     for worktree in reply.worktrees {
         let name = worktree.branch ?? (worktree.path as NSString).lastPathComponent
         switch worktree.state {
-        case .uncommitted: unsaved.append("\(name) has uncommitted changes")
-        case .notPushed: unsaved.append("\(name) has commits that are not pushed")
+        case .uncommitted: unsaved.append(Copy.projectsDeleteUncommitted(name: name, bundle: bundle, locale: locale))
+        case .notPushed: unsaved.append(Copy.projectsDeleteNotPushed(name: name, bundle: bundle, locale: locale))
         default: break
         }
     }
@@ -63,21 +62,23 @@ public func projectDeletionCheck(path: String, reply: ProjectWorktrees, sessions
 /// Why the project's folder and its worktrees cannot be moved to the Trash, in words; nil when they can. The folder must be a git repository of its own that is
 /// not Carrier's, not the home folder or a parent of it or of the Carrier folder, and a real folder (not a link); each worktree must lie under the chat's
 /// `worktrees/` folder, deeper than it, and never be the project itself.
-public func projectTrashRefusal(path: String, worktrees: [String], carrierFolder: String, home: String = NSHomeDirectory()) -> String? {
+public func projectTrashRefusal(
+    path: String, worktrees: [String], carrierFolder: String, home: String = NSHomeDirectory(), bundle: Bundle? = nil, locale: Locale = .current
+) -> String? {
     let expanded = (path as NSString).expandingTildeInPath
-    if let refusal = projectFolderRefusal(expanded, carrierFolder: carrierFolder) { return refusal.shown() }
+    if let refusal = projectFolderRefusal(expanded, carrierFolder: carrierFolder) { return refusal.shown(bundle: bundle, locale: locale) }
     let real = normalizedFolder(expanded)
     for keep in [normalizedFolder(home), normalizedFolder(carrierFolder)] where real == keep || keep.hasPrefix(real + "/") {
-        return "That is the home folder or a folder that holds Carrier's own, so Carrier does not delete it"
+        return Copy.projectsTrashHome(bundle: bundle, locale: locale)
     }
-    guard real.split(separator: "/").count >= 2 else { return "That folder is too near the top of the disk for Carrier to delete" }
+    guard real.split(separator: "/").count >= 2 else { return Copy.projectsTrashTooHigh(bundle: bundle, locale: locale) }
     var info = stat()
-    guard lstat(expanded, &info) == 0, (info.st_mode & S_IFMT) == S_IFDIR else { return "The project's folder is a link, not a folder of its own" }
-    guard FileManager.default.fileExists(atPath: expanded + "/.git") else { return "The project's folder is not a git repository, so Carrier does not delete it" }
+    guard lstat(expanded, &info) == 0, (info.st_mode & S_IFMT) == S_IFDIR else { return Copy.projectsTrashLink(bundle: bundle, locale: locale) }
+    guard FileManager.default.fileExists(atPath: expanded + "/.git") else { return Copy.projectsTrashNotGit(bundle: bundle, locale: locale) }
     let root = normalizedFolder(CarrierPlaces(folder: carrierFolder).chatWorktrees) + "/"
     for worktree in worktrees {
         let there = normalizedFolder(worktree)
-        guard there.hasPrefix(root), there != real else { return "\((worktree as NSString).lastPathComponent) is not a worktree Carrier made, so nothing was deleted" }
+        guard there.hasPrefix(root), there != real else { return Copy.projectsTrashNotWorktree(name: (worktree as NSString).lastPathComponent, bundle: bundle, locale: locale) }
     }
     return nil
 }
@@ -89,9 +90,11 @@ public func moveProjectToTrash(
     worktrees: [String],
     carrierFolder: String,
     home: String = NSHomeDirectory(),
-    trash: (URL) throws -> URL = systemTrash
+    trash: (URL) throws -> URL = systemTrash,
+    bundle: Bundle? = nil,
+    locale: Locale = .current
 ) throws {
-    if let refusal = projectTrashRefusal(path: path, worktrees: worktrees, carrierFolder: carrierFolder, home: home) { throw ProjectTrashError(words: refusal) }
+    if let refusal = projectTrashRefusal(path: path, worktrees: worktrees, carrierFolder: carrierFolder, home: home, bundle: bundle, locale: locale) { throw ProjectTrashError(words: refusal) }
     var moved: [(from: URL, to: URL)] = []
     for item in worktrees.filter({ FileManager.default.fileExists(atPath: $0) }) + [(path as NSString).expandingTildeInPath] {
         let from = URL(fileURLWithPath: item)
@@ -102,8 +105,10 @@ public func moveProjectToTrash(
             for entry in moved.reversed() {
                 do { try FileManager.default.moveItem(at: entry.to, to: entry.from) } catch { stuck.append(entry.from.lastPathComponent) }
             }
-            let left = stuck.isEmpty ? "Nothing was removed." : "\(stuck.joined(separator: ", ")) could not be put back and is in the Trash."
-            throw ProjectTrashError(words: "Could not move \(from.lastPathComponent) to the Trash: \(error.localizedDescription). \(left)")
+            let left = stuck.isEmpty
+                ? Copy.projectsTrashNothingRemoved(bundle: bundle, locale: locale)
+                : Copy.projectsTrashStuck(names: stuck.joined(separator: ", "), bundle: bundle, locale: locale)
+            throw ProjectTrashError(words: Copy.projectsTrashCouldNotMove(name: from.lastPathComponent, reason: error.localizedDescription, left: left, bundle: bundle, locale: locale))
         }
     }
 }

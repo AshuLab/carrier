@@ -25,7 +25,7 @@ private let twoProjects = #"""
     #expect(try file.read().isEmpty)
     let bad = #"{"projects":[{"path":"/a","origin":"added","colour":"red"}]}"#
     try Data(bad.utf8).write(to: file.url)
-    #expect(throws: ProjectsFileError.invalid([ProjectsProblem(path: "projects.0.colour", message: "is not a key of projects.json")])) { try file.read() }
+    #expect(throws: ProjectsFileError.invalid([ProjectsProblem(path: "projects.0.colour", message: "is not a key of projects.json")])) { try file.read(bundle: english.bundle, locale: english.locale) }
 }
 
 @MainActor @Test func theModelWritesADefaultAndTakesItOutAgain() async throws {

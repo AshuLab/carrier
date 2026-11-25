@@ -81,7 +81,7 @@ public enum ProjectStatus: Equatable, Sendable {
     case notFound
 
     /// What the list and the page say for it; nil when there is nothing to say.
-    public var text: String? { self == .notFound ? "Folder not found" : nil }
+    public func text(bundle: Bundle? = nil, locale: Locale = .current) -> String? { self == .notFound ? Copy.projectsFolderNotFound(bundle: bundle, locale: locale) : nil }
 }
 
 /// Whether `path` (written with `~` or not) is a folder that exists.

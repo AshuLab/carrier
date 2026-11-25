@@ -103,7 +103,10 @@ extension NewSessionModel {
     /// Why no provider can start a session, when the host listed some and none can; nil otherwise.
     public var noAgentReason: String? {
         guard agents.isEmpty == false, agents.contains(where: \.available) == false else { return nil }
-        return "No provider can start a session: " + agents.map { "\($0.name) is \($0.note ?? "unavailable")" }.joined(separator: ", ") + "."
+        let reasons = agents.map {
+            Copy.newSessionAgentIs(name: $0.name, note: $0.note(bundle: bundle, locale: locale) ?? Copy.newSessionAgentUnavailable(bundle: bundle, locale: locale), bundle: bundle, locale: locale)
+        }
+        return Copy.newSessionNoProvider(reasons: reasons.joined(separator: ", "), bundle: bundle, locale: locale)
     }
 
     func read() async throws {

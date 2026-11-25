@@ -54,21 +54,21 @@ struct ProjectDetailView: View {
         Group {
             if exists == false {
                 SettingsGroup(title: "") {
-                    SettingsTabRow(title: "Folder not found", detail: "", first: true, problem: "\(row.path) is not there any more. Locate it to open the project again.") {
-                        Button("Locate…", action: locate).buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
+                    SettingsTabRow(title: Copy.projectsFolderNotFound(), detail: "", first: true, problem: Copy.projectsFolderGone(path: row.path)) {
+                        Button(Copy.projectsLocate(), action: locate).buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
                     }
                 }
             }
-            SettingsGroup(title: "Identity") {
-                SettingsTabRow(title: "Name", detail: "Empty uses the folder's name", first: true) {
+            SettingsGroup(title: Copy.projectsIdentity()) {
+                SettingsTabRow(title: Copy.projectsName(), detail: Copy.projectsNameDetail(), first: true) {
                     ProjectNameField(stored: row.customName ?? "", prompt: row.folderName) { await model.setName($0, path: row.path) }
                 }
-                SettingsTabRow(title: "Icon", detail: "Color and mark, or an image; initials when none is chosen") {
+                SettingsTabRow(title: Copy.projectsIcon(), detail: Copy.projectsIconDetail()) {
                     HStack(spacing: Tokens.Space.s10) {
                         ProjectIcon(tile: row.tile, imageFolder: model.carrierFolder)
-                        Button("Change…") { pickingIcon = true }
+                        Button(Copy.projectsChange()) { pickingIcon = true }
                             .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
-                            .accessibilityLabel("Change the icon")
+                            .accessibilityLabel(Copy.projectsChangeIcon())
                             .accessibilityValue(iconSummary)
                             .popover(isPresented: $pickingIcon, arrowEdge: .bottom) {
                                 ProjectIconPopover(
@@ -84,13 +84,13 @@ struct ProjectDetailView: View {
                             }
                     }
                 }
-                SettingsTabRow(title: "Tags", detail: "Press Return to add") {
+                SettingsTabRow(title: Copy.projectsColTags(), detail: Copy.projectsTagsDetail()) {
                     VStack(alignment: .leading, spacing: Tokens.Space.s8) {
-                        TextField("", text: $newTag, prompt: Text("Add a tag"))
+                        TextField("", text: $newTag, prompt: Text(Copy.projectsAddTag()))
                             .settingsField(width: settingsSelectWidth)
                             .autocorrectionDisabled()
                             .onSubmit(addTag)
-                            .accessibilityLabel("Add a tag")
+                            .accessibilityLabel(Copy.projectsAddTag())
                         if row.tags.isEmpty == false {
                             FlowLayout(spacing: Tokens.Space.s6) {
                                 ForEach(row.tags, id: \.self) { tag in
@@ -102,87 +102,90 @@ struct ProjectDetailView: View {
                     }
                 }
             }
-            SettingsGroup(title: "New sessions here", footer: page.notice) {
+            SettingsGroup(title: Copy.projectsNewSessionsHere(), footer: page.notice) {
                 SettingsTabRow(
-                    title: "Show when starting a session",
-                    detail: row.hidden
-                        ? "\(row.name) does not appear in the new session picker. Nothing is deleted: it stays in this list and its sessions stay in the sidebar."
-                        : "\(row.name) is listed when you choose where to work in a new session",
+                    title: Copy.projectsShowWhenStarting(),
+                    detail: row.hidden ? Copy.projectsShowDetailHidden(name: row.name) : Copy.projectsShowDetailShown(name: row.name),
                     first: true
                 ) {
-                    Toggle("Show when starting a session", isOn: Binding(get: { row.hidden == false }, set: { hidden in Task { await model.setHidden(hidden == false, path: row.path) } }))
+                    Toggle(Copy.projectsShowWhenStarting(), isOn: Binding(get: { row.hidden == false }, set: { hidden in Task { await model.setHidden(hidden == false, path: row.path) } }))
                         .labelsHidden().toggleStyle(.switch).controlSize(.mini)
                 }
-                SettingsTabRow(id: "starts-with", title: "Starts with", detail: "Provider, model and reasoning; Same as everywhere is Settings > Sessions") {
+                SettingsTabRow(id: "starts-with", title: Copy.projectsStartsWith(), detail: Copy.projectsStartsWithDetail()) {
                     startPicker
                 }
-                SettingsTabRow(id: "work-in", title: "Work in", detail: "The base folder or a new worktree; Default is Settings > Sessions") {
-                    ChoicePopUp(label: "Work in", options: workInOptions, selection: defaultBinding(.workIn, row.defaults.workIn?.projectValue))
+                SettingsTabRow(id: "work-in", title: Copy.projectsWorkIn(), detail: Copy.projectsWorkInDetail()) {
+                    ChoicePopUp(label: Copy.projectsWorkIn(), options: workInOptions, selection: defaultBinding(.workIn, row.defaults.workIn?.projectValue))
                 }
                 if page.baseBranch {
-                    SettingsTabRow(title: "Base branch", detail: "The branch a new session here starts from; Default branch is the one checked out") {
-                        ChoicePopUp(label: "Base branch", options: branchOptions, selection: defaultBinding(.baseBranch, row.defaults.baseBranch))
+                    SettingsTabRow(title: Copy.projectsBaseBranch(), detail: Copy.projectsBaseBranchDetail()) {
+                        ChoicePopUp(label: Copy.projectsBaseBranch(), options: branchOptions, selection: defaultBinding(.baseBranch, row.defaults.baseBranch))
                     }
                 }
             }
             if page.worktrees { worktreesGroup }
             if page.carrier { carrierGroup }
             SettingsGroup(title: "") {
-                NavigationRow(title: "Actions", detail: "Commands run for a new worktree or after a clone", first: true, action: openActions) {
+                NavigationRow(title: Copy.projectsActionsTitle(), detail: Copy.projectsActionsDetail(), first: true, action: openActions) {
                     Text(projectActionsSummary(row.actions.count)).scaledFont(12).foregroundStyle(.secondary)
                 }
             }
             SettingsGroup(title: "") {
-                SettingsTabRow(title: "Folder", detail: row.path, first: true, mono: true) {
+                SettingsTabRow(title: Copy.projectsFolder(), detail: row.path, first: true, mono: true) {
                     Button {
                         NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: (row.path as NSString).expandingTildeInPath)])
-                    } label: { Label("Reveal in Finder", icon: .folder).labelStyle(.titleAndIcon) }
+                    } label: { Label(Copy.projectsReveal(), icon: .folder).labelStyle(.titleAndIcon) }
                         .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).disabled(exists == false)
                 }
                 if page.remote {
-                    SettingsTabRow(title: "Remote", detail: row.repo ?? "No GitHub remote", mono: row.repo != nil) {
+                    SettingsTabRow(title: Copy.projectsRemote(), detail: row.repo ?? Copy.projectsNoRemote(), mono: row.repo != nil) {
                         if let repo = row.repo, let url = URL(string: "https://github.com/\(repo)") {
-                            Button { NSWorkspace.shared.open(url) } label: { Label("Open on GitHub", icon: .externalLink).labelStyle(.titleAndIcon) }
+                            Button { NSWorkspace.shared.open(url) } label: { Label(Copy.projectsOpenGitHub(), icon: .externalLink).labelStyle(.titleAndIcon) }
                                 .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
                         }
                     }
                 }
-                SettingsTabRow(title: "Remove", detail: canDeleteFromDisk(origin: row.origin) ? "Takes \(row.name) out of Carrier, and its files too if you choose" : "Takes \(row.name) out of Carrier; its folder and worktrees stay") {
-                    Button(role: .destructive) { canDeleteFromDisk(origin: row.origin) ? (choosingRemove = true) : (confirmingRemove = true) } label: { Label("Remove…", icon: .trash) }
+                SettingsTabRow(
+                    title: Copy.projectsRemove(),
+                    detail: canDeleteFromDisk(origin: row.origin) ? Copy.projectsRemoveDetailDisk(name: row.name) : Copy.projectsRemoveDetail(name: row.name)
+                ) {
+                    Button(role: .destructive) { canDeleteFromDisk(origin: row.origin) ? (choosingRemove = true) : (confirmingRemove = true) } label: { Label(Copy.projectsRemoveEllipsis(), icon: .trash) }
                         .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).disabled(deleting)
                 }
             }
         }
         .writingToolsBehavior(.disabled)
         // the ellipsis of Remove… is this question
-        .alert("Remove \(row.name) from Carrier?", isPresented: $confirmingRemove) {
-            Button("Cancel", role: .cancel) {}
-            Button("Remove", role: .destructive) { Task { if await model.remove(path: row.path) { close() } } }
+        .alert(Copy.projectsRemoveQuestion(name: row.name), isPresented: $confirmingRemove) {
+            Button(Copy.projectsCancel(), role: .cancel) {}
+            Button(Copy.projectsRemove(), role: .destructive) { Task { if await model.remove(path: row.path) { close() } } }
         } message: {
-            Text(projectRemovalWords)
+            Text(projectRemovalWords())
         }
-        .confirmationDialog("Remove \(row.name)?", isPresented: $choosingRemove, titleVisibility: .visible) {
-            Button("Remove from Carrier") { Task { if await model.remove(path: row.path) { close() } } }
-            Button("Also delete from disk", role: .destructive) { Task { await deleteFromDisk(confirmed: false) } }
-            Button("Cancel", role: .cancel) {}
+        .confirmationDialog(Copy.projectsRemoveDialog(name: row.name), isPresented: $choosingRemove, titleVisibility: .visible) {
+            Button(Copy.projectsRemoveFromCarrier()) { Task { if await model.remove(path: row.path) { close() } } }
+            Button(Copy.projectsAlsoDelete(), role: .destructive) { Task { await deleteFromDisk(confirmed: false) } }
+            Button(Copy.projectsCancel(), role: .cancel) {}
         } message: {
-            Text("\(projectRemovalWords)\n\nAlso delete from disk: \(deleteFromDiskWords(worktrees: worktrees?.worktrees.count ?? 0, bytes: model.disk[(row.path as NSString).expandingTildeInPath]?.bytes))")
+            Text(Copy.projectsRemoveDialogMessage(
+                words: projectRemovalWords(),
+                delete: deleteFromDiskWords(worktrees: worktrees?.worktrees.count ?? 0, bytes: model.disk[(row.path as NSString).expandingTildeInPath]?.bytes)))
         }
         .alert(deletionAsk?.title ?? "", isPresented: Binding(get: { deletionAsk != nil }, set: { if $0 == false { deletionAsk = nil } }), presenting: deletionAsk) { ask in
-            Button(ask.canConfirm ? "Cancel" : "OK", role: .cancel) {}
-            if ask.canConfirm { Button("Move to the Trash anyway", role: .destructive) { Task { await deleteFromDisk(confirmed: true) } } }
+            Button(ask.canConfirm ? Copy.projectsCancel() : Copy.projectsOk(), role: .cancel) {}
+            if ask.canConfirm { Button(Copy.projectsMoveToTrashAnyway(), role: .destructive) { Task { await deleteFromDisk(confirmed: true) } } }
         } message: { ask in
             Text(ask.message)
         }
-        .alert(cleanup.flatMap(cleanUpWords).map { "Clean up \($0)?" } ?? "Clean up", isPresented: $confirmingCleanup) {
-            Button("Cancel", role: .cancel) {}
-            Button("Clean up", role: .destructive) { Task { await runCleanup() } }
+        .alert(cleanup.flatMap { cleanUpWords($0) }.map { Copy.projectsCleanUpQuestion(words: $0) } ?? Copy.projectsCleanUp(), isPresented: $confirmingCleanup) {
+            Button(Copy.projectsCancel(), role: .cancel) {}
+            Button(Copy.projectsCleanUp(), role: .destructive) { Task { await runCleanup() } }
         } message: {
             Text(cleanUpQuestionWords)
         }
-        .alert("Stop watching \(row.repo ?? "")?", isPresented: $confirmingStop) {
-            Button("Cancel", role: .cancel) {}
-            Button("Stop watching", role: .destructive) { setWatching(false) }
+        .alert(Copy.projectsStopWatchingQuestion(repo: row.repo ?? ""), isPresented: $confirmingStop) {
+            Button(Copy.projectsCancel(), role: .cancel) {}
+            Button(Copy.projectsStopWatching(), role: .destructive) { setWatching(false) }
         } message: {
             Text(row.repo.map { removalText(repoEpics($0, snapshot: snapshot), appliesNow: appliesWhileRunning(state: state, canReload: canReload)) } ?? "")
         }
@@ -208,9 +211,9 @@ struct ProjectDetailView: View {
     /// The Carrier group: the one switch that makes Carrier watch the project's repository (its `owner/name` in the engine config's repos).
     private var carrierGroup: some View {
         let watch = projectWatchRow(repo: row.repo, repos: watchedRepos, state: state, canReload: canReload, outcome: reloaded.outcome, failure: watchFailure)
-        return SettingsGroup(id: "carrier", title: "Carrier") {
-            SettingsTabRow(title: "Let Carrier watch this project", detail: watch.detail, first: true, problem: watch.problem) {
-                Toggle("Let Carrier watch this project", isOn: Binding(get: { watch.isOn }, set: { $0 ? setWatching(true) : (confirmingStop = true) }))
+        return SettingsGroup(id: "carrier", title: Copy.projectsCarrierGroup()) {
+            SettingsTabRow(title: Copy.projectsLetWatch(), detail: watch.detail, first: true, problem: watch.problem) {
+                Toggle(Copy.projectsLetWatch(), isOn: Binding(get: { watch.isOn }, set: { $0 ? setWatching(true) : (confirmingStop = true) }))
                     .labelsHidden().toggleStyle(.switch).controlSize(.mini).disabled(watch.canChange == false)
             }
         }
@@ -226,7 +229,7 @@ struct ProjectDetailView: View {
                 case .send(let list): watchFailure = await saveEngineConfig(.watchedRepos(list), send: EngineConfigSender.app.send).problem
                 }
             } else {
-                watchFailure = "The config file could not be read or the list is not valid."
+                watchFailure = Copy.projectsWatchConfigInvalid()
             }
             reloadWatched()
         }
@@ -238,8 +241,8 @@ struct ProjectDetailView: View {
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.allowsMultipleSelection = false
-        panel.prompt = "Locate"
-        panel.message = "Choose the new place of \(row.name)"
+        panel.prompt = Copy.projectsLocatePrompt()
+        panel.message = Copy.projectsLocateMessage(name: row.name)
         guard panel.runModal() == .OK, let url = panel.url else { return }
         let path = row.path
         Task { if await model.locate(path: path, to: url.path) { moved(url.path) } }
@@ -249,10 +252,10 @@ struct ProjectDetailView: View {
         let path = row.path, pinned = row.pinned
         headerAction?.set(
             owner,
-            title: pinned ? "Pinned" : "Pin",
+            title: pinned ? Copy.projectsPinned() : Copy.projectsPin(),
             icon: pinned ? .pinFilled : .pin,
             active: pinned,
-            help: pinned ? "Unpin project" : "Pin project"
+            help: pinned ? Copy.projectsUnpinHelp() : Copy.projectsPinHelp()
         ) {
             Task { await model.setPinned(!pinned, path: path) }
         }
@@ -267,10 +270,10 @@ struct ProjectDetailView: View {
     }
 
     private var iconSummary: String {
-        if row.iconImage != nil { return "Custom image" }
-        let color = row.iconColor?.rawValue.capitalized ?? "Automatic color"
-        let mark = row.iconMark?.rawValue.capitalized ?? "initials"
-        return "\(color), \(mark)"
+        if row.iconImage != nil { return Copy.projectsIconCustom() }
+        let color = row.iconColor?.rawValue.capitalized ?? Copy.projectsIconAutoColor()
+        let mark = row.iconMark?.rawValue.capitalized ?? Copy.projectsIconInitials()
+        return Copy.projectsIconSummary(color: color, mark: mark)
     }
 
     private func chooseImage() {
@@ -282,8 +285,8 @@ struct ProjectDetailView: View {
             panel.canChooseDirectories = false
             panel.allowsMultipleSelection = false
             panel.allowedContentTypes = [.image]
-            panel.prompt = "Choose"
-            panel.message = "Choose an image for the project's icon"
+            panel.prompt = Copy.projectsChoose()
+            panel.message = Copy.projectsChooseImageMessage()
             guard panel.runModal() == .OK, let url = panel.url else { return }
             let rasterized = ProjectIconStore.canRead(url) ? nil : rasterizedImage(at: url)
             Task {

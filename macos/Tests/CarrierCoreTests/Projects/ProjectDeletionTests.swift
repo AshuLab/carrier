@@ -31,15 +31,16 @@ private func worktree(_ name: String, _ state: ProjectWorktree.State, session id
 }
 
 @Test func theOfferSaysWhatMovesWhatItHoldsAndWhenTheSpaceIsFreed() {
-    #expect(deleteFromDiskWords(worktrees: 3, bytes: 3_000_000_000) == "Moves its folder and 3 worktrees (3 GB) to the Trash. The space is freed when the Trash is emptied.")
-    #expect(deleteFromDiskWords(worktrees: 1, bytes: nil) == "Moves its folder and 1 worktree to the Trash. The space is freed when the Trash is emptied.")
-    #expect(deleteFromDiskWords(worktrees: 0, bytes: 2_000_000) == "Moves its folder (2 MB) to the Trash. The space is freed when the Trash is emptied.")
+    #expect(deleteFromDiskWords(worktrees: 3, bytes: 3_000_000_000, bundle: english.bundle, locale: english.locale) == "Moves its folder and 3 worktrees (3 GB) to the Trash. The space is freed when the Trash is emptied.")
+    #expect(deleteFromDiskWords(worktrees: 1, bytes: nil, bundle: english.bundle, locale: english.locale) == "Moves its folder and 1 worktree to the Trash. The space is freed when the Trash is emptied.")
+    #expect(deleteFromDiskWords(worktrees: 0, bytes: 2_000_000, bundle: english.bundle, locale: english.locale) == "Moves its folder (2 MB) to the Trash. The space is freed when the Trash is emptied.")
 }
 
 @Test func aCleanProjectWithIdleSessionsGoesOnWithNothingToConfirm() throws {
     let check = projectDeletionCheck(
         path: "/p/app", reply: reply([worktree("a", .clean, session: "1"), worktree("b", .merged)]),
-        sessions: [try session("1", folder: "/w/a", base: "/p/app"), try session("2", folder: "/p/app"), try session("3", folder: "/elsewhere", state: "working", live: true)]
+        sessions: [try session("1", folder: "/w/a", base: "/p/app"), try session("2", folder: "/p/app"), try session("3", folder: "/elsewhere", state: "working", live: true)],
+        bundle: english.bundle, locale: english.locale
     )
     #expect(check == ProjectDeletionCheck(refusals: [], unsaved: []))
     #expect(check.canGoOn && check.needsConfirmation == false)
@@ -54,26 +55,27 @@ private func worktree(_ name: String, _ state: ProjectWorktree.State, session id
             try session("3", folder: "/p/app", live: true, title: nil),
             try session("4", folder: "/p/app", state: "preparing"),
             try session("5", folder: "/p/app"),
-        ]
+        ],
+        bundle: english.bundle, locale: english.locale
     )
     #expect(check.refusals == ["“Add retry” is working", "“Spike” is waiting for you", "“Untitled session” is open", "“Fix sync” is working"])
     #expect(check.canGoOn == false)
 }
 
 @Test func aWorktreeSessionTheListDidNotNameStillRefusesFromTheHostsAnswer() throws {
-    let check = projectDeletionCheck(path: "/p/app", reply: reply([worktree("a", .sessionOpen, session: "9"), worktree("b", .sessionOpen, session: "1")]), sessions: [try session("1", folder: "/w/b", base: "/p/app", live: true)])
+    let check = projectDeletionCheck(path: "/p/app", reply: reply([worktree("a", .sessionOpen, session: "9"), worktree("b", .sessionOpen, session: "1")]), sessions: [try session("1", folder: "/w/b", base: "/p/app", live: true)], bundle: english.bundle, locale: english.locale)
     #expect(check.refusals == ["“Fix sync” is open", "A session of carrier/a is open"])
 }
 
 @Test func uncommittedChangesAndBranchesNotPushedAreListedForTheConfirmation() {
-    let check = projectDeletionCheck(path: "/p/app", reply: reply(main: .uncommitted, [worktree("a", .uncommitted), worktree("b", .notPushed), worktree("c", .clean), worktree("d", .merged)]), sessions: [])
+    let check = projectDeletionCheck(path: "/p/app", reply: reply(main: .uncommitted, [worktree("a", .uncommitted), worktree("b", .notPushed), worktree("c", .clean), worktree("d", .merged)]), sessions: [], bundle: english.bundle, locale: english.locale)
     #expect(check.unsaved == ["app has uncommitted changes", "carrier/a has uncommitted changes", "carrier/b has commits that are not pushed"])
     #expect(check.canGoOn && check.needsConfirmation)
-    #expect(projectDeletionCheck(path: "/p/app", reply: reply(main: .notPushed), sessions: []).unsaved == ["app has commits that are not pushed"])
+    #expect(projectDeletionCheck(path: "/p/app", reply: reply(main: .notPushed), sessions: [], bundle: english.bundle, locale: english.locale).unsaved == ["app has commits that are not pushed"])
 }
 
 @Test func aHostThatDoesNotSayWhatTheMainCloneHoldsRefusesInsteadOfGuessing() {
-    let check = projectDeletionCheck(path: "/p/app", reply: reply(main: nil), sessions: [])
+    let check = projectDeletionCheck(path: "/p/app", reply: reply(main: nil), sessions: [], bundle: english.bundle, locale: english.locale)
     #expect(check.canGoOn == false && check.refusals.first?.contains("restart") == true)
 }
 
@@ -122,7 +124,7 @@ private func exists(_ path: String) -> Bool { FileManager.default.fileExists(atP
     let one = try scratch.project(scratch.carrier + "/chat/worktrees/acme/app/kerrigan")
     let two = try scratch.project(scratch.carrier + "/chat/worktrees/acme/app/raynor")
     let other = try scratch.project(scratch.carrier + "/chat/projects/acme/other")
-    try moveProjectToTrash(path: project, worktrees: [one, two], carrierFolder: scratch.carrier, home: scratch.home, trash: scratch.fakeTrash())
+    try moveProjectToTrash(path: project, worktrees: [one, two], carrierFolder: scratch.carrier, home: scratch.home, trash: scratch.fakeTrash(), bundle: english.bundle, locale: english.locale)
     #expect([project, one, two].allSatisfy { exists($0) == false })
     #expect(try FileManager.default.contentsOfDirectory(atPath: scratch.trash.path).count == 3)
     #expect(exists(other) && exists(scratch.carrier + "/chat/projects/acme"))
@@ -136,7 +138,7 @@ private func exists(_ path: String) -> Bool { FileManager.default.fileExists(atP
     let two = try scratch.project(scratch.carrier + "/chat/worktrees/acme/app/raynor")
     // the project's folder is the last to go: the worktrees that already went come back
     do {
-        try moveProjectToTrash(path: project, worktrees: [one, two], carrierFolder: scratch.carrier, home: scratch.home, trash: scratch.fakeTrash(failing: "app"))
+        try moveProjectToTrash(path: project, worktrees: [one, two], carrierFolder: scratch.carrier, home: scratch.home, trash: scratch.fakeTrash(failing: "app"), bundle: english.bundle, locale: english.locale)
         Issue.record("the move should have failed")
     } catch let error as ProjectTrashError {
         #expect(error.words.hasPrefix("Could not move app to the Trash") && error.words.hasSuffix("Nothing was removed."))
@@ -144,7 +146,7 @@ private func exists(_ path: String) -> Bool { FileManager.default.fileExists(atP
     #expect([project, one, two].allSatisfy { exists($0) && exists($0 + "/a.txt") })
     #expect(try FileManager.default.contentsOfDirectory(atPath: scratch.trash.path).isEmpty)
     // a worktree that fails first moves nothing at all
-    #expect(throws: ProjectTrashError.self) { try moveProjectToTrash(path: project, worktrees: [one, two], carrierFolder: scratch.carrier, home: scratch.home, trash: scratch.fakeTrash(failing: "kerrigan")) }
+    #expect(throws: ProjectTrashError.self) { try moveProjectToTrash(path: project, worktrees: [one, two], carrierFolder: scratch.carrier, home: scratch.home, trash: scratch.fakeTrash(failing: "kerrigan"), bundle: english.bundle, locale: english.locale) }
     #expect([project, one, two].allSatisfy { exists($0 + "/a.txt") })
 }
 
@@ -158,7 +160,7 @@ private func exists(_ path: String) -> Bool { FileManager.default.fileExists(atP
     try FileManager.default.createDirectory(atPath: notGit, withIntermediateDirectories: true)
     let link = scratch.home + "/link"
     try FileManager.default.createSymbolicLink(atPath: link, withDestinationPath: project)
-    func refusal(_ path: String, _ worktrees: [String] = []) -> String? { projectTrashRefusal(path: path, worktrees: worktrees, carrierFolder: scratch.carrier, home: scratch.home) }
+    func refusal(_ path: String, _ worktrees: [String] = []) -> String? { projectTrashRefusal(path: path, worktrees: worktrees, carrierFolder: scratch.carrier, home: scratch.home, bundle: english.bundle, locale: english.locale) }
 
     #expect(refusal(project, [worktree]) == nil)
     #expect(refusal(scratch.home)?.contains("home folder") == true)
@@ -177,7 +179,7 @@ private func exists(_ path: String) -> Bool { FileManager.default.fileExists(atP
     #expect(refusal(project, [scratch.home]) != nil)
 
     for (path, worktrees) in [(scratch.home, []), (outside, [outside]), (notGit, []), (link, [])] as [(String, [String])] {
-        #expect(throws: ProjectTrashError.self) { try moveProjectToTrash(path: path, worktrees: worktrees, carrierFolder: scratch.carrier, home: scratch.home, trash: scratch.fakeTrash()) }
+        #expect(throws: ProjectTrashError.self) { try moveProjectToTrash(path: path, worktrees: worktrees, carrierFolder: scratch.carrier, home: scratch.home, trash: scratch.fakeTrash(), bundle: english.bundle, locale: english.locale) }
     }
     #expect([project, worktree, outside, notGit, scratch.home].allSatisfy(exists))
     #expect(try FileManager.default.contentsOfDirectory(atPath: scratch.trash.path).isEmpty)

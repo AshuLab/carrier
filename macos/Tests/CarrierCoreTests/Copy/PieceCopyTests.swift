@@ -39,7 +39,7 @@ private func both(_ words: (Bundle?, Locale) -> String) -> (en: String, es: Stri
     let pairs: [((Bundle?, Locale) -> String, String, String)] = [
         ({ Copy.pieceCopyCode(bundle: $0, locale: $1) }, "Copy the code", "Copiar el código"),
         ({ Copy.pieceFoldShowLess(bundle: $0, locale: $1) }, "Show less", "Mostrar menos"),
-        ({ Copy.pieceChosen(bundle: $0, locale: $1) }, "Chosen", "Elegida"),
+        ({ Copy.pieceChosen(bundle: $0, locale: $1) }, "Chosen", "Elegido"),
         ({ Copy.pieceCopyDetails(bundle: $0, locale: $1) }, "Copy details", "Copiar los detalles"),
         ({ Copy.pieceCopied(bundle: $0, locale: $1) }, "Copied", "Copiado"),
         ({ Copy.pieceTryAgain(bundle: $0, locale: $1) }, "Try again", "Intentar de nuevo"),

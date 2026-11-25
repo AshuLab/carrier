@@ -46,7 +46,7 @@ private func watched(_ repo: String, ok: Bool = true, error: String? = nil) -> P
     let due = englishNotifications(from: snapshot(), to: snapshot([epic(7, .needsHuman)]))
     #expect(due.count == 1)
     #expect(due[0].title == "a/b #7 needs attention")
-    #expect(due[0].body.isEmpty == false)
+    #expect(due[0].body == "It stopped and waits for a person")
 }
 
 @Test func anEpicNewInTheReadyListNotifiesWithItsPullRequest() {
@@ -57,6 +57,7 @@ private func watched(_ repo: String, ok: Bool = true, error: String? = nil) -> P
 @Test func aReadyEpicWithoutAPullRequestStillNotifies() {
     let due = englishNotifications(from: snapshot(), to: snapshot(done: [ready(9)]))
     #expect(due.map(\.title) == ["a/b #9 is ready for test"])
+    #expect(due.map(\.body) == ["Its work is done"])
 }
 
 @Test func whatWasAlreadyThereDoesNotNotify() {
@@ -269,6 +270,8 @@ private let withProblems = NotificationKinds(problem: true)
     let fine = snapshot(watched: [watched("a/b")])
     let refused = snapshot(watched: [watched("a/b", ok: false, error: "Repository not found")])
     #expect(englishNotifications(from: fine, to: refused, kinds: withProblems) == [EpicNotification(title: "a/b was refused by GitHub", body: "Repository not found")])
+    let withoutError = snapshot(watched: [watched("a/b", ok: false)])
+    #expect(englishNotifications(from: fine, to: withoutError, kinds: withProblems) == [EpicNotification(title: "a/b was refused by GitHub", body: "GitHub refused it")])
     #expect(englishNotifications(from: refused, to: refused, kinds: withProblems).isEmpty)
     #expect(englishNotifications(from: refused, to: fine, kinds: withProblems).isEmpty)
     #expect(englishNotifications(from: fine, to: refused, kinds: withProblems).count == 1)
@@ -380,6 +383,7 @@ private let chatDoneOn = NotificationKinds(chatDone: true)
 @Test func aSessionThatGoesFromWorkingToIdleIsDoneOnlyWithTheSwitchOn() {
     #expect(englishChatNotifications(from: [session("1", .working)], to: [session("1", .idle)]).isEmpty)
     #expect(englishChatNotifications(from: [session("1", .working)], to: [session("1", .idle)], kinds: chatDoneOn).map(\.title) == ["Session 1 is done"])
+    #expect(englishChatNotifications(from: [session("1", .working)], to: [session("1", .idle)], kinds: chatDoneOn).map(\.body) == ["The agent finished its turn"])
 }
 
 @Test func anyOtherChangeOfASessionSaysNothing() {
@@ -579,6 +583,21 @@ private func after(_ minutes: Double) -> Date { start.addingTimeInterval(minutes
 
 // the eight notifications in Spanish (design/copy/es.json): each is built from its arguments through its key, never from pieces of English
 
+private final class RecordingCentre: NotificationCentre {
+    var posted: [EpicNotification] = []
+    func post(_ notifications: [EpicNotification]) { posted += notifications }
+    func sendTest() {}
+}
+
+@Test func aStopTheAppDidNotAskForSaysItsTitleAndBodyInEnglish() {
+    let centre = RecordingCentre()
+    let watcher = NotificationWatcher(centre: centre, kinds: { withProblems }, bundle: english.bundle, locale: english.locale)
+    watcher.react(to: running(snapshot()))
+    watcher.react(to: .stopped)
+    #expect(centre.posted.map(\.title) == ["Carrier stopped"])
+    #expect(centre.posted.map(\.body) == ["It stopped without being asked. Open the app to start it again."])
+}
+
 private func spanishNotifications(from previous: PanelSnapshot?, to new: PanelSnapshot, kinds: NotificationKinds = NotificationKinds(problem: true)) -> [EpicNotification] {
     notifications(from: previous, to: new, kinds: kinds, bundle: spanish.bundle, locale: spanish.locale)
 }
@@ -628,12 +647,7 @@ private func spanishChatNotifications(from previous: [SessionRow], to new: [Sess
 }
 
 @Test func aStopTheAppDidNotAskForNotifiesInSpanish() {
-    final class Recording: NotificationCentre {
-        var posted: [EpicNotification] = []
-        func post(_ notifications: [EpicNotification]) { posted += notifications }
-        func sendTest() {}
-    }
-    let centre = Recording()
+    let centre = RecordingCentre()
     let watcher = NotificationWatcher(centre: centre, kinds: { withProblems }, bundle: spanish.bundle, locale: spanish.locale)
     watcher.react(to: running(snapshot()))
     watcher.react(to: .stopped)

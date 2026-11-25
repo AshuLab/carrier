@@ -28246,7 +28246,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Agregué un reintento a `upload` que lo intenta tres veces con una breve pausa entre ellas, y una prueba que falla dos veces antes de pasar. El ancho de un mensaje es lo que mide una línea antes de partirse: una columna estrecha es cómoda para leer, y una ancha admite más de una tabla o de un comando largo, como `pnpm test && pnpm typecheck`."
+            "value": "Agregué un reintento a `upload` que lo intenta tres veces con una breve pausa entre ellas, y una prueba que falla dos veces antes de pasar. El ancho de un mensaje es lo que mide una línea antes de partirse: una columna estrecha es cómoda para leer, y una ancha deja ver más de cada tabla o comando largo, como `pnpm test && pnpm typecheck`."
           }
         }
       }
@@ -35524,7 +35524,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Elegida"
+            "value": "Elegido"
           }
         }
       }

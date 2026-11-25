@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { dirname } from 'node:path';
 import type { TextParams } from '../orchestration/text-params.ts';
 import { defaults, loadConfig } from './load.ts';
 import { configProblem } from './problems.ts';
@@ -59,6 +60,12 @@ export function write(file: string, next: Record<string, unknown>, folder: strin
     rmSync(temporary, { force: true });
     throw error;
   }
+}
+
+/** `carrier init` makes the whole file: the folder it goes in is made when it is not there, then it is checked and written like every other write of `engine.json`. */
+export function saveEngineConfig(config: Record<string, unknown>, file: string, folder: string) {
+  mkdirSync(dirname(file), { recursive: true });
+  write(file, config, folder);
 }
 
 const folderOf = (name: string) => name.split('/').pop()!.toLowerCase();

@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, expect, test } from 'vitest';
 import { ChatRefused } from '../chat/runner.ts';
 import { chatConfigPathOf, engineConfigPathOf, providersPathOf } from './places.ts';
-import { addAccount, editAccount, normalizedConfigDir, removeAccount, setAccounts, setTextGenerator } from './providers-edit.ts';
+import { addAccount, editAccount, normalizedConfigDir, removeAccount, saveAccounts, setAccounts, setTextGenerator } from './providers-edit.ts';
 
 let folder: string;
 beforeEach(() => void (folder = mkdtempSync(join(tmpdir(), 'pe-'))));
@@ -181,4 +181,14 @@ test.each([[{ server: 'openai', model: 'm' }, 'textGenerators.openai'], [{ serve
 test('setTextGenerator refuses a textGenerators that is not a map', () => {
   seed('{"textGenerators":"x"}');
   expect(refusal(() => setTextGenerator(null, folder))).toMatchObject({ code: 'config.problem', params: { path: 'textGenerators', problem: 'notAnObject' } });
+});
+
+test('saveAccounts sets the whole providers map and keeps every other key, and a map the schema refuses leaves the file as it was', () => {
+  seed(base);
+  saveAccounts({ codex: { harness: 'codex' } }, folder);
+  expect(written()).toEqual({ ...base, providers: { codex: { harness: 'codex' } } });
+  const before = readFileSync(file(), 'utf8');
+  expect(refusal(() => saveAccounts({ claude: { harness: 'nope' } }, folder)).code).toBe('config.problem');
+  expect(readFileSync(file(), 'utf8')).toBe(before);
+  expect(readdirSync(folder)).toEqual(['providers.json']);
 });

@@ -69,6 +69,13 @@ const missing = (name: string) => new ChatRefused('account.missing', `There is n
 /** The part of the file that an account request changed: the accounts it names, as the file now has them. */
 const savedAccounts = (file: Raw, names: string[]) => ({ providers: Object.fromEntries(names.map((name) => [name, (file.providers as Raw)[name]])) });
 
+/** `carrier init` sets the whole `providers` map; every other key of the file stays as the person wrote it. */
+export function saveAccounts(accounts: Record<string, unknown>, folder = carrierHome()) {
+  edit(folder, (file) => {
+    file.providers = accounts;
+  });
+}
+
 /** Adds each account, `{ harness }` (found by detection); a taken name is refused and the file is left as it was. */
 export function setAccounts(accounts: { name: string; harness: HarnessName }[], folder = carrierHome()) {
   const file = edit(folder, (file) => {

@@ -1,8 +1,8 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
-import { ConfigRefused, editBehavior, setWatchedRepos } from './engine-edit.ts';
+import { ConfigRefused, editBehavior, saveEngineConfig, setWatchedRepos } from './engine-edit.ts';
 import { engineConfigPathOf } from './places.ts';
 import { validEngineFile } from './testing.ts';
 
@@ -98,5 +98,22 @@ describe('editBehavior', () => {
     const refused = refusal(() => editBehavior(changes, file, folder));
     expect([refused.message, refused.code, refused.params]).toEqual([words, 'config.problem', { path, problem: kind }]);
     expect(readFileSync(file, 'utf8')).toBe(before);
+  });
+});
+
+describe('saveEngineConfig', () => {
+  test('writes the whole file in a folder that is not there yet, and leaves no temporary file', () => {
+    const target = join(folder, 'new', 'engine.json');
+    saveEngineConfig(validEngineFile, target, folder);
+    expect(JSON.parse(readFileSync(target, 'utf8'))).toEqual(validEngineFile);
+    expect(readdirSync(join(folder, 'new'))).toEqual(['engine.json']);
+  });
+
+  test('a config the engine would refuse is not written and the file that was there stays as it was', () => {
+    const before = readFileSync(file, 'utf8');
+    const refused = refusal(() => saveEngineConfig({ ...validEngineFile, limits: { maxReviews: 0 } }, file, folder));
+    expect(refused.code).toBe('config.problem');
+    expect(readFileSync(file, 'utf8')).toBe(before);
+    expect(readdirSync(folder)).toEqual(['engine.json']);
   });
 });

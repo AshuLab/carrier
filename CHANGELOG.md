@@ -18,6 +18,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   Dates, times and relative times follow the person's region.
   The app's code is now organized by area in three targets (`CarrierCore`, `CarrierUI` and `Carrier`), with its look, its words and its preferences generated from one neutral source (`pnpm design`), and a structure check in CI (`macos/scripts/check-structure.sh`).
 
+### Changed
+
+- A worktree on a project's page shows two chips instead of one: what is happening now (Session open or Uncommitted changes, only when it applies) and where its work stands (Merged · #N, In main, Not pushed, PR open · #N, PR closed · #N or Pushed), with the pull request number as a link.
+  In main is read from git, so a worktree already in the remote default branch says it even with no pull request, and the page refreshes the pull request state when it opens, so a merged pull request of an archived session says Merged.
+  Clean up is now "Finished worktrees" and takes every worktree with a session that is Merged or In main and has nothing open or uncommitted, and Remove is a trash icon.
+
 ### Fixed
 
 - The time a session shows while it works counts the turn that runs now, not the ones before it: it used to carry on from an earlier turn when the session's row was not on screen as that turn ended, or when the agent was still waiting for something it had started in the background and a new message began a new turn.

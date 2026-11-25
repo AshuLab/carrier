@@ -79,7 +79,7 @@ struct UpdatePill: View {
         let (kind, text): (String, String) = switch phase {
         case .none: ("none", "")
         case .available(let version): ("version", version)
-        case .downloading(_, let percent): ("percent", "\(percent)%")
+        case .downloading(_, let percent): ("percent", Copy.updatesPillPercent(percent: percent))
         case .ready: justDownloaded ? ("done", Copy.updatesPillReady()) : ("restart", Copy.updatesActionRestart())
         case .installing: ("installing", Copy.updatesRestarting())
         case .failed: ("failed", Copy.updatesActionRetry())

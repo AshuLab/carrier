@@ -3061,6 +3061,23 @@
         }
       }
     },
+    "lifecycleProgressPercent %lld": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld%%"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld %%"
+          }
+        }
+      }
+    },
     "lifecycleRunning": {
       "extractionState": "manual",
       "localizations": {
@@ -12302,6 +12319,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Reiniciando. Si Carrier no se cierra, haz clic para pedírselo de nuevo"
+          }
+        }
+      }
+    },
+    "updatesPillPercent %lld": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld%%"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld %%"
           }
         }
       }

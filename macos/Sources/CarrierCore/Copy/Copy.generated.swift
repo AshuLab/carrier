@@ -372,6 +372,10 @@ public enum Copy {
         String(localized: "lifecycleRunning", bundle: bundle ?? carrierResources, locale: locale)
     }
 
+    public static func lifecycleProgressPercent(percent: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "lifecycleProgressPercent \(percent)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
     public static func lifecycleSlotsInUse(busy: Int, total: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
         String(localized: "lifecycleSlotsInUse \(busy) \(total)", bundle: bundle ?? carrierResources, locale: locale)
     }
@@ -834,6 +838,10 @@ public enum Copy {
 
     public static func updatesPillReady(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         String(localized: "updatesPillReady", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func updatesPillPercent(percent: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "updatesPillPercent \(percent)", bundle: bundle ?? carrierResources, locale: locale)
     }
 
     public static func updatesHelpAvailable(version: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {

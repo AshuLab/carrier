@@ -110,3 +110,10 @@ import Testing
     #expect(updateDelayChoices.map { Copy.updatesDelay(days: $0, bundle: english.bundle, locale: english.locale) } == ["None", "1 day", "3 days", "7 days", "14 days", "30 days"])
     #expect(updateDelayChoices.map { Copy.updatesDelay(days: $0, bundle: spanish.bundle, locale: spanish.locale) } == ["Ninguno", "1 día", "3 días", "7 días", "14 días", "30 días"])
 }
+
+@Test func aPercentGroupsForTheLocaleAndSpanishSpacesItsSign() {
+    #expect(Copy.updatesPillPercent(percent: 42, bundle: english.bundle, locale: english.locale) == "42%")
+    #expect(Copy.updatesPillPercent(percent: 42, bundle: spanish.bundle, locale: spanish.locale) == "42 %")
+    #expect(Copy.lifecycleProgressPercent(percent: 100, bundle: english.bundle, locale: english.locale) == "100%")
+    #expect(Copy.lifecycleProgressPercent(percent: 100, bundle: spanish.bundle, locale: spanish.locale) == "100 %")
+}

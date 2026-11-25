@@ -51,7 +51,7 @@ struct RunningView: View {
                 Spacer(minLength: 8)
                 if let progress = card.progress {
                     HStack(spacing: Tokens.Space.s10) {
-                        Text("\(Int((progress * 100).rounded()))%").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                        Text(Copy.lifecycleProgressPercent(percent: Int((progress * 100).rounded()))).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
                         if let steps = card.steps {
                             SegmentedProgress(done: steps.done, total: steps.total).frame(width: 120)
                         } else {

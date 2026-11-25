@@ -1,0 +1,32 @@
+name: Engine
+
+# The TypeScript side (engine, chat host, terminal CLI) on Linux: types, unit tests (the database's migrations are applied by them), migrations drift, design drift, package smoke.
+# A pull request into main that is not a draft runs it unless it only touches macos/; a generated file there (`*.generated.swift`, `Localizable.xcstrings`) counts, since `pnpm design:check` compares it.
+# A push to main runs it always: two PRs that were green apart can still break main together.
+# The jobs are in _engine.yml, which release.yml calls too: what a release checks is what a pull request checked.
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+    # order matters: the last pattern that matches wins
+    paths:
+      - '**'
+      - '!macos/**'
+      - 'macos/**/*.generated.swift'
+      - 'macos/**/Localizable.xcstrings'
+  push:
+    branches: [main]
+
+# A new push to a PR replaces the previous run; main's runs all finish.
+concurrency:
+  group: engine-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  engine:
+    name: Carrier Engine
+    if: github.event_name == 'push' || github.event.pull_request.draft == false
+    uses: ./.github/workflows/_engine.yml

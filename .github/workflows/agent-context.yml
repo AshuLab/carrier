@@ -1,0 +1,28 @@
+name: Agent context
+
+# AGENTS.md files are read in full by every agent that works in their folder: each has a budget in bytes (.github/scripts/agent-context.sh).
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - '**/AGENTS.md'
+      - '.github/scripts/agent-context.sh'
+      - '.github/workflows/agent-context.yml'
+
+concurrency:
+  group: agent-context-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  agent-context:
+    name: Agent context
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: .github/scripts/agent-context.sh

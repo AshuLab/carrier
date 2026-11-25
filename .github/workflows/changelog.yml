@@ -1,0 +1,38 @@
+name: Changelog
+
+# CONTRIBUTING: a change someone can see adds a line under [Unreleased]. Source other than tests or the app's sources needs one,
+# unless the PR has the `no-changelog` label (read when the job runs, so add the label and re-run this job).
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - 'src/**'
+      - 'macos/Sources/**'
+      - '.github/workflows/changelog.yml'
+
+concurrency:
+  group: changelog-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read # the PR's files and labels
+
+jobs:
+  changelog:
+    name: Changelog
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          FILES="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR/files" --paginate --jq '.[].filename')"
+          echo "$FILES" | grep -qxF CHANGELOG.md && { echo "CHANGELOG.md is in the PR"; exit 0; }
+          echo "$FILES" | grep -E '^(src/|macos/Sources/)' | grep -vE '(\.test\.ts|Tests?\.swift)$' | grep -q . || { echo "no user-visible source in the PR"; exit 0; }
+          gh api "repos/$GITHUB_REPOSITORY/issues/$PR/labels" --jq '.[].name' | grep -qxF no-changelog && { echo "labelled no-changelog"; exit 0; }
+          echo "::error file=CHANGELOG.md::The PR changes src/ or macos/Sources/ without a line under [Unreleased]. Add it, or label the PR no-changelog if nobody can see the change, and re-run this job." >&2
+          exit 1

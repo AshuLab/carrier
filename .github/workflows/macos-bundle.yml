@@ -1,0 +1,55 @@
+name: macOS bundle
+
+# build-app.sh and what the updater needs from the bundle (macos/scripts/check-app.sh), once per architecture the release ships (ADR 0051): a cold release build, ~10 min each, so it runs only for a change that can affect the packaging.
+# The two jobs run in parallel, and Intel is cross-compiled on the same Apple Silicon runner. They are two jobs and not a matrix: a skipped matrix job shows its name as the unresolved `${{ matrix.arch }}`.
+# The paths are what build-app.sh and check-app.sh read or write: the scripts, the package, the resources, the key, the fixtures, the notices and the workflows that run it. release.yml builds and checks the bundle again before anything reaches the tap or the update feed.
+# Only a pull request into main that is not a draft, or by hand on a branch; a push to main does not run it.
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - 'macos/build-app.sh'
+      - 'macos/update-key.pub'
+      - 'macos/Package.swift'
+      - 'macos/Package.resolved'
+      - 'macos/scripts/**'
+      - 'macos/Resources/**'
+      - 'macos/Tests/Fixtures/**'
+      - 'macos/Sources/*/Resources/**'
+      - 'THIRD-PARTY-NOTICES.md'
+      - '.github/workflows/macos-bundle.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: macos-bundle-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  arm64:
+    name: Bundle (arm64)
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Bundle
+        working-directory: macos
+        # no CARRIER_ARCH: this runner's own architecture
+        run: scripts/check-app.sh
+
+  x86_64:
+    name: Bundle (x86_64)
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    runs-on: macos-26
+    timeout-minutes: 30
+    env:
+      CARRIER_ARCH: x86_64
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Bundle
+        working-directory: macos
+        run: scripts/check-app.sh

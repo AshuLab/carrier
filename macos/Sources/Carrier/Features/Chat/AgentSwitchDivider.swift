@@ -26,7 +26,7 @@ struct AgentSwitchDivider: View {
         }
         .padding(.vertical, Tokens.Space.s6)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("The agent changed from \(spoken(switched.from, switched.fromModel)) to \(spoken(switched.to, switched.toModel)). \(handoffDetail(to: store.shortName(of: switched.to)))")
+        .accessibilityLabel(Copy.chatSwitchSpoken(from: spoken(switched.from, switched.fromModel), to: spoken(switched.to, switched.toModel), detail: handoffDetail(to: store.shortName(of: switched.to))))
     }
 
     private var line: some View { Rectangle().fill(Color.primary.opacity(0.12)).frame(height: 1) }

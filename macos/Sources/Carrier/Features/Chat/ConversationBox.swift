@@ -39,7 +39,7 @@ struct ConversationBox: View {
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
             MessageBox(
-                text: $model.draft, placeholder: "Message the agent", minLines: 2,
+                text: $model.draft, placeholder: Copy.chatComposerPlaceholder(), minLines: 2,
                 canSend: model.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false, canSendWithText: true, busy: model.busy,
                 focus: $boxFocused, commands: model.shownCommands, dictationOwner: "session:\(model.sessionId)", dictateRequest: dictations,
                 meter: showsContextUsage ? AnyView(ContextUsageButton(context: contextUse(model.rows), account: model.agent, store: AppUsage.store, busy: model.busy)) : nil,
@@ -54,7 +54,7 @@ struct ConversationBox: View {
                     options: model.shownOptions,
                     // a closed session lists what it offered when it last ran, and what is chosen waits for the message that wakes it; one the app
                     // never saw running lists nothing, and the panel says so
-                    emptyNote: model.pendingAgent.map { "\($0) lists these once it has taken over, with your message." } ?? (model.asleep ? "The provider lists these once the session is awake. Send a message to wake it up." : "Reading what the provider offers…"),
+                    emptyNote: model.pendingAgent.map { Copy.chatComposerTakingOver(agent: $0) } ?? (model.asleep ? Copy.chatComposerAsleep() : Copy.chatComposerReading()),
                     busy: model.busy, chooseAgent: { name in model.chooseAgent(name) }, choose: { option, value in Task { await model.setOption(option, value) } }
                 )
             }

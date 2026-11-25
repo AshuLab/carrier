@@ -1,6 +1,4 @@
 import Foundation
-import Synchronization
-import Observation
 
 // The Archive page (docs/specs/sessions-in-the-app.md, "Archive"): what it lists and says as plain values, the menu of a session row,
 // the questions it asks, and what archiving, restoring, deleting and clearing do through the chat host.
@@ -21,18 +19,20 @@ public struct ArchivePage: Equatable {
 
 /// The line under an archived row: why a kept session is still there, else when the clock deletes it ("Deletes in 12 days", counted up
 /// to whole days from `now`, "Deletes soon" when it is due); nil when the host gave no date.
-public func archiveNote(_ row: SessionRow, now: Date = Date()) -> String? {
-    if row.kept { return "Kept because its worktree has unsaved work" }
+public func archiveNote(_ row: SessionRow, now: Date = Date(), bundle: Bundle? = nil, locale: Locale = .current) -> String? {
+    if row.kept { return Copy.archiveNoteKept(bundle: bundle, locale: locale) }
     guard let deleteAt = row.deleteAt else { return nil }
     let days = Int((deleteAt.timeIntervalSince(now) / 86400).rounded(.up))
-    return days <= 0 ? "Deletes soon" : days == 1 ? "Deletes in 1 day" : "Deletes in \(days) days"
+    return days <= 0 ? Copy.archiveNoteDeletesSoon(bundle: bundle, locale: locale) : Copy.archiveNoteDeletesIn(days: days, bundle: bundle, locale: locale)
 }
 
 /// The archived rows only. By date archived: Last 30 days and Older (counted back from `now`); by project: one group per workspace
 /// ordered by name ignoring case; newest first inside a group. A non-empty `query` matches the title, the workspace and the agent
 /// ignoring case and lists the matches, newest first, in one group. `notes` is `archiveNote` of each archived row. The subtitle is "5 sessions" ("2 results" while searching) and
 /// says nothing when nothing is archived; the page is "Nothing archived" then, "No sessions match" when a search finds none.
-public func archivePage(_ rows: [SessionRow], by sort: ArchiveSort = .dateArchived, query: String = "", now: Date = Date()) -> ArchivePage {
+public func archivePage(
+    _ rows: [SessionRow], by sort: ArchiveSort = .dateArchived, query: String = "", now: Date = Date(), bundle: Bundle? = nil, locale: Locale = .current
+) -> ArchivePage {
     let archived = rows.filter(\.archived)
     let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
     let newest: (SessionRow, SessionRow) -> Bool = { $0.updatedAt > $1.updatedAt }
@@ -40,21 +40,26 @@ public func archivePage(_ rows: [SessionRow], by sort: ArchiveSort = .dateArchiv
     let groups: [SessionGroup]
     if query.isEmpty == false {
         let found = archived.filter { [$0.title, $0.workspace, $0.agent].contains { $0.localizedCaseInsensitiveContains(query) } }
-        groups = group("Results", found).map { [$0] } ?? []
+        groups = group(Copy.sessionGroupResults(bundle: bundle, locale: locale), found).map { [$0] } ?? []
     } else {
         switch sort {
         case .dateArchived:
             let cutoff = now.addingTimeInterval(-30 * 86400)
-            groups = [group("Last 30 days", archived.filter { $0.updatedAt >= cutoff }), group("Older", archived.filter { $0.updatedAt < cutoff })].compactMap { $0 }
+            groups = [
+                group(Copy.archiveGroupLast30Days(bundle: bundle, locale: locale), archived.filter { $0.updatedAt >= cutoff }),
+                group(Copy.sessionGroupOlder(bundle: bundle, locale: locale), archived.filter { $0.updatedAt < cutoff }),
+            ].compactMap { $0 }
         case .project:
             groups = Dictionary(grouping: archived, by: \.workspace).compactMap { group($0.key, $0.value) }
                 .sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
         }
     }
     let shown = groups.reduce(0) { $0 + $1.rows.count }
-    let subtitle = query.isEmpty == false ? (shown == 1 ? "1 result" : "\(shown) results") : archived.isEmpty ? "" : archived.count == 1 ? "1 session" : "\(archived.count) sessions"
+    let subtitle = query.isEmpty == false
+        ? Copy.sessionsResultCount(count: shown, bundle: bundle, locale: locale)
+        : archived.isEmpty ? "" : Copy.sessionsCount(count: archived.count, bundle: bundle, locale: locale)
     let empty: EmptyState? = groups.isEmpty ? (archived.isEmpty ? .nothingArchived : .noSessionsMatch) : nil
-    let notes = Dictionary(uniqueKeysWithValues: archived.compactMap { row in archiveNote(row, now: now).map { (row.id, $0) } })
+    let notes = Dictionary(uniqueKeysWithValues: archived.compactMap { row in archiveNote(row, now: now, bundle: bundle, locale: locale).map { (row.id, $0) } })
     return ArchivePage(subtitle: subtitle, groups: groups, notes: notes, emptyState: empty, canClear: archived.isEmpty == false)
 }
 
@@ -72,45 +77,45 @@ public struct Question: Equatable {
 }
 
 /// What a worktree holds that deleting would lose, in words: "3 uncommitted files and 2 commits that exist nowhere else"; nil when it holds nothing.
-private func lostWork(files: Int, commits: Int) -> String? {
-    let dirty = files == 1 ? "1 uncommitted file" : "\(files) uncommitted files"
-    let unpushed = commits == 1 ? "1 commit that exists nowhere else" : "\(commits) commits that exist nowhere else"
+private func lostWork(files: Int, commits: Int, bundle: Bundle?, locale: Locale) -> String? {
     switch (files > 0, commits > 0) {
-    case (true, true): return "\(dirty) and \(unpushed)"
-    case (true, false): return dirty
-    case (false, true): return unpushed
-    case (false, false): return nil
+    case (true, true): Copy.archiveLostBoth(files: files, commits: commits, bundle: bundle, locale: locale)
+    case (true, false): Copy.archiveLostFiles(count: files, bundle: bundle, locale: locale)
+    case (false, true): Copy.archiveLostCommits(count: commits, bundle: bundle, locale: locale)
+    case (false, false): nil
     }
 }
 
 /// Clear sessions: names how many will be deleted and, from the host's `deletePreview` of all of them, how many work in a worktree
 /// that would lose work and the totals of files and commits; sessions in a base folder add nothing.
-public func clearSessionsQuestion(count: Int, previews: [SessionDeletePreview] = []) -> Question {
+public func clearSessionsQuestion(count: Int, previews: [SessionDeletePreview] = [], bundle: Bundle? = nil, locale: Locale = .current) -> Question {
     let worktrees = previews.compactMap(\.worktree)
     let losing = worktrees.filter { $0.dirty + $0.unpushed > 0 }
-    var message = "Their transcripts are removed and cannot be brought back."
-    if let lost = lostWork(files: losing.reduce(0) { $0 + $1.dirty }, commits: losing.reduce(0) { $0 + $1.unpushed }) {
-        message += losing.count == 1
-            ? " 1 of them works in a worktree that would lose work: \(lost) will be removed with it."
-            : " \(losing.count) of them work in worktrees that would lose work: \(lost) will be removed with them."
+    var message = Copy.archiveClearMessage(bundle: bundle, locale: locale)
+    if let lost = lostWork(files: losing.reduce(0) { $0 + $1.dirty }, commits: losing.reduce(0) { $0 + $1.unpushed }, bundle: bundle, locale: locale) {
+        message = Copy.archiveClearMessageLosing(count: losing.count, lost: lost, bundle: bundle, locale: locale)
     } else if worktrees.isEmpty == false {
-        message += worktrees.count == 1 ? " 1 of them works in a worktree, which will be removed too." : " \(worktrees.count) of them work in worktrees, which will be removed too."
+        message = Copy.archiveClearMessageWorktrees(count: worktrees.count, bundle: bundle, locale: locale)
     }
-    return Question(title: count == 1 ? "Delete the archived session?" : "Delete all \(count) archived sessions?", message: message, confirm: count == 1 ? "Delete" : "Delete all")
+    return Question(
+        title: Copy.archiveClearTitle(count: count, bundle: bundle, locale: locale), message: message, confirm: Copy.archiveClearConfirm(count: count, bundle: bundle, locale: locale)
+    )
 }
 
 /// Delete on one archived row, with what the host says its worktree holds (nil for a session in a base folder, which keeps the plain text).
-public func deleteSessionQuestion(_ row: SessionRow, worktree: SessionDeletePreview.Worktree? = nil) -> Question {
-    var message = "Its transcript is removed and cannot be brought back."
+public func deleteSessionQuestion(_ row: SessionRow, worktree: SessionDeletePreview.Worktree? = nil, bundle: Bundle? = nil, locale: Locale = .current) -> Question {
+    var message = Copy.archiveDeleteMessage(bundle: bundle, locale: locale)
     if let worktree {
-        let removed = lostWork(files: worktree.dirty, commits: worktree.unpushed).map { "\($0) will be removed with its worktree." } ?? "Its worktree will be removed."
-        message = removed + " " + message
+        message = lostWork(files: worktree.dirty, commits: worktree.unpushed, bundle: bundle, locale: locale)
+            .map { Copy.archiveDeleteMessageLosing(lost: $0, bundle: bundle, locale: locale) } ?? Copy.archiveDeleteMessageWorktree(bundle: bundle, locale: locale)
     }
-    return Question(title: "Delete \u{201C}\(row.title)\u{201D}?", message: message, confirm: "Delete")
+    return Question(title: Copy.archiveDeleteTitle(title: row.title, bundle: bundle, locale: locale), message: message, confirm: Copy.sessionDelete(bundle: bundle, locale: locale))
 }
 
 /// What replaces the message box of an archived session, beside its Resume button.
-public let archivedSessionNotice = (title: "This session is archived", detail: "You are reading its transcript. Resume it to continue.")
+public func archivedSessionNotice(bundle: Bundle? = nil, locale: Locale = .current) -> (title: String, detail: String) {
+    (Copy.chatArchivedTitle(bundle: bundle, locale: locale), Copy.chatArchivedDetail(bundle: bundle, locale: locale))
+}
 
 public enum SessionMenuAction: Equatable {
     case stop, pin, unpin, rename, regenerateTitle, openInTerminal(path: String), filterWorkspace(String), archive, restore, delete
@@ -140,21 +145,21 @@ public struct SessionMenuItem: Equatable {
 
 /// Why a session cannot be archived now, nil when it can: the host refuses one that works or waits for an answer, so the buttons say it
 /// beforehand and are off, and the person knows to stop it first.
-public func archiveBlock(_ row: SessionRow) -> String? {
+public func archiveBlock(_ row: SessionRow, bundle: Bundle? = nil, locale: Locale = .current) -> String? {
     switch row.state {
-    case .working: "Stop the session to archive it"
-    case .waiting: "Answer or stop the session to archive it"
-    case .idle, .done: row.background.isEmpty ? nil : row.background.count == 1 ? "Stop the background task to archive it" : "Stop the background tasks to archive it"
+    case .working: Copy.archiveBlockWorking(bundle: bundle, locale: locale)
+    case .waiting: Copy.archiveBlockWaiting(bundle: bundle, locale: locale)
+    case .idle, .done: row.background.isEmpty ? nil : Copy.archiveBlockBackground(count: row.background.count, bundle: bundle, locale: locale)
     }
 }
 
 /// Why a session cannot be deleted now, nil when it can: the host refuses one that works or waits, as it does an archive, and its worktree cannot be
 /// removed under a running agent.
-public func deleteBlock(_ row: SessionRow) -> String? {
+public func deleteBlock(_ row: SessionRow, bundle: Bundle? = nil, locale: Locale = .current) -> String? {
     switch row.state {
-    case .working: "Stop the session to delete it"
-    case .waiting: "Answer or stop the session to delete it"
-    case .idle, .done: row.background.isEmpty ? nil : row.background.count == 1 ? "Stop the background task to delete it" : "Stop the background tasks to delete it"
+    case .working: Copy.deleteBlockWorking(bundle: bundle, locale: locale)
+    case .waiting: Copy.deleteBlockWaiting(bundle: bundle, locale: locale)
+    case .idle, .done: row.background.isEmpty ? nil : Copy.deleteBlockBackground(count: row.background.count, bundle: bundle, locale: locale)
     }
 }
 
@@ -175,12 +180,12 @@ public struct SessionMenuContext: Equatable {
 }
 
 /// The title of New session for a row: its branch (shortened in the middle when long), or the project when it works in the folder itself.
-public func newSessionTitle(_ row: SessionRow) -> String {
-    guard let branch = row.branch else { return "New session in this project" }
+public func newSessionTitle(_ row: SessionRow, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+    guard let branch = row.branch else { return Copy.sessionMenuNewInProject(bundle: bundle, locale: locale) }
     let limit = 34
-    guard branch.count > limit else { return "New session on \(branch)" }
+    guard branch.count > limit else { return Copy.sessionMenuNewOnBranch(branch: branch, bundle: bundle, locale: locale) }
     let head = branch.prefix(limit / 2 - 1), tail = branch.suffix(limit / 2)
-    return "New session on \(head)\u{2026}\(tail)"
+    return Copy.sessionMenuNewOnBranch(branch: "\(head)\u{2026}\(tail)", bundle: bundle, locale: locale)
 }
 
 /// The context menu of a session row in the sidebar, on the Sessions home and in the Archive, as sections the view separates with a
@@ -188,209 +193,53 @@ public func newSessionTitle(_ row: SessionRow) -> String {
 /// view can filter (`canFilter`, the home), Filter by the workspace; Archive (Restore for an archived one) and Delete (off while it works or waits).
 /// `context` adds what only some views can do: Mark as unread, New session on its branch and Project settings.
 /// An archived session is not listed in the groups, so it has no Pin.
-public func sessionMenu(_ row: SessionRow, pinned: Bool = false, canFilter: Bool = false, canRegenerateTitle: Bool = false, context: SessionMenuContext = SessionMenuContext()) -> [[SessionMenuItem]] {
-    var copies = [SessionMenuItem("Path", "folder", .copy(row.folder))]
-    if let branch = row.branch { copies.append(SessionMenuItem("Branch name", "arrow.triangle.branch", .copy(branch))) }
-    copies.append(SessionMenuItem("Session id", "number", .copy(row.id)))
+public func sessionMenu(
+    _ row: SessionRow, pinned: Bool = false, canFilter: Bool = false, canRegenerateTitle: Bool = false, context: SessionMenuContext = SessionMenuContext(),
+    bundle: Bundle? = nil, locale: Locale = .current
+) -> [[SessionMenuItem]] {
+    var copies = [SessionMenuItem(Copy.sessionMenuPath(bundle: bundle, locale: locale), "folder", .copy(row.folder))]
+    if let branch = row.branch { copies.append(SessionMenuItem(Copy.sessionMenuBranchName(bundle: bundle, locale: locale), "arrow.triangle.branch", .copy(branch))) }
+    copies.append(SessionMenuItem(Copy.sessionMenuSessionId(bundle: bundle, locale: locale), "number", .copy(row.id)))
 
     var control: [SessionMenuItem] = []
-    if row.isWorking { control.append(SessionMenuItem("Stop", "stop.circle", .stop)) }
-    if row.archived == false { control.append(pinned ? SessionMenuItem("Unpin", "pin.slash", .unpin) : SessionMenuItem("Pin", "pin", .pin)) }
+    if row.isWorking { control.append(SessionMenuItem(Copy.sessionMenuStop(bundle: bundle, locale: locale), "stop.circle", .stop)) }
+    if row.archived == false {
+        control.append(
+            pinned ? SessionMenuItem(Copy.sessionUnpin(bundle: bundle, locale: locale), "pin.slash", .unpin) : SessionMenuItem(Copy.sessionPin(bundle: bundle, locale: locale), "pin", .pin)
+        )
+    }
     if context.marksUnread, row.archived == false {
-        let reason = context.viewing ? "It is open: opening a session marks it as read" : nil
-        control.append(row.unread ? SessionMenuItem("Mark as read", "circle", .markRead, disabledReason: reason) : SessionMenuItem("Mark as unread", "circle.fill", .markUnread, disabledReason: reason))
+        let reason = context.viewing ? Copy.sessionMenuMarkWhy(bundle: bundle, locale: locale) : nil
+        control.append(
+            row.unread
+                ? SessionMenuItem(Copy.sessionMenuMarkRead(bundle: bundle, locale: locale), "circle", .markRead, disabledReason: reason)
+                : SessionMenuItem(Copy.sessionMenuMarkUnread(bundle: bundle, locale: locale), "circle.fill", .markUnread, disabledReason: reason)
+        )
     }
     var open: [SessionMenuItem] = []
-    if context.startsSessions, row.archived == false { open.append(SessionMenuItem(newSessionTitle(row), row.branch == nil ? "plus" : "arrow.triangle.branch", .newSession(base: row.base, branch: row.branch))) }
-    if context.projectKnown { open.append(SessionMenuItem("Project settings\u{2026}", "gearshape", .openProject(base: row.base))) }
-    open += [SessionMenuItem("Open in Terminal", "terminal", .openInTerminal(path: row.folder)), SessionMenuItem("Copy", "doc.on.doc", nil, children: copies)]
-    if canFilter { open.append(SessionMenuItem("Filter by \u{201C}\(row.workspace)\u{201D}", "line.3.horizontal.decrease", .filterWorkspace(row.workspace))) }
-    let end = [
-        row.archived ? SessionMenuItem("Restore", "arrow.uturn.backward", .restore) : SessionMenuItem("Archive", "archivebox", .archive, disabledReason: archiveBlock(row)),
-        SessionMenuItem("Delete\u{2026}", "trash", .delete, destructive: true, disabledReason: deleteBlock(row)),
+    if context.startsSessions, row.archived == false {
+        open.append(SessionMenuItem(newSessionTitle(row, bundle: bundle, locale: locale), row.branch == nil ? "plus" : "arrow.triangle.branch", .newSession(base: row.base, branch: row.branch)))
+    }
+    if context.projectKnown { open.append(SessionMenuItem(Copy.sessionMenuProjectSettings(bundle: bundle, locale: locale), "gearshape", .openProject(base: row.base))) }
+    open += [
+        SessionMenuItem(Copy.sessionMenuOpenInTerminal(bundle: bundle, locale: locale), "terminal", .openInTerminal(path: row.folder)),
+        SessionMenuItem(Copy.sessionMenuCopy(bundle: bundle, locale: locale), "doc.on.doc", nil, children: copies),
     ]
-    var title = [SessionMenuItem("Rename\u{2026}", "pencil", .rename)]
-    if canRegenerateTitle { title.append(SessionMenuItem("Regenerate title", "sparkles", .regenerateTitle)) }
+    if canFilter {
+        open.append(SessionMenuItem(Copy.sessionMenuFilterBy(workspace: row.workspace, bundle: bundle, locale: locale), "line.3.horizontal.decrease", .filterWorkspace(row.workspace)))
+    }
+    let end = [
+        row.archived
+            ? SessionMenuItem(Copy.sessionRestore(bundle: bundle, locale: locale), "arrow.uturn.backward", .restore)
+            : SessionMenuItem(Copy.sessionArchive(bundle: bundle, locale: locale), "archivebox", .archive, disabledReason: archiveBlock(row, bundle: bundle, locale: locale)),
+        SessionMenuItem(Copy.sessionMenuDelete(bundle: bundle, locale: locale), "trash", .delete, destructive: true, disabledReason: deleteBlock(row, bundle: bundle, locale: locale)),
+    ]
+    var title = [SessionMenuItem(Copy.sessionMenuRename(bundle: bundle, locale: locale), "pencil", .rename)]
+    if canRegenerateTitle { title.append(SessionMenuItem(Copy.sessionMenuRegenerateTitle(bundle: bundle, locale: locale), "sparkles", .regenerateTitle)) }
     return [
         control,
         title,
         open,
         end,
     ].filter { $0.isEmpty == false }
-}
-
-public enum SessionRemovalKind: Sendable {
-    case archive
-    case delete
-    case clear
-}
-
-/// Archives, restores and deletes sessions through the host. Each call returns what the host refused, in words, nil when it worked;
-/// `changed` is told after a success so the lists are read again.
-@Observable public final class SessionActions {
-    @ObservationIgnored private let host: ChatHost
-    @ObservationIgnored private let log: (String) -> Void
-    @ObservationIgnored private let preferences: AppPreferences
-    @ObservationIgnored public var changed: () -> Void = {}
-    /// Said when `archiving` changes, for the lists to be drawn again.
-    @ObservationIgnored public var archivingChanged: () -> Void = {}
-    /// The sessions the person archived and that the host's list does not show archived yet: the lists draw them as archived at once, so the
-    /// row goes when it is asked and not when the host has ended its agent and the next read arrives.
-    @ObservationIgnored private let leaving = Mutex<Set<String>>([])
-    public var archiving: Set<String> { leaving.withLock { $0 } }
-    /// Whether the host's hello lists `regenerateTitle`, as `learnHost` last read it; the menu is built at once and cannot wait for the hello.
-    @ObservationIgnored private let titlesRegenerable = Mutex(false)
-    public var canRegenerateTitle: Bool { titlesRegenerable.withLock { $0 } }
-    @ObservationIgnored public var confirmSessionRemoval: @MainActor (SessionRemovalKind, [String]) async -> Bool = { _, _ in true }
-    @ObservationIgnored public var didRemoveSession: @MainActor (String) -> Void = { _ in }
-    /// Only after a delete the host accepted: `didRemoveSession` also runs on archive, and an archived session can be restored.
-    @ObservationIgnored public var didDeleteSession: @MainActor (String) -> Void = { _ in }
-
-    /// What the app calls at start: a deleted session takes with it what `memory` kept for it.
-    public func forgetDeletedSessions(in memory: OptionsMemory) { didDeleteSession = { memory.forget($0) } }
-
-    public init(
-        host: ChatHost, preferences: AppPreferences = AppPreferences(),
-        log: @escaping (String) -> Void = { FileHandle.standardError.write(Data("carrier: \($0)\n".utf8)) }
-    ) {
-        self.host = host
-        self.preferences = preferences
-        self.log = log
-    }
-
-    public func archive(_ id: String) async -> String? {
-        guard await confirmSessionRemoval(.archive, [id]) else { return nil }
-        leaving.withLock { _ = $0.insert(id) }
-        archivingChanged()
-        let refusal = await run("archive", id) { try await $0.archive(id, true) }
-        if refusal == nil {
-            await didRemoveSession(id)
-        } else {
-            // the host did not archive it: the row comes back, and the words tell why
-            leaving.withLock { _ = $0.remove(id) }
-            archivingChanged()
-        }
-        return refusal
-    }
-
-    public func restore(_ id: String) async -> String? {
-        leaving.withLock { _ = $0.remove(id) }
-        return await run("restore", id) { try await $0.archive(id, false) }
-    }
-
-    /// Forgets the sessions the host's list has caught up with: the ones it lists archived, and the ones it no longer lists.
-    public func settle(_ rows: [SessionRow]) {
-        leaving.withLock { ids in ids = ids.filter { id in rows.first { $0.id == id }.map { $0.archived == false } ?? false } }
-    }
-
-    public func delete(_ id: String) async -> String? {
-        guard await confirmSessionRemoval(.delete, [id]) else { return nil }
-        return await deleteConfirmedSession(id)
-    }
-
-    /// Ends the turn that is in progress.
-    public func stop(_ id: String) async -> String? { await run("stop", id) { try await $0.interrupt(id) } }
-
-    public func rename(_ id: String, _ title: String) async -> String? { await run("rename", id) { try await $0.rename(id, title) } }
-
-    /// Reads what the host can do (its hello is kept by the link, so this is cheap) for the menus drawn after it.
-    public func learnHost() async {
-        let listed = (try? await host.capabilities())?.contains(.regenerateTitle) ?? false
-        titlesRegenerable.withLock { $0 = listed }
-    }
-
-    public func regenerateTitle(_ id: String) async -> String? { await run("regenerate the title", id) { _ = try await $0.regenerateTitle(id) } }
-
-    /// Writes the session's title again and answers the new one, or what the host refused in words.
-    public func regeneratedTitle(_ id: String) async -> (title: String?, refusal: String?) {
-        switch await attempt("regenerate the title", id, { try await $0.regenerateTitle(id) }) {
-        case .success(let title): (title, nil)
-        case .failure(let refusal): (nil, refusal.words)
-        }
-    }
-
-    /// What an alert before a delete is: the question to ask, or what the host refused when it was asked what the deletion would discard.
-    public enum Confirmation: Equatable {
-        case ask(Question)
-        /// The person switched the question off: delete without asking.
-        case proceed
-        case refused(String)
-    }
-
-    /// Asks the host what deleting the session would discard and builds its question; the deletion must not go ahead without it,
-    /// unless the person switched the question off.
-    public func confirmDelete(_ row: SessionRow) async -> Confirmation {
-        guard preferences.confirmDelete else { return .proceed }
-        switch await preview("delete \(row.id)", [row.id]) {
-        case .success(let previews): return .ask(deleteSessionQuestion(row, worktree: previews.first { $0.sessionId == row.id }?.worktree))
-        case .failure(let refusal): return .refused(refusal.words)
-        }
-    }
-
-    /// The same for Clear sessions: one request for all of them, so a commit two worktrees share counts once.
-    public func confirmClear(_ ids: [String]) async -> Confirmation {
-        switch await preview("clear \(ids.count) sessions", ids) {
-        case .success(let previews): .ask(clearSessionsQuestion(count: ids.count, previews: previews))
-        case .failure(let refusal): .refused(refusal.words)
-        }
-    }
-
-    /// Deletes each session; one the host refuses does not stop the rest, and a host that stops answering does.
-    public func clear(_ ids: [String]) async -> String? {
-        guard ids.isEmpty == false, await confirmSessionRemoval(.clear, ids) else { return nil }
-        var deleted = 0
-        var refusal: String?
-        let summary = { (message: String) in "Deleted \(deleted) of \(ids.count) archived sessions. \(message)" }
-        for id in ids {
-            if let failed = await deleteConfirmedSession(id) {
-                if refusal == nil { refusal = failed }
-                if failed == ConversationModel.words(ControlError.closed) {
-                    return refusal.map(summary)
-                }
-            } else {
-                deleted += 1
-            }
-        }
-        return refusal.map(summary)
-    }
-
-    private func deleteConfirmedSession(_ id: String) async -> String? {
-        if let failed = await run("delete", id, { try await $0.delete(id) }) {
-            return failed
-        }
-        await didRemoveSession(id)
-        await didDeleteSession(id)
-        return nil
-    }
-
-    private struct Refusal: Error { let words: String }
-
-    private func preview(_ doing: String, _ ids: [String]) async -> Result<[SessionDeletePreview], Refusal> {
-        do {
-            return .success(try await host.deletePreview(ids))
-        } catch {
-            let words = ConversationModel.words(error)
-            if case ControlError.remote = error {} else { log("could not ask what \(doing) would discard: \(words)") }
-            return .failure(Refusal(words: words))
-        }
-    }
-
-    private func run(_ doing: String, _ id: String, _ call: (ChatHost) async throws -> Void) async -> String? {
-        if case .failure(let refusal) = await attempt(doing, id, { try await call($0) }) { return refusal.words }
-        return nil
-    }
-
-    /// `run` that keeps what the call answers.
-    private func attempt<Answer>(_ doing: String, _ id: String, _ call: (ChatHost) async throws -> Answer) async -> Result<Answer, Refusal> {
-        do {
-            let answer = try await call(host)
-            changed()
-            return .success(answer)
-        } catch {
-            let words = ConversationModel.words(error)
-            // a refusal is the host answering as it should; anything else is a failure to talk to it
-            if case ControlError.remote = error {} else { log("session \(id): could not \(doing): \(words)") }
-            return .failure(Refusal(words: words))
-        }
-    }
 }

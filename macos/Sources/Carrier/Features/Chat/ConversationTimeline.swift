@@ -42,7 +42,7 @@ struct ConversationTimeline: View {
             card(shown).offset(x: 42).allowsHitTesting(false)
         }
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("Conversation timeline")
+        .accessibilityLabel(Copy.chatTimelineLabel())
     }
 
     /// The width of a tick: like the Dock, the one under the pointer is the longest and its neighbours follow a bell curve around it.

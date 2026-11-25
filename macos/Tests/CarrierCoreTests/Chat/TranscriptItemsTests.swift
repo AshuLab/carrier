@@ -24,7 +24,7 @@ private func card(_ item: TranscriptItem) -> ToolCall? {
     let read = card(items[1])
     #expect(read?.tool == "Read" && read?.kind == .read && read?.arg == "src/a.ts")
     // what the engine counted: its output is only the first and last lines
-    #expect(read?.status == .ok && read?.result == "212 lines" && read?.durationMs == 80)
+    #expect(read?.status == .ok && read?.result(bundle: english.bundle, locale: english.locale) == "212 lines" && read?.durationMs == 80)
 }
 
 @Test func aCallWithoutItsEndIsPendingAndHasNoDuration() {
@@ -143,7 +143,7 @@ private func lines(_ pairs: [(String, String)]) -> [ExecEvent.DiffLine] { pairs.
     let edit = ExecEvent(id: 2, at: 2, kind: "tool_end", callId: "a", tool: "Edit", status: "ok", diff: lines([("-", "a"), ("+", "b")]))
     let call = card(transcriptItems([start(1, "a", "Edit"), edit])[0])
     #expect(call?.diff == [DiffRow(sign: .removed, text: "a"), DiffRow(sign: .added, text: "b")])
-    #expect(call?.added == 1 && call?.removed == 1 && call?.result == "+1 −1")
+    #expect(call?.added == 1 && call?.removed == 1 && call?.result(bundle: english.bundle, locale: english.locale) == "+1 −1")
 }
 
 // MARK: failures
@@ -157,7 +157,7 @@ private func lines(_ pairs: [(String, String)]) -> [ExecEvent.DiffLine] { pairs.
     #expect(failed("Edit", summary: "File modified since it was read.", diff: lines([("+", "x")]))?.diff.isEmpty == true)
     #expect(failed("Bash", summary: "2 failed", output: ["Exit code 1", "boom"])?.output == ["Exit code 1", "boom"])
     #expect(failed("Bash", summary: "")?.output == [])
-    #expect(failed("Bash", summary: "2 failed")?.result == "failed")
+    #expect(failed("Bash", summary: "2 failed")?.result(bundle: english.bundle, locale: english.locale) == "failed")
 }
 
 @Test func aDurationTheEngineGaveIsTheCallsAndWithoutOneTheEventsTimesAre() {

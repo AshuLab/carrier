@@ -35,7 +35,7 @@ final class PillAttachment: NSTextAttachment {
             name.draw(at: NSPoint(x: padding + icon + gap, y: (height - nameSize.height) / 2))
             return true
         }
-        image.accessibilityDescription = "\(command.kind.title) \(command.name)"
+        image.accessibilityDescription = "\(command.kind.title()) \(command.name)"
         return image
     }
 }

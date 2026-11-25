@@ -21,7 +21,7 @@ struct TranscriptRows: View {
         case .items(let items):
             ForEach(visibleFlow(items, mode: mode, showsReasoning: showsReasoning)) { FlowItemView(flow: $0, flipped: $flipped).sessionRow() }
         case .tail(let lines):
-            MonoLines(lines: lines.isEmpty ? ["No output yet"] : lines, monospace: MonospaceStyle.shared.settings)
+            MonoLines(lines: lines.isEmpty ? [Copy.chatLogNoOutput()] : lines, monospace: MonospaceStyle.shared.settings)
                 .codeFont(12).foregroundStyle(.secondary)
                 .textSelection(.enabled).padding(Tokens.Space.s12).sessionRow()
         }
@@ -33,7 +33,7 @@ struct LoadingRow: View {
     var body: some View {
         HStack(spacing: Tokens.Space.s8) {
             ProgressView().controlSize(.small)
-            Text("Loading…").foregroundStyle(.secondary)
+            Text(Copy.chatLoading()).foregroundStyle(.secondary)
         }
         .scaledFont(12)
         .frame(maxWidth: .infinity, minHeight: 64)
@@ -153,10 +153,10 @@ struct SkillRowView: View {
         HStack(spacing: LogMetrics.gap) {
             Glyph(call.kind.icon, size: 9, bold: true).foregroundStyle(.white)
                 .frame(width: LogMetrics.iconWidth, height: LogMetrics.iconWidth).background(RoundedRectangle(cornerRadius: Tokens.Radius.small).fill(call.kind.color))
-            Text("Skill").fontWeight(.semibold).foregroundStyle(failed ? Color.red : .primary)
+            Text(Copy.chatSkill()).fontWeight(.semibold).foregroundStyle(failed ? Color.red : .primary)
             Text(call.arg).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
             Spacer(minLength: 8)
-            if failed { Text("failed").foregroundStyle(.red) } else if let ms = call.durationMs { Text(formatCallDuration(ms)).foregroundStyle(.tertiary).monospacedDigit() }
+            if failed { Text(Copy.chatResultFailed()).foregroundStyle(.red) } else if let ms = call.durationMs { Text(formatCallDuration(ms)).foregroundStyle(.tertiary).monospacedDigit() }
         }
         .scaledFont(12.5).lineLimit(1)
         .padding(.horizontal, Tokens.Space.s10).frame(height: LogMetrics.skillRow)

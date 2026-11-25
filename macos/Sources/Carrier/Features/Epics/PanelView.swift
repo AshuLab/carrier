@@ -58,7 +58,7 @@ struct PanelView: View {
         if let epic { return "\(epic.subject.repo.split(separator: "/").last ?? "") #\(epic.subject.issue)" }
         switch model.shell.selection {
         case .sessions: return "Sessions"
-        case .session: return openSession.map(conversationTitle) ?? "Session"
+        case .session: return openSession.map { conversationTitle($0) } ?? "Session"
         case .newSession: return "New session"
         case .terminals: return "Terminal"
         case .terminal(let id): return terminalStore.standaloneTerminal(id: id)?.title ?? "Terminal"
@@ -268,7 +268,7 @@ struct PanelView: View {
         .onChange(of: shell.archiveRequest) {
             guard let id = shell.archiveRequest?.sessionId else { return }
             // the shortcut has no button to be off: a session that works says why it is not archived, as the buttons do in their tooltip
-            if let reason = model.sessions.rows.first(where: { $0.id == id }).flatMap(archiveBlock) { return tell(reason) }
+            if let reason = model.sessions.rows.first(where: { $0.id == id }).flatMap { archiveBlock($0) } { return tell(reason) }
             Task { if let refusal = await model.actions.archive(id) { tell(refusal) } }
         }
         .onChange(of: snapshot) {

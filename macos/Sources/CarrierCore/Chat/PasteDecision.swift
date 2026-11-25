@@ -23,11 +23,11 @@ public func pasteDecision(focus: FocusedElement?, trusted: Bool) -> PasteDecisio
 
 extension PasteReason {
     /// What the widget says when the text was only copied.
-    public var explanation: String {
+    public func explanation(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         switch self {
-        case .noField: "No text field has the cursor, so the text was not pasted."
-        case .noPermission: "Accessibility is off for Carrier, or macOS dropped it when the app updated, so the text was not pasted."
-        case .secureField: "The field is secure, so the text was not pasted."
+        case .noField: Copy.chatPasteNoField(bundle: bundle, locale: locale)
+        case .noPermission: Copy.chatPasteNoPermission(bundle: bundle, locale: locale)
+        case .secureField: Copy.chatPasteSecureField(bundle: bundle, locale: locale)
         }
     }
 }

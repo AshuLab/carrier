@@ -74,39 +74,40 @@ public struct OptionRow: Equatable, Identifiable {
 }
 
 /// One row per option, in the provider's order.
-public func optionRows(_ options: [ChatOption]) -> [OptionRow] {
+public func optionRows(_ options: [ChatOption], bundle: Bundle? = nil, locale: Locale = .current) -> [OptionRow] {
     options.map { option in
         OptionRow(id: option.id, label: option.label, choices: option.values.map { value in
             .init(
-                id: value.id, label: choiceLabel(option: option.id, value: value.id, label: value.label), ticked: value.id == option.current,
-                detail: value.detail ?? choiceDetail(option: option.id, value: value.id), version: value.version, icon: choiceIcon(option: option.id, value: value.id)
+                id: value.id, label: choiceLabel(option: option.id, value: value.id, label: value.label, bundle: bundle, locale: locale), ticked: value.id == option.current,
+                detail: value.detail ?? choiceDetail(option: option.id, value: value.id, bundle: bundle, locale: locale), version: value.version,
+                icon: choiceIcon(option: option.id, value: value.id)
             )
         })
     }
 }
 
 /// The words of a value: a label the provider gave in lower case ("low", "xhigh") starts with a capital, and "xhigh" says what it is.
-public func choiceLabel(option: String, value: String, label: String) -> String {
-    if option == "effort", value == "xhigh" { return "Extra high" }
+public func choiceLabel(option: String, value: String, label: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+    if option == "effort", value == "xhigh" { return Copy.chatEffortExtraHigh(bundle: bundle, locale: locale) }
     guard let first = label.first, first.isLowercase else { return label }
     return first.uppercased() + label.dropFirst()
 }
 
 /// A line on a value every provider of that option shares (Claude's permission modes, the reasoning efforts); nil for the rest.
-public func choiceDetail(option: String, value: String) -> String? {
+public func choiceDetail(option: String, value: String, bundle: Bundle? = nil, locale: Locale = .current) -> String? {
     switch (option, value) {
-    case ("permissionMode", "default"): "Asks before it edits a file or runs a command."
-    case ("permissionMode", "acceptEdits"): "Edits files without asking; commands still ask."
-    case ("permissionMode", "plan"): "Reads and plans; it changes nothing."
-    case ("permissionMode", "auto"): "Decides by itself what is safe to do."
-    case ("permissionMode", "dontAsk"): "Does not ask: what was not allowed beforehand is refused."
-    case ("sandbox", "read-only"): "It can read the folder; it changes nothing."
-    case ("sandbox", "workspace-write"): "It can edit files in the folder."
-    case ("effort", "low"): "The quickest answers, with the least thinking."
-    case ("effort", "medium"): "A balance of speed and thinking."
-    case ("effort", "high"): "Thinks longer on harder work."
-    case ("effort", "xhigh"): "Thinks a lot before it answers; slower."
-    case ("effort", "max"): "The most thinking there is."
+    case ("permissionMode", "default"): Copy.chatPermissionDefault(bundle: bundle, locale: locale)
+    case ("permissionMode", "acceptEdits"): Copy.chatPermissionAcceptEdits(bundle: bundle, locale: locale)
+    case ("permissionMode", "plan"): Copy.chatPermissionPlan(bundle: bundle, locale: locale)
+    case ("permissionMode", "auto"): Copy.chatPermissionAuto(bundle: bundle, locale: locale)
+    case ("permissionMode", "dontAsk"): Copy.chatPermissionDontAsk(bundle: bundle, locale: locale)
+    case ("sandbox", "read-only"): Copy.chatSandboxReadOnly(bundle: bundle, locale: locale)
+    case ("sandbox", "workspace-write"): Copy.chatSandboxWorkspaceWrite(bundle: bundle, locale: locale)
+    case ("effort", "low"): Copy.chatEffortDetailLow(bundle: bundle, locale: locale)
+    case ("effort", "medium"): Copy.chatEffortDetailMedium(bundle: bundle, locale: locale)
+    case ("effort", "high"): Copy.chatEffortDetailHigh(bundle: bundle, locale: locale)
+    case ("effort", "xhigh"): Copy.chatEffortDetailExtraHigh(bundle: bundle, locale: locale)
+    case ("effort", "max"): Copy.chatEffortDetailMax(bundle: bundle, locale: locale)
     default: nil
     }
 }

@@ -38,8 +38,8 @@ struct ChatToolGroupView: View {
             Button { toggle(id) } label: { header }
                 .buttonStyle(.plain)
                 .disabled(steps.isEmpty)
-                .accessibilityLabel(live ? liveAccessibility : "\(group.title), \(group.summary)\(group.failed > 0 ? ", \(group.failed) failed" : "")")
-                .accessibilityHint(open ? "Hides its steps" : "Shows its steps")
+                .accessibilityLabel(live ? liveAccessibility : [group.title(), group.summary(), group.failed > 0 ? Copy.chatToolFailedCount(count: group.failed) : nil].compactMap { $0 }.joined(separator: ", "))
+                .accessibilityHint(open ? Copy.chatToolHintHide() : Copy.chatToolHintShow())
             if open { timeline.transition(reduceMotion ? .opacity : .reveal) }
         }
         .padding(.horizontal, Tokens.Space.s10)
@@ -62,12 +62,12 @@ struct ChatToolGroupView: View {
                 ZStack(alignment: .leading) { words.id(key).transition(reduceMotion ? .opacity : .asymmetric(insertion: .move(edge: .bottom).combined(with: .opacity), removal: .move(edge: .top).combined(with: .opacity))) }
                     .frame(height: 22).clipped()
                 if live {
-                    Text("· step \(max(1, steps.count))").scaledFont(12).foregroundStyle(.tertiary).lineLimit(1)
+                    Text(Copy.chatToolStep(count: max(1, steps.count))).scaledFont(12).foregroundStyle(.tertiary).lineLimit(1)
                 }
                 if group.failed > 0 {
                     HStack(spacing: Tokens.Space.s4) {
                         StateMark(shape: .problem, size: 12)
-                        Text("\(group.failed) failed").scaledFont(12.5)
+                        Text(Copy.chatToolFailedCount(count: group.failed)).scaledFont(12.5)
                     }
                     .foregroundStyle(.red)
                 }
@@ -114,21 +114,22 @@ struct ChatToolGroupView: View {
 
     /// What the line says now; it is also what rolls when it changes.
     private var key: String {
-        if live { return "\(group.chip(waiting: waiting)?.label ?? "")|\(liveLabel)" }
-        return "\(group.title) \(group.summary)"
+        if live { return "\(group.chip(waiting: waiting)?.label() ?? "")|\(liveLabel)" }
+        return "\(group.title()) \(group.summary())"
     }
 
     /// The words after the chip: none while the chip already says Thinking, which they would only repeat.
     private var showsLabel: Bool { group.chip(waiting: waiting) != .thinking }
 
     private var liveAccessibility: String {
-        if let chip = group.chip(waiting: waiting) { return showsLabel ? "Working, \(chip.label), \(liveLabel)" : "Working, \(chip.label)" }
-        return "Working, \(liveLabel)"
+        let working = Copy.chatGroupWorking()
+        if let chip = group.chip(waiting: waiting) { return (showsLabel ? [working, chip.label(), liveLabel] : [working, chip.label()]).joined(separator: ", ") }
+        return [working, liveLabel].joined(separator: ", ")
     }
 
     private var liveLabel: String {
-        if waiting { return "Waiting for your answer" }
-        return group.doing.map { "\($0)…" } ?? "Thinking…"
+        if waiting { return Copy.chatToolWaitingForAnswer() }
+        return group.doing().map { Copy.chatToolDoingLive(doing: $0) } ?? Copy.chatToolThinking()
     }
 
     @ViewBuilder private var words: some View {
@@ -142,8 +143,8 @@ struct ChatToolGroupView: View {
             }
         } else {
             HStack(spacing: Tokens.Space.s8) {
-                Text(group.title).scaledFont(12.5, weight: .semibold).foregroundStyle(group.erred ? Color.red : .primary)
-                Text(group.summary).scaledFont(12.5).foregroundStyle(.secondary).lineLimit(1)
+                Text(group.title()).scaledFont(12.5, weight: .semibold).foregroundStyle(group.erred ? Color.red : .primary)
+                Text(group.summary()).scaledFont(12.5).foregroundStyle(.secondary).lineLimit(1)
             }
         }
     }
@@ -151,7 +152,7 @@ struct ChatToolGroupView: View {
     private var lead: Lead {
         guard live else { return finished }
         if waiting { return .waiting }
-        return group.doing == nil ? .spark : .ring
+        return group.isWorking ? .ring : .spark
     }
 
     /// The edge glow is drawn while live and for the half second it takes to fade; the tick shows when a run ends by itself and gives its
@@ -182,7 +183,7 @@ struct ChatToolGroupView: View {
         return VStack(alignment: .leading, spacing: Tokens.Space.none) {
             if live, all.count > 4 {
                 Button { toggle("\(id)/earlier") } label: {
-                    Text(capped ? "\(all.count - 4) earlier steps" : "Hide earlier steps").scaledFont(11.5).foregroundStyle(.tertiary)
+                    Text(capped ? Copy.chatToolEarlierSteps(count: all.count - 4) : Copy.chatToolHideEarlier()).scaledFont(11.5).foregroundStyle(.tertiary)
                         .padding(.leading, Tokens.Space.s24).frame(height: 22).contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)

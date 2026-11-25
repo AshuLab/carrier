@@ -886,7 +886,7 @@ describe('the words of the text codes', () => {
   });
 
   it('has no function in the Swift or the TypeScript, which find the words by the code they receive', () => {
-    expect(emitSwift(copy)).not.toContain('text.');
-    expect(emitTypeScript(copy)).not.toContain('text.');
+    expect(emitSwift(copy)).not.toMatch(/\btext\./);
+    expect(emitTypeScript(copy)).not.toMatch(/\btext\./);
   });
 });

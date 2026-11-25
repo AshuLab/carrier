@@ -5,7 +5,7 @@ import SwiftUI
 /// The console's footer button: copies what the block shows and says so for a moment.
 struct CopyButton: View {
     let text: String
-    var help = "Copy the command and its output"
+    var help = Copy.chatCopyCommandHelp()
     @State private var copied = false
 
     var body: some View {
@@ -21,7 +21,7 @@ struct CopyButton: View {
             // the icon and the word keep their size when they swap, so the button does not move
             HStack(spacing: Tokens.Space.s5) {
                 Glyph(copied ? .check : .copy).frame(width: 12, height: 14)
-                Text(copied ? "Copied" : "Copy").frame(width: 40, alignment: .leading)
+                Text(copied ? Copy.chatCopied() : Copy.chatCopy()).frame(minWidth: 40, alignment: .leading)
             }
             .scaledFont(11).foregroundStyle(.secondary).contentShape(Rectangle())
         }
@@ -81,7 +81,7 @@ struct DiffView: View {
                 }
             }
             if rows.count > collapsedDiffRows {
-                Button(showAll ? "Show less" : "Show \(shown.hidden) more \(shown.hidden == 1 ? "line" : "lines")") { showAll.toggle() }
+                Button(showAll ? Copy.chatDiffShowLess() : Copy.chatDiffShowMore(count: shown.hidden)) { showAll.toggle() }
                     .buttonStyle(.plain).scaledFont(11).foregroundStyle(.tint)
                     .padding(.horizontal, Tokens.Space.s14).padding(.top, Tokens.Space.s8).padding(.bottom, Tokens.Space.s1)
             }

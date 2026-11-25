@@ -13,7 +13,7 @@ private extension Array {
 }
 
 private func chatGroup(_ events: [ChatEvent]) -> ToolGroup? {
-    for row in chatFeed(events) { if case .tools(_, let group) = row { return group } }
+    for row in chatFeed(events, bundle: english.bundle, locale: english.locale) { if case .tools(_, let group) = row { return group } }
     return nil
 }
 
@@ -45,9 +45,9 @@ private func chatGroup(_ events: [ChatEvent]) -> ToolGroup? {
 
     // what the card reads: a failed call counted, the edit with its diff inside the group, the call going on
     let group = run(flow)
-    #expect(group?.failed == 1 && group?.isWorking == true && group?.doing == "Reading src/b.ts")
+    #expect(group?.failed == 1 && group?.isWorking == true && group?.doing(bundle: english.bundle, locale: english.locale) == "Reading src/b.ts")
     #expect(group?.calls[1].diff == [DiffRow(sign: .removed, text: "old"), DiffRow(sign: .added, text: "new")])
-    #expect(group?.calls[1].result == "+1 −1")
+    #expect(group?.calls[1].result(bundle: english.bundle, locale: english.locale) == "+1 −1")
     guard case .tools(_, _, let live)? = flow.first else { return }
     #expect(live)
 }
@@ -77,7 +77,7 @@ private func chatGroup(_ events: [ChatEvent]) -> ToolGroup? {
         }
     } == ["message", "run of 1", "note", "skill", "run of 1", "error"])
     // the engine's own count stands for a read whose output is only its first and last lines
-    #expect(run(flow, at: 1)?.calls.first?.result == "40 lines")
+    #expect(run(flow, at: 1)?.calls.first?.result(bundle: english.bundle, locale: english.locale) == "40 lines")
     // nothing is live while the session is not running, and a run of calls with no end was stopped
     #expect(flow.contains { if case .tools(_, _, true) = $0 { true } else { false } } == false)
 }
@@ -151,9 +151,9 @@ private func chatGroup(_ events: [ChatEvent]) -> ToolGroup? {
     let equivalent = chatGroup(chat)
     #expect(epicGroup?.chip(waiting: false) == .mcp(server: "linear"))
     #expect(epicGroup?.chip(waiting: false) == equivalent?.chip(waiting: false))
-    #expect(epicGroup?.doing == "create_issue" && epicGroup?.doing == equivalent?.doing)
+    #expect(epicGroup?.doing(bundle: english.bundle, locale: english.locale) == "create_issue" && epicGroup?.doing(bundle: english.bundle, locale: english.locale) == equivalent?.doing(bundle: english.bundle, locale: english.locale))
     #expect(epicGroup?.calls.last?.label == "create_issue" && epicGroup?.calls.last?.subject == "linear")
-    #expect(epicGroup?.summary == "1 file read · 1 MCP call" && epicGroup?.summary == equivalent?.summary)
+    #expect(epicGroup?.summary(bundle: english.bundle, locale: english.locale) == "1 file read · 1 MCP call" && epicGroup?.summary(bundle: english.bundle, locale: english.locale) == equivalent?.summary(bundle: english.bundle, locale: english.locale))
 }
 
 @Test func theAgentOutputTabsLiveLineTimesTheRunningCallAndFlagsASlowShell() {

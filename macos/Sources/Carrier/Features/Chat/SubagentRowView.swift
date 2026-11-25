@@ -18,14 +18,14 @@ struct SubagentRowView: View {
             Button { open(subagent.id) } label: { row }
                 .buttonStyle(.plain).onHover { hovered = $0 }
                 .overlay { if hovered { RoundedRectangle(cornerRadius: Tokens.Radius.card).fill(Color.primary.opacity(0.04)).allowsHitTesting(false) } }
-                .accessibilityHint("Opens the subagent")
+                .accessibilityHint(Copy.chatSubagentOpensHint())
         } else {
             row
         }
     }
 
     /// "1 step", "3 steps": the row's words and the label that reads it aloud.
-    private var steps: String { "\(subagent.steps) \(subagent.steps == 1 ? "step" : "steps")" }
+    private var steps: String { Copy.chatSubagentSteps(count: subagent.steps) }
 
     private var line: some View {
         HStack(spacing: Tokens.Space.s10) {
@@ -33,7 +33,7 @@ struct SubagentRowView: View {
             KindChipView(chip: .subagent(type: subagent.type))
             Text(subagent.name).scaledFont(12.5, weight: .semibold).foregroundStyle(.primary).lineLimit(1).truncationMode(.tail)
                 .layoutPriority(1)
-            Text(subagent.words).scaledFont(12).foregroundStyle(.tertiary).lineLimit(1).truncationMode(.tail)
+            Text(subagent.words()).scaledFont(12).foregroundStyle(.tertiary).lineLimit(1).truncationMode(.tail)
                 .frame(maxWidth: .infinity, alignment: .leading)
             Text(steps).scaledFont(12).foregroundStyle(.tertiary).lineLimit(1).fixedSize()
             timer
@@ -44,7 +44,7 @@ struct SubagentRowView: View {
         .frame(height: 30)
         .workCard()
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(subagent.type) subagent, \(subagent.name), \(subagent.words), \(steps)")
+        .accessibilityLabel(Copy.chatSubagentSpoken(type: subagent.type, name: subagent.name, words: subagent.words(), steps: steps))
         .contentShape(RoundedRectangle(cornerRadius: Tokens.Radius.card))
     }
 

@@ -16,7 +16,7 @@ import SwiftUI
     func models(forHarness harness: String) -> [ModelOption]? {
         if harness == "agy" {
             return cliModels["agy"].map { models in
-                agyFamilies(models).map { ModelOption(id: $0.id, label: $0.label, detail: $0.levels.isEmpty ? nil : "Levels: " + $0.levels.map(levelLabel).joined(separator: ", ")) }
+                agyFamilies(models).map { ModelOption(id: $0.id, label: $0.label, detail: $0.levels.isEmpty ? nil : Copy.chatPickerLevels(levels: $0.levels.map(levelLabel).joined(separator: ", "))) }
             }
         }
         return chatAgent(forHarness: harness, among: agents).flatMap { offers[$0] }
@@ -55,7 +55,7 @@ extension ModelCatalog {
 }
 
 /// A level of reasoning in words ("xhigh" is "Extra high").
-private func levelLabel(_ id: String) -> String { effortSteps.first { $0.id == id }?.label ?? id }
+private func levelLabel(_ id: String) -> String { effortSteps().first { $0.id == id }?.label ?? id }
 
 /// What a choice in the picker asks for.
 enum ModelPick {
@@ -74,7 +74,7 @@ struct PickerInherited {
     var model: String?
     var effort: String?
     /// What it follows, in the words of the list's first row.
-    var follows = "the global role"
+    var follows = Copy.chatPickerGlobalRole()
 
     var text: String { [provider, model, effort].compactMap { $0 }.filter { $0.isEmpty == false }.joined(separator: " · ") }
 }
@@ -105,7 +105,7 @@ struct ModelPickerButton: View {
     var allowsDefaultModel = false
     /// Set for a step that may be taken away (the second): the row at the foot that does it.
     var noneTitle: String?
-    var placeholder = "Choose…"
+    var placeholder = Copy.chatPickerChoose()
     let pick: (ModelPick) -> Void
 
     @State private var open = false
@@ -134,7 +134,7 @@ struct ModelPickerButton: View {
         } label: { pill }
             .buttonStyle(SelectButtonStyle())
             .popover(isPresented: $open, arrowEdge: .bottom) { panel }
-            .help("Provider, model and reasoning").accessibilityLabel("Provider, model and reasoning")
+            .help(Copy.chatPickerHelp()).accessibilityLabel(Copy.chatPickerHelp())
             .accessibilityValue([shownProvider, modelText, effortText].compactMap { $0 }.joined(separator: ", "))
     }
 
@@ -142,7 +142,7 @@ struct ModelPickerButton: View {
 
     private var modelText: String? {
         guard shownProvider != nil else { return nil }
-        guard let model = shownModel else { return allowsDefaultModel ? "Default model" : nil }
+        guard let model = shownModel else { return allowsDefaultModel ? Copy.chatPickerDefaultModel() : nil }
         if currentIsAgy { return catalog.agyFamilyList.first { $0.id == splitAgyID(model).family }?.label ?? model }
         return current.flatMap { catalog.models(forHarness: $0.harness) }?.first { $0.id == model }.map { $0.label.replacingOccurrences(of: " (recommended)", with: "") } ?? model
     }
@@ -152,7 +152,7 @@ struct ModelPickerButton: View {
         // for Antigravity the level is part of the model's id
         if currentIsAgy { return shownModel.flatMap { splitAgyID($0).level }.map(levelLabel) }
         if effortFallback != nil, (shownEffort ?? "").isEmpty { return nil }
-        return effortSteps.first { $0.id == (shownEffort ?? "") }?.label
+        return effortSteps().first { $0.id == (shownEffort ?? "") }?.label
     }
 
     private var pill: some View {
@@ -160,7 +160,7 @@ struct ModelPickerButton: View {
             if let current { AccountMark(account: current.name, icon: current.icon, size: 14) }
             HStack(spacing: Tokens.Space.s5) {
                 if followsAll {
-                    Text("Same as everywhere").lineLimit(1)
+                    Text(Copy.chatPickerSameEverywhere()).lineLimit(1)
                     Text("·").foregroundStyle(.secondary)
                 }
                 // whose model it is first (two logins of one provider have one mark), then the model, then how hard it thinks
@@ -168,7 +168,7 @@ struct ModelPickerButton: View {
                     Text(shownProvider).foregroundStyle(.secondary).lineLimit(1)
                     Text("·").foregroundStyle(.secondary)
                 }
-                Text(modelText ?? (shownProvider == nil ? placeholder : "No model")).lineLimit(1)
+                Text(modelText ?? (shownProvider == nil ? placeholder : Copy.chatPickerNoModel())).lineLimit(1)
                 if let effortText {
                     Text("·").foregroundStyle(.secondary)
                     Text(effortText).foregroundStyle(.secondary).lineLimit(1)
@@ -190,12 +190,12 @@ struct ModelPickerButton: View {
             list
             if showsEffort {
                 if currentIsAgy { agyReasoning } else { ScaleRow(
-                    scale: OptionScale(id: "effort", title: "Reasoning", steps: effortSteps.map {
+                    scale: OptionScale(id: "effort", title: Copy.chatComposerReasoning(), steps: effortSteps().map {
                         let fallback = $0.id.isEmpty ? effortFallback : nil
                         return OptionRow.Choice(id: $0.id, label: fallback?.label ?? $0.label, ticked: $0.id == (effort ?? ""), detail: fallback?.detail ?? $0.detail)
                     }),
                     color: { _, _ in theme.accent },
-                    commit: { index in if effortSteps.indices.contains(index) { pick(.effort(effortSteps[index].id)) } }
+                    commit: { index in if effortSteps().indices.contains(index) { pick(.effort(effortSteps()[index].id)) } }
                 ) }
                 if showsAccess { accessNote } else {
                     ForEach(accessScales) { scale in
@@ -221,10 +221,10 @@ struct ModelPickerButton: View {
         let family = catalog.agyFamilyList.first { $0.id == split?.family }
         let levels = family?.levels ?? []
         ScaleRow(
-            scale: OptionScale(id: "effort", title: "Reasoning", steps: levels.map { level in
-                OptionRow.Choice(id: level, label: levelLabel(level), ticked: level == split?.level, detail: effortSteps.first { $0.id == level }?.detail)
+            scale: OptionScale(id: "effort", title: Copy.chatComposerReasoning(), steps: levels.map { level in
+                OptionRow.Choice(id: level, label: levelLabel(level), ticked: level == split?.level, detail: effortSteps().first { $0.id == level }?.detail)
             }),
-            note: levels.isEmpty ? "This model has no reasoning levels." : nil,
+            note: levels.isEmpty ? Copy.chatComposerNoLevels() : nil,
             color: { _, _ in theme.accent },
             commit: { index in
                 guard let family, let account = shownProvider, levels.indices.contains(index) else { return }
@@ -253,7 +253,7 @@ struct ModelPickerButton: View {
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain).opacity(account.ready ? (on ? 1 : 0.7) : 0.4)
-                    .help(account.ready ? account.name : "\(account.name) is not signed in")
+                    .help(account.ready ? account.name : Copy.chatPickerNotSignedIn(account: account.name))
                     .accessibilityLabel(account.name).accessibilityAddTraits(on ? .isSelected : [])
                 }
             }
@@ -263,7 +263,7 @@ struct ModelPickerButton: View {
     }
 
     private var search: some View {
-        TextField("Search models", text: $query).settingsField(icon: .search)
+        TextField(Copy.chatPickerSearch(), text: $query).settingsField(icon: .search)
             .padding(.horizontal, Tokens.Space.s12).padding(.top, Tokens.Space.s10).padding(.bottom, Tokens.Space.s2)
     }
 
@@ -283,13 +283,13 @@ struct ModelPickerButton: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: Tokens.Space.s2) {
                     if let inherited, needle.isEmpty {
-                        row(title: "Same as everywhere", detail: inherited.text.isEmpty ? "Follows \(inherited.follows)." : "Follows \(inherited.follows): \(inherited.text)", ticked: followsAll) { pick(.inherit) }
+                        row(title: Copy.chatPickerSameEverywhere(), detail: inherited.text.isEmpty ? Copy.chatPickerFollows(follows: inherited.follows) : Copy.chatPickerFollowsWith(follows: inherited.follows, text: inherited.text), ticked: followsAll) { pick(.inherit) }
                     }
                     if allowsDefaultModel, needle.isEmpty {
-                        row(title: "Default model", detail: "No model is named: \(viewed.name) runs the one it uses by default.", ticked: isCurrent && model == nil) { pick(.account(viewed.name, model: nil)) }
+                        row(title: Copy.chatPickerDefaultModel(), detail: Copy.chatPickerDefaultDetail(account: viewed.name), ticked: isCurrent && model == nil) { pick(.account(viewed.name, model: nil)) }
                     }
                     if let custom, needle.isEmpty || custom.localizedCaseInsensitiveContains(needle) {
-                        row(title: custom, detail: "Named in the file; not in the provider's list", ticked: true) { pick(.account(viewed.name, model: custom)) }
+                        row(title: custom, detail: Copy.chatPickerNamedInFile(), ticked: true) { pick(.account(viewed.name, model: custom)) }
                     }
                     ForEach(shown) { option in
                         row(title: option.label, detail: option.detail, ticked: isCurrent && option.id == chosenId) {
@@ -302,20 +302,20 @@ struct ModelPickerButton: View {
                     }
                     // a model the list does not have can still be used: the search words are taken as its name
                     if needle.isEmpty == false, (options ?? []).contains(where: { $0.id.lowercased() == needle.lowercased() }) == false, needle != custom {
-                        row(title: "Use “\(needle)”", detail: "Take what you typed as the exact model name", ticked: false) { pick(.account(viewed.name, model: needle)) }
+                        row(title: Copy.chatPickerUse(name: needle), detail: Copy.chatPickerUseDetail(), ticked: false) { pick(.account(viewed.name, model: needle)) }
                     }
                     if options == nil {
-                        Text(catalog.loading ? "Looking for models…" : "No list of this provider's models is available. Type the model's name in the search to use it.")
+                        Text(catalog.loading ? Copy.chatPickerLooking() : Copy.chatPickerNoList())
                             .scaledFont(12).foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: .infinity).padding(Tokens.Space.s16)
                     } else if shown.isEmpty && needle.isEmpty && allowsDefaultModel == false && custom == nil {
-                        Text("No models listed").scaledFont(12).foregroundStyle(.secondary).frame(maxWidth: .infinity).padding(Tokens.Space.s16)
+                        Text(Copy.chatPickerNoModelsListed()).scaledFont(12).foregroundStyle(.secondary).frame(maxWidth: .infinity).padding(Tokens.Space.s16)
                     }
                 }
                 .padding(.horizontal, Tokens.Space.s8).padding(.vertical, Tokens.Space.s8)
             }
             .frame(maxHeight: .infinity)
         } else {
-            Text("No provider is signed in. Sign one in on the Providers page.").scaledFont(12).foregroundStyle(.secondary).multilineTextAlignment(.center)
+            Text(Copy.chatPickerNoProvider()).scaledFont(12).foregroundStyle(.secondary).multilineTextAlignment(.center)
                 .frame(maxWidth: .infinity, maxHeight: .infinity).padding(Tokens.Space.s20)
         }
     }
@@ -338,11 +338,11 @@ struct ModelPickerButton: View {
     private var accessNote: some View {
         VStack(alignment: .leading, spacing: Tokens.Space.s8) {
             HStack(alignment: .firstTextBaseline) {
-                Text("ACCESS").scaledFont(11, weight: .semibold).tracking(0.6).foregroundStyle(.secondary)
+                Text(Copy.chatComposerAccess().uppercased()).scaledFont(11, weight: .semibold).tracking(0.6).foregroundStyle(.secondary)
                 Spacer(minLength: 8)
-                Label("Full access", icon: .lockOpen).labelStyle(.titleAndIcon).scaledFont(13, weight: .semibold).foregroundStyle(.orange)
+                Label(Copy.chatPickerFullAccess(), icon: .lockOpen).labelStyle(.titleAndIcon).scaledFont(13, weight: .semibold).foregroundStyle(.orange)
             }
-            Text("Epics run on their own, so a role never waits for someone to approve a change: it can edit files and run commands.")
+            Text(Copy.chatPickerFullAccessNote())
                 .scaledFont(12).foregroundStyle(.primary.opacity(0.75)).fixedSize(horizontal: false, vertical: true)
         }
         .padding(.horizontal, panelMargin).padding(.vertical, Tokens.Space.s14)

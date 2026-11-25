@@ -30,30 +30,33 @@ public struct SessionPeek: Equatable {
     public var base = ""
 }
 
-public func sessionPeek(_ row: SessionRow, now: Date) -> SessionPeek {
-    var facts = [SessionPeek.Fact(label: "Where", value: row.branch == nil ? "Base folder" : "Worktree of \(row.workspace)")]
+public func sessionPeek(_ row: SessionRow, now: Date, bundle: Bundle? = nil, locale: Locale = .current) -> SessionPeek {
+    let place = row.branch == nil ? Copy.sessionBaseFolder(bundle: bundle, locale: locale) : Copy.chatPeekWorktreeOf(workspace: row.workspace, bundle: bundle, locale: locale)
+    var facts = [SessionPeek.Fact(label: Copy.chatPeekWhere(bundle: bundle, locale: locale), value: place)]
     if let branch = row.branch {
-        facts.append(.init(label: "Branch", value: branch, kind: .branch, detail: row.branchFrom.flatMap { $0.isEmpty ? nil : "cut from \($0)" }))
+        let cut = row.branchFrom.flatMap { $0.isEmpty ? nil : Copy.chatPeekCutFrom(branch: $0, bundle: bundle, locale: locale) }
+        facts.append(.init(label: Copy.chatPeekBranch(bundle: bundle, locale: locale), value: branch, kind: .branch, detail: cut))
     }
     if row.folder.isEmpty == false {
         let path = (row.folder as NSString).abbreviatingWithTildeInPath
         // a worktree is told by its folder's name, with the whole path under it; a base folder is its own path
-        facts.append(row.branch == nil ? .init(label: "Folder", value: path, kind: .path) : .init(label: "Folder", value: worktreeFolderName(row), kind: .path, detail: path))
+        let folder = Copy.chatPeekFolder(bundle: bundle, locale: locale)
+        facts.append(row.branch == nil ? .init(label: folder, value: path, kind: .path) : .init(label: folder, value: worktreeFolderName(row), kind: .path, detail: path))
     }
-    if row.agent.isEmpty == false { facts.append(.init(label: "Agent", value: row.agent, kind: .agent)) }
-    if let model = TurnSummary(model: row.model).shortModel { facts.append(.init(label: "Model", value: model)) }
-    if row.turns > 0 { facts.append(.init(label: "Turns", value: "\(row.turns)")) }
+    if row.agent.isEmpty == false { facts.append(.init(label: Copy.chatPeekAgent(bundle: bundle, locale: locale), value: row.agent, kind: .agent)) }
+    if let model = TurnSummary(model: row.model).shortModel { facts.append(.init(label: Copy.chatPeekModel(bundle: bundle, locale: locale), value: model)) }
+    if row.turns > 0 { facts.append(.init(label: Copy.chatPeekTurns(bundle: bundle, locale: locale), value: "\(row.turns)")) }
     // the words and the colour of the row: "Needs you" is orange, a turn that ended with the agent still waiting for what it started is cyan,
     // and a finished turn the person has not opened says Done, in green
     let (subtitle, tone): (String, SessionPeek.Tone) = switch (row.state, row.status) {
-    case (.waiting, _): ("Waiting for you", .attention)
-    case (.working, _): ("Working…", .working)
-    case (_, .working): ("Waiting on background work…", .background)
-    case (_, .unread): ("Done", .done)
-    default: (row.status.title(), .quiet)
+    case (.waiting, _): (Copy.sessionWaitingForYou(bundle: bundle, locale: locale), .attention)
+    case (.working, _): (Copy.sessionWorking(bundle: bundle, locale: locale), .working)
+    case (_, .working): (Copy.chatPeekWaitingBackground(bundle: bundle, locale: locale), .background)
+    case (_, .unread): (Copy.sessionDone(bundle: bundle, locale: locale), .done)
+    default: (row.status.title(bundle: bundle, locale: locale), .quiet)
     }
     return SessionPeek(
         title: row.title, name: row.workspace, subtitle: subtitle, tone: tone, lastMessage: row.lastMessage?.isEmpty == false ? row.lastMessage : nil,
-        facts: facts, timeline: "updated \(spokenAge(row.updatedAt, now: now))", pullRequest: row.pullRequest, diff: row.diff, background: row.background, base: row.base
+        facts: facts, timeline: Copy.chatPeekUpdated(age: spokenAge(row.updatedAt, now: now), bundle: bundle, locale: locale), pullRequest: row.pullRequest, diff: row.diff, background: row.background, base: row.base
     )
 }

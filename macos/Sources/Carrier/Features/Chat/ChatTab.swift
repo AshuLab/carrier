@@ -48,65 +48,65 @@ struct ChatTabView: View {
 
     var body: some View {
         SettingsPageBody(reset: { AppPreferences().reset(.chat) }) {
-            SettingsGroup(id: "message-box", title: "Message box") {
-                SettingsTabRow(id: "send-with", title: "Send with", detail: "The other key makes a new line", first: true) {
-                    ChoicePopUp(label: "Send with", options: [(value: SendKey.return, title: "Return"), (value: .commandReturn, title: "\u{2318}Return")], selection: $sendKey)
+            SettingsGroup(id: "message-box", title: Copy.chatSettingsMessageBox()) {
+                SettingsTabRow(id: "send-with", title: Copy.chatSettingsSendWith(), detail: Copy.chatSettingsSendWithDetail(), first: true) {
+                    ChoicePopUp(label: Copy.chatSettingsSendWith(), options: [(value: SendKey.return, title: Copy.chatSettingsKeyReturn()), (value: .commandReturn, title: Copy.chatSettingsKeyCommandReturn())], selection: $sendKey)
                 }
-                SettingsTabRow(id: "while-the-agent-works", title: "While the agent works", detail: "Hold the message, or stop the turn and send it") {
-                    ChoicePopUp(label: "While the agent works", options: [(value: WhileWorking.queue, title: "Queue it"), (value: .interrupt, title: "Interrupt")], selection: $whileWorking)
+                SettingsTabRow(id: "while-the-agent-works", title: Copy.chatSettingsWhileWorking(), detail: Copy.chatSettingsWhileWorkingDetail()) {
+                    ChoicePopUp(label: Copy.chatSettingsWhileWorking(), options: [(value: WhileWorking.queue, title: Copy.chatSettingsQueueIt()), (value: .interrupt, title: Copy.chatSettingsInterrupt())], selection: $whileWorking)
                 }
-                SettingsTabRow(id: "writing-tools", title: "Writing Tools", detail: "The system's offer to rewrite or proofread what you select") {
-                    Toggle("Writing Tools", isOn: $writingTools).labelsHidden().toggleStyle(.switch)
+                SettingsTabRow(id: "writing-tools", title: Copy.chatSettingsWritingTools(), detail: Copy.chatSettingsWritingToolsDetail()) {
+                    Toggle(Copy.chatSettingsWritingTools(), isOn: $writingTools).labelsHidden().toggleStyle(.switch)
                 }
-                SettingsTabRow(id: "check-spelling", title: "Check spelling", detail: "Underline words that look misspelled") {
-                    Toggle("Check spelling", isOn: $checksSpelling).labelsHidden().toggleStyle(.switch)
+                SettingsTabRow(id: "check-spelling", title: Copy.chatSettingsCheckSpelling(), detail: Copy.chatSettingsCheckSpellingDetail()) {
+                    Toggle(Copy.chatSettingsCheckSpelling(), isOn: $checksSpelling).labelsHidden().toggleStyle(.switch)
                 }
-                SettingsTabRow(id: "correct-spelling-automatically", title: "Correct spelling automatically", detail: "Fix a misspelled word as you type it") {
-                    Toggle("Correct spelling automatically", isOn: $correctsSpelling).labelsHidden().toggleStyle(.switch)
+                SettingsTabRow(id: "correct-spelling-automatically", title: Copy.chatSettingsCorrectSpelling(), detail: Copy.chatSettingsCorrectSpellingDetail()) {
+                    Toggle(Copy.chatSettingsCorrectSpelling(), isOn: $correctsSpelling).labelsHidden().toggleStyle(.switch)
                 }
-                SettingsTabRow(id: "context-and-limits", title: "Context and limits", detail: "A ring beside the microphone: how full the context is and how much of the 5h limit is used") {
-                    Toggle("Context and limits", isOn: $showsContextUsage).labelsHidden().toggleStyle(.switch)
+                SettingsTabRow(id: "context-and-limits", title: Copy.chatSettingsContextAndLimits(), detail: Copy.chatSettingsContextAndLimitsDetail()) {
+                    Toggle(Copy.chatSettingsContextAndLimits(), isOn: $showsContextUsage).labelsHidden().toggleStyle(.switch)
                 }
             }
-            SettingsGroup(id: "conversation", title: "Conversation") {
-                SettingsTabRow(id: "follow-new-output", title: "Follow new output", detail: "Scroll to what arrives while you are at the end", first: true) {
-                    Toggle("Follow new output", isOn: $followsOutput).labelsHidden().toggleStyle(.switch)
+            SettingsGroup(id: "conversation", title: Copy.chatSettingsConversation()) {
+                SettingsTabRow(id: "follow-new-output", title: Copy.chatSettingsFollowOutput(), detail: Copy.chatSettingsFollowOutputDetail(), first: true) {
+                    Toggle(Copy.chatSettingsFollowOutput(), isOn: $followsOutput).labelsHidden().toggleStyle(.switch)
                 }
-                SettingsTabRow(id: "message-times", title: "Message times", detail: "When a message shows the time it was written, as in General") {
-                    ChoicePopUp(label: "Message times", options: MessageTimes.allCases.map { (value: $0, title: $0.title) }, selection: $messageTimes)
+                SettingsTabRow(id: "message-times", title: Copy.chatSettingsMessageTimes(), detail: Copy.chatSettingsMessageTimesDetail()) {
+                    ChoicePopUp(label: Copy.chatSettingsMessageTimes(), options: MessageTimes.allCases.map { (value: $0, title: $0.title) }, selection: $messageTimes)
                 }
-                SettingsTabRow(id: "tool-output", title: "Tool output", detail: "Nothing, each run folded, or every call open") {
-                    ChoicePopUp(label: "Tool output", options: ToolOutputMode.allCases.map { (value: $0, title: $0.title) }, selection: $toolOutput)
+                SettingsTabRow(id: "tool-output", title: Copy.chatSettingsToolOutput(), detail: Copy.chatSettingsToolOutputDetail()) {
+                    ChoicePopUp(label: Copy.chatSettingsToolOutput(), options: ToolOutputMode.allCases.map { (value: $0, title: $0.title) }, selection: $toolOutput)
                 }
-                SettingsTabRow(id: "open-the-calls-that-failed", title: "Open the calls that failed", detail: "A call that failed opens by itself, even when the rest are folded") {
-                    Toggle("Open the calls that failed", isOn: $opensFailedCalls).labelsHidden().toggleStyle(.switch)
+                SettingsTabRow(id: "open-the-calls-that-failed", title: Copy.chatSettingsOpenFailed(), detail: Copy.chatSettingsOpenFailedDetail()) {
+                    Toggle(Copy.chatSettingsOpenFailed(), isOn: $opensFailedCalls).labelsHidden().toggleStyle(.switch)
                 }
-                SettingsTabRow(id: "diff-style", title: "Diff style", detail: "Unified, or removed and added side by side") {
-                    ChoicePopUp(label: "Diff style", options: DiffStyle.allCases.map { (value: $0, title: $0.title) }, selection: $diffStyle)
+                SettingsTabRow(id: "diff-style", title: Copy.chatSettingsDiffStyle(), detail: Copy.chatSettingsDiffStyleDetail()) {
+                    ChoicePopUp(label: Copy.chatSettingsDiffStyle(), options: DiffStyle.allCases.map { (value: $0, title: $0.title) }, selection: $diffStyle)
                 }
-                SettingsTabRow(id: "output-length", title: "Output length", detail: "How many lines of an output show before Show more") {
-                    ChoicePopUp(label: "Output length", options: OutputLength.allCases.map { (value: $0, title: $0.title) }, selection: Binding(get: { OutputLength(rawValue: outputLines) ?? AppPreferences.defaultOutputLength }, set: { outputLines = $0.rawValue }))
+                SettingsTabRow(id: "output-length", title: Copy.chatSettingsOutputLength(), detail: Copy.chatSettingsOutputLengthDetail()) {
+                    ChoicePopUp(label: Copy.chatSettingsOutputLength(), options: OutputLength.allCases.map { (value: $0, title: $0.title) }, selection: Binding(get: { OutputLength(rawValue: outputLines) ?? AppPreferences.defaultOutputLength }, set: { outputLines = $0.rawValue }))
                 }
-                SettingsTabRow(id: "show-reasoning", title: "Show reasoning", detail: "The agent's reasoning, folded under its message, when its host sends it") {
-                    Toggle("Show reasoning", isOn: $showsReasoning).labelsHidden().toggleStyle(.switch)
+                SettingsTabRow(id: "show-reasoning", title: Copy.chatSettingsShowReasoning(), detail: Copy.chatSettingsShowReasoningDetail()) {
+                    Toggle(Copy.chatSettingsShowReasoning(), isOn: $showsReasoning).labelsHidden().toggleStyle(.switch)
                 }
-                SettingsTabRow(id: "message-text-size", title: "Message text size", detail: "The size of the text of the messages, \(Int(textSize)) pt, apart from the text size of the app") {
+                SettingsTabRow(id: "message-text-size", title: Copy.chatSettingsTextSize(), detail: Copy.chatSettingsTextSizeDetail(size: Int(textSize))) {
                     Slider(value: $textSize, in: Double(ChatText.sizeRange.lowerBound)...Double(ChatText.sizeRange.upperBound), step: 1)
-                        .labelsHidden().frame(width: settingsSliderWidth).accessibilityLabel("Message text size").accessibilityValue("\(Int(textSize)) points")
+                        .labelsHidden().frame(width: settingsSliderWidth).accessibilityLabel(Copy.chatSettingsTextSize()).accessibilityValue(Copy.chatSettingsTextSizeValue(size: Int(textSize)))
                 }
-                SettingsTabRow(id: "line-spacing", title: "Line spacing", detail: "The room between the lines of a message") {
-                    ChoicePopUp(label: "Line spacing", options: ChatLineSpacing.allCases.map { (value: $0, title: $0.title) }, selection: $lineSpacing)
+                SettingsTabRow(id: "line-spacing", title: Copy.chatSettingsLineSpacing(), detail: Copy.chatSettingsLineSpacingDetail()) {
+                    ChoicePopUp(label: Copy.chatSettingsLineSpacing(), options: ChatLineSpacing.allCases.map { (value: $0, title: $0.title) }, selection: $lineSpacing)
                 }
-                SettingsTabRow(id: "message-spacing", title: "Message spacing", detail: "The room between the messages") {
-                    ChoicePopUp(label: "Message spacing", options: MessageSpacing.allCases.map { (value: $0, title: $0.title) }, selection: $messageSpacing)
+                SettingsTabRow(id: "message-spacing", title: Copy.chatSettingsMessageSpacing(), detail: Copy.chatSettingsMessageSpacingDetail()) {
+                    ChoicePopUp(label: Copy.chatSettingsMessageSpacing(), options: MessageSpacing.allCases.map { (value: $0, title: $0.title) }, selection: $messageSpacing)
                 }
-                SettingsTabRow(id: "message-width", title: "Message width", detail: "How wide a message gets before it wraps") {
+                SettingsTabRow(id: "message-width", title: Copy.chatSettingsMessageWidth(), detail: Copy.chatSettingsMessageWidthDetail()) {
                     ChoicePopUp(
-                        label: "Message width", options: MessageWidth.allCases.map { (value: $0, title: "\($0.title) · \(Int($0.points)) pt") },
+                        label: Copy.chatSettingsMessageWidth(), options: MessageWidth.allCases.map { (value: $0, title: Copy.chatSettingsWidthOption(title: $0.title, points: Int($0.points))) },
                         selection: $messageWidth
                     )
                 }
-                SettingsTabRow(id: "surfaces", title: "Surfaces", detail: "Glass blurs what is under; flat is a quiet solid fill") {
+                SettingsTabRow(id: "surfaces", title: Copy.chatSettingsSurfaces(), detail: Copy.chatSettingsSurfacesDetail()) {
                     SegmentedChoice(options: ChatSurface.allCases.map { (value: $0, title: $0.title, icon: nil) }, selection: $chatSurface)
                 }
                 messagePreview

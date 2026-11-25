@@ -96,7 +96,7 @@ private struct ContextUsageDetail: View {
             if let context {
                 VStack(alignment: .leading, spacing: Tokens.Space.s3) {
                     if let share = context.share { UsageMeterLine(label: "Context", shape: MeterShape(solid: share)) }
-                    Text(context.text + (context.share == nil ? " context" : "")).scaledFont(10.5).foregroundStyle(.secondary)
+                    Text(context.share == nil ? Copy.chatContextTokens(count: context.text()) : context.text()).scaledFont(10.5).foregroundStyle(.secondary)
                         .padding(.leading, context.share == nil ? Tokens.Space.none : Tokens.Space.s54)
                 }
             } else {

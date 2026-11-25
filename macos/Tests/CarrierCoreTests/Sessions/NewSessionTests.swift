@@ -267,7 +267,7 @@ private func cleanRepo(_ folder: String) -> WorkspaceInfo {
     #expect(await model.send() == nil)
     #expect(model.refusal?.text == "claude is not logged in; run claude once to log in" && model.text == "hello")
     #expect(host.calls == ["open claude /w/api"])
-    #expect(signInLine(refusal: model.refusal ?? .words("")) != nil)
+    #expect(signInLine(refusal: model.refusal ?? .words(""), bundle: english.bundle, locale: english.locale) != nil)
 }
 
 @MainActor @Test func aHostThatDoesNotListPlanIsSaidToBeOlderAndSendsNothing() async {

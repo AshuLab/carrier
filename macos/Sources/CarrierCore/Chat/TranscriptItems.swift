@@ -208,7 +208,7 @@ struct TranscriptBuilder: Equatable {
     /// structured diff replaces the one the chat reads out of an output, a read or a search says what the engine counted (its output is only
     /// the first and last lines) and a failure with no output says why in the engine's words.
     private static func call(_ start: ExecEvent?, _ end: ExecEvent?, id: Int) -> ToolCall {
-        let tool = end?.tool ?? start?.tool ?? "tool"
+        let tool = end?.tool ?? start?.tool ?? ""
         let callId = start?.callId ?? end?.callId
         var call = ToolCall(start: ChatEvent(id: id, at: (start ?? end)?.at ?? 0, kind: "tool_start", callId: callId, tool: tool, arg: start?.arg ?? end?.arg))
         guard let end else { return call }
@@ -216,11 +216,10 @@ struct TranscriptBuilder: Equatable {
         if let ms = end.durationMs { call.endedAt = call.startedAt + ms }
         if call.status == .ok, let diff = cardDiff(end.diff) {
             (call.diff, call.added, call.removed) = (diff.rows, diff.added, diff.removed)
-            call.result = call.resultLine()
         }
         let summary = end.summary ?? ""
         if call.status == .failed, call.output.isEmpty, summary.isEmpty == false { call.output = [summary] }
-        if call.status == .ok, summary.isEmpty == false, call.kind == .read || call.kind == .search { call.result = summary }
+        if call.status == .ok, summary.isEmpty == false, call.kind == .read || call.kind == .search { call.reported = summary }
         return call
     }
 }

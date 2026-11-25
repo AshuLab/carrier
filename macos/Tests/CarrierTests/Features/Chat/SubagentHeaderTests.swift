@@ -102,5 +102,5 @@ func aSliceCardsHeaderKeepsTheConversationHeadersHeightForEveryRoleAndState(widt
     )
     let header = SubagentHeader(lane: lane, role: "Builder", epic: "The epic")
     #expect(header.startedAt == nil)
-    #expect(header.stateWords(now: 1_800_000_000_000) == "Running")
+    #expect(header.stateWords(now: 1_800_000_000_000, bundle: Copy.bundle("en"), locale: Locale(identifier: "en_US")) == "Running")
 }

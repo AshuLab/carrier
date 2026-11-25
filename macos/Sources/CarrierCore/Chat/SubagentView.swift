@@ -40,16 +40,19 @@ public struct SubagentHeader: Equatable {
     public var canStop: Bool { state == .running && hostStops && taskId != nil && epic == nil }
 
     /// The line under the title: "Explore · Subagent of Fix the login", or "Builder · <the epic's title>" for a slice card's.
-    public func subtitle(of session: String) -> String { "\(type) · \(epic ?? "Subagent of \(session)")" }
+    public func subtitle(of session: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        "\(type) · \(epic ?? Copy.chatSubagentOf(session: session, bundle: bundle, locale: locale))"
+    }
 
     /// The state pill: "Running 1m 11s" with the timer at `now` ("Running" alone while its start is not known), "Finished · 42 s" with how long it
     /// took, "Failed" and "Stopped".
-    public func stateWords(now: Int) -> String {
+    public func stateWords(now: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
         switch state {
-        case .running: startedAt.map { "Running \(formatCallDuration(max(0, now - $0)))" } ?? "Running"
-        case .completed: "Finished · \(formatCallDuration(durationMs ?? 0))"
-        case .failed: "Failed"
-        case .stopped: "Stopped"
+        case .running:
+            startedAt.map { Copy.chatStateRunningFor(time: formatCallDuration(max(0, now - $0)), bundle: bundle, locale: locale) } ?? Copy.chatStateRunning(bundle: bundle, locale: locale)
+        case .completed: Copy.chatStateFinishedIn(time: formatCallDuration(durationMs ?? 0), bundle: bundle, locale: locale)
+        case .failed: Copy.chatFailed(bundle: bundle, locale: locale)
+        case .stopped: Copy.chatSubagentStopped(bundle: bundle, locale: locale)
         }
     }
 }
@@ -64,10 +67,10 @@ public struct SubagentWork: Equatable {
 /// The subagent launched by `call`, from the events of the session: its own calls, thoughts and messages as flow items (the rows of any
 /// subagent it launched in turn are in its groups), drawn as the main agent's are. A run still going while the subagent runs is live; once
 /// it ended, a call that never ended was stopped, and so is the subagent when its session is not `working`. Nil when no `task` event names the call.
-public func subagentWork(in events: [ChatEvent], call: String, working: Bool = true) -> SubagentWork? {
+public func subagentWork(in events: [ChatEvent], call: String, working: Bool = true, bundle: Bundle? = nil, locale: Locale = .current) -> SubagentWork? {
     var subagent: Subagent?
     for event in events where event.kind == "task" && event.callId == call {
-        if subagent == nil { subagent = Subagent(task: event) } else { subagent?.apply(task: event) }
+        if subagent == nil { subagent = Subagent(task: event, bundle: bundle, locale: locale) } else { subagent?.apply(task: event) }
     }
     guard var subagent else { return nil }
     // the subagent's own events and those of the subagents it launched, which `chatFeed` joins to their rows as it does for the main agent's
@@ -88,7 +91,7 @@ public func subagentWork(in events: [ChatEvent], call: String, working: Bool = t
     for event in own where event.kind != "task" && event.parentCallId == nil { subagent.apply(inside: event) }
     if working == false, subagent.status == .running, let last = events.last?.at { subagent.stop(at: last) }
     let running = subagent.status == .running
-    let rows = chatFeed(own, working: working)
+    let rows = chatFeed(own, working: working, bundle: bundle, locale: locale)
     let working = running ? workInProgress(in: rows) : nil
     let items = rows.compactMap { row -> FlowItem? in
         switch row {

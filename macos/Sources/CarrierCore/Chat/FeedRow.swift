@@ -38,19 +38,19 @@ public enum FeedRow: Equatable, Identifiable {
 }
 
 /// What the divider of a change of agent says under the two agents: what the new one has of the conversation and what it does not.
-public func handoffDetail(to agent: String) -> String {
-    "\(agent) goes on from a selection of the messages above and can read the rest. Reasoning and tool results did not carry over."
+public func handoffDetail(to agent: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+    Copy.chatHandoffDetail(agent: agent, bundle: bundle, locale: locale)
 }
 
 /// What the divider of a `/clear` says under the capsule: the messages stay to be read, and the agent no longer has them.
-public func clearedDetail(agent: String) -> String {
-    "The messages above stay here to read, but \(agent) no longer sees them: it starts again from an empty context."
+public func clearedDetail(agent: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+    Copy.chatClearedDetail(agent: agent, bundle: bundle, locale: locale)
 }
 
 /// `38.8k tokens freed`: what the capsule of a `/clear` says beside its title, nil when no turn before it said the context.
-public func clearedFreedText(_ freed: Double?) -> String? {
+public func clearedFreedText(_ freed: Double?, bundle: Bundle? = nil, locale: Locale = .current) -> String? {
     guard let freed, freed > 0 else { return nil }
-    return "\(TurnSummary.tokens(freed)) tokens freed"
+    return Copy.chatClearedFreed(tokens: TurnSummary.tokens(freed), bundle: bundle, locale: locale)
 }
 
 /// What a `compact` event says: when it ran, the context it left and what it cost; `error` is set when it failed and nothing else is.
@@ -74,14 +74,19 @@ public struct Compaction: Equatable {
     }
 
     /// The capsule's title.
-    public var title: String { error == nil ? "Context compacted" : "Compaction failed" }
+    public func title(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        error == nil ? Copy.chatCompactedTitle(bundle: bundle, locale: locale) : Copy.chatCompactionFailedTitle(bundle: bundle, locale: locale)
+    }
 
     /// `142.3k → 18.4k tokens` from the sizes the provider gave (`18.4k tokens left` when it gave only what is left), with `auto` before when the agent did it by itself; nil when there is nothing to say.
-    public var sizes: String? {
+    public func sizes(bundle: Bundle? = nil, locale: Locale = .current) -> String? {
         guard error == nil else { return nil }
-        var parts: [String] = auto ? ["auto"] : []
-        if let before, let after, before > 0 { parts.append("\(TurnSummary.tokens(before)) \u{2192} \(TurnSummary.tokens(after)) tokens") }
-        else if let after, after > 0 { parts.append("\(TurnSummary.tokens(after)) tokens left") }
+        var parts: [String] = auto ? [Copy.chatCompactionAuto(bundle: bundle, locale: locale)] : []
+        if let before, let after, before > 0 {
+            parts.append(Copy.chatCompactionSizes(before: TurnSummary.tokens(before), after: TurnSummary.tokens(after), bundle: bundle, locale: locale))
+        } else if let after, after > 0 {
+            parts.append(Copy.chatCompactionLeft(after: TurnSummary.tokens(after), bundle: bundle, locale: locale))
+        }
         return parts.isEmpty ? nil : parts.joined(separator: " \u{00B7} ")
     }
 
@@ -92,11 +97,15 @@ public struct Compaction: Equatable {
     }
 
     /// Under the capsule: what happened to the agent's view of the conversation. A failure says the context is as it was and why.
-    public func detail(agent: String) -> String {
-        if let error { return "The context is unchanged. \(error)" }
-        let took = ms.map { " Took \(formatDuration($0))." } ?? ""
-        if auto { return "The context filled up, so \(agent) summarized the earlier conversation and went on. The messages above stay here to read.\(took)" }
-        return "\(agent) summarized the earlier conversation to free space. The messages above stay here to read; from now on it works from the summary.\(took)"
+    public func detail(agent: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        if let error { return Copy.chatCompactionUnchanged(error: error, bundle: bundle, locale: locale) }
+        let kind: Copy.ChatCompactionDetail = switch (auto, ms != nil) {
+        case (true, true): .autoTook
+        case (true, false): .auto
+        case (false, true): .manualTook
+        case (false, false): .manual
+        }
+        return Copy.chatCompactionDetail(kind: kind, agent: agent, duration: formatDuration(ms ?? 0), bundle: bundle, locale: locale)
     }
 }
 
@@ -128,39 +137,41 @@ public struct FailureBanner: Equatable {
 
 /// A key like `claude` starts a sentence as `Claude`; a name that already has a capital in it (a label like `iOS`) is the person's own and stays.
 private func capitalized(_ agent: String) -> String {
-    if agent.isEmpty { return "The agent" }
-    return agent.contains(where: \.isUppercase) ? agent : agent.prefix(1).uppercased() + agent.dropFirst()
+    agent.contains(where: \.isUppercase) ? agent : agent.prefix(1).uppercased() + agent.dropFirst()
 }
 
 /// The banner of a turn that failed: "<Agent> couldn't continue" and the error's text.
-public func failedTurnBanner(agent: String, error: String) -> FailureBanner {
-    FailureBanner(title: "\(capitalized(agent)) couldn't continue", detail: error, hint: nil)
+public func failedTurnBanner(agent: String, error: String, bundle: Bundle? = nil, locale: Locale = .current) -> FailureBanner {
+    FailureBanner(title: couldntContinue(agent, bundle: bundle, locale: locale), detail: error, hint: nil)
+}
+
+private func couldntContinue(_ agent: String, bundle: Bundle?, locale: Locale) -> String {
+    agent.isEmpty ? Copy.chatFailedTurnUnnamed(bundle: bundle, locale: locale) : Copy.chatFailedTurn(agent: capitalized(agent), bundle: bundle, locale: locale)
 }
 
 /// The banner of a refusal from `open`, `resume` or `send`: the host's own sentence, and for a provider that is not signed in the
 /// line that says where to sign in.
-public func refusalBanner(agent: String, reason: Refusal) -> FailureBanner {
-    if let hint = signInLine(refusal: reason) { return FailureBanner(title: "\(capitalized(agent)) isn't signed in", detail: reason.shown(), hint: hint) }
-    return FailureBanner(title: "\(capitalized(agent)) couldn't continue", detail: reason.shown(), hint: nil)
+public func refusalBanner(agent: String, reason: Refusal, bundle: Bundle? = nil, locale: Locale = .current) -> FailureBanner {
+    if let hint = signInLine(refusal: reason, bundle: bundle, locale: locale) {
+        let title = agent.isEmpty ? Copy.chatNotSignedInUnnamed(bundle: bundle, locale: locale) : Copy.chatNotSignedIn(agent: capitalized(agent), bundle: bundle, locale: locale)
+        return FailureBanner(title: title, detail: reason.shown(bundle: bundle, locale: locale), hint: hint)
+    }
+    return FailureBanner(title: couldntContinue(agent, bundle: bundle, locale: locale), detail: reason.shown(bundle: bundle, locale: locale), hint: nil)
 }
 
 /// Above the box of a session that is not live: sending to it resumes it.
-public let closedSessionNotice = (
-    title: "This session is asleep",
-    detail: "Its agent is napping. Send a message and it wakes up right where it left off.",
-    chosen: "Its agent is napping. What you chose applies as soon as a message wakes it up."
-)
+public func closedSessionNotice(bundle: Bundle? = nil, locale: Locale = .current) -> (title: String, detail: String, chosen: String) {
+    (Copy.chatAsleepTitle(bundle: bundle, locale: locale), Copy.chatAsleepDetail(bundle: bundle, locale: locale), Copy.chatAsleepChosen(bundle: bundle, locale: locale))
+}
 
 /// Above the box of an idle session whose folder was deleted (its project was moved to the Trash), and what a send to it is refused with.
-public let folderGoneNotice = (
-    title: "This session's folder was deleted",
-    detail: "Its project was moved to the Trash. What it did stays here to read, but it cannot go on."
-)
-public let folderGoneRefusal = "Its folder was deleted, so it cannot go on"
+public func folderGoneNotice(bundle: Bundle? = nil, locale: Locale = .current) -> (title: String, detail: String) {
+    (Copy.chatFolderGoneTitle(bundle: bundle, locale: locale), Copy.chatFolderGoneDetail(bundle: bundle, locale: locale))
+}
 
 /// The line under a refusal when the provider is not signed in (`agent.notLoggedIn`), nil for any other.
-public func signInLine(refusal reason: Refusal) -> String? {
-    reason.has("agent.notLoggedIn") ? "Sign in from a terminal; Carrier never asks for your password" : nil
+public func signInLine(refusal reason: Refusal, bundle: Bundle? = nil, locale: Locale = .current) -> String? {
+    reason.has("agent.notLoggedIn") ? Copy.chatSignInHint(bundle: bundle, locale: locale) : nil
 }
 
 /// An approval as the card draws it: the question, the tool and its argument, and the provider's choices in its own order.

@@ -39,7 +39,7 @@ private struct SliceReportView: View {
                     .padding(.horizontal, Tokens.Space.s8).padding(.vertical, Tokens.Space.s3).background(Capsule().fill(Color.secondary.opacity(0.14)))
             }
             let done = report.checks.filter(\.passed).count
-            Text("DEFINITION OF DONE · \(done) OF \(report.checks.count)")
+            Text(Copy.chatReportDefinitionOfDone(done: done, total: report.checks.count))
                 .scaledFont(11, weight: .semibold).tracking(0.4).foregroundStyle(.tertiary).padding(.top, Tokens.Space.s6)
             ChecklistView(checks: report.checks)
             if let note = report.note { MarkdownView(text: note).foregroundStyle(.secondary).padding(.top, Tokens.Space.s6) }
@@ -107,7 +107,7 @@ private struct FieldsView: View {
     @ViewBuilder private func value(_ value: JSONField.Value) -> some View {
         switch value {
         case .flag(let on):
-            Label(on ? "yes" : "no", icon: on ? .checkCircle : .closeCircle)
+            Label(on ? Copy.chatYes() : Copy.chatNo(), icon: on ? .checkCircle : .closeCircle)
                 .scaledFont(10, weight: .semibold).foregroundStyle(on ? Color.green : Color.red)
         case .number(let text): Text(text).fontWeight(.semibold)
         case .text(let text): Text(text).foregroundStyle(.secondary).textSelection(.enabled)

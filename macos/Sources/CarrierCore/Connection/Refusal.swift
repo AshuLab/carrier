@@ -91,7 +91,7 @@ extension Refusal {
 
     static let projectsNeedNewerHost = Refusal(code: "app.chatHost.projectsNeedNewer", text: CarrierCore.projectsNeedNewerHost)
     public static let usageNeedsNewerHost = Refusal(code: "app.chatHost.usageNeedsNewer", text: CarrierCore.usageNeedsNewerHost)
-    static let folderGone = Refusal(code: "app.session.folderGone", text: folderGoneRefusal)
+    static let folderGone = Refusal(code: "app.session.folderGone", text: "Its folder was deleted, so it cannot go on")
     static let hostNotRunning = Refusal(code: "app.chatHost.notRunning", text: CarrierCore.hostNotRunning)
     static let hostNotAnswering = Refusal(code: "app.chatHost.notAnswering", text: "The chat host is not answering")
     static let hostTookTooLong = Refusal(code: "app.chatHost.tookTooLong", text: "The chat host took too long to answer")

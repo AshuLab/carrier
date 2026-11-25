@@ -15,16 +15,16 @@ private func texts(_ rows: [FeedRow]) -> [String] {
         switch $0 {
         case .user(_, let text): "user: \(text)"
         case .agent(_, let text, let inProgress): "agent\(inProgress ? "…" : ""): \(text.prefix(24))"
-        case .turnEnd(_, let summary): "end: \(summary.text)"
-        case .tools(_, let group): "tools: \(group.title) | \(group.summary)"
+        case .turnEnd(_, let summary): "end: \(summary.text(bundle: english.bundle, locale: english.locale))"
+        case .tools(_, let group): "tools: \(group.title(bundle: english.bundle, locale: english.locale)) | \(group.summary(bundle: english.bundle, locale: english.locale))"
         case .approval(_, let card): "card: \(card.question) | \(card.arg ?? "") | \(card.choices.map(\.label).joined(separator: " / "))"
         case .decided(_, let text, let allow): "\(allow ? "allowed" : "declined"): \(text)"
         case .line(_, let text): "line: \(text)"
         case .switched(_, let switched): "switched: \(switched.from) -> \(switched.to)"
         case .error(_, let text): "error: \(text)"
         case .stopped: "stopped"
-        case .cleared(_, let freed): "cleared: \(clearedFreedText(freed) ?? "")"
-        case .compacted(_, let cut): "compacted: \([cut.title, cut.sizes, cut.saved].compactMap { $0 }.joined(separator: " | "))"
+        case .cleared(_, let freed): "cleared: \(clearedFreedText(freed, bundle: english.bundle, locale: english.locale) ?? "")"
+        case .compacted(_, let cut): "compacted: \([cut.title(bundle: english.bundle, locale: english.locale), cut.sizes(bundle: english.bundle, locale: english.locale), cut.saved].compactMap { $0 }.joined(separator: " | "))"
         }
     }
 }
@@ -37,7 +37,7 @@ private func group(_ rows: [FeedRow]) -> ToolGroup {
 // MARK: the feed
 
 @Test func aFinishedTurnIsMessagesGroupedCallsAndAClosingLine() throws {
-    let rows = chatFeed(try golden("finished").events)
+    let rows = chatFeed(try golden("finished").events, bundle: english.bundle, locale: english.locale)
     #expect(texts(rows) == [
         "user: Explore the pricing page layout and tell me what to change.",
         "tools: Explored | 1 file read · 1 search",
@@ -52,66 +52,66 @@ private func group(_ rows: [FeedRow]) -> ToolGroup {
 }
 
 @Test func aStoppedTurnLeavesTheMarkAfterItsClosingLineAndOnlyTheLastOneOffersAWayOut() throws {
-    let rows = chatFeed(try golden("stopped").events)
+    let rows = chatFeed(try golden("stopped").events, bundle: english.bundle, locale: english.locale)
     #expect(texts(rows) == ["user: Rename the config keys to snake_case.", "agent: I will start with the ke", "end: sonnet 5.5 · 4s", "stopped"])
     #expect(openOutcome(rows) == rows.last?.id)
     // the person wrote again: the mark is a record
     #expect(openOutcome(rows + [.user(id: "u", text: "go on")]) == nil)
     // the failed turn of the finished golden is the last thing there, so its banner is the one that offers Try again
-    let failed = chatFeed(try golden("finished").events)
+    let failed = chatFeed(try golden("finished").events, bundle: english.bundle, locale: english.locale)
     #expect(openOutcome(failed) == failed.first { if case .error = $0 { true } else { false } }?.id)
     #expect(openOutcome(Array(failed.prefix(6))) == nil)
 }
 
 @Test func theBannersSayWhoCouldNotContinueAndWhatTheHostSaid() {
-    #expect(failedTurnBanner(agent: "claude", error: "Usage limit reached") == FailureBanner(title: "Claude couldn't continue", detail: "Usage limit reached", hint: nil))
-    #expect(failedTurnBanner(agent: "", error: "x").title == "The agent couldn't continue")
+    #expect(failedTurnBanner(agent: "claude", error: "Usage limit reached", bundle: english.bundle, locale: english.locale) == FailureBanner(title: "Claude couldn't continue", detail: "Usage limit reached", hint: nil))
+    #expect(failedTurnBanner(agent: "", error: "x", bundle: english.bundle, locale: english.locale).title == "The agent couldn't continue")
     // a label or display name the person wrote keeps its capitals
-    #expect(failedTurnBanner(agent: "iOS", error: "x").title == "iOS couldn't continue" && failedTurnBanner(agent: "Claude Pro", error: "x").title == "Claude Pro couldn't continue")
-    let refused = refusalBanner(agent: "codex", reason: .words("The agent is still answering"))
+    #expect(failedTurnBanner(agent: "iOS", error: "x", bundle: english.bundle, locale: english.locale).title == "iOS couldn't continue" && failedTurnBanner(agent: "Claude Pro", error: "x", bundle: english.bundle, locale: english.locale).title == "Claude Pro couldn't continue")
+    let refused = refusalBanner(agent: "codex", reason: .words("The agent is still answering"), bundle: english.bundle, locale: english.locale)
     #expect(refused == FailureBanner(title: "Codex couldn't continue", detail: "The agent is still answering", hint: nil))
-    let signedOut = refusalBanner(agent: "claude", reason: Refusal(code: "agent.notLoggedIn", params: ["agent": "Claude"], text: "words of Node"))
+    let signedOut = refusalBanner(agent: "claude", reason: Refusal(code: "agent.notLoggedIn", params: ["agent": "Claude"], text: "words of Node"), bundle: english.bundle, locale: english.locale)
     #expect(signedOut.title == "Claude isn't signed in" && signedOut.detail == "Claude is not logged in; run \"claude\" once to log in")
     #expect(signedOut.hint == "Sign in from a terminal; Carrier never asks for your password")
 }
 
 @Test func aBannerWithAHintWarnsAndOneWithoutFails() {
-    #expect(failedTurnBanner(agent: "claude", error: "Usage limit reached").warns == false)
-    #expect(refusalBanner(agent: "codex", reason: .words("The agent is still answering")).warns == false)
-    #expect(refusalBanner(agent: "claude", reason: Refusal(code: "agent.notLoggedIn", params: ["agent": "claude"], text: "Claude is not logged in")).warns)
+    #expect(failedTurnBanner(agent: "claude", error: "Usage limit reached", bundle: english.bundle, locale: english.locale).warns == false)
+    #expect(refusalBanner(agent: "codex", reason: .words("The agent is still answering"), bundle: english.bundle, locale: english.locale).warns == false)
+    #expect(refusalBanner(agent: "claude", reason: Refusal(code: "agent.notLoggedIn", params: ["agent": "claude"], text: "Claude is not logged in"), bundle: english.bundle, locale: english.locale).warns)
 }
 
 @Test func theSignInLineFollowsTheCodeAndNotTheWords() {
     let signIn = "Sign in from a terminal; Carrier never asks for your password"
     // the words differ from today's: only the code says the provider is signed out
-    #expect(signInLine(refusal: Refusal(code: "agent.notLoggedIn", params: ["agent": "claude"], text: "Please sign in")) == signIn)
+    #expect(signInLine(refusal: Refusal(code: "agent.notLoggedIn", params: ["agent": "claude"], text: "Please sign in"), bundle: english.bundle, locale: english.locale) == signIn)
     // a code that is not that one is not a sign-in, whatever the words say
-    #expect(signInLine(refusal: Refusal(code: "agent.notInstalled", params: ["agent": "claude"], text: "Claude is not logged in")) == nil)
+    #expect(signInLine(refusal: Refusal(code: "agent.notInstalled", params: ["agent": "claude"], text: "Claude is not logged in"), bundle: english.bundle, locale: english.locale) == nil)
     // a reply without a code carries words only, and the words are not read
-    #expect(signInLine(refusal: .words("Claude is not logged in; run \"claude\" once to log in")) == nil)
+    #expect(signInLine(refusal: .words("Claude is not logged in; run \"claude\" once to log in"), bundle: english.bundle, locale: english.locale) == nil)
 }
 
 @Test func anApprovalIsOneRowAtItsPlaceCompletedByItsAnswerAndEndsTheRunBeforeIt() {
     let start = ChatEvent(id: 1, at: 0, kind: "tool_start", callId: "c", tool: "Read", arg: "a.ts")
     let ask = ChatEvent(id: 2, at: 0, kind: "approval", tool: "Bash", arg: "ls", approvalId: "p", choices: [.init(id: "y", label: "Yes", allow: true)])
-    #expect(texts(chatFeed([start, ask], pending: ["p"])) == ["tools: Working | 1 file read", "card: Allow Bash? | ls | Yes"])
+    #expect(texts(chatFeed([start, ask], pending: ["p"], bundle: english.bundle, locale: english.locale)) == ["tools: Working | 1 file read", "card: Allow Bash? | ls | Yes"])
     let end = ChatEvent(id: 3, at: 0, kind: "tool_end", callId: "c", tool: "Read", output: ["", "  one", "two"], status: "ok")
     let answer = ChatEvent(id: 4, at: 0, kind: "approval_answered", approvalId: "p", choiceId: "y")
-    let rows = chatFeed([start, ask, end, answer])
+    let rows = chatFeed([start, ask, end, answer], bundle: english.bundle, locale: english.locale)
     #expect(texts(rows) == ["tools: Explored | 1 file read", "allowed: Allowed Bash ls · Yes · by you"])
     // the rows keep the id of the event that opened them
     #expect(rows.map { $0.id } == ["e1", "e2"])
 }
 
 @Test func anAskedApprovalIsACardWithTheProvidersChoicesInItsOrderForClaudeAndForCodex() throws {
-    let claude = chatFeed(try golden("finished").events.prefix(6).map { $0 }, pending: ["a1"])
+    let claude = chatFeed(try golden("finished").events.prefix(6).map { $0 }, pending: ["a1"], bundle: english.bundle, locale: english.locale)
     #expect(texts(claude).last == "card: Allow Bash? | pnpm lint | Allow / Allow for this session / Decline")
     guard case .approval(_, let card)? = claude.last else {
         Issue.record("not a card")
         return
     }
     #expect(card.approvalId == "a1" && card.choices.map(\.allow) == [true, true, false])
-    let codex = chatFeed(try golden("approval").events, pending: ["b1"])
+    let codex = chatFeed(try golden("approval").events, pending: ["b1"], bundle: english.bundle, locale: english.locale)
     guard case .approval(_, let asked)? = codex.last else {
         Issue.record("not a card")
         return
@@ -122,7 +122,7 @@ private func group(_ rows: [FeedRow]) -> ToolGroup {
 @Test func anAnsweredApprovalIsOneLineWithTheChosenLabelAndWhetherItAllowedAndADeclinedOneSaysSo() {
     let choices: [ChatChoice] = [.init(id: "y", label: "Allow for this session", allow: true), .init(id: "n", label: "Decline", allow: false)]
     let ask = ChatEvent(id: 1, at: 0, kind: "approval", tool: "Bash", arg: "pnpm test webhook", approvalId: "p", choices: choices)
-    func line(_ choice: String) -> String { texts(chatFeed([ask, ChatEvent(id: 2, at: 0, kind: "approval_answered", approvalId: "p", choiceId: choice)]))[0] }
+    func line(_ choice: String) -> String { texts(chatFeed([ask, ChatEvent(id: 2, at: 0, kind: "approval_answered", approvalId: "p", choiceId: choice)], bundle: english.bundle, locale: english.locale))[0] }
     #expect(line("y") == "allowed: Allowed Bash pnpm test webhook · Allow for this session · by you")
     #expect(line("n") == "declined: Declined Bash pnpm test webhook · Decline · by you")
     // an answer naming a choice the question never had still closes the card
@@ -131,7 +131,7 @@ private func group(_ rows: [FeedRow]) -> ToolGroup {
 
 @Test func anApprovalThatIsNeitherPendingNorAnsweredIsAPlainLineNotACard() {
     let ask = ChatEvent(id: 1, at: 0, kind: "approval", tool: "Bash", arg: "ls", approvalId: "p", choices: [.init(id: "y", label: "Yes", allow: true)])
-    #expect(texts(chatFeed([ask, ChatEvent(id: 2, at: 0, kind: "turn_end", outcome: "interrupted")])) == ["line: Bash ls · no longer waiting for an answer", "stopped"])
+    #expect(texts(chatFeed([ask, ChatEvent(id: 2, at: 0, kind: "turn_end", outcome: "interrupted")], bundle: english.bundle, locale: english.locale)) == ["line: Bash ls · no longer waiting for an answer", "stopped"])
 }
 
 @Test func theHostsPendingApprovalsAreReadFromTheEventsReply() throws {
@@ -142,26 +142,26 @@ private func group(_ rows: [FeedRow]) -> ToolGroup {
 @Test func anEndWithNoStartAndAnAnswerWithNoQuestionAreHandledWhereACursorCanStartMidTurn() {
     let end = ChatEvent(id: 7, at: 0, kind: "tool_end", callId: "x", tool: "Bash", arg: "ls", status: "err")
     let answer = ChatEvent(id: 8, at: 0, kind: "approval_answered", approvalId: "gone", choiceId: "y")
-    #expect(texts(chatFeed([end, answer])) == ["tools: Worked | 1 command"])
-    #expect(group(chatFeed([end])).failed == 1)
+    #expect(texts(chatFeed([end, answer], bundle: english.bundle, locale: english.locale)) == ["tools: Worked | 1 command"])
+    #expect(group(chatFeed([end], bundle: english.bundle, locale: english.locale)).failed == 1)
 }
 
 @Test func theMessageInProgressIsTheLastRowAndOptionsAreNotDrawn() throws {
     let reply = try golden("streaming")
-    let rows = chatFeed(reply.events + [ChatEvent(id: 4, at: 0, kind: "option", text: nil)], streaming: reply.streaming)
+    let rows = chatFeed(reply.events + [ChatEvent(id: 4, at: 0, kind: "option", text: nil)], streaming: reply.streaming, bundle: english.bundle, locale: english.locale)
     #expect(rows.count == 3)
     guard case .agent("streaming", let text, true) = rows.last else {
         Issue.record("the last row is not the message in progress")
         return
     }
     #expect(text.hasPrefix("The worker calls `push()`"))
-    #expect(chatFeed(reply.events, streaming: "").count == 2)
+    #expect(chatFeed(reply.events, streaming: "", bundle: english.bundle, locale: english.locale).count == 2)
 }
 
 @Test func theClosingLineHasWhatTheHostAndTheProviderGave() {
     func line(_ end: ChatEvent, from start: Int? = 0) -> String? {
         let user = start.map { [ChatEvent(id: 1, at: $0, kind: "user", text: "hi")] } ?? []
-        return chatFeed(user + [end]).compactMap { if case .turnEnd(_, let summary) = $0 { summary.text } else { nil } }.first
+        return chatFeed(user + [end], bundle: english.bundle, locale: english.locale).compactMap { if case .turnEnd(_, let summary) = $0 { summary.text(bundle: english.bundle, locale: english.locale) } else { nil } }.first
     }
     func end(model: String? = nil, usage: [String: Double]? = nil, at: Int = 65_000) -> ChatEvent { ChatEvent(id: 2, at: at, kind: "turn_end", outcome: "ok", model: model, usage: usage) }
     #expect(line(end(model: "m", usage: ["input_tokens": 12, "output_tokens": 2500, "total_cost_usd": 0.5])) == "m · 1m · 12 in · 2.5k out")
@@ -212,7 +212,7 @@ private func call(_ id: Int, _ tool: String, _ arg: String = "", output: [String
 }
 
 @Test func aGoldenRunOfCallsIsOneRowWithItsSummaryTitleAndTotals() throws {
-    let rows = chatFeed(try golden("tools").events)
+    let rows = chatFeed(try golden("tools").events, bundle: english.bundle, locale: english.locale)
     #expect(texts(rows) == [
         "user: The login test is flaky. Find out why and fix it.",
         "tools: Explored | 2 files read · 1 search",
@@ -224,19 +224,19 @@ private func call(_ id: Int, _ tool: String, _ arg: String = "", output: [String
         "end: sonnet 5.5 · 16s · 2.1k in · 310 out",
     ])
     let explored = group(rows)
-    #expect(explored.calls.map(\.result) == ["3 lines", "3 lines", "2 matches"] && explored.durationMs == 1600 && explored.failed == 0)
+    #expect(explored.calls.map { $0.result(bundle: english.bundle, locale: english.locale) } == ["3 lines", "3 lines", "2 matches"] && explored.durationMs == 1600 && explored.failed == 0)
     let changed = rows.compactMap { if case .tools(_, let group) = $0 { group } else { nil } }[1]
     // three edits of two paths; only the output shaped like a diff has lines to total
     #expect(changed.calls.count == 4 && changed.added == 3 && changed.removed == 1 && changed.durationMs == 7_000)
-    #expect(changed.calls.map(\.result) == ["done", "+2 −1", "+1 −0", "failed"])
+    #expect(changed.calls.map { $0.result(bundle: english.bundle, locale: english.locale) } == ["done", "+2 −1", "+1 −0", "failed"])
     #expect(changed.calls[1].diff.map(\.sign) == [.hunk, .hunk, .hunk, .context, .removed, .added, .added, .context])
     #expect(changed.calls[1].diff[4].text == "  await open()")
     // a call that failed turns the group's count, not its title
-    #expect(changed.failed == 1 && changed.title == "Changed")
+    #expect(changed.failed == 1 && changed.title(bundle: english.bundle, locale: english.locale) == "Changed")
 }
 
 @Test func theSummaryIsTheNonZeroCountsInOrderSingularWhenOneAndFilesChangedCountDistinctPaths() {
-    func summary(_ calls: [[ChatEvent]]) -> String { group(chatFeed(calls.flatMap { $0 })).summary }
+    func summary(_ calls: [[ChatEvent]]) -> String { group(chatFeed(calls.flatMap { $0 }, bundle: english.bundle, locale: english.locale)).summary(bundle: english.bundle, locale: english.locale) }
     #expect(summary([call(1, "Read", "a"), call(2, "Read", "b")]) == "2 files read")
     #expect(summary([call(1, "Read", "a")]) == "1 file read")
     #expect(summary([call(1, "Grep", "x"), call(2, "Glob", "*.ts")]) == "2 searches")
@@ -254,7 +254,7 @@ private func call(_ id: Int, _ tool: String, _ arg: String = "", output: [String
 }
 
 @Test func theTitleIsExploredForReadsAndSearchesChangedForAChangeAndWorkedOtherwise() {
-    func title(_ calls: [[ChatEvent]]) -> String { group(chatFeed(calls.flatMap { $0 })).title }
+    func title(_ calls: [[ChatEvent]]) -> String { group(chatFeed(calls.flatMap { $0 }, bundle: english.bundle, locale: english.locale)).title(bundle: english.bundle, locale: english.locale) }
     #expect(title([call(1, "Read", "a"), call(2, "Grep", "b")]) == "Explored")
     #expect(title([call(1, "Read", "a"), call(2, "Edit", "a")]) == "Changed")
     #expect(title([call(1, "Bash", "ls")]) == "Worked")
@@ -265,26 +265,26 @@ private func call(_ id: Int, _ tool: String, _ arg: String = "", output: [String
 
 @Test func theCallsOfAFailedGroupAreMarkedAndTheRowCountsThem() {
     let events = call(1, "Read", "a") + call(2, "Bash", "pnpm test", output: ["boom"], status: "err") + call(3, "Bash", "pnpm lint", status: "err")
-    let tools = group(chatFeed(events))
+    let tools = group(chatFeed(events, bundle: english.bundle, locale: english.locale))
     #expect(tools.failed == 2 && tools.calls.map(\.status) == [.ok, .failed, .failed])
-    #expect(tools.calls[1].result == "failed" && tools.calls[1].output == ["boom"])
+    #expect(tools.calls[1].result(bundle: english.bundle, locale: english.locale) == "failed" && tools.calls[1].output == ["boom"])
 }
 
 @Test func aRunStillGoingIsWorkingAndSaysWhatTheAgentIsDoingUntilItsCallEnds() {
     let done = call(1, "Read", "src/a.ts", output: ["x"], at: 1000)
     let running = ChatEvent(id: 10, at: 3000, kind: "tool_start", callId: "c9", tool: "Bash", arg: "pnpm test webhook")
-    var tools = group(chatFeed(done + [running]))
-    #expect(tools.isWorking && tools.title == "Working" && tools.doing == "Running pnpm test webhook" && tools.durationMs == nil)
-    #expect(tools.summary == "1 file read · 1 command")
+    var tools = group(chatFeed(done + [running], bundle: english.bundle, locale: english.locale))
+    #expect(tools.isWorking && tools.title(bundle: english.bundle, locale: english.locale) == "Working" && tools.doing(bundle: english.bundle, locale: english.locale) == "Running pnpm test webhook" && tools.durationMs == nil)
+    #expect(tools.summary(bundle: english.bundle, locale: english.locale) == "1 file read · 1 command")
     // the next event that arrives completes it in place
     let end = ChatEvent(id: 11, at: 9000, kind: "tool_end", callId: "c9", tool: "Bash", output: ["ok"], status: "ok")
-    tools = group(chatFeed(done + [running, end]))
-    #expect(tools.isWorking == false && tools.doing == nil && tools.title == "Worked" && tools.durationMs == 8000)
+    tools = group(chatFeed(done + [running, end], bundle: english.bundle, locale: english.locale))
+    #expect(tools.isWorking == false && tools.doing(bundle: english.bundle, locale: english.locale) == nil && tools.title(bundle: english.bundle, locale: english.locale) == "Worked" && tools.durationMs == 8000)
     // a turn that ends with a call still going (stopped, or failed) does not leave the row working
-    let stopped = group(chatFeed(done + [running, ChatEvent(id: 12, at: 4000, kind: "turn_end", outcome: "aborted")]))
+    let stopped = group(chatFeed(done + [running, ChatEvent(id: 12, at: 4000, kind: "turn_end", outcome: "aborted")], bundle: english.bundle, locale: english.locale))
     #expect(stopped.isWorking == false && stopped.calls.map(\.status) == [.ok, .stopped])
     #expect(["Reading a", "Searching b", "Editing c", "Using Mystery d"] == [("Read", "a"), ("Grep", "b"), ("Edit", "c"), ("Mystery", "d")].map {
-        group(chatFeed([ChatEvent(id: 1, at: 0, kind: "tool_start", callId: "x", tool: $0.0, arg: $0.1)])).doing!
+        group(chatFeed([ChatEvent(id: 1, at: 0, kind: "tool_start", callId: "x", tool: $0.0, arg: $0.1)], bundle: english.bundle, locale: english.locale)).doing(bundle: english.bundle, locale: english.locale)!
     })
 }
 
@@ -292,7 +292,7 @@ private func call(_ id: Int, _ tool: String, _ arg: String = "", output: [String
     let rows = chatFeed([
         ChatEvent(id: 1, at: 0, kind: "user", text: "go"),
         ChatEvent(id: 2, at: 1, kind: "notice", text: "The agent could not find this conversation"),
-    ])
+    ], bundle: english.bundle, locale: english.locale)
     #expect(rows.last == .line(id: "e2", text: "The agent could not find this conversation"))
     #expect(openOutcome(rows) == nil)
 }
@@ -301,9 +301,9 @@ private func call(_ id: Int, _ tool: String, _ arg: String = "", output: [String
     let rows = chatFeed([
         ChatEvent(id: 1, at: 0, kind: "user", text: "Hola"),
         ChatEvent(id: 2, at: 1, kind: "notice", text: "The agent changed from claude-teams-lu to codex. ...", switched: .init(from: "claude-teams-lu", to: "codex", fromModel: "claude-sonnet-5-5", toModel: "gpt-5")),
-    ])
+    ], bundle: english.bundle, locale: english.locale)
     #expect(rows.last == .switched(id: "e2", .init(from: "claude-teams-lu", to: "codex", fromModel: "claude-sonnet-5-5", toModel: "gpt-5")) && rows.last?.id == "e2")
-    #expect(handoffDetail(to: "codex") == "codex goes on from a selection of the messages above and can read the rest. Reasoning and tool results did not carry over.")
+    #expect(handoffDetail(to: "codex", bundle: english.bundle, locale: english.locale) == "codex goes on from a selection of the messages above and can read the rest. Reasoning and tool results did not carry over.")
     #expect(openOutcome(rows) == nil)
 }
 
@@ -313,15 +313,15 @@ private func call(_ id: Int, _ tool: String, _ arg: String = "", output: [String
         ChatEvent(id: 2, at: 1, kind: "tool_start", callId: "a", tool: "Bash", arg: "pnpm test"),
         ChatEvent(id: 3, at: 2, kind: "error", text: "boom"),
         ChatEvent(id: 4, at: 3, kind: "turn_end", outcome: "error"),
-    ])
-    #expect(group(ended).erred && group(ended).title == "Failed" && group(ended).isWorking == false)
+    ], bundle: english.bundle, locale: english.locale)
+    #expect(group(ended).erred && group(ended).title(bundle: english.bundle, locale: english.locale) == "Failed" && group(ended).isWorking == false)
     let answered = chatFeed([
         ChatEvent(id: 1, at: 0, kind: "user", text: "go"),
         ChatEvent(id: 2, at: 1, kind: "tool_start", callId: "a", tool: "Bash", arg: "ls"),
         ChatEvent(id: 3, at: 2, kind: "tool_end", callId: "a", tool: "Bash", status: "ok"),
         ChatEvent(id: 4, at: 3, kind: "assistant", text: "done"),
         ChatEvent(id: 5, at: 4, kind: "turn_end", outcome: "error"),
-    ])
+    ], bundle: english.bundle, locale: english.locale)
     #expect(group(answered).erred == false)
 }
 
@@ -333,7 +333,7 @@ private func call(_ id: Int, _ tool: String, _ arg: String = "", output: [String
         ChatEvent(id: 4, at: 3, kind: "user", text: "instead"),
         ChatEvent(id: 5, at: 4, kind: "tool_start", callId: "b", tool: "Bash", arg: "pnpm test"),
     ]
-    let rows = chatFeed(events)
+    let rows = chatFeed(events, bundle: english.bundle, locale: english.locale)
     #expect(texts(rows).filter { $0.hasPrefix("tools") == false } == ["user: first", "end: 0s", "stopped", "user: instead"])
     let calls = rows.compactMap { if case .tools(_, let group) = $0 { group } else { nil } }
     #expect(calls.count == 2 && calls[0].isWorking == false && calls[0].calls.map(\.status) == [.stopped])
@@ -344,13 +344,13 @@ private func call(_ id: Int, _ tool: String, _ arg: String = "", output: [String
     let a = call(1, "Read", "a"), b = call(2, "Read", "b")
     // the second call starts before the first ends: still one run, the results land on their own call
     let events = [a[0], b[0], b[1], a[1], ChatEvent(id: 20, at: 0, kind: "assistant", text: "ok")] + call(3, "Read", "c")
-    let rows = chatFeed(events)
+    let rows = chatFeed(events, bundle: english.bundle, locale: english.locale)
     #expect(texts(rows) == ["tools: Explored | 2 files read", "agent: ok", "tools: Explored | 1 file read"])
     #expect(group(rows).calls.map(\.arg) == ["a", "b"] && group(rows).calls.allSatisfy { $0.status == .ok })
 }
 
 @Test func theTimeOfAGroupIsFromItsFirstStartToItsLastEnd() {
-    let rows = chatFeed(call(1, "Read", "a", at: 1000, took: 500) + call(2, "Bash", "b", at: 2000, took: 4000))
+    let rows = chatFeed(call(1, "Read", "a", at: 1000, took: 500) + call(2, "Bash", "b", at: 2000, took: 4000), bundle: english.bundle, locale: english.locale)
     #expect(group(rows).durationMs == 5000)
 }
 
@@ -658,7 +658,7 @@ private func say(_ id: Int) -> ChatEvent { ChatEvent(id: id, at: id, kind: "assi
     #expect(model.refusal == .folderGone && model.draft == "hello")
     // nothing reached the host: not a resume, not a send
     #expect(host.sent.isEmpty && host.resumed == 0)
-    #expect(folderGoneNotice.title.contains("folder was deleted"))
+    #expect(folderGoneNotice(bundle: english.bundle, locale: english.locale).title.contains("folder was deleted"))
 }
 
 @MainActor @Test func theFolderNoticeIsOnlyForAnIdleSessionWhoseFolderIsReallyGone() async {
@@ -1194,7 +1194,7 @@ private func toolsFeed() -> [FeedRow] {
         event(4, "tool_start", "b", "Bash"), event(5, "tool_end", "b", "Bash", status: "err"),
         ChatEvent(id: 6, at: 6, kind: "assistant", text: "done"),
         event(7, "tool_start", "c", "Read"), event(8, "tool_end", "c", "Read", status: "ok"),
-    ])
+    ], bundle: english.bundle, locale: english.locale)
 }
 
 private func runs(_ rows: [FeedRow]) -> [ToolGroup] { rows.compactMap { if case .tools(_, let group) = $0 { group } else { nil } } }
@@ -1216,7 +1216,7 @@ private func runs(_ rows: [FeedRow]) -> [ToolGroup] { rows.compactMap { if case 
     """
     let reply = try JSONDecoder().decode(ChatEvents.self, from: Data(json.utf8))
     #expect(reply.events[1].kind == "reasoning" && reply.events[1].text == "Look at the file first.")
-    let rows = chatFeed(reply.events)
+    let rows = chatFeed(reply.events, bundle: english.bundle, locale: english.locale)
     #expect(texts(rows) == ["user: go", "tools: Explored | 2 thoughts · 1 file read", "agent: done", "end: 0s"])
     // the steps are in the order the agent took them, and the group is named by the first thought that started it
     let group = try #require(runs(rows).first)
@@ -1228,19 +1228,19 @@ private func runs(_ rows: [FeedRow]) -> [ToolGroup] { rows.compactMap { if case 
     let think = ChatEvent(id: 2, at: 2, kind: "reasoning", text: "Hm.")
     let user = ChatEvent(id: 1, at: 1, kind: "user", text: "go")
     // the message is still streaming: the thought sits above it
-    #expect(texts(chatFeed([user, think], streaming: "Hel")) == ["user: go", "tools: Thought | 1 thought", "agent…: Hel"])
+    #expect(texts(chatFeed([user, think], streaming: "Hel", bundle: english.bundle, locale: english.locale)) == ["user: go", "tools: Thought | 1 thought", "agent…: Hel"])
     // nothing written yet: it is the last thing
-    #expect(texts(chatFeed([user, think])) == ["user: go", "tools: Thought | 1 thought"])
+    #expect(texts(chatFeed([user, think], bundle: english.bundle, locale: english.locale)) == ["user: go", "tools: Thought | 1 thought"])
     // the message came: the thought is above it, not under it
-    #expect(texts(chatFeed([user, think, ChatEvent(id: 3, at: 3, kind: "assistant", text: "done")])) == ["user: go", "tools: Thought | 1 thought", "agent: done"])
+    #expect(texts(chatFeed([user, think, ChatEvent(id: 3, at: 3, kind: "assistant", text: "done")], bundle: english.bundle, locale: english.locale)) == ["user: go", "tools: Thought | 1 thought", "agent: done"])
     // the turn failed with no message: it stays inside its turn
     let failed = [user, think, ChatEvent(id: 3, at: 3, kind: "error", text: "boom"), ChatEvent(id: 4, at: 4, kind: "user", text: "again")]
-    #expect(texts(chatFeed(failed)) == ["user: go", "tools: Thought | 1 thought", "error: boom", "user: again"])
+    #expect(texts(chatFeed(failed, bundle: english.bundle, locale: english.locale)) == ["user: go", "tools: Thought | 1 thought", "error: boom", "user: again"])
     // an empty thinking block draws nothing
-    #expect(texts(chatFeed([user, ChatEvent(id: 2, at: 2, kind: "reasoning", text: "")])) == ["user: go"])
+    #expect(texts(chatFeed([user, ChatEvent(id: 2, at: 2, kind: "reasoning", text: "")], bundle: english.bundle, locale: english.locale)) == ["user: go"])
     // so does one of only blank lines, and a block with blank lines around it is shown without them
-    #expect(texts(chatFeed([user, ChatEvent(id: 2, at: 2, kind: "reasoning", text: " \n\n ")])) == ["user: go"])
-    let padded = chatFeed([user, ChatEvent(id: 2, at: 2, kind: "reasoning", text: "\n\n  Hm.\n ")])
+    #expect(texts(chatFeed([user, ChatEvent(id: 2, at: 2, kind: "reasoning", text: " \n\n ")], bundle: english.bundle, locale: english.locale)) == ["user: go"])
+    let padded = chatFeed([user, ChatEvent(id: 2, at: 2, kind: "reasoning", text: "\n\n  Hm.\n ")], bundle: english.bundle, locale: english.locale)
     let step = runs(padded).first?.steps.first
     #expect(step.map { if case .thought(let t) = $0 { t.text } else { "" } } == "Hm.")
 }
@@ -1248,13 +1248,13 @@ private func runs(_ rows: [FeedRow]) -> [ToolGroup] { rows.compactMap { if case 
 @Test func aThoughtThatCameFirstGivesItsRunItsIdAndASoloThoughtCountsItsTimeFromTheStartOfTheTurn() throws {
     let user = ChatEvent(id: 1, at: 1000, kind: "user", text: "go")
     let think = ChatEvent(id: 2, at: 4000, kind: "reasoning", text: "Hm.")
-    let alone = try #require(runs(chatFeed([user, think])).first)
+    let alone = try #require(runs(chatFeed([user, think], bundle: english.bundle, locale: english.locale)).first)
     #expect(alone.durationMs == 3000 && alone.startedAt == 1000 && alone.isWorking == false)
     // with a call the run counts from its first step
-    let withCall = chatFeed([user, think] + call(2, "Bash", "ls", at: 4100, took: 400))
+    let withCall = chatFeed([user, think] + call(2, "Bash", "ls", at: 4100, took: 400), bundle: english.bundle, locale: english.locale)
     let group = try #require(runs(withCall).first)
     #expect(group.startedAt == 4000 && group.durationMs == 500)
-    #expect(withCall[1].id == "e2" && group.title == "Worked")
+    #expect(withCall[1].id == "e2" && group.title(bundle: english.bundle, locale: english.locale) == "Worked")
 }
 
 @Test func theShowReasoningSwitchTakesTheThoughtsOutAndTheHiddenToolsTakeTheCallsOutAndARunWithNothingLeftGoes() {
@@ -1262,7 +1262,7 @@ private func runs(_ rows: [FeedRow]) -> [ToolGroup] { rows.compactMap { if case 
         ChatEvent(id: 1, at: 1, kind: "user", text: "go"), ChatEvent(id: 2, at: 2, kind: "reasoning", text: "Hm."),
         ChatEvent(id: 3, at: 3, kind: "tool_start", callId: "a", tool: "Bash", arg: "ls"), ChatEvent(id: 4, at: 4, kind: "tool_end", callId: "a", tool: "Bash", status: "ok"),
         ChatEvent(id: 5, at: 5, kind: "assistant", text: "done"),
-    ])
+    ], bundle: english.bundle, locale: english.locale)
     #expect(texts(visibleFeed(rows, mode: .collapsed)) == ["user: go", "tools: Worked | 1 thought · 1 command", "agent: done"])
     #expect(texts(visibleFeed(rows, mode: .collapsed, showsReasoning: false)) == ["user: go", "tools: Worked | 1 command", "agent: done"])
     #expect(texts(visibleFeed(rows, mode: .hidden)) == ["user: go", "tools: Thought | 1 thought", "agent: done"])
@@ -1273,24 +1273,24 @@ private func runs(_ rows: [FeedRow]) -> [ToolGroup] { rows.compactMap { if case 
     let rows = chatFeed([
         ChatEvent(id: 1, at: 0, kind: "user", text: "go"), ChatEvent(id: 2, at: 1, kind: "reasoning", text: "Hm."),
         ChatEvent(id: 3, at: 2, kind: "assistant", text: "done"), ChatEvent(id: 4, at: 9000, kind: "turn_end", outcome: "ok", model: "claude-sonnet-5-5"),
-    ])
+    ], bundle: english.bundle, locale: english.locale)
     let folded = foldingClosingLines(rows)
     #expect(folded.rows.map(\.id) == ["e1", "e2", "e3"])
-    #expect(folded.lines["e3"]?.text == "sonnet 5.5 · 9s")
+    #expect(folded.lines["e3"]?.text(bundle: english.bundle, locale: english.locale) == "sonnet 5.5 · 9s")
 }
 
 @Test func theRunTheAgentWorksInIsTheLastOneUntilAMessageComesAfterIt() {
     let user = ChatEvent(id: 1, at: 1, kind: "user", text: "go")
     let think = ChatEvent(id: 2, at: 2, kind: "reasoning", text: "Hm.")
-    #expect(workInProgress(in: chatFeed([user])) == nil)
-    #expect(workInProgress(in: chatFeed([user, think])) == "e2")
-    #expect(workInProgress(in: chatFeed([user, think] + call(2, "Bash", "ls"))) == "e2")
+    #expect(workInProgress(in: chatFeed([user], bundle: english.bundle, locale: english.locale)) == nil)
+    #expect(workInProgress(in: chatFeed([user, think], bundle: english.bundle, locale: english.locale)) == "e2")
+    #expect(workInProgress(in: chatFeed([user, think] + call(2, "Bash", "ls"), bundle: english.bundle, locale: english.locale)) == "e2")
     // the answer began, or the turn ended: the work is over
-    #expect(workInProgress(in: chatFeed([user, think], streaming: "Hel")) == nil)
-    #expect(workInProgress(in: chatFeed([user, think, ChatEvent(id: 9, at: 9, kind: "turn_end", outcome: "ok")])) == nil)
+    #expect(workInProgress(in: chatFeed([user, think], streaming: "Hel", bundle: english.bundle, locale: english.locale)) == nil)
+    #expect(workInProgress(in: chatFeed([user, think, ChatEvent(id: 9, at: 9, kind: "turn_end", outcome: "ok")], bundle: english.bundle, locale: english.locale)) == nil)
     // an answered approval is a line between, and the run is still the one
     let ask = ChatEvent(id: 3, at: 3, kind: "approval", tool: "Bash", arg: "ls", approvalId: "p", choices: [])
-    let answered = chatFeed([user, think, ask, ChatEvent(id: 4, at: 4, kind: "approval_answered", approvalId: "p", choiceId: "y")])
+    let answered = chatFeed([user, think, ask, ChatEvent(id: 4, at: 4, kind: "approval_answered", approvalId: "p", choiceId: "y")], bundle: english.bundle, locale: english.locale)
     #expect(workInProgress(in: answered) == "e2")
 }
 
@@ -1305,27 +1305,27 @@ private func turnEnd(_ id: Int, _ usage: [String: Double]?, outcome: String = "o
         person(4, "/clear"), turnEnd(5, ["input_tokens": 0, "output_tokens": 0]),
         person(6, "and now?"), say(7), turnEnd(8, ["context_tokens": 1_900, "output_tokens": 22]),
     ]
-    let rows = texts(chatFeed(events))
+    let rows = texts(chatFeed(events, bundle: english.bundle, locale: english.locale))
     #expect(rows == ["user: hi", "agent: m2", "end: sonnet 5.5 · 2s · 38.8k context · 27 out", "user: /clear", "cleared: 38.8k tokens freed", "user: and now?", "agent: m7", "end: sonnet 5.5 · 2s · 1.9k context · 22 out"])
 }
 
 @Test func theContextAfterAClearIsNoneUntilAnotherTurnTellsIt() {
-    let after = chatFeed([person(1, "hi"), turnEnd(2, ["context_tokens": 38_800]), person(3, "/clear"), turnEnd(4, nil)])
+    let after = chatFeed([person(1, "hi"), turnEnd(2, ["context_tokens": 38_800]), person(3, "/clear"), turnEnd(4, nil)], bundle: english.bundle, locale: english.locale)
     #expect(contextUse(after) == nil)
-    #expect(contextUse(chatFeed([person(1, "hi"), turnEnd(2, ["context_tokens": 38_800])]))?.tokens == 38_800)
+    #expect(contextUse(chatFeed([person(1, "hi"), turnEnd(2, ["context_tokens": 38_800])], bundle: english.bundle, locale: english.locale))?.tokens == 38_800)
     // a second clear frees nothing and says so by saying nothing of it
-    let twice = texts(chatFeed([person(1, "a"), turnEnd(2, ["context_tokens": 5_000]), person(3, "/clear"), turnEnd(4, nil), person(5, "/clear"), turnEnd(6, nil)]))
+    let twice = texts(chatFeed([person(1, "a"), turnEnd(2, ["context_tokens": 5_000]), person(3, "/clear"), turnEnd(4, nil), person(5, "/clear"), turnEnd(6, nil)], bundle: english.bundle, locale: english.locale))
     #expect(twice.filter { $0.hasPrefix("cleared") } == ["cleared: 5.0k tokens freed", "cleared: "])
 }
 
 @Test func onlyTheWholeClearCommandAnsweredWithNothingMakesTheDivider() {
     #expect(isClearCommand(" /clear\n") && isClearCommand("/clear now") == false && isClearCommand("please /clear") == false)
     // an answer, a failed turn or a stopped one keep their lines
-    #expect(texts(chatFeed([person(1, "/clear"), say(2), turnEnd(3, ["output_tokens": 4])])).contains { $0.hasPrefix("cleared") } == false)
-    #expect(texts(chatFeed([person(1, "/clear"), turnEnd(2, nil, outcome: "error")])).contains { $0.hasPrefix("cleared") } == false)
-    #expect(texts(chatFeed([person(1, "/clear"), turnEnd(2, nil, outcome: "interrupted")])).contains { $0.hasPrefix("cleared") } == false)
-    #expect(clearedFreedText(nil) == nil && clearedFreedText(0) == nil)
-    #expect(clearedDetail(agent: "Lu").hasPrefix("The messages above stay here to read, but Lu no longer sees them"))
+    #expect(texts(chatFeed([person(1, "/clear"), say(2), turnEnd(3, ["output_tokens": 4])], bundle: english.bundle, locale: english.locale)).contains { $0.hasPrefix("cleared") } == false)
+    #expect(texts(chatFeed([person(1, "/clear"), turnEnd(2, nil, outcome: "error")], bundle: english.bundle, locale: english.locale)).contains { $0.hasPrefix("cleared") } == false)
+    #expect(texts(chatFeed([person(1, "/clear"), turnEnd(2, nil, outcome: "interrupted")], bundle: english.bundle, locale: english.locale)).contains { $0.hasPrefix("cleared") } == false)
+    #expect(clearedFreedText(nil, bundle: english.bundle, locale: english.locale) == nil && clearedFreedText(0, bundle: english.bundle, locale: english.locale) == nil)
+    #expect(clearedDetail(agent: "Lu", bundle: english.bundle, locale: english.locale).hasPrefix("The messages above stay here to read, but Lu no longer sees them"))
 }
 
 // MARK: /compact
@@ -1340,62 +1340,62 @@ private func compact(_ id: Int, trigger: String? = "manual", before: Double? = n
         person(4, "/compact"), compact(5, before: 142_300, after: 18_400, ms: 14_000), turnEnd(6, ["input_tokens": 0, "output_tokens": 0]),
         person(7, "and now?"),
     ]
-    #expect(texts(chatFeed(events)) == ["user: hi", "agent: m2", "end: sonnet 5.5 · 2s · 142.3k context", "user: /compact", "compacted: Context compacted | 142.3k → 18.4k tokens | −87%", "user: and now?"])
+    #expect(texts(chatFeed(events, bundle: english.bundle, locale: english.locale)) == ["user: hi", "agent: m2", "end: sonnet 5.5 · 2s · 142.3k context", "user: /compact", "compacted: Context compacted | 142.3k → 18.4k tokens | −87%", "user: and now?"])
 }
 
 @Test func anAutoCompactInTheMiddleOfATurnCutsWithoutTheCommandAndTheTurnKeepsItsOwnLine() {
     let events = [person(1, "go"), say(2), compact(3, trigger: "auto", before: 181_000, after: 22_000), say(4), turnEnd(5, ["context_tokens": 25_000])]
-    #expect(texts(chatFeed(events)) == ["user: go", "agent: m2", "compacted: Context compacted | auto · 181.0k → 22.0k tokens | −88%", "agent: m4", "end: sonnet 5.5 · 4s · 25.0k context"])
+    #expect(texts(chatFeed(events, bundle: english.bundle, locale: english.locale)) == ["user: go", "agent: m2", "compacted: Context compacted | auto · 181.0k → 22.0k tokens | −88%", "agent: m4", "end: sonnet 5.5 · 4s · 25.0k context"])
 }
 
 @Test func whatACompactDoesNotSayIsLeftOutAndAFailureSaysWhyAndChangesNothing() {
-    #expect(Compaction(auto: false).sizes == nil && Compaction(auto: false).saved == nil)
-    #expect(Compaction(auto: true).sizes == "auto")
-    #expect(Compaction(after: 18_400).sizes == "18.4k tokens left" && Compaction(before: 142_300).sizes == nil)
+    #expect(Compaction(auto: false).sizes(bundle: english.bundle, locale: english.locale) == nil && Compaction(auto: false).saved == nil)
+    #expect(Compaction(auto: true).sizes(bundle: english.bundle, locale: english.locale) == "auto")
+    #expect(Compaction(after: 18_400).sizes(bundle: english.bundle, locale: english.locale) == "18.4k tokens left" && Compaction(before: 142_300).sizes(bundle: english.bundle, locale: english.locale) == nil)
     // nothing was freed: no percentage
     #expect(Compaction(before: 10_000, after: 10_000).saved == nil)
     let failed = Compaction(error: "Not enough room")
-    #expect(failed.title == "Compaction failed" && failed.sizes == nil && failed.detail(agent: "Lu") == "The context is unchanged. Not enough room")
-    #expect(Compaction(ms: 14_000).detail(agent: "Lu").hasSuffix("Took \(formatDuration(14_000))."))
-    #expect(Compaction(auto: true).detail(agent: "Lu").hasPrefix("The context filled up, so Lu summarized"))
+    #expect(failed.title(bundle: english.bundle, locale: english.locale) == "Compaction failed" && failed.sizes(bundle: english.bundle, locale: english.locale) == nil && failed.detail(agent: "Lu", bundle: english.bundle, locale: english.locale) == "The context is unchanged. Not enough room")
+    #expect(Compaction(ms: 14_000).detail(agent: "Lu", bundle: english.bundle, locale: english.locale).hasSuffix("Took \(formatDuration(14_000))."))
+    #expect(Compaction(auto: true).detail(agent: "Lu", bundle: english.bundle, locale: english.locale).hasPrefix("The context filled up, so Lu summarized"))
 }
 
 @Test func theContextAfterACompactIsWhatItLeftInTheWindowOfTheTurnsBeforeAndAFailedOneChangesNothing() {
     let before = [person(1, "hi"), turnEnd(2, ["context_tokens": 142_300, "context_window": 200_000]), person(3, "/compact")]
-    #expect(contextUse(chatFeed(before + [compact(4, before: 142_300, after: 18_400), turnEnd(5, nil)])) == ContextUse(tokens: 18_400, window: 200_000))
-    #expect(contextUse(chatFeed(before + [compact(4, error: "no room"), turnEnd(5, nil)]))?.tokens == 142_300)
+    #expect(contextUse(chatFeed(before + [compact(4, before: 142_300, after: 18_400), turnEnd(5, nil)], bundle: english.bundle, locale: english.locale)) == ContextUse(tokens: 18_400, window: 200_000))
+    #expect(contextUse(chatFeed(before + [compact(4, error: "no room"), turnEnd(5, nil)], bundle: english.bundle, locale: english.locale))?.tokens == 142_300)
     // a summary that did not say what it left leaves nothing known, as a clear does
-    #expect(contextUse(chatFeed(before + [compact(4), turnEnd(5, nil)])) == nil)
+    #expect(contextUse(chatFeed(before + [compact(4), turnEnd(5, nil)], bundle: english.bundle, locale: english.locale)) == nil)
     // a later turn tells the context again
-    #expect(contextUse(chatFeed(before + [compact(4, after: 18_400), turnEnd(5, nil), person(6, "go"), turnEnd(7, ["context_tokens": 20_000])]))?.tokens == 20_000)
+    #expect(contextUse(chatFeed(before + [compact(4, after: 18_400), turnEnd(5, nil), person(6, "go"), turnEnd(7, ["context_tokens": 20_000])], bundle: english.bundle, locale: english.locale))?.tokens == 20_000)
 }
 
 @Test func theContextInUseIsTheLastTurnThatToldItWithTheWindowItCameWith() {
     func end(_ usage: [String: Double]?, id: Int) -> ChatEvent { ChatEvent(id: id, at: id * 1000, kind: "turn_end", outcome: "ok", model: "m", usage: usage) }
     // Claude says it in snake case and Codex in camel case; the share is of the window the same turn reported
-    let claude = chatFeed([end(["context_tokens": 50_000, "context_window": 200_000], id: 1)])
+    let claude = chatFeed([end(["context_tokens": 50_000, "context_window": 200_000], id: 1)], bundle: english.bundle, locale: english.locale)
     #expect(contextUse(claude) == ContextUse(tokens: 50_000, window: 200_000))
     #expect(contextUse(claude)?.share == 0.25)
-    #expect(contextUse(chatFeed([end(["contextTokens": 95_000, "contextWindow": 190_000], id: 1)]))?.share == 0.5)
+    #expect(contextUse(chatFeed([end(["contextTokens": 95_000, "contextWindow": 190_000], id: 1)], bundle: english.bundle, locale: english.locale))?.share == 0.5)
     // a later turn that did not tell it (cut short) leaves the one before, and the newest that did wins
-    #expect(contextUse(chatFeed([end(["context_tokens": 10_000, "context_window": 100_000], id: 1), end(["output_tokens": 5], id: 2)]))?.tokens == 10_000)
-    #expect(contextUse(chatFeed([end(["context_tokens": 10_000, "context_window": 100_000], id: 1), end(["context_tokens": 40_000, "context_window": 100_000], id: 2)]))?.tokens == 40_000)
+    #expect(contextUse(chatFeed([end(["context_tokens": 10_000, "context_window": 100_000], id: 1), end(["output_tokens": 5], id: 2)], bundle: english.bundle, locale: english.locale))?.tokens == 10_000)
+    #expect(contextUse(chatFeed([end(["context_tokens": 10_000, "context_window": 100_000], id: 1), end(["context_tokens": 40_000, "context_window": 100_000], id: 2)], bundle: english.bundle, locale: english.locale))?.tokens == 40_000)
     // without the window there is a count and no share; past it the share stops at all of it; before any turn there is nothing
-    #expect(contextUse(chatFeed([end(["context_tokens": 10_000], id: 1)])) == ContextUse(tokens: 10_000, window: nil))
+    #expect(contextUse(chatFeed([end(["context_tokens": 10_000], id: 1)], bundle: english.bundle, locale: english.locale)) == ContextUse(tokens: 10_000, window: nil))
     #expect(ContextUse(tokens: 10_000).share == nil)
     #expect(ContextUse(tokens: 300_000, window: 200_000).share == 1)
     #expect(ContextUse(tokens: 1, window: 0).share == nil)
     #expect(contextUse([]) == nil)
     // the words: a window of a million is `1M`, not `1000.0k`
-    #expect(ContextUse(tokens: 45_700, window: 1_000_000).text == "45.7k of 1M")
-    #expect(ContextUse(tokens: 45_700, window: 200_000).text == "45.7k of 200.0k")
-    #expect(ContextUse(tokens: 1_250_000, window: 1_500_000).text == "1.3M of 1.5M")
-    #expect(ContextUse(tokens: 900).text == "900")
+    #expect(ContextUse(tokens: 45_700, window: 1_000_000).text(bundle: english.bundle, locale: english.locale) == "45.7k of 1M")
+    #expect(ContextUse(tokens: 45_700, window: 200_000).text(bundle: english.bundle, locale: english.locale) == "45.7k of 200.0k")
+    #expect(ContextUse(tokens: 1_250_000, window: 1_500_000).text(bundle: english.bundle, locale: english.locale) == "1.3M of 1.5M")
+    #expect(ContextUse(tokens: 900).text(bundle: english.bundle, locale: english.locale) == "900")
 }
 
 @Test func aClosingLineThatStaysARowSaysTheModelAsAPersonDoes() {
-    #expect(TurnSummary(model: "claude-sonnet-5-5", duration: "9s").text == "sonnet 5.5 · 9s")
-    #expect(TurnSummary(model: "gpt-5-codex", duration: "9s").text == "gpt-5-codex · 9s")
+    #expect(TurnSummary(model: "claude-sonnet-5-5", duration: "9s").text(bundle: english.bundle, locale: english.locale) == "sonnet 5.5 · 9s")
+    #expect(TurnSummary(model: "gpt-5-codex", duration: "9s").text(bundle: english.bundle, locale: english.locale) == "gpt-5-codex · 9s")
 }
 
 @MainActor @Test func aHostThatSendsNoReasoningLeavesTheConversationAsItWas() async {
@@ -1468,11 +1468,11 @@ private func eventsRequest(capabilities: [String]) async throws -> String {
 @Test func aPendingApprovalIsOverTheBoxAndNotInTheFeed() {
     let choices: [ChatChoice] = [.init(id: "y", label: "Allow", allow: true), .init(id: "n", label: "Deny", allow: false)]
     let ask = ChatEvent(id: 2, at: 0, kind: "approval", tool: "Bash", arg: "ls", approvalId: "p", choices: choices)
-    let rows = chatFeed([ChatEvent(id: 1, at: 0, kind: "user", text: "go"), ask], pending: ["p"])
+    let rows = chatFeed([ChatEvent(id: 1, at: 0, kind: "user", text: "go"), ask], pending: ["p"], bundle: english.bundle, locale: english.locale)
     #expect(pendingApprovals(rows).map(\.approvalId) == ["p"])
     #expect(texts(visibleFeed(rows, mode: .expanded)) == ["user: go"])
     // answered, it is a line in the feed and nothing waits
-    let answered = chatFeed([ask, ChatEvent(id: 3, at: 0, kind: "approval_answered", approvalId: "p", choiceId: "y")])
+    let answered = chatFeed([ask, ChatEvent(id: 3, at: 0, kind: "approval_answered", approvalId: "p", choiceId: "y")], bundle: english.bundle, locale: english.locale)
     #expect(pendingApprovals(answered).isEmpty && visibleFeed(answered, mode: .expanded).count == 1)
 }
 
@@ -1507,7 +1507,7 @@ private func answered(_ json: String) throws -> ChatEvent { try JSONDecoder().de
 
 @Test func anApprovalWithQuestionsIsACardThatCarriesThemAndAnyOtherCardHasNone() throws {
     let ask = try answered(askedQuestions)
-    guard case .approval(_, let card)? = chatFeed([ask], pending: ["q1"]).first else {
+    guard case .approval(_, let card)? = chatFeed([ask], pending: ["q1"], bundle: english.bundle, locale: english.locale).first else {
         Issue.record("not a card")
         return
     }
@@ -1515,7 +1515,7 @@ private func answered(_ json: String) throws -> ChatEvent { try JSONDecoder().de
     #expect(card.questions[0].options.map(\.label) == ["JWT", "Cookies"] && card.questions[0].options[0].preview == "Bearer x")
     #expect(card.questions[0].options[1].preview == nil && card.choices.map(\.id) == ["allow", "deny"])
     let plain = ChatEvent(id: 2, at: 0, kind: "approval", tool: "Bash", arg: "ls", approvalId: "p", choices: [.init(id: "y", label: "Yes", allow: true)])
-    guard case .approval(_, let generic)? = chatFeed([plain], pending: ["p"]).first else {
+    guard case .approval(_, let generic)? = chatFeed([plain], pending: ["p"], bundle: english.bundle, locale: english.locale).first else {
         Issue.record("not a card")
         return
     }
@@ -1525,7 +1525,7 @@ private func answered(_ json: String) throws -> ChatEvent { try JSONDecoder().de
 @Test func anAnsweredQuestionIsOneLineWithEachAnswerAndASkippedOneSaysSo() throws {
     let ask = try answered(askedQuestions)
     func line(_ choice: String, _ answers: [String: String]?) -> String {
-        texts(chatFeed([ask, ChatEvent(id: 2, at: 0, kind: "approval_answered", approvalId: "q1", choiceId: choice, answers: answers)]))[0]
+        texts(chatFeed([ask, ChatEvent(id: 2, at: 0, kind: "approval_answered", approvalId: "q1", choiceId: choice, answers: answers)], bundle: english.bundle, locale: english.locale))[0]
     }
     #expect(line("allow", ["Which auth approach?": "JWT", "Which providers?": "GitHub, Google"]) == "allowed: Answered · by you\nAuth: JWT\nProviders: GitHub, Google")
     #expect(line("deny", nil) == "declined: Skipped the questions · by you")
@@ -1579,9 +1579,9 @@ private func answered(_ json: String) throws -> ChatEvent { try JSONDecoder().de
 
 @Test func theLiveLinesChipFollowsWhatTheAgentWaitsOn() {
     func runningChip(_ tool: String, arg: String = "x", waiting: Bool = false) -> KindChip? {
-        group(chatFeed([ChatEvent(id: 1, at: 0, kind: "tool_start", callId: "c", tool: tool, arg: arg)])).chip(waiting: waiting)
+        group(chatFeed([ChatEvent(id: 1, at: 0, kind: "tool_start", callId: "c", tool: tool, arg: arg)], bundle: english.bundle, locale: english.locale)).chip(waiting: waiting)
     }
-    let thinking = group(chatFeed([ChatEvent(id: 1, at: 0, kind: "user", text: "go"), ChatEvent(id: 2, at: 1, kind: "reasoning", text: "Hm.")]))
+    let thinking = group(chatFeed([ChatEvent(id: 1, at: 0, kind: "user", text: "go"), ChatEvent(id: 2, at: 1, kind: "reasoning", text: "Hm.")], bundle: english.bundle, locale: english.locale))
     #expect(thinking.chip(waiting: false) == .thinking)
     #expect(thinking.chip(waiting: true) == .needsYou)
     #expect(runningChip("Read", arg: "a.ts") == .read)
@@ -1597,10 +1597,10 @@ private func answered(_ json: String) throws -> ChatEvent { try JSONDecoder().de
 @Test func anMcpCallReadsAsItsServerAndToolWithoutTheInternalNameOrArgumentsJson() {
     let args = #"{"title":"Subagent UI in chat","team":"ENG"}"#
     let start = ChatEvent(id: 1, at: 0, kind: "tool_start", callId: "m1", tool: "mcp__linear__create_issue", arg: args)
-    let live = group(chatFeed([start]))
+    let live = group(chatFeed([start], bundle: english.bundle, locale: english.locale))
     #expect(live.chip(waiting: false) == .mcp(server: "linear"))
-    #expect(live.doing == "create_issue")
-    #expect(live.doing?.contains("mcp__") == false && live.doing?.contains("{") == false)
+    #expect(live.doing(bundle: english.bundle, locale: english.locale) == "create_issue")
+    #expect(live.doing(bundle: english.bundle, locale: english.locale)?.contains("mcp__") == false && live.doing(bundle: english.bundle, locale: english.locale)?.contains("{") == false)
     let step = live.calls[0]
     #expect(step.label == "create_issue" && step.subject == "linear" && step.arg == args)
 }
@@ -1619,7 +1619,7 @@ private func answered(_ json: String) throws -> ChatEvent { try JSONDecoder().de
         (.needsYou, "Needs you", .attention, nil),
     ]
     for (chip, label, tint, icon) in cases {
-        #expect(chip.label == label && chip.tint == tint && chip.icon == icon)
+        #expect(chip.label(bundle: english.bundle, locale: english.locale) == label && chip.tint == tint && chip.icon == icon)
     }
 }
 
@@ -1629,7 +1629,7 @@ private func answered(_ json: String) throws -> ChatEvent { try JSONDecoder().de
     func timer(_ tool: String, ageMs: Int, turnMs: Int = 0) -> LiveTimer {
         // the turn began `turnMs` ago, the call `ageMs` ago, both read at 1_000_000
         let started = ChatEvent(id: 2, at: 1_000_000 - ageMs, kind: "tool_start", callId: "c", tool: tool, arg: "x")
-        return group(chatFeed([ChatEvent(id: 1, at: 1_000_000 - max(turnMs, ageMs), kind: "user", text: "go"), started]))
+        return group(chatFeed([ChatEvent(id: 1, at: 1_000_000 - max(turnMs, ageMs), kind: "user", text: "go"), started], bundle: english.bundle, locale: english.locale))
             .liveTimer(now: 1_000_000, turnStart: 1_000_000 - max(turnMs, ageMs))
     }
     #expect(timer("Bash", ageMs: 31_000).slow)
@@ -1650,10 +1650,10 @@ private func answered(_ json: String) throws -> ChatEvent { try JSONDecoder().de
 @Test func aSlowCallEndsItsAmberAndAThinkingRunUsesTheTurnsTime() {
     var ended = ChatEvent(id: 3, at: 1_060_000, kind: "tool_end", callId: "c", tool: "Bash")
     ended.status = "ok"
-    let done = group(chatFeed([ChatEvent(id: 1, at: 1_000_000, kind: "tool_start", callId: "c", tool: "Bash", arg: "pnpm test"), ended]))
+    let done = group(chatFeed([ChatEvent(id: 1, at: 1_000_000, kind: "tool_start", callId: "c", tool: "Bash", arg: "pnpm test"), ended], bundle: english.bundle, locale: english.locale))
     #expect(done.liveTimer(now: 1_090_000).slow == false)
     // no call goes: the timer is the turn's, as before
-    let thinking = group(chatFeed([ChatEvent(id: 1, at: 1_000_000, kind: "user", text: "go"), ChatEvent(id: 2, at: 1_001_000, kind: "reasoning", text: "Hm.")]))
+    let thinking = group(chatFeed([ChatEvent(id: 1, at: 1_000_000, kind: "user", text: "go"), ChatEvent(id: 2, at: 1_001_000, kind: "reasoning", text: "Hm.")], bundle: english.bundle, locale: english.locale))
     let timer = thinking.liveTimer(now: 1_045_000, turnStart: 1_000_000)
     #expect(timer == LiveTimer(primaryMs: 45_000, turnMs: nil, slow: false))
 }
@@ -1697,7 +1697,7 @@ private func subagents(_ rows: [FeedRow]) -> [Subagent] {
 }
 
 @Test func whatASubagentDidIsNotDrawnInTheMainConversationButItsLaunchingCallIsNotACallOfTheRunEither() {
-    let rows = chatFeed(subagentTurn)
+    let rows = chatFeed(subagentTurn, bundle: english.bundle, locale: english.locale)
     // the subagent is a row of the run, the main agent's own call is its call, and the launching `Agent` call is neither an "other tool" nor drawn
     #expect(texts(rows) == ["user: Look into it", "tools: Worked | 1 command · 1 subagent", "agent: Done", "end: sonnet 5.5 · 1s"])
     let run = group(rows)
@@ -1707,17 +1707,17 @@ private func subagents(_ rows: [FeedRow]) -> [Subagent] {
 @Test func aPageThatStartsInsideASubagentDrawsNoOrphanForItsCallsAndTextNorItsEnds() {
     let page = Array(subagentTurn[4...])
     // what the subagent did before the page is not here; its progress and end still make its row, and the main agent's own work is drawn as it would be
-    #expect(texts(chatFeed(page)) == ["tools: Worked | 1 command · 1 subagent", "agent: Done", "end: sonnet 5.5"])
-    let only = subagents(chatFeed(page))
+    #expect(texts(chatFeed(page, bundle: english.bundle, locale: english.locale)) == ["tools: Worked | 1 command · 1 subagent", "agent: Done", "end: sonnet 5.5"])
+    let only = subagents(chatFeed(page, bundle: english.bundle, locale: english.locale))
     #expect(only.map(\.status) == [.completed] && only[0].type == "Agent" && only[0].name == "Agent")
 }
 
 @Test func aFeedWithNoLinkEventsIsTheFeedItWasAndOneWithThemIsTheSameWithTheLinkedEventsRemoved() throws {
-    let before = chatFeed(try golden("tools").events)
-    #expect(before == chatFeed(try golden("tools").events.filter { $0.parentCallId == nil && $0.kind != "task" }))
+    let before = chatFeed(try golden("tools").events, bundle: english.bundle, locale: english.locale)
+    #expect(before == chatFeed(try golden("tools").events.filter { $0.parentCallId == nil && $0.kind != "task" }, bundle: english.bundle, locale: english.locale))
     #expect(subagents(before).isEmpty)
     // with the link events gone the launching call is drawn as the other tool it was, with no row
-    let without = chatFeed(subagentTurn.filter { $0.parentCallId == nil && $0.kind != "task" })
+    let without = chatFeed(subagentTurn.filter { $0.parentCallId == nil && $0.kind != "task" }, bundle: english.bundle, locale: english.locale)
     #expect(texts(without) == ["user: Look into it", "tools: Worked | 1 command · 1 other tool", "agent: Done", "end: sonnet 5.5 · 1s"])
 }
 
@@ -1733,30 +1733,30 @@ private func task(_ id: Int, _ at: Int, _ call: String, _ state: String, text: S
         ChatEvent(id: 1, at: 1_000, kind: "tool_start", callId: "a1", tool: "Agent", arg: "{}"),
         task(2, 1_100, "a1", "started", text: "Find the adapter", type: "Explore"),
     ]
-    var row = subagents(chatFeed(events))[0]
+    var row = subagents(chatFeed(events, bundle: english.bundle, locale: english.locale))[0]
     #expect(row.type == "Explore" && row.name == "Find the adapter" && row.status == .running)
-    #expect(row.step == nil && row.words == "Starting" && row.steps == 0)
+    #expect(row.step == nil && row.words(bundle: english.bundle, locale: english.locale) == "Starting" && row.steps == 0)
     #expect(row.elapsedMs(now: 6_100) == 5_000)
     events.append(ChatEvent(id: 3, at: 1_200, kind: "tool_start", callId: "s1", tool: "Read", arg: "src/a.ts", parentCallId: "a1"))
     events.append(ChatEvent(id: 4, at: 1_300, kind: "tool_end", callId: "s1", tool: "Read", output: ["x"], status: "ok", parentCallId: "a1"))
     events.append(ChatEvent(id: 5, at: 1_400, kind: "tool_start", callId: "s2", tool: "Grep", arg: "KindChip", parentCallId: "a1"))
-    row = subagents(chatFeed(events))[0]
-    #expect(row.words == "Searching KindChip" && row.steps == 2)
+    row = subagents(chatFeed(events, bundle: english.bundle, locale: english.locale))[0]
+    #expect(row.words(bundle: english.bundle, locale: english.locale) == "Searching KindChip" && row.steps == 2)
     // a thought and its text are its last event too
     events.append(ChatEvent(id: 6, at: 1_500, kind: "reasoning", text: "Hm", parentCallId: "a1"))
-    #expect(subagents(chatFeed(events))[0].words == "Thinking")
+    #expect(subagents(chatFeed(events, bundle: english.bundle, locale: english.locale))[0].words(bundle: english.bundle, locale: english.locale) == "Thinking")
     // with no event of its own the step is the last tool of its latest progress, and the count is the provider's
     let progress = [task(1, 1_000, "a1", "started", text: "T", type: "Explore"), task(2, 2_000, "a1", "progress", lastTool: "Read", tools: 3), task(3, 3_000, "a1", "progress", lastTool: "Grep", tools: 4)]
-    row = subagents(chatFeed(progress))[0]
-    #expect(row.words == "Using Grep" && row.steps == 4)
+    row = subagents(chatFeed(progress, bundle: english.bundle, locale: english.locale))[0]
+    #expect(row.words(bundle: english.bundle, locale: english.locale) == "Using Grep" && row.steps == 4)
     // the end states, each with its mark and its own duration
     let ends: [(String, SubagentStatus, String)] = [("completed", .completed, "Finished"), ("failed", .failed, "Failed"), ("stopped", .stopped, "Stopped")]
     for (state, status, words) in ends {
-        row = subagents(chatFeed(progress + [task(4, 9_000, "a1", state, tools: 4, ms: 7_500)]))[0]
-        #expect(row.status == status && row.words == words && row.steps == 4)
+        row = subagents(chatFeed(progress + [task(4, 9_000, "a1", state, tools: 4, ms: 7_500)], bundle: english.bundle, locale: english.locale))[0]
+        #expect(row.status == status && row.words(bundle: english.bundle, locale: english.locale) == words && row.steps == 4)
         // an ended subagent's timer stops: the provider's duration, whatever the time is now
         #expect(row.elapsedMs(now: 99_000) == 7_500)
-        row = subagents(chatFeed(progress + [task(4, 9_000, "a1", state)]))[0]
+        row = subagents(chatFeed(progress + [task(4, 9_000, "a1", state)], bundle: english.bundle, locale: english.locale))[0]
         #expect(row.elapsedMs(now: 99_000) == 8_000)
     }
 }
@@ -1769,26 +1769,26 @@ private func task(_ id: Int, _ at: Int, _ call: String, _ state: String, text: S
         ChatEvent(id: 6, at: 14, kind: "tool_start", callId: "a3", tool: "Agent"), task(7, 15, "a3", "started", text: "Three", type: "Explore"),
         task(8, 20, "a2", "completed"),
     ]
-    let rows = chatFeed(events)
+    let rows = chatFeed(events, bundle: english.bundle, locale: english.locale)
     #expect(texts(rows) == ["user: go", "tools: Working | 3 subagents"])
     let run = group(rows)
     #expect(run.subagents.map(\.name) == ["One", "Two", "Three"] && run.calls.isEmpty)
     #expect(run.subagents.map(\.status) == [.running, .completed, .running])
     // the line waits for the two that run; the chip counts them, and when none runs the line is the run's own
-    #expect(run.runningSubagents == 2 && run.chip(waiting: false) == .subagents(2) && run.doing == "Waiting for them")
-    #expect(run.chip(waiting: false)?.label == "2 subagents" && run.chip(waiting: true) == .needsYou)
+    #expect(run.runningSubagents == 2 && run.chip(waiting: false) == .subagents(2) && run.doing(bundle: english.bundle, locale: english.locale) == "Waiting for them")
+    #expect(run.chip(waiting: false)?.label(bundle: english.bundle, locale: english.locale) == "2 subagents" && run.chip(waiting: true) == .needsYou)
     #expect(run.liveTimer(now: 100, turnStart: 0) == LiveTimer(primaryMs: 89, turnMs: 100, slow: false))
-    let done = group(chatFeed(events + [task(9, 30, "a1", "failed"), task(10, 31, "a3", "stopped")]))
-    #expect(done.runningSubagents == 0 && done.isWorking == false && done.doing == nil && done.chip(waiting: false) == .thinking)
-    #expect(done.title == "Worked" && done.summary == "3 subagents")
+    let done = group(chatFeed(events + [task(9, 30, "a1", "failed"), task(10, 31, "a3", "stopped")], bundle: english.bundle, locale: english.locale))
+    #expect(done.runningSubagents == 0 && done.isWorking == false && done.doing(bundle: english.bundle, locale: english.locale) == nil && done.chip(waiting: false) == .thinking)
+    #expect(done.title(bundle: english.bundle, locale: english.locale) == "Worked" && done.summary(bundle: english.bundle, locale: english.locale) == "3 subagents")
 }
 
 @Test func theSummaryCountsSubagentsApartFromOtherToolsAndCallsAnAloneRunIsStillWorked() {
     var events = subagentTurn
     events.insert(ChatEvent(id: 16, at: 850, kind: "tool_start", callId: "w1", tool: "WebFetch", arg: "https://example.test"), at: 11)
-    let run = group(chatFeed(events))
-    #expect(run.summary == "1 command · 1 subagent · 1 other tool")
-    #expect(ToolGroup(calls: []).title == "Thought")
+    let run = group(chatFeed(events, bundle: english.bundle, locale: english.locale))
+    #expect(run.summary(bundle: english.bundle, locale: english.locale) == "1 command · 1 subagent · 1 other tool")
+    #expect(ToolGroup(calls: []).title(bundle: english.bundle, locale: english.locale) == "Thought")
 }
 
 @Test func aSubagentGoesOnFromEventsThatArriveAfterTheTurnThatLaunchedItEnded() {
@@ -1800,17 +1800,17 @@ private func task(_ id: Int, _ at: Int, _ call: String, _ state: String, text: S
         ChatEvent(id: 6, at: 30, kind: "turn_end", outcome: "ok"),
     ]
     // the turn ended and the subagent still runs: the end of the turn does not stop it, as it stops a call
-    let ended = subagents(chatFeed(launch))
+    let ended = subagents(chatFeed(launch, bundle: english.bundle, locale: english.locale))
     #expect(ended.map(\.status) == [.running])
     // what comes after the turn's end updates the row it had, and the run that launched it is not another
     let after = chatFeed(launch + [
         ChatEvent(id: 7, at: 40, kind: "tool_start", callId: "s1", tool: "Read", arg: "late.ts", parentCallId: "a1"),
         task(8, 50, "a1", "progress", lastTool: "Read", tools: 1),
         task(9, 60, "a1", "completed", tools: 1, ms: 50),
-    ])
+    ], bundle: english.bundle, locale: english.locale)
     #expect(texts(after) == ["user: go", "tools: Worked | 1 subagent", "agent: I will wait.", "end: 0s"])
     let row = subagents(after)[0]
-    #expect(row.status == .completed && row.steps == 1 && row.words == "Finished" && row.endedAt == 60)
+    #expect(row.status == .completed && row.steps == 1 && row.words(bundle: english.bundle, locale: english.locale) == "Finished" && row.endedAt == 60)
 }
 
 @Test func aSubagentWithAStartAndNoEndKeepsRunningAndOneThatIsNotLaunchedHereIsNoRow() {
@@ -1821,9 +1821,9 @@ private func task(_ id: Int, _ at: Int, _ call: String, _ state: String, text: S
         // a nested subagent is its parent's, not the conversation's
         ChatEvent(id: 5, at: 40, kind: "task", text: "Nested", callId: "n1", parentCallId: "a1", taskId: "t-n1", state: "started", agentType: "Explore"),
     ]
-    let found = subagents(chatFeed(events))
+    let found = subagents(chatFeed(events, bundle: english.bundle, locale: english.locale))
     #expect(found.map(\.status) == [.running] && found[0].name == "Never ends")
-    #expect(group(chatFeed(events)).isWorking)
+    #expect(group(chatFeed(events, bundle: english.bundle, locale: english.locale)).isWorking)
 }
 
 @Test func theFixtureHostServesThreeParallelSubagentsOneEndingAfterTheTurnAndOneThatNeverEnds() async throws {
@@ -1832,7 +1832,7 @@ private func task(_ id: Int, _ at: Int, _ call: String, _ state: String, text: S
     let host = SocketChatHost(socketPath: { server.chatSocketPath })
     let session = "a7b8c9d0-6e5f-4a21-9c4d-5e6f7a8b9c07"
     let reply = try await host.events(session, after: 0, limit: 200)
-    let rows = chatFeed(reply.events)
+    let rows = chatFeed(reply.events, bundle: english.bundle, locale: english.locale)
     // the three launching calls are not calls of the run, and the thought before them is
     let run = group(rows)
     #expect(run.calls.isEmpty && run.thoughts.count == 1 && run.subagents.count == 3)
@@ -1841,11 +1841,11 @@ private func task(_ id: Int, _ at: Int, _ call: String, _ state: String, text: S
     // one finished before the turn ended, one after it, and the third has a start and no end (so it is the only one the line waits for)
     #expect(run.subagents.map(\.status) == [.completed, .completed, .running])
     #expect(run.subagents[1].endedAt == 1_791_960_004_500 && run.subagents[0].endedAt == 1_791_960_009_000)
-    #expect(run.subagents[0].steps == 1 && run.subagents[1].words == "Finished" && run.subagents[2].words == "Starting")
+    #expect(run.subagents[0].steps == 1 && run.subagents[1].words(bundle: english.bundle, locale: english.locale) == "Finished" && run.subagents[2].words(bundle: english.bundle, locale: english.locale) == "Starting")
     // while the turn went on the line waited for three; the second ended before it did, and the first after it
-    #expect(group(chatFeed(reply.events.filter { $0.id < 17 })).chip(waiting: false) == .subagents(3))
-    #expect(group(chatFeed(reply.events.filter { $0.id < 20 })).chip(waiting: false) == .subagents(2))
-    #expect(group(chatFeed(reply.events.filter { $0.id < 21 })).runningSubagents == 2)
+    #expect(group(chatFeed(reply.events.filter { $0.id < 17 }, bundle: english.bundle, locale: english.locale)).chip(waiting: false) == .subagents(3))
+    #expect(group(chatFeed(reply.events.filter { $0.id < 20 }, bundle: english.bundle, locale: english.locale)).chip(waiting: false) == .subagents(2))
+    #expect(group(chatFeed(reply.events.filter { $0.id < 21 }, bundle: english.bundle, locale: english.locale)).runningSubagents == 2)
     #expect(run.runningSubagents == 1 && run.chip(waiting: false) == .subagents(1) && run.liveTimer(now: 1_791_960_100_000).primaryMs == 97_500)
     // what the subagents said and did is not in the main conversation
     #expect(texts(rows).filter { $0.hasPrefix("agent") } == ["agent: Three subagents are look"])
@@ -1860,7 +1860,7 @@ private func flow(_ work: SubagentWork?) -> [String] {
         case .note(_, let text): "note: \(text)"
         case .error(_, let text): "error: \(text)"
         case .skill: "skill"
-        case .tools(_, let group, let live): "tools\(live ? " live" : ""): \(group.title) | \(group.summary) | \(group.thoughts.map(\.text).joined(separator: ","))"
+        case .tools(_, let group, let live): "tools\(live ? " live" : ""): \(group.title(bundle: english.bundle, locale: english.locale)) | \(group.summary(bundle: english.bundle, locale: english.locale)) | \(group.thoughts.map(\.text).joined(separator: ","))"
         case .slice: "slice"
         }
     }
@@ -1869,7 +1869,7 @@ private func flow(_ work: SubagentWork?) -> [String] {
 @Test func aSubagentsViewIsItsOwnCallsThoughtsAndMessagesWithTheRowOfTheSubagentItLaunched() {
     var events = subagentTurn
     events[1].arg = #"{"description":"Explore","prompt":"Find \"it\".\nReport paths.","subagent_type":"Explore"}"#
-    let work = subagentWork(in: events, call: "c1")
+    let work = subagentWork(in: events, call: "c1", bundle: english.bundle, locale: english.locale)
     // the header says what the row said: its title and type, finished and how long it took
     #expect(work?.header == SubagentHeader(title: "Explore", type: "Explore", state: .completed, startedAt: 110, durationMs: 600, taskId: "t1"))
     // the brief is the prompt it was launched with; then its thought and call as one run with the row of the subagent it launched (still going,
@@ -1883,7 +1883,7 @@ private func flow(_ work: SubagentWork?) -> [String] {
 }
 
 @Test func theViewOfASubagentLaunchedByASubagentIsItsOwnAndHasNoneOfItsParents() {
-    let work = subagentWork(in: subagentTurn, call: "c3")
+    let work = subagentWork(in: subagentTurn, call: "c3", bundle: english.bundle, locale: english.locale)
     #expect(work?.header.title == "Look inside" && work?.header.type == "general-purpose" && work?.header.state == .running)
     #expect(work?.header.durationMs == nil && work?.brief == nil && work?.items.isEmpty == true)
     // opened from a parent that launched it, and a third level goes one level at a time
@@ -1891,13 +1891,13 @@ private func flow(_ work: SubagentWork?) -> [String] {
     deeper.append(ChatEvent(id: 16, at: 1200, kind: "tool_start", callId: "d1", tool: "Grep", arg: "x", parentCallId: "c3"))
     deeper.append(ChatEvent(id: 17, at: 1210, kind: "task", text: "Deepest", callId: "c4", parentCallId: "c3", taskId: "t3", state: "started", agentType: "Explore"))
     deeper.append(ChatEvent(id: 18, at: 1220, kind: "assistant", text: "deep", parentCallId: "c4"))
-    #expect(flow(subagentWork(in: deeper, call: "c3")) == ["tools live: Working | 1 search · 1 subagent | "])
-    #expect(subagentWork(in: deeper, call: "c3").flatMap { work -> [String] in
+    #expect(flow(subagentWork(in: deeper, call: "c3", bundle: english.bundle, locale: english.locale)) == ["tools live: Working | 1 search · 1 subagent | "])
+    #expect(subagentWork(in: deeper, call: "c3", bundle: english.bundle, locale: english.locale).flatMap { work -> [String] in
         guard case .tools(_, let run, _)? = work.items.first else { return [] }
         return run.subagents.map(\.id) + run.calls.map(\.id)
     } == ["c4", "d1"])
-    #expect(flow(subagentWork(in: deeper, call: "c4")) == ["message: deep"])
-    #expect(flow(subagentWork(in: deeper, call: "c1")).contains { $0.hasPrefix("message: Found it") })
+    #expect(flow(subagentWork(in: deeper, call: "c4", bundle: english.bundle, locale: english.locale)) == ["message: deep"])
+    #expect(flow(subagentWork(in: deeper, call: "c1", bundle: english.bundle, locale: english.locale)).contains { $0.hasPrefix("message: Found it") })
 }
 
 @Test func whileASubagentRunsItsLastRunIsLiveAndOnceItEndedACallThatNeverEndedWasStopped() {
@@ -1909,14 +1909,14 @@ private func flow(_ work: SubagentWork?) -> [String] {
         ChatEvent(id: 6, at: 40, kind: "tool_start", callId: "s2", tool: "Bash", arg: "pnpm test", parentCallId: "a1"),
     ]
     // the run the subagent is working in is the one the line shows live, as the conversation's is for the main agent; the earlier one is not
-    #expect(flow(subagentWork(in: begun, call: "a1")) == ["tools: Explored | 1 file read | ", "message: Reading", "tools live: Working | 1 command | "])
-    let ended = subagentWork(in: begun + [task(7, 50, "a1", "stopped", ms: 40)], call: "a1")
+    #expect(flow(subagentWork(in: begun, call: "a1", bundle: english.bundle, locale: english.locale)) == ["tools: Explored | 1 file read | ", "message: Reading", "tools live: Working | 1 command | "])
+    let ended = subagentWork(in: begun + [task(7, 50, "a1", "stopped", ms: 40)], call: "a1", bundle: english.bundle, locale: english.locale)
     #expect(ended?.header.state == .stopped && ended?.header.durationMs == 40)
     #expect(flow(ended) == ["tools: Explored | 1 file read | ", "message: Reading", "tools: Worked | 1 command | "])
     guard case .tools(_, let last, _)? = ended?.items.last else { Issue.record("no run"); return }
     #expect(last.calls.map(\.status) == [.stopped] && last.isStopped)
     // a call nobody launched has no view
-    #expect(subagentWork(in: begun, call: "zz") == nil)
+    #expect(subagentWork(in: begun, call: "zz", bundle: english.bundle, locale: english.locale) == nil)
 }
 
 @Test func theBriefIsThePromptOfTheLaunchingCallsInputCutLikeAnythingTheHostStoresAndNilWithoutOne() {
@@ -1931,10 +1931,10 @@ private func flow(_ work: SubagentWork?) -> [String] {
 @Test func theStateOfASubagentReadsAsRunningWithItsTimerOrHowItEnded() {
     func header(_ state: SubagentStatus, ms: Int? = nil) -> SubagentHeader { SubagentHeader(title: "T", type: "Explore", state: state, startedAt: 1_000, durationMs: ms) }
     #expect(header(.running).stateWords(now: 72_000) == "Running 1m 11s")
-    #expect(header(.running).stateWords(now: 500) == "Running 0 ms")
+    #expect(header(.running).stateWords(now: 500, bundle: english.bundle, locale: english.locale) == "Running 0 ms")
     #expect(header(.completed, ms: 42_000).stateWords(now: 99_000) == "Finished · 42 s")
-    #expect(header(.failed, ms: 5).stateWords(now: 0) == "Failed" && header(.stopped).stateWords(now: 0) == "Stopped")
-    #expect(header(.running).subtitle(of: "Fix the login") == "Explore · Subagent of Fix the login")
+    #expect(header(.failed, ms: 5).stateWords(now: 0, bundle: english.bundle, locale: english.locale) == "Failed" && header(.stopped).stateWords(now: 0, bundle: english.bundle, locale: english.locale) == "Stopped")
+    #expect(header(.running).subtitle(of: "Fix the login", bundle: english.bundle, locale: english.locale) == "Explore · Subagent of Fix the login")
 }
 
 @MainActor @Test func theModelRebuildsTheOpenSubagentsViewAsEventsArriveAndLeavesItWhenAskedTo() async {
@@ -1965,7 +1965,7 @@ private func flow(_ work: SubagentWork?) -> [String] {
     #expect(header(.running, epic: "Epic").canStop == false)
     for ended in [SubagentStatus.completed, .failed, .stopped] { #expect(header(ended).canStop == false) }
     #expect(header(.running, host: false).canStop == false && header(.running, task: nil).canStop == false)
-    #expect(subagentWork(in: subagentTurn, call: "c1")?.header.taskId == "t1")
+    #expect(subagentWork(in: subagentTurn, call: "c1", bundle: english.bundle, locale: english.locale)?.header.taskId == "t1")
 }
 
 @MainActor @Test func stopInTheSubagentsViewAsksTheHostForThatTaskAndTheViewShowsStoppedOnlyWhenTheEventArrives() async {
@@ -2030,15 +2030,15 @@ private func flow(_ work: SubagentWork?) -> [String] {
 
 @Test func theFixtureHostServesTheSubagentViewWithItsBriefItsThoughtItsMessageAndItsNestedSubagent() async throws {
     let events = try golden("subagents").events
-    let work = subagentWork(in: events, call: "a1")
+    let work = subagentWork(in: events, call: "a1", bundle: english.bundle, locale: english.locale)
     #expect(work?.header.title == "Find subagent code in chat host" && work?.header.state == .completed)
     #expect(work?.brief?.hasPrefix("Read the chat adapter in src/chat/claude.ts") == true && work?.brief?.contains("\nReport file paths") == true)
     #expect(flow(work) == [
         "tools: Explored | 1 search | ", "message: translate() never reads parent_tool_use_id.",
         "tools: Worked | 1 thought · 1 subagent | translate() drops sidechain info; checking the types next.",
     ])
-    #expect(subagentWork(in: events, call: "a3")?.header.state == .running)
-    #expect(subagentWork(in: events, call: "n1")?.header.title == "Check the runner types")
+    #expect(subagentWork(in: events, call: "a3", bundle: english.bundle, locale: english.locale)?.header.state == .running)
+    #expect(subagentWork(in: events, call: "n1", bundle: english.bundle, locale: english.locale)?.header.title == "Check the runner types")
 }
 
 // MARK: a subagent that outlives its session's work
@@ -2054,18 +2054,18 @@ private func launched(_ call: String, at: Int, id: Int) -> [ChatEvent] {
     ]
     events.insert(ChatEvent(id: 1, at: 0, kind: "user", text: "go"), at: 0)
     // working: it runs, the parent's line waits for it
-    var run = group(chatFeed(events, working: true))
-    #expect(run.subagents.map(\.status) == [.running] && run.doing == "Waiting for them" && run.chip(waiting: false) == .subagents(1))
-    #expect(subagentWork(in: events, call: "a1", working: true)?.header.state == .running)
+    var run = group(chatFeed(events, working: true, bundle: english.bundle, locale: english.locale))
+    #expect(run.subagents.map(\.status) == [.running] && run.doing(bundle: english.bundle, locale: english.locale) == "Waiting for them" && run.chip(waiting: false) == .subagents(1))
+    #expect(subagentWork(in: events, call: "a1", working: true, bundle: english.bundle, locale: english.locale)?.header.state == .running)
     // idle: the row, the parent's line (no more "Waiting for them") and the view all say stopped
-    run = group(chatFeed(events, working: false))
-    #expect(run.subagents.map(\.status) == [.stopped] && run.subagents[0].words == "Stopped" && run.subagents[0].endedAt == 60)
-    #expect(run.runningSubagents == 0 && run.isWorking == false && run.doing == nil && run.chip(waiting: false) == .thinking)
-    let work = subagentWork(in: events, call: "a1", working: false)
-    #expect(work?.header.state == .stopped && work?.header.durationMs == 49 && work?.header.stateWords(now: 0) == "Stopped")
+    run = group(chatFeed(events, working: false, bundle: english.bundle, locale: english.locale))
+    #expect(run.subagents.map(\.status) == [.stopped] && run.subagents[0].words(bundle: english.bundle, locale: english.locale) == "Stopped" && run.subagents[0].endedAt == 60)
+    #expect(run.runningSubagents == 0 && run.isWorking == false && run.doing(bundle: english.bundle, locale: english.locale) == nil && run.chip(waiting: false) == .thinking)
+    let work = subagentWork(in: events, call: "a1", working: false, bundle: english.bundle, locale: english.locale)
+    #expect(work?.header.state == .stopped && work?.header.durationMs == 49 && work?.header.stateWords(now: 0, bundle: english.bundle, locale: english.locale) == "Stopped")
     // one that ended keeps how it ended
     let done = events + [task(9, 55, "a1", "completed")]
-    #expect(group(chatFeed(done, working: false)).subagents.map(\.status) == [.completed])
+    #expect(group(chatFeed(done, working: false, bundle: english.bundle, locale: english.locale)).subagents.map(\.status) == [.completed])
 }
 
 @MainActor @Test func theConversationDrawsAnUnfinishedSubagentStoppedWhileTheHostSaysIdleAndRunningWhileItSaysWorking() async {
@@ -2103,13 +2103,13 @@ private func launched(_ call: String, at: Int, id: Int) -> [ChatEvent] {
 
 @Test func theEverythingGoldenHasEveryKindOfRowAndTheQuestionGoldenAsksTwoQuestions() throws {
     let all = try golden("everything")
-    let rows = chatFeed(all.events, pending: all.pending)
+    let rows = chatFeed(all.events, pending: all.pending, bundle: english.bundle, locale: english.locale)
     let kinds = Set(texts(rows).map { String($0.prefix { $0 != ":" }) })
     // a user bubble, the agent's markdown, a run of work, a permission allowed and one declined, a card no longer waiting, an error, the turn lines and a stop
     #expect(kinds.isSuperset(of: ["user", "agent", "tools", "allowed", "declined", "line", "error", "end", "stopped"]))
     #expect(rows.contains { if case .tools(_, let group) = $0 { group.thoughts.isEmpty == false } else { false } })
     let asked = try golden("question")
-    let cards = chatFeed(asked.events, pending: ["q1"]).compactMap { row -> ApprovalCard? in if case .approval(_, let card) = row { card } else { nil } }
+    let cards = chatFeed(asked.events, pending: ["q1"], bundle: english.bundle, locale: english.locale).compactMap { row -> ApprovalCard? in if case .approval(_, let card) = row { card } else { nil } }
     #expect(cards.count == 1 && cards[0].questions.map(\.multiSelect) == [false, true])
 }
 

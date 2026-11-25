@@ -15,7 +15,7 @@ struct MessageBox<Selects: View>: View {
     var canSend: Bool
     /// Whether the session would take a message if it had a text: a long text pasted into the box is a message without one. Nil when it cannot say.
     var canSendWithText: Bool?
-    var sendHelp = "Send"
+    var sendHelp = Copy.chatSend()
     /// Whether the agent is answering: the button is Stop, and Enter still sends (the session holds the message until the turn ends).
     var busy = false
     /// Set to true to put the caret in the text.
@@ -166,7 +166,7 @@ struct MessageBox<Selects: View>: View {
             .animation(.smooth(duration: 0.2), value: dropping)
             .onDrop(of: [.fileURL, .image], isTargeted: $dropping) { drop($0) }
             if let failure = dictation.session.failure(for: dictationOwner) {
-                ProblemNotice(title: "Dictation did not work", detail: failure.cause, failed: true)
+                ProblemNotice(title: Copy.chatDictationFailed(), detail: failure.cause, failed: true)
             }
         }
         // switching session: the box of the one left stops listening and keeps what it heard
@@ -207,8 +207,8 @@ struct MessageBox<Selects: View>: View {
     /// What the box says while files are over it.
     private var dropVeil: some View {
         VStack(spacing: Tokens.Space.s3) {
-            Text("Drop to attach").scaledFont(14, weight: .semibold)
-            Text("The agent reads them by their path").scaledFont(12).foregroundStyle(.secondary)
+            Text(Copy.chatDropToAttach()).scaledFont(14, weight: .semibold)
+            Text(Copy.chatDropDetail()).scaledFont(12).foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(RoundedRectangle(cornerRadius: Tokens.Radius.panel).fill(.tint.opacity(0.16)))
@@ -342,6 +342,6 @@ struct MessageBox<Selects: View>: View {
             .chatSurface(active ? .regular.tint(theme.accentGlass).interactive() : .regular, flat: active ? theme.accentGlass : Color.primary.opacity(0.08), in: Circle())
             .disabled(active == false)
             .animation(.smooth(duration: 0.25), value: active)
-        .help(busy ? "Stop" : "\(sendHelp) (\(sendKey == .return ? "↩" : "⌘↩")) · New line (\(sendKey == .return ? "⇧↩" : "↩"))").accessibilityLabel(busy ? "Stop" : "Send")
+        .help(busy ? Copy.chatStop() : Copy.chatSendHelp(send: sendHelp, key: sendKey == .return ? "↩" : "⌘↩", newLine: sendKey == .return ? "⇧↩" : "↩")).accessibilityLabel(busy ? Copy.chatStop() : Copy.chatSend())
     }
 }

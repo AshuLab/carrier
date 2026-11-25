@@ -20,7 +20,7 @@ struct ThoughtRowView: View {
         .contentShape(Rectangle())
         .onTapGesture { flip(key, in: $flipped) }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Thought: \(thought.text)")
+        .accessibilityLabel(Copy.chatThoughtSpoken(text: thought.text))
     }
 }
 
@@ -45,7 +45,7 @@ struct CallRowView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                     if call.status != .running {
                         StateMark(shape: call.status.shape, size: 11, weight: .semibold).foregroundStyle(.red)
-                        Text(call.result).foregroundStyle(call.status == .failed ? .red : .secondary)
+                        Text(call.result()).foregroundStyle(call.status == .failed ? .red : .secondary)
                     }
                     LogChevron(open: open)
                 }
@@ -55,8 +55,8 @@ struct CallRowView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("\(call.label) \(call.subject), \(call.result.isEmpty ? "running" : call.result)")
-            .accessibilityHint(open ? "Hides the detail" : "Shows the detail")
+            .accessibilityLabel(Copy.chatCallSpoken(label: call.label, subject: call.subject, result: call.result().isEmpty ? Copy.chatCallRunning() : call.result()))
+            .accessibilityHint(open ? Copy.chatCallHintHide() : Copy.chatCallHintShow())
             if open { CallDetailView(call: call).padding(.leading, Tokens.Space.s24).padding(.top, Tokens.Space.s6).padding(.bottom, Tokens.Space.s6) }
         }
     }
@@ -91,12 +91,12 @@ struct CallDetailView: View {
                 // the row cuts a long or multi-line command in the middle: opened, the call shows all of it
                 if call.kind == .shell, call.arg.contains("\n") || call.arg.count > 80 { CodeBlockView(language: "bash", code: call.arg) }
                 if case .mcp = call.kind, call.arg.isEmpty == false {
-                    CodeBlockView(language: resolvedCodeLanguage(nil, code: call.arg) ?? "Arguments", code: call.arg)
+                    CodeBlockView(language: resolvedCodeLanguage(nil, code: call.arg) ?? Copy.chatCodeArguments(), code: call.arg)
                 }
                 if call.output.isEmpty {
-                    Text(call.status == .running ? "running…" : "no output").scaledFont(11.5).foregroundStyle(.secondary).padding(.horizontal, Tokens.Space.s6)
+                    Text(call.status == .running ? Copy.chatCallRunningDots() : Copy.chatCallNoOutput()).scaledFont(11.5).foregroundStyle(.secondary).padding(.horizontal, Tokens.Space.s6)
                 } else {
-                    CodeBlockView(language: "Output", code: call.output.joined(separator: "\n"), foldAfter: OutputLength(rawValue: lines)?.rawValue ?? AppPreferences.defaultOutputLength.rawValue, spare: 0)
+                    CodeBlockView(language: Copy.chatCodeOutput(), code: call.output.joined(separator: "\n"), foldAfter: OutputLength(rawValue: lines)?.rawValue ?? AppPreferences.defaultOutputLength.rawValue, spare: 0)
                 }
             }
         }

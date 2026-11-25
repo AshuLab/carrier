@@ -47,6 +47,8 @@ How a screen reads a text, so every area does it the same way.
 - A pure function of `CarrierCore` that builds a sentence takes `bundle: Bundle? = nil, locale: Locale = .current` last and hands both to `Copy`; a function a view reads as a property becomes a method for it.
 - A test asserts English with `english` and Spanish with `spanish` (`Tests/CarrierCoreTests/Copy/Languages.swift`: `Copy.bundle("en")` and `en_US`, `Copy.bundle("es")` and `es_AR`), passing `bundle: spanish.bundle, locale: spanish.locale`; every plural a function uses has its Spanish case asserted.
 - A text Node sends (a doctor check's detail and fix, a preparation step's detail) is shown through its text code and is not a key of the area.
+- A value never keeps a sentence it built in English: it keeps the data, and a method that takes `bundle:` and `locale:` says the words (`ToolCall.result`, `Subagent.words`), or the function that builds the value takes them (`chatFeed`).
+- What a provider or the host says in its own words (a model's label, a call's summary, a tool's output) is shown as it came, in its language.
 
 ## The scales
 

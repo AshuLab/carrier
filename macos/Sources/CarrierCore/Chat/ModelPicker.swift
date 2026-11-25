@@ -58,9 +58,9 @@ public struct ModelOption: Equatable, Identifiable {
 }
 
 /// The models of an offer. "Default" is left out: a role runs on a named model, and what the default is changes with the CLI.
-public func modelOptions(_ offer: AgentOffer?) -> [ModelOption] {
+public func modelOptions(_ offer: AgentOffer?, bundle: Bundle? = nil, locale: Locale = .current) -> [ModelOption] {
     guard let offer else { return [] }
-    return composerMenu(offer.options).models.filter { $0.id != "default" }.map { choice in
+    return composerMenu(offer.options, bundle: bundle, locale: locale).models.filter { $0.id != "default" }.map { choice in
         let version = choice.version.flatMap { $0.lowercased() == choice.label.lowercased() ? nil : $0 }
         return ModelOption(id: choice.id, label: choice.label, detail: choice.detail ?? version)
     }
@@ -133,11 +133,13 @@ public struct EffortStep: Equatable {
     public var detail: String
 }
 
-public let effortSteps: [EffortStep] = [
-    EffortStep(id: "", label: "Default", detail: "The CLI's own level, whatever it is today."),
-    EffortStep(id: "low", label: "Low", detail: "The quickest answers, with the least thinking."),
-    EffortStep(id: "medium", label: "Medium", detail: "Balanced: some thinking before it answers."),
-    EffortStep(id: "high", label: "High", detail: "Thinks it through; slower and more careful."),
-    EffortStep(id: "xhigh", label: "Extra high", detail: "A lot of thinking, for hard problems."),
-    EffortStep(id: "max", label: "Max", detail: "The most thinking it can do; the slowest."),
-]
+public func effortSteps(bundle: Bundle? = nil, locale: Locale = .current) -> [EffortStep] {
+    [
+        EffortStep(id: "", label: Copy.chatEffortDefault(bundle: bundle, locale: locale), detail: Copy.chatEffortDetailDefault(bundle: bundle, locale: locale)),
+        EffortStep(id: "low", label: Copy.chatEffortLow(bundle: bundle, locale: locale), detail: Copy.chatEffortDetailLow(bundle: bundle, locale: locale)),
+        EffortStep(id: "medium", label: Copy.chatEffortMedium(bundle: bundle, locale: locale), detail: Copy.chatEffortStepMedium(bundle: bundle, locale: locale)),
+        EffortStep(id: "high", label: Copy.chatEffortHigh(bundle: bundle, locale: locale), detail: Copy.chatEffortStepHigh(bundle: bundle, locale: locale)),
+        EffortStep(id: "xhigh", label: Copy.chatEffortExtraHigh(bundle: bundle, locale: locale), detail: Copy.chatEffortStepExtraHigh(bundle: bundle, locale: locale)),
+        EffortStep(id: "max", label: Copy.chatEffortMax(bundle: bundle, locale: locale), detail: Copy.chatEffortStepMax(bundle: bundle, locale: locale)),
+    ]
+}

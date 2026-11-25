@@ -11,7 +11,7 @@ struct KindChipView: View {
                 if let icon = chip.icon {
                     Glyph(icon, size: 9.5)
                 }
-                Text(chip.label).scaledFont(11, weight: .semibold).lineLimit(1).truncationMode(.tail)
+                Text(chip.label()).scaledFont(11, weight: .semibold).lineLimit(1).truncationMode(.tail)
             }
             .foregroundStyle(foreground)
             .padding(.leading, chip.icon == nil ? Tokens.Space.s8 : Tokens.Space.s6).padding(.trailing, Tokens.Space.s8).padding(.vertical, Tokens.Space.s1)

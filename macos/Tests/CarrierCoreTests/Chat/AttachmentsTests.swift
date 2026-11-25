@@ -20,23 +20,23 @@ private func temporaryFolder() throws -> URL {
     try Data().write(to: sub.appendingPathComponent(".hidden"))
 
     let file = attachedFile(at: log, carrierFolder: "/nowhere")
-    #expect(file.kind == .log && file.size == 2048 && file.problem == nil && file.name == "chat-host.log" && file.detail == "2 KB")
+    #expect(file.kind == .log && file.size == 2048 && file.problem == nil && file.name == "chat-host.log" && file.detail(bundle: english.bundle, locale: english.locale) == "2 KB")
     let dir = attachedFile(at: sub, carrierFolder: "/nowhere")
-    #expect(dir.kind == .folder && dir.items == 1 && dir.detail == "1 item" && dir.problem == nil)
+    #expect(dir.kind == .folder && dir.items == 1 && dir.detail(bundle: english.bundle, locale: english.locale) == "1 item" && dir.problem == nil)
 }
 
 @Test func aFileThatCannotGoSaysWhy() throws {
     let folder = try temporaryFolder()
     defer { try? FileManager.default.removeItem(at: folder) }
     let gone = attachedFile(at: folder.appendingPathComponent("gone.pdf"), carrierFolder: "/nowhere")
-    #expect(gone.problem == .missing && gone.problemText == "Not found" && gone.kind == .pdf)
+    #expect(gone.problem == .missing && gone.problemText(bundle: english.bundle, locale: english.locale) == "Not found" && gone.kind == .pdf)
     // Carrier's own state: the database of the chat and the engine's folder
     let state = folder.appendingPathComponent("chat/state")
     try FileManager.default.createDirectory(at: state, withIntermediateDirectories: true)
     let db = state.appendingPathComponent("chat.db")
     try Data(count: 10).write(to: db)
     #expect(attachedFile(at: db, carrierFolder: folder.standardizedFileURL.path).problem == .carrierOwn)
-    #expect(AttachedFile(path: "/x/big.sqlite", kind: .data, size: 640 << 20, problem: .tooBig(640 << 20)).problemText?.hasPrefix("Too big · 6") == true)
+    #expect(AttachedFile(path: "/x/big.sqlite", kind: .data, size: 640 << 20, problem: .tooBig(640 << 20)).problemText(bundle: english.bundle, locale: english.locale)?.hasPrefix("Too big · 6") == true)
 }
 
 @Test func theKindComesFromTheExtension() {

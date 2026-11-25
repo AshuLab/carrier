@@ -59,26 +59,29 @@ public struct ToolGroup: Equatable {
 
     /// Failed when the turn ended in an error, Thought when there are no calls, Explored when there are only reads and searches, Changed when there is a change, Worked otherwise;
     /// Working while a call is going.
-    public var title: String {
-        if isWorking { return "Working" }
-        if erred { return "Failed" }
-        if calls.isEmpty { return subagents.isEmpty ? "Thought" : "Worked" }
-        if calls.contains(where: { $0.kind == .edit }) { return "Changed" }
-        return calls.allSatisfy({ $0.kind == .read || $0.kind == .search }) ? "Explored" : "Worked"
+    public func title(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        if isWorking { return Copy.chatGroupWorking(bundle: bundle, locale: locale) }
+        if erred { return Copy.chatFailed(bundle: bundle, locale: locale) }
+        if calls.isEmpty { return subagents.isEmpty ? Copy.chatGroupThought(bundle: bundle, locale: locale) : Copy.chatGroupWorked(bundle: bundle, locale: locale) }
+        if calls.contains(where: { $0.kind == .edit }) { return Copy.chatGroupChanged(bundle: bundle, locale: locale) }
+        return calls.allSatisfy({ $0.kind == .read || $0.kind == .search }) ? Copy.chatGroupExplored(bundle: bundle, locale: locale) : Copy.chatGroupWorked(bundle: bundle, locale: locale)
     }
 
     /// The non-zero counts as "3 thoughts · 2 files read · 1 search · 2 files changed · 1 command · 1 MCP call · 2 subagents · 1 other tool", in that order; files changed counts distinct paths.
-    public var summary: String {
+    public func summary(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         func count(_ kind: ToolKind) -> Int { calls.filter { $0.kind == kind }.count }
-        func part(_ n: Int, _ one: String, _ many: String) -> String? { n == 0 ? nil : "\(n) \(n == 1 ? one : many)" }
+        func part(_ n: Int, _ words: (Int, Bundle?, Locale) -> String) -> String? { n == 0 ? nil : words(n, bundle, locale) }
         let mcpCalls = calls.filter { if case .mcp = $0.kind { true } else { false } }.count
         let changed = Set(calls.filter { $0.kind == .edit }.map { $0.arg.isEmpty ? $0.id : $0.arg }).count
         return [
-            part(thoughts.count, "thought", "thoughts"),
-            part(count(.read), "file read", "files read"), part(count(.search), "search", "searches"),
-            part(changed, "file changed", "files changed"), part(count(.shell), "command", "commands"),
-            part(mcpCalls, "MCP call", "MCP calls"), part(subagents.count, "subagent", "subagents"),
-            part(count(.other), "other tool", "other tools"),
+            part(thoughts.count) { Copy.chatSummaryThoughts(count: $0, bundle: $1, locale: $2) },
+            part(count(.read)) { Copy.chatSummaryFilesRead(count: $0, bundle: $1, locale: $2) },
+            part(count(.search)) { Copy.chatSummarySearches(count: $0, bundle: $1, locale: $2) },
+            part(changed) { Copy.chatSummaryFilesChanged(count: $0, bundle: $1, locale: $2) },
+            part(count(.shell)) { Copy.chatSummaryCommands(count: $0, bundle: $1, locale: $2) },
+            part(mcpCalls) { Copy.chatSummaryMcpCalls(count: $0, bundle: $1, locale: $2) },
+            part(subagents.count) { Copy.chatSummarySubagents(count: $0, bundle: $1, locale: $2) },
+            part(count(.other)) { Copy.chatSummaryOtherTools(count: $0, bundle: $1, locale: $2) },
         ].compactMap { $0 }.joined(separator: " · ")
     }
 
@@ -121,7 +124,9 @@ public struct ToolGroup: Equatable {
     /// Whether the turn was stopped before a call ended.
     public var isStopped: Bool { calls.contains { $0.status == .stopped } }
     /// What the agent is doing now: the call that started last of those still going.
-    public var doing: String? { runningSubagents > 0 ? "Waiting for them" : calls.last { $0.status == .running }?.doing }
+    public func doing(bundle: Bundle? = nil, locale: Locale = .current) -> String? {
+        runningSubagents > 0 ? Copy.chatGroupWaitingForThem(bundle: bundle, locale: locale) : calls.last { $0.status == .running }?.doing(bundle: bundle, locale: locale)
+    }
 
     /// When the first step started, in milliseconds since the epoch.
     public var startedAt: Int { since ?? [calls.first?.startedAt, thoughts.first?.at, subagents.first?.startedAt].compactMap { $0 }.min() ?? 0 }

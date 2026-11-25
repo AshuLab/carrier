@@ -471,8 +471,8 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"", protocol vers
     let lost = try JSONDecoder().decode(ChatEvent.self, from: Data(#"{"id":10,"at":2,"kind":"notice","text":"new conversation","lostNativeId":"x"}"#.utf8))
     #expect(lost.switched == nil)
     // the feed draws a change of agent as its own divider, and any other notice as the plain line it is
-    #expect(chatFeed([switched]) == [.switched(id: "e9", .init(from: "claude", to: "codex"))])
-    #expect(chatFeed([lost]) == [.line(id: "e10", text: "new conversation")])
+    #expect(chatFeed([switched], bundle: english.bundle, locale: english.locale) == [.switched(id: "e9", .init(from: "claude", to: "codex"))])
+    #expect(chatFeed([lost], bundle: english.bundle, locale: english.locale) == [.line(id: "e10", text: "new conversation")])
 }
 
 private final class Asked: @unchecked Sendable {

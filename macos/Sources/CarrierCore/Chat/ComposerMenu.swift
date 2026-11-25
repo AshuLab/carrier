@@ -50,13 +50,13 @@ private let carefulFirst: [String: [String]] = [
 ]
 private let safeAccess = ["permissionMode": "default", "approvalPolicy": "untrusted", "sandbox": "workspace-write"]
 
-public func composerMenu(_ options: [ChatOption]) -> ComposerMenu {
-    let rows = optionRows(options)
+public func composerMenu(_ options: [ChatOption], bundle: Bundle? = nil, locale: Locale = .current) -> ComposerMenu {
+    let rows = optionRows(options, bundle: bundle, locale: locale)
     let access = rows.compactMap { row -> OptionScale? in
         guard let order = carefulFirst[row.id] else { return nil }
         let rank = { (choice: OptionRow.Choice) in order.firstIndex(of: choice.id) ?? order.count }
-        return OptionScale(id: row.id, title: row.id == "permissionMode" ? "Access" : row.label, steps: row.choices.enumerated().sorted { (rank($0.element), $0.offset) < (rank($1.element), $1.offset) }.map(\.element))
+        return OptionScale(id: row.id, title: row.id == "permissionMode" ? Copy.chatComposerAccess(bundle: bundle, locale: locale) : row.label, steps: row.choices.enumerated().sorted { (rank($0.element), $0.offset) < (rank($1.element), $1.offset) }.map(\.element))
     }
-    let effort = rows.first { $0.id == "effort" }.flatMap { $0.choices.isEmpty ? nil : OptionScale(id: $0.id, title: "Reasoning", steps: $0.choices) }
+    let effort = rows.first { $0.id == "effort" }.flatMap { $0.choices.isEmpty ? nil : OptionScale(id: $0.id, title: Copy.chatComposerReasoning(bundle: bundle, locale: locale), steps: $0.choices) }
     return ComposerMenu(models: rows.first { $0.id == "model" }?.choices ?? [], reasoning: effort, access: access)
 }

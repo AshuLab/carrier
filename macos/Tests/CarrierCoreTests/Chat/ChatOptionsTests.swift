@@ -36,12 +36,12 @@ private let codex = [
 }
 
 @Test func thePanelHasARowPerOptionWithTheCurrentValueTicked() {
-    let rows = optionRows(claude)
+    let rows = optionRows(claude, bundle: english.bundle, locale: english.locale)
     #expect(rows.map(\.label) == ["Model", "Effort", "Permissions"])
     #expect(rows[1].choices.map(\.label) == ["Medium", "High"])
     #expect(rows[1].choices.map(\.ticked) == [false, true])
-    #expect(optionRows(codex).count == 4)
-    #expect(optionRows([]).isEmpty)
+    #expect(optionRows(codex, bundle: english.bundle, locale: english.locale).count == 4)
+    #expect(optionRows([], bundle: english.bundle, locale: english.locale).isEmpty)
 }
 
 @Test func theEventsReplyCarriesTheOptions() throws {

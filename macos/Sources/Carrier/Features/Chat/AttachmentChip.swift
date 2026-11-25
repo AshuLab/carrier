@@ -27,14 +27,14 @@ struct AttachmentChip: View {
             badge
             VStack(alignment: .leading, spacing: Tokens.Space.none) {
                 Text(Self.shortened(file.name)).scaledFont(12.5, weight: .semibold).lineLimit(1)
-                Text(file.problemText ?? file.detail).scaledFont(11).foregroundStyle(tint ?? .secondary).lineLimit(1)
+                Text(file.problemText() ?? file.detail()).scaledFont(11).foregroundStyle(tint ?? .secondary).lineLimit(1)
             }
             if let remove {
                 Button(action: remove) {
                     Glyph(.close, size: 9).foregroundStyle(.secondary)
                         .frame(width: 18, height: 18).background(Circle().fill(Color.primary.opacity(0.14))).contentShape(Circle())
                 }
-                .buttonStyle(.plain).help("Take it out").accessibilityLabel("Remove \(file.name)")
+                .buttonStyle(.plain).help(Copy.chatAttachmentTakeOut()).accessibilityLabel(Copy.chatAttachmentRemove(name: file.name))
                 .opacity(hovering || tint != nil ? 1 : 0)
                 .animation(.easeOut(duration: 0.12), value: hovering)
             }

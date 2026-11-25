@@ -8,8 +8,8 @@ struct CreateBotRow: View {
     @State private var failure: String?
 
     var body: some View {
-        SettingsTabRow(id: "create-a-bot", title: "Create a bot…", detail: failure ?? "Opens Terminal on agent-forge add; the list updates when you come back") {
-            Button { open() } label: { Label("Create a bot…", icon: .plus) }.buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).help("Opens Terminal and runs agent-forge add")
+        SettingsTabRow(id: "create-a-bot", title: Copy.agentsCreateBotTitle(), detail: failure ?? Copy.agentsCreateBotDetail()) {
+            Button { open() } label: { Label(Copy.agentsCreateBotTitle(), icon: .plus) }.buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).help(Copy.agentsCreateBotHelp())
         }
     }
 
@@ -19,7 +19,7 @@ struct CreateBotRow: View {
             failure = nil
         } catch {
             NSLog("Carrier: create a bot in Terminal failed: %@", String(describing: error))
-            failure = "Could not open Terminal."
+            failure = Copy.agentsCouldNotOpenTerminal()
         }
     }
 }

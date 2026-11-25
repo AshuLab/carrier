@@ -50,49 +50,49 @@ struct AccountEditor: View {
             if inFile == false {
                 // never a blank form that would write over an account it did not read
                 SettingsGroup(title: "") {
-                    Label("\(account.title) is not in providers.json, so there is nothing to edit.", icon: .warningFilled).scaledFont(12).foregroundStyle(.orange)
+                    Label(Copy.providersNotInFile(account: account.title), icon: .warningFilled).scaledFont(12).foregroundStyle(.orange)
                 }
             } else {
-                SettingsGroup(title: "Name") {
-                    field("Display name", "displayName", "What the app shows instead of \(account.name)", first: true) {
-                        TextField("", text: $draft.displayName, prompt: Text(account.name)).accessibilityLabel("Display name").settingsField(width: Self.controlWidth)
+                SettingsGroup(title: Copy.providersGroupName()) {
+                    field(Copy.providersDisplayName(), "displayName", Copy.providersDisplayNameDetail(account: account.name), first: true) {
+                        TextField("", text: $draft.displayName, prompt: Text(account.name)).accessibilityLabel(Copy.providersDisplayName()).settingsField(width: Self.controlWidth)
                     }
                     if store.identityEditable {
-                        field("Label", "label", "Short, for tabs, chips and the message box. Empty uses the display name") {
-                            TextField("", text: $draft.label, prompt: Text(account.name)).accessibilityLabel("Label").settingsField(width: Self.controlWidth)
+                        field(Copy.providersLabel(), "label", Copy.providersLabelDetail()) {
+                            TextField("", text: $draft.label, prompt: Text(account.name)).accessibilityLabel(Copy.providersLabel()).settingsField(width: Self.controlWidth)
                         }
-                        field("Icon", "icon", "The tool's mark by default") { pickerButton(.icon) }
-                        field("Color", "color", "Tints the mark wherever it shows") { pickerButton(.color) }
+                        field(Copy.providersIcon(), "icon", Copy.providersIconDetail()) { pickerButton(.icon) }
+                        field(Copy.providersColor(), "color", Copy.providersColorDetail()) { pickerButton(.color) }
                     } else {
                         // the installed carrier would refuse the whole file with these keys in it, so they are not offered until it is updated
-                        SettingsTabRow(title: "Label, icon and color", detail: "The installed carrier does not know them yet. Update it (brew upgrade carrier) and restart the chat host to set them", roomy: true) {
+                        SettingsTabRow(title: Copy.providersIdentityTitle(), detail: Copy.providersIdentityOld(), roomy: true) {
                             Glyph(.refresh).foregroundStyle(.secondary).accessibilityHidden(true)
                         }
                     }
                 }
-                SettingsGroup(title: "Where it runs") {
-                    field("Binary path", "command", "Empty runs \(harness) from the PATH", first: true) {
-                        TextField("", text: $draft.command, prompt: Text("/opt/homebrew/bin/\(harness)")).accessibilityLabel("Binary path").settingsField(width: Self.controlWidth)
+                SettingsGroup(title: Copy.providersGroupRuns()) {
+                    field(Copy.providersBinaryPath(), "command", Copy.providersBinaryDetail(harness: harness), first: true) {
+                        TextField("", text: $draft.command, prompt: Text(verbatim: "/opt/homebrew/bin/\(harness)")).accessibilityLabel(Copy.providersBinaryPath()).settingsField(width: Self.controlWidth)
                     }
                     if harness != "agy" {
-                        field("Config folder", "configDir", harness == "claude" ? "CLAUDE_CONFIG_DIR; empty is this Mac's login" : "CODEX_HOME; empty is this Mac's login", hint: "Any path; one that does not start with / or ~/ is taken from your home folder") {
-                            TextField("", text: $draft.configDir, prompt: Text("~/.\(harness)-work")).accessibilityLabel("Config folder").settingsField(width: Self.controlWidth)
+                        field(Copy.providersConfigFolder(), "configDir", Copy.providersConfigFolderDetail(variable: harness == "claude" ? "CLAUDE_CONFIG_DIR" : "CODEX_HOME"), hint: Copy.providersConfigFolderHint()) {
+                            TextField("", text: $draft.configDir, prompt: Text(verbatim: "~/.\(harness)-work")).accessibilityLabel(Copy.providersConfigFolder()).settingsField(width: Self.controlWidth)
                         }
                     }
                 }
                 if harness != "agy" {
-                    SettingsGroup(title: "Advanced") {
-                        field("Auto-compact after", "autoCompact", "Tokens in the conversation before the CLI compacts it. Use default is the CLI's own", first: true) {
+                    SettingsGroup(title: Copy.providersGroupAdvanced()) {
+                        field(Copy.providersAutoCompact(), "autoCompact", Copy.providersAutoCompactDetail(), first: true) {
                             // the steps are ours; a value already in the file that is not one of them stays in the list, so opening the editor never changes it
                             let steps = (harness == "claude" ? ["auto"] : []) + ["100000", "200000", "400000", "600000", "800000", "1000000"]
                             let values = [""] + (draft.autoCompact.isEmpty || steps.contains(draft.autoCompact) ? steps : steps + [draft.autoCompact])
                             SelectMenu(
-                                items: values.map { $0.isEmpty ? "Use default" : Int($0).map { $0.formatted() } ?? $0 },
+                                items: values.map { $0.isEmpty ? Copy.providersUseDefault() : Int($0).map { $0.formatted() } ?? $0 },
                                 selection: Binding(get: { values.firstIndex(of: draft.autoCompact) ?? 0 }, set: { draft.autoCompact = values[$0] })
                             )
-                            .accessibilityLabel("Auto-compact after")
+                            .accessibilityLabel(Copy.providersAutoCompact())
                         }
-                        field("Launch arguments", "launchArgs", "One per line, added to the ones Carrier passes") {
+                        field(Copy.providersLaunchArgs(), "launchArgs", Copy.providersLaunchArgsDetail()) {
                             TextEditor(text: $draft.launchArgs).scaledFont(11.5, design: .monospaced)
                                 .scrollContentBackground(.hidden).padding(Tokens.Space.s4)
                                 .background(RoundedRectangle(cornerRadius: Tokens.Radius.small).fill(Color.secondary.opacity(0.12)))
@@ -100,13 +100,13 @@ struct AccountEditor: View {
                                 .frame(width: Self.controlWidth, height: 70)
                         }
                         if harness == "claude" {
-                            field("Compact idle threads", "idleCompaction", "Use default passes nothing") {
+                            field(Copy.providersCompactIdle(), "idleCompaction", Copy.providersCompactIdleDetail()) {
                                 let cases = IdleCompaction.allCases.filter { $0 != .always || draft.idle == .always }
                                 SelectMenu(
-                                    items: cases.map(\.title),
+                                    items: cases.map { $0.title() },
                                     selection: Binding(get: { cases.firstIndex(of: draft.idle) ?? 0 }, set: { draft.idle = cases[$0] })
                                 )
-                                .accessibilityLabel("Compact idle threads")
+                                .accessibilityLabel(Copy.providersCompactIdle())
                             }
                         }
                     }
@@ -116,8 +116,8 @@ struct AccountEditor: View {
                     SettingsGroup(title: "") { Label(note, icon: .info).scaledFont(11).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
                 }
                 SettingsGroup(title: "") {
-                    SettingsTabRow(title: "Remove account", detail: "Removes \(account.name) from providers.json; refused while a role or a chat names it", first: true) {
-                        Button(role: .destructive) { confirmingRemove = true } label: { Label("Remove…", icon: .trash) }
+                    SettingsTabRow(title: Copy.providersRemoveTitle(), detail: Copy.providersRemoveDetail(account: account.name), first: true) {
+                        Button(role: .destructive) { confirmingRemove = true } label: { Label(Copy.providersRemoveButton(), icon: .trash) }
                             .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
                     }
                 }
@@ -130,13 +130,13 @@ struct AccountEditor: View {
         .onChange(of: saved) { publish() }
         .onDisappear { saver?.clear(owner) }
         // the ellipsis of Remove… is this question: there is no undoing a removal
-        .alert("Remove \(account.title)?", isPresented: $confirmingRemove) {
-            Button("Cancel", role: .cancel) {}
-            Button("Remove", role: .destructive) {
+        .alert(Copy.providersRemoveAlert(account: account.title), isPresented: $confirmingRemove) {
+            Button(Copy.providersCancel(), role: .cancel) {}
+            Button(Copy.providersRemove(), role: .destructive) {
                 Task { if await store.remove(name: account.name) { ProviderIdentityStore.shared.reload(); close() } }
             }
         } message: {
-            Text("It is taken out of providers.json. A role or a chat that names it keeps it from going.")
+            Text(Copy.providersRemoveMessage())
         }
     }
 
@@ -144,7 +144,7 @@ struct AccountEditor: View {
     private func publish() {
         guard inFile else { return saver?.clear(owner) ?? () }
         let draft = draft
-        saver?.set(owner, title: "Save", icon: .check, enabled: canSave) {
+        saver?.set(owner, title: Copy.providersSave(), icon: .check, enabled: canSave) {
             Task { if await store.save(name: account.name, draft: draft) { ProviderIdentityStore.shared.reload(); close() } }
         }
     }
@@ -160,9 +160,9 @@ struct AccountEditor: View {
             } else {
                 Circle().strokeBorder(Color.secondary, lineWidth: 1.5).frame(width: 18, height: 18)
             }
-            Button("Change…") { picking = kind }.buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
-                .accessibilityLabel(kind == .icon ? "Change the icon" : "Change the color")
-                .accessibilityValue(kind == .icon ? iconName(draft.icon) : draft.color?.rawValue.capitalized ?? "None")
+            Button(Copy.providersChange()) { picking = kind }.buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
+                .accessibilityLabel(kind == .icon ? Copy.providersChangeIcon() : Copy.providersChangeColor())
+                .accessibilityValue(kind == .icon ? iconName(draft.icon) : draft.color?.title() ?? Copy.providersColorName(which: .none))
                 .popover(isPresented: Binding(get: { picking == kind }, set: { if $0 == false { picking = nil } }), arrowEdge: .bottom) {
                     Group { if kind == .icon { iconPicker } else { colorPicker } }.padding(Tokens.Space.s14)
                 }
@@ -208,9 +208,8 @@ struct AccountEditor: View {
 
     private func iconName(_ choice: AccountIcon?) -> String {
         switch choice {
-        case nil: "The tool's mark"
-        case .letter: "First letter"
-        case let named?: named.rawValue.capitalized
+        case nil: Copy.providersToolMark()
+        case let named?: named.title()
         }
     }
 
@@ -224,7 +223,7 @@ struct AccountEditor: View {
 
     private func swatch(_ choice: AccountColor?) -> some View {
         let on = draft.color == choice
-        let name = choice?.rawValue.capitalized ?? "None"
+        let name = choice?.title() ?? Copy.providersColorName(which: .none)
         return Button { draft.color = choice } label: {
             Group {
                 if let choice {
@@ -267,15 +266,15 @@ struct AddAccountForm: View {
 
     var body: some View {
         Group {
-            SettingsGroup(title: "Add account") {
-                SettingsTabRow(title: "Name", detail: "Lowercase letters, digits and hyphens", first: true) {
-                    TextField("", text: $name, prompt: Text("\(harness)-work")).accessibilityLabel("Name").settingsField(width: AccountEditor.controlWidth)
+            SettingsGroup(title: Copy.providersAddAccount()) {
+                SettingsTabRow(title: Copy.providersAddName(), detail: Copy.providersAddNameDetail(), first: true) {
+                    TextField("", text: $name, prompt: Text(verbatim: "\(harness)-work")).accessibilityLabel(Copy.providersAddName()).settingsField(width: AccountEditor.controlWidth)
                 }
                 SettingsTabRow(
-                    title: "Config folder",
-                    detail: (harness == "claude" ? "CLAUDE_CONFIG_DIR of this login" : "CODEX_HOME of this login") + ". Any path; one that does not start with / or ~/ is taken from your home folder"
+                    title: Copy.providersConfigFolder(),
+                    detail: Copy.providersAddFolderDetail(variable: harness == "claude" ? "CLAUDE_CONFIG_DIR" : "CODEX_HOME")
                 ) {
-                    TextField("", text: $folder, prompt: Text("~/.\(harness)-work")).accessibilityLabel("Config folder").settingsField(width: AccountEditor.controlWidth)
+                    TextField("", text: $folder, prompt: Text(verbatim: "~/.\(harness)-work")).accessibilityLabel(Copy.providersConfigFolder()).settingsField(width: AccountEditor.controlWidth)
                 }
             }
             if let message = problem ?? store.editProblem { SettingsGroup(title: "") { ProblemLine(text: message) } }
@@ -292,7 +291,7 @@ struct AddAccountForm: View {
 
     private func publish() {
         let (name, folder) = (name, folder)
-        saver?.set(owner, title: "Add", icon: .plus, enabled: name.isEmpty == false && problem == nil) {
+        saver?.set(owner, title: Copy.providersAdd(), icon: .plus, enabled: name.isEmpty == false && problem == nil) {
             Task { if await store.addAccount(name: name, harness: harness, configDir: folder) { close() } }
         }
     }

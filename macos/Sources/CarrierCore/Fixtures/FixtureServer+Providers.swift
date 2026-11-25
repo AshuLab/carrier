@@ -27,7 +27,7 @@ func fixtureProvidersRefusal(_ error: ProvidersFileError) -> Refusal {
     case .missing(let name):
         return Refusal(code: "account.missing", params: ["name": .string(name)], text: "There is no account named \(name) in providers.json.")
     case .inUse(let name, let uses):
-        let who = uses.map(\.text).joined(separator: ", ")
+        let who = uses.map { $0.text(bundle: Copy.bundle("en"), locale: Locale(identifier: "en_US")) }.joined(separator: ", ")
         return Refusal(code: "account.inUse", params: ["name": .string(name), "uses": .string(who)], text: "\(name) is used by \(who), so it stays. Point those at another account first.")
     case .invalid(let path, let words):
         return Refusal(code: "config.problem", params: ["path": .string(path), "problem": "custom"], text: words)

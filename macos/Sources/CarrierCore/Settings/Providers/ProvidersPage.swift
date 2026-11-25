@@ -72,11 +72,11 @@ public enum ProviderRole: CaseIterable {
         }
     }
 
-    public var title: String {
+    public func title(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         switch self {
-        case .author: "Author"
-        case .reviewer: "Reviewer"
-        case .leadReviewer: "Lead reviewer"
+        case .author: AgentRole.author.title(bundle: bundle, locale: locale)
+        case .reviewer: AgentRole.reviewer.title(bundle: bundle, locale: locale)
+        case .leadReviewer: AgentRole.leadReviewer.title(bundle: bundle, locale: locale)
         }
     }
 }
@@ -89,13 +89,13 @@ public enum AccountUse: Equatable {
     case failover(ProviderRole?)
     case chatAgent(String)
 
-    public var text: String {
+    public func text(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         switch self {
-        case .role(let role): role.title
-        case .repoOverride(let repo, let role): "\(role.title) in \(repo)"
-        case .failover(nil): "Failover, default order"
-        case .failover(let role?): "Failover of \(role.title)"
-        case .chatAgent(let name): "Chat agent \(name)"
+        case .role(let role): role.title(bundle: bundle, locale: locale)
+        case .repoOverride(let repo, let role): Copy.providersUseRepo(role: role.title(bundle: bundle, locale: locale), repo: repo, bundle: bundle, locale: locale)
+        case .failover(nil): Copy.providersUseFailoverDefault(bundle: bundle, locale: locale)
+        case .failover(let role?): Copy.providersUseFailover(role: role.title(bundle: bundle, locale: locale), bundle: bundle, locale: locale)
+        case .chatAgent(let name): Copy.providersUseChat(name: name, bundle: bundle, locale: locale)
         }
     }
 }
@@ -146,7 +146,11 @@ public struct ProviderAccount: Equatable, Identifiable {
 
     public var id: String { name }
     /// "Used by Author, Chat agent claude", or "Not used yet".
-    public var usedBy: String { uses.isEmpty ? "Not used yet" : "Used by " + uses.map(\.text).joined(separator: ", ") }
+    public func usedBy(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        uses.isEmpty
+            ? Copy.providersNotUsed(bundle: bundle, locale: locale)
+            : Copy.providersUsedBy(uses: uses.map { $0.text(bundle: bundle, locale: locale) }.joined(separator: ", "), bundle: bundle, locale: locale)
+    }
 }
 
 public struct ProviderTool: Equatable, Identifiable {
@@ -155,13 +159,13 @@ public struct ProviderTool: Equatable, Identifiable {
         /// The CLI is on this Mac and no account has it.
         case foundNotAdded
 
-        public var text: String {
+        public func text(bundle: Bundle? = nil, locale: Locale = .current) -> String {
             switch self {
-            case .ready: "Signed in"
-            case .signedOut: "Signed out"
-            case .unknown: "Could not check"
-            case .missing: "Not installed"
-            case .foundNotAdded: "Found, not added"
+            case .ready: Copy.providersStatus(which: .ready, bundle: bundle, locale: locale)
+            case .signedOut: Copy.providersStatus(which: .signedOut, bundle: bundle, locale: locale)
+            case .unknown: Copy.providersStatus(which: .unknown, bundle: bundle, locale: locale)
+            case .missing: Copy.providersStatus(which: .missing, bundle: bundle, locale: locale)
+            case .foundNotAdded: Copy.providersStatus(which: .foundNotAdded, bundle: bundle, locale: locale)
             }
         }
     }
@@ -187,10 +191,14 @@ public struct ProviderServer: Equatable, Identifiable {
     /// The model of the text generator in use, when it is on this server.
     public let generatorModel: String?
 
-    public var status: String { running ? "Running · " + (models.count == 1 ? "1 model" : "\(models.count) models") : "Not running" }
+    public func status(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        running ? Copy.providersServerRunning(count: models.count, bundle: bundle, locale: locale) : Copy.providersNotRunning(bundle: bundle, locale: locale)
+    }
 
     /// Why this server cannot be chosen as a text generator, in the words of its row; nil when it lists models.
-    public var generatorNote: String? { running == false ? "Not running" : (models.isEmpty ? "No model loaded" : nil) }
+    public func generatorNote(bundle: Bundle? = nil, locale: Locale = .current) -> String? {
+        running == false ? Copy.providersNotRunning(bundle: bundle, locale: locale) : (models.isEmpty ? Copy.providersNoModelLoaded(bundle: bundle, locale: locale) : nil)
+    }
 
     /// What the server offers as a text generator: its models, and the one in use when the server no longer lists it, so the row still shows it.
     public var generatorModels: [String] {
@@ -205,8 +213,10 @@ public struct ProvidersPage: Equatable {
     public let textGenerator: HostProviders.TextGenerator?
 
     /// The generator in use in words, "qwen3:8b on Ollama"; nil when none is chosen.
-    public var generatorInUse: String? {
-        textGenerator.map { generator in "\(generator.model) on \(localServers.first { $0.id == generator.kind }?.title ?? generator.kind)" }
+    public func generatorInUse(bundle: Bundle? = nil, locale: Locale = .current) -> String? {
+        textGenerator.map { generator in
+            Copy.providersGeneratorInUse(model: generator.model, server: localServers.first { $0.id == generator.kind }?.title ?? generator.kind, bundle: bundle, locale: locale)
+        }
     }
 }
 
@@ -259,13 +269,13 @@ public enum ProvidersOutcome: Equatable {
 
     /// Said in place of the page when there is no reply, or when `providers.json` does not match (the reply then has no accounts); nil when
     /// there is a page to draw.
-    public var note: String? {
+    public func note(bundle: Bundle? = nil, locale: Locale = .current) -> String? {
         switch self {
-        case .unasked: "Looking at this Mac…"
-        case .noHost: "The chat host is not running, so this Mac was not looked at. Open Health to see why."
-        case .tooOld: "The chat host is too old to list the AI tools. Restart it to use the installed Carrier."
-        case .failed(let reason): "The chat host could not list the AI tools: \(reason)"
-        case .reply(let reply): reply.problem.map { "providers.json does not match, so no accounts are shown. \($0.shown())" }
+        case .unasked: Copy.providersLooking(bundle: bundle, locale: locale)
+        case .noHost: Copy.providersNoHost(bundle: bundle, locale: locale)
+        case .tooOld: Copy.providersTooOld(bundle: bundle, locale: locale)
+        case .failed(let reason): Copy.providersFailed(reason: reason, bundle: bundle, locale: locale)
+        case .reply(let reply): reply.problem.map { Copy.providersMismatch(problem: $0.shown(bundle: bundle, locale: locale), bundle: bundle, locale: locale) }
         }
     }
 }
@@ -275,10 +285,10 @@ public enum RetitleOutcome: Equatable {
     case started(Int)
     case refused(String)
 
-    public var words: String {
+    public func words(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         switch self {
-        case .started(0): "Nothing to title: every session already has a title"
-        case .started(let n): "Started \(n) \(n == 1 ? "session" : "sessions") in the background"
+        case .started(0): Copy.providersRetitleNothing(bundle: bundle, locale: locale)
+        case .started(let n): Copy.providersRetitleStarted(count: n, bundle: bundle, locale: locale)
         case .refused(let reason): reason
         }
     }

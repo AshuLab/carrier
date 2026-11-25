@@ -7,7 +7,7 @@ struct AskAgainButton: View {
     let action: () -> Void
 
     var body: some View {
-        Button(action: action) { Label("Ask Carrier again", icon: .refresh) }
+        Button(action: action) { Label(Copy.engineAskAgain(), icon: .refresh) }
             .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).disabled(pending)
     }
 }

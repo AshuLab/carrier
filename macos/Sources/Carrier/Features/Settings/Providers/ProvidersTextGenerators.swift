@@ -8,20 +8,20 @@ extension ProvidersTabView {
     /// The model that writes text for Carrier, chosen among the models the local servers list; `ProvidersStore.chooseTextGenerator` writes it. A server
     /// that does not answer or has no model says so and cannot be chosen; a host that does not list `textGenerators` is told to update and offers nothing.
     @ViewBuilder func textGeneratorsGroup(_ page: ProvidersPage) -> some View {
-        SettingsGroup(id: "text-generators", title: "Text generators", footer: "A model that turns text into text, with no tools. It runs on a server of this Mac, and Carrier asks it for the text it needs.") {
-            SettingsTabRow(title: "In use", detail: page.generatorInUse ?? "None chosen", first: true) {
+        SettingsGroup(id: "text-generators", title: Copy.providersGroupGenerators(), footer: Copy.providersGeneratorsFooter()) {
+            SettingsTabRow(title: Copy.providersInUse(), detail: page.generatorInUse() ?? Copy.providersNoneChosen(), first: true) {
                 if page.textGenerator != nil, store.generatorEditable {
-                    Button { Task { await store.chooseTextGenerator(nil) } } label: { Label("Clear", icon: .close) }
-                        .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).fixedSize().help("Removes the choice from providers.json")
+                    Button { Task { await store.chooseTextGenerator(nil) } } label: { Label(Copy.providersClear(), icon: .close) }
+                        .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).fixedSize().help(Copy.providersClearHelp())
                 }
             }
             if store.generatorEditable {
                 ForEach(page.servers) { server in
                     SettingsTabRow(
-                        title: server.title, detail: server.generatorNote ?? "Choose one of its models",
+                        title: server.title, detail: server.generatorNote() ?? Copy.providersChooseModel(),
                         leading: AnyView(ProviderTile(icon: nil, symbol: server.id == "ollama" ? .server : .desktop))
                     ) {
-                        if server.generatorNote == nil { generatorChoice(server) }
+                        if server.generatorNote() == nil { generatorChoice(server) }
                     }
                 }
                 if page.textGenerator != nil, store.canRegenerateTitles {
@@ -29,7 +29,7 @@ extension ProvidersTabView {
                 }
             } else {
                 // the installed carrier would refuse the whole file with these keys in it, so they are not offered until it is updated
-                SettingsTabRow(title: "Choosing is not available", detail: "Update carrier and restart the chat host to choose one") {
+                SettingsTabRow(title: Copy.providersChoosingUnavailable(), detail: Copy.providersChoosingUnavailableDetail()) {
                     Glyph(.refresh).foregroundStyle(.secondary).accessibilityHidden(true)
                 }
             }
@@ -43,8 +43,8 @@ extension ProvidersTabView {
     /// The server's models and, first, Not used: the one in use shows chosen on its server, and Not used on it clears the choice.
     private func generatorChoice(_ server: ProviderServer) -> some View {
         ChoicePopUp(
-            label: "Model of \(server.title)",
-            options: [(value: "", title: "Not used")] + server.generatorModels.map { (value: $0, title: $0) },
+            label: Copy.providersModelOf(server: server.title),
+            options: [(value: "", title: Copy.providersNotUsedChoice())] + server.generatorModels.map { (value: $0, title: $0) },
             selection: Binding(
                 get: { server.generatorModel ?? "" },
                 set: { model in
@@ -57,26 +57,26 @@ extension ProvidersTabView {
 
     private var retitleEarlierRow: some View {
         let detail = switch store.retitleOutcome {
-        case .started?: store.retitleOutcome!.words
-        case .refused?, nil: "Sessions whose title is still their first line"
+        case .started?: store.retitleOutcome!.words()
+        case .refused?, nil: Copy.providersTitlesDetail()
         }
         let problem: String? = if case .refused(let reason) = store.retitleOutcome { reason } else { nil }
-        return SettingsTabRow(id: "titles-of-earlier-sessions", title: "Titles of earlier sessions", detail: detail, problem: problem) {
+        return SettingsTabRow(id: "titles-of-earlier-sessions", title: Copy.providersTitlesTitle(), detail: detail, problem: problem) {
             HStack(spacing: Tokens.Space.s8) {
                 if store.retitling {
-                    ProgressView().controlSize(.small).accessibilityLabel("Starting")
+                    ProgressView().controlSize(.small).accessibilityLabel(Copy.providersStarting())
                 }
                 Button {
                     Task {
                         await store.regenerateTitles()
-                        if let words = store.retitleOutcome?.words { AccessibilityNotification.Announcement(words).post() }
+                        if let words = store.retitleOutcome?.words() { AccessibilityNotification.Announcement(words).post() }
                     }
                 } label: {
-                    Label("Write titles", icon: .sparkles)
+                    Label(Copy.providersWriteTitles(), icon: .sparkles)
                 }
                 .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).fixedSize()
                 .disabled(store.retitling)
-                .help("Starts writing titles in the background for earlier sessions")
+                .help(Copy.providersWriteTitlesHelp())
             }
         }
     }

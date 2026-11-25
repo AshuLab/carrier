@@ -24,24 +24,24 @@ public struct RepoChecks: Equatable {
     public var note: String?
 }
 
-public func repoChecks(repo: String, roles: [RepoRoleRow], doctor: DoctorState) -> RepoChecks {
+public func repoChecks(repo: String, roles: [RepoRoleRow], doctor: DoctorState, bundle: Bundle? = nil, locale: Locale = .current) -> RepoChecks {
     var checks: [DoctorCheck] = []
     var note: String?
     switch doctor {
     case .checks(let all): checks = all.filter { $0.repo == repo }
-    case .running: note = "Running carrier doctor…"
-    case .unknown(let reason): note = "Could not check: \(reason)"
-    case .refused(let reason): note = "Carrier refuses the config: \(reason)"
+    case .running: note = Copy.watchingDoctorRunning(bundle: bundle, locale: locale)
+    case .unknown(let reason): note = Copy.watchingDoctorUnknown(reason: reason, bundle: bundle, locale: locale)
+    case .refused(let reason): note = Copy.watchingDoctorRefused(reason: reason, bundle: bundle, locale: locale)
     case .idle: break
     }
     func row(_ title: String, role: AgentRole? = nil, _ found: DoctorCheck?) -> RepoCheckRow {
-        guard let found else { return RepoCheckRow(title: title, status: .waiting, detail: "Not checked yet", role: role) }
+        guard let found else { return RepoCheckRow(title: title, status: .waiting, detail: Copy.watchingNotCheckedYet(bundle: bundle, locale: locale), role: role) }
         let status: RepoCheckRow.Status = switch found.status {
         case .ok: .ok
         case .warn: .warn
         case .fail: .fail
         }
-        return RepoCheckRow(title: title, status: status, detail: found.shownDetail(), fix: found.shownFix(), role: role)
+        return RepoCheckRow(title: title, status: status, detail: found.shownDetail(bundle: bundle, locale: locale), fix: found.shownFix(bundle: bundle, locale: locale), role: role)
     }
     // a check that failed says what it is by the code of its detail; one that passed has none, and its name says it
     func matches(_ code: String, _ suffix: String, _ check: DoctorCheck) -> Bool { check.detailCode == code || (check.detailCode == nil && check.name.hasSuffix(suffix)) }
@@ -50,13 +50,13 @@ public func repoChecks(repo: String, roles: [RepoRoleRow], doctor: DoctorState) 
         let found = checks.first { check in
             matches("doctor.mintFailed", " can mint a token for \(repo)", check) && profile.map { check.profiles?.contains($0) == true } == true
         }
-        return row("\(role.title) can sign here", role: role, found)
+        return row(Copy.watchingCheckSign(role: role.title(bundle: bundle, locale: locale), bundle: bundle, locale: locale), role: role, found)
     }
     return RepoChecks(
         rows: [
-            row("Carrier can read it", checks.first { matches("doctor.readFailed", " can read \(repo)", $0) }),
+            row(Copy.watchingCheckRead(bundle: bundle, locale: locale), checks.first { matches("doctor.readFailed", " can read \(repo)", $0) }),
             signRow(.author), signRow(.reviewer),
-            row("Solve is set up", checks.first { matches("doctor.labelsMissing", " has the Solve labels", $0) }),
+            row(Copy.watchingCheckSolve(bundle: bundle, locale: locale), checks.first { matches("doctor.labelsMissing", " has the Solve labels", $0) }),
         ],
         note: note
     )

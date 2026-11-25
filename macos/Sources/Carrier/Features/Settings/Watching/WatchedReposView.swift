@@ -11,7 +11,7 @@ struct WatchedReposView: View {
         let box = carrierBox(snapshot)
         if box.repoCount > 0 {
             VStack(alignment: .leading, spacing: Tokens.Space.s8) {
-                OverviewTitle(title: "Watched repositories", detail: "\(box.repoCount)")
+                OverviewTitle(title: Copy.watchingWatchedRepos(), detail: "\(box.repoCount)")
                 OverviewCard {
                     ForEach(box.repos, id: \.name) { repo in
                         OverviewLinkRow(action: { open(repo.url) }) {
@@ -45,9 +45,9 @@ private struct RepoStatusPill: View {
 
     var body: some View {
         let (text, color): (String, Color) = switch status {
-        case .watching: ("Watching", .green)
-        case .paused: ("Paused", .gray)
-        case .failing: ("Failing", .red)
+        case .watching: (Copy.watchingPill(which: .watching), .green)
+        case .paused: (Copy.watchingPill(which: .paused), .gray)
+        case .failing: (Copy.watchingPill(which: .failing), .red)
         }
         Text(text).scaledFont(11, weight: .semibold).foregroundStyle(color)
             .padding(.horizontal, Tokens.Space.s8).padding(.vertical, Tokens.Space.s3)

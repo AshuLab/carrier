@@ -13,6 +13,25 @@ public enum AccountColor: String, CaseIterable {
 
     /// What the editor offers: all of them when the host knows the later ones, else the first eight, which an older host takes.
     public static func offered(palette: Bool) -> [AccountColor] { palette ? allCases : Array(allCases.prefix(earlier)) }
+
+    /// The color's name as the person reads it.
+    public func title(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch self {
+        case .red: Copy.providersColorName(which: .red, bundle: bundle, locale: locale)
+        case .orange: Copy.providersColorName(which: .orange, bundle: bundle, locale: locale)
+        case .yellow: Copy.providersColorName(which: .yellow, bundle: bundle, locale: locale)
+        case .green: Copy.providersColorName(which: .green, bundle: bundle, locale: locale)
+        case .teal: Copy.providersColorName(which: .teal, bundle: bundle, locale: locale)
+        case .blue: Copy.providersColorName(which: .blue, bundle: bundle, locale: locale)
+        case .purple: Copy.providersColorName(which: .purple, bundle: bundle, locale: locale)
+        case .pink: Copy.providersColorName(which: .pink, bundle: bundle, locale: locale)
+        case .mint: Copy.providersColorName(which: .mint, bundle: bundle, locale: locale)
+        case .cyan: Copy.providersColorName(which: .cyan, bundle: bundle, locale: locale)
+        case .indigo: Copy.providersColorName(which: .indigo, bundle: bundle, locale: locale)
+        case .brown: Copy.providersColorName(which: .brown, bundle: bundle, locale: locale)
+        case .gray: Copy.providersColorName(which: .gray, bundle: bundle, locale: locale)
+        }
+    }
 }
 
 /// The icons an account can have besides its tool's own mark (which is no icon at all): a glyph, or the account's first letter.
@@ -25,6 +44,35 @@ public enum AccountIcon: String, CaseIterable {
 
     /// What the editor offers: all of them when the host knows the later ones, else the first twelve, which an older host takes.
     public static func offered(palette: Bool) -> [AccountIcon] { palette ? allCases : Array(allCases.prefix(earlier)) }
+
+    /// The icon's name as the person reads it.
+    public func title(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch self {
+        case .bolt: Copy.providersIconName(which: .bolt, bundle: bundle, locale: locale)
+        case .star: Copy.providersIconName(which: .star, bundle: bundle, locale: locale)
+        case .briefcase: Copy.providersIconName(which: .briefcase, bundle: bundle, locale: locale)
+        case .person: Copy.providersIconName(which: .person, bundle: bundle, locale: locale)
+        case .people: Copy.providersIconName(which: .people, bundle: bundle, locale: locale)
+        case .code: Copy.providersIconName(which: .code, bundle: bundle, locale: locale)
+        case .flask: Copy.providersIconName(which: .flask, bundle: bundle, locale: locale)
+        case .leaf: Copy.providersIconName(which: .leaf, bundle: bundle, locale: locale)
+        case .moon: Copy.providersIconName(which: .moon, bundle: bundle, locale: locale)
+        case .heart: Copy.providersIconName(which: .heart, bundle: bundle, locale: locale)
+        case .cube: Copy.providersIconName(which: .cube, bundle: bundle, locale: locale)
+        case .letter: Copy.providersIconName(which: .letter, bundle: bundle, locale: locale)
+        case .flame: Copy.providersIconName(which: .flame, bundle: bundle, locale: locale)
+        case .sparkles: Copy.providersIconName(which: .sparkles, bundle: bundle, locale: locale)
+        case .paperplane: Copy.providersIconName(which: .paperplane, bundle: bundle, locale: locale)
+        case .globe: Copy.providersIconName(which: .globe, bundle: bundle, locale: locale)
+        case .shield: Copy.providersIconName(which: .shield, bundle: bundle, locale: locale)
+        case .key: Copy.providersIconName(which: .key, bundle: bundle, locale: locale)
+        case .house: Copy.providersIconName(which: .house, bundle: bundle, locale: locale)
+        case .book: Copy.providersIconName(which: .book, bundle: bundle, locale: locale)
+        case .hammer: Copy.providersIconName(which: .hammer, bundle: bundle, locale: locale)
+        case .cloud: Copy.providersIconName(which: .cloud, bundle: bundle, locale: locale)
+        case .bell: Copy.providersIconName(which: .bell, bundle: bundle, locale: locale)
+        }
+    }
 
     /// The SF Symbol of a glyph; nil for `letter`.
     public var symbol: String? {

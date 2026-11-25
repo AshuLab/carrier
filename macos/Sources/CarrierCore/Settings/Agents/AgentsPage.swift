@@ -27,12 +27,12 @@ public func currentForgeRegistry(environment: [String: String] = ProcessInfo.pro
 
 /// The names in `registry` (`{ "agents": [{ "name": … }] }`), as the engine's `readForgeAgents` reads them. No file, or one that is not a JSON
 /// object, gives no names and a note, not an error.
-public func forgeBots(registry: Data?) -> ForgeBots {
+public func forgeBots(registry: Data?, bundle: Bundle? = nil, locale: Locale = .current) -> ForgeBots {
     guard let registry else {
-        return ForgeBots(names: [], note: "No Agent Forge registry was found, so only your gh login is offered. Create a bot to add one.")
+        return ForgeBots(names: [], note: Copy.agentsNoRegistry(bundle: bundle, locale: locale))
     }
     guard let file = (try? JSONSerialization.jsonObject(with: registry)) as? [String: Any] else {
-        return ForgeBots(names: [], note: "The Agent Forge registry could not be read, so only your gh login is offered.")
+        return ForgeBots(names: [], note: Copy.agentsRegistryUnreadable(bundle: bundle, locale: locale))
     }
     let entries = file["agents"] as? [[String: Any]] ?? []
     let names = entries.compactMap { $0["name"] as? String }
@@ -104,26 +104,26 @@ public struct RoleRow: Equatable, Identifiable {
     /// the switch still has to say the file has no role, but it is drawn and worded as a role that is on.
     public var drafting = false
     public var id: String { role.rawValue }
-    public var title: String { role.title }
+    public func title(bundle: Bundle? = nil, locale: Locale = .current) -> String { role.title(bundle: bundle, locale: locale) }
     /// the Lead reviewer has the switch row on top
     public var hasSwitch: Bool { role == .leadReviewer }
 
     /// The line under the role in the list.
-    public var summary: String { off ? "Off" : fields.text }
+    public func summary(bundle: Bundle? = nil, locale: Locale = .current) -> String { off ? Copy.agentsOff(bundle: bundle, locale: locale) : fields.text(bundle: bundle, locale: locale) }
 
     /// What the toolbar says under the role's name on its screen: the model, how hard it thinks and who it works as.
-    public var headline: String {
-        if off, drafting == false { return "Off" }
+    public func headline(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        if off, drafting == false { return Copy.agentsOff(bundle: bundle, locale: locale) }
         let parts = [fields.model, fields.effort, fields.profile].compactMap { $0 }.filter { $0.isEmpty == false }
-        return parts.isEmpty ? "Not set" : parts.joined(separator: " · ")
+        return parts.isEmpty ? Copy.agentsNotSet(bundle: bundle, locale: locale) : parts.joined(separator: " · ")
     }
 
-    public var identityDetail: String {
+    public func identityDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         switch identity {
-        case .forge: "A bot from Agent Forge"
-        case .gh: "Your gh login"
-        case .missing: fields.profile.map { "“\($0)” is not in Agent Forge’s list or in profiles; it is kept" } ?? ""
-        case .unset: "Not set"
+        case .forge: Copy.agentsIdentityForge(bundle: bundle, locale: locale)
+        case .gh: Copy.agentsIdentityGh(bundle: bundle, locale: locale)
+        case .missing: fields.profile.map { Copy.agentsIdentityMissing(profile: $0, bundle: bundle, locale: locale) } ?? ""
+        case .unset: Copy.agentsNotSet(bundle: bundle, locale: locale)
         }
     }
 }
@@ -139,7 +139,7 @@ public struct AgentsPage: Equatable {
 }
 
 /// The page for `config`; nil when it is not a JSON object (the engine is not configured). `providers` is `providers.json`, nil when it is not there.
-public func agentsPage(config: Data, providers: Data?, bots: ForgeBots) -> AgentsPage? {
+public func agentsPage(config: Data, providers: Data?, bots: ForgeBots, bundle: Bundle? = nil, locale: Locale = .current) -> AgentsPage? {
     guard let file = (try? JSONSerialization.jsonObject(with: config)) as? [String: Any] else { return nil }
     let roles = file["agents"] as? [String: Any] ?? [:]
     let profiles = file["profiles"] as? [String: Any] ?? [:]
@@ -163,7 +163,7 @@ public func agentsPage(config: Data, providers: Data?, bots: ForgeBots) -> Agent
             (step["provider"] as? String).map { FailoverStep(provider: $0, model: step["model"] as? String, effort: step["effort"] as? String) }
         }
         return RoleRow(
-            role: role, what: role.purpose, fields: fields, identity: identity,
+            role: role, what: role.purpose(bundle: bundle, locale: locale), fields: fields, identity: identity,
             providerMissing: fields.provider.map { accounts.contains($0) == false } ?? false,
             steps: steps, off: role == .leadReviewer && roles[role.rawValue] is [String: Any] == false
         )
@@ -176,19 +176,20 @@ public func agentsPage(config: Data, providers: Data?, bots: ForgeBots) -> Agent
     }
     var shared: String?
     if let author = account(.author), let reviewer = account(.reviewer), author.key == reviewer.key {
-        let who = author.profile == reviewer.profile ? "both work as \(author.profile)" : "are one account (\(author.profile) and \(reviewer.profile))"
-        shared = "Author and Reviewer \(who): the signature will show it."
+        shared = author.profile == reviewer.profile
+            ? Copy.agentsSharedSame(profile: author.profile, bundle: bundle, locale: locale)
+            : Copy.agentsSharedOne(author: author.profile, reviewer: reviewer.profile, bundle: bundle, locale: locale)
     }
     return AgentsPage(rows: rows, bots: bots, accounts: accounts, sharedNote: shared)
 }
 
 extension AgentRole {
     /// What the role does, under its name.
-    public var purpose: String {
+    public func purpose(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         switch self {
-        case .author: "Writes the code of the epic and answers the reviewer"
-        case .reviewer: "Reviews the final pull request"
-        case .leadReviewer: "Optional. Looks at architecture and production readiness after the reviewer"
+        case .author: Copy.agentsPurpose(which: .author, bundle: bundle, locale: locale)
+        case .reviewer: Copy.agentsPurpose(which: .reviewer, bundle: bundle, locale: locale)
+        case .leadReviewer: Copy.agentsPurpose(which: .leadReviewer, bundle: bundle, locale: locale)
         }
     }
 }

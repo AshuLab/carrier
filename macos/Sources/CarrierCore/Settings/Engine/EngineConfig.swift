@@ -37,16 +37,16 @@ public struct EngineConfig: Equatable, Sendable {
     }
 
     /// What the engine would refuse, by field name; empty when the values are fine.
-    public var problems: [String: String] {
+    public func problems(bundle: Bundle? = nil, locale: Locale = .current) -> [String: String] {
         var found: [String: String] = [:]
-        if pollIntervalMinutes.isFinite == false || pollIntervalMinutes <= 0 { found["pollIntervalMinutes"] = "Must be more than 0" }
-        if Self.logLevels.contains(logLevel) == false { found["logLevel"] = "Must be one of \(Self.logLevels.joined(separator: ", "))" }
-        if maxConcurrentEpics < 1 { found["maxConcurrentEpics"] = "Must be 1 or more" }
-        if maxReviews < 1 { found["maxReviews"] = "Must be 1 or more" }
-        if maxExecutionRetries < 0 { found["maxExecutionRetries"] = "Must be 0 or more" }
-        if let hours = maxExecutionHours, hours < 1 { found["maxExecutionHours"] = "Must be 1 or more, or unlimited" }
-        if githubCallTimeoutSeconds < 1 { found["githubCallTimeoutSeconds"] = "Must be 1 or more" }
-        if (1...30).contains(finishedWindowDays) == false { found["finishedWindowDays"] = "Must be a whole number from 1 to 30" }
+        if pollIntervalMinutes.isFinite == false || pollIntervalMinutes <= 0 { found["pollIntervalMinutes"] = Copy.engineMustBeOverZero(bundle: bundle, locale: locale) }
+        if Self.logLevels.contains(logLevel) == false { found["logLevel"] = Copy.engineMustBeOneOf(levels: Self.logLevels.joined(separator: ", "), bundle: bundle, locale: locale) }
+        if maxConcurrentEpics < 1 { found["maxConcurrentEpics"] = Copy.engineMustBeAtLeast(minimum: 1, bundle: bundle, locale: locale) }
+        if maxReviews < 1 { found["maxReviews"] = Copy.engineMustBeAtLeast(minimum: 1, bundle: bundle, locale: locale) }
+        if maxExecutionRetries < 0 { found["maxExecutionRetries"] = Copy.engineMustBeAtLeast(minimum: 0, bundle: bundle, locale: locale) }
+        if let hours = maxExecutionHours, hours < 1 { found["maxExecutionHours"] = Copy.engineHoursOrUnlimited(bundle: bundle, locale: locale) }
+        if githubCallTimeoutSeconds < 1 { found["githubCallTimeoutSeconds"] = Copy.engineMustBeAtLeast(minimum: 1, bundle: bundle, locale: locale) }
+        if (1...30).contains(finishedWindowDays) == false { found["finishedWindowDays"] = Copy.engineDaysRange(bundle: bundle, locale: locale) }
         return found
     }
 }

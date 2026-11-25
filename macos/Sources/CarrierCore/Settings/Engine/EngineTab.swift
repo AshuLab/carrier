@@ -12,16 +12,18 @@ public struct ReadinessBanner: Equatable {
 }
 
 /// `missing` is what `startMissing` says.
-public func readinessBanner(missing: [String], detecting: Bool) -> ReadinessBanner {
+public func readinessBanner(missing: [String], detecting: Bool, bundle: Bundle? = nil, locale: Locale = .current) -> ReadinessBanner {
     if detecting {
-        return ReadinessBanner(state: .detecting, title: "Looking for what Carrier needs", detail: "Asking your shell, this takes a few seconds.")
+        return ReadinessBanner(
+            state: .detecting, title: Copy.engineReadinessLooking(bundle: bundle, locale: locale), detail: Copy.engineReadinessLookingDetail(bundle: bundle, locale: locale))
     }
     if missing.isEmpty {
-        return ReadinessBanner(state: .ready, title: "Start Carrier is ready", detail: "Everything it needs was found.")
+        return ReadinessBanner(
+            state: .ready, title: Copy.engineReadinessReady(bundle: bundle, locale: locale), detail: Copy.engineReadinessReadyDetail(bundle: bundle, locale: locale))
     }
-    let names = missing.joined(separator: " and ")
+    let names = missing.count == 2 ? Copy.engineNamesAnd(first: missing[0], second: missing[1], bundle: bundle, locale: locale) : missing.joined(separator: ", ")
     return ReadinessBanner(
-        state: .missing, title: "Start Carrier needs \(names)",
-        detail: "Install carrier with Homebrew, or use “Use another…” and then Detect under Programs on the Engine page."
+        state: .missing, title: Copy.engineReadinessNeeds(names: names, bundle: bundle, locale: locale),
+        detail: Copy.engineReadinessMissingDetail(bundle: bundle, locale: locale)
     )
 }

@@ -37,7 +37,7 @@ struct AgentsTabView: View {
                 }
                 ReloadNote(ReloadStatus.shared)
             } else {
-                Label("The engine is not configured: engine.json in the Carrier folder is missing or is not a JSON object.", icon: .warningFilled)
+                Label(Copy.engineConfigUnreadable(), icon: .warningFilled)
                     .scaledFont(12).foregroundStyle(.orange)
             }
         }
@@ -61,7 +61,7 @@ struct AgentsTabView: View {
     /// What the toolbar says of a role's screen: its name and, under it, the model, the effort and who it works as.
     private var title: SettingsTitle? {
         guard let role, let row = page?.rows.first(where: { $0.role == role }) else { return nil }
-        return SettingsTitle(text: row.title, subtitle: (turningOnLead && role == .leadReviewer ? leadDraft.shown(in: row) : row).headline)
+        return SettingsTitle(text: row.title(), subtitle: (turningOnLead && role == .leadReviewer ? leadDraft.shown(in: row) : row).headline())
     }
 
     private func open(_ role: AgentRole) { go(SettingsPlace(.agents, path: [role.rawValue])) }
@@ -131,7 +131,7 @@ struct AgentsTabView: View {
         let readiness = agentsReadiness(page)
         SettingsGroup(title: "") { AgentsStatusCard(readiness: readiness, open: open) }
         SettingsGroup(id: EpicRail.groupID, title: EpicRail.group) { EpicRail(page: page, readiness: readiness, icons: icons, open: open) }
-        SettingsGroup(id: "identities", title: "Identities", footer: page.bots.note ?? "A bot is the GitHub account a role works as. Every role can pick one.") {
+        SettingsGroup(id: "identities", title: Copy.agentsGroupIdentities(), footer: page.bots.note ?? Copy.agentsIdentitiesFooter()) {
             CreateBotRow()
         }
     }
@@ -141,8 +141,8 @@ struct AgentsTabView: View {
         Group {
             if row.hasSwitch {
                 SettingsGroup(title: "", footer: turningOnLead ? leadDraft.hint() : nil) {
-                    SettingsTabRow(id: "use-a-lead-reviewer", title: "Use a lead reviewer", detail: row.switchDetail(), first: true) {
-                        Toggle("Use a lead reviewer", isOn: Binding(get: { row.usable(turningOn: turningOnLead) }, set: { setLeadSwitch(on: $0, row: row) }))
+                    SettingsTabRow(id: "use-a-lead-reviewer", title: Copy.agentsUseLead(), detail: row.switchDetail(), first: true) {
+                        Toggle(Copy.agentsUseLead(), isOn: Binding(get: { row.usable(turningOn: turningOnLead) }, set: { setLeadSwitch(on: $0, row: row) }))
                             .labelsHidden().toggleStyle(.switch)
                     }
                 }
@@ -152,9 +152,9 @@ struct AgentsTabView: View {
                 RoleFlowStrip(current: row.role, rows: page.rows, open: open)
             }
             Group {
-                SettingsGroup(id: "who", title: "Who", footer: identityFooter(row, page: page)) {
-                    SettingsTabRow(id: "identity", title: "Identity", detail: row.identityDetail, first: true) { identityPicker(row, page: page) }
-                    SettingsTabRow(id: "model", title: "Model", detail: row.providerMissing ? "Not an account of providers.json" : "Provider, model and how hard it thinks") {
+                SettingsGroup(id: "who", title: Copy.agentsGroupWho(), footer: identityFooter(row, page: page)) {
+                    SettingsTabRow(id: "identity", title: Copy.agentsIdentity(), detail: row.identityDetail(), first: true) { identityPicker(row, page: page) }
+                    SettingsTabRow(id: "model", title: Copy.agentsModel(), detail: row.providerMissing ? Copy.agentsModelNotAccount() : Copy.agentsModelDetail()) {
                         ModelPickerButton(
                             provider: row.fields.provider, model: row.fields.model, effort: row.fields.effort,
                             accounts: pickerAccounts(page: page, current: [row.fields.provider]), catalog: catalog
@@ -171,25 +171,25 @@ struct AgentsTabView: View {
                     }
                     if let problem { ProblemLine(text: problem, size: 11).textSelection(.enabled).padding(.vertical, Tokens.Space.s8) }
                 }
-                SettingsGroup(id: "persona", title: "Persona") {
-                    SettingsTabRow(id: "persona-name", title: "Persona name", detail: "Optional, one line up to 40 characters", first: true) {
-                        CommitField(label: "Persona name", text: row.fields.persona?.name ?? "", width: settingsSelectWidth, mono: false, prompt: "None") {
+                SettingsGroup(id: "persona", title: Copy.agentsGroupPersona()) {
+                    SettingsTabRow(id: "persona-name", title: Copy.agentsPersonaName(), detail: Copy.agentsPersonaNameDetail(), first: true) {
+                        CommitField(label: Copy.agentsPersonaName(), text: row.fields.persona?.name ?? "", width: settingsSelectWidth, mono: false, prompt: Copy.agentsNone()) {
                             await saveDetails(.persona(role: row.role, name: blankIsNil($0), prompt: row.fields.persona?.prompt))
                         }
                         .id(row.role)
                     }
-                    SettingsStackedRow(id: "persona-prompt", title: "Persona prompt", detail: "Optional instructions") {
-                        CommitEditor(label: "Persona prompt", text: row.fields.persona?.prompt ?? "", prompt: "None") {
+                    SettingsStackedRow(id: "persona-prompt", title: Copy.agentsPersonaPrompt(), detail: Copy.agentsPersonaPromptDetail()) {
+                        CommitEditor(label: Copy.agentsPersonaPrompt(), text: row.fields.persona?.prompt ?? "", prompt: Copy.agentsNone()) {
                             await saveDetails(.persona(role: row.role, name: row.fields.persona?.name, prompt: blankIsNil($0)))
                         }
                         .id(row.role)
                     }
                 }
                 skills(row)
-                SettingsGroup(id: "when-it-runs-out-of-tokens", title: "When it runs out of tokens") {
+                SettingsGroup(id: "when-it-runs-out-of-tokens", title: Copy.agentsGroupTokens()) {
                     let on = row.steps.isEmpty == false || switchedOn.contains(row.role)
-                    SettingsTabRow(id: "switch-automatically", title: "Switch automatically", detail: "Usage limit, rate limit or service down", first: true) {
-                        Toggle("Switch automatically", isOn: Binding(get: { on }, set: { now in
+                    SettingsTabRow(id: "switch-automatically", title: Copy.agentsSwitch(), detail: Copy.agentsSwitchDetail(), first: true) {
+                        Toggle(Copy.agentsSwitch(), isOn: Binding(get: { on }, set: { now in
                             if now { switchedOn.insert(row.role) } else {
                                 switchedOn.remove(row.role)
                                 Task { _ = await saveDetails(.failover(role: row.role, first: nil, second: nil)) }
@@ -197,11 +197,11 @@ struct AgentsTabView: View {
                         })).labelsHidden().toggleStyle(.switch)
                     }
                     if on {
-                        stepRow("Try first", detail: "Provider, model and reasoning", step: row.steps.first, row: row, page: page, index: 0)
-                        stepRow("Then try", detail: "Optional", step: row.steps.dropFirst().first, row: row, page: page, index: 1)
+                        stepRow(Copy.agentsTryFirst(), detail: Copy.agentsTryFirstDetail(), step: row.steps.first, row: row, page: page, index: 0)
+                        stepRow(Copy.agentsThenTry(), detail: Copy.agentsOptional(), step: row.steps.dropFirst().first, row: row, page: page, index: 1)
                     }
                     if row.steps.count > 2 {
-                        Text("The file has \(row.steps.count - 2) more step\(row.steps.count == 3 ? "" : "s"), kept and tried in order.")
+                        Text(Copy.agentsMoreSteps(count: row.steps.count - 2))
                             .scaledFont(11).foregroundStyle(.secondary).padding(.vertical, Tokens.Space.s8)
                     }
                 }
@@ -214,18 +214,18 @@ struct AgentsTabView: View {
     /// What the engine runs in each stage of the role, as the engine has it today: shown and not changeable yet (a later version of the engine reads
     /// it from the config). `AgentsReadinessTests` keeps `AgentRole.stages` equal to what `src/prompts` invokes.
     @ViewBuilder private func skills(_ row: RoleRow) -> some View {
-        if row.role.stages.isEmpty {
-            SettingsGroup(id: "skills", title: "Skills") {
-                SettingsTabRow(id: "not-used-by-the-engine-yet", title: "Not used by the engine yet", detail: "The Lead reviewer has no stage today, so there is no skill to choose.", first: true) {
-                    StatusChip(text: "Soon", tint: .secondary)
+        if row.role.stages().isEmpty {
+            SettingsGroup(id: "skills", title: Copy.agentsGroupSkills()) {
+                SettingsTabRow(id: "not-used-by-the-engine-yet", title: Copy.agentsNoStage(), detail: Copy.agentsNoStageDetail(), first: true) {
+                    StatusChip(text: Copy.agentsSoon(), tint: .secondary)
                 }
             }
         } else {
-            SettingsGroup(id: "skills", title: "Skills", footer: "Each stage runs the skill shown. Choosing another one comes with a later version of the engine.") {
-                ForEach(row.role.stages) { stage in
+            SettingsGroup(id: "skills", title: Copy.agentsGroupSkills(), footer: Copy.agentsSkillsFooter()) {
+                ForEach(row.role.stages()) { stage in
                     SettingsTabRow(
                         id: stage.id, title: stage.title, detail: stage.detail,
-                        note: "Runs as \(skillInvocation(stage.skill, icon: row.fields.provider.flatMap { icons[$0] }))"
+                        note: Copy.agentsRunsAs(invocation: skillInvocation(stage.skill, icon: row.fields.provider.flatMap { icons[$0] }))
                     ) {
                         SkillValue(skill: stage.skill)
                     }
@@ -256,7 +256,7 @@ struct AgentsTabView: View {
         return SettingsTabRow(title: title, detail: detail) {
             ModelPickerButton(
                 provider: step?.provider, model: step?.model, effort: step?.effort, accounts: pickerAccounts(page: page, current: [step?.provider]), catalog: catalog,
-                effortFallback: (label: "As the role", detail: "Keeps the reasoning the role was running with."), allowsDefaultModel: true, noneTitle: index == 1 ? "No second step" : nil, placeholder: index == 0 ? "Choose…" : "None"
+                effortFallback: (label: Copy.agentsAsTheRole(), detail: Copy.agentsAsTheRoleDetail()), allowsDefaultModel: true, noneTitle: index == 1 ? Copy.agentsNoSecondStep() : nil, placeholder: index == 0 ? Copy.agentsChoose() : Copy.agentsNone()
             ) { pick in
                 switch pick {
                 case .account(let account, let model): write(FailoverStep(provider: account, model: model, effort: step?.effort))
@@ -287,12 +287,12 @@ struct AgentsTabView: View {
         var values: [String] = [], items: [String] = []
         if current == "keep" {
             values.append("keep")
-            items.append(row.fields.profile.map { "\($0) (missing)" } ?? "Not set")
+            items.append(row.fields.profile.map { Copy.agentsMissingProfile(profile: $0) } ?? Copy.agentsNotSet())
         }
         values += page.bots.names.map { "bot:" + $0 }
         items += page.bots.names
         values.append("gh")
-        items.append("Your gh login")
+        items.append(Copy.agentsIdentityGh())
         let index = Binding<Int>(
             get: { values.firstIndex(of: current) ?? 0 },
             set: { next in
@@ -301,7 +301,7 @@ struct AgentsTabView: View {
                 else if choice.hasPrefix("bot:") { Task { _ = await save(.bot(String(choice.dropFirst(4))), role: row.role) } }
             }
         )
-        return SelectMenu(items: items, selection: index).accessibilityLabel("Identity")
+        return SelectMenu(items: items, selection: index).accessibilityLabel(Copy.agentsIdentity())
     }
 }
 
@@ -311,14 +311,14 @@ private struct SkillValue: View {
 
     var body: some View {
         HStack(spacing: Tokens.Space.s8) {
-            StatusChip(text: "Default", tint: .secondary)
+            StatusChip(text: Copy.agentsDefault(), tint: .secondary)
             Text(skill).scaledFont(11.5, design: .monospaced).foregroundStyle(.secondary).lineLimit(1)
                 .padding(.horizontal, Tokens.Space.s8).padding(.vertical, Tokens.Space.s5).frame(width: 150, alignment: .leading)
                 .background(RoundedRectangle(cornerRadius: Tokens.Radius.control, style: .continuous).fill(Color.primary.opacity(0.06)))
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Skill")
-        .accessibilityValue("\(skill), the default; it cannot be changed yet")
+        .accessibilityLabel(Copy.agentsSkill())
+        .accessibilityValue(Copy.agentsSkillValue(skill: skill))
     }
 }
 

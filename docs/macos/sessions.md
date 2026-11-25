@@ -79,7 +79,7 @@ It keeps the changes in memory and refuses to archive or delete a working or wai
 
 ## Conversation
 
-Selecting a session (`.session(id:)`) shows its conversation (`Carrier/ConversationView.swift`; the logic is in `CarrierCore/ChatConversation.swift`).
+Selecting a session (`.session(id:)`) shows its conversation (`Carrier/ConversationView.swift`; the logic is in `CarrierCore/ChatConversation.swift` and `ConversationModel+*.swift`).
 While the view is on screen a task runs `ConversationModel.run()`, which asks the chat host for `events` by cursor every 250 ms while a turn runs and someone can see the window, every 2 s while the session is idle with the app in front, every 5 s idle with the window on screen behind another app, and about every 30 s while the window is hidden or the Mac asleep (`conversationWait`; a change of who is looking, or a send, cuts the wait short), in pages of at most 200 (a full page is followed at once by the next), and ends with the task when the person selects something else.
 These `events` are also what keeps that session's agent awake.
 The host closes an idle session that no request names for ten minutes by default (`idleCloseMinutes`, Settings › Sessions) (listing the sessions does not name it), so the one on screen stays and the others fall asleep, and sending to a sleeping one wakes it as before.
@@ -115,7 +115,7 @@ A poll that fails shows its reason under the feed and is logged once; polling go
 
 The conversation's title bar is the window's: the title (`conversationTitle`, "New session" while the host has none), under it `conversationSubtitle` ("workspace · folder name" in a worktree, the workspace alone in a folder), on the right the place pill (`SessionPlacePill`: the branch checked out now for a worktree, "In the folder" otherwise) and the Open menu (`OpenMenu`, items from `openMenuItems`: Reveal in Finder, Copy path and, for a worktree, Copy branch name; a copy item says "Copied" for a moment).
 
-Markdown: SwiftUI's `AttributedString` parses what is inside a line (bold, italics, inline code, links) and covers what the agents write there; the blocks around it are `markdownBlocks` (`CarrierCore/SessionSections.swift`), the line-by-line reader the epics' Agent output already used, which now also reads fenced code as a block of its own (language after the fence, an open fence runs to the end, as in a message being written).
+Markdown: SwiftUI's `AttributedString` parses what is inside a line (bold, italics, inline code, links) and covers what the agents write there; the blocks around it are `markdownBlocks` (`CarrierCore/SessionMarkdown.swift`), the line-by-line reader the epics' Agent output already used, which now also reads fenced code as a block of its own (language after the fence, an open fence runs to the end, as in a message being written).
 `CodeBlockView` draws it with the language and a Copy button (`CopyButton`, the one of the console blocks).
 Numbered lists and tables are not read as blocks: a numbered item shows as a line with its number.
 

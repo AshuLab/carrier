@@ -1,7 +1,7 @@
 #!/bin/bash
 # Builds Carrier.app with SwiftPM (needs Xcode selected, see README.md) and signs it ad hoc.
 # Usage: ./build-app.sh [version] [--open]   (version is written into the plist, 0.1.0 when none is given)
-# CARRIER_REUSE_BUILD=1 skips `swift build` and bundles the .build/release/Carrier that is already there (check-app.sh and the release build many bundles from one compile).
+# CARRIER_REUSE_BUILD=1 skips `swift build` and bundles the release binary that is already there (check-app.sh and the release build many bundles from one compile).
 # No version means a dev build: its own name, bundle id and settings, and no updater, so it never gets mixed up with the installed Carrier.
 # CARRIER_ARCH=x86_64 builds the Intel app: an x86_64-only binary (never a universal one, so the compile also works on an Apple Silicon runner) with its own update feed, appcast-intel.xml.
 # No CARRIER_ARCH is the Mac the script runs on (Apple Silicon), and the feed is appcast.xml.
@@ -54,27 +54,29 @@ Or for this shell only:         export DEVELOPER_DIR=/Applications/Xcode.app/Con
 MSG
     exit 1 ;;
 esac
+# where SwiftPM leaves the release products: ask it, since `.build/release` is a symlink that not every toolchain's build system makes (Swift 6.3's swiftbuild does not)
+# (${ARCH_FLAGS[@]+...}: bash 3.2 of macOS, under set -u, takes an empty array as unset)
+BIN="$(swift build --build-system swiftbuild -c release ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"} --show-bin-path)"
 if [ "${CARRIER_REUSE_BUILD:-}" = 1 ]; then
-  [ -x .build/release/Carrier ] || { echo "error: CARRIER_REUSE_BUILD=1 but .build/release/Carrier does not exist" >&2; exit 1; }
+  [ -x "$BIN/Carrier" ] || { echo "error: CARRIER_REUSE_BUILD=1 but $BIN/Carrier does not exist" >&2; exit 1; }
 else
   # --build-system swiftbuild: Swift 6.3's default (native) build system copies Localizable.xcstrings instead of compiling it into en.lproj and es.lproj; 6.4 defaults to swiftbuild
-  # (${ARCH_FLAGS[@]+...}: bash 3.2 of macOS, under set -u, takes an empty array as unset)
   swift build --build-system swiftbuild -c release ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"}
 fi
-# the Intel app must hold an x86_64 binary and nothing else, whatever .build/release was left holding
+# the Intel app must hold an x86_64 binary and nothing else, whatever the build directory was left holding
 if [ -n "${CARRIER_ARCH:-}" ]; then
-  [ "$(lipo -archs .build/release/Carrier)" = "$CARRIER_ARCH" ] || { echo "error: .build/release/Carrier is '$(lipo -archs .build/release/Carrier)', not $CARRIER_ARCH only" >&2; exit 1; }
+  [ "$(lipo -archs "$BIN/Carrier")" = "$CARRIER_ARCH" ] || { echo "error: $BIN/Carrier is '$(lipo -archs "$BIN/Carrier")', not $CARRIER_ARCH only" >&2; exit 1; }
 fi
 APP=Carrier.app
 rm -rf "$APP" Carrier.dSYM
 mkdir -p "$APP/Contents/MacOS"
-cp .build/release/Carrier "$APP/Contents/MacOS/"
+cp "$BIN/Carrier" "$APP/Contents/MacOS/"
 # Sparkle: SwiftPM does not give the executable an rpath into the bundle, and without it the app dies at launch. ditto keeps the framework's symlinks.
 install_name_tool -add_rpath @executable_path/../Frameworks "$APP/Contents/MacOS/Carrier"
 if [ "$GIVEN" = true ]; then
   # a release ships without its debug map (STABs, 30 MB of the binary): it points at .build's .o files, so dsymutil reads it now, before the strip drops it,
   # and crash reports are symbolicated with Carrier.dSYM. Neither install_name_tool nor strip change the LC_UUID, so the dSYM matches the signed binary (check-app.sh).
-  dsymutil .build/release/Carrier -o Carrier.dSYM
+  dsymutil "$BIN/Carrier" -o Carrier.dSYM
   strip -S -x "$APP/Contents/MacOS/Carrier"
 fi
 mkdir -p "$APP/Contents/Frameworks"
@@ -89,9 +91,9 @@ cp AppFixture/*.json "$APP/Contents/Resources/Fixtures/"
 # Assets.car is the layered icon of macOS 26 and the .icns is for what reads the file. It is not compiled here: see make-icon.sh
 cp "Resources/Compiled/$ICON/Assets.car" "Resources/Compiled/$ICON/$ICON.icns" "$APP/Contents/Resources/"
 # SwiftPM's resource bundle of CarrierCore: the file icons and the licence text that goes with them
-cp -R .build/release/Carrier_CarrierCore.bundle "$APP/Contents/Resources/"
+cp -R "$BIN/Carrier_CarrierCore.bundle" "$APP/Contents/Resources/"
 # GhosttyTerminal's bundled shell integration and terminfo database
-cp -R .build/release/GhosttyKit_GhosttyTerminal.bundle "$APP/Contents/Resources/"
+cp -R "$BIN/GhosttyKit_GhosttyTerminal.bundle" "$APP/Contents/Resources/"
 # the licences of what is linked in: FluidAudio (Apache-2.0) with the notices of what it vendors (NemoTextProcessing, fastcluster, ...),
 # argmax-oss-swift (MIT) with its NOTICES (swift-transformers, Apache-2.0), libghostty-spm/Ghostty + DisplayLink (MIT), and the repository's own notices file
 LICENSES="$APP/Contents/Resources/Licenses"

@@ -44,8 +44,6 @@ jobs:
     name: App tests
     needs: verify
     uses: ./.github/workflows/_macos.yml
-    with:
-      bundle: false
 
   # The version (the tag) and the tarball npm will serve: every other job takes both from here.
   pack:

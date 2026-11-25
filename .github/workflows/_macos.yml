@@ -1,30 +1,11 @@
 name: Carrier macOS app
 
-# The app (macos/): its tests and its bundle, in parallel on macOS, the scarce runner (it queues).
-# Reusable: macos-tests.yml calls it with `bundle: false`, macos-bundle.yml with `tests: false`, release.yml with `bundle: false` (the tests only: the release builds and checks the bundle itself); run by hand to try a branch.
-# The bundle (~10 min, a cold release build, once per architecture in parallel) runs only when the change can affect it: macos-bundle.yml's paths decide. release.yml runs the same check before anything reaches the tap or the update feed.
+# The app's unit tests and its structure rules (macos/scripts/check-structure.sh), on macOS, the scarce runner (it queues).
+# Reusable: macos-tests.yml (a pull request, a push to main, or by hand) and release.yml (the tests only: the release builds and checks the bundle itself) call it.
+# The bundle is macos-bundle.yml's.
 # The tests restore the debug build (`macos/.build`) a push to main saved, so a pull request compiles only what it changed. A push to main and a release start from nothing: what they test is never a cache's.
 on:
   workflow_call:
-    inputs:
-      tests:
-        description: Run the unit tests and the structure rules
-        type: boolean
-        default: true
-      bundle:
-        description: Also build and check the bundle
-        type: boolean
-        default: true
-  workflow_dispatch:
-    inputs:
-      tests:
-        description: Run the unit tests and the structure rules
-        type: boolean
-        default: true
-      bundle:
-        description: Also build and check the bundle
-        type: boolean
-        default: true
 
 permissions:
   contents: read
@@ -32,7 +13,6 @@ permissions:
 jobs:
   test:
     name: Unit tests
-    if: inputs.tests
     runs-on: macos-26
     timeout-minutes: 30
     steps:
@@ -70,22 +50,3 @@ jobs:
         with:
           path: macos/.build
           key: swift-test-${{ runner.arch }}-${{ steps.toolchain.outputs.swift }}-${{ hashFiles('macos/Package.resolved') }}-${{ github.sha }}
-
-  # build-app.sh and what the updater needs from the bundle, for each architecture the release ships (ADR 0051): Intel is cross-compiled on this same runner.
-  bundle:
-    name: Bundle (${{ matrix.arch }})
-    if: inputs.bundle
-    runs-on: macos-26
-    timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        arch: [arm64, x86_64]
-    env:
-      # check-app.sh: empty is this runner's own architecture (Apple Silicon)
-      CARRIER_ARCH: ${{ matrix.arch == 'x86_64' && 'x86_64' || '' }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Bundle
-        working-directory: macos
-        run: scripts/check-app.sh

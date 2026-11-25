@@ -80,14 +80,14 @@ struct MessageBox<Selects: View>: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: Tokens.Space.snug) {
+            VStack(alignment: .leading, spacing: Tokens.Space.snug) {
                 if matches.isEmpty == false {
                     commandList
                     Divider()
                 }
                 if pastes.isEmpty == false {
-                    VStack(alignment: .leading, spacing: 6) {
+                    VStack(alignment: .leading, spacing: Tokens.Space.tight) {
                         ForEach(pastes) { pasted in
                             PastedTextCard(
                                 text: pasted.text, summary: pasted.summary,
@@ -100,7 +100,7 @@ struct MessageBox<Selects: View>: View {
                     .animation(.smooth(duration: 0.2), value: pastes)
                 }
                 if attachments.isEmpty == false {
-                    FlowLayout(spacing: 8) {
+                    FlowLayout(spacing: Tokens.Space.sm) {
                         ForEach(attachments) { file in
                             AttachmentChip(file: file, remove: { discard(file) }, open: file.canPreview ? { previewing = file } : nil)
                                 .transition(.scale(scale: 0.9).combined(with: .opacity))
@@ -128,7 +128,7 @@ struct MessageBox<Selects: View>: View {
                     withAnimation(.smooth(duration: 0.2)) { pastes += split.pastes.map { PastedEntry(text: $0) } }
                     text = split.text
                 }
-                HStack(spacing: 8) {
+                HStack(spacing: Tokens.Space.sm) {
                     selects()
                     Spacer(minLength: 0)
                     if let caption = dictationPresentation?.caption {
@@ -149,7 +149,7 @@ struct MessageBox<Selects: View>: View {
                     button
                 }
             }
-            .padding(.horizontal, 16).padding(.top, 14).padding(.bottom, 12)
+            .padding(.horizontal, Tokens.Space.lg).padding(.top, Tokens.Space.roomy).padding(.bottom, Tokens.Space.md)
             // while it listens: the line with its arc that follows the voice, outside the box and under the text; a drop's veil makes it wait
             .background {
                 if dictationEdgeShown(dictationPresentation, dropping: dropping) {
@@ -159,7 +159,7 @@ struct MessageBox<Selects: View>: View {
             .animation(.smooth(duration: 0.2), value: dictationEdgeShown(dictationPresentation, dropping: dropping))
             // glass: the conversation that scrolls under the box is blurred, not seen through it
             // flat: a notch darker than the window (a lighter fill read as flat against it), so the box is where the eye goes
-            .chatSurface(flat: scheme == .dark ? Color.black.opacity(0.22) : Color.primary.opacity(0.07), in: RoundedRectangle(cornerRadius: 16))
+            .chatSurface(flat: scheme == .dark ? Color.black.opacity(0.22) : Color.primary.opacity(0.07), in: RoundedRectangle(cornerRadius: Tokens.Radius.panel))
             .overlay { if dropping { dropVeil } }
             .offset(y: dropping ? -3 : 0)
             .animation(.smooth(duration: 0.2), value: dropping)
@@ -192,7 +192,7 @@ struct MessageBox<Selects: View>: View {
 
     /// What a blocked microphone offers: the way to the Microphone pane of System Settings.
     private var blockedPopover: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: Tokens.Space.sm) {
             Text(MicrophoneBlockedPopover.title).font(.scaled(13, weight: .semibold))
             Text(MicrophoneBlockedPopover.message).font(.scaled(12)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             Button(MicrophoneBlockedPopover.button) {
@@ -200,19 +200,19 @@ struct MessageBox<Selects: View>: View {
                 microphoneBlocked = false
             }
         }
-        .padding(14).frame(width: 260, alignment: .leading)
+        .padding(Tokens.Space.roomy).frame(width: 260, alignment: .leading)
     }
 
     /// What the box says while files are over it.
     private var dropVeil: some View {
-        VStack(spacing: 3) {
+        VStack(spacing: Tokens.Space.xs) {
             Text("Drop to attach").font(.scaled(14, weight: .semibold))
             Text("The agent reads them by their path").font(.scaled(12)).foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(RoundedRectangle(cornerRadius: 16).fill(Color.themeAccent.opacity(0.16)))
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
-        .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Color.themeAccent, style: StrokeStyle(lineWidth: 1.5, dash: [6, 4])))
+        .background(RoundedRectangle(cornerRadius: Tokens.Radius.panel).fill(Color.themeAccent.opacity(0.16)))
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: Tokens.Radius.panel))
+        .overlay(RoundedRectangle(cornerRadius: Tokens.Radius.panel).strokeBorder(Color.themeAccent, style: StrokeStyle(lineWidth: 1.5, dash: [6, 4])))
         .allowsHitTesting(false)
         .transition(.opacity)
     }

@@ -9,7 +9,7 @@ struct SessionPlacePill: View {
     let row: SessionRow
 
     var body: some View {
-        HStack(spacing: 5) {
+        HStack(spacing: Tokens.Space.tight) {
             Glyph(row.branch == nil ? .folder : .gitBranch).foregroundStyle(Color.themeAccent)
             if let branch = row.branch {
                 Text(branch).font(.caption.monospaced()).lineLimit(1).truncationMode(.middle)
@@ -18,11 +18,11 @@ struct SessionPlacePill: View {
             }
         }
         .font(.caption).foregroundStyle(.secondary)
-        .padding(.horizontal, 9).frame(height: 24)
+        .padding(.horizontal, Tokens.Space.snug).frame(height: 24)
         .background(Capsule().fill(Color.themeAccent.opacity(0.12)))
         .frame(maxWidth: 300)
         // the toolbar item has no glass of its own, so nothing insets it from the window's rounded corner: match the gap above it
-        .padding(.trailing, 6)
+        .padding(.trailing, Tokens.Space.tight)
         .help(row.branch == nil ? "Works in \(row.folder) itself" : "The branch checked out in this worktree")
         .contextMenu {
             ForEach(openMenuItems(row), id: \.title) { item in Button(item.title) { run(item) } }

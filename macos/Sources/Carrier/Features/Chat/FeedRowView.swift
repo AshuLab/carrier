@@ -46,26 +46,26 @@ struct FeedRowView: View, Equatable {
             let attached = splitAttachments(text)
             let split = splitPastes(attached.text)
             let sent = (paths: attached.paths, text: split.text, pastes: split.pastes)
-            VStack(alignment: .trailing, spacing: 8) {
-                if sent.paths.isEmpty == false { SentAttachments(paths: sent.paths).padding(.bottom, 3) }
+            VStack(alignment: .trailing, spacing: Tokens.Space.sm) {
+                if sent.paths.isEmpty == false { SentAttachments(paths: sent.paths).padding(.bottom, Tokens.Space.xs) }
                 if sent.pastes.isEmpty == false {
-                    VStack(alignment: .trailing, spacing: 6) {
+                    VStack(alignment: .trailing, spacing: Tokens.Space.tight) {
                         ForEach(Array(sent.pastes.enumerated()), id: \.offset) { _, pasted in PastedTextCard(text: pasted).frame(maxWidth: 440) }
                     }
-                    .padding(.bottom, 3)
+                    .padding(.bottom, Tokens.Space.xs)
                 }
                 if sent.text.isEmpty == false {
                     messageText(sent.text, commands: commands).chatText(bubble: true).textSelection(.enabled)
-                        .padding(.horizontal, 13).padding(.vertical, 8)
-                        .chatSurface(.regular.tint(Color.themeAccent.opacity(0.1)), flat: Color.themeAccent.opacity(0.16), in: RoundedRectangle(cornerRadius: 16))
+                        .padding(.horizontal, Tokens.Space.roomy).padding(.vertical, Tokens.Space.sm)
+                        .chatSurface(.regular.tint(Color.themeAccent.opacity(0.1)), flat: Color.themeAccent.opacity(0.16), in: RoundedRectangle(cornerRadius: Tokens.Radius.panel))
                 }
                 footer(text, summary: nil, asks: false)
             }
             .frame(maxWidth: .infinity, alignment: .trailing)
-            .padding(.leading, 120)
+            .padding(.leading, Tokens.Space.bubbleMargin)
             .onHover { hovering = $0 }
         case .agent(_, let text, let inProgress):
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: Tokens.Space.snug) {
                 MarkdownView(text: text)
                 // the cursor takes the footer's height, so the answer does not grow when it ends and the footer takes its place
                 if inProgress { Text("▍").foregroundStyle(.secondary).frame(height: 24, alignment: .leading) }
@@ -76,7 +76,7 @@ struct FeedRowView: View, Equatable {
             Text(summary.text).font(.scaled(12)).foregroundStyle(.secondary).textSelection(.enabled)
         case .tools(let id, let group):
             // a subagent keeps the line live while it runs, after the turn that launched it ended too
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: Tokens.Space.tight) {
                 ChatToolGroupView(id: id, group: group, live: work.live || group.runningSubagents > 0, waiting: work.waiting, since: work.since, flipped: $flipped)
                 ForEach(group.subagents) { SubagentRowView(subagent: $0) }
             }
@@ -96,7 +96,7 @@ struct FeedRowView: View, Equatable {
         case .error(_, let text):
             FailureBannerView(banner: failedTurnBanner(agent: ProviderIdentityStore.shared.shortName(of: agent), error: text), agent: agent, copyDetails: true, retry: offersWayOut ? actions.retry : nil)
         case .stopped:
-            HStack(spacing: 6) {
+            HStack(spacing: Tokens.Space.tight) {
                 Text("\u{25A0} You stopped this turn").foregroundStyle(.secondary)
                 if offersWayOut { Button("Continue", action: actions.continueTurn).buttonStyle(.link) }
             }
@@ -112,7 +112,7 @@ extension FeedRowView {
         // the copy button is AppKit's: the pointer over it can end the row's hover, so over the button it keeps the footer up itself, and the button
         // stays hit-testable (it is only ever reached from inside the row, where the footer is already up)
         let shown = hovering || overCopy || pinned || copied
-        return HStack(spacing: 14) {
+        return HStack(spacing: Tokens.Space.roomy) {
             copyControl(text, asks: asks).opacity(shown ? 1 : 0)
             stamp(shown: shown)
             if let summary { summaryView(summary).opacity(shown ? 1 : 0) }
@@ -124,11 +124,11 @@ extension FeedRowView {
     private func summaryView(_ summary: TurnSummary) -> some View {
         let numbers = [summary.duration, summary.contextText, summary.output.map { "\(TurnSummary.tokens($0)) out" }]
             .compactMap { $0 }.joined(separator: " · ")
-        return HStack(spacing: 10) {
+        return HStack(spacing: Tokens.Space.snug) {
             if let model = summary.shortModel {
                 // an account that was given an icon, a color or a label says so here; one with none shows the model alone, as it always did
                 let identity = ProviderIdentityStore.shared.identity(of: agent)
-                HStack(spacing: 5) {
+                HStack(spacing: Tokens.Space.tight) {
                     if identity != .none {
                         AccountMark(account: agent, size: 11)
                         if let label = identity.label {
@@ -139,7 +139,7 @@ extension FeedRowView {
                     Text(model)
                 }
                 .font(.scaled(11, weight: .medium)).foregroundStyle(.secondary)
-                .padding(.horizontal, 7).padding(.vertical, 2).background(Capsule().fill(Color.secondary.opacity(0.14)))
+                .padding(.horizontal, Tokens.Space.sm).padding(.vertical, Tokens.Space.hair).background(Capsule().fill(Color.secondary.opacity(0.14)))
                 .help([identity.label == nil ? nil : agent, summary.model ?? model].compactMap { $0 }.joined(separator: " · "))
             }
             if numbers.isEmpty == false {
@@ -163,8 +163,8 @@ extension FeedRowView {
     @ViewBuilder private func copyControl(_ text: String, asks: Bool) -> some View {
         let label = Glyph(copied ? .check : .copy, size: 12).foregroundStyle(copied ? Color.green : Color.secondary)
             .frame(width: 26, height: 22)
-        .background(RoundedRectangle(cornerRadius: 6).fill(Color.secondary.opacity(overCopy ? 0.16 : 0)))
-        .contentShape(RoundedRectangle(cornerRadius: 6))
+        .background(RoundedRectangle(cornerRadius: Tokens.Radius.small).fill(Color.secondary.opacity(overCopy ? 0.16 : 0)))
+        .contentShape(RoundedRectangle(cornerRadius: Tokens.Radius.small))
         Group {
             if asks {
                 Menu {

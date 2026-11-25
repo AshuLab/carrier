@@ -12,18 +12,18 @@ struct DetailsTabView: View {
     var body: some View {
         let model = detailsTab(subject, reply: reply, sessions: sessions, now: Int(Date().timeIntervalSince1970 * 1000))
         ScrollView {
-            VStack(alignment: .leading, spacing: 22) {
+            VStack(alignment: .leading, spacing: Tokens.Space.xxl) {
                 ForEach(model.groups, id: \.title) { group in
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: Tokens.Space.sm) {
                         // in line with the rows' content, which the card pads by 14
-                        Text(group.title).textCase(.uppercase).font(.caption.weight(.semibold)).foregroundStyle(.secondary).padding(.leading, 14)
+                        Text(group.title).textCase(.uppercase).font(.caption.weight(.semibold)).foregroundStyle(.secondary).padding(.leading, Tokens.Space.roomy)
                         OverviewCard {
                             ForEach(group.rows, id: \.label) { DetailsRowView(row: $0) }
                         }
                     }
                 }
             }
-            .padding(.top, 6).padding(.bottom, 12)
+            .padding(.top, Tokens.Space.tight).padding(.bottom, Tokens.Space.md)
         }
     }
 }
@@ -36,10 +36,10 @@ struct DetailsRowView: View {
 
     var body: some View {
         let stacked = row.value.count > Self.longValue
-        HStack(alignment: stacked ? .top : .firstTextBaseline, spacing: 10) {
+        HStack(alignment: stacked ? .top : .firstTextBaseline, spacing: Tokens.Space.snug) {
             Glyph(row.icon, size: 12).foregroundStyle(.secondary).frame(width: 18)
             if stacked {
-                VStack(alignment: .leading, spacing: 3) {
+                VStack(alignment: .leading, spacing: Tokens.Space.xs) {
                     label
                     value.font(.caption.monospaced())
                 }
@@ -49,13 +49,13 @@ struct DetailsRowView: View {
                 value.multilineTextAlignment(.trailing)
             }
         }
-        .padding(.vertical, 9)
+        .padding(.vertical, Tokens.Space.snug)
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)
     }
 
     private var label: some View {
-        VStack(alignment: .leading, spacing: 1) {
+        VStack(alignment: .leading, spacing: Tokens.Space.hair) {
             Text(row.label).font(.callout.weight(.medium))
             if let note = row.note { Text(note).font(.caption).foregroundStyle(.secondary) }
         }
@@ -91,13 +91,13 @@ private struct DetailsBadge: View {
     let linked: Bool
 
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: Tokens.Space.xs) {
             Text(text).lineLimit(1).truncationMode(.middle)
             if linked { Glyph(.arrowUpRight, size: 9) }
         }
         .font(.caption.weight(.semibold).monospacedDigit())
         .foregroundStyle(color)
-        .padding(.horizontal, 9).padding(.vertical, 3)
+        .padding(.horizontal, Tokens.Space.snug).padding(.vertical, Tokens.Space.xs)
         .background(Capsule().fill(color == .primary ? Color.secondary.opacity(0.16) : color.opacity(0.18)))
     }
 }

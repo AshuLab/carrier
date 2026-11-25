@@ -8,16 +8,16 @@ struct EpicCardView: View {
     let card: EpicCard
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top, spacing: 10) {
+        VStack(alignment: .leading, spacing: Tokens.Space.md) {
+            HStack(alignment: .top, spacing: Tokens.Space.snug) {
                 ProjectIcon(repo: card.repo, name: card.name, colorKey: projectColorKey(card.name))
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: Tokens.Space.hair) {
                     Text(card.title).font(.scaled(14, weight: .semibold)).fixedSize(horizontal: false, vertical: true)
                     Text(card.subtitle).font(SidebarMetrics.detail).foregroundStyle(.secondary)
                 }
             }
             if card.steps.isEmpty == false {
-                HStack(spacing: 6) {
+                HStack(spacing: Tokens.Space.tight) {
                     ForEach(card.steps.indices, id: \.self) { StepBar(step: card.steps[$0]) }
                 }
             }
@@ -28,7 +28,7 @@ struct EpicCardView: View {
                 Text(timeline).font(.scaled(11.5)).foregroundStyle(.tertiary)
             }
         }
-        .padding(14)
+        .padding(Tokens.Space.roomy)
         .frame(width: 320, alignment: .leading)
     }
 }
@@ -50,7 +50,7 @@ private struct StepBar: View {
     private var held: Bool { [.current, .input, .error].contains(step.state) }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: Tokens.Space.xs) {
             Capsule().fill(Color.primary.opacity(0.14)).frame(height: 4)
                 .overlay(alignment: .leading) {
                     GeometryReader { proxy in

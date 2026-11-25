@@ -10,7 +10,7 @@ struct YourTurnView: View {
 
     var body: some View {
         let items = yourTurn(snapshot)
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: Tokens.Space.sm) {
             OverviewTitle(title: "Your turn", detail: items.isEmpty ? nil : "\(items.count) \(items.count == 1 ? "item" : "items")")
             OverviewCard {
                 if items.isEmpty {
@@ -27,7 +27,7 @@ struct YourTurnView: View {
             Glyph(item.kind == .ready ? .check : .exclamation, size: 11, bold: true).foregroundStyle(.white)
                 .frame(width: 22, height: 22)
                 .background(Circle().fill(item.kind == .ready ? Color.blue : Color.orange))
-            VStack(alignment: .leading, spacing: 1) {
+            VStack(alignment: .leading, spacing: Tokens.Space.hair) {
                 Text(item.title).fontWeight(.semibold)
                 // wraps to two lines instead of being cut when the buttons need room
                 Text(item.detail).font(.caption).foregroundStyle(.secondary).lineLimit(2)

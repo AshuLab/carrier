@@ -16,10 +16,10 @@ struct ApprovalCardView: View {
     @Environment(\.conversationHeight) private var paneHeight
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 10) {
+        VStack(alignment: .leading, spacing: Tokens.Space.snug) {
+            HStack(spacing: Tokens.Space.snug) {
                 Glyph(.exclamation, size: 12, bold: true).foregroundStyle(.white)
-                    .frame(width: 26, height: 26).background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.attention))
+                    .frame(width: 26, height: 26).background(RoundedRectangle(cornerRadius: Tokens.Radius.control, style: .continuous).fill(Color.attention))
                 Text(card.question).font(.scaled(14, weight: .semibold))
                 Spacer(minLength: 0)
                 Text(behind > 0 ? "\(behind) more waiting" : "Waiting for you").font(.scaled(11)).foregroundStyle(.secondary)
@@ -29,30 +29,30 @@ struct ApprovalCardView: View {
                     .scrollBounceBehavior(.basedOnSize)
                     .frame(height: argHeight > 0 ? min(argHeight, cardRoom(in: paneHeight)) : nil)
             }
-            VStack(spacing: 2) {
+            VStack(spacing: Tokens.Space.hair) {
                 ForEach(Array(card.choices.enumerated()), id: \.element.id) { index, choice in row(index, choice) }
             }
         }
-        .padding(14)
+        .padding(Tokens.Space.roomy)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .chatSurface(.regular.tint(Color.attention.opacity(0.16)), flat: Color.attention.opacity(0.14), in: RoundedRectangle(cornerRadius: 18))
+        .chatSurface(.regular.tint(Color.attention.opacity(0.16)), flat: Color.attention.opacity(0.14), in: RoundedRectangle(cornerRadius: Tokens.Radius.sheet))
         .accessibilityElement(children: .contain)
     }
 
     private func row(_ index: Int, _ choice: ChatChoice) -> some View {
         let first = index == 0
         let line = Button { answer(card.approvalId, choice.id) } label: {
-            HStack(spacing: 10) {
+            HStack(spacing: Tokens.Space.snug) {
                 Text("\(index + 1)").font(.scaled(11, weight: .semibold, design: .monospaced))
                     .foregroundStyle(first ? AnyShapeStyle(.white) : AnyShapeStyle(.secondary))
                     .frame(width: 20, height: 20)
-                    .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(first ? Color.themeAccent : Color.secondary.opacity(0.18)))
+                    .background(RoundedRectangle(cornerRadius: Tokens.Radius.small, style: .continuous).fill(first ? Color.themeAccent : Color.secondary.opacity(0.18)))
                 Text(choice.label).font(.scaled(13, weight: .medium)).foregroundStyle(choice.allow ? Color.primary : Color.red)
                 Spacer(minLength: 0)
                 if index < 9 { Text("⌥\(index + 1)").font(.scaled(11)).foregroundStyle(.tertiary) }
             }
-            .padding(.horizontal, 10).padding(.vertical, 7)
-            .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(fill(choice, first: first)))
+            .padding(.horizontal, Tokens.Space.snug).padding(.vertical, Tokens.Space.sm)
+            .background(RoundedRectangle(cornerRadius: Tokens.Radius.snug, style: .continuous).fill(fill(choice, first: first)))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -69,7 +69,7 @@ struct ApprovalCardView: View {
 
 extension Color {
     /// What asks for the person's attention (approvals, questions): a dusty amber, less bright than the system orange.
-    static let attention = Color(hue: 0.07, saturation: 0.5, brightness: 0.78)
+    static let attention = Color(Tokens.Attention.approval)
 }
 
 /// What an answered approval became: one line, with a check when the choice allowed and a cross when it did not.
@@ -78,7 +78,7 @@ struct ApprovalDecidedView: View {
     let allow: Bool
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 6) {
+        HStack(alignment: .firstTextBaseline, spacing: Tokens.Space.tight) {
             Glyph(allow ? .check : .close).foregroundStyle(allow ? Color.green : Color.red)
             Text(text).foregroundStyle(.secondary).lineLimit(8).textSelection(.enabled)
         }

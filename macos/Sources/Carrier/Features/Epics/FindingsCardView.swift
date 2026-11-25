@@ -23,7 +23,7 @@ struct FindingsCardView: View {
     private var foldsRows: Bool { card.verdict == .ready && card.rows.isEmpty == false }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: Tokens.Space.none) {
             header
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel("\(card.title), \(card.summary), \(roundText)\(card.prNumber.map { ", pull request \($0)" } ?? "")")
@@ -46,17 +46,17 @@ struct FindingsCardView: View {
                     .buttonStyle(.plain)
                     .accessibilityLabel("Verified, \(ciVerdictText(verification.verdict))")
                     .accessibilityHint(evidenceOpen ? "Hides the evidence" : "Shows the evidence")
-                if evidenceOpen { EvidenceBlock(text: verification.evidence).padding(.top, 8) }
+                if evidenceOpen { EvidenceBlock(text: verification.evidence).padding(.top, Tokens.Space.sm) }
             }
         }
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .clipShape(RoundedRectangle(cornerRadius: Tokens.Radius.card))
         .workCard()
     }
 
     private var roundText: String { "Round \(card.round)" + (reviewer.map { " · \($0)" } ?? "") }
 
     private var header: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: Tokens.Space.sm) {
             Group {
                 switch card.verdict {
                 case .ready: Disc(color: .green, mark: "✓", shape: .ready, size: 16)
@@ -71,28 +71,28 @@ struct FindingsCardView: View {
             if let number = card.prNumber { PullRequestChip(number: number, dot: nil, url: card.prURL).layoutPriority(1) }
         }
         .font(.scaled(12.5))
-        .padding(.horizontal, 10).frame(height: 30)
+        .padding(.horizontal, Tokens.Space.snug).frame(height: 30)
     }
 
     /// The one line an approval's suggestions wait behind.
     private var foldLine: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: Tokens.Space.sm) {
             Text(plural(card.rows.count, "suggestion")).font(.scaled(12.5)).foregroundStyle(.secondary)
             Spacer(minLength: 8)
             CardChevron(open: suggestionsOpen, width: 12)
         }
-        .padding(.horizontal, 12).frame(height: 32).frame(maxWidth: .infinity)
+        .padding(.horizontal, Tokens.Space.md).frame(height: 32).frame(maxWidth: .infinity)
         .contentShape(Rectangle())
         .hoverFill()
     }
 
     private func foot(_ ci: ResultCard.CI) -> some View {
-        HStack(spacing: 8) {
+        HStack(spacing: Tokens.Space.sm) {
             Text("Verified · \(ciVerdictText(ci.verdict))").font(.scaled(12)).foregroundStyle(.secondary).lineLimit(1)
             Spacer(minLength: 8)
             CardChevron(open: evidenceOpen)
         }
-        .padding(.horizontal, 10).frame(height: 30).frame(maxWidth: .infinity)
+        .padding(.horizontal, Tokens.Space.snug).frame(height: 30).frame(maxWidth: .infinity)
         .contentShape(Rectangle())
     }
 
@@ -115,9 +115,9 @@ private struct FindingRowView: View {
     }
 
     private func content(linked: Bool) -> some View {
-        HStack(alignment: .top, spacing: 10) {
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 8) {
+        HStack(alignment: .top, spacing: Tokens.Space.snug) {
+            VStack(alignment: .leading, spacing: Tokens.Space.xs) {
+                HStack(spacing: Tokens.Space.sm) {
                     Text(row.kind == .blocker ? "BLOCKER" : "SUGGESTION").font(.scaled(10.5, weight: .bold)).foregroundStyle(kindTint)
                     if let id = row.id { Text(id).font(.scaled(12, weight: .semibold, design: .monospaced)).lineLimit(1).truncationMode(.middle) }
                 }
@@ -125,13 +125,13 @@ private struct FindingRowView: View {
             }
             .opacity(row.isFixed ? 0.55 : 1)
             .frame(maxWidth: .infinity, alignment: .leading)
-            HStack(spacing: 7) {
+            HStack(spacing: Tokens.Space.sm) {
                 if let mark = row.mark { markChip(mark) }
                 if linked { HoverArrow() }
             }
-            .padding(.top, 1)
+            .padding(.top, Tokens.Space.hair)
         }
-        .padding(.horizontal, 12).padding(.vertical, 9).frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, Tokens.Space.md).padding(.vertical, Tokens.Space.snug).frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
         .modifier(HoverFillIf(enabled: linked))
         .accessibilityElement(children: .combine)
@@ -152,7 +152,7 @@ private struct FindingRowView: View {
         }
         // an approximate mark was found by matching titles; the words say so
         return Text(mark.text + (row.approximate ? " ≈" : "")).font(.scaled(10.5, weight: .semibold)).foregroundStyle(tint)
-            .padding(.horizontal, 8).padding(.vertical, 1)
+            .padding(.horizontal, Tokens.Space.sm).padding(.vertical, Tokens.Space.hair)
             .background(Capsule().fill(tint.opacity(0.16)))
             .help(row.approximate ? "The reviewer gave no ids, so this mark comes from matching titles" : "")
     }

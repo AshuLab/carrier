@@ -8,9 +8,7 @@ struct SessionPeekView: View {
     let card: SessionPeek
 
     /// The violet of the ring for work in hand, deeper on light, where the ring's own pale one has about 2:1 against the card.
-    private static let working = Color(nsColor: NSColor(name: nil) { appearance in
-        appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? NSColor(red: 0.79, green: 0.63, blue: 1.0, alpha: 1) : NSColor(red: 0.42, green: 0.22, blue: 0.72, alpha: 1)
-    })
+    private static let working = Color(Tokens.Status.working)
 
     /// The colours of the row's own words: violet while it writes, cyan while it waits for what it started, orange for what needs the person, green for Done.
     private var tone: Color {
@@ -27,24 +25,24 @@ struct SessionPeekView: View {
     private static let tasksShown = 3
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top, spacing: 10) {
+        VStack(alignment: .leading, spacing: Tokens.Space.md) {
+            HStack(alignment: .top, spacing: Tokens.Space.snug) {
                 ProjectIcon(base: card.base, name: card.name, colorKey: projectColorKey(card.name), working: card.tone == .working || card.tone == .background, background: card.tone == .background)
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: Tokens.Space.hair) {
                     Text(card.title).font(.scaled(14, weight: .semibold)).fixedSize(horizontal: false, vertical: true)
                     Text(card.subtitle).font(SidebarMetrics.detail).fontWeight(card.tone == .quiet ? .regular : .medium).foregroundStyle(tone)
                 }
             }
             if let message = card.lastMessage {
                 Text(message).font(SidebarMetrics.detail).foregroundStyle(.secondary).lineLimit(4)
-                    .padding(8).frame(maxWidth: .infinity, alignment: .leading)
-                    .background(RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(0.06)))
+                    .padding(Tokens.Space.sm).frame(maxWidth: .infinity, alignment: .leading)
+                    .background(RoundedRectangle(cornerRadius: Tokens.Radius.control).fill(Color.primary.opacity(0.06)))
             }
             CardFactsGrid(facts: card.facts) {
                 if let pullRequest = card.pullRequest {
                     GridRow(alignment: .firstTextBaseline) {
                         Text("Pull request").foregroundStyle(.secondary)
-                        HStack(spacing: 8) {
+                        HStack(spacing: Tokens.Space.sm) {
                             SessionPullRequestChip(pr: pullRequest)
                             if let diff = card.diff { DiffText(diff: diff) }
                         }
@@ -58,9 +56,9 @@ struct SessionPeekView: View {
                 if card.background.isEmpty == false {
                     GridRow(alignment: .firstTextBaseline) {
                         Text("Waiting on").foregroundStyle(.secondary)
-                        VStack(alignment: .leading, spacing: 3) {
+                        VStack(alignment: .leading, spacing: Tokens.Space.xs) {
                             ForEach(card.background.prefix(Self.tasksShown), id: \.id) { task in
-                                HStack(spacing: 6) {
+                                HStack(spacing: Tokens.Space.tight) {
                                     Circle().fill(Color.backgroundWork).frame(width: 6, height: 6).accessibilityHidden(true)
                                     Text(task.name).font(.scaled(10.5, design: .monospaced)).lineLimit(1).truncationMode(.tail)
                                 }
@@ -74,7 +72,7 @@ struct SessionPeekView: View {
             }
             Text(card.timeline).font(.scaled(11.5)).foregroundStyle(.tertiary)
         }
-        .padding(14)
+        .padding(Tokens.Space.roomy)
         .frame(width: 320, alignment: .leading)
     }
 }

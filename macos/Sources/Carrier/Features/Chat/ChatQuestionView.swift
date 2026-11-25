@@ -33,14 +33,14 @@ struct QuestionCardView: View {
             detail: [question.multiSelect ? "Choose any that apply" : "Choose one", behind > 0 ? "\(behind) more waiting" : nil].compactMap { $0 }.joined(separator: " · "),
             tag: question.header
         ) {
-            if card.questions.count > 1 { progress.padding(.trailing, 4) }
+            if card.questions.count > 1 { progress.padding(.trailing, Tokens.Space.xs) }
             Button("Skip") { answer(card.approvalId, declineId, nil) }.buttonStyle(HoverTextButtonStyle(tint: nil, danger: true))
                 .keyboardShortcut(.escape, modifiers: .option).help("Skip the questions (⌥⎋)")
         } below: {
-            VStack(alignment: .leading, spacing: 0) {
-                if step > 0 { earlier.padding(.top, 6) }
+            VStack(alignment: .leading, spacing: Tokens.Space.none) {
+                if step > 0 { earlier.padding(.top, Tokens.Space.tight) }
                 ScrollView {
-                    VStack(spacing: 0) {
+                    VStack(spacing: Tokens.Space.none) {
                         ForEach(Array(question.options.enumerated()), id: \.offset) { index, option in
                             row(index, label: option.label, detail: option.description)
                             if let preview = option.preview, picked[safe: step]?.contains(index) == true { previewBlock(preview) }
@@ -51,18 +51,18 @@ struct QuestionCardView: View {
                 }
                 .scrollBounceBehavior(.basedOnSize)
                 .frame(height: optionsHeight > 0 ? min(optionsHeight, cardRoom(in: paneHeight)) : nil)
-                .padding(.top, 6)
+                .padding(.top, Tokens.Space.tight)
                 if picked.indices.contains(step), picked[step].contains(question.options.count) {
                     TextField("Your answer", text: $own[step]).textFieldStyle(.plain).font(.scaled(13)).focused($writing)
-                        .padding(.horizontal, 10).padding(.vertical, 7)
-                        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.primary.opacity(0.07)))
-                        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Color.primary.opacity(writing ? 0.3 : 0.12)))
-                        .padding(.leading, 39).padding(.top, 4)
+                        .padding(.horizontal, Tokens.Space.snug).padding(.vertical, Tokens.Space.sm)
+                        .background(RoundedRectangle(cornerRadius: Tokens.Radius.snug, style: .continuous).fill(Color.primary.opacity(0.07)))
+                        .overlay(RoundedRectangle(cornerRadius: Tokens.Radius.snug, style: .continuous).strokeBorder(Color.primary.opacity(writing ? 0.3 : 0.12)))
+                        .padding(.leading, Tokens.Space.gutter).padding(.top, Tokens.Space.xs)
                         .onSubmit { if complete { next() } }
                         .accessibilityLabel("Your own answer")
                 }
                 if step > 0 || needsButton {
-                    HStack(spacing: 4) {
+                    HStack(spacing: Tokens.Space.xs) {
                         Spacer(minLength: 0)
                         if step > 0 { Button { go(step - 1) } label: { Label("Back", icon: .chevronLeft) }.buttonStyle(HoverTextButtonStyle(tint: nil)) }
                         if needsButton {
@@ -71,7 +71,7 @@ struct QuestionCardView: View {
                                 .keyboardShortcut(.return, modifiers: .command).help("\(last ? "Send" : "Next") (⌘↩)")
                         }
                     }
-                    .padding(.top, 4)
+                    .padding(.top, Tokens.Space.xs)
                 }
             }
         }
@@ -88,7 +88,7 @@ struct QuestionCardView: View {
 
     /// One dot per question, the current one filled.
     private var progress: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: Tokens.Space.xs) {
             ForEach(card.questions.indices, id: \.self) { Circle().fill(Color.primary.opacity($0 == step ? 0.7 : 0.2)).frame(width: 6, height: 6) }
         }
         .accessibilityElement().accessibilityLabel("Question \(step + 1) of \(card.questions.count)")
@@ -96,12 +96,12 @@ struct QuestionCardView: View {
 
     /// What was answered before this question, one line each, so the last one does not lose its context.
     private var earlier: some View {
-        VStack(alignment: .leading, spacing: 1) {
+        VStack(alignment: .leading, spacing: Tokens.Space.hair) {
             ForEach(0..<step, id: \.self) { at in
                 Text("\(card.questions[at].header) · \(text(of: at))").font(.scaled(11)).foregroundStyle(.tertiary).lineLimit(1).truncationMode(.tail)
             }
         }
-        .padding(.leading, 10)
+        .padding(.leading, Tokens.Space.snug)
     }
 
     private var allowId: String { card.choices.first(where: \.allow)?.id ?? "allow" }
@@ -115,10 +115,10 @@ struct QuestionCardView: View {
 
     /// What the option looks like once picked (the provider's own sample), under its row.
     private func previewBlock(_ preview: String) -> some View {
-        Text(preview).font(.scaled(11, design: .monospaced)).textSelection(.enabled).padding(8)
+        Text(preview).font(.scaled(11, design: .monospaced)).textSelection(.enabled).padding(Tokens.Space.sm)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.primary.opacity(0.06)))
-            .padding(.leading, 39).padding(.trailing, 10).padding(.bottom, 4)
+            .background(RoundedRectangle(cornerRadius: Tokens.Radius.control, style: .continuous).fill(Color.primary.opacity(0.06)))
+            .padding(.leading, Tokens.Space.gutter).padding(.trailing, Tokens.Space.snug).padding(.bottom, Tokens.Space.xs)
     }
 
     /// The answer to question `at`: the labels picked in the order of the options, then the person's own words, comma-separated.
@@ -159,28 +159,28 @@ struct QuestionCardView: View {
     private func row(_ index: Int, label: String, detail: String?) -> some View {
         let chosen = picked[safe: step]?.contains(index) == true
         let line = Button { choose(index) } label: {
-            HStack(alignment: .top, spacing: 11) {
+            HStack(alignment: .top, spacing: Tokens.Space.md) {
                 ZStack {
                     // a circle takes one pick, a square takes several; it is filled only when picked
-                    RoundedRectangle(cornerRadius: question.multiSelect ? 5 : 9, style: .continuous).fill(chosen ? Color.themeAccent : Color.primary.opacity(0.09))
+                    RoundedRectangle(cornerRadius: question.multiSelect ? Tokens.Radius.small : Tokens.Radius.snug, style: .continuous).fill(chosen ? Color.themeAccent : Color.primary.opacity(0.09))
                     if chosen { Glyph(.check, size: 9, bold: true).foregroundStyle(.white) } else {
                         Text("\(index + 1)").font(.scaled(10.5, weight: .semibold, design: .monospaced)).foregroundStyle(.secondary)
                     }
                 }
-                .frame(width: 18, height: 18).padding(.top, 1)
-                VStack(alignment: .leading, spacing: 1) {
+                .frame(width: 18, height: 18).padding(.top, Tokens.Space.hair)
+                VStack(alignment: .leading, spacing: Tokens.Space.hair) {
                     Text(label).font(.scaled(13, weight: .semibold))
                     if let detail, detail.isEmpty == false { Text(detail).font(.scaled(11.5)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
                 }
                 Spacer(minLength: 0)
-                Text("⌥\(index + 1)").font(.scaled(11, design: .monospaced)).foregroundStyle(.tertiary).opacity(hovered == index || optionDown ? 1 : 0).padding(.top, 2)
+                Text("⌥\(index + 1)").font(.scaled(11, design: .monospaced)).foregroundStyle(.tertiary).opacity(hovered == index || optionDown ? 1 : 0).padding(.top, Tokens.Space.hair)
             }
-            .padding(.horizontal, 10).padding(.vertical, 7)
+            .padding(.horizontal, Tokens.Space.snug).padding(.vertical, Tokens.Space.sm)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.primary.opacity(hovered == index ? 0.07 : 0)))
+            .background(RoundedRectangle(cornerRadius: Tokens.Radius.snug, style: .continuous).fill(Color.primary.opacity(hovered == index ? 0.07 : 0)))
             // a hairline between the rows, gone beside the one under the pointer
             .overlay(alignment: .top) {
-                if index > 0 { Rectangle().fill(Color.primary.opacity(hovered == index || hovered == index - 1 ? 0 : 0.1)).frame(height: 0.5).padding(.horizontal, 10) }
+                if index > 0 { Rectangle().fill(Color.primary.opacity(hovered == index || hovered == index - 1 ? 0 : 0.1)).frame(height: 0.5).padding(.horizontal, Tokens.Space.snug) }
             }
             .contentShape(Rectangle())
         }

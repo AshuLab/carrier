@@ -9,14 +9,14 @@ struct ThoughtRowView: View {
 
     var body: some View {
         let whole = flipped.contains(key)
-        HStack(alignment: .top, spacing: 9) {
+        HStack(alignment: .top, spacing: Tokens.Space.snug) {
             Glyph(.sparkles, size: 8).foregroundStyle(Color.thought)
                 .frame(width: 16, height: 16).background(Circle().fill(Color.thought.opacity(0.2)))
             // as tall as the icon at least, so the first line is level with it
             Text(thought.text).font(.scaled(12.5)).lineSpacing(2).foregroundStyle(.secondary).lineLimit(whole ? nil : 2).multilineTextAlignment(.leading)
                 .frame(maxWidth: .infinity, minHeight: 16, alignment: .topLeading).textSelection(.enabled)
         }
-        .padding(.vertical, 6)
+        .padding(.vertical, Tokens.Space.tight)
         .contentShape(Rectangle())
         .onTapGesture { flip(key, in: $flipped) }
         .accessibilityElement(children: .combine)
@@ -34,11 +34,11 @@ struct CallRowView: View {
 
     var body: some View {
         let open = call.opensByDefault(mode, opensFailed: opensFailed) != flipped.contains(key)
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: Tokens.Space.none) {
             Button {
                 flip(key, in: $flipped)
             } label: {
-                HStack(spacing: 9) {
+                HStack(spacing: Tokens.Space.snug) {
                     node
                     Text(call.label).fontWeight(.medium)
                     Text(call.subject).codeFont(12).lineLimit(1).truncationMode(.middle)
@@ -51,13 +51,13 @@ struct CallRowView: View {
                 }
                 .font(.scaled(12))
                 .foregroundStyle(call.status == .failed ? .red : .primary)
-                .padding(.trailing, 6).frame(height: 26)
+                .padding(.trailing, Tokens.Space.tight).frame(height: 26)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel("\(call.label) \(call.subject), \(call.result.isEmpty ? "running" : call.result)")
             .accessibilityHint(open ? "Hides the detail" : "Shows the detail")
-            if open { CallDetailView(call: call).padding(.leading, 25).padding(.top, 6).padding(.bottom, 6) }
+            if open { CallDetailView(call: call).padding(.leading, Tokens.Space.xxl).padding(.top, Tokens.Space.tight).padding(.bottom, Tokens.Space.tight) }
         }
     }
 
@@ -85,16 +85,16 @@ struct CallDetailView: View {
 
     var body: some View {
         if call.diff.isEmpty == false {
-            DiffView(rows: call.diff, showAll: $showAll, style: diffStyle).clipShape(RoundedRectangle(cornerRadius: 8))
+            DiffView(rows: call.diff, showAll: $showAll, style: diffStyle).clipShape(RoundedRectangle(cornerRadius: Tokens.Radius.control))
         } else {
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: Tokens.Space.snug) {
                 // the row cuts a long or multi-line command in the middle: opened, the call shows all of it
                 if call.kind == .shell, call.arg.contains("\n") || call.arg.count > 80 { CodeBlockView(language: "bash", code: call.arg) }
                 if case .mcp = call.kind, call.arg.isEmpty == false {
                     CodeBlockView(language: resolvedCodeLanguage(nil, code: call.arg) ?? "Arguments", code: call.arg)
                 }
                 if call.output.isEmpty {
-                    Text(call.status == .running ? "running…" : "no output").font(.scaled(11.5)).foregroundStyle(.secondary).padding(.horizontal, 6)
+                    Text(call.status == .running ? "running…" : "no output").font(.scaled(11.5)).foregroundStyle(.secondary).padding(.horizontal, Tokens.Space.tight)
                 } else {
                     CodeBlockView(language: "Output", code: call.output.joined(separator: "\n"), foldAfter: OutputLength(rawValue: lines)?.rawValue ?? AppPreferences.defaultOutputLength.rawValue, spare: 0)
                 }

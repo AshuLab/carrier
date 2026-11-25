@@ -9,22 +9,22 @@ struct AgentSwitchDivider: View {
     private let store = ProviderIdentityStore.shared
 
     var body: some View {
-        VStack(spacing: 7) {
-            HStack(spacing: 12) {
+        VStack(spacing: Tokens.Space.sm) {
+            HStack(spacing: Tokens.Space.md) {
                 line
-                HStack(spacing: 10) {
+                HStack(spacing: Tokens.Space.snug) {
                     side(switched.from, model: switched.fromModel)
                     Glyph(.arrowRight, size: 10, bold: true).foregroundStyle(.secondary).accessibilityHidden(true)
                     side(switched.to, model: switched.toModel)
                 }
-                .padding(.horizontal, 13).padding(.vertical, 6)
+                .padding(.horizontal, Tokens.Space.roomy).padding(.vertical, Tokens.Space.tight)
                 .chatSurface(.regular, flat: Color.primary.opacity(0.07), in: Capsule())
                 line
             }
             Text(handoffDetail(to: store.shortName(of: switched.to))).font(.scaled(11.5)).foregroundStyle(.secondary).multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true).textSelection(.enabled).padding(.horizontal, 24)
+                .fixedSize(horizontal: false, vertical: true).textSelection(.enabled).padding(.horizontal, Tokens.Space.xxl)
         }
-        .padding(.vertical, 6)
+        .padding(.vertical, Tokens.Space.tight)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("The agent changed from \(spoken(switched.from, switched.fromModel)) to \(spoken(switched.to, switched.toModel)). \(handoffDetail(to: store.shortName(of: switched.to)))")
     }
@@ -34,7 +34,7 @@ struct AgentSwitchDivider: View {
     /// An agent as its account says it: the mark in its color, its label in the same color, and the model beside it, quiet.
     private func side(_ agent: String, model: String?) -> some View {
         let color = store.identity(of: agent).color?.color
-        return HStack(spacing: 6) {
+        return HStack(spacing: Tokens.Space.tight) {
             AccountMark(account: agent, size: 13).accessibilityHidden(true)
             Text(store.shortName(of: agent)).font(.scaled(12, weight: .semibold)).foregroundStyle(color.map { AnyShapeStyle($0) } ?? AnyShapeStyle(.primary)).lineLimit(1)
             if let name = modelName(model) { Text(name).font(.scaled(11.5)).foregroundStyle(.secondary).lineLimit(1) }

@@ -134,8 +134,8 @@ struct PanelView: View {
         } detail: {
             // the right panel is ours, not `.inspector`: that one, inside a NavigationSplitView, loops AppKit's layout while the window
             // resizes and the app dies with "more Update Constraints passes than there are views"
-            HStack(spacing: 0) {
-                VStack(spacing: 0) {
+            HStack(spacing: Tokens.Space.none) {
+                VStack(spacing: Tokens.Space.none) {
                     Group {
                         if let epic {
                             let ref = EpicRef(repo: epic.subject.repo, issue: epic.subject.issue)
@@ -182,10 +182,10 @@ struct PanelView: View {
                             }.id(id)
                         } else if case .running(let snapshot)? = model.state {
                             ScrollView {
-                                VStack(alignment: .leading, spacing: 26) {
+                                VStack(alignment: .leading, spacing: Tokens.Space.xxl) {
                                     Running(snapshot: snapshot, selection: $shell.selection)
                                 }
-                                .padding(18)
+                                .padding(Tokens.Space.xl)
                                 .frame(maxWidth: .infinity, alignment: .topLeading)
                             }
                         } else {
@@ -233,7 +233,7 @@ struct PanelView: View {
                 // a transition would not move like the sidebar does
                 if let epic {
                     let data = model.epics.data[EpicRef(repo: epic.subject.repo, issue: epic.subject.issue)]
-                    HStack(spacing: 0) {
+                    HStack(spacing: Tokens.Space.none) {
                         Divider().ignoresSafeArea(.container, edges: .top)
                         InspectorTabsView(subject: epic.subject, reply: data?.epic, sessions: data?.sessions)
                             .frame(width: Self.inspectorWidth)

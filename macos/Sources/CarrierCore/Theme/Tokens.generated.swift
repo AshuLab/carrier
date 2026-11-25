@@ -44,6 +44,34 @@ public enum Tokens {
         ("graphite", 0x8e8e93),
     ]
 
+    public enum Radius {
+        public static let hair: Double = 2
+        public static let small: Double = 6
+        public static let control: Double = 8
+        public static let snug: Double = 10
+        public static let card: Double = 12
+        public static let roomy: Double = 14
+        public static let panel: Double = 16
+        public static let sheet: Double = 18
+    }
+
+    public enum Space {
+        public static let none: Double = 0
+        public static let hair: Double = 2
+        public static let xs: Double = 4
+        public static let tight: Double = 6
+        public static let sm: Double = 8
+        public static let snug: Double = 10
+        public static let md: Double = 12
+        public static let roomy: Double = 14
+        public static let lg: Double = 16
+        public static let xl: Double = 20
+        public static let xxl: Double = 24
+        public static let gutter: Double = 40
+        public static let bubbleMargin: Double = 120
+        public static let timelineTop: Double = 160
+    }
+
     public enum Status {
         public static let working = SchemePair<UInt32>(light: 0x6b38b8, dark: 0xc9a1ff)
         public static let background = SchemePair<UInt32>(light: 0x007ab3, dark: 0x59c7fa)
@@ -62,6 +90,36 @@ public enum Tokens {
 
     public enum Attention {
         public static let approval = SchemePair<UInt32>(light: 0xc78d63, dark: 0xc78d63)
+    }
+
+    public enum PullRequest {
+        public static let merged = SchemePair<UInt32>(light: 0xb86bf2, dark: 0xb86bf2)
+    }
+
+    public enum Attachment {
+        public static let image = SchemePair<UInt32>(light: 0x6e5ce8, dark: 0x6e5ce8)
+        public static let pdf = SchemePair<UInt32>(light: 0xe04559, dark: 0xe04559)
+        public static let folder = SchemePair<UInt32>(light: 0xe3a130, dark: 0xe3a130)
+        public static let log = SchemePair<UInt32>(light: 0x6b7894, dark: 0x6b7894)
+        public static let data = SchemePair<UInt32>(light: 0x1fa394, dark: 0x1fa394)
+        public static let archive = SchemePair<UInt32>(light: 0x9e6e47, dark: 0x9e6e47)
+        public static let other = SchemePair<UInt32>(light: 0x7a808f, dark: 0x7a808f)
+    }
+
+    public enum Console {
+        public static let text = SchemePair<UInt32>(light: 0xd6d6db, dark: 0xd6d6db)
+        public static let added = SchemePair<UInt32>(light: 0x7de887, dark: 0x7de887)
+        public static let removed = SchemePair<UInt32>(light: 0xff7a73, dark: 0xff7a73)
+        public static let background = SchemePair<UInt32>(light: 0x0d0d10, dark: 0x0d0d10)
+    }
+
+    public enum Harness {
+        public static let claude = SchemePair<UInt32>(light: 0x5e5e5e, dark: 0x5e5e5e)
+        public static let other = SchemePair<UInt32>(light: 0x7d7d7d, dark: 0x7d7d7d)
+    }
+
+    public enum Milestone {
+        public static let plain = SchemePair<UInt32>(light: 0x6e6e6e, dark: 0x6e6e6e)
     }
 
     public enum Accent {

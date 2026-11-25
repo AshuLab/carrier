@@ -58,7 +58,7 @@ struct SessionsRows: View {
         SidebarSectionRow(title: "Sessions", icon: .messages, selected: selected, keepActions: sortOpen || query != nil, action: select, actions: {
             if sessions.open > 0 {
                 Text("\(sessions.open)").font(SidebarMetrics.detail.weight(.semibold).monospacedDigit()).foregroundStyle(.secondary)
-                    .padding(.horizontal, 6).padding(.vertical, 1)
+                    .padding(.horizontal, Tokens.Space.tight).padding(.vertical, Tokens.Space.hair)
                     .background(Capsule().fill(Color.secondary.opacity(0.15)))
                     .accessibilityLabel(sessions.openLabel)
             }

@@ -13,11 +13,11 @@ struct SessionPullRequestChip: View {
             // only a web address opens: what the host says of a pull request is not a command
             if let url = browserURL(pr.url) { NSWorkspace.shared.open(url) }
         } label: {
-            HStack(spacing: 4) {
+            HStack(spacing: Tokens.Space.xs) {
                 Glyph(.gitPullRequest, size: 9)
                 Text(pr.chipText).font(.scaled(11, weight: .medium).monospacedDigit())
             }
-            .foregroundStyle(tint).padding(.horizontal, 6).frame(height: 17)
+            .foregroundStyle(tint).padding(.horizontal, Tokens.Space.tight).frame(height: 17)
             .background(Capsule().fill(tint.opacity(0.16)))
             .contentShape(Capsule())
         }
@@ -30,7 +30,7 @@ struct DiffText: View {
     let diff: SessionDiff
 
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: Tokens.Space.xs) {
             Text("+\(diff.added)").foregroundStyle(Color.sessionDone)
             Text("−\(diff.removed)").foregroundStyle(Color.red)
         }
@@ -44,7 +44,7 @@ extension SessionPullRequest {
         switch tone {
         case .open: Color.sessionDone
         case .failing: .red
-        case .merged: Color(red: 0.72, green: 0.42, blue: 0.95)
+        case .merged: Color(Tokens.PullRequest.merged)
         case .quiet: .secondary
         }
     }
@@ -71,13 +71,13 @@ struct SessionWorkPill: View {
 
     var body: some View {
         if pr != nil || diff != nil {
-            HStack(spacing: 6) {
+            HStack(spacing: Tokens.Space.tight) {
                 if let pr {
                     Button {
                         // only a web address opens: what the host says of a pull request is not a command
                         if let url = browserURL(pr.url) { NSWorkspace.shared.open(url) }
                     } label: {
-                        HStack(spacing: 5) {
+                        HStack(spacing: Tokens.Space.tight) {
                             if pr.tone == .quiet {
                                 Circle().strokeBorder(pr.tint, lineWidth: 1.3).frame(width: 6, height: 6)
                             } else {
@@ -93,7 +93,7 @@ struct SessionWorkPill: View {
                 if let diff { Text("+\(diff.added) −\(diff.removed)") }
             }
             .font(.scaled(11, weight: .medium).monospacedDigit()).foregroundStyle(words).lineLimit(1).fixedSize()
-            .padding(.horizontal, 7).frame(height: 17)
+            .padding(.horizontal, Tokens.Space.sm).frame(height: 17)
             .background(Capsule().fill(fill))
             .animation(.easeOut(duration: 0.12), value: state)
         }

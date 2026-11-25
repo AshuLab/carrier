@@ -103,7 +103,5 @@ struct DoneMark: View {
 
 extension Color {
     /// The timer of a slow call: the system's amber on dark, a deeper one on light, where the system's is too pale to read.
-    static let slowCall = Color(nsColor: NSColor(name: nil) { appearance in
-        appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? .systemOrange : NSColor(red: 0.70, green: 0.36, blue: 0, alpha: 1)
-    })
+    static let slowCall = Color(Tokens.Status.slowCall)
 }

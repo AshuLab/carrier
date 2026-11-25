@@ -20,16 +20,16 @@ struct NewSessionView: View {
     @State private var dictations = 0
 
     var body: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: Tokens.Space.roomy) {
             Spacer(minLength: 0)
             // the title carries the page alone: large, and centred however many lines it takes
-            VStack(spacing: 6) {
+            VStack(spacing: Tokens.Space.tight) {
                 Text("What do you want to work on?").font(.scaled(28, weight: .semibold))
                 Text("Pick where it works, then write.").font(.title3).foregroundStyle(.secondary)
             }
             .multilineTextAlignment(.center).frame(maxWidth: .infinity)
-            .padding(.bottom, 14)
-            VStack(alignment: .leading, spacing: 16) {
+            .padding(.bottom, Tokens.Space.roomy)
+            VStack(alignment: .leading, spacing: Tokens.Space.lg) {
                 sentence
                 box
                 if let warning = model.warning { uncommittedNotice(warning) }
@@ -46,7 +46,7 @@ struct NewSessionView: View {
             .frame(minWidth: 320, maxWidth: 820)
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 40)
+        .padding(.horizontal, Tokens.Space.gutter)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         // a workspace's + while the draft is open asks again, for another folder
         .task(id: model.starts) {
@@ -74,8 +74,8 @@ struct NewSessionView: View {
     /// is another. A new worktree shows the name it will have (with ↻, and the name is typed over in place) and the branch it starts from;
     /// the other cases (no git repository, a bare one, the host not answering yet) are said in words, as `model.sentence` has them.
     @ViewBuilder private var sentence: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            FlowLayout(spacing: 8) {
+        VStack(alignment: .leading, spacing: Tokens.Space.tight) {
+            FlowLayout(spacing: Tokens.Space.sm) {
                 Text("Work in")
                 Button {
                     if foldersOpen == false { model.openPicker() }
@@ -108,7 +108,7 @@ struct NewSessionView: View {
             if let note = model.projectNote { Label(note, icon: .folderPlus).font(.subheadline).foregroundStyle(.secondary).textSelection(.enabled) }
             if model.offersAddAsProject {
                 // a folder chosen with Open a folder stays a plain workspace until the person adds it
-                HStack(spacing: 8) {
+                HStack(spacing: Tokens.Space.sm) {
                     Button { Task { await model.addAsProject() } } label: { Label("Add as project", icon: .folderPlus).labelStyle(.titleAndIcon) }
                         .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
                         .help("Keep this folder in your projects")
@@ -145,7 +145,7 @@ struct NewSessionView: View {
     /// A control of the sentence, with the face of every select of the app: an icon if it has one, its value and `SelectChevron` after it. Its
     /// button takes `SelectButtonStyle`.
     private func chip(_ title: String, tint: Color = .primary, icon: AppIcon? = nil) -> some View {
-        HStack(spacing: 6) {
+        HStack(spacing: Tokens.Space.tight) {
             if let icon { Glyph(icon, size: 13).foregroundStyle(.secondary).frame(width: 15) }
             Text(title).fontWeight(.medium).foregroundStyle(tint)
             SelectChevron()
@@ -157,18 +157,18 @@ struct NewSessionView: View {
     /// What sending does, a step each: its badge, what it does in a few words and the sentence that tells it, with the names in monospace and
     /// the full path in the tooltip. The surface and the layout are the closed-session notice's.
     private var sendSteps: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: Tokens.Space.md) {
             ForEach(model.sendSteps, id: \.parts) { step in
-                HStack(spacing: 12) {
+                HStack(spacing: Tokens.Space.md) {
                     Glyph(step.icon, size: 14, bold: true).foregroundStyle(.white)
                         .frame(width: 30, height: 30)
                         // the accent a little deepened, with a faint rim of light: the badge of the closed-session notice
                         .background {
-                            RoundedRectangle(cornerRadius: 8).fill(Color.themeAccent.mix(with: .black, by: 0.18))
-                                .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.white.opacity(0.2), lineWidth: 0.5))
+                            RoundedRectangle(cornerRadius: Tokens.Radius.control).fill(Color.themeAccent.mix(with: .black, by: 0.18))
+                                .overlay(RoundedRectangle(cornerRadius: Tokens.Radius.control).strokeBorder(.white.opacity(0.2), lineWidth: 0.5))
                         }
                         .accessibilityHidden(true)
-                    VStack(alignment: .leading, spacing: 1) {
+                    VStack(alignment: .leading, spacing: Tokens.Space.hair) {
                         Text(step.title).fontWeight(.semibold)
                         step.parts.reduce(Text("")) { text, part in
                             switch part {
@@ -183,17 +183,17 @@ struct NewSessionView: View {
                 }
             }
         }
-        .font(.scaled(12)).padding(12)
+        .font(.scaled(12)).padding(Tokens.Space.md)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .chatSurface(.regular.tint(Color.themeAccent.opacity(0.15)), flat: Color.themeAccent.opacity(0.14), in: RoundedRectangle(cornerRadius: 12))
+        .chatSurface(.regular.tint(Color.themeAccent.opacity(0.15)), flat: Color.themeAccent.opacity(0.14), in: RoundedRectangle(cornerRadius: Tokens.Radius.card))
         .accessibilityElement(children: .contain)
     }
 
     /// The fixed `carrier/` prefix, the name (typed over in place) with ↻, and the branch it starts from.
     @ViewBuilder private var worktreeControls: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: Tokens.Space.sm) {
             // the prefix and the name are one word to the eye: no space between them
-            HStack(spacing: 0) {
+            HStack(spacing: Tokens.Space.none) {
                 Text(worktreeBranchPrefix).foregroundStyle(.secondary)
                 TextField("name", text: $model.worktreeName)
                     .textFieldStyle(.plain).autocorrectionDisabled().fixedSize()
@@ -203,9 +203,9 @@ struct NewSessionView: View {
                 .buttonStyle(.plain).foregroundStyle(.secondary).help("Pick another name").accessibilityLabel("Suggest another name")
         }
         .font(.callout.monospaced())
-        .padding(.horizontal, 10).frame(height: controlHeight)
+        .padding(.horizontal, Tokens.Space.snug).frame(height: controlHeight)
         .controlSurface()
-        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(nameBorder, lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: Tokens.Radius.control).strokeBorder(nameBorder, lineWidth: 1))
         // the name is checked a moment after typing; typing again cancels the check that was waiting
         .task(id: model.worktreeName) { await model.verifyName() }
         Text("from")

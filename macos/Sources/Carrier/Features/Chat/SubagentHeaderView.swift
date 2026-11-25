@@ -22,7 +22,7 @@ struct SubagentTitle: View {
 
     var body: some View {
         let bases = Self.bases(percent: textScale.percent)
-        VStack(alignment: .leading, spacing: 1) {
+        VStack(alignment: .leading, spacing: Tokens.Space.hair) {
             Text(title).font(.scaled(bases.title, weight: .semibold)).lineLimit(1).truncationMode(.tail)
             Text(subtitle).font(.scaled(bases.subtitle)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.tail)
         }
@@ -38,7 +38,7 @@ struct SubagentStatePill: View {
     var clock: Date?
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: Tokens.Space.tight) {
             mark.frame(width: 10, height: 10)
             if header.state == .running {
                 TickingTimeline(every: 1) { context in words(Int((clock ?? context.date).timeIntervalSince1970 * 1000)) }
@@ -47,9 +47,9 @@ struct SubagentStatePill: View {
             }
         }
         .font(.scaled(12, weight: .medium)).monospacedDigit().foregroundStyle(.secondary)
-        .padding(.horizontal, 10).frame(height: 24)
+        .padding(.horizontal, Tokens.Space.snug).frame(height: 24)
         .background(Capsule().fill(Color.primary.opacity(0.08)))
-        .padding(.trailing, 6)
+        .padding(.trailing, Tokens.Space.tight)
         .accessibilityElement(children: .combine)
     }
 
@@ -60,7 +60,7 @@ struct SubagentStatePill: View {
         case .running: SpinningRing(diameter: 9, lineWidth: 1.5, color: .secondaryLabelColor)
         case .completed: Circle().fill(Color.green)
         case .failed: Circle().fill(Color.red)
-        case .stopped: RoundedRectangle(cornerRadius: 1.5).fill(Color.secondary).padding(1)
+        case .stopped: RoundedRectangle(cornerRadius: Tokens.Radius.hair).fill(Color.secondary).padding(Tokens.Space.hair)
         }
     }
 }

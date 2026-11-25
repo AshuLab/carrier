@@ -34,7 +34,7 @@ struct ChatToolGroupView: View {
     private var open: Bool { startsOpen != flipped.contains(id) && steps.isEmpty == false }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: Tokens.Space.none) {
             Button { toggle(id) } label: { header }
                 .buttonStyle(.plain)
                 .disabled(steps.isEmpty)
@@ -42,7 +42,7 @@ struct ChatToolGroupView: View {
                 .accessibilityHint(open ? "Hides its steps" : "Shows its steps")
             if open { timeline.transition(reduceMotion ? .opacity : .reveal) }
         }
-        .padding(.horizontal, 10)
+        .padding(.horizontal, Tokens.Space.snug)
         .workCard()
         .overlay { if glowing { GlowEdge(color: group.erred ? .red : waiting ? .attention : .thought, waiting: waiting, moves: reduceMotion == false).opacity(live ? 1 : 0).allowsHitTesting(false) } }
         .animation(.smooth(duration: 0.35), value: open)
@@ -53,10 +53,10 @@ struct ChatToolGroupView: View {
     // MARK: the line
 
     private var header: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: Tokens.Space.md) {
             // what the run is doing: as long as it is, and what does not fit fades out at the edge of its room instead of pushing the right side
             // the room is the one offered (a clear box), and the words, as long as they are, hang in it: a fixed-size child inside a flexible frame would widen the card
-            Color.clear.frame(maxWidth: .infinity).overlay(alignment: .leading) { HStack(spacing: 9) {
+            Color.clear.frame(maxWidth: .infinity).overlay(alignment: .leading) { HStack(spacing: Tokens.Space.snug) {
                 if lead != .none { LeadView(lead: lead, reduceMotion: reduceMotion).transition(.scale(scale: 0.5).combined(with: .opacity)) }
                 // the words roll up when they change: the new ones come in from below, the old ones leave above
                 ZStack(alignment: .leading) { words.id(key).transition(reduceMotion ? .opacity : .asymmetric(insertion: .move(edge: .bottom).combined(with: .opacity), removal: .move(edge: .top).combined(with: .opacity))) }
@@ -65,7 +65,7 @@ struct ChatToolGroupView: View {
                     Text("· step \(max(1, steps.count))").font(.scaled(12)).foregroundStyle(.tertiary).lineLimit(1)
                 }
                 if group.failed > 0 {
-                    HStack(spacing: 4) {
+                    HStack(spacing: Tokens.Space.xs) {
                         StateMark(shape: .problem, size: 12)
                         Text("\(group.failed) failed").font(.scaled(12.5))
                     }
@@ -74,11 +74,11 @@ struct ChatToolGroupView: View {
             }
             .fixedSize(horizontal: true, vertical: false)
             // with no lead the words keep a little room; with one, it is in the column of the steps' nodes and the words in theirs
-            .padding(.leading, lead == .none ? 4 : 0) }
+            .padding(.leading, lead == .none ? Tokens.Space.xs : Tokens.Space.none) }
             .clipped()
-            .mask { HStack(spacing: 0) { Rectangle(); LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing).frame(width: 28) } }
+            .mask { HStack(spacing: Tokens.Space.none) { Rectangle(); LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing).frame(width: 28) } }
             // the right side never moves or shrinks: the time, and the chevron as wide as a node
-            HStack(spacing: 8) {
+            HStack(spacing: Tokens.Space.sm) {
                 if live {
                     TickingTimeline(every: 1) { context in
                         liveTimers(group.liveTimer(now: Int((clock ?? context.date).timeIntervalSince1970 * 1000), turnStart: since))
@@ -102,7 +102,7 @@ struct ChatToolGroupView: View {
     /// The running call's own time, amber once the call is slow (a Shell or MCP call past 30 seconds), and the turn's beside it, quieter, while it is longer.
     /// Neither wraps: the right side keeps its width and never moves the words.
     private func liveTimers(_ timer: LiveTimer) -> some View {
-        HStack(spacing: 6) {
+        HStack(spacing: Tokens.Space.tight) {
             if let turn = timer.turnMs {
                 Text(formatCallDuration(turn)).font(.scaled(11.5)).foregroundStyle(.quaternary).lineLimit(1)
             }
@@ -133,7 +133,7 @@ struct ChatToolGroupView: View {
 
     @ViewBuilder private var words: some View {
         if live {
-            HStack(spacing: 8) {
+            HStack(spacing: Tokens.Space.sm) {
                 if let chip = group.chip(waiting: waiting) { KindChipView(chip: chip) }
                 if showsLabel {
                     Text(liveLabel).font(.scaled(12.5, weight: .semibold)).foregroundStyle(.secondary).lineLimit(1)
@@ -141,7 +141,7 @@ struct ChatToolGroupView: View {
                 }
             }
         } else {
-            HStack(spacing: 8) {
+            HStack(spacing: Tokens.Space.sm) {
                 Text(group.title).font(.scaled(12.5, weight: .semibold)).foregroundStyle(group.erred ? Color.red : .primary)
                 Text(group.summary).font(.scaled(12.5)).foregroundStyle(.secondary).lineLimit(1)
             }
@@ -179,11 +179,11 @@ struct ChatToolGroupView: View {
         // live, only the last four are drawn so the card does not push the feed while the agent works; the rest is one tap away
         let capped = live && all.count > 4 && flipped.contains("\(id)/earlier") == false
         let shown = capped ? Array(all.suffix(4)) : all
-        return VStack(alignment: .leading, spacing: 0) {
+        return VStack(alignment: .leading, spacing: Tokens.Space.none) {
             if live, all.count > 4 {
                 Button { toggle("\(id)/earlier") } label: {
                     Text(capped ? "\(all.count - 4) earlier steps" : "Hide earlier steps").font(.scaled(11.5)).foregroundStyle(.tertiary)
-                        .padding(.leading, 25).frame(height: 22).contentShape(Rectangle())
+                        .padding(.leading, Tokens.Space.xxl).frame(height: 22).contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }
@@ -194,7 +194,7 @@ struct ChatToolGroupView: View {
                 }
             }
         }
-        .padding(.bottom, 8)
+        .padding(.bottom, Tokens.Space.sm)
     }
 
     private func toggle(_ key: String) { flip(key, in: $flipped) }

@@ -13,7 +13,7 @@ struct InspectorTabsView: View {
     var body: some View {
         let tab = inspectorTab(subject, chosen: chosen)
         let review = inspectorCount(.review, subject, reply: reply)
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: Tokens.Space.md) {
             UnderlineTabs(
                 items: InspectorTab.allCases.map { item in
                     UnderlineTabs.Item(
@@ -33,7 +33,7 @@ struct InspectorTabsView: View {
             }
             Spacer(minLength: 0)
         }
-        .padding(14)
+        .padding(Tokens.Space.roomy)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 }

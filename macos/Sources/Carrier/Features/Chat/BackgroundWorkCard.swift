@@ -21,8 +21,8 @@ struct BackgroundWorkCard: View {
     private var cyan: Color { Color.backgroundWork }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 6) {
+        VStack(alignment: .leading, spacing: Tokens.Space.none) {
+            HStack(spacing: Tokens.Space.tight) {
                 Button { toggle() } label: { header }.buttonStyle(.plain)
                     .accessibilityLabel(spoken).accessibilityHint(open ? "Hides the tasks" : "Shows the tasks")
                 Button(stopsEach ? "Stop all" : "Stop", action: stop).buttonStyle(HoverTextButtonStyle(tint: .themeAccent)).help("Stop what the agent waits for")
@@ -31,7 +31,7 @@ struct BackgroundWorkCard: View {
             .frame(height: 30)
             if open { timeline.transition(reduceMotion ? .opacity : .reveal) }
         }
-        .padding(.horizontal, 10)
+        .padding(.horizontal, Tokens.Space.snug)
         .workCard()
         .overlay { GlowEdge(color: cyan, waiting: false, moves: reduceMotion == false).allowsHitTesting(false) }
         .animation(.smooth(duration: 0.35), value: open)
@@ -55,13 +55,13 @@ struct BackgroundWorkCard: View {
     // MARK: the line
 
     private var header: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: Tokens.Space.md) {
             // the words come from a clock of their own, so the next task takes the line without anything else asking for it
             TickingTimeline(every: Self.turn) { context in
                 let tick = Int(context.date.timeIntervalSinceReferenceDate / Self.turn)
                 let words = backgroundWords(tasks, tick: tick) ?? ""
                 Color.clear.frame(maxWidth: .infinity).overlay(alignment: .leading) {
-                    HStack(spacing: 9) {
+                    HStack(spacing: Tokens.Space.snug) {
                         SpinningRing(diameter: 11, lineWidth: 1.5, color: NSColor(cyan)).frame(width: 16, height: 16)
                         // the words roll up when they change: the new ones come in from below, the old ones leave above
                         ZStack(alignment: .leading) {
@@ -73,13 +73,13 @@ struct BackgroundWorkCard: View {
                         .frame(height: 18).clipped()
                         if let count = backgroundCount(tasks) { Text(count).font(.scaled(12)).foregroundStyle(.tertiary).lineLimit(1).fixedSize() }
                     }
-                    .padding(.leading, 4)
+                    .padding(.leading, Tokens.Space.xs)
                 }
                 .clipped()
                 .animation(reduceMotion ? nil : .smooth(duration: 0.3), value: words)
             }
             // the right side never moves: the time since the oldest began, and the chevron as wide as a node
-            HStack(spacing: 8) {
+            HStack(spacing: Tokens.Space.sm) {
                 if let oldest = tasks.compactMap(\.startedAt).min() {
                     TickingTimeline(every: 1) { context in
                         Text(workingElapsed(Int(context.date.timeIntervalSince(oldest)))).font(.scaled(12)).monospacedDigit().foregroundStyle(.tertiary)
@@ -97,9 +97,9 @@ struct BackgroundWorkCard: View {
     // MARK: the tasks
 
     private var timeline: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: Tokens.Space.none) {
             ForEach(tasks, id: \.id) { task in
-                HStack(spacing: 9) {
+                HStack(spacing: Tokens.Space.snug) {
                     // a node for each, in the column of the lead
                     Circle().fill(cyan).frame(width: 6, height: 6).frame(width: 16)
                     Text(task.name).font(.scaled(11.5, design: .monospaced)).lineLimit(1).truncationMode(.tail)
@@ -115,10 +115,10 @@ struct BackgroundWorkCard: View {
                             .accessibilityLabel("Stop \(task.name)")
                     }
                 }
-                .frame(height: 26).padding(.leading, 4).padding(.trailing, stopsEach ? 8 : 26)
+                .frame(height: 26).padding(.leading, Tokens.Space.xs).padding(.trailing, stopsEach ? Tokens.Space.sm : Tokens.Space.xxl)
                 .accessibilityElement(children: .contain)
             }
         }
-        .padding(.bottom, 8)
+        .padding(.bottom, Tokens.Space.sm)
     }
 }

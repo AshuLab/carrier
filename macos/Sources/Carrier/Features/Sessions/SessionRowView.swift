@@ -31,9 +31,7 @@ struct SessionRowView: View {
     /// Two buttons of 22 points and the gap between them.
     private static let actionsWidth: CGFloat = 46
     /// The orange of "Waiting for you" as text: the system's on dark, a deeper one on light, where the system's is too pale to read.
-    static let attention = Color(nsColor: NSColor(name: nil) { appearance in
-        appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? .systemOrange : NSColor(red: 0.70, green: 0.36, blue: 0, alpha: 1)
-    })
+    static let attention = Color(Tokens.Status.attention)
     /// Whether the ring stays on after the agent stops, to go round once more in green when the turn ended unread (`finished`).
     @State private var ringKept = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -94,7 +92,7 @@ struct SessionRowView: View {
         ZStack(alignment: .trailing) {
             ageOrStopwatch(content).opacity(hoverActions && hovered ? 0 : 1)
             if hoverActions && hovered {
-                HStack(spacing: 2) {
+                HStack(spacing: Tokens.Space.hair) {
                     hoverButton(pinned ? .pinOff : .pin, pinned ? "Unpin" : "Pin", togglePin)
                     hoverButton(.archive, "Archive", why: archiveBlock(row), archive)
                 }
@@ -119,14 +117,14 @@ struct SessionRowView: View {
                 )
             }
             VStack(alignment: .leading, spacing: roomy ? density.sessionLineGap : SidebarMetrics.lineGap) {
-                HStack(spacing: 4) {
+                HStack(spacing: Tokens.Space.xs) {
                     RollingTitle(text: titles.title(of: row), waiting: titles.waiting.contains(row.id))
                         .font(SidebarMetrics.item).fontWeight(row.state == .waiting ? .medium : .regular)
                     Spacer(minLength: 4)
                     ageSlot(content)
                 }
                 .frame(height: Self.titleLine)
-                HStack(spacing: 4) {
+                HStack(spacing: Tokens.Space.xs) {
                     detail(content).font(SidebarMetrics.detail).lineLimit(1).truncationMode(.tail)
                     Spacer(minLength: 4)
                     // with no third line the providers sit here; with one they go down to it
@@ -134,7 +132,7 @@ struct SessionRowView: View {
                 }
                 .frame(height: Self.detailLine)
                 if third {
-                    HStack(spacing: 8) {
+                    HStack(spacing: Tokens.Space.sm) {
                         SessionWorkPill(pr: content.pullRequest, diff: content.diff)
                         Spacer(minLength: 4)
                         ProviderMarks(names: content.providers)
@@ -143,7 +141,7 @@ struct SessionRowView: View {
                 }
             }
         }
-        .padding(.horizontal, content.showsIcon ? (roomy ? density.sessionRowPadding - 2 : density.rowPadding) : SidebarMetrics.inset).padding(.vertical, roomy ? density.sessionRowPadding : density.rowPadding)
+        .padding(.horizontal, content.showsIcon ? (roomy ? density.sessionRowPadding - Tokens.Space.hair : density.rowPadding) : SidebarMetrics.inset).padding(.vertical, roomy ? density.sessionRowPadding : density.rowPadding)
         .onChange(of: row.isWorking, initial: true) { _, working in if working { ringKept = true } }
         .onChange(of: row.status) { old, new in
             guard old == .working, ringKept else { return }
@@ -200,7 +198,7 @@ struct SessionTimeLabel: View {
             Text("Needs you").fontWeight(.medium).foregroundStyle(SessionRowView.attention)
         } else if row.status == .unread, let age {
             // the word, and beside it how long ago it ended: the time it would have shown
-            HStack(spacing: 4) {
+            HStack(spacing: Tokens.Space.xs) {
                 Text("Done").fontWeight(.medium).foregroundStyle(Color.sessionDone)
                 Text(age).foregroundStyle(.tertiary)
             }
@@ -220,7 +218,7 @@ struct ProviderMarks: View {
     private static let shown = 3
 
     var body: some View {
-        HStack(spacing: 3) {
+        HStack(spacing: Tokens.Space.xs) {
             ForEach(names.prefix(Self.shown), id: \.self) { name in
                 AccountMark(account: name, size: 12).help(ProviderIdentityStore.shared.shortName(of: name))
             }

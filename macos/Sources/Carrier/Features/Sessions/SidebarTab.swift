@@ -60,7 +60,7 @@ struct SidebarTabView: View {
                     Toggle("Age", isOn: $showsAge).labelsHidden().toggleStyle(.switch)
                 }
                 SettingsPreview {
-                    VStack(spacing: 0) {
+                    VStack(spacing: Tokens.Space.none) {
                         ForEach(Self.samples, id: \.id) { SessionRowView(row: $0, showsWorkspace: true, roomy: true).allowsHitTesting(false) }
                     }
                 }

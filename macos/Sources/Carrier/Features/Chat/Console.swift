@@ -19,7 +19,7 @@ struct CopyButton: View {
             }
         } label: {
             // the icon and the word keep their size when they swap, so the button does not move
-            HStack(spacing: 5) {
+            HStack(spacing: Tokens.Space.tight) {
                 Glyph(copied ? .check : .copy).frame(width: 12, height: 14)
                 Text(copied ? "Copied" : "Copy").frame(width: 40, alignment: .leading)
             }
@@ -32,9 +32,9 @@ struct CopyButton: View {
 
 /// The console's colours: its text and the lines added and removed.
 enum ConsoleColor {
-    static let text = Color(red: 0.84, green: 0.84, blue: 0.86)
-    static let added = Color(red: 0.49, green: 0.91, blue: 0.53)
-    static let removed = Color(red: 1, green: 0.48, blue: 0.45)
+    static let text = Color(Tokens.Console.text)
+    static let added = Color(Tokens.Console.added)
+    static let removed = Color(Tokens.Console.removed)
 }
 
 /// The dark block of a console, the same in light and dark: monospaced, near black, a little air above and below.
@@ -42,11 +42,11 @@ struct Console<Content: View>: View {
     @ViewBuilder let content: Content
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) { content }
+        VStack(alignment: .leading, spacing: Tokens.Space.none) { content }
             .codeFont(11.5)
-            .padding(.vertical, 6)
+            .padding(.vertical, Tokens.Space.tight)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(red: 0.05, green: 0.05, blue: 0.063))
+            .background(Color(Tokens.Console.background))
     }
 }
 
@@ -62,7 +62,7 @@ struct DiffView: View {
     var body: some View {
         let shown = visibleDiffRows(rows, expanded: showAll)
         Console {
-            LazyVStack(alignment: .leading, spacing: 0) {
+            LazyVStack(alignment: .leading, spacing: Tokens.Space.none) {
                 switch style {
                 case .unified:
                     ForEach(Array(shown.rows.enumerated()), id: \.offset) { _, row in line(row).background(background(row)) }
@@ -71,7 +71,7 @@ struct DiffView: View {
                         if let left = pair.left, left.sign == .hunk {
                             line(left).background(background(left))
                         } else {
-                            HStack(spacing: 0) {
+                            HStack(spacing: Tokens.Space.none) {
                                 half(pair.left)
                                 Rectangle().fill(Color.white.opacity(0.1)).frame(width: 1)
                                 half(pair.right)
@@ -83,23 +83,23 @@ struct DiffView: View {
             if rows.count > collapsedDiffRows {
                 Button(showAll ? "Show less" : "Show \(shown.hidden) more \(shown.hidden == 1 ? "line" : "lines")") { showAll.toggle() }
                     .buttonStyle(.plain).font(.scaled(11)).foregroundStyle(Color.themeAccent)
-                    .padding(.horizontal, 14).padding(.top, 7).padding(.bottom, 1)
+                    .padding(.horizontal, Tokens.Space.roomy).padding(.top, Tokens.Space.sm).padding(.bottom, Tokens.Space.hair)
             }
             if let cut {
                 Text(cut).font(.scaled(11)).foregroundStyle(ConsoleColor.text.opacity(0.6))
-                    .padding(.horizontal, 14).padding(.top, 7).padding(.bottom, 1)
+                    .padding(.horizontal, Tokens.Space.roomy).padding(.top, Tokens.Space.sm).padding(.bottom, Tokens.Space.hair)
             }
         }
     }
 
     private func line(_ row: DiffRow) -> some View {
-        HStack(alignment: .top, spacing: 6) {
+        HStack(alignment: .top, spacing: Tokens.Space.tight) {
             Text(sign(row.sign))
             Text(row.text).textSelection(.enabled).lineLimit(1).truncationMode(.tail).frame(maxWidth: .infinity, alignment: .leading)
         }
         .foregroundStyle(color(row.sign))
-        .padding(.horizontal, 14)
-        .padding(.vertical, row.sign == .hunk ? 2 : 0)
+        .padding(.horizontal, Tokens.Space.roomy)
+        .padding(.vertical, row.sign == .hunk ? Tokens.Space.hair : Tokens.Space.none)
     }
 
     /// One side of a split line; a side with no match stays empty.

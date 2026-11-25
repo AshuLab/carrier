@@ -155,9 +155,9 @@ struct ModelPickerButton: View {
     }
 
     private var pill: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: Tokens.Space.sm) {
             if let current { AccountMark(account: current.name, icon: current.icon, size: 14) }
-            HStack(spacing: 5) {
+            HStack(spacing: Tokens.Space.tight) {
                 if followsAll {
                     Text("Same as everywhere").lineLimit(1)
                     Text("·").foregroundStyle(.secondary)
@@ -183,7 +183,7 @@ struct ModelPickerButton: View {
     // MARK: the panel
 
     private var panel: some View {
-        VStack(spacing: 0) {
+        VStack(spacing: Tokens.Space.none) {
             tabs
             search
             list
@@ -205,7 +205,7 @@ struct ModelPickerButton: View {
             }
             if let noneTitle, shownProvider != nil {
                 Button { pick(.none); open = false } label: { Label(noneTitle, icon: .close).labelStyle(.titleAndIcon).frame(maxWidth: .infinity, alignment: .leading) }
-                    .buttonStyle(HoverTextButtonStyle(tint: nil)).padding(.horizontal, 12).padding(.vertical, 10)
+                    .buttonStyle(HoverTextButtonStyle(tint: nil)).padding(.horizontal, Tokens.Space.md).padding(.vertical, Tokens.Space.snug)
                     .overlay(alignment: .top) { Divider() }
             }
         }
@@ -236,18 +236,18 @@ struct ModelPickerButton: View {
     /// names), and a dot marks the one the role has now.
     private var tabs: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 2) {
+            HStack(spacing: Tokens.Space.hair) {
                 ForEach(accounts) { account in
                     let on = account.name == shownName
                     Button { viewing = account.name; query = "" } label: {
-                        VStack(spacing: 3) {
+                        VStack(spacing: Tokens.Space.xs) {
                             AccountMark(account: account.name, icon: account.icon, size: 18)
                             Text(ProviderIdentityStore.shared.shortName(of: account.name)).font(.scaled(10, weight: .medium)).lineLimit(1)
                         }
-                        .frame(minWidth: 54).padding(.horizontal, 6).padding(.vertical, 6)
-                        .overlay(alignment: .bottom) { if on { Capsule().fill(.primary).frame(height: 2).padding(.horizontal, 8) } }
+                        .frame(minWidth: 54).padding(.horizontal, Tokens.Space.tight).padding(.vertical, Tokens.Space.tight)
+                        .overlay(alignment: .bottom) { if on { Capsule().fill(.primary).frame(height: 2).padding(.horizontal, Tokens.Space.sm) } }
                         .overlay(alignment: .topTrailing) {
-                            if account.name == shownProvider { Circle().fill(Color.themeAccent).frame(width: 6, height: 6).padding(.top, 5).padding(.trailing, 7) }
+                            if account.name == shownProvider { Circle().fill(Color.themeAccent).frame(width: 6, height: 6).padding(.top, Tokens.Space.tight).padding(.trailing, Tokens.Space.sm) }
                         }
                         .contentShape(Rectangle())
                     }
@@ -256,14 +256,14 @@ struct ModelPickerButton: View {
                     .accessibilityLabel(account.name).accessibilityAddTraits(on ? .isSelected : [])
                 }
             }
-            .padding(.horizontal, 12).padding(.top, 4)
+            .padding(.horizontal, Tokens.Space.md).padding(.top, Tokens.Space.xs)
         }
         .overlay(alignment: .bottom) { Divider() }
     }
 
     private var search: some View {
         TextField("Search models", text: $query).settingsField(icon: .search)
-            .padding(.horizontal, 12).padding(.top, 10).padding(.bottom, 2)
+            .padding(.horizontal, Tokens.Space.md).padding(.top, Tokens.Space.snug).padding(.bottom, Tokens.Space.hair)
     }
 
     private var viewed: PickerAccount? { accounts.first { $0.name == shownName } }
@@ -280,7 +280,7 @@ struct ModelPickerButton: View {
             let chosenId = model.map { viewedIsAgy ? splitAgyID($0).family : $0 }
             let custom = isCurrent ? model.flatMap { model in (options ?? []).contains { $0.id == (viewedIsAgy ? splitAgyID(model).family : model) } ? nil : model } : nil
             ScrollView {
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: Tokens.Space.hair) {
                     if let inherited, needle.isEmpty {
                         row(title: "Same as everywhere", detail: inherited.text.isEmpty ? "Follows \(inherited.follows)." : "Follows \(inherited.follows): \(inherited.text)", ticked: followsAll) { pick(.inherit) }
                     }
@@ -305,37 +305,37 @@ struct ModelPickerButton: View {
                     }
                     if options == nil {
                         Text(catalog.loading ? "Looking for models…" : "No list of this provider's models is available. Type the model's name in the search to use it.")
-                            .font(.scaled(12)).foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: .infinity).padding(16)
+                            .font(.scaled(12)).foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: .infinity).padding(Tokens.Space.lg)
                     } else if shown.isEmpty && needle.isEmpty && allowsDefaultModel == false && custom == nil {
-                        Text("No models listed").font(.scaled(12)).foregroundStyle(.secondary).frame(maxWidth: .infinity).padding(16)
+                        Text("No models listed").font(.scaled(12)).foregroundStyle(.secondary).frame(maxWidth: .infinity).padding(Tokens.Space.lg)
                     }
                 }
-                .padding(.horizontal, 8).padding(.vertical, 8)
+                .padding(.horizontal, Tokens.Space.sm).padding(.vertical, Tokens.Space.sm)
             }
             .frame(maxHeight: .infinity)
         } else {
             Text("No provider is signed in. Sign one in on the Providers page.").font(.scaled(12)).foregroundStyle(.secondary).multilineTextAlignment(.center)
-                .frame(maxWidth: .infinity, maxHeight: .infinity).padding(20)
+                .frame(maxWidth: .infinity, maxHeight: .infinity).padding(Tokens.Space.xl)
         }
     }
 
     private func row(title: String, detail: String?, ticked: Bool, action: @escaping () -> Void) -> some View {
         HoverRow(action: action, fill: ticked ? Color.themeAccent.opacity(0.18) : nil) { _ in
-            HStack(spacing: 8) {
-                VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: Tokens.Space.sm) {
+                VStack(alignment: .leading, spacing: Tokens.Space.hair) {
                     Text(title).font(.scaled(13, weight: .medium)).lineLimit(1)
                     if let detail { Text(detail).font(.scaled(11.5)).foregroundStyle(.secondary).lineLimit(2) }
                 }
                 Spacer(minLength: 8)
                 if ticked { ChosenMark() }
             }
-            .padding(.horizontal, 10).padding(.vertical, 7)
+            .padding(.horizontal, Tokens.Space.snug).padding(.vertical, Tokens.Space.sm)
         }
     }
 
     /// A role is an autonomous task: nobody is there to approve a change, so its access is full and not a choice.
     private var accessNote: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: Tokens.Space.sm) {
             HStack(alignment: .firstTextBaseline) {
                 Text("ACCESS").font(.scaled(11, weight: .semibold)).tracking(0.6).foregroundStyle(.secondary)
                 Spacer(minLength: 8)
@@ -344,7 +344,7 @@ struct ModelPickerButton: View {
             Text("Epics run on their own, so a role never waits for someone to approve a change: it can edit files and run commands.")
                 .font(.scaled(12)).foregroundStyle(.primary.opacity(0.75)).fixedSize(horizontal: false, vertical: true)
         }
-        .padding(.horizontal, panelMargin).padding(.vertical, 14)
+        .padding(.horizontal, panelMargin).padding(.vertical, Tokens.Space.roomy)
         .overlay(alignment: .top) { Divider() }
     }
 }

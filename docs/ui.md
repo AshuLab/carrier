@@ -26,6 +26,10 @@ They hold for every front-end; the sections after the catalog say how the Mac ap
 - **One main action.** A form or a row has one accent button (Save, Add); every other button is quiet.
 - **A line is one whole point, and its padding is inside the row.** A half-point line over a translucent fill is drawn uneven on a Retina screen.
 - **Spacing is 14 between blocks and 4 inside a block**, 12 between a tile and its text; a row is one line, and what does not fit goes to the group's footer.
+- **A radius, a padding or a `spacing:` is a step of the scales in `design/tokens.json`** (`Tokens.Radius`, `Tokens.Space`), never a number; a frame size and an opacity stay literals.
+  The steps are even: a value between two of them takes the nearest, by one point (3 is 4, 5 is 6, 9 is 10, 13 is 14, a corner of 1.5 is 2).
+  Three took two points: 18 is 20 and 22 and 26 are 24 (`xl`, `xxl`), where the views had 18, 22 and 26.
+  A value no step is near is a step of its own with a name for what it is (`gutter`, `bubbleMargin`, `timelineTop`, `Radius.sheet`).
 - **Under the pointer a piece answers**: a faint fill in 0.12 s, a stronger one while pressed, dimmed and no fill when disabled.
 - **Motion stops when nobody looks**: a motion runs only while the window can be seen and Reduce Motion is off.
 

@@ -272,7 +272,7 @@ private struct SessionHomeRow: View {
     /// What the session is doing, or the last thing the agent said.
     @ViewBuilder private var status: some View {
         if let waiting = waitingOnText(row.background), row.state != .waiting {
-            Text(waiting).foregroundStyle(SessionRowView.backgroundWork).font(.callout).lineLimit(1).truncationMode(.tail)
+            Text(waiting).foregroundStyle(Color.backgroundWork).font(.callout).lineLimit(1).truncationMode(.tail)
         } else {
             switch row.state {
             case .waiting: Text("Waiting for you").fontWeight(.medium).foregroundStyle(SessionRowView.attention).font(.callout)

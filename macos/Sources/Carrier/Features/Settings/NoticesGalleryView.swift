@@ -63,7 +63,7 @@ struct NoticesGalleryView: View {
                     }
                     item("The chat host is older than the app") { ProblemNotice(sentences: NewSessionModel.olderHostNotice) }
                     item("The send was refused: not signed in") {
-                        BannerView(banner: refusalBanner(agent: "claude", reason: Refusal(code: "agent.notLoggedIn", params: ["agent": "Claude"], text: "Claude is not logged in; run `claude` once to log in")), agent: "claude", copyDetails: false, retry: nil)
+                        FailureBannerView(banner: refusalBanner(agent: "claude", reason: Refusal(code: "agent.notLoggedIn", params: ["agent": "Claude"], text: "Claude is not logged in; run `claude` once to log in")), agent: "claude", copyDetails: false, retry: nil)
                     }
                     item("The worktree's name cannot be used") { ProblemNotice(title: "That name cannot be used", detail: "A branch named feat/login already exists.") }
                     item("The folder cannot be used") { ProblemNotice(title: "Couldn't use this folder", detail: "It is not a git repository, so it has no worktrees.", failed: true) }
@@ -73,15 +73,15 @@ struct NoticesGalleryView: View {
                 }
                 group("In the conversation and under the box") {
                     item("A turn that failed (the last one: it can be tried again)") {
-                        BannerView(
+                        FailureBannerView(
                             banner: failedTurnBanner(agent: "claude", error: "The provider closed the connection before the answer was complete."),
                             agent: "claude", copyDetails: true, retry: {})
                     }
                     item("A turn that failed, no longer the last: a record") {
-                        BannerView(banner: failedTurnBanner(agent: "claude", error: "The provider closed the connection before the answer was complete."), agent: "claude", copyDetails: true, retry: nil)
+                        FailureBannerView(banner: failedTurnBanner(agent: "claude", error: "The provider closed the connection before the answer was complete."), agent: "claude", copyDetails: true, retry: nil)
                     }
                     item("A send the provider refuses: not signed in") {
-                        BannerView(
+                        FailureBannerView(
                             banner: refusalBanner(agent: "claude", reason: Refusal(code: "agent.notLoggedIn", params: ["agent": "Claude"], text: "Claude is not logged in; run `claude` once to log in")),
                             agent: "claude", copyDetails: false, retry: {})
                     }

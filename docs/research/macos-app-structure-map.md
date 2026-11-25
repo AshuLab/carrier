@@ -83,17 +83,17 @@ macos/Sources/
     Support/      helpers with no domain: TimeText, JSONMessage, CarrierPlaces, InlinePath, ShellQuote, Signposts, StepLog, ResourceBundle
     Fixtures/     what `--fixture` runs: FixtureServer, FixtureRecognizer, ScriptedDictation, ConversationSample
   CarrierUI/    (starts as Carrier/UI/, becomes this target in the last step; see 0052)
-    Tokens/       Color, Font and spacing from the tokens: AppTheme, ScaledFont, CommandStyle
+    Tokens/       Color, Font and spacing from the tokens: AppTheme, ScaledFont, CommandStyle, SidebarMetrics, WorkColors
     Buttons/      PrimaryCapsuleButtonStyle, SecondaryCapsuleButtonStyle, ToolbarPillButton, IconButton, HoverFillButtonStyle, CheckButton, ...
     Fields/       NumberField, the settings field modifier, ToolbarSearchField, SidebarSearchField
-    Selects/      SelectMenu, SelectChevron, SelectButtonStyle, SegmentedChoice, ChoicePopUp, ChoiceMenu
-    Rows/         SettingsTabRow, SettingsStackedRow, NavigationRow, HoverRow, RowHint, ScaleRow, SwitchRow, MonoLines, RowParts
+    Selects/      SelectMenu, SelectChevron, SelectButtonStyle, SegmentedChoice, ChoicePopUp
+    Rows/         SettingsTabRow, SettingsStackedRow, NavigationRow, HoverRow, SidebarSectionRow, MonoLines
     Cards/        NoticeCard, SettingsTabCard, SettingsGroup, OverviewCard, WorkCard, HoverCard, CardFactsGrid, CodeBlockView
-    Chips/        StatusChip, KindChipView, PullRequestChip, Badge, ChosenMark
+    Chips/        StatusChip, PullRequestChip, Badge, ChosenMark
     Meters/       QuotaBar, QuotaMeter, QuotaPercent, SegmentedProgress, Ring, WorkingRing, SpinningRing
     Feedback/     EmptyStateView, LoadingStateView, ProblemLine, BannerView, Shimmer, GlowEdge
-    Layout/       FlowLayout, EqualWidthRow, RevealLayout, UnderlineTabs, SettingsPageBody
-    Modifiers/    MiddleClickModifier, the anchored and preference keys of Settings
+    Layout/       FlowLayout, EqualWidthRow, UnderlineTabs, SettingsPageBody
+    Modifiers/    MiddleClickModifier, the anchored and preference keys of Settings, WindowSheetSize, RowState
     Icons/        Glyph, IconImages, StateGlyph, StateMark, StatusMark, AccountMark, ProviderMark, BrandLogo, ProjectIcon
   Carrier/
     App/          main, AppDelegate, WindowController, MainMenu, MenuControls, StatusMenuGroups, StatusHeaderView, SessionMenu, EpicMenuSection, KeepAwakeMenu, LaunchPhases, EngineIdentityStore, AppHealth
@@ -149,7 +149,7 @@ Under `CarrierUI`, the files hold whole pieces today; the pieces hidden in scree
 - `Carrier/Features/Settings/Behavior` [1]: BehaviorTab (276, split: its button styles and `NumberField` to `CarrierUI`).
 - `Carrier/Features/Settings/Providers` [2]: ProvidersTab (553), ProvidersEditor (300).
 - `Carrier/Platform` [23]: TerminalHost (1,013), CommandTextView (528), FluidAudioRecognizer (273), KeepAwakeController (262), TerminalProcessInspector (258), AppUpdater (199), IconController (194), WhisperKitRecognizer (183), SystemNotificationCentre (143), AppleRecognizer (139), TerminalAppearance (127), MicrophoneCapture (82), CarrierTerminalView (81), GlobalHotKey (75), FocusedField (74), ClipboardPaste (69), ShellDetector (49), BrewRunner (44), CaptureConverter (35), ProgramVersions (32), MetricsSink (28), ProcessRun (27), DictationSoundPlayer (15).
-- `CarrierUI` [27]: CodeBlockView (234), Icons (229), SpinningRing (208), ScaledFont (158), ToolbarPillButton (156), NoticeCard (147), HoverCard (146), CheckButton (134), MiddleClickModifier (125), EmptyStateView (113), SheetParts (96), AppTheme (95), StateGlyph (82), OverviewParts (80), AccountMark (79), SidebarSearch (74), CardFactsGrid (56), BrandLogo (51), UnderlineTabs (50), LookingTimeline (46), FlowLayout (44), MonoLines (41), RowParts (31), RollingTitle (25), WorkCard (20), CommandStyle (14), TimeFormatChanges (13). The parts files (`SheetParts`, `OverviewParts`, `RowParts`) are split into one file per piece.
+- `CarrierUI` [27]: CodeBlockView (234), Icons (229), SpinningRing (208), ScaledFont (158), ToolbarPillButton (156), NoticeCard (147), HoverCard (146), CheckButton (134), MiddleClickModifier (125), EmptyStateView (113), SheetParts (96), AppTheme (95), StateGlyph (82), OverviewParts (80), AccountMark (79), SidebarSearch (74), CardFactsGrid (56), BrandLogo (51), UnderlineTabs (50), LookingTimeline (46), FlowLayout (44), MonoLines (41), RowParts (31), RollingTitle (25), WorkCard (20), CommandStyle (14), TimeFormatChanges (13). The parts files (`SheetParts`, `OverviewParts`, `RowParts`) are split into one file per piece (`SheetParts` and `RowParts` are, in the pieces' slice of the Sessions and Chat screens).
 - `CarrierCore/Connection` [9]: ChatHost (969), ChatLink (296), ControlClient (254), Snapshot (221), EngineLink (137), ControlMonitor (126), PollPace (125), ControlRequests (76), IdleClose (36).
 - `CarrierCore/Lifecycle` [8]: StartCarrier (124), CarrierBox (77), CarrierUpgrade (73), EngineReplacement (71), HostReplacement (69), StartChatHost (48), EngineIdentity (47), StartingSteps (37).
 - `CarrierCore/Shell` [5]: WindowShell (231), Shortcuts (177), AppIcon (152), IconState (86), MenuSessions (10).
@@ -194,6 +194,10 @@ The count is how many other files of `Carrier/` name one of the file's types.
 
 Corrected when `SettingsTabs.swift` and `BehaviorTab.swift` were cut: a piece used by one area only stays in that area (0052, rule 9).
 `FilterChip` is used only by Projects and lives in `Features/Projects/`; `SettingsHeaderButton`, `SettingsNoteView`, `AskAgainButton`, `ReloadNote` and `CopyOnHover` are used only by Settings and are files of `Features/Settings/` (`ReloadNote` and `AskAgainButton` take the engine's words and state as values); `RoleTile` and `roleSummary` had no caller and are deleted.
+
+Corrected when the pieces of the Sessions and Chat screens were cut (same rule, 0052 rule 9): `ChoiceMenu`, `SessionTimeLabel`, `ProviderMarks`, `RowTag`, `RowIconButton`, `ControlSurface` (`controlHeight`, `controlSurface`) and `ProjectIconImageCache` are used only by Sessions or Projects and stay in `Features/Sessions/` and `Features/Projects/`; so do `RevealLayout`, `KindChipView`, `MessageTimeLabel`, `ScaleRow` and `SwitchRow` in `Features/Chat/`, and `RowHint` in `Features/Projects/`.
+`ProjectIcon`, `BannerView` and `ProviderMark` take values: the tile's color, mark, initials and image come from `ProjectIcon(tile:)` in `Features/Projects/ProjectTileIcon.swift`, and a banner's words, tint and account from `FailureBannerView` (`FailureBanner.warns` in `CarrierCore`), so neither names an area's type.
+`done`, `backgroundWork` and `thought` (the ring's colors) are `Color` tokens in `UI/Tokens/WorkColors.swift`.
 
 ## Files over 400 lines
 

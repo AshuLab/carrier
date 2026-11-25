@@ -75,6 +75,12 @@ private func group(_ rows: [FeedRow]) -> ToolGroup {
     #expect(signedOut.hint == "Sign in from a terminal; Carrier never asks for your password")
 }
 
+@Test func aBannerWithAHintWarnsAndOneWithoutFails() {
+    #expect(failedTurnBanner(agent: "claude", error: "Usage limit reached").warns == false)
+    #expect(refusalBanner(agent: "codex", reason: .words("The agent is still answering")).warns == false)
+    #expect(refusalBanner(agent: "claude", reason: Refusal(code: "agent.notLoggedIn", params: ["agent": "claude"], text: "Claude is not logged in")).warns)
+}
+
 @Test func theSignInLineFollowsTheCodeAndNotTheWords() {
     let signIn = "Sign in from a terminal; Carrier never asks for your password"
     // the words differ from today's: only the code says the provider is signed out

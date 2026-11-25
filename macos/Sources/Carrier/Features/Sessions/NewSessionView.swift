@@ -39,7 +39,7 @@ struct NewSessionView: View {
                 if model.sendSteps.isEmpty == false { sendSteps }
                 if let refusal = model.refusal {
                     // the same banner the conversation shows for a refused send, with the line that says where to sign in when that is why
-                    BannerView(banner: refusalBanner(agent: ProviderIdentityStore.shared.shortName(of: model.agent ?? ""), reason: refusal), agent: model.agent, copyDetails: false, retry: nil)
+                    FailureBannerView(banner: refusalBanner(agent: ProviderIdentityStore.shared.shortName(of: model.agent ?? ""), reason: refusal), agent: model.agent, copyDetails: false, retry: nil)
                 }
             }
             // never narrower than 320: the window asks for its smallest size with no width, and the notes under the sentence would be a word a line

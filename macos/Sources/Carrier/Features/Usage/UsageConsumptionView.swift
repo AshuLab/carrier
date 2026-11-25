@@ -236,7 +236,7 @@ struct UsageProviderMark: View {
     var size: CGFloat = 16
 
     var body: some View {
-        if AgentAvatar.mark(title.lowercased()) != nil {
+        if ProviderMark.image(title.lowercased()) != nil {
             ProviderMark(name: title.lowercased(), size: size).foregroundStyle(.primary).accessibilityHidden(true)
         } else {
             Glyph(.desktop, size: size - 3).foregroundStyle(.secondary).accessibilityHidden(true)

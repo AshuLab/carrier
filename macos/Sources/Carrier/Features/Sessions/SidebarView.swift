@@ -1,26 +1,6 @@
 import CarrierCore
 import SwiftUI
 
-/// What every sidebar row is laid out with. The scroll area and the foot keep `edge` on both sides, so nothing inside has a side margin
-/// of its own; a row draws its fill edge to edge of that and keeps its content `inset` inside the fill. The type has four levels, one
-/// for each job: a section (Home, Sessions, Carrier), a group's title, an item's title (a session, an epic) and its detail.
-enum SidebarMetrics {
-    static let edge: CGFloat = 8
-    static let inset: CGFloat = 12
-    static var section: Font { Font.scaled(16, weight: .medium) }
-    static var group: Font { Font.scaled(12, weight: .semibold) }
-    static var item: Font { Font.scaled(14) }
-    static var detail: Font { Font.scaled(12) }
-    /// Between rows: each one carries its own vertical padding.
-    static let rowGap: CGFloat = 2
-    /// The vertical padding of a section's row, and between an item's lines; an item's row takes its padding from the density, on all four
-    /// sides when it has a project icon (the tile is as far from the left edge of its fill as from the top and bottom).
-    static let sectionPadding: CGFloat = 8
-    static let lineGap: CGFloat = 3
-    /// Above a group's title, so it reads where a group begins; under it the first row is closer.
-    static let groupTop: CGFloat = 10
-}
-
 /// The sidebar: Home, Sessions, Terminal and Carrier stacked in that order, then Settings and Usage. The open section takes the room that is
 /// left and scrolls its own list; the sections above it are rows at the top and the ones under it rows at the foot (Archive closes Sessions' panel).
 /// The rows draw their own fill, selected or hovered, so what is under a section is plain rows and not a `List`.
@@ -394,60 +374,6 @@ private struct CarrierRow: View {
     }
 }
 
-/// The states of a sidebar button, drawn as the shape of the button: none at rest, a faint fill on hover, a stronger one while the mouse is
-/// down, the middle one while what it opened is `open`, and the whole button dimmed when it is disabled (no fill then).
-struct HoverFillButtonStyle: ButtonStyle {
-    var open = false
-    var radius: CGFloat = 6
-
-    func makeBody(configuration: Configuration) -> some View {
-        Shape(configuration: configuration, open: open, radius: radius)
-    }
-
-    private struct Shape: View {
-        let configuration: ButtonStyleConfiguration
-        let open: Bool
-        let radius: CGFloat
-        @State private var hovered = false
-        @Environment(\.isEnabled) private var enabled
-
-        var body: some View {
-            let fill = configuration.isPressed ? 0.2 : open ? (hovered ? 0.2 : 0.15) : hovered ? 0.1 : 0
-            configuration.label
-                .background(RoundedRectangle(cornerRadius: radius).fill(Color.primary.opacity(enabled ? fill : 0)))
-                .opacity(enabled ? 1 : 0.35)
-                .onHover { hovered = $0 }
-                .animation(.easeOut(duration: 0.12), value: fill)
-        }
-    }
-}
-
-/// A 24-point button with an accessible name and a tooltip, drawn in `HoverFillButtonStyle`; `why` is the tooltip and the hint while it is
-/// disabled. In a list row it runs its action and does not select the row.
-struct IconButton: View {
-    let icon: AppIcon
-    let name: String
-    var enabled = true
-    var why: String?
-    /// Shown after the name in the tooltip.
-    var shortcut: String?
-    /// Drawn while what the button opened is open.
-    var pressed = false
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Glyph(icon, size: 14).frame(width: 24, height: 24).contentShape(Rectangle())
-        }
-        .buttonStyle(HoverFillButtonStyle(open: pressed))
-        .disabled(enabled == false)
-        .help(enabled ? name + (shortcut.map { " (\($0))" } ?? "") : why ?? name)
-        .accessibilityLabel(name)
-        .accessibilityHint(enabled ? "" : why ?? "")
-        .accessibilityAddTraits(pressed ? .isSelected : [])
-    }
-}
-
 extension GroupBy {
     var title: String { self == .status ? "Status" : "Repository" }
 }
@@ -492,77 +418,6 @@ extension View {
         modifier(SelectableSidebarRow(selected: selected, action: action))
     }
 
-}
-
-/// A sidebar section ([glossary](../../docs/glossary.md)): an icon of 15 points, a title and its actions, and under them whatever the
-/// section shows of itself (Carrier's slots). No fill at rest, a faint grey on hover and a light neutral grey when selected, drawn here
-/// and not by the list, so it covers this row and never what unfolds under it. A click anywhere on it, but on its actions, runs `action`.
-/// `actions` are what the row says (a count, a state) and are always there; `hoverActions` are its buttons, which fade in while the pointer
-/// is over the row and stay while `keepActions` (a menu they opened is open, a search they started is on), left of `actions`.
-struct SidebarSectionRow<Actions: View, HoverActions: View, Below: View>: View {
-    let title: String
-    let icon: AppIcon
-    let selected: Bool
-    var keepActions = false
-    let action: () -> Void
-    @ViewBuilder let actions: Actions
-    @ViewBuilder let hoverActions: HoverActions
-    @ViewBuilder let below: Below
-    @State private var hovered = false
-    @Environment(\.colorScheme) private var scheme
-
-    init(
-        title: String, icon: AppIcon, selected: Bool, keepActions: Bool = false, action: @escaping () -> Void,
-        @ViewBuilder actions: () -> Actions = { EmptyView() }, @ViewBuilder hoverActions: () -> HoverActions = { EmptyView() },
-        @ViewBuilder below: () -> Below = { EmptyView() }
-    ) {
-        self.title = title
-        self.icon = icon
-        self.selected = selected
-        self.keepActions = keepActions
-        self.action = action
-        self.actions = actions()
-        self.hoverActions = hoverActions()
-        self.below = below()
-    }
-
-    var body: some View {
-        // the system's selection colour at 45% when selected, a faint grey (5%, 7% dark) when hovered
-        let dark = scheme == .dark
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
-                // the one control a keyboard reaches: Tab (with Full Keyboard Access) and Space run `action`; a click anywhere on the
-                // row, but on its actions, still does through the tap below
-                Button(action: action) {
-                    HStack(spacing: 8) {
-                        Glyph(icon, size: 18)
-                            .foregroundStyle(selected ? .primary : .secondary)
-                        Text(title).font(SidebarMetrics.section)
-                        Spacer(minLength: 0)
-                    }
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(title)
-                .accessibilityAddTraits(selected ? .isSelected : [])
-                // the buttons take their room even while hidden, so the row does not move when the pointer comes in
-                let shown = hovered || keepActions
-                HStack(spacing: 0) { hoverActions }
-                    .opacity(shown ? 1 : 0).allowsHitTesting(shown)
-                    .animation(.easeOut(duration: 0.15), value: shown)
-                actions
-            }
-            .frame(minHeight: 24)
-            below
-        }
-        .padding(.horizontal, SidebarMetrics.inset).padding(.vertical, SidebarMetrics.sectionPadding)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 8).fill(selected ? Color.selectedRow(dark: dark) : Color.primary.opacity(hovered ? (dark ? 0.07 : 0.05) : 0)))
-        .contentShape(RoundedRectangle(cornerRadius: 8))
-        .onTapGesture(perform: action)
-        .onHover { hovered = $0 }
-        .accessibilityElement(children: .contain)
-    }
 }
 
 struct SidebarRowView: View {

@@ -306,7 +306,7 @@ private struct ConversationBox: View {
                 if model.refusedText == nil {
                     ProblemNotice(text: refusal.text)
                 } else {
-                    BannerView(banner: refusalBanner(agent: ProviderIdentityStore.shared.shortName(of: model.agent), reason: refusal), agent: model.agent, copyDetails: false, retry: { Task { await model.retry() } })
+                    FailureBannerView(banner: refusalBanner(agent: ProviderIdentityStore.shared.shortName(of: model.agent), reason: refusal), agent: model.agent, copyDetails: false, retry: { Task { await model.retry() } })
                 }
             }
         }
@@ -415,7 +415,7 @@ struct FeedRowView: View, Equatable {
             ContextCutDivider(glyph: cut.error == nil ? .arrowsMinimize : .warning, title: cut.title, notes: [cut.sizes, cut.saved].compactMap { $0 },
                               detail: cut.detail(agent: ProviderIdentityStore.shared.shortName(of: agent)), failed: cut.error != nil)
         case .error(_, let text):
-            BannerView(banner: failedTurnBanner(agent: ProviderIdentityStore.shared.shortName(of: agent), error: text), agent: agent, copyDetails: true, retry: offersWayOut ? actions.retry : nil)
+            FailureBannerView(banner: failedTurnBanner(agent: ProviderIdentityStore.shared.shortName(of: agent), error: text), agent: agent, copyDetails: true, retry: offersWayOut ? actions.retry : nil)
         case .stopped:
             HStack(spacing: 6) {
                 Text("\u{25A0} You stopped this turn").foregroundStyle(.secondary)
@@ -537,45 +537,6 @@ struct MessageTimeLabel: View {
                 Text(timeText(Date(ms: ms), now: context.date, format: timeChanges.format)).font(.scaled(12)).monospacedDigit().foregroundStyle(.secondary)
                     .opacity(mode.shows(hovering: hovering) ? 1 : 0)
             }
-        }
-    }
-}
-
-/// A failed turn or a refused send: a `NoticeCard` in red (orange when the provider is not signed in, chat-ui-conv.html, section 3), with
-/// the way out as text that lights a pill under the pointer.
-struct BannerView: View {
-    let banner: FailureBanner
-    /// The agent that failed or was refused: when its account has an icon, a color or a label, its mark stands before the title.
-    var agent: String?
-    /// Copy details puts the provider's text on the pasteboard; a failed turn has it, a refusal says its reason in full already.
-    let copyDetails: Bool
-    /// Nil when the turn is no longer the last thing: the banner is then only a record.
-    let retry: (() -> Void)?
-    @State private var copied = false
-
-    private var tint: Color { banner.hint == nil ? .red : .orange }
-
-    /// An account with none of the three shows the title alone, as it always did.
-    private var markedAccount: String? {
-        guard let agent, ProviderIdentityStore.shared.identity(of: agent) != .none else { return nil }
-        return agent
-    }
-
-    var body: some View {
-        NoticeCard(symbol: .exclamation, tint: tint, title: banner.title, detail: banner.detail, hint: banner.hint, edge: true, account: markedAccount) {
-            if copyDetails {
-                Button {
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(banner.detail, forType: .string)
-                    copied = true
-                    Task {
-                        try? await Task.sleep(for: .seconds(1.3))
-                        copied = false
-                    }
-                } label: { Label(copied ? "Copied" : "Copy details", icon: copied ? .check : .copy) }
-                    .buttonStyle(NoticeActionStyle(quiet: true))
-            }
-            if let retry { Button(action: retry) { Label("Try again", icon: .refresh) }.buttonStyle(NoticeActionStyle()) }
         }
     }
 }

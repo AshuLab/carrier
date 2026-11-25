@@ -217,7 +217,7 @@ struct BackgroundWorkCard: View {
 
     /// How long each task has the line to itself.
     private static let turn: TimeInterval = 3
-    private var cyan: Color { SessionRowView.backgroundWork }
+    private var cyan: Color { Color.backgroundWork }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -370,11 +370,6 @@ extension AnyTransition {
     static var reveal: AnyTransition { .modifier(active: Reveal(progress: 0), identity: Reveal(progress: 1)) }
 }
 
-extension Color {
-    /// The violet of the agent's thinking, and of the ring that goes round a working session's icon.
-    static let thought = Color(red: 0.79, green: 0.63, blue: 1.0)
-}
-
 /// The lead of the line: what the agent is doing, or how the run ended.
 private struct LeadView: View {
     let lead: ChatToolGroupView.Lead
@@ -424,61 +419,6 @@ private struct DoneMark: View {
         Glyph(.checkCircleFilled, size: 12).foregroundStyle(.green)
             .glyphKick(ticks)
             .onAppear { ticks += 1 }
-    }
-}
-
-/// A light that sweeps over the text it is on, in the primary colour over the secondary one the text has.
-struct Shimmer: ViewModifier {
-    let active: Bool
-
-    func body(content: Content) -> some View {
-        content.overlay {
-            if active {
-                MovingTimeline { context in
-                    let p = (context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 2.2)) / 2.2 * 1.6 - 0.3
-                    LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .primary, location: 0.5), .init(color: .clear, location: 1)],
-                                   startPoint: UnitPoint(x: p - 0.25, y: 0.5), endPoint: UnitPoint(x: p + 0.25, y: 0.5))
-                }
-                .mask(content)
-            }
-        }
-    }
-}
-
-/// The glow on the card's edge. Working, a bright arc goes round once every few seconds. Waiting for the person, it does not go anywhere: the
-/// whole edge is lit and breathes, as a light that waits. Without `moves` it is still: the arc, or the edge half lit.
-struct GlowEdge: View {
-    let color: Color
-    let waiting: Bool
-    let moves: Bool
-    /// The card's corners; the update pill passes half its height, a capsule.
-    var cornerRadius: CGFloat = 12
-
-    var body: some View {
-        if moves {
-            MovingTimeline { context in
-                let now = context.date.timeIntervalSinceReferenceDate
-                if waiting { breathing(0.5 + 0.5 * sin(now * 2 * .pi / 1.8)) } else { arc(now.truncatingRemainder(dividingBy: 3.4) / 3.4 * 360) }
-            }
-        } else if waiting {
-            breathing(0.6)
-        } else {
-            arc(200)
-        }
-    }
-
-    /// `level` from 0 to 1: how lit the edge is.
-    private func breathing(_ level: Double) -> some View {
-        RoundedRectangle(cornerRadius: cornerRadius).strokeBorder(color.opacity(0.25 + 0.65 * level), lineWidth: 1.2)
-            .shadow(color: color.opacity(0.35 * level), radius: 6)
-    }
-
-    private func arc(_ degrees: Double) -> some View {
-        RoundedRectangle(cornerRadius: cornerRadius).strokeBorder(
-            AngularGradient(stops: [.init(color: .clear, location: 0), .init(color: .clear, location: 0.62), .init(color: color.opacity(0.95), location: 0.82),
-                                    .init(color: color.opacity(0.4), location: 0.92), .init(color: .clear, location: 1)], center: .center, angle: .degrees(degrees)),
-            lineWidth: 1.2
-        )
     }
 }
 

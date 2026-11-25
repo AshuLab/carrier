@@ -64,7 +64,7 @@ struct FlowItemView: View {
                     .padding(.horizontal, LogMetrics.iconColumn).padding(.vertical, 6)
             }
         case .error(_, let text):
-            BannerView(banner: failedTurnBanner(agent: "", error: text), copyDetails: true, retry: nil)
+            FailureBannerView(banner: failedTurnBanner(agent: "", error: text), copyDetails: true, retry: nil)
                 .padding(.horizontal, LogMetrics.iconColumn).padding(.vertical, 6)
         case .skill(_, let call):
             SkillRowView(call: call).padding(.horizontal, LogMetrics.iconColumn).padding(.vertical, 4)

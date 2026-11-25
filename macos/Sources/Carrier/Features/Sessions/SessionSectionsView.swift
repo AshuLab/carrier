@@ -343,8 +343,6 @@ struct AgentAvatar: View {
     var mark = true
     /// The account the session runs on: the corner wears its icon and color when it has them (the disc is the profile's, not the account's).
     var account: String?
-    @MainActor private static var marks: [String: NSImage] = [:]
-
     var body: some View {
         Text(text.letter).font(.scaled(size * 0.38, weight: .bold)).foregroundStyle(.white)
             .frame(width: size, height: size)
@@ -364,7 +362,7 @@ struct AgentAvatar: View {
         Group {
             if let account {
                 AccountMark(account: account, icon: harness, size: 9)
-            } else if let image = Self.mark(harness) {
+            } else if let image = ProviderMark.image(harness) {
                 Image(nsImage: image).renderingMode(.template).resizable().scaledToFit().frame(width: 9, height: 9)
             } else {
                 Text(harness.prefix(1)).font(.scaled(8, weight: .bold))
@@ -373,13 +371,5 @@ struct AgentAvatar: View {
         .foregroundStyle(.primary)
         .frame(width: 16, height: 16)
         .avatarCornerDisc()
-    }
-
-    @MainActor static func mark(_ harness: String) -> NSImage? {
-        if let known = marks[harness] { return known }
-        guard let url = providerIconURL(harness), let image = NSImage(contentsOf: url) else { return nil }
-        image.isTemplate = true
-        marks[harness] = image
-        return image
     }
 }

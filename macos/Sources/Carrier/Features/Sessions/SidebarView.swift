@@ -240,11 +240,12 @@ extension View {
 private struct PinnedSectionHeader: ViewModifier {
     @Environment(\.sidebarScrolled) private var scrolled
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.pieceTheme) private var theme
     /// How far the fade reaches under the row.
     private static let fade: CGFloat = 14
 
     func body(content: Content) -> some View {
-        let sidebar = AppTheme.shared.surfaces.sidebar
+        let sidebar = theme.surfaces.sidebar
         content
             .padding(.top, 8)
             .background {

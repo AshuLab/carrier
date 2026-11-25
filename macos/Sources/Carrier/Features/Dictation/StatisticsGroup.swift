@@ -12,6 +12,7 @@ struct StatisticsGroup: View {
     @State private var confirmingReset = false
     @State private var unparsable: Set<String> = []
     @State private var cardsWidth = CGFloat.infinity
+    @Environment(\.textScale) private var textScale
 
     var body: some View {
         let records = dictation.records
@@ -62,7 +63,7 @@ struct StatisticsGroup: View {
     /// The cards of a group, with no container behind them: four in a row while each has the room its longest title and value need (equal shares, at the
     /// person's text size), two by two when the window is narrow. In the form the row has no background and no inset, so the cards are the group.
     private func cardGrid(_ cards: [StatisticsCard]) -> some View {
-        let four = cardsWidth >= 4 * 130 * CGFloat(TextSize.shared.percent) / 100 + 30
+        let four = cardsWidth >= 4 * 130 * CGFloat(textScale.percent) / 100 + 30
         return Group {
             if four {
                 HStack(alignment: .top, spacing: 10) { ForEach(cards.indices, id: \.self) { cards[$0] } }

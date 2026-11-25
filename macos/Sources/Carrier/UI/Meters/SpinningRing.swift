@@ -187,6 +187,7 @@ struct SpinningGlyph: NSViewRepresentable {
     var symbol: AppIcon
     var diameter: CGFloat
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.pieceTheme) private var theme
 
     func makeNSView(context: Context) -> RingHostView {
         let view = RingHostView(symbol: symbol, diameter: diameter)
@@ -197,8 +198,7 @@ struct SpinningGlyph: NSViewRepresentable {
     func updateNSView(_ view: RingHostView, context: Context) {
         view.reduceMotion = reduceMotion
         // read here, so the glyph is drawn again in the set and weight the person moves to
-        let style = IconAppearance.shared
-        view.setGlyph(symbol, diameter: diameter, set: style.set, weight: style.weight)
+        view.setGlyph(symbol, diameter: diameter, set: theme.iconSet, weight: theme.iconWeight)
     }
 
     func sizeThatFits(_ proposal: ProposedViewSize, nsView: RingHostView, context: Context) -> CGSize? {

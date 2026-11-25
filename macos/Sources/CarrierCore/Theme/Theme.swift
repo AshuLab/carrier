@@ -96,7 +96,7 @@ public enum Tint: String, CaseIterable, Sendable {
 }
 
 /// What the app paints for a theme: the windows, the sidebar, and the accent (nil is the Mac's own).
-public struct ThemeSurfaces: Equatable {
+public struct ThemeSurfaces: Equatable, Sendable {
     public var window: RGBA
     public var sidebar: RGBA
     public var accent: RGBA?

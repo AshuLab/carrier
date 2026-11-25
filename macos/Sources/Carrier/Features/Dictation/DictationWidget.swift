@@ -52,7 +52,7 @@ import SwiftUI
         panel.ignoresMouseEvents = false
         panel.keyable = false
         if panel.isKeyWindow { panel.orderOut(nil) }
-        let host = NSHostingView(rootView: DictationWidgetView(dictation: dictation, style: style, livePreview: livePreview, theme: theme, hint: hint, voice: voice))
+        let host = NSHostingView(rootView: DictationWidgetView(dictation: dictation, style: style, livePreview: livePreview, theme: theme, hint: hint, voice: voice).themed())
         // a theme that is dark or light draws its text so whatever the app's appearance is
         host.appearance = theme.appearance.map { NSAppearance(named: $0 == .light ? .aqua : .darkAqua) } ?? nil
         // the panel's size is `place()`'s alone: with the hosting view's own, a state with a scrolling text and buttons made the panel as tall as the display
@@ -85,7 +85,7 @@ import SwiftUI
         var size = look.windowSize
         if let box = look.box, case .copied(let reason) = dictation.state {
             // the notices over a text that was only copied take the lines they need, not a fixed number: a long reason wraps in a narrow box
-            let textSize = TextSize.shared.scale.size(box.text)
+            let textSize = TypeScale.stored().size(box.text)
             let notices = dictationKeptNotices(reason: reason, notCleaned: dictation.notCleaned)
             let wanted = Self.height(of: notices, size: textSize, width: box.width - 32)
             size.height += max(0, wanted - CGFloat(DictationWidgetBox.reasonLines) * box.lineHeight(textSize: textSize)).rounded(.up)
@@ -208,7 +208,7 @@ extension DictationWidgetLook {
     /// The window's size: the Pill's, or the box's at the person's text size.
     var windowSize: CGSize {
         guard let box else { return Self.pillSize }
-        return CGSize(width: box.width, height: box.height(textSize: TextSize.shared.scale.size(box.text)))
+        return CGSize(width: box.width, height: box.height(textSize: TypeScale.stored().size(box.text)))
     }
 
     /// The Pill is a capsule and a box has the message box's radius.
@@ -405,9 +405,10 @@ struct WidgetBox<Content: View, Foot: View>: View {
     @ViewBuilder var foot: Foot
     @State private var position = ScrollPosition(edge: .top)
     @State private var textLines = 0
+    @Environment(\.textScale) private var textScale
 
     var body: some View {
-        let lineHeight = box.lineHeight(textSize: TextSize.shared.scale.size(box.text))
+        let lineHeight = box.lineHeight(textSize: textScale.size(box.text))
         let fadesTop = follows && dictationTextFit(textLines: textLines, boxLines: box.lines).fadesTop
         VStack(alignment: .leading, spacing: 8) {
             if notices.isEmpty == false {

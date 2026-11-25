@@ -92,7 +92,7 @@ private struct HoverCardPopover<Card: View>: NSViewRepresentable {
 
         func open<Content: View>(from anchor: NSView, card: () -> Content) {
             guard popover == nil, anchor.window != nil, anchor.bounds.isEmpty == false else { return }
-            let controller = NSHostingController(rootView: card())
+            let controller = NSHostingController(rootView: card().themed())
             controller.sizingOptions = [.preferredContentSize]
             let popover = NSPopover()
             popover.behavior = .applicationDefined

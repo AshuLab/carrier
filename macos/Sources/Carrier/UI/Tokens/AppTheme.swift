@@ -73,6 +73,7 @@ private struct Themed: ViewModifier {
     func body(content: Content) -> some View {
         let surfaces = AppTheme.shared.surfaces
         content
+            .modifier(PieceEnvironment())
             .tint(surfaces.accent.map(Color.init))
             .presentationBackground(surfaces.window.alpha > 0 ? AnyShapeStyle(Color(surfaces.window)) : AnyShapeStyle(.background))
     }
@@ -81,7 +82,7 @@ private struct Themed: ViewModifier {
 extension View {
     func avatarCornerDisc() -> some View { modifier(AvatarCornerDisc()) }
 
-    /// The theme's accent and window color on the root of a window or a sheet. A sheet is another window: it takes neither the accent nor
+    /// The theme's accent and window color, with the text size and the `PieceTheme` the pieces read, on the root of a window or a sheet. A sheet is another window: it takes neither the accent nor
     /// the color of the window it opens over. Carrier's translucent windows have no color of their own, so the sheet keeps the system's.
     func themed() -> some View { modifier(Themed()) }
 

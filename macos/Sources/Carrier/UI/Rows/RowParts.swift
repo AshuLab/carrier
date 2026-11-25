@@ -22,8 +22,8 @@ struct RowIconButton: View {
 
     var body: some View {
         Button(action: action) {
-            Glyph(symbol, size: 12).foregroundStyle(selected ? Color.themeAccent : .secondary).frame(width: 28, height: 28)
-                .background(Circle().fill(selected ? Color.themeAccent.opacity(0.2) : Color.secondary.opacity(0.14)))
+            Glyph(symbol, size: 12).foregroundStyle(selected ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary)).frame(width: 28, height: 28)
+                .background(Circle().fill(selected ? AnyShapeStyle(.tint.opacity(0.2)) : AnyShapeStyle(Color.secondary.opacity(0.14))))
         }
         .buttonStyle(.plain).disabled(why != nil).opacity(why == nil ? 1 : 0.4).help(why ?? title).accessibilityLabel(title).accessibilityHint(why ?? "").accessibilityAddTraits(selected ? .isSelected : [])
     }

@@ -1,7 +1,7 @@
 import Foundation
 
 /// The one scale every interface size goes through: a base size in points becomes the size the person's text size asks for.
-public struct TypeScale: Equatable {
+public struct TypeScale: Equatable, Sendable {
     public static let range = 90...130
 
     /// The text size in percent, kept inside `range`.

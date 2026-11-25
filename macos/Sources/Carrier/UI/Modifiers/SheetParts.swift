@@ -45,7 +45,7 @@ extension View {
 struct ChosenMark: View {
     var body: some View {
         Glyph(.check, size: 9, bold: true).foregroundStyle(.white)
-            .frame(width: 18, height: 18).background(Circle().fill(Color.themeAccent))
+            .frame(width: 18, height: 18).background(Circle().fill(.tint))
             .accessibilityElement(children: .ignore).accessibilityLabel("Chosen")
     }
 }

@@ -88,7 +88,7 @@ private func engineReply(_ outcome: ReloadOutcome) -> String {
     _ host: ProvidersHost, _ file: ProvidersFile, engine: ReloadOutcome = .applied, log: @escaping (String) -> Void = { _ in }
 ) -> ProvidersStore {
     (host.file, host.engine) = (file, engine)
-    return ProvidersStore(host: host, file: { file }, log: log, status: ReloadStatus())
+    return ProvidersStore(host: host, file: { file }, log: log, status: ReloadStatus(), bundle: english.bundle, locale: english.locale)
 }
 
 private func account(_ name: String, found: Bool) -> String {
@@ -197,7 +197,7 @@ private let base = Data(#"{"future":1,"providers":{"claude":{"harness":"claude",
     func problems(_ harness: String, _ change: (inout AccountDraft) -> Void) -> [String: String] {
         var draft = AccountDraft()
         change(&draft)
-        return draftProblems(draft, harness: harness)
+        return draftProblems(draft, harness: harness, bundle: english.bundle, locale: english.locale)
     }
     #expect(problems("claude") { $0.autoCompact = "auto" }.isEmpty)
     #expect(problems("claude") { $0.autoCompact = "100000" }.isEmpty && problems("claude") { $0.autoCompact = "1000000" }.isEmpty)
@@ -235,7 +235,7 @@ private let base = Data(#"{"future":1,"providers":{"claude":{"harness":"claude",
 
 @Test func aNewAccountNameIsALowercaseWordOfAtMostFortyCharacters() {
     for name in ["a", "claude-work", "a1-b2", String(repeating: "a", count: 40)] { #expect(nameProblem(name) == nil, "\(name)") }
-    for name in ["", "Work", "1work", "a_b", "a b", "-a", String(repeating: "a", count: 41), "é"] { #expect(nameProblem(name)?.hasPrefix("Name must be") == true, "\(name)") }
+    for name in ["", "Work", "1work", "a_b", "a b", "-a", String(repeating: "a", count: 41), "é"] { #expect(nameProblem(name, bundle: english.bundle, locale: english.locale)?.hasPrefix("Name must be") == true, "\(name)") }
 }
 
 @Test func aConfigFolderThatIsNotAbsoluteIsTakenFromTheHomeFolderAndTheOthersStayAsTheyAre() {
@@ -320,7 +320,7 @@ private let base = Data(#"{"future":1,"providers":{"claude":{"harness":"claude",
     #expect(await store.save(name: "codex", draft: draft))
     await store.settled()
     #expect(try providers(file)["codex"]?["displayName"] as? String == "Mine")
-    #expect(store.outcome.note?.contains("providers.codex.model") == true && store.outcome.note?.contains("Invalid input") == true)
+    #expect(store.outcome.note(bundle: english.bundle, locale: english.locale)?.contains("providers.codex.model") == true && store.outcome.note(bundle: english.bundle, locale: english.locale)?.contains("Invalid input") == true)
 }
 
 // MARK: what the engine did with the file
@@ -400,7 +400,7 @@ private var work: AccountDraft {
     let status = ReloadStatus()
     host.file = file
     host.engine = .refused(.words("bad"))
-    let store = ProvidersStore(host: host, file: { file }, log: { _ in }, status: status)
+    let store = ProvidersStore(host: host, file: { file }, log: { _ in }, status: status, bundle: english.bundle, locale: english.locale)
     #expect(await store.save(name: "claude", draft: work))
     #expect(status.outcome == .refused(.words("bad")) && status.isProblem)
     // the newest answer is the one kept
@@ -442,7 +442,7 @@ private var work: AccountDraft {
     #expect(await store.save(name: "claude", draft: work) == false)
     #expect(store.editProblem == "providers.json could not be written; the file stays as it was." && logged.count == 1 && logged[0].contains("save claude"))
     // no host running and no carrier to run: nothing can write the file
-    let none = ProvidersStore(host: SocketChatHost(socketPath: { "/tmp/cc-none-\(UUID().uuidString.prefix(8)).sock" }), file: { file }, log: { logged.append($0) }, status: ReloadStatus())
+    let none = ProvidersStore(host: SocketChatHost(socketPath: { "/tmp/cc-none-\(UUID().uuidString.prefix(8)).sock" }), file: { file }, log: { logged.append($0) }, status: ReloadStatus(), bundle: english.bundle, locale: english.locale)
     #expect(await none.remove(name: "claude") == false)
     #expect(none.editProblem?.contains("does not support") == true)
 }
@@ -545,12 +545,12 @@ private func object(_ data: Data) throws -> [String: Any] { try #require(JSONSer
     host.regenerateTitlesResult = .success(3)
     await store.regenerateTitles()
     #expect(host.regenerateTitlesCalls == 1 && store.retitleOutcome == .started(3))
-    #expect(store.retitleOutcome?.words == "Started 3 sessions in the background")
+    #expect(store.retitleOutcome?.words(bundle: english.bundle, locale: english.locale) == "Started 3 sessions in the background")
 
     host.regenerateTitlesResult = .success(0)
     await store.regenerateTitles()
     #expect(store.retitleOutcome == .started(0))
-    #expect(store.retitleOutcome?.words == "Nothing to title: every session already has a title")
+    #expect(store.retitleOutcome?.words(bundle: english.bundle, locale: english.locale) == "Nothing to title: every session already has a title")
 
     host.regenerateTitlesResult = .failure(ControlError.remote(.words("Could not write titles: no text generator is chosen; choose one in Providers")))
     await store.regenerateTitles()

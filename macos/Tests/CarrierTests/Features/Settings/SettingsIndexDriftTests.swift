@@ -45,7 +45,7 @@ import Testing
         // a view (or the helper of a page that draws rows) given the identifier as its first argument, and the model groups and rows that carry one
         let carriers = "\(rowViews)|soundRow|row|HealthRow|HealthSection|BehaviorGroup|EngineGroup"
         let literal = try matches(#"\b(?:\#(carriers))\(\s*id:\s*"([^"]+)""#, in: views + core) + matches(#"settingsAnchored\("([^"]+)""#, in: views)
-        let models = ShortcutCommand.allCases.map(\.rawValue) + behaviorGroups.flatMap { $0.rows.map(\.key) } + AgentRole.allCases.flatMap { [$0.rawValue] + $0.stages.map(\.id) }
+        let models = ShortcutCommand.allCases.map(\.rawValue) + behaviorGroups().flatMap { $0.rows.map(\.key) } + AgentRole.allCases.flatMap { [$0.rawValue] + $0.stages().map(\.id) }
             + EngineRowID.allCases.map(\.rawValue) + DictationScreen.allCases.map(\.rawValue)
         return Set(literal + models)
     }

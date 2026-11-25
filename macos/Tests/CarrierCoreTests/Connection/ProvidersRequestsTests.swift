@@ -159,5 +159,5 @@ private func launcher(_ runner: FakeRunner) -> CarrierConfigLauncher { CarrierCo
     #expect(try saved(#"{"saved":{},"engine":"refused","engineReason":{"error":"The engine did not answer","code":"providers.engineNoAnswer","params":{}}}"#).outcome == .noAnswer)
     #expect(try saved(#"{"saved":{},"engine":"refused"}"#).outcome == .noAnswer)
     #expect(try saved(#"{"saved":{},"engine":"restarting"}"#).outcome == .unsupported)
-    #expect(reloadWords(kept) == "Saved, but Carrier kept its settings: repos.0 must be owner/name")
+    #expect(reloadWords(kept, bundle: english.bundle, locale: english.locale) == "Saved, but Carrier kept its settings: repos.0 must be owner/name")
 }

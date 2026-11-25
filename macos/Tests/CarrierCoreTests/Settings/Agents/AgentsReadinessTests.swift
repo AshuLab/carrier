@@ -15,7 +15,7 @@ private func config(author: String = #"{"profile": "acme-author", "provider": "c
 private let bots = ForgeBots(names: ["acme-author", "acme-reviewer", "acme-lead"], note: nil)
 
 private func readiness(_ json: String, providers: String? = nil) throws -> AgentsReadiness {
-    agentsReadiness(try #require(agentsPage(config: Data(json.utf8), providers: providers.map { Data($0.utf8) }, bots: bots)))
+    agentsReadiness(try #require(agentsPage(config: Data(json.utf8), providers: providers.map { Data($0.utf8) }, bots: bots, bundle: english.bundle, locale: english.locale)), bundle: english.bundle, locale: english.locale)
 }
 
 @Test func threeRolesThatAreWholeAreSetUp() throws {
@@ -61,17 +61,17 @@ private func readiness(_ json: String, providers: String? = nil) throws -> Agent
 @Test func aLeadReviewerBeingTurnedOnIsShownAsOneThatIsOnWhileTheFileStillHasNone() throws {
     let page = try #require(agentsPage(config: Data(config(lead: nil).utf8), providers: nil, bots: bots))
     let off = try #require(page.rows.first { $0.role == .leadReviewer })
-    #expect(off.off && off.headline == "Off" && off.drafting == false)
+    #expect(off.off && off.headline(bundle: english.bundle, locale: english.locale) == "Off" && off.drafting == false)
     var draft = LeadReviewerDraft()
     draft.apply(.bot("acme-lead"))
     draft.apply(.provider("claude"))
     draft.apply(.model("opus"))
     let shown = draft.shown(in: off)
     // the switch still says the file has no role, and the page words and draws it as a role that is on
-    #expect(shown.off && shown.drafting && shown.headline == "opus · acme-lead")
+    #expect(shown.off && shown.drafting && shown.headline(bundle: english.bundle, locale: english.locale) == "opus · acme-lead")
     #expect(shown.switchDetail(bundle: english.bundle, locale: english.locale) == off.switchDetail(bundle: english.bundle, locale: english.locale))
     // before anything is chosen it is not "Off" either: it says nothing is set
-    #expect(LeadReviewerDraft().shown(in: off).headline == "Not set")
+    #expect(LeadReviewerDraft().shown(in: off).headline(bundle: english.bundle, locale: english.locale) == "Not set")
 }
 
 @Test func theLeadReviewerWhileOffIsNeverChecked() throws {
@@ -86,11 +86,11 @@ private func readiness(_ json: String, providers: String? = nil) throws -> Agent
 
 @Test func theHeadlineOfARoleIsItsModelEffortAndIdentity() throws {
     let page = try #require(agentsPage(config: Data(config(lead: nil).utf8), providers: nil, bots: bots))
-    #expect(page.rows.first { $0.role == .author }?.headline == "sonnet · high · acme-author")
-    #expect(page.rows.first { $0.role == .reviewer }?.headline == "gpt-5 · acme-reviewer")
-    #expect(page.rows.first { $0.role == .leadReviewer }?.headline == "Off")
+    #expect(page.rows.first { $0.role == .author }?.headline(bundle: english.bundle, locale: english.locale) == "sonnet · high · acme-author")
+    #expect(page.rows.first { $0.role == .reviewer }?.headline(bundle: english.bundle, locale: english.locale) == "gpt-5 · acme-reviewer")
+    #expect(page.rows.first { $0.role == .leadReviewer }?.headline(bundle: english.bundle, locale: english.locale) == "Off")
     let empty = try #require(agentsPage(config: Data(config(author: "{}").utf8), providers: nil, bots: bots))
-    #expect(empty.rows.first { $0.role == .author }?.headline == "Not set")
+    #expect(empty.rows.first { $0.role == .author }?.headline(bundle: english.bundle, locale: english.locale) == "Not set")
 }
 
 // MARK: the skill of each stage
@@ -101,15 +101,15 @@ private func readiness(_ json: String, providers: String? = nil) throws -> Agent
     let skills = try #require((fixture?["defaults"] as? [String: Any])?["skills"] as? [String: Any])
     let review = try #require(skills["review"] as? [String: String])
     let invoked = Set([skills["ship"] as? String, skills["fix"] as? String, review["review"], review["publish"]].compactMap { $0 })
-    let listed = Set(AgentRole.allCases.flatMap(\.stages).map(\.skill))
+    let listed = Set(AgentRole.allCases.flatMap { $0.stages(bundle: english.bundle, locale: english.locale) }.map(\.skill))
     #expect(invoked.count == 4)
     #expect(listed == invoked, "AgentRole.stages and the default skills disagree on the skills each stage runs")
 }
 
 @Test func theLeadReviewerHasNoStageAndTheOthersHaveTheirSkillsInOrder() {
-    #expect(AgentRole.leadReviewer.stages.isEmpty)
-    #expect(AgentRole.author.stages.map(\.skill) == ["ship", "code-resolve"])
-    #expect(AgentRole.reviewer.stages.map(\.skill) == ["code-review", "code-post"])
+    #expect(AgentRole.leadReviewer.stages(bundle: english.bundle, locale: english.locale).isEmpty)
+    #expect(AgentRole.author.stages(bundle: english.bundle, locale: english.locale).map(\.skill) == ["ship", "code-resolve"])
+    #expect(AgentRole.reviewer.stages(bundle: english.bundle, locale: english.locale).map(\.skill) == ["code-review", "code-post"])
 }
 
 @Test func codexIsToldASkillWithADollarAndTheOthersWithASlash() {

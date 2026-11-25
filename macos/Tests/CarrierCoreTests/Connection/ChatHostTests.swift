@@ -242,7 +242,7 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"", protocol vers
     let fixtures = testPaths().fixtures.path
     let fixture = try FixtureServer(fixtures: fixtures)
     defer { fixture.stop() }
-    let store = ProvidersStore(host: SocketChatHost(socketPath: { fixture.chatSocketPath }), log: { _ in })
+    let store = ProvidersStore(host: SocketChatHost(socketPath: { fixture.chatSocketPath }), log: { _ in }, bundle: english.bundle, locale: english.locale)
     #expect(store.outcome == .unasked)
     await store.load()
     guard case .reply(let reply) = store.outcome else { throw ControlError.closed }
@@ -250,11 +250,11 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"", protocol vers
 
     let old = TestServer { connection in connection.send(hello("\"agents\"")) }
     defer { old.stop() }
-    let tooOld = ProvidersStore(host: SocketChatHost(socketPath: { old.path }), log: { _ in })
+    let tooOld = ProvidersStore(host: SocketChatHost(socketPath: { old.path }), log: { _ in }, bundle: english.bundle, locale: english.locale)
     await tooOld.load()
     #expect(tooOld.outcome == .tooOld)
 
-    let absent = ProvidersStore(host: SocketChatHost(socketPath: { "/tmp/carrier-no-such-host.sock" }), log: { _ in })
+    let absent = ProvidersStore(host: SocketChatHost(socketPath: { "/tmp/carrier-no-such-host.sock" }), log: { _ in }, bundle: english.bundle, locale: english.locale)
     await absent.load()
     #expect(absent.outcome == .noHost)
 
@@ -264,7 +264,7 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"", protocol vers
         connection.send("{\"id\":\(id),\"ok\":false,\"error\":\"internal error\"}\n")
     }
     defer { failing.stop() }
-    let failed = ProvidersStore(host: SocketChatHost(socketPath: { failing.path }), log: { _ in })
+    let failed = ProvidersStore(host: SocketChatHost(socketPath: { failing.path }), log: { _ in }, bundle: english.bundle, locale: english.locale)
     await failed.load()
     #expect(failed.outcome == .failed("internal error"))
 }

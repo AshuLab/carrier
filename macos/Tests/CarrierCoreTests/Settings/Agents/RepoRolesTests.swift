@@ -23,23 +23,23 @@ private func rows(_ json: Data, _ repo: String = "a/b") throws -> [AgentRole: Re
     let found = try rows(config())
     let author = try #require(found[.author])
     #expect(author.isOwn == false && author.value == author.inherited)
-    #expect(author.value.text == "b-author · claude · sonnet · high")
+    #expect(author.value.text(bundle: english.bundle, locale: english.locale) == "b-author · claude · sonnet · high")
     #expect(author.value.persona == RolePersona(name: "Ada", prompt: nil))
-    #expect(found[.reviewer]?.value.text == "a-reviewer · codex · gpt-5")
+    #expect(found[.reviewer]?.value.text(bundle: english.bundle, locale: english.locale) == "a-reviewer · codex · gpt-5")
 }
 
 @Test func anOverrideOfOnlyTheModelMixesOwnAndInherited() throws {
     let author = try #require(rows(config(repoAgents: #"{"author": {"model": "opus"}}"#))[.author])
     #expect(author.isOwn && author.own == RoleFields(model: "opus"))
-    #expect(author.value.text == "b-author · claude · opus · high")
-    #expect(author.inherited.text == "b-author · claude · sonnet · high")
+    #expect(author.value.text(bundle: english.bundle, locale: english.locale) == "b-author · claude · opus · high")
+    #expect(author.inherited.text(bundle: english.bundle, locale: english.locale) == "b-author · claude · sonnet · high")
 }
 
 @Test func aFullOverrideIsTheOwnValue() throws {
     let own = #"{"reviewer": {"profile": "b-other", "provider": "ollama", "model": "qwen", "effort": "max", "persona": {"prompt": "Be brief"}}}"#
     let reviewer = try #require(rows(config(repoAgents: own))[.reviewer])
-    #expect(reviewer.value.text == "b-other · ollama · qwen · max" && reviewer.value == reviewer.own)
-    #expect(reviewer.inherited.text == "a-reviewer · codex · gpt-5")
+    #expect(reviewer.value.text(bundle: english.bundle, locale: english.locale) == "b-other · ollama · qwen · max" && reviewer.value == reviewer.own)
+    #expect(reviewer.inherited.text(bundle: english.bundle, locale: english.locale) == "a-reviewer · codex · gpt-5")
 }
 
 @Test func aReposPersonaReplacesTheGlobalOneWhole() throws {
@@ -58,7 +58,7 @@ private func rows(_ json: Data, _ repo: String = "a/b") throws -> [AgentRole: Re
     #expect(try rows(config(repoAgents: #"{"leadReviewer": {"model": "x"}}"#))[.leadReviewer] == nil)
     let lead = #", "agents": {"author": {"profile": "b-author", "provider": "claude", "model": "sonnet"}, "leadReviewer": {"profile": "b-other", "provider": "claude", "model": "opus"}}"#
     let with = Data(#"{"profiles": {"b-other": {"kind": "gh"}}\#(lead), "repos": [{"name": "a/b"}]}"#.utf8)
-    #expect(try rows(with)[.leadReviewer]?.value.text == "b-other · claude · opus")
+    #expect(try rows(with)[.leadReviewer]?.value.text(bundle: english.bundle, locale: english.locale) == "b-other · claude · opus")
 }
 
 @Test func theProfileNamesAreRead() throws {
@@ -82,7 +82,7 @@ private func rows(_ json: Data, _ repo: String = "a/b") throws -> [AgentRole: Re
 
 @Test func anEmptyObjectHasNoRoleToShowBeyondNotSet() throws {
     let found = try rows(Data("{}".utf8))
-    #expect(found[.author]?.value.text == "Not set" && found[.leadReviewer] == nil)
+    #expect(found[.author]?.value.text(bundle: english.bundle, locale: english.locale) == "Not set" && found[.leadReviewer] == nil)
 }
 
 @Test func theFixtureConfigGivesEveryFixtureRepoItsThreeRoles() throws {
@@ -92,7 +92,7 @@ private func rows(_ json: Data, _ repo: String = "a/b") throws -> [AgentRole: Re
     for name in names {
         #expect(try rows(json, name).keys.count == 3)
     }
-    #expect(try rows(json, "acme/api")[.reviewer]?.value.text == "acme-reviewer · codex · gpt-5-mini · high")
+    #expect(try rows(json, "acme/api")[.reviewer]?.value.text(bundle: english.bundle, locale: english.locale) == "acme-reviewer · codex · gpt-5-mini · high")
     #expect(try rows(json, "acme/web")[.reviewer]?.isOwn == false)
 }
 

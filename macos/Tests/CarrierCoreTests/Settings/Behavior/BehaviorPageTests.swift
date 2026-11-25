@@ -2,7 +2,7 @@ import Testing
 @testable import CarrierCore
 
 @Test func theBehaviorPageHasThreeGroupsWithTheirTitlesDescriptionsAndKeys() {
-    let listed = behaviorGroups.map { group in
+    let listed = behaviorGroups(bundle: english.bundle, locale: english.locale).map { group in
         [group.title] + group.rows.map { "\($0.key) | \($0.title) | \($0.detail)" }
     }
     #expect(listed == [
@@ -23,5 +23,5 @@ import Testing
 @Test func everyKeyOfTheEngineConfigAppearsExactlyOnce() {
     let keys = Mirror(reflecting: EngineConfig()).children.compactMap(\.label)
     #expect(keys.count == 8)
-    #expect(behaviorGroups.flatMap(\.rows).map(\.key).sorted() == keys.sorted())
+    #expect(behaviorGroups(bundle: english.bundle, locale: english.locale).flatMap(\.rows).map(\.key).sorted() == keys.sorted())
 }

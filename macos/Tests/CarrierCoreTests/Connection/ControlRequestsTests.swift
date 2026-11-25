@@ -167,8 +167,8 @@ func aRepoThatIsNotOwnerSlashNameIsRefusedBeforeItIsSent(repo: String) throws {
     let leaving = TestServer { $0.send(hello) }
     defer { leaving.stop() }
     #expect(reloadEngine(socketPath: leaving.path) == .noAnswer)
-    #expect(reloadWords(.noAnswer) != nil && reloadWords(.refused(.words("x"))) == "Saved, but Carrier kept its settings: x")
-    #expect(reloadWords(.applied) == nil && reloadWords(.nobody) == nil)
+    #expect(reloadWords(.noAnswer, bundle: english.bundle, locale: english.locale) != nil && reloadWords(.refused(.words("x")), bundle: english.bundle, locale: english.locale) == "Saved, but Carrier kept its settings: x")
+    #expect(reloadWords(.applied, bundle: english.bundle, locale: english.locale) == nil && reloadWords(.nobody, bundle: english.bundle, locale: english.locale) == nil)
 }
 
 @Test func withNoEngineOrOneThatDoesNotListReloadTheFunctionSendsNothingAndIsNotAnError() {

@@ -456,7 +456,7 @@ private struct ScratchEngine {
     let server = try FixtureServer(fixtures: testPaths().fixtures.path)
     defer { server.stop() }
     let file = ProvidersFile(folder: server.home)
-    let store = ProvidersStore(host: SocketChatHost(socketPath: { server.chatSocketPath }), file: { file }, log: { _ in }, status: ReloadStatus())
+    let store = ProvidersStore(host: SocketChatHost(socketPath: { server.chatSocketPath }), file: { file }, log: { _ in }, status: ReloadStatus(), bundle: english.bundle, locale: english.locale)
     await store.load()
     #expect(await store.addAccount(name: "claude-two", harness: "claude", configDir: "~/.claude-two"))
     await store.settled()

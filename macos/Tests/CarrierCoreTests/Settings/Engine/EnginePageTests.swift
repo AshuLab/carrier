@@ -22,7 +22,7 @@ private func page(
     configured: Bool, programs: EnginePrograms = programs(), identity: EngineIdentity? = nil, folder: String = "/h/.carrier",
     exists: @escaping (String) -> Bool = { _ in true }
 ) -> [EngineGroup] {
-    engineGroups(configured: configured, programs: programs, identity: identity, folder: folder, home: "/h", exists: exists)
+    engineGroups(configured: configured, programs: programs, identity: identity, folder: folder, home: "/h", exists: exists, bundle: english.bundle, locale: english.locale)
 }
 
 private func identityRow(_ json: String) -> EngineRow {
@@ -66,14 +66,14 @@ private func files(exists: @escaping (String) -> Bool, folder: String = "/h/.car
     #expect(rows[2].detail == "What the app saw the last time it started Carrier")
     #expect(rows.map { $0.file?.shown } == ["~/.carrier", "~/.carrier/engine/logs", "~/.carrier/engine/logs/app-start.log"])
     #expect(rows.map { $0.file?.path } == ["/h/.carrier", "/h/.carrier/engine/logs", "/h/.carrier/engine/logs/app-start.log"])
-    #expect(rows.map { $0.file?.buttonTitle } == ["Reveal", "Reveal", "Open"])
+    #expect(rows.map { $0.file?.buttonTitle(bundle: english.bundle, locale: english.locale) } == ["Reveal", "Reveal", "Open"])
     #expect(rows.allSatisfy { $0.file?.exists == true })
 }
 
 @Test func aFileThatDoesNotExistYetHasItsButtonDisabledAndSaysSo() {
     let rows = files(exists: { $0 == "/h/.carrier" })
     #expect(rows.map { $0.file?.exists } == [true, false, false])
-    #expect(rows.map { $0.file?.buttonTitle } == ["Reveal", "Not created yet", "Not created yet"])
+    #expect(rows.map { $0.file?.buttonTitle(bundle: english.bundle, locale: english.locale) } == ["Reveal", "Not created yet", "Not created yet"])
 }
 
 @Test func aCarrierFolderOutsideTheHomeFolderIsShownWhole() {

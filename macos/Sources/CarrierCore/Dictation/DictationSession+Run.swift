@@ -24,7 +24,7 @@ extension DictationSession {
         watchdog = Task {
             guard await pause(timeout), Task.isCancelled == false, generation == mine else { return }
             running?.cancel()
-            fail(DictationFailure("The recognizer did not answer."))
+            fail(DictationFailure(.recognizerSilent))
         }
     }
 
@@ -36,7 +36,7 @@ extension DictationSession {
             guard await pause(floor), generation == mine, modelReady == false, state != .idle else { return }
             samples = []
             running?.cancel()
-            fail(DictationFailure("The speech model did not get ready in time."))
+            fail(DictationFailure(.modelNotReady))
         }
     }
 
@@ -50,7 +50,7 @@ extension DictationSession {
         }
         timings.capture = milliseconds(since: began)
         state = .listening
-        announce(dictationAnnouncement(.listening))
+        announce(dictationAnnouncement(.listening, bundle: bundle, locale: locale))
         // the recognizer reads the audio through a stream that counts it, and that keeps what the capture gives, in order, until the recognizer reads it
         let counted = AsyncStream<AudioBuffer> { continuation in
             let relay = Task { @MainActor in
@@ -139,7 +139,7 @@ extension DictationSession {
         let cleaningFrom = now()
         do { cleaned = try await cleanup(added) } catch {
             guard generation == mine, let owner else { return }
-            refuse(DictationFailure((error as? CleanupFailure)?.message ?? error.localizedDescription), for: owner)
+            refuse((error as? CleanupFailure).map { DictationFailure(.cleanup($0)) } ?? DictationFailure(error.localizedDescription), for: owner)
             return
         }
         guard generation == mine else { return }
@@ -192,7 +192,7 @@ extension DictationSession {
         let modelName = model?.name ?? ""
         // the range is cleared even when the person's edit had already ended the writing
         settle()
-        if announcing, state == .listening || state == .transcribing || state == .cleaning { announce(dictationAnnouncement(.stopped(words: words))) }
+        if announcing, state == .listening || state == .transcribing || state == .cleaning { announce(dictationAnnouncement(.stopped(words: words), bundle: bundle, locale: locale)) }
         watchdog?.cancel()
         watchdog = nil
         slowness?.cancel()

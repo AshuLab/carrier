@@ -87,6 +87,9 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
     @ObservationIgnored let capture: AudioCapture
     @ObservationIgnored let sleep: (Duration) async throws -> Void
     @ObservationIgnored let announce: (String) -> Void
+    /// The language of what `announce` is told.
+    @ObservationIgnored let bundle: Bundle?
+    @ObservationIgnored let locale: Locale
     @ObservationIgnored private let log: (DictationFailure) -> Void
     @ObservationIgnored let timed: (DictationTimings) -> Void
     @ObservationIgnored let now: () -> Date
@@ -138,7 +141,8 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
     public init(
         capture: AudioCapture, sleep: ((Duration) async throws -> Void)? = nil,
         announce: @escaping (String) -> Void = { _ in }, log: @escaping (DictationFailure) -> Void = { _ in },
-        timed: @escaping (DictationTimings) -> Void = { _ in }, now: @escaping () -> Date = Date.init, keepAudio: @escaping () -> Bool = { false }
+        timed: @escaping (DictationTimings) -> Void = { _ in }, now: @escaping () -> Date = Date.init, keepAudio: @escaping () -> Bool = { false },
+        bundle: Bundle? = nil, locale: Locale = .current
     ) {
         self.keepAudio = keepAudio
         self.timed = timed
@@ -147,6 +151,8 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
         // the initialiser, and Xcode 26's debug builds can pair the body of one copy with the frame size of another and abort the test process
         self.sleep = sleep ?? { try await Task.sleep(for: $0) }
         self.announce = announce
+        self.bundle = bundle
+        self.locale = locale
         self.log = log
         self.now = now
     }
@@ -157,7 +163,7 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
     /// A dictation that could not start for `owner`'s box, told and logged like any other failure.
     public func refuse(_ cause: DictationFailure, for owner: String) {
         failure = (owner, cause)
-        announce(dictationAnnouncement(.failed(cause)))
+        announce(dictationAnnouncement(.failed(cause), bundle: bundle, locale: locale))
         log(cause)
     }
 
@@ -191,7 +197,7 @@ public typealias DictationCleanup = @Sendable (String) async throws -> String
         stopped = false
         modelReady = false
         state = .gettingReady
-        announce(dictationAnnouncement(.gettingReady))
+        announce(dictationAnnouncement(.gettingReady, bundle: bundle, locale: locale))
         generation += 1
         let mine = generation
         running = Task { await run(recognizer, model, mine) }

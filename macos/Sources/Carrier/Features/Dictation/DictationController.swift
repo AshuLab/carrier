@@ -282,11 +282,11 @@ import SwiftUI
     }
 
     /// What `owner`'s box draws: nothing when Dictation is off or no recognizer is registered, and the state of the session only while that box is the one dictating.
-    func presentation(for owner: String) -> DictationPresentation? {
+    func presentation(for owner: String, bundle: Bundle? = nil, locale: Locale = .current) -> DictationPresentation? {
         guard enabled else { return nil }
         return dictationPresentation(
             session.owner == owner ? session.state : .idle, registered: registry.recognizers.isEmpty == false, microphone: microphone, modelReady: session.modelReady,
-            answerIsSlow: session.answerIsSlow
+            answerIsSlow: session.answerIsSlow, bundle: bundle, locale: locale
         )
     }
 
@@ -306,7 +306,7 @@ import SwiftUI
         let click = dictationClick(microphone)
         guard click == .start else { return click }
         guard let model, let recognizer = registry.recognizers.first(where: { $0.models.contains(model) }) else {
-            session.refuse(DictationFailure("No speech model is available"), for: field.owner)
+            session.refuse(DictationFailure(.noSpeechModel), for: field.owner)
             return click
         }
         if microphone == .allowed {
@@ -364,7 +364,7 @@ private struct RealDownloads: ModelDownloader {
         switch model.recognizer {
         case .fluidAudio: try await FluidAudioDownloader().download(model, into: folder, progress: progress)
         case .whisper: try await WhisperKitDownloader().download(model, into: folder, progress: progress)
-        case .apple: throw DictationFailure("This build cannot download \(model.name).")
+        case .apple: throw DictationFailure(.cannotDownload(model.name))
         }
     }
 }

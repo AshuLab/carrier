@@ -11,30 +11,29 @@ struct HistoryGroup: View {
     @State private var confirmingDelete = false
 
     var body: some View {
-        SettingsGroup(id: "history", title: "History") {
+        SettingsGroup(id: "history", title: Copy.dictationGroupHistory()) {
             SettingsTabRow(
-                id: "keep-the-text-of-my-dictations", title: "Keep the text of my dictations",
-                detail: "The list below, with search, copy and delete, in plain text on this Mac. Off: nothing new is saved and what is there stays",
+                id: "keep-the-text-of-my-dictations", title: Copy.dictationKeepText(), detail: Copy.dictationKeepTextDetail(),
                 first: true
             ) {
-                Toggle("Keep the text of my dictations", isOn: $keep).labelsHidden().toggleStyle(.switch)
+                Toggle(Copy.dictationKeepText(), isOn: $keep).labelsHidden().toggleStyle(.switch)
             }
-            SettingsTabRow(id: "keep-the-audio", title: "Keep the audio", detail: "Off by default. Each dictation that is recorded then has its audio to play back") {
-                Toggle("Keep the audio", isOn: $keepAudio).labelsHidden().toggleStyle(.switch)
+            SettingsTabRow(id: "keep-the-audio", title: Copy.dictationKeepAudio(), detail: Copy.dictationKeepAudioDetail()) {
+                Toggle(Copy.dictationKeepAudio(), isOn: $keepAudio).labelsHidden().toggleStyle(.switch)
             }
-            SettingsTabRow(id: "delete-audio-older-than", title: "Delete audio older than", detail: "The transcripts stay") {
-                ChoicePopUp(label: "Delete audio older than", options: dictationAudioLimits.map { (value: $0.days, title: $0.title) }, selection: $days)
+            SettingsTabRow(id: "delete-audio-older-than", title: Copy.dictationDeleteAudio(), detail: Copy.dictationTranscriptsStay()) {
+                ChoicePopUp(label: Copy.dictationDeleteAudio(), options: dictationAudioLimits.map { (value: $0.days, title: $0.title()) }, selection: $days)
             }
-            SettingsTabRow(id: "audio-on-disk", title: "Audio on disk", detail: formatAudioOnDisk(bytes: dictation.records.audioBytes, files: dictation.records.audioIDs.count)) {
-                Button(role: .destructive) { confirmingDelete = true } label: { Label("Delete all audio", icon: .trash) }
+            SettingsTabRow(id: "audio-on-disk", title: Copy.dictationAudioOnDiskTitle(), detail: formatAudioOnDisk(bytes: dictation.records.audioBytes, files: dictation.records.audioIDs.count)) {
+                Button(role: .destructive) { confirmingDelete = true } label: { Label(Copy.dictationDeleteAllAudio(), icon: .trash) }
                     .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).disabled(dictation.records.audioIDs.isEmpty)
             }
         }
         .onChange(of: days) { Task { await dictation.records.deleteOldAudio() } }
-        .confirmationDialog("Delete all the audio?", isPresented: $confirmingDelete) {
-            Button("Delete all audio", role: .destructive) { dictation.records.deleteAllAudio() }
+        .confirmationDialog(Copy.dictationDeleteAllTitle(), isPresented: $confirmingDelete) {
+            Button(Copy.dictationDeleteAllAudio(), role: .destructive) { dictation.records.deleteAllAudio() }
         } message: {
-            Text("The transcripts stay.")
+            Text(Copy.dictationDeleteAllMessage())
         }
         HistoryList(records: dictation.records)
     }
@@ -66,9 +65,9 @@ struct HistoryList: View {
     var body: some View {
         let _ = Signposts.render.emitEvent("history body", "\(records.entries.count) entries")
         SettingsGroup(title: "") {
-            TextField("", text: $query, prompt: Text("Search your dictations")).accessibilityLabel("Search your dictations").settingsField(icon: .search)
-            SegmentedChoice(options: [(value: DictationOutcome?.none, title: "All", icon: nil)] + DictationOutcome.allCases.map { (value: Optional($0), title: $0.title, icon: nil) }, selection: $outcome)
-                .accessibilityLabel("Outcome")
+            TextField("", text: $query, prompt: Text(Copy.dictationSearch())).accessibilityLabel(Copy.dictationSearch()).settingsField(icon: .search)
+            SegmentedChoice(options: [(value: DictationOutcome?.none, title: Copy.dictationFilterAll(), icon: nil)] + DictationOutcome.allCases.map { (value: Optional($0), title: $0.title(), icon: nil) }, selection: $outcome)
+                .accessibilityLabel(Copy.dictationOutcomeName())
                 .padding(.vertical, Tokens.Space.s4)
         }
         .onChange(of: query, initial: true) { startOver() }
@@ -82,8 +81,9 @@ struct HistoryList: View {
         } else if shown.matched == 0 {
             SettingsGroup(title: "") {
                 EmptyStateView(
-                    icon: records.entries.isEmpty ? .waveform : .search, title: records.entries.isEmpty ? "No dictations yet" : "Nothing matches",
-                    line: records.entries.isEmpty ? "What you dictate shows up here." : "Try another word or filter."
+                    icon: records.entries.isEmpty ? .waveform : .search,
+                    title: records.entries.isEmpty ? Copy.dictationNoDictationsYet() : Copy.dictationNothingMatches(),
+                    line: records.entries.isEmpty ? Copy.dictationEmptyLine() : Copy.dictationNoMatchLine()
                 )
                 .frame(minHeight: 220)
             }
@@ -96,9 +96,9 @@ struct HistoryList: View {
                 }
             }
             SettingsGroup(title: "") {
-                Text("\(shown.matched) of \(records.entries.count) dictations").scaledFont(11).foregroundStyle(.secondary).frame(maxWidth: .infinity)
+                Text(Copy.dictationShownOf(matched: shown.matched, total: records.entries.count)).scaledFont(11).foregroundStyle(.secondary).frame(maxWidth: .infinity)
                 if shown.matched > limit {
-                    Button("Show \(min(dictationHistoryPage, shown.matched - limit)) more") { limit += dictationHistoryPage }
+                    Button(Copy.dictationShowMore(count: min(dictationHistoryPage, shown.matched - limit))) { limit += dictationHistoryPage }
                         .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).frame(maxWidth: .infinity)
                 }
             }
@@ -142,11 +142,11 @@ private struct HistoryRow: View {
                     }
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain).accessibilityValue(open ? "Expanded" : "Collapsed").accessibilityHint("Shows the details")
+                .buttonStyle(.plain).accessibilityValue(open ? Copy.dictationExpanded() : Copy.dictationCollapsed()).accessibilityHint(Copy.dictationShowsDetails())
                 // quiet until the pointer is on the row or it is open; still there for the keyboard and VoiceOver
                 HStack(spacing: Tokens.Space.s2) {
-                    IconButton(icon: copied ? .check : .copy, name: copied ? "Copied" : "Copy text") { copy(entry.shown) }
-                    IconButton(icon: .trash, name: "Delete dictation") { confirmingDelete = true }
+                    IconButton(icon: copied ? .check : .copy, name: copied ? Copy.dictationCopied() : Copy.dictationCopyText()) { copy(entry.shown) }
+                    IconButton(icon: .trash, name: Copy.dictationDeleteEntry()) { confirmingDelete = true }
                 }
                 .opacity(hovered || open || copied || confirmingDelete ? 1 : 0)
             }
@@ -154,21 +154,25 @@ private struct HistoryRow: View {
         }
         .padding(.vertical, Tokens.Space.s10)
         .onHover { hovered = $0 }
-        .confirmationDialog("Delete this dictation?", isPresented: $confirmingDelete) {
-            Button("Delete", role: .destructive, action: delete)
+        .confirmationDialog(Copy.dictationDeleteTitle(), isPresented: $confirmingDelete) {
+            Button(Copy.dictationDelete(), role: .destructive, action: delete)
         } message: {
-            Text("Its text and its audio are deleted. The statistics stay as they are.")
+            Text(Copy.dictationDeleteMessage())
         }
     }
 
     /// One quiet line under the text: a dot of the outcome's color and its name, then where it went, the words and the length. One `Text`, so it wraps as a sentence.
     private var meta: some View {
-        let words = entry.words == 0 ? "" : "\(entry.words) \(entry.words == 1 ? "word" : "words") · "
+        let destination = entry.destinationShown()
+        let detail =
+            entry.words == 0
+            ? Copy.dictationMeta(destination: destination, audio: seconds(entry.audio))
+            : Copy.dictationMetaWords(destination: destination, words: entry.words, audio: seconds(entry.audio))
         let line = Text("\(Image(systemName: "circle.fill"))").font(scale.font(6)).baselineOffset(1).foregroundStyle(tint)
-            + Text(" \(entry.outcome.title)").fontWeight(.medium).foregroundStyle(.primary)
-            + Text(" · \(entry.destination) · \(words)\(seconds(entry.audio))").foregroundStyle(.secondary)
+            + Text(" \(entry.outcome.title())").fontWeight(.medium).foregroundStyle(.primary)
+            + Text(" · \(detail)").foregroundStyle(.secondary)
         return Group {
-            if entry.cleaned != nil { line + Text(" · cleaned").foregroundStyle(theme.accent) } else { line }
+            if entry.cleaned != nil { line + Text(" · \(Copy.dictationCleanedTag())").foregroundStyle(theme.accent) } else { line }
         }
         .scaledFont(11.5)
     }
@@ -180,21 +184,26 @@ private struct HistoryRow: View {
             DashedRule().stroke(Color.primary.opacity(0.14), style: StrokeStyle(lineWidth: 1, dash: [3, 3])).frame(height: 1)
             if entry.cleaned != nil {
                 VStack(alignment: .leading, spacing: Tokens.Space.s1) {
-                    Text("As recognized").sectionLabel()
+                    Text(Copy.dictationAsRecognized()).sectionLabel()
                     Text(entry.text).scaledFont(12).foregroundStyle(.secondary).textSelection(.enabled)
                         .padding(.leading, Tokens.Space.s10).overlay(alignment: .leading) { Rectangle().fill(Color.primary.opacity(0.15)).frame(width: 2) }
                 }
             }
             Grid(alignment: .topLeading, horizontalSpacing: 18, verticalSpacing: 8) {
                 GridRow {
-                    field("Speech model", entry.model)
-                    field("Transcription", "\(entry.transcription < 0.05 ? "Instant" : seconds(entry.transcription)) for \(seconds(entry.audio)) of audio")
-                    field("Cleanup", entry.cleanupModel.map { "\($0) · \(seconds(entry.cleanupSeconds ?? 0))" } ?? "Not used")
+                    field(Copy.dictationFieldModel(), entry.model)
+                    field(
+                        Copy.dictationFieldTranscription(),
+                        Copy.dictationTranscriptionValue(
+                            taken: entry.transcription < 0.05 ? Copy.dictationInstant() : seconds(entry.transcription), audio: seconds(entry.audio)))
+                    field(
+                        Copy.dictationFieldCleanup(),
+                        entry.cleanupModel.map { Copy.dictationCleanupValue(model: $0, seconds: seconds(entry.cleanupSeconds ?? 0)) } ?? Copy.dictationNotUsed())
                 }
                 if let audio {
                     GridRow {
                         VStack(alignment: .leading, spacing: Tokens.Space.s1) {
-                            Text("Audio").sectionLabel()
+                            Text(Copy.dictationFieldAudio()).sectionLabel()
                             AudioPlayerView(url: audio)
                         }
                         .gridCellColumns(3)
@@ -213,13 +222,15 @@ private struct HistoryRow: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private func seconds(_ value: Double) -> String { value < 10 ? String(format: "%.1f s", value) : "\(Int(value.rounded())) s" }
+    private func seconds(_ value: Double) -> String {
+        Copy.dictationSeconds(seconds: value < 10 ? String(format: "%.1f", locale: .current, value) : "\(Int(value.rounded()))")
+    }
 
     private func copy(_ text: String) {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
         copied = true
-        AccessibilityNotification.Announcement("Copied").post()
+        AccessibilityNotification.Announcement(Copy.dictationCopied()).post()
         Task {
             try? await Task.sleep(for: .seconds(1.5))
             copied = false

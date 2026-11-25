@@ -100,21 +100,21 @@ private func fixture() throws -> PanelSnapshot { try decodeSnapshot(Data(content
 }
 
 @Test func whatAPasteHoldsIsSaidInOneLine() {
-    #expect(PasteSummary(String(repeating: "a", count: 3412)).stats == "3,412 chars · 1 line · ~853 tokens")
-    #expect(PasteSummary(Array(repeating: "x", count: 87).joined(separator: "\n")).stats.contains("87 lines"))
+    #expect(PasteSummary(String(repeating: "a", count: 3412), bundle: english.bundle, locale: english.locale).stats == "3,412 chars · 1 line · ~853 tokens")
+    #expect(PasteSummary(Array(repeating: "x", count: 87).joined(separator: "\n"), bundle: english.bundle, locale: english.locale).stats.contains("87 lines"))
 }
 
 @Test func aQueuedMessageWithAPasteShowsWhatWasTypedAndOneLineForTheText() {
     let message = messageWithPastes("why?", pastes: [Array(repeating: "x", count: 87).joined(separator: "\n")])
-    #expect(messagePreview(message) == "why?\nPasted text · 87 lines")
-    #expect(messagePreview(messageWithPastes("", pastes: ["a\nb"])) == "Pasted text · 2 lines")
-    #expect(messagePreview("plain") == "plain")
+    #expect(messagePreview(message, bundle: english.bundle, locale: english.locale) == "why?\nPasted text · 87 lines")
+    #expect(messagePreview(messageWithPastes("", pastes: ["a\nb"]), bundle: english.bundle, locale: english.locale) == "Pasted text · 2 lines")
+    #expect(messagePreview("plain", bundle: english.bundle, locale: english.locale) == "plain")
 }
 
 @Test func aPasteSummaryCountsEmptyLinesAsTheCardDid() {
     #expect(PasteSummary("a\n\nb\n").lines == 4)
     #expect(PasteSummary("").lines == 1)
-    #expect(PasteSummary("a\n\nb\n").stats == "5 chars · 4 lines · ~2 tokens")
+    #expect(PasteSummary("a\n\nb\n", bundle: english.bundle, locale: english.locale).stats == "5 chars · 4 lines · ~2 tokens")
 }
 
 @Test func aPastedEntryKeepsItsSummaryInStepWithItsText() {

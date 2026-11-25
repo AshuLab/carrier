@@ -13,9 +13,9 @@ public func dictationClick(_ microphone: MicrophonePermission) -> DictationClick
 
 /// The popover of a blocked microphone (dictation-composer-spec.html, section 4).
 public enum MicrophoneBlockedPopover {
-    public static let title = "Carrier can't use the microphone"
-    public static let message = "macOS has it blocked for Carrier. Allow it in System Settings, then dictate again."
-    public static let button = "Open System Settings"
+    public static func title(bundle: Bundle? = nil, locale: Locale = .current) -> String { Copy.dictationBlockedTitle(bundle: bundle, locale: locale) }
+    public static func message(bundle: Bundle? = nil, locale: Locale = .current) -> String { Copy.dictationBlockedMessage(bundle: bundle, locale: locale) }
+    public static func button(bundle: Bundle? = nil, locale: Locale = .current) -> String { Copy.dictationOpenSystemSettings(bundle: bundle, locale: locale) }
     /// The Microphone pane of System Settings.
     public static let settingsURL = "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone"
 }
@@ -36,31 +36,41 @@ public struct DictationPresentation: Equatable, Sendable {
 /// `mic.slash` while the box is idle, and a click on it opens the popover. A dictation that listens before its model is ready (`modelReady` false) is drawn
 /// as listening, with the caption of the model getting ready. A dictation that transcribes has no caption until its answer is slow (`answerIsSlow`).
 public func dictationPresentation(
-    _ state: DictationSession.State, registered: Bool, microphone: MicrophonePermission = .allowed, modelReady: Bool = true, answerIsSlow: Bool = false
+    _ state: DictationSession.State, registered: Bool, microphone: MicrophonePermission = .allowed, modelReady: Bool = true, answerIsSlow: Bool = false,
+    bundle: Bundle? = nil, locale: Locale = .current
 ) -> DictationPresentation? {
     guard registered else { return nil }
+    let gettingReady = Copy.dictationGettingReady(bundle: bundle, locale: locale)
     switch state {
     case .idle where microphone == .denied:
         return DictationPresentation(
-            icon: .micSlash, inAccent: false, pressable: true, caption: nil, sendEnabled: true, label: "Dictation is blocked", help: "Microphone blocked"
+            icon: .micSlash, inAccent: false, pressable: true, caption: nil, sendEnabled: true, label: Copy.dictationLabelBlocked(bundle: bundle, locale: locale),
+            help: Copy.dictationHelpBlocked(bundle: bundle, locale: locale)
         )
     case .idle:
-        return DictationPresentation(icon: .mic, inAccent: false, pressable: true, caption: nil, sendEnabled: true, label: "Dictate", help: "Dictate")
+        let dictate = Copy.dictationDictate(bundle: bundle, locale: locale)
+        return DictationPresentation(icon: .mic, inAccent: false, pressable: true, caption: nil, sendEnabled: true, label: dictate, help: dictate)
     case .gettingReady:
         return DictationPresentation(
-            icon: .spinner, inAccent: false, pressable: false, caption: "Getting the model ready…", sendEnabled: false,
-            label: "Dictation is getting ready", help: "Getting the model ready…"
+            icon: .spinner, inAccent: false, pressable: false, caption: gettingReady, sendEnabled: false,
+            label: Copy.dictationLabelGettingReady(bundle: bundle, locale: locale), help: gettingReady
         )
     case .listening:
+        let stop = Copy.dictationStop(bundle: bundle, locale: locale)
         return DictationPresentation(
-            icon: .mic, inAccent: true, pressable: true, caption: modelReady ? nil : "Getting the model ready…", sendEnabled: false, label: "Stop dictation", help: "Stop dictation"
+            icon: .mic, inAccent: true, pressable: true, caption: modelReady ? nil : gettingReady, sendEnabled: false, label: stop, help: stop
         )
     case .transcribing:
-        return DictationPresentation(icon: .spinner, inAccent: false, pressable: false, caption: answerIsSlow ? "Transcribing…" : nil, sendEnabled: false, label: "Transcribing", help: "Transcribing…")
+        let caption = Copy.dictationTranscribingCaption(bundle: bundle, locale: locale)
+        return DictationPresentation(
+            icon: .spinner, inAccent: false, pressable: false, caption: answerIsSlow ? caption : nil, sendEnabled: false,
+            label: Copy.dictationLabelTranscribing(bundle: bundle, locale: locale), help: caption
+        )
     case .cleaning:
         // pressable: a click, like Esc, skips the cleanup and keeps the raw text
         return DictationPresentation(
-            icon: .spinner, inAccent: false, pressable: true, caption: "Cleaning…", sendEnabled: false, label: "Cleaning, press to skip", help: "Cleaning… Click to skip"
+            icon: .spinner, inAccent: false, pressable: true, caption: Copy.dictationCleaningCaption(bundle: bundle, locale: locale), sendEnabled: false,
+            label: Copy.dictationLabelCleaning(bundle: bundle, locale: locale), help: Copy.dictationHelpCleaning(bundle: bundle, locale: locale)
         )
     }
 }
@@ -73,11 +83,11 @@ public enum DictationNotice: Equatable, Sendable {
     case failed(DictationFailure)
 }
 
-public func dictationAnnouncement(_ notice: DictationNotice) -> String {
+public func dictationAnnouncement(_ notice: DictationNotice, bundle: Bundle? = nil, locale: Locale = .current) -> String {
     switch notice {
-    case .gettingReady: "Getting the model ready"
-    case .listening: "Listening"
-    case .stopped(let words): "Dictation stopped, \(words == 0 ? "no words" : words == 1 ? "1 word" : "\(words) words") added"
-    case .failed(let failure): "Dictation failed: \(failure.cause)"
+    case .gettingReady: Copy.dictationAnnounceGettingReady(bundle: bundle, locale: locale)
+    case .listening: Copy.dictationAnnounceListening(bundle: bundle, locale: locale)
+    case .stopped(let words): Copy.dictationAnnounceStopped(words: words, bundle: bundle, locale: locale)
+    case .failed(let failure): Copy.dictationAnnounceFailed(cause: failure.shown(bundle: bundle, locale: locale), bundle: bundle, locale: locale)
     }
 }

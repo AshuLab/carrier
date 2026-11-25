@@ -9,7 +9,17 @@ import Foundation
 public enum DictationWidgetStyle: String, CaseIterable, Sendable {
     case pill, small, medium, large
 
-    public var title: String { rawValue.capitalized }
+    /// "Pill", "Small", "Medium" or "Large".
+    public func title(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        let which: Copy.DictationWidgetStyleTitle =
+            switch self {
+            case .pill: .pill
+            case .small: .small
+            case .medium: .medium
+            case .large: .large
+            }
+        return Copy.dictationWidgetStyleTitle(which: which, bundle: bundle, locale: locale)
+    }
 
     /// The box the style is; nil for the Pill, which has no text.
     public var box: DictationWidgetBox? {
@@ -26,7 +36,10 @@ public enum DictationWidgetStyle: String, CaseIterable, Sendable {
 public enum DictationWidgetPosition: String, CaseIterable, Sendable {
     case top, bottom
 
-    public var title: String { rawValue.capitalized }
+    /// "Top" or "Bottom".
+    public func title(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        self == .top ? Copy.dictationPositionTop(bundle: bundle, locale: locale) : Copy.dictationPositionBottom(bundle: bundle, locale: locale)
+    }
 }
 
 /// What the widget is made of, chosen on the Dictation page: the app's accent as glass (the way it always was), a solid black, dark glass, the system's own
@@ -34,14 +47,16 @@ public enum DictationWidgetPosition: String, CaseIterable, Sendable {
 public enum DictationWidgetTheme: String, CaseIterable, Sendable {
     case accent, black, glassDark, clear, glow
 
-    public var title: String {
-        switch self {
-        case .accent: "Default"
-        case .black: "Black"
-        case .glassDark: "Dark glass"
-        case .clear: "Clear glass"
-        case .glow: "Theme glow"
-        }
+    public func title(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        let which: Copy.DictationWidgetThemeTitle =
+            switch self {
+            case .accent: .accent
+            case .black: .black
+            case .glassDark: .glassDark
+            case .clear: .clear
+            case .glow: .glow
+            }
+        return Copy.dictationWidgetThemeTitle(which: which, bundle: bundle, locale: locale)
     }
 
     /// The appearance its text is drawn in whatever the app's is, so it reads over its own colour; nil follows the app's (the clear glass takes the system's).
@@ -109,8 +124,14 @@ public struct DictationWidgetBox: Equatable, Sendable {
 
 /// The notices over a text that was only copied: why it was not pasted, and why it was not cleaned when Cleanup was on. The box is as tall as they
 /// are, for the widget lays them out where it sizes itself (`reasonLines` is what a box allows before it grows for them).
-public func dictationKeptNotices(reason: PasteReason, notCleaned: String?) -> [String] {
-    ["\(reason.explanation) It is on the clipboard."] + (notCleaned.map { ["It was not cleaned: \($0)"] } ?? [])
+public func dictationKeptNotices(reason: PasteReason, notCleaned: String?, bundle: Bundle? = nil, locale: Locale = .current) -> [String] {
+    [dictationKeptNotice(reason: reason, bundle: bundle, locale: locale)]
+        + (notCleaned.map { [Copy.dictationNotCleaned(cause: $0, bundle: bundle, locale: locale)] } ?? [])
+}
+
+/// Why the text was not pasted, and that it is on the clipboard: the first notice of a text that was only copied, and what VoiceOver says when the widget opens.
+public func dictationKeptNotice(reason: PasteReason, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+    Copy.dictationKeptOnClipboard(reason: reason.explanation(bundle: bundle, locale: locale), bundle: bundle, locale: locale)
 }
 
 /// How a text of `textLines` sits in a box of `boxLines`: it starts at the top and fills lines down to the box's, and once it is longer the newest

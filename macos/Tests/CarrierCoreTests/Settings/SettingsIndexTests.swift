@@ -56,7 +56,7 @@ import Testing
 @Test func everyDictationScreenIsOpenedByAnEntryAndItsRowsKeepTheirAnchorUnderThePath() {
     let dictation = settingsIndex.filter { $0.page == .dictation && $0.isPage == false }
     // each screen has the row that opens it, and every other row names the screen that draws it
-    for screen in DictationScreen.allCases { #expect(dictation.contains { $0.title == screen.title && $0.path == [screen.rawValue] }) }
+    for screen in DictationScreen.allCases { #expect(dictation.contains { $0.title == screen.title(bundle: english.bundle, locale: english.locale) && $0.path == [screen.rawValue] }) }
     #expect(dictation.allSatisfy { $0.path.count <= 1 && ($0.path.first.map { DictationScreen(rawValue: $0) != nil } ?? true) })
     // the status card is the first screen's: no path; Typing speed is Statistics'
     #expect(dictation.first { $0.title == "Microphone" }?.path == [])

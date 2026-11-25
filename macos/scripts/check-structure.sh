@@ -106,4 +106,37 @@ if [ -s /tmp/check-structure-gallery.$$ ]; then
 fi
 rm -f /tmp/check-structure-gallery.$$
 
+# Rule: no user-facing string literal in the areas whose texts are copy keys.
+# A literal passed to `Text`, `Label`, `Button`, `Toggle`, `TextField` or `SecureField`, to `.help`, `.accessibilityLabel`, `.accessibilityValue`, `.accessibilityHint`,
+# `.navigationTitle`, `.alert` or `.confirmationDialog`, or given to a `title:` label, the call possibly over several lines. Looks at the files of COPY_AREAS, and says
+# which literal and where; a text is a key of design/copy/ read through `Copy` (docs/adr/0054).
+# Ignores: comments (from `//` to the end of the line), the empty string, and a string with no letter once its interpolations are taken out (spaces, punctuation, `"\(x)"`).
+# COPY_AREAS grows with the steps that turn an area's texts into copy keys; the step that finishes them widens it to the whole of Sources/Carrier and Sources/CarrierCore.
+# Files and folders:
+#   Sources/Carrier/Features/Dictation, Sources/CarrierCore/Dictation  the Dictation area; its recognizers' sentences are `DictationFailure` reasons
+COPY_AREAS=(Sources/Carrier/Features/Dictation Sources/CarrierCore/Dictation Sources/Carrier/Platform/AppleRecognizer.swift Sources/Carrier/Platform/FluidAudioRecognizer.swift
+  Sources/Carrier/Platform/WhisperKitRecognizer.swift Sources/Carrier/Platform/MicrophoneCapture.swift)
+find "${COPY_AREAS[@]}" -name '*.swift' | sort |
+  while IFS= read -r file; do
+    perl -0777 -ne '
+      my $inner = qr/(?:[^()]|\((?:[^()]|\((?:[^()]|\([^()]*\))*\))*\))*/;
+      my $str = qr/"(?:[^"\\\n]|\\\($inner\)|\\.)*"/;
+      my $s = $_;
+      $s =~ s{($str)|(//[^\n]*)}{defined $1 ? $1 : ""}ge;
+      my $call = qr/(?:\b(?:Text|Label|Button|Toggle|TextField|SecureField)|\.(?:help|accessibilityLabel|accessibilityValue|accessibilityHint|navigationTitle|alert|confirmationDialog))\(\s*|\btitle:\s*/;
+      while ($s =~ /$call($str)/g) {
+        my ($text, $at) = ($1, $-[0]);
+        (my $words = $text) =~ s/\\\($inner\)//g;
+        next unless $words =~ /[A-Za-z]/;
+        my $line = 1 + (substr($s, 0, $at) =~ tr/\n//);
+        print "$ARGV:$line: $text is a user-facing literal in an area whose texts are copy keys: add the key to design/copy/en.json and es.json and read it through Copy\n";
+      }
+' "$file" | sed "s|^-:|$file:|"
+  done > /tmp/check-structure-copy.$$
+if [ -s /tmp/check-structure-copy.$$ ]; then
+  cat /tmp/check-structure-copy.$$
+  FAILED=1
+fi
+rm -f /tmp/check-structure-copy.$$
+
 exit $FAILED

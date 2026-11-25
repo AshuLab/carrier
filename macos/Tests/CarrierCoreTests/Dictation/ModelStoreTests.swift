@@ -55,7 +55,7 @@ private func temporaryRoot() throws -> URL {
 ) -> ModelStore {
     ModelStore(
         root: root, models: { [apple, parakeet, tiny] }, downloader: FakeDownloader(script: script, holds: holds), inUse: { inUse }, log: log,
-        freeSpace: freeSpace
+        freeSpace: freeSpace, bundle: english.bundle, locale: english.locale
     )
 }
 
@@ -111,10 +111,10 @@ func aFailureSaysItsCauseAndLeavesNothingBehind(failure: ModelDownloadFailure) a
     store.download(parakeet.id)
     await script.release()
     await store.settled()
-    #expect(store.state(of: parakeet) == .failed(failure.cause))
+    #expect(store.state(of: parakeet) == .failed(failure.cause(bundle: english.bundle, locale: english.locale)))
     #expect(filesUnder(root).filter { $0.hasSuffix(".bin") || $0.hasSuffix("complete") }.isEmpty)
     #expect(store.usedBytes == 0)
-    #expect(logged == ["Downloading fluidaudio.parakeet failed: \(failure.cause)"])
+    #expect(logged == ["Downloading fluidaudio.parakeet failed: \(failure.cause(bundle: english.bundle, locale: english.locale))"])
 }
 
 @MainActor @Test func anUnexpectedFailureCarriesItsDescription() async throws {
@@ -244,7 +244,8 @@ private actor Gate {
 @MainActor @Test func theFixtureDownloaderEndsAndOneEntryFailsWithNoConnection() async throws {
     let root = try temporaryRoot()
     let models = SpeechModelCatalog.fixtureEntries
-    let store = ModelStore(root: root, models: { models }, downloader: FixtureModelDownloader(sleep: { _ in }), inUse: { nil })
+    let store = ModelStore(root: root, models: { models }, downloader: FixtureModelDownloader(sleep: { _ in }), inUse: { nil },
+        bundle: english.bundle, locale: english.locale)
     let failing = try #require(models.first { $0.id == FixtureModelDownloader.failingID })
     let working = try #require(models.first { $0.id != FixtureModelDownloader.failingID })
     store.download(failing.id)
@@ -326,4 +327,37 @@ private actor Gate {
 @Test func theFreeSpaceIsReadFromTheNearestFolderThatExists() throws {
     let missing = FileManager.default.temporaryDirectory.appending(path: "carrier-nothing-\(UUID().uuidString)/app/models")
     #expect(try #require(ModelStore.availableBytes(at: missing)) > 0)
+}
+
+// MARK: in Spanish
+
+@MainActor @Test func aFailedDownloadSaysItsCauseInSpanishWhileTheLogKeepsItsEnglish() async throws {
+    for (failure, cause) in [
+        (ModelDownloadFailure.noConnection, "Sin conexión"), (.noSpace, "No queda espacio en el disco"), (.didNotCheck, "El archivo no pasó la comprobación"),
+        (.other("boom"), "Falló la descarga: boom"),
+    ] {
+        #expect(failure.cause(bundle: spanish.bundle, locale: spanish.locale) == cause)
+    }
+    let root = try temporaryRoot()
+    var logged: [String] = []
+    let script = Script([.fails(ModelDownloadFailure.noConnection)])
+    let store = ModelStore(
+        root: root, models: { [parakeet] }, downloader: FakeDownloader(script: script, holds: true), inUse: { nil }, log: { logged.append($0.cause) },
+        bundle: spanish.bundle, locale: spanish.locale)
+    store.download(parakeet.id)
+    await script.release()
+    await store.settled()
+    #expect(store.state(of: parakeet) == .failed("Sin conexión"))
+    #expect(logged == ["Downloading fluidaudio.parakeet failed: No connection"])
+}
+
+@MainActor @Test func aFinishedDownloadIsAnnouncedInSpanish() async throws {
+    var said: [String] = []
+    let script = Script([.succeeds])
+    let store = ModelStore(
+        root: try temporaryRoot(), models: { [parakeet] }, downloader: FakeDownloader(script: script, holds: false), inUse: { nil },
+        announce: { said.append($0) }, bundle: spanish.bundle, locale: spanish.locale)
+    store.download(parakeet.id)
+    await store.settled()
+    #expect(said == ["fluidaudio.parakeet descargado"])
 }

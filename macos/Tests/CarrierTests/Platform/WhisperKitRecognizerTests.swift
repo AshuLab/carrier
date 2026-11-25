@@ -3,6 +3,8 @@ import Foundation
 import Testing
 @testable import Carrier
 
+private let english = (bundle: Copy.bundle("en"), locale: Locale(identifier: "en_US"))
+
 private func recognizer(in root: URL) -> WhisperKitRecognizer { WhisperKitRecognizer(modelsRoot: root, preferredLanguages: ["es-ES"]) }
 
 private func model(_ name: String) -> SpeechModel { WhisperKitRecognizer.entries.first { $0.model.id == "whisper.\(name)" }!.model }
@@ -22,7 +24,7 @@ private func model(_ name: String) -> SpeechModel { WhisperKitRecognizer.entries
 @Test func noWhisperModelPassesTheRuleForPartialTextByChunksSoTheTableSaysWhenYouStopForEach() {
     let models = WhisperKitRecognizer.entries.map(\.model)
     #expect(models.allSatisfy { $0.partial == .atTheEnd })
-    let rows = speechModelRows(models: models, filter: nil, state: { _ in .downloaded }, inUse: nil)
+    let rows = speechModelRows(models: models, filter: nil, state: { _ in .downloaded }, inUse: nil, bundle: english.bundle, locale: english.locale)
     #expect(rows.map(\.text) == Array(repeating: "When you stop", count: 4))
 }
 

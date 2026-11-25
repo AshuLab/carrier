@@ -6,9 +6,9 @@ struct StorageGroup: View {
     var dictation = DictationController.shared
 
     var body: some View {
-        SettingsGroup(id: "storage", title: "Storage") {
-            SettingsTabRow(id: "downloaded-models", title: "Downloaded models", detail: "\(formatModelSize(dictation.store.usedBytes)) in the Carrier folder", first: true) {
-                Button { dictation.showModelsInFinder() } label: { Label("Show in Finder", icon: .folder) }.buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
+        SettingsGroup(id: "storage", title: Copy.dictationGroupStorage()) {
+            SettingsTabRow(id: "downloaded-models", title: Copy.dictationDownloadedModels(), detail: Copy.dictationDownloadedModelsDetail(size: formatModelSize(dictation.store.usedBytes)), first: true) {
+                Button { dictation.showModelsInFinder() } label: { Label(Copy.dictationShowInFinder(), icon: .folder) }.buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
             }
         }
     }

@@ -35,7 +35,7 @@ struct CleanupGroup: View {
             // the result appears under the button, where VoiceOver is not looking
             switch test {
             case .done(let result): AccessibilityNotification.Announcement(Copy.cleanupGroupAnnounceDone(seconds: String(format: "%.1f", result.seconds), text: result.text)).post()
-            case .failed(let failure): AccessibilityNotification.Announcement(Copy.cleanupGroupAnnounceFailed(reason: failure.message)).post()
+            case .failed(let failure): AccessibilityNotification.Announcement(Copy.cleanupGroupAnnounceFailed(reason: failure.message())).post()
             default: break
             }
         }
@@ -85,7 +85,7 @@ struct CleanupGroup: View {
     private var tryRow: some View {
         SettingsStackedRow(id: "try-it", title: Copy.cleanupGroupTry(), detail: Copy.cleanupGroupTryDetail()) {
             VStack(alignment: .leading, spacing: Tokens.Space.s20) {
-                testPanel(Copy.cleanupGroupDictated(), text: cleanupSample, tint: .secondary)
+                testPanel(Copy.cleanupGroupDictated(), text: cleanupSample(), tint: .secondary)
                 HStack {
                     Spacer()
                     Button { Task { await cleanup.runTest() } } label: { Label(Copy.cleanupGroupCleanSample(), icon: .arrowDown) }
@@ -119,7 +119,7 @@ struct CleanupGroup: View {
         case .running: testWorking
         case .done(let result):
             testPanel(Copy.cleanupGroupCleaned(), text: result.text, tint: .primary, seconds: result.seconds)
-        case .failed(let failure): testFailure(failure.message)
+        case .failed(let failure): testFailure(failure.message())
         }
     }
 

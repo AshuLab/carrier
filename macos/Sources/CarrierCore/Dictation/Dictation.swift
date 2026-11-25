@@ -54,11 +54,71 @@ public enum DictationEvent: Sendable, Equatable {
     }
 }
 
-/// Why a dictation could not go on, in words for the person.
+/// Why a dictation could not go on, in words for the person. `cause` is the English words, which `dictation.log` keeps and failures compare by; `shown` says the
+/// reason in the language of the app. A cause that is a system's own words (an `Error`'s description) has no reason and is shown as it is.
 public struct DictationFailure: Error, Equatable, Sendable {
     public let cause: String
+    public let reason: Reason?
 
-    public init(_ cause: String) { self.cause = cause }
+    public init(_ cause: String) {
+        self.cause = cause
+        reason = nil
+    }
+
+    public init(_ reason: Reason) {
+        cause = reason.words(bundle: Copy.bundle("en"), locale: Locale(identifier: "en_US"))
+        self.reason = reason
+    }
+
+    /// Two failures are the same when they say the same in English: the reason is only how it is said in another language.
+    public static func == (left: DictationFailure, right: DictationFailure) -> Bool { left.cause == right.cause }
+
+    public func shown(bundle: Bundle? = nil, locale: Locale = .current) -> String { reason?.words(bundle: bundle, locale: locale) ?? cause }
+
+    /// What the app itself says went wrong; the argument of a case is a name or a system's description, which is not translated.
+    public enum Reason: Equatable, Sendable {
+        case recognizerSilent
+        case modelNotReady
+        case microphoneBlocked
+        case noSpeechModel
+        case speechModelStopped(String)
+        case cleanup(CleanupFailure)
+        case notAFluidAudioModel(String)
+        case notAWhisperKitModel(String)
+        case modelCouldNotLoad(model: String, detail: String)
+        case modelNotPrepared
+        case noAudioInput
+        case microphoneCouldNotStart(String)
+        case appleHasNoLanguage
+        case appleNotPrepared
+        case appleHasNoAudioFormat
+        case appleStopped(String)
+        case appleCouldNotConvert
+        case cannotDownload(String)
+
+        public func words(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+            switch self {
+            case .recognizerSilent: Copy.dictationFailRecognizerSilent(bundle: bundle, locale: locale)
+            case .modelNotReady: Copy.dictationFailModelNotReady(bundle: bundle, locale: locale)
+            case .microphoneBlocked: Copy.dictationFailMicrophoneBlocked(bundle: bundle, locale: locale)
+            case .noSpeechModel: Copy.dictationFailNoSpeechModel(bundle: bundle, locale: locale)
+            case .speechModelStopped(let detail): Copy.dictationFailSpeechModelStopped(detail: detail, bundle: bundle, locale: locale)
+            case .cleanup(let failure): failure.message(bundle: bundle, locale: locale)
+            case .notAFluidAudioModel(let model): Copy.dictationFailNotFluidAudio(model: model, bundle: bundle, locale: locale)
+            case .notAWhisperKitModel(let model): Copy.dictationFailNotWhisperKit(model: model, bundle: bundle, locale: locale)
+            case .modelCouldNotLoad(let model, let detail): Copy.dictationFailModelCouldNotLoad(model: model, detail: detail, bundle: bundle, locale: locale)
+            case .modelNotPrepared: Copy.dictationFailModelNotPrepared(bundle: bundle, locale: locale)
+            case .noAudioInput: Copy.dictationFailNoAudioInput(bundle: bundle, locale: locale)
+            case .microphoneCouldNotStart(let detail): Copy.dictationFailMicrophoneCouldNotStart(detail: detail, bundle: bundle, locale: locale)
+            case .appleHasNoLanguage: Copy.dictationFailAppleNoLanguage(bundle: bundle, locale: locale)
+            case .appleNotPrepared: Copy.dictationFailAppleNotPrepared(bundle: bundle, locale: locale)
+            case .appleHasNoAudioFormat: Copy.dictationFailAppleNoAudioFormat(bundle: bundle, locale: locale)
+            case .appleStopped(let detail): Copy.dictationFailAppleStopped(detail: detail, bundle: bundle, locale: locale)
+            case .appleCouldNotConvert: Copy.dictationFailAppleCouldNotConvert(bundle: bundle, locale: locale)
+            case .cannotDownload(let model): Copy.dictationFailCannotDownload(model: model, bundle: bundle, locale: locale)
+            }
+        }
+    }
 }
 
 /// What a capture heard for a moment: mono samples.

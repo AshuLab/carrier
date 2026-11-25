@@ -101,14 +101,12 @@ final class FluidAudioRecognizer: Recognizer, @unchecked Sendable {
     func prepare(_ model: SpeechModel) async throws {
         let chosen = languageChoices(for: model, macOSLanguages: preferredLanguages, saved: AppPreferences().dictationLanguage).selected
         lock.withLock { chosenLanguage = chosen }
-        guard let engine = Self.engine(of: model) else { throw DictationFailure("\(model.name) is not a model of FluidAudio.") }
+        guard let engine = Self.engine(of: model) else { throw DictationFailure(.notAFluidAudioModel(model.name)) }
         let files = Self.files(engine, in: ModelStore.folder(in: root, for: model))
         do {
             try await slot.load(model.id) { try await Self.load(engine, from: files) }
         } catch {
-            throw DictationFailure(
-                "\(model.name) could not be loaded from its folder (\(error.localizedDescription)). Delete it on the Dictation page and download it again."
-            )
+            throw DictationFailure(.modelCouldNotLoad(model: model.name, detail: error.localizedDescription))
         }
     }
 
@@ -166,7 +164,7 @@ final class FluidAudioRecognizer: Recognizer, @unchecked Sendable {
                 let batch = ChunkedRecognizer(ParakeetTranscriber(manager: manager, language: language), partials: partial == .chunked)
                 for await event in batch.recognize(audio) { out.yield(event) }
             case .streaming(let streamer): await Self.recognize(audio, with: streamer, language: language, into: out)
-            case nil: out.yield(.failed(DictationFailure("The speech model was not prepared.")))
+            case nil: out.yield(.failed(DictationFailure(.modelNotPrepared)))
             }
             out.finish()
         }
@@ -192,7 +190,7 @@ final class FluidAudioRecognizer: Recognizer, @unchecked Sendable {
             // no audio ends in an empty final, never in a failure
             out.yield(.final(fed ? try await streamer.finish().trimmingCharacters(in: .whitespacesAndNewlines) : ""))
         } catch {
-            out.yield(.failed(DictationFailure("The speech model stopped: \(error.localizedDescription)")))
+            out.yield(.failed(DictationFailure(.speechModelStopped(error.localizedDescription))))
         }
     }
 }
@@ -227,7 +225,7 @@ struct FluidAudioDownloader: ModelDownloader {
     }
 
     func download(_ model: SpeechModel, into folder: URL, progress: @MainActor @Sendable (Double) -> Void) async throws {
-        guard let engine = FluidAudioRecognizer.engine(of: model) else { throw DictationFailure("\(model.name) is not a model of FluidAudio.") }
+        guard let engine = FluidAudioRecognizer.engine(of: model) else { throw DictationFailure(.notAFluidAudioModel(model.name)) }
         // the library reads REGISTRY_URL and MODEL_REGISTRY_URL from the environment the app was launched with unless this is set: only Hugging Face
         // ponytail: its HF_TOKEN, if the environment has one, is still sent to that host: the library offers no switch for it (`huggingFaceToken` is internal)
         ModelRegistry.baseURL = "https://huggingface.co"

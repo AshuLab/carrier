@@ -101,13 +101,15 @@ private func settingsRows(_ settingsPage: SettingsPage) -> [SettingsEntry] {
             page(.keybindings, group.rawValue, group.title, ShortcutCommand.allCases.filter { $0.group == group }.map { ($0.rawValue, $0.title, "Default: \($0.defaultCombo?.text ?? "none")") })
         }
     case .dictation:
+        // the rest of this index is still English words (its own step gives them keys), so the screens' titles stay English with them
+        let english = Copy.bundle("en"), englishLocale = Locale(identifier: "en_US")
         func screen(_ screen: DictationScreen, _ groupID: String, _ group: String, _ rows: [(id: String, title: String, detail: String)]) -> [SettingsEntry] {
             page(.dictation, groupID, group, rows, path: [screen.rawValue])
         }
         // the rows of the first screen that open a screen are the way to it from a search
         let opens = DictationScreen.allCases.map { screen in
             let yours = screen == .history || screen == .statistics
-            return SettingsEntry(page: .dictation, groupID: yours ? "your-dictations" : "set-up", group: yours ? "Your dictations" : "Set up", rowID: screen.rawValue, title: screen.title, detail: screen.detail, path: [screen.rawValue])
+            return SettingsEntry(page: .dictation, groupID: yours ? "your-dictations" : "set-up", group: yours ? "Your dictations" : "Set up", rowID: screen.rawValue, title: screen.title(bundle: english, locale: englishLocale), detail: screen.detail(bundle: english, locale: englishLocale), path: [screen.rawValue])
         }
         return opens + page(.dictation, "dictation", "Dictation", [("microphone", "Microphone", "Whether Carrier may listen, in the card at the top")])
             + screen(.recognition, "speech-models", "Speech models", [("speech-models", "Speech models", "The models you can download, choose and delete")])

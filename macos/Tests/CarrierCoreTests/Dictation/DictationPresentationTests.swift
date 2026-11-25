@@ -10,7 +10,7 @@ import Testing
     (.cleaning, .spinner, false, true, "Cleaning…", false, "Cleaning, press to skip"),
 ])
 func theBoxDrawsAndSaysWhatEachStateNeeds(state: DictationSession.State, icon: DictationIcon, accent: Bool, pressable: Bool, caption: String?, send: Bool, label: String) throws {
-    let box = try #require(dictationPresentation(state, registered: true))
+    let box = try #require(dictationPresentation(state, registered: true, bundle: english.bundle, locale: english.locale))
     #expect(box.icon == icon)
     #expect(box.inAccent == accent)
     #expect(box.pressable == pressable)
@@ -20,9 +20,9 @@ func theBoxDrawsAndSaysWhatEachStateNeeds(state: DictationSession.State, icon: D
 }
 
 @Test func transcribingIsSaidOnlyOnceTheAnswerIsSlow() throws {
-    let waiting = try #require(dictationPresentation(.transcribing, registered: true, answerIsSlow: true))
+    let waiting = try #require(dictationPresentation(.transcribing, registered: true, answerIsSlow: true, bundle: english.bundle, locale: english.locale))
     #expect(waiting.caption == "Transcribing…" && waiting.icon == .spinner && waiting.pressable == false)
-    #expect(try #require(dictationPresentation(.transcribing, registered: true)).caption == nil)
+    #expect(try #require(dictationPresentation(.transcribing, registered: true, bundle: english.bundle, locale: english.locale)).caption == nil)
 }
 
 /// A dictation of a model that gives its text at the end, stopped, on a clock that moves when the test says so.
@@ -37,7 +37,7 @@ func theBoxDrawsAndSaysWhatEachStateNeeds(state: DictationSession.State, icon: D
 }
 
 @MainActor private func caption(of session: DictationSession) -> String? {
-    dictationPresentation(session.state, registered: true, answerIsSlow: session.answerIsSlow)?.caption
+    dictationPresentation(session.state, registered: true, answerIsSlow: session.answerIsSlow, bundle: english.bundle, locale: english.locale)?.caption
 }
 
 @MainActor @Test func aFinalTextThatTakesMoreThan250msAfterTheStopShowsTranscribing() async {
@@ -74,21 +74,21 @@ func theBoxDrawsAndSaysWhatEachStateNeeds(state: DictationSession.State, icon: D
 }
 
 @Test func whileTheModelGetsReadyWithTheCaptureRunningTheBoxListensAndSaysSoWhereTheTextWillBe() throws {
-    let waiting = try #require(dictationPresentation(.listening, registered: true, modelReady: false))
-    let listening = try #require(dictationPresentation(.listening, registered: true))
+    let waiting = try #require(dictationPresentation(.listening, registered: true, modelReady: false, bundle: english.bundle, locale: english.locale))
+    let listening = try #require(dictationPresentation(.listening, registered: true, bundle: english.bundle, locale: english.locale))
     // what listens is drawn as listening (the line, the filled microphone) and can be stopped
     #expect(waiting.icon == listening.icon && waiting.inAccent && waiting.pressable && waiting.sendEnabled == false)
     #expect(waiting.label == "Stop dictation" && waiting.help == "Stop dictation")
     #expect(waiting.caption == "Getting the model ready…" && listening.caption == nil)
     #expect(dictationEdgeShown(waiting, dropping: false))
     // a stop while it loads leaves the spinner, which cannot be pressed
-    let stopped = try #require(dictationPresentation(.gettingReady, registered: true, modelReady: false))
+    let stopped = try #require(dictationPresentation(.gettingReady, registered: true, modelReady: false, bundle: english.bundle, locale: english.locale))
     #expect(stopped.icon == .spinner && stopped.pressable == false && stopped.caption == "Getting the model ready…")
 }
 
 @Test(arguments: [DictationSession.State.idle, .gettingReady, .listening, .transcribing, .cleaning])
 func aBuildWithNoRecognizerDrawsNoIconInAnyState(state: DictationSession.State) {
-    #expect(dictationPresentation(state, registered: false) == nil)
+    #expect(dictationPresentation(state, registered: false, bundle: english.bundle, locale: english.locale) == nil)
 }
 
 @MainActor @Test func theRegistryHoldsOneRecognizerPerIdAndStartsEmpty() {
@@ -103,24 +103,24 @@ func aBuildWithNoRecognizerDrawsNoIconInAnyState(state: DictationSession.State) 
 }
 
 @Test func aBlockedMicrophoneShowsTheSlashedIconAndAClickExplainsInsteadOfListening() throws {
-    let blocked = try #require(dictationPresentation(.idle, registered: true, microphone: .denied))
+    let blocked = try #require(dictationPresentation(.idle, registered: true, microphone: .denied, bundle: english.bundle, locale: english.locale))
     #expect(blocked.icon == .micSlash && blocked.pressable && blocked.sendEnabled && blocked.caption == nil)
     #expect(blocked.label == "Dictation is blocked")
     #expect(dictationClick(.denied) == .explainBlock)
-    #expect(MicrophoneBlockedPopover.button == "Open System Settings")
+    #expect(MicrophoneBlockedPopover.button(bundle: english.bundle, locale: english.locale) == "Open System Settings")
     #expect(MicrophoneBlockedPopover.settingsURL.hasSuffix("Privacy_Microphone"))
 }
 
 @Test(arguments: [(MicrophonePermission.allowed, DictationClick.start), (.notAsked, .start), (.denied, .explainBlock)])
 func theMicrophonePermissionDecidesWhatTheIconDoesAndWhatAClickOffers(permission: MicrophonePermission, click: DictationClick) throws {
-    let icon = try #require(dictationPresentation(.idle, registered: true, microphone: permission)).icon
+    let icon = try #require(dictationPresentation(.idle, registered: true, microphone: permission, bundle: english.bundle, locale: english.locale)).icon
     #expect(icon == (permission == .denied ? .micSlash : .mic))
     #expect(dictationClick(permission) == click)
 }
 
 @Test func theMicrophoneOnlyBlocksWhileTheBoxIsIdle() throws {
     // a dictation that is already running keeps its own states
-    #expect(try #require(dictationPresentation(.listening, registered: true, microphone: .denied)).icon == .mic)
+    #expect(try #require(dictationPresentation(.listening, registered: true, microphone: .denied, bundle: english.bundle, locale: english.locale)).icon == .mic)
 }
 
 @Test(arguments: [(DictationWidgetStyle.small, 2, 340.0, 12.0), (.medium, 3, 420, 14), (.large, 4, 540, 17)])
@@ -196,8 +196,8 @@ func theWidgetIsCentredUnderTheMenuBarOrAboveTheDockOfTheVisibleFrame(position: 
 
 @Test func aCopiedTextSaysWhyItWasNotPastedAndWhyItWasNotCleaned() {
     let reason = PasteReason.noPermission
-    #expect(dictationKeptNotices(reason: reason, notCleaned: nil) == ["\(reason.explanation) It is on the clipboard."])
-    #expect(dictationKeptNotices(reason: reason, notCleaned: "the model did not answer in time").last == "It was not cleaned: the model did not answer in time")
+    #expect(dictationKeptNotices(reason: reason, notCleaned: nil, bundle: english.bundle, locale: english.locale) == ["\(reason.explanation(bundle: english.bundle, locale: english.locale)) It is on the clipboard."])
+    #expect(dictationKeptNotices(reason: reason, notCleaned: "the model did not answer in time", bundle: english.bundle, locale: english.locale).last == "It was not cleaned: the model did not answer in time")
 }
 
 @Test(arguments: [DictationWidgetState.working, .listening, .cleaning, .pasted, .pastedRaw, .cancelled])
@@ -223,7 +223,7 @@ func aFailureAndACopiedTextKeepTheirTextWithTheLiveTextOff(state: DictationWidge
 @Test func aDarkThemeDrawsItsTextInTheDarkAppearanceAndTheDefaultAndTheClearGlassFollowTheSystem() {
     #expect(DictationWidgetTheme.accent.appearance == nil && DictationWidgetTheme.clear.appearance == nil)
     for theme in [DictationWidgetTheme.black, .glassDark, .glow] { #expect(theme.appearance == .dark) }
-    #expect(Set(DictationWidgetTheme.allCases.map(\.title)).count == DictationWidgetTheme.allCases.count)
+    #expect(Set(DictationWidgetTheme.allCases.map { $0.title(bundle: english.bundle, locale: english.locale) }).count == DictationWidgetTheme.allCases.count)
 }
 
 @Test func aSpotIsKeptAsTextAndOnlyAReadableOneIsKept() {

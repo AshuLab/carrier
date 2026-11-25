@@ -8,12 +8,15 @@ import Observation
 /// Why a download failed, in words for the person: what they caused or can fix, not a bug.
 public enum ModelDownloadFailure: Error, Equatable, Sendable {
     case noConnection, noSpace, didNotCheck
+    /// Anything else the download threw, in the system's own words, which are not translated.
+    case other(String)
 
-    public var cause: String {
+    public func cause(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         switch self {
-        case .noConnection: "No connection"
-        case .noSpace: "No space on the disk"
-        case .didNotCheck: "The file did not check"
+        case .noConnection: Copy.dictationDownloadNoConnection(bundle: bundle, locale: locale)
+        case .noSpace: Copy.dictationDownloadNoSpace(bundle: bundle, locale: locale)
+        case .didNotCheck: Copy.dictationDownloadDidNotCheck(bundle: bundle, locale: locale)
+        case .other(let detail): Copy.dictationDownloadFailed(detail: detail, bundle: bundle, locale: locale)
         }
     }
 
@@ -62,6 +65,9 @@ public enum ModelState: Equatable, Sendable {
     @ObservationIgnored private let announce: @MainActor (String) -> Void
     @ObservationIgnored private let freeSpace: @MainActor (URL) -> Int64?
     @ObservationIgnored private let count: @Sendable (URL) async -> Int64
+    /// The language the causes that the table shows and the announcements are said in; the log keeps its English.
+    @ObservationIgnored private let bundle: Bundle?
+    @ObservationIgnored private let locale: Locale
 
     /// `models` is the list on offer (it may grow as recognizers register), `inUse` the id of the model dictation uses, which has no delete.
     /// `freeSpace` is what the volume of the folder has free; nil (unknown) does not stop a download.
@@ -70,7 +76,7 @@ public enum ModelState: Equatable, Sendable {
         root: URL, models: @escaping @MainActor () -> [SpeechModel], downloader: any ModelDownloader, inUse: @escaping @MainActor () -> String?,
         log: @escaping @MainActor (DictationFailure) -> Void = { _ in }, announce: @escaping @MainActor (String) -> Void = { _ in },
         freeSpace: @escaping @MainActor (URL) -> Int64? = ModelStore.availableBytes,
-        count: (@Sendable (URL) async -> Int64)? = nil
+        count: (@Sendable (URL) async -> Int64)? = nil, bundle: Bundle? = nil, locale: Locale = .current
     ) {
         self.root = root
         self.models = models
@@ -80,6 +86,8 @@ public enum ModelState: Equatable, Sendable {
         self.announce = announce
         self.freeSpace = freeSpace
         self.count = count ?? { Self.bytes(under: $0) }
+        self.bundle = bundle
+        self.locale = locale
         removePartials()
         measureInBackground()
     }
@@ -110,7 +118,7 @@ public enum ModelState: Equatable, Sendable {
         }
         // ponytail: each download is checked alone; downloads that run in parallel are not summed, the first to find the disk full fails with this
         if let free = freeSpace(root), free < bytes {
-            fail(model, ModelDownloadFailure.noSpace.cause)
+            fail(model, .noSpace)
             return
         }
         inFlight[id] = .downloading(0)
@@ -147,23 +155,23 @@ public enum ModelState: Equatable, Sendable {
             try Task.checkCancellation()
             try Data().write(to: folder.appending(path: Self.marker))
             inFlight[model.id] = nil
-            announce("Downloaded \(model.name)")
+            announce(Copy.dictationDownloaded(model: model.name, bundle: bundle, locale: locale))
         } catch {
             // a folder that holds the marker is a model that is there: whatever this run did, it never removes one
             if hasMarker(model) == false { try? FileManager.default.removeItem(at: folder) }
             if Task.isCancelled || error is CancellationError {
                 inFlight[model.id] = nil
             } else {
-                fail(model, (error as? ModelDownloadFailure)?.cause ?? "Download failed: \(error.localizedDescription)")
+                fail(model, error as? ModelDownloadFailure ?? .other(error.localizedDescription))
             }
         }
         tasks[model.id] = nil
         refresh()
     }
 
-    private func fail(_ model: SpeechModel, _ cause: String) {
-        inFlight[model.id] = .failed(cause)
-        log(DictationFailure("Downloading \(model.name) failed: \(cause)"))
+    private func fail(_ model: SpeechModel, _ failure: ModelDownloadFailure) {
+        inFlight[model.id] = .failed(failure.cause(bundle: bundle, locale: locale))
+        log(DictationFailure("Downloading \(model.name) failed: \(failure.cause(bundle: Copy.bundle("en"), locale: Locale(identifier: "en_US")))"))
     }
 
     private func hasMarker(_ model: SpeechModel) -> Bool {

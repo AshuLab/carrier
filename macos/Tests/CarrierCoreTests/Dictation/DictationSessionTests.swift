@@ -44,7 +44,9 @@ private final class Said: @unchecked Sendable { var lines: [String] = []; var lo
         self.text = text
         self.caret = caret
         let clock = clock, said = said
-        session = DictationSession(capture: capture, sleep: { try await clock.sleep($0) }, announce: { said.lines.append($0) }, log: { said.logged.append($0.cause) })
+        session = DictationSession(
+            capture: capture, sleep: { try await clock.sleep($0) }, announce: { said.lines.append($0) }, log: { said.logged.append($0.cause) },
+            bundle: english.bundle, locale: english.locale)
     }
 
     func dictate(with recognizer: ScriptedRecognizer, owner: String = "box", cleanup: DictationCleanup? = nil) {
@@ -770,9 +772,9 @@ private func aCleanupThatFailsLeavesTheRawTextTellsTheCauseAndLogsItAlone(failur
     server.reply(.failure(failure))
     await rig.reaches(.idle)
     #expect(rig.text == "uno um holados" && rig.caret == 11)
-    #expect(rig.session.failure(for: "box") == DictationFailure(failure.message))
-    #expect(rig.said.logged == [failure.message])
-    #expect(rig.said.lines.last == "Dictation failed: \(failure.message)")
+    #expect(rig.session.failure(for: "box") == DictationFailure(failure.message(bundle: english.bundle, locale: english.locale)))
+    #expect(rig.said.logged == [failure.message(bundle: english.bundle, locale: english.locale)])
+    #expect(rig.said.lines.last == "Dictation failed: \(failure.message(bundle: english.bundle, locale: english.locale))")
 }
 
 @MainActor @Test func cancellingWhileItCleansKeepsTheRawTextAndIgnoresTheLateAnswer() async {

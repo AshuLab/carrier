@@ -14,17 +14,27 @@ public enum CleanupServer: String, CaseIterable, Sendable {
 
 /// Why a cleanup did not give text; each says its cause in words, for the page and for `dictation.log`.
 public enum CleanupFailure: Error, Equatable, Sendable {
-    case noServer, noModel, emptyPrompt, timeout
+    case noServer, noModel, emptyPrompt, timeout, emptyAnswer
     case serverDown(CleanupServer)
+    case noModelList(CleanupServer)
+    case notAModelList(CleanupServer)
+    case notACompletion(CleanupServer)
+    case httpStatus(CleanupServer, Int)
+    /// A system's own words for what went wrong, which are not translated.
     case badReply(String)
 
-    public var message: String {
+    public func message(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         switch self {
-        case .noServer: "Choose a server first"
-        case .noModel: "The model is not on the server: choose another one"
-        case .emptyPrompt: "The prompt is empty"
-        case .timeout: "The model did not answer in time"
-        case .serverDown(let server): "\(server.title) is not running"
+        case .noServer: Copy.dictationCleanupNoServer(bundle: bundle, locale: locale)
+        case .noModel: Copy.dictationCleanupNoModel(bundle: bundle, locale: locale)
+        case .emptyPrompt: Copy.dictationCleanupEmptyPrompt(bundle: bundle, locale: locale)
+        case .timeout: Copy.dictationCleanupTimeout(bundle: bundle, locale: locale)
+        case .emptyAnswer: Copy.dictationCleanupEmptyAnswer(bundle: bundle, locale: locale)
+        case .serverDown(let server): Copy.dictationCleanupServerDown(server: server.title, bundle: bundle, locale: locale)
+        case .noModelList(let server): Copy.dictationCleanupNoModelList(server: server.title, bundle: bundle, locale: locale)
+        case .notAModelList(let server): Copy.dictationCleanupNotAModelList(server: server.title, bundle: bundle, locale: locale)
+        case .notACompletion(let server): Copy.dictationCleanupNotACompletion(server: server.title, bundle: bundle, locale: locale)
+        case .httpStatus(let server, let status): Copy.dictationCleanupHttpStatus(server: server.title, status: String(status), bundle: bundle, locale: locale)
         case .badReply(let cause): cause
         }
     }
@@ -62,7 +72,7 @@ public struct CleanupRun: Sendable {
             throw CleanupFailure.badReply(error.localizedDescription)
         }
         let cleaned = reply.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard cleaned.isEmpty == false else { throw CleanupFailure.badReply("The model answered with no text") }
+        guard cleaned.isEmpty == false else { throw CleanupFailure.emptyAnswer }
         return CleanupResult(text: cleaned, seconds: now().timeIntervalSince(start))
     }
 }
@@ -74,4 +84,4 @@ public func cleanupCanBeOn(server: CleanupServer?, model: String?) -> Bool { ser
 public let defaultCleanupPrompt = Preference.dictationCleanupPrompt.defaultValue
 
 /// What the Try it box sends: a dictation with fillers, a stutter, a false start and no punctuation or capitals.
-public let cleanupSample = "um so basically what i wanted to say is that the the endpoint should return the data uh per day and not per hour you know i mean per day"
+public func cleanupSample(bundle: Bundle? = nil, locale: Locale = .current) -> String { Copy.dictationCleanupSample(bundle: bundle, locale: locale) }

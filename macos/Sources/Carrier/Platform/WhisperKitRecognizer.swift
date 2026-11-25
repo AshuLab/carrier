@@ -90,7 +90,7 @@ final class WhisperKitRecognizer: Recognizer, @unchecked Sendable {
     func prepare(_ model: SpeechModel) async throws {
         let chosen = languageChoices(for: model, macOSLanguages: preferredLanguages, saved: AppPreferences().dictationLanguage).selected
         lock.withLock { chosenLanguage = chosen }
-        guard let entry = Self.entry(of: model) else { throw DictationFailure("\(model.name) is not a model of WhisperKit.") }
+        guard let entry = Self.entry(of: model) else { throw DictationFailure(.notAWhisperKitModel(model.name)) }
         let folder = ModelStore.folder(in: root, for: model)
         do {
             try await slot.load(model.id) {
@@ -103,9 +103,7 @@ final class WhisperKitRecognizer: Recognizer, @unchecked Sendable {
                 return Kit(kit: try await WhisperKit(config))
             }
         } catch {
-            throw DictationFailure(
-                "\(model.name) could not be loaded from its folder (\(error.localizedDescription)). Delete it on the Dictation page and download it again."
-            )
+            throw DictationFailure(.modelCouldNotLoad(model: model.name, detail: error.localizedDescription))
         }
     }
 
@@ -121,7 +119,7 @@ final class WhisperKitRecognizer: Recognizer, @unchecked Sendable {
                 let batch = ChunkedRecognizer(WhisperTranscriber(kit: kit, language: language, timed: chunked), partials: chunked)
                 for await event in batch.recognize(audio) { out.yield(event) }
             } else {
-                out.yield(.failed(DictationFailure("The speech model was not prepared.")))
+                out.yield(.failed(DictationFailure(.modelNotPrepared)))
             }
             out.finish()
         }
@@ -158,7 +156,7 @@ private struct WhisperTranscriber: BatchTranscriber, @unchecked Sendable {
 /// both into the model's folder.
 struct WhisperKitDownloader: CarrierCore.ModelDownloader {
     func download(_ model: SpeechModel, into folder: URL, progress: @MainActor @Sendable (Double) -> Void) async throws {
-        guard let entry = WhisperKitRecognizer.entry(of: model) else { throw DictationFailure("\(model.name) is not a model of WhisperKit.") }
+        guard let entry = WhisperKitRecognizer.entry(of: model) else { throw DictationFailure(.notAWhisperKitModel(model.name)) }
         // the library's callback cannot hold the port's non-escaping `progress`: its fractions cross a stream, in order, to a loop that calls it
         let (fractions, sink) = AsyncStream<Double>.makeStream()
         let work = Task {

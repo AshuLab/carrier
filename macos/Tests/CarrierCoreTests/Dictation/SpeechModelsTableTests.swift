@@ -52,7 +52,7 @@ private let tiny = entry("whisper.tiny", .whisper, partial: .atTheEnd)
     Case(name: "Apple's filter shows Apple's alone", filter: .apple, state: .notDownloaded, inUse: apple.id, ids: [apple.id], action: .none, radio: true),
 ])
 private func eachStateAndFilterGivesItsRowsAndWhatTheyOffer(c: Case) {
-    let rows = speechModelRows(models: [apple, parakeet, tiny], filter: c.filter, state: { $0.id == "whisper.tiny" ? c.state : $0.bytes == nil ? .downloaded : c.state }, inUse: c.inUse)
+    let rows = speechModelRows(models: [apple, parakeet, tiny], filter: c.filter, state: { $0.id == "whisper.tiny" ? c.state : $0.bytes == nil ? .downloaded : c.state }, inUse: c.inUse, bundle: english.bundle, locale: english.locale)
     #expect(rows.map(\.id) == c.ids)
     let row = rows.last!
     // Apple's is managed by the system, so it is always downloaded and has no trash; the others follow the state
@@ -65,7 +65,7 @@ private func eachStateAndFilterGivesItsRowsAndWhatTheyOffer(c: Case) {
 }
 
 @Test func aRowShowsWhatTheDesignDraws() {
-    let rows = speechModelRows(models: [apple, parakeet, tiny], filter: nil, state: { $0.bytes == nil || $0.id == parakeet.id ? .downloaded : .notDownloaded }, inUse: parakeet.id)
+    let rows = speechModelRows(models: [apple, parakeet, tiny], filter: nil, state: { $0.bytes == nil || $0.id == parakeet.id ? .downloaded : .notDownloaded }, inUse: parakeet.id, bundle: english.bundle, locale: english.locale)
     #expect(rows.map(\.size) == ["System", "500 MB", "75 MB"])
     #expect(rows.map(\.languages) == ["Your macOS languages", "3 languages", "English only"])
     #expect(rows.map(\.detectsLanguage) == [false, true, false])
@@ -77,7 +77,7 @@ private func eachStateAndFilterGivesItsRowsAndWhatTheyOffer(c: Case) {
 }
 
 @Test func theProgressIsToldByTensToVoiceOver() {
-    let rows = speechModelRows(models: [tiny], filter: nil, state: { _ in .downloading(0.47) }, inUse: nil)
+    let rows = speechModelRows(models: [tiny], filter: nil, state: { _ in .downloading(0.47) }, inUse: nil, bundle: english.bundle, locale: english.locale)
     #expect(rows[0].label.hasSuffix("downloading, 40 percent"))
 }
 

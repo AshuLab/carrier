@@ -40,7 +40,7 @@ final class MicrophoneCapture: AudioCapture, @unchecked Sendable {
         stop()
         let engine = AVAudioEngine()
         let format = engine.inputNode.outputFormat(forBus: 0)
-        guard format.sampleRate > 0, format.channelCount > 0 else { throw DictationFailure("No microphone is available: this Mac has no audio input.") }
+        guard format.sampleRate > 0, format.channelCount > 0 else { throw DictationFailure(.noAudioInput) }
         let (stream, continuation) = AsyncStream<CarrierCore.AudioBuffer>.makeStream()
         var meter = LevelMeter()
         let onLevel = onLevel
@@ -54,7 +54,7 @@ final class MicrophoneCapture: AudioCapture, @unchecked Sendable {
         do { try engine.start() } catch {
             engine.inputNode.removeTap(onBus: 0)
             continuation.finish()
-            throw DictationFailure("The microphone could not start: \(error.localizedDescription)")
+            throw DictationFailure(.microphoneCouldNotStart(error.localizedDescription))
         }
         // the engine's configuration changes when the input device does; queue nil runs it on the posting thread, as `stop` is safe from any
         let watch = NotificationCenter.default.addObserver(forName: .AVAudioEngineConfigurationChange, object: engine, queue: nil) { [weak self] _ in self?.stop() }

@@ -42,7 +42,7 @@ final class AppleRecognizer: Recognizer, @unchecked Sendable {
         for language in preferredLanguages.filter({ baseLanguage($0) == chosen }) + [chosen] where locale == nil && chosen.isEmpty == false {
             locale = await SpeechTranscriber.supportedLocale(equivalentTo: Locale(identifier: language))
         }
-        guard let locale else { throw DictationFailure("Apple's speech recognition does not support any language of this Mac.") }
+        guard let locale else { throw DictationFailure(.appleHasNoLanguage) }
         // the progressive preset without `fastResults`, which trades accuracy for speed
         var preset = SpeechTranscriber.Preset.progressiveTranscription
         preset.reportingOptions.remove(.fastResults)
@@ -67,7 +67,7 @@ final class AppleRecognizer: Recognizer, @unchecked Sendable {
             return prepared
         }
         guard let (transcriber, analyzer) = taken else {
-            out.yield(.failed(DictationFailure("Apple's recognizer was not prepared.")))
+            out.yield(.failed(DictationFailure(.appleNotPrepared)))
             out.finish()
             return events
         }
@@ -76,7 +76,7 @@ final class AppleRecognizer: Recognizer, @unchecked Sendable {
             var heard: Task<String, Error>?
             do {
                 guard let format = await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: [transcriber]) else {
-                    throw DictationFailure("Apple's speech recognition has no audio format for this Mac.")
+                    throw DictationFailure(.appleHasNoAudioFormat)
                 }
                 let results = Task { () -> String in
                     // a final result closes a stretch of speech; the volatile ones that follow are the words still being heard
@@ -102,7 +102,7 @@ final class AppleRecognizer: Recognizer, @unchecked Sendable {
                 heard?.cancel()
                 input.finish()
                 await analyzer.cancelAndFinishNow()
-                out.yield(.failed(error as? DictationFailure ?? DictationFailure("Apple's speech recognition stopped: \(error.localizedDescription)")))
+                out.yield(.failed(error as? DictationFailure ?? DictationFailure(.appleStopped(error.localizedDescription))))
             }
             out.finish()
         }
@@ -126,7 +126,7 @@ final class AppleRecognizer: Recognizer, @unchecked Sendable {
             if converter == nil { converter = CaptureConverter(from: buffer.sampleRate, to: format) }
             guard let converted = converter?.convert(buffer) else {
                 dropped += 1
-                guard dropped < droppedLimit else { throw DictationFailure("Apple's speech recognition could not convert the audio of the microphone.") }
+                guard dropped < droppedLimit else { throw DictationFailure(.appleCouldNotConvert) }
                 continue
             }
             dropped = 0

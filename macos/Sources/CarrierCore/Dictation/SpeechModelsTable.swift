@@ -94,30 +94,37 @@ public struct SpeechModelRow: Equatable, Identifiable, Sendable {
 }
 
 /// The rows to draw: the models of the filter (all of them when nil), each with what its state shows and offers.
-public func speechModelRows(models: [SpeechModel], filter: RecognizerID?, state: (SpeechModel) -> ModelState, inUse: String?) -> [SpeechModelRow] {
+public func speechModelRows(
+    models: [SpeechModel], filter: RecognizerID?, state: (SpeechModel) -> ModelState, inUse: String?, bundle: Bundle? = nil, locale: Locale = .current
+) -> [SpeechModelRow] {
     models.filter { filter == nil || $0.recognizer == filter }.map { model in
         let state = state(model)
-        let size = model.bytes.map(formatModelSize) ?? "System"
+        let size = model.bytes.map(formatModelSize) ?? Copy.dictationSystem(bundle: bundle, locale: locale)
         let live = model.partial != .atTheEnd
-        let text = live ? "Live" : "When you stop"
-        let languages = languagesText(model)
+        let text = live ? Copy.dictationTextLive(bundle: bundle, locale: locale) : Copy.dictationTextAtTheEnd(bundle: bundle, locale: locale)
+        let languages = languagesText(model, bundle: bundle, locale: locale)
         let action: SpeechModelRow.Action
         let status: String
         switch state {
-        case .notDownloaded: (action, status) = (.download(size: size), "not downloaded")
+        case .notDownloaded: (action, status) = (.download(size: size), Copy.dictationStatusNotDownloaded(bundle: bundle, locale: locale))
         case .downloading(let fraction):
             let percent = Int((fraction * 100).rounded())
             // VoiceOver hears it by tens, so it does not talk over the person
-            (action, status) = (.downloading(percent: percent), "downloading, \(percent / 10 * 10) percent")
-        case .failed(let cause): (action, status) = (.failed(cause: cause), "download failed, \(cause)")
+            (action, status) = (.downloading(percent: percent), Copy.dictationStatusDownloading(percent: percent / 10 * 10, bundle: bundle, locale: locale))
+        case .failed(let cause): (action, status) = (.failed(cause: cause), Copy.dictationStatusFailed(cause: cause, bundle: bundle, locale: locale))
         case .downloaded:
             let used = model.id == inUse
-            (action, status) = (used || model.bytes == nil ? .none : .delete, used ? "in use" : "downloaded")
+            (action, status) = (
+                used || model.bytes == nil ? .none : .delete,
+                used ? Copy.dictationStatusInUse(bundle: bundle, locale: locale) : Copy.dictationStatusDownloaded(bundle: bundle, locale: locale)
+            )
         }
         return SpeechModelRow(
-            id: model.id, name: model.name, recognizer: model.recognizer.title, licence: model.licence, card: model.card, size: size, languages: languages,
+            id: model.id, name: model.name, recognizer: model.recognizer.title,
+            licence: model.recognizer == .apple ? Copy.dictationSystem(bundle: bundle, locale: locale) : model.licence, card: model.card, size: size, languages: languages,
             detectsLanguage: model.detectsLanguage, text: text, live: live, radio: state == .downloaded ? model.id == inUse : nil, action: action,
-            label: "\(model.name), \(model.recognizer.title), \(size), \(languages), text appears \(text.lowercased()), \(status)"
+            label: Copy.dictationRowLabel(
+                model: model.name, recognizer: model.recognizer.title, size: size, languages: languages, text: text.lowercased(with: locale), status: status, bundle: bundle, locale: locale)
         )
     }
 }
@@ -138,8 +145,10 @@ public func speechModelChoice(models: [SpeechModel], chosen: SpeechModel?, state
     )
 }
 
-private func languagesText(_ model: SpeechModel) -> String {
-    if model.recognizer == .apple { return "Your macOS languages" }
-    guard model.languages.count == 1, let code = model.languages.first else { return "\(model.languages.count) languages" }
-    return code == "en" ? "English only" : "\((Locale(identifier: "en").localizedString(forLanguageCode: code) ?? code)) only"
+private func languagesText(_ model: SpeechModel, bundle: Bundle?, locale: Locale) -> String {
+    if model.recognizer == .apple { return Copy.dictationLanguagesMacOS(bundle: bundle, locale: locale) }
+    guard model.languages.count == 1, let code = model.languages.first else {
+        return Copy.dictationLanguagesCount(count: model.languages.count, bundle: bundle, locale: locale)
+    }
+    return Copy.dictationLanguagesOnly(language: locale.localizedString(forLanguageCode: code) ?? code, bundle: bundle, locale: locale)
 }

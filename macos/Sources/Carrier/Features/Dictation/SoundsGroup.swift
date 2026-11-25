@@ -11,12 +11,12 @@ struct SoundsGroup: View {
     @AppStorage(Preference.dictationSoundVolume) private var volume
 
     var body: some View {
-        SettingsGroup(id: "sounds", title: "Sounds", footer: "Tink, Pop or Glass. The play button always plays, at the volume set; the message boxes stay silent.") {
-            soundRow(id: "start-sound", "Start sound", detail: "Plays when it begins to listen", on: $startOn, name: $start, first: true)
-            soundRow(id: "end-sound", "End sound", detail: "Plays when it stops listening and goes on to clean and paste", on: $endOn, name: $end)
-            SettingsTabRow(id: "volume", title: "Volume", detail: "For both sounds, in the global dictation only; \(volume)%") {
+        SettingsGroup(id: "sounds", title: Copy.dictationGroupSounds(), footer: Copy.dictationSoundsFooter()) {
+            soundRow(id: "start-sound", Copy.dictationStartSound(), detail: Copy.dictationStartSoundDetail(), on: $startOn, name: $start, first: true)
+            soundRow(id: "end-sound", Copy.dictationEndSound(), detail: Copy.dictationEndSoundDetail(), on: $endOn, name: $end)
+            SettingsTabRow(id: "volume", title: Copy.dictationVolume(), detail: Copy.dictationVolumeDetail(volume: volume)) {
                 Slider(value: Binding(get: { Double(volume) }, set: { volume = Int($0.rounded()) }), in: 0...100)
-                    .labelsHidden().frame(width: settingsSliderWidth).accessibilityLabel("Volume").accessibilityValue("\(volume) percent")
+                    .labelsHidden().frame(width: settingsSliderWidth).accessibilityLabel(Copy.dictationVolume()).accessibilityValue(Copy.dictationVolumePercent(volume: volume))
             }
         }
     }
@@ -24,7 +24,7 @@ struct SoundsGroup: View {
     private func soundRow(id: String, _ title: String, detail: String, on: Binding<Bool>, name: Binding<String>, first: Bool = false) -> some View {
         SettingsTabRow(id: id, title: title, detail: detail, first: first) {
             HStack(spacing: Tokens.Space.s8) {
-                IconButton(icon: .playFilled, name: "Play \(title)") { DictationSoundPlayer.play(SoundToPlay(name: name.wrappedValue, volume: Double(volume) / 100)) }
+                IconButton(icon: .playFilled, name: Copy.dictationPlay(title: title)) { DictationSoundPlayer.play(SoundToPlay(name: name.wrappedValue, volume: Double(volume) / 100)) }
                 ChoicePopUp(label: title, options: dictationSoundChoices.map { (value: $0, title: $0) }, selection: name)
                 Toggle(title, isOn: on).labelsHidden().toggleStyle(.switch)
             }

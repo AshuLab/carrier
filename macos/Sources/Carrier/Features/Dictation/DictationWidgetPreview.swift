@@ -17,7 +17,7 @@ struct DictationWidgetPreview: View {
         let scale = min(1, available / look.windowSize.width)
         Group {
             if let box = look.box {
-                WidgetBox(box: box) { Text(Self.sample) } foot: {
+                WidgetBox(box: box) { Text(Copy.dictationWidgetPreviewSample()) } foot: {
                     Text("0:12").monospacedDigit()
                     Spacer()
                     Text(hint)
@@ -33,8 +33,6 @@ struct DictationWidgetPreview: View {
         .frame(width: look.windowSize.width * scale, height: look.windowSize.height * scale)
         .frame(maxWidth: .infinity)
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { available = $0 }
-        .accessibilityElement(children: .ignore).accessibilityLabel("Preview of the \(style.title) widget, \(theme.title)")
+        .accessibilityElement(children: .ignore).accessibilityLabel(Copy.dictationWidgetPreviewLabel(style: style.title(), theme: theme.title()))
     }
-
-    private static let sample = "I need you to send me the summary of yesterday's meeting with the action points, and also each team's list of pending items"
 }

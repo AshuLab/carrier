@@ -16,57 +16,56 @@ struct GlobalDictationGroup: View {
     @State private var accessibility = AccessibilityState(trust: SystemAccessibilityTrust())
 
     var body: some View {
-        SettingsGroup(id: "global-dictation", title: "Global dictation", footer: "The first time you turn it on, Carrier explains what Accessibility is for before macOS asks.") {
+        SettingsGroup(id: "global-dictation", title: Copy.dictationGroupGlobal(), footer: Copy.dictationGlobalFooter()) {
             SettingsTabRow(
-                id: "dictate-in-any-app", title: "Dictate in any app",
-                detail: "\(AppPreferences().dictationShortcut.text) opens a widget in any app, and pastes what you said at the cursor",
+                id: "dictate-in-any-app", title: Copy.dictationAnyApp(),
+                detail: Copy.dictationAnyAppDetail(shortcut: AppPreferences().dictationShortcut.text),
                 first: true
             ) {
-                Toggle("Dictate in any app", isOn: switchBinding).labelsHidden().toggleStyle(.switch)
+                Toggle(Copy.dictationAnyApp(), isOn: switchBinding).labelsHidden().toggleStyle(.switch)
             }
             .live(.globalSwitch, enabled: dictation.enabled)
             Group {
                 accessibilityRow
                 ShortcutRecorderRow(
-                    id: "shortcut", shortcutText: shortcutText, title: "Shortcut", detail: "With Carrier in front on a session it dictates into the message box, with no widget",
-                    name: "Dictation shortcut",
+                    id: "shortcut", shortcutText: shortcutText, title: Copy.dictationShortcutTitle(), detail: Copy.dictationShortcutDetail(),
+                    name: Copy.dictationShortcutName(),
                     current: { AppPreferences().dictationShortcut }, save: { AppPreferences().dictationShortcut = $0 ?? .standard },
-                    taken: { $0 == AppPreferences().awakeShortcut ? "Keep awake uses these keys" : nil })
-                SettingsTabRow(id: "activation", title: "Activation", detail: "Toggle: press to start, press again to finish. Hold: speak while the keys are down") {
-                    SegmentedChoice(options: [(DictationActivation.toggle, "Toggle", nil), (.hold, "Hold", nil)], selection: $activation).accessibilityLabel("Activation")
+                    taken: { $0 == AppPreferences().awakeShortcut ? Copy.dictationShortcutTakenByAwake() : nil })
+                SettingsTabRow(id: "activation", title: Copy.dictationActivationTitle(), detail: Copy.dictationActivationDetail()) {
+                    SegmentedChoice(
+                        options: [(DictationActivation.toggle, Copy.dictationActivationToggle(), nil), (.hold, Copy.dictationActivationHold(), nil)], selection: $activation
+                    )
+                    .accessibilityLabel(Copy.dictationActivationTitle())
                 }
             }
             .live(.globalSwitch, enabled: dictation.enabled && global)
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in accessibility.refresh() }
-        .alert("Carrier needs Accessibility", isPresented: $explaining) {
-            Button("Continue") {
+        .alert(Copy.dictationExplainTitle(), isPresented: $explaining) {
+            Button(Copy.dictationExplainContinue()) {
                 explained = true
                 // macOS asks, and lists Carrier in Privacy & Security › Accessibility for the person to allow
                 accessibility.ask()
             }
-            Button("Not now", role: .cancel) {}
+            Button(Copy.dictationExplainNotNow(), role: .cancel) {}
         } message: {
-            Text(
-                "To paste what you say into the app you are in, Carrier needs to see which field has the cursor, and to press ⌘V for you. "
-                    + "It never reads what is in the fields, and it does not paste into password fields. Without it, the text goes on the clipboard instead.")
+            Text(Copy.dictationExplainMessage())
         }
     }
 
     private var accessibilityRow: some View {
         SettingsTabRow(
-            id: "accessibility", title: "Accessibility",
-            detail: accessibility.trusted
-                ? "Carrier can see which field has the cursor and paste into it"
-                : "Without it the text goes on the clipboard instead of being pasted. Already allowed? macOS drops it when Carrier updates: reset it"
+            id: "accessibility", title: Copy.dictationItemAccessibility(),
+            detail: accessibility.trusted ? Copy.dictationAccessibilityDetailOn() : Copy.dictationAccessibilityDetailOff()
         ) {
             HStack(spacing: Tokens.Space.s8) {
-                StatusChip(text: accessibility.trusted ? "Allowed" : "Not allowed", tint: accessibility.trusted ? .green : .orange)
-                Button { FocusedField.openSettings() } label: { Label("Open System Settings", icon: .settings) }
+                StatusChip(text: accessibility.trusted ? Copy.dictationStateAllowed() : Copy.dictationStateNotAllowed(), tint: accessibility.trusted ? .green : .orange)
+                Button { FocusedField.openSettings() } label: { Label(Copy.dictationOpenSystemSettings(), icon: .settings) }
                     .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
                 if accessibility.trusted == false {
-                    Button { FocusedField.resetPermission() } label: { Label("Reset", icon: .refresh) }
-                        .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).help("Removes Carrier from Accessibility and asks again")
+                    Button { FocusedField.resetPermission() } label: { Label(Copy.dictationReset(), icon: .refresh) }
+                        .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).help(Copy.dictationResetHelp())
                 }
             }
         }
@@ -101,18 +100,18 @@ struct WidgetGroup: View {
     private enum Place: Hashable { case top, bottom, custom }
 
     var body: some View {
-        SettingsGroup(id: "widget", title: "Widget") {
-            SettingsStackedRow(id: "widget-style", title: "Widget style", detail: "Pill is a badge with a microphone and no text; Small, Medium and Large are a box of 2, 3 and 4 lines", first: true) {
+        SettingsGroup(id: "widget", title: Copy.dictationGroupWidget()) {
+            SettingsStackedRow(id: "widget-style", title: Copy.dictationWidgetStyle(), detail: Copy.dictationWidgetStyleDetail(), first: true) {
                 WidgetStylePicker(selection: $widgetStyle)
             }
-            SettingsStackedRow(id: "widget-theme", title: "Widget theme", detail: "Default takes the app's accent. Theme glow wears the colours of the dictation line") {
+            SettingsStackedRow(id: "widget-theme", title: Copy.dictationWidgetTheme(), detail: Copy.dictationWidgetThemeDetail()) {
                 WidgetThemePicker(selection: $widgetTheme)
             }
-            SettingsTabRow(id: "live-text", title: "Live text", detail: "Show the words as you say them. Off, the widget keeps its box with the time and the keys, and no words") {
-                Toggle("Live text", isOn: $livePreview).labelsHidden().toggleStyle(.switch)
+            SettingsTabRow(id: "live-text", title: Copy.dictationLiveText(), detail: Copy.dictationLiveTextDetail()) {
+                Toggle(Copy.dictationLiveText(), isOn: $livePreview).labelsHidden().toggleStyle(.switch)
             }
-            SettingsTabRow(id: "position", title: "Position", detail: "Top or bottom centre, on the display of the window in front. Drag the widget while you dictate to leave it anywhere") {
-                SegmentedChoice(options: places, selection: place).accessibilityLabel("Widget position")
+            SettingsTabRow(id: "position", title: Copy.dictationPosition(), detail: Copy.dictationPositionDetail()) {
+                SegmentedChoice(options: places, selection: place).accessibilityLabel(Copy.dictationPositionName())
             }
             SettingsPreview {
                 DictationWidgetPreview(
@@ -123,7 +122,8 @@ struct WidgetGroup: View {
     }
 
     private var places: [(Place, String, AppIcon?)] {
-        [(.top, "Top", nil), (.bottom, "Bottom", nil)] + (DictationWidgetSpot(text: spotText ?? "") == nil ? [] : [(.custom, "Custom", nil)])
+        [(.top, DictationWidgetPosition.top.title(), nil), (.bottom, DictationWidgetPosition.bottom.title(), nil)]
+            + (DictationWidgetSpot(text: spotText ?? "") == nil ? [] : [(.custom, Copy.dictationPositionCustom(), nil)])
     }
 
     /// Choosing Top or Bottom lets go of the spot the widget was dragged to; Custom is only what it reads while there is one.
@@ -153,17 +153,17 @@ private struct WidgetThemePicker: View {
                 Button { selection = theme } label: {
                     VStack(spacing: Tokens.Space.s8) {
                         swatch(theme).frame(height: 44)
-                        Text(theme.title).scaledFont(11, weight: .medium).lineLimit(1).minimumScaleFactor(0.8)
+                        Text(theme.title()).scaledFont(11, weight: .medium).lineLimit(1).minimumScaleFactor(0.8)
                     }
                     .padding(.vertical, Tokens.Space.s10).padding(.horizontal, Tokens.Space.s6).frame(maxWidth: .infinity)
                     .background(RoundedRectangle(cornerRadius: Tokens.Radius.tile, style: .continuous).fill(on ? pieceTheme.accent.opacity(0.16) : Color.primary.opacity(0.06)))
                     .overlay(RoundedRectangle(cornerRadius: Tokens.Radius.tile, style: .continuous).strokeBorder(.tint, lineWidth: on ? 1.5 : 0))
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain).accessibilityLabel(theme.title).accessibilityAddTraits(on ? .isSelected : [])
+                .buttonStyle(.plain).accessibilityLabel(theme.title()).accessibilityAddTraits(on ? .isSelected : [])
             }
         }
-        .accessibilityElement(children: .contain).accessibilityLabel("Widget theme")
+        .accessibilityElement(children: .contain).accessibilityLabel(Copy.dictationWidgetTheme())
     }
 
     /// The widget's own surface over a bright backdrop, with a microphone in the way its text would be drawn.
@@ -192,17 +192,17 @@ private struct WidgetStylePicker: View {
                 Button { selection = style } label: {
                     VStack(spacing: Tokens.Space.s8) {
                         drawing(style).frame(height: 44)
-                        Text(style.title).scaledFont(12, weight: .medium)
+                        Text(style.title()).scaledFont(12, weight: .medium)
                     }
                     .padding(.vertical, Tokens.Space.s10).frame(maxWidth: .infinity)
                     .background(RoundedRectangle(cornerRadius: Tokens.Radius.tile, style: .continuous).fill(on ? pieceTheme.accent.opacity(0.16) : Color.primary.opacity(0.06)))
                     .overlay(RoundedRectangle(cornerRadius: Tokens.Radius.tile, style: .continuous).strokeBorder(.tint, lineWidth: on ? 1.5 : 0))
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain).accessibilityLabel(style.title).accessibilityAddTraits(on ? .isSelected : [])
+                .buttonStyle(.plain).accessibilityLabel(style.title()).accessibilityAddTraits(on ? .isSelected : [])
             }
         }
-        .accessibilityElement(children: .contain).accessibilityLabel("Widget style")
+        .accessibilityElement(children: .contain).accessibilityLabel(Copy.dictationWidgetStyle())
     }
 
     @ViewBuilder private func drawing(_ style: DictationWidgetStyle) -> some View {
@@ -244,22 +244,22 @@ struct ShortcutRecorderRow: View {
         let shown = current()?.text ?? emptyText ?? ""
         SettingsTabRow(id: id, title: title, detail: detail, problem: refusal ?? problem) {
             HStack(spacing: Tokens.Space.s8) {
-                Text(recording ? "Press the keys…" : shown)
+                Text(recording ? Copy.dictationShortcutPress() : shown)
                     .scaledFont(12, weight: .semibold, design: .monospaced)
                     .foregroundStyle(recording ? theme.accent : Color.primary)
                     .frame(minWidth: 96).padding(.horizontal, Tokens.Space.s10).padding(.vertical, Tokens.Space.s5)
                     .background(RoundedRectangle(cornerRadius: Tokens.Radius.control, style: .continuous).fill(Color.primary.opacity(recording ? 0.12 : 0.08)))
                     .overlay { if recording { RoundedRectangle(cornerRadius: Tokens.Radius.control, style: .continuous).strokeBorder(.tint, lineWidth: 1.5) } }
-                    .accessibilityLabel(name).accessibilityValue(recording ? "Listening for the new keys" : shown)
-                Button { recording ? stop() : start() } label: { Label(recording ? "Cancel" : "Record", icon: recording ? .close : .record) }
+                    .accessibilityLabel(name).accessibilityValue(recording ? Copy.dictationShortcutListening() : shown)
+                Button { recording ? stop() : start() } label: { Label(recording ? Copy.dictationShortcutCancel() : Copy.dictationShortcutRecord(), icon: recording ? .close : .record) }
                     .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
                 if emptyText != nil, current() != nil, recording == false {
                     Button {
                         refusal = nil
                         save(nil)
-                        AccessibilityNotification.Announcement("\(name) cleared").post()
-                    } label: { Label("Clear", icon: .close) }
-                        .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).accessibilityLabel("Clear the \(name.lowercased())")
+                        AccessibilityNotification.Announcement(Copy.dictationShortcutCleared(name: name)).post()
+                    } label: { Label(Copy.dictationShortcutClear(), icon: .close) }
+                        .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).accessibilityLabel(Copy.dictationShortcutClearThe(name: name.lowercased(with: .current)))
                 }
             }
         }
@@ -269,7 +269,7 @@ struct ShortcutRecorderRow: View {
     private func start() {
         refusal = nil
         recording = true
-        AccessibilityNotification.Announcement("Press the new keys, or Escape to cancel").post()
+        AccessibilityNotification.Announcement(Copy.dictationShortcutAnnounce()).post()
         Self.listening(true)
         // the next key comes here and not to the window's shortcuts: this monitor sees it first, and it is not passed on
         monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
@@ -285,7 +285,7 @@ struct ShortcutRecorderRow: View {
                 }
                 save(shortcut)
                 stop()
-                AccessibilityNotification.Announcement("Shortcut set to \(shortcut.text)").post()
+                AccessibilityNotification.Announcement(Copy.dictationShortcutSet(shortcut: shortcut.text)).post()
             case .refused(let reason):
                 refusal = reason
                 // a row's problem is not read aloud by itself

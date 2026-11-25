@@ -57,17 +57,17 @@ struct DictationTabView: View {
         }
         .id(screen)
         .task { await dictation.records.load() }
-        .preference(key: SettingsTitleKey.self, value: screen.map { SettingsTitle(text: $0.title, subtitle: summary($0)) })
+        .preference(key: SettingsTitleKey.self, value: screen.map { SettingsTitle(text: $0.title(), subtitle: summary($0)) })
     }
 
     @ViewBuilder private var first: some View {
         SettingsGroup(title: "") {
             DictationStatusCard(dictation: dictation)
         }
-        SettingsGroup(id: "set-up", title: "Set up") {
+        SettingsGroup(id: "set-up", title: Copy.dictationGroupSetUp()) {
             ForEach([DictationScreen.recognition, .global, .cleanup, .sounds], id: \.self) { opens($0) }
         }
-        SettingsGroup(id: "your-dictations", title: "Your dictations") {
+        SettingsGroup(id: "your-dictations", title: Copy.dictationGroupYours()) {
             opens(.history)
             opens(.statistics)
         }
@@ -79,10 +79,10 @@ struct DictationTabView: View {
             SettingsGroup(title: "") {
                 HStack(spacing: Tokens.Space.s12) {
                     Glyph(.power, size: 14).foregroundStyle(.secondary).accessibilityHidden(true)
-                    Text("Dictation is off, so what is set here waits. Turn it on to change it.").scaledFont(12).foregroundStyle(.secondary)
+                    Text(Copy.dictationOffNotice()).scaledFont(12).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: 8)
-                    Button("Turn on") { dictation.setEnabled(true) }.buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).fixedSize()
+                    Button(Copy.dictationTurnOn()) { dictation.setEnabled(true) }.buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).fixedSize()
                 }
                 .accessibilityElement(children: .contain)
             }
@@ -90,7 +90,7 @@ struct DictationTabView: View {
     }
 
     private func opens(_ screen: DictationScreen) -> some View {
-        NavigationRow(id: screen.rawValue, title: screen.title, detail: screen.detail, action: { go(SettingsPlace(.dictation, path: [screen.rawValue])) }) {
+        NavigationRow(id: screen.rawValue, title: screen.title(), detail: screen.detail(), action: { go(SettingsPlace(.dictation, path: [screen.rawValue])) }) {
             // two lines before a cut: at a narrow window and a large text the summary wraps and does not lose its last word
             Text(summary(screen)).scaledFont(12).foregroundStyle(.secondary).lineLimit(2).multilineTextAlignment(.trailing).fixedSize(horizontal: false, vertical: true)
         }
@@ -103,19 +103,22 @@ struct DictationTabView: View {
             let model = speechModelChoice(models: dictation.models, chosen: dictation.chosenModel, state: dictation.store.state(of:)).shown?.name ?? "Apple"
             return dictation.languages.map { "\(model) · \(dictationLanguageName($0.selected))" } ?? model
         case .global:
-            return dictation.enabled && global ? "\(AppPreferences().dictationShortcut.text) · \(activation == .hold ? "Hold" : "Toggle") · \(widgetStyle.title)" : "Off"
+            guard dictation.enabled && global else { return Copy.dictationOff() }
+            let way = activation == .hold ? Copy.dictationActivationHold() : Copy.dictationActivationToggle()
+            return Copy.dictationSummaryGlobal(shortcut: AppPreferences().dictationShortcut.text, activation: way, style: widgetStyle.title())
         case .cleanup:
-            return cleanupOn ? "On · \(cleanupServer?.title ?? "no server yet")" : "Off"
+            guard cleanupOn else { return Copy.dictationOff() }
+            return cleanupServer.map { Copy.dictationSummaryCleanupOn(server: $0.title) } ?? Copy.dictationSummaryCleanupNoServer()
         case .sounds:
-            if startOn == false, endOn == false { return "Off" }
-            return "\(startOn ? start : "—") · \(endOn ? end : "—") · \(volume)%"
+            if startOn == false, endOn == false { return Copy.dictationOff() }
+            return Copy.dictationSummarySounds(start: startOn ? start : "—", end: endOn ? end : "—", volume: volume)
         case .history:
             let count = dictation.records.entries.count
-            guard dictation.records.loaded || count > 0 else { return "Reading…" }
-            return count == 0 ? "No dictations yet" : "\(count) \(count == 1 ? "dictation" : "dictations")"
+            guard dictation.records.loaded || count > 0 else { return Copy.dictationReading() }
+            return count == 0 ? Copy.dictationNoDictationsYet() : Copy.dictationCount(count: count)
         case .statistics:
             let month = dictationFigures(dictation.records.counts, range: .month, now: Date()).current.dictations
-            return month == 0 ? "Nothing yet" : "\(month.formatted()) in 30 days"
+            return month == 0 ? Copy.dictationNothingYet() : Copy.dictationSummaryMonth(count: month)
         }
     }
 }

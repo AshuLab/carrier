@@ -25,7 +25,7 @@ struct DictationStatusCard: View {
                         ForEach(readiness.items) { item in
                             HStack(spacing: Tokens.Space.s6) {
                                 Circle().fill(color(item.mark)).frame(width: 7, height: 7).accessibilityHidden(true)
-                                Text("\(item.title) · \(item.state)").scaledFont(12).foregroundStyle(.secondary)
+                                Text(Copy.dictationItemLine(title: item.title, state: item.state)).scaledFont(12).foregroundStyle(.secondary)
                             }
                             .accessibilityElement(children: .combine)
                         }
@@ -36,12 +36,12 @@ struct DictationStatusCard: View {
                 }
                 ForEach(readiness.items.compactMap(\.fix), id: \.self) { fix in
                     // each says what it opens, so two of them side by side are told apart and the spoken name is the one on the button
-                    Button { open(fix) } label: { Label(fix == .openMicrophoneSettings ? "Open Microphone Settings" : "Open Accessibility Settings", icon: .settings).labelStyle(.titleAndIcon) }
+                    Button { open(fix) } label: { Label(fix == .openMicrophoneSettings ? Copy.dictationOpenMicrophoneSettings() : Copy.dictationOpenAccessibilitySettings(), icon: .settings).labelStyle(.titleAndIcon) }
                         .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
                 }
             }
             Spacer(minLength: 8)
-            Toggle("Dictation", isOn: Binding(get: { dictation.enabled }, set: { dictation.setEnabled($0) })).labelsHidden().toggleStyle(.switch)
+            Toggle(Copy.dictationSwitch(), isOn: Binding(get: { dictation.enabled }, set: { dictation.setEnabled($0) })).labelsHidden().toggleStyle(.switch)
         }
         .padding(Tokens.Space.s14).frame(maxWidth: .infinity, alignment: .leading)
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in accessibility.refresh() }

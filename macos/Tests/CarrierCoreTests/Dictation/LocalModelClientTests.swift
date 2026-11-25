@@ -121,10 +121,15 @@ private func complete(_ client: LocalModelClient, timeout: Duration = .seconds(5
 }
 
 @Test func aReplyThatIsNotACompletionOrAnErrorStatusIsABadReply() async {
+    let words = { (failure: CleanupFailure) in failure.message(bundle: english.bundle, locale: english.locale) }
+    #expect(words(.notACompletion(.lmStudio)) == "LM Studio answered something that is not a completion")
+    #expect(words(.httpStatus(.lmStudio, 500)) == "LM Studio answered HTTP 500")
+    #expect(words(.noModelList(.lmStudio)) == "LM Studio has no list of models")
+    #expect(words(.notAModelList(.ollama)) == "Ollama answered something that is not a list of models")
     let odd = StubServer { _, _, _ in (200, "<html>hi</html>") }
     defer { odd.stop() }
-    await #expect(throws: CleanupFailure.badReply("LM Studio answered something that is not a completion")) { try await complete(client(odd)) }
+    await #expect(throws: CleanupFailure.notACompletion(.lmStudio)) { try await complete(client(odd)) }
     let broken = StubServer { _, _, _ in (500, "") }
     defer { broken.stop() }
-    await #expect(throws: CleanupFailure.badReply("LM Studio answered HTTP 500")) { try await complete(client(broken)) }
+    await #expect(throws: CleanupFailure.httpStatus(.lmStudio, 500)) { try await complete(client(broken)) }
 }

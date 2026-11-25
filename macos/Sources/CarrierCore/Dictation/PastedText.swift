@@ -24,10 +24,10 @@ public struct PasteSummary: Equatable {
     public let stats: String
     public let lines: Int
 
-    public init(_ text: String) {
+    public init(_ text: String, bundle: Bundle? = nil, locale: Locale = .current) {
         let chars = text.utf16.count
         lines = text.split(separator: "\n", omittingEmptySubsequences: false).count
-        stats = "\(chars.formatted()) chars · \(lines.formatted()) \(lines == 1 ? "line" : "lines") · ~\(TurnSummary.tokens(Double((chars + 3) / 4))) tokens"
+        stats = Copy.dictationPasteStats(chars: chars, lines: lines, tokens: TurnSummary.tokens(Double((chars + 3) / 4)), bundle: bundle, locale: locale)
     }
 }
 
@@ -71,12 +71,12 @@ public func splitPastes(_ text: String) -> (text: String, pastes: [String]) {
 }
 
 /// A message as a line or two says it (the queued one, a notice): what was typed, then a few words for each pasted text.
-public func messagePreview(_ text: String) -> String {
+public func messagePreview(_ text: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
     let split = splitPastes(text)
     guard split.pastes.isEmpty == false else { return text }
     let notes = split.pastes.map { pasted -> String in
         let lines = pasted.split(separator: "\n", omittingEmptySubsequences: false).count
-        return "Pasted text · \(lines.formatted()) \(lines == 1 ? "line" : "lines")"
+        return Copy.dictationPastePreview(lines: lines, bundle: bundle, locale: locale)
     }
     return ((split.text.isEmpty ? [] : [split.text]) + notes).joined(separator: "\n")
 }

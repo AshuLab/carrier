@@ -53,6 +53,9 @@ public enum GlobalDictationEffect: Equatable, Sendable { case show, paste(String
     @ObservationIgnored private let frontApp: () -> String?
     @ObservationIgnored private let cleanup: () -> DictationCleanup?
     @ObservationIgnored private let cleanupModel: () -> String?
+    /// The language the causes that the widget shows are said in (`dictation.log` keeps its English).
+    @ObservationIgnored private let bundle: Bundle?
+    @ObservationIgnored private let locale: Locale
     /// Whether the widget's dictation listens and has not been stopped, so a second press before the text arrives is no second end.
     @ObservationIgnored private var listening = false
     /// Whether this dictation was started as a hold, which the key coming up ends; read when it starts, so changing the setting under way changes nothing.
@@ -66,7 +69,7 @@ public enum GlobalDictationEffect: Equatable, Sendable { case show, paste(String
         decision: @escaping () -> PasteDecision, activation: @escaping () -> DictationActivation = { .toggle }, now: @escaping () -> Date = Date.init,
         moment: @escaping (GlobalDictationMoment) -> Void = { _ in }, record: @escaping (DictationEntry) -> Void = { _ in },
         frontApp: @escaping () -> String? = { nil }, cleanup: @escaping () -> DictationCleanup? = { nil }, cleanupModel: @escaping () -> String? = { nil },
-        perform: @escaping (GlobalDictationEffect) -> Void
+        perform: @escaping (GlobalDictationEffect) -> Void, bundle: Bundle? = nil, locale: Locale = .current
     ) {
         self.session = session
         self.speechModel = speechModel
@@ -80,6 +83,8 @@ public enum GlobalDictationEffect: Equatable, Sendable { case show, paste(String
         self.frontApp = frontApp
         self.cleanup = cleanup
         self.cleanupModel = cleanupModel
+        self.bundle = bundle
+        self.locale = locale
         session.onEnd = { [weak self] owner in self?.ended(owner) }
         session.onListening = { [weak self] in self?.began() }
     }
@@ -139,8 +144,8 @@ public enum GlobalDictationEffect: Equatable, Sendable { case show, paste(String
         tentative = nil
         startedAt = now()
         perform(.show)
-        guard microphone() != .denied else { return fail(DictationFailure("macOS has the microphone blocked for Carrier. Allow it in System Settings, then dictate again.")) }
-        guard let (recognizer, model) = speechModel() else { return fail(DictationFailure("No speech model is available")) }
+        guard microphone() != .denied else { return fail(DictationFailure(.microphoneBlocked)) }
+        guard let (recognizer, model) = speechModel() else { return fail(DictationFailure(.noSpeechModel)) }
         state = .running
         session.start(
             recognizer: recognizer, model: model,
@@ -157,7 +162,7 @@ public enum GlobalDictationEffect: Equatable, Sendable { case show, paste(String
     /// A dictation that could not start: told in the widget and logged, like any failure.
     private func fail(_ cause: DictationFailure) {
         session.refuse(cause, for: Self.owner)
-        state = .failed(cause.cause)
+        state = .failed(cause.shown(bundle: bundle, locale: locale))
     }
 
     private func began() {
@@ -172,11 +177,11 @@ public enum GlobalDictationEffect: Equatable, Sendable { case show, paste(String
         if let cause = session.failure(for: Self.owner) {
             // a cleanup that failed ended the dictation as a stop: its raw text goes on, with the cause
             guard session.take?.ending != .failed else {
-                state = .failed(cause.cause)
+                state = .failed(cause.shown(bundle: bundle, locale: locale))
                 remember(.failed)
                 return
             }
-            notCleaned = cause.cause
+            notCleaned = cause.shown(bundle: bundle, locale: locale)
         }
         let heard = text.trimmingCharacters(in: .whitespacesAndNewlines)
         // nothing was said: nothing is pasted and the widget goes quietly
@@ -184,7 +189,7 @@ public enum GlobalDictationEffect: Equatable, Sendable { case show, paste(String
         text = heard
         switch decision() {
         case .paste:
-            remember(.pasted, to: frontApp() ?? "Another app")
+            remember(.pasted, to: frontApp() ?? Copy.dictationDestinationAnotherApp(bundle: bundle, locale: locale))
             perform(.paste(heard))
             farewell = notCleaned == nil ? .pasted : .pastedRaw
             dismiss()

@@ -39,7 +39,7 @@ jobs:
     name: Verify
     uses: ./.github/workflows/_engine.yml
 
-  # The app's unit tests, which a pull request runs but a push to main does not: what is released has passed them.
+  # The app's unit tests, which a pull request runs (and a push to main when the app changed), here from a cold build: what is released has passed them.
   app-tests:
     name: App tests
     needs: verify
@@ -243,7 +243,7 @@ jobs:
         with:
           node-version: 26
 
-      # The check a pull request runs only when it touches the packaging (ci.yml): here it always runs.
+      # The check a pull request runs only when it touches the packaging (macos-bundle.yml): here it always runs.
       # It leaves the release binary in macos/.build and a dev bundle in macos/Carrier.app: the build below bundles that binary again, with the real version.
       - name: Check the app's bundle
         run: ./macos/scripts/check-app.sh

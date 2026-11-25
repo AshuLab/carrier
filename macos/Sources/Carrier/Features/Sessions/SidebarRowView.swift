@@ -36,7 +36,7 @@ struct SidebarRowView: View {
         .padding(.horizontal, density.rowPadding).padding(.vertical, density.rowPadding)
         .hoverCard { EpicCardView(card: row.card) }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(([row.title ?? row.name, row.state.label, row.detail] + (row.age.isEmpty ? [] : [row.age])).joined(separator: ", "))
+        .accessibilityLabel(([row.title ?? row.name, row.state.label(), row.detail] + (row.age.isEmpty ? [] : [row.age])).joined(separator: ", "))
     }
 }
 

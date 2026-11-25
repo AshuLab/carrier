@@ -73,13 +73,14 @@ public func runningSection(_ snapshot: PanelSnapshot, time: TimeFormat = .stored
 func agentRow(_ session: PanelSnapshot.Session, epic: PanelEpic, time: TimeFormat = .stored(), bundle: Bundle? = nil, locale: Locale = .current) -> AgentRow {
     let agent = agentName(session.harness)
     let action = session.last?.text.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    let role = switch session.stage {
+    case .ship: Copy.sessionRoleShip(bundle: bundle, locale: locale)
+    case .review: Copy.sessionRoleReview(bundle: bundle, locale: locale)
+    case .fix: Copy.sessionRoleFix(bundle: bundle, locale: locale)
+    }
     return AgentRow(
         agent: agent, initial: session.harness == "codex" ? "X" : String(agent.prefix(1)),
-        role: switch session.stage {
-        case .ship: Copy.sessionRoleShip(bundle: bundle, locale: locale)
-        case .review: Copy.sessionRoleReview(bundle: bundle, locale: locale)
-        case .fix: Copy.sessionRoleFix(bundle: bundle, locale: locale)
-        },
+        role: role,
         round: session.round.map { Copy.epicsRoundLine(round: $0, max: epic.maxReviews, bundle: bundle, locale: locale) },
         action: action.isEmpty ? Copy.epicsWorking(bundle: bundle, locale: locale) : action,
         since: Copy.epicsSince(time: clockTime(session.startedAt, time: time), bundle: bundle, locale: locale),

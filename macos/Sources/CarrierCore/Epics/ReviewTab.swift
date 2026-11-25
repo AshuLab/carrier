@@ -256,7 +256,7 @@ public func reviewTab(_ subject: EpicSubject?, reply: EpicReply?, bundle: Bundle
                         number: 2, state: .done,
                         title: commits.isEmpty
                             ? Copy.epicsReviewPushedFix(who: author, bundle: bundle, locale: locale)
-                            : Copy.epicsReviewPushedCommits(who: author, count: commits.count, bundle: bundle, locale: locale),
+                            : Copy.epicsReviewPushedCommits(count: commits.count, who: author, bundle: bundle, locale: locale),
                         subtitle: result.fixMs.map(formatDuration) ?? "",
                         commits: commits.prefix(3).map { ReviewCommit(sha: String($0.sha.prefix(7)), subject: $0.subject) },
                         moreCommits: max(0, commits.count - 3)

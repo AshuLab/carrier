@@ -80,7 +80,7 @@ private func running(_ done: Int?, _ total: Int = 0) -> EpicSubject {
 }
 
 private func model(_ slices: [EpicReply.Slice], filter: SliceFilter = .all, now: Int = 100_000) -> SlicesTabModel {
-    slicesTabModel(running(nil), reply: reply(slices), filter: filter, now: now)
+    slicesTabModel(running(nil), reply: reply(slices), filter: filter, now: now, bundle: english.bundle, locale: english.locale)
 }
 
 @Test func theListHoldsEverySliceByNumberWhateverTheOrderTheyCameIn() {
@@ -113,7 +113,7 @@ private func model(_ slices: [EpicReply.Slice], filter: SliceFilter = .all, now:
         SliceRow(number: 6, title: "Slice 6", state: .inProgress, detail: "working", prNumber: nil, issueURL: "https://github.com/acme/web/issues/6", prURL: nil),
     ])
     #expect(model(all).legend == [.init(group: .merged, count: 1), .init(group: .inProgress, count: 2), .init(group: .pending, count: 2)])
-    #expect(model(all).total == 5 && model(all).centre == "1/5" && model(all).caption == "merged")
+    #expect(model(all).total == 5 && model(all).centre == "1/5" && model(all).caption(bundle: english.bundle, locale: english.locale) == "merged")
 }
 
 @Test func aPendingSliceNamesEveryBlockerOfTheEpicAndShowsOneOutsideItAsANumber() {
@@ -149,14 +149,14 @@ func aFilterShowsOnlyItsGroup(group: SliceGroup, numbers: [Int]) {
 
 @Test func aQueuedEpicHasEverythingPending() {
     let queued = EpicSubject.queued(PanelSnapshot.QueuedEpic(repo: "acme/web", issue: 1, title: nil, queuedAt: nil), position: 1)
-    let tab = slicesTabModel(queued, reply: reply([slice(1, "ready"), slice(2, "in_progress"), slice(3, "waiting", blockedBy: [2])]), now: 0)
+    let tab = slicesTabModel(queued, reply: reply([slice(1, "ready"), slice(2, "in_progress"), slice(3, "waiting", blockedBy: [2])]), now: 0, bundle: english.bundle, locale: english.locale)
     #expect(tab.rows.map(\.state) == [.pending, .pending, .pending])
     #expect(tab.legend == [.init(group: .pending, count: 3)])
 }
 
 @Test func aCompleteEpicSaysAllMerged() {
     let done = model([slice(1, "closed", closedAt: 1), slice(2, "closed", closedAt: 2)])
-    #expect(done.centre == "2/2" && done.caption == "all merged" && done.counts == [2, 0, 0])
+    #expect(done.centre == "2/2" && done.caption(bundle: english.bundle, locale: english.locale) == "all merged" && done.counts == [2, 0, 0])
 }
 
 @Test func aShipEpicWithTwentySlices() {
@@ -174,26 +174,26 @@ func aFilterShowsOnlyItsGroup(group: SliceGroup, numbers: [Int]) {
 }
 
 @Test func withoutTheListTheCountsMakeTheRingAndAnEmptyStateReplacesTheList() {
-    let counts = slicesTabModel(running(3, 5), reply: nil, now: 0)
+    let counts = slicesTabModel(running(3, 5), reply: nil, now: 0, bundle: english.bundle, locale: english.locale)
     #expect(counts.counts == [3, 0, 2] && counts.centre == "3/5")
     #expect(counts.rows.isEmpty && counts.unavailable == .notShared)
 }
 
 @Test func anEngineThatAnsweredWithNoSlicesHasNotReadThemYet() {
-    let counts = slicesTabModel(running(3, 5), reply: reply([]), now: 0)
+    let counts = slicesTabModel(running(3, 5), reply: reply([]), now: 0, bundle: english.bundle, locale: english.locale)
     #expect(counts.counts == [3, 0, 2] && counts.rows.isEmpty && counts.unavailable == .notReadYet)
 }
 
 @Test func withNoSlicesAtAllTheTabIsEmpty() {
-    #expect(slicesTabModel(running(0, 0), reply: nil, now: 0).isEmpty)
-    #expect(slicesTabModel(nil, reply: nil, now: 0).isEmpty)
-    #expect(slicesTabModel(running(nil), reply: reply([]), now: 0).unavailable == nil)
+    #expect(slicesTabModel(running(0, 0), reply: nil, now: 0, bundle: english.bundle, locale: english.locale).isEmpty)
+    #expect(slicesTabModel(nil, reply: nil, now: 0, bundle: english.bundle, locale: english.locale).isEmpty)
+    #expect(slicesTabModel(running(nil), reply: reply([]), now: 0, bundle: english.bundle, locale: english.locale).unavailable == nil)
 }
 
 @Test func theFixtureRepliesSlicesGroupAsTheDesignExpects() throws {
     let url = testPaths().fixtures.appendingPathComponent("reply-epic.json")
     let epic = try JSONDecoder().decode(EpicReply.self, from: Data(contentsOf: url))
-    let tab = slicesTabModel(nil, reply: epic, now: 99_000)
+    let tab = slicesTabModel(nil, reply: epic, now: 99_000, bundle: english.bundle, locale: english.locale)
     // three merged (the builder's lanes), one in progress, and ready, blocked by several and blocked by one; the skipped one is left out
     #expect(tab.counts == [3, 1, 3] && tab.rows.map(\.number) == [121, 123, 124, 125, 126, 127, 128])
     #expect(tab.rows.map(\.detail)[2...4] == ["after #121 Request schemas, #123 Sessions request", "ready to start", "after #124 Events request"])

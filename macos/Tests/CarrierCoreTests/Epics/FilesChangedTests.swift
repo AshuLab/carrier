@@ -129,16 +129,16 @@ private func section(_ id: String, _ kind: String, _ files: [FilesReply.File]) -
 @Test func aReplyBecomesTheRowsTheTranscriptDrawsWithAHunkRowBetweenFragments() throws {
     let url = testPaths().fixtures.appendingPathComponent("reply-filediff.json")
     let replies = try JSONDecoder().decode([FileDiffReply].self, from: Data(contentsOf: url))
-    guard case .rows(let rows, let truncated) = fileFragment(replies[0]) else { Issue.record("no rows"); return }
+    guard case .rows(let rows, let truncated) = fileFragment(replies[0], bundle: english.bundle, locale: english.locale) else { Issue.record("no rows"); return }
     #expect(rows.map(\.sign) == [.hunk, .context, .removed, .added, .added, .context, .context, .hunk, .context, .removed, .added, .context])
     #expect(rows[0].text == "@@ -1,4 +1,5 @@" && rows[2].text == "const alg = \"HS256\";")
     #expect(truncated)
-    #expect(fileFragment(FileDiffReply(rows: [.init(sign: "+", text: String(repeating: "x", count: 3000))], truncated: false, note: nil))
+    #expect(fileFragment(FileDiffReply(rows: [.init(sign: "+", text: String(repeating: "x", count: 3000))], truncated: false, note: nil), bundle: english.bundle, locale: english.locale)
         == .rows([DiffRow(sign: .added, text: String(repeating: "x", count: maxDiffLineLength) + "…")], truncated: false))
 }
 
 @Test func aReplyWithANoteIsOneLine() {
-    let note = { (value: String?) in fileFragment(FileDiffReply(rows: [], truncated: false, note: value)) }
+    let note = { (value: String?) in fileFragment(FileDiffReply(rows: [], truncated: false, note: value), bundle: english.bundle, locale: english.locale) }
     #expect(note("binary") == .note("Binary file: no preview"))
     #expect(note("too-big") == .note("Too big: no preview"))
     #expect(note("no-changes") == .note("No changes: the file is as it was"))

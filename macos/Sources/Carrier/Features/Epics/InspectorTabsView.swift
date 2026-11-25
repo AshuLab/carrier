@@ -17,7 +17,7 @@ struct InspectorTabsView: View {
             UnderlineTabs(
                 items: InspectorTab.allCases.map { item in
                     UnderlineTabs.Item(
-                        id: item, title: item.title, count: inspectorCount(item, subject, reply: reply).text,
+                        id: item, title: item.title(), count: inspectorCount(item, subject, reply: reply).text,
                         countColor: item == .review && review.needsYou ? .orange : .secondary
                     )
                 },

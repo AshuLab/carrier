@@ -19,7 +19,7 @@ private func small(_ issues: Set<Int> = [4, 5], _ change: (inout PanelSnapshot) 
 }
 
 @Test func theEngineProblemComesFirstThenEpicsThatNeedAPersonThenFinishedOnes() throws {
-    let items = yourTurn(try small())
+    let items = yourTurn(try small(), bundle: english.bundle, locale: english.locale)
     #expect(items.map(\.kind) == [.problem, .needsYou, .needsYou, .ready, .ready])
     #expect(items[0].title == "Carrier" && items[0].detail == "GitHub is not answering" && items[0].selection == nil)
 }
@@ -29,7 +29,7 @@ private func small(_ issues: Set<Int> = [4, 5], _ change: (inout PanelSnapshot) 
         let at = snapshot.epics.firstIndex { $0.issue == 4 }!
         snapshot.epics[at].needsHumanKind = "skill_missing"
         snapshot.epics[at].needsHumanReason = "the skill My-Ship (skills.ship) is not installed for the author"
-    })
+    }, bundle: english.bundle, locale: english.locale)
     let detail = items.first { $0.title == "api #4" }!.detail
     #expect(detail.hasPrefix("Skill missing · the skill My-Ship (skills.ship) is not installed for the author"))
     // a kind the sidebar has no words for shows the reason once, even with capitals in it
@@ -37,12 +37,12 @@ private func small(_ issues: Set<Int> = [4, 5], _ change: (inout PanelSnapshot) 
         let at = snapshot.epics.firstIndex { $0.issue == 4 }!
         snapshot.epics[at].needsHumanKind = "from_the_future"
         snapshot.epics[at].needsHumanReason = "Something New"
-    })
+    }, bundle: english.bundle, locale: english.locale)
     #expect(other.first { $0.title == "api #4" }!.detail.hasPrefix("Something New · "))
 }
 
 @Test func needsYouEpicsComeMostRecentFirstWithTheirKindAndAnIssueLink() throws {
-    let items = yourTurn(try small()).filter { $0.kind == .needsYou }
+    let items = yourTurn(try small(), bundle: english.bundle, locale: english.locale).filter { $0.kind == .needsYou }
     #expect(items.map(\.title) == ["api #5", "api #4"])
     #expect(items[1].detail == "Review limit reached (5/5) · review limit · 40s ago")
     #expect(items[1].selection == .epic(repo: "acme/api", issue: 4))
@@ -52,14 +52,14 @@ private func small(_ issues: Set<Int> = [4, 5], _ change: (inout PanelSnapshot) 
 }
 
 @Test func blockersAreCountedOnlyWhenThereAreSome() throws {
-    let some = yourTurn(try small([4]) { $0.epics[2].blockers = 2 })
+    let some = yourTurn(try small([4]) { $0.epics[2].blockers = 2 }, bundle: english.bundle, locale: english.locale)
     #expect(some.first { $0.title == "api #4" }?.detail.contains("2 blockers open") == true)
-    let none = yourTurn(try small([4])).first { $0.title == "api #4" }
+    let none = yourTurn(try small([4]), bundle: english.bundle, locale: english.locale).first { $0.title == "api #4" }
     #expect(none?.detail.contains("blocker") == false)
 }
 
 @Test func finishedEpicsShowTheirPRAndOpenIt() throws {
-    let items = yourTurn(try small()).filter { $0.kind == .ready }
+    let items = yourTurn(try small(), bundle: english.bundle, locale: english.locale).filter { $0.kind == .ready }
     #expect(items.map(\.title) == ["web #30", "api #31"])
     #expect(items[0].detail == "Ready for test · PR #77 · 5s ago")
     #expect(items[0].prLink == URL(string: "https://github.com/acme/web/pull/77"))
@@ -69,21 +69,21 @@ private func small(_ issues: Set<Int> = [4, 5], _ change: (inout PanelSnapshot) 
 }
 
 @Test func linksThatAreNotWebLinksAreDropped() throws {
-    let items = yourTurn(try small([4]) { $0.epics[2].issueUrl = "file:///etc/passwd" })
+    let items = yourTurn(try small([4]) { $0.epics[2].issueUrl = "file:///etc/passwd" }, bundle: english.bundle, locale: english.locale)
     #expect(items.first { $0.title == "api #4" }?.issueLink == nil)
 }
 
 @Test func withNothingToDoThereAreNoItems() throws {
-    #expect(yourTurn(try small([]) { $0.problem = nil; $0.done = [] }).isEmpty)
+    #expect(yourTurn(try small([]) { $0.problem = nil; $0.done = [] }, bundle: english.bundle, locale: english.locale).isEmpty)
 }
 
 @Test func anEngineProblemAloneIsOneItemAndWithEpicsItStaysFirst() throws {
-    #expect(yourTurn(try small([]) { $0.done = [] }).map(\.kind) == [.problem])
-    let together = yourTurn(try small([4]) { $0.done = [] })
+    #expect(yourTurn(try small([]) { $0.done = [] }, bundle: english.bundle, locale: english.locale).map(\.kind) == [.problem])
+    let together = yourTurn(try small([4]) { $0.done = [] }, bundle: english.bundle, locale: english.locale)
     #expect(together.map(\.kind) == [.problem, .needsYou])
 }
 
 @Test func anEpicWithoutAKindFallsBackToItsReason() throws {
-    let items = yourTurn(try small([4]) { $0.epics[2].needsHumanKind = nil; $0.epics[2].needsHumanReason = "stuck on CI" })
+    let items = yourTurn(try small([4]) { $0.epics[2].needsHumanKind = nil; $0.epics[2].needsHumanReason = "stuck on CI" }, bundle: english.bundle, locale: english.locale)
     #expect(items.first { $0.title == "api #4" }?.detail.hasPrefix("Stuck on CI") == true)
 }

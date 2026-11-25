@@ -17,7 +17,7 @@ private func lane(
 }
 
 @Test func aMergedSliceIsATickedRowWithItsNumbersAndPullRequest() {
-    let row = sliceCard(lane: lane("a", slice: 730, to: 300, pr: 736, prState: "merged"))
+    let row = sliceCard(lane: lane("a", slice: 730, to: 300, pr: 736, prState: "merged"), bundle: english.bundle, locale: english.locale)
     #expect(row.mark == .done)
     #expect(row.quiet.map(\.text) == ["38 calls", "11 edits", "7 test runs", "1 error", "14:02–14:07"])
     #expect(row.quiet[3].kind == .error)
@@ -25,7 +25,7 @@ private func lane(
 }
 
 @Test func aWorkingSliceHasItsCallsSoFar() {
-    let row = sliceCard(lane: lane("a", slice: 730, .running, to: nil, lane: 1, counts: SessionCounts(calls: 12), pr: 736, prState: "draft"))
+    let row = sliceCard(lane: lane("a", slice: 730, .running, to: nil, lane: 1, counts: SessionCounts(calls: 12), pr: 736, prState: "draft"), bundle: english.bundle, locale: english.locale)
     #expect(row.mark == .working)
     // a working slice has no time range, its calls are so far, and the lane is a tag
     #expect(row.quiet == [SliceQuiet(text: "12 calls so far", kind: .plain), SliceQuiet(text: "Lane 1", kind: .lane)])
@@ -33,7 +33,7 @@ private func lane(
 }
 
 @Test func aFailedSliceSaysItDidNotComplete() {
-    let row = sliceCard(lane: lane("b", slice: 2, .failed, from: 10, to: nil, counts: SessionCounts(calls: 4)))
+    let row = sliceCard(lane: lane("b", slice: 2, .failed, from: 10, to: nil, counts: SessionCounts(calls: 4)), bundle: english.bundle, locale: english.locale)
     #expect(row.mark == .failed)
     #expect(row.quiet == [SliceQuiet(text: "4 calls", kind: .plain), SliceQuiet(text: "did not complete", kind: .error)])
 }
@@ -42,24 +42,24 @@ private func lane(
     // no slice number, no pull request, no counts yet: a title and a word
     var started = lane("a", .running, to: nil, counts: SessionCounts())
     started.items = []
-    let row = sliceCard(lane: started)
+    let row = sliceCard(lane: started, bundle: english.bundle, locale: english.locale)
     #expect(row.number == nil && row.prNumber == nil && row.quiet == [SliceQuiet(text: "starting…", kind: .plain)])
     // a pull request from an engine that sends no state still has its number
-    let old = sliceCard(lane: lane("b", slice: 2, pr: 9))
+    let old = sliceCard(lane: lane("b", slice: 2, pr: 9), bundle: english.bundle, locale: english.locale)
     #expect(old.prNumber == 9 && old.prState == .unknown)
     // no counts at all leaves just the range
-    #expect(sliceCard(lane: lane("c", slice: 3, counts: SessionCounts())).quiet == [SliceQuiet(text: "14:02–14:07", kind: .plain)])
+    #expect(sliceCard(lane: lane("c", slice: 3, counts: SessionCounts()), bundle: english.bundle, locale: english.locale).quiet == [SliceQuiet(text: "14:02–14:07", kind: .plain)])
 }
 
 @Test func theRowIsSpokenWithItsStateAndPullRequest() {
-    let row = sliceCard(lane: lane("a", slice: 730, pr: 736, prState: "merged"))
+    let row = sliceCard(lane: lane("a", slice: 730, pr: 736, prState: "merged"), bundle: english.bundle, locale: english.locale)
     #expect(row.spoken == "Slice 730, Title a, finished, 38 calls, 11 edits, 7 test runs, 1 error, 14:02–14:07, pull request 736 merged")
 }
 
 @Test func aWorkingSliceShowsTheStepItIsOnAndDropsItOnceItEnded() {
     var working = lane("a", slice: 730, .running, to: nil, lane: 1, counts: SessionCounts(calls: 12), pr: 736, prState: "draft")
     working.lastStep = "Bash"
-    let row = sliceCard(lane: working)
+    let row = sliceCard(lane: working, bundle: english.bundle, locale: english.locale)
     #expect(row.quiet == [
         SliceQuiet(text: "Bash", kind: .step),
         SliceQuiet(text: "12 calls so far", kind: .plain),
@@ -70,9 +70,9 @@ private func lane(
     var early = lane("a", slice: 730, .running, to: nil, counts: SessionCounts())
     early.items = []
     early.lastStep = "Read"
-    #expect(sliceCard(lane: early).quiet == [SliceQuiet(text: "Read", kind: .step)])
+    #expect(sliceCard(lane: early, bundle: english.bundle, locale: english.locale).quiet == [SliceQuiet(text: "Read", kind: .step)])
 
     var ended = lane("a", slice: 730, .finished, to: 300, counts: SessionCounts(calls: 12))
     ended.lastStep = "Bash"
-    #expect(sliceCard(lane: ended).quiet == [SliceQuiet(text: "12 calls", kind: .plain), SliceQuiet(text: "14:02–14:07", kind: .plain)])
+    #expect(sliceCard(lane: ended, bundle: english.bundle, locale: english.locale).quiet == [SliceQuiet(text: "12 calls", kind: .plain), SliceQuiet(text: "14:02–14:07", kind: .plain)])
 }

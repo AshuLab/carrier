@@ -52,4 +52,5 @@ The calls are hidden when Tool output is hidden.
 
 What the person sees: [the epic's Agent output](#the-epics-agent-output) and [the log's slices and findings](#slices-and-findings-in-an-epics-log); the resume card words and request are tested, the sheet, its "Resuming…" state and layout not.
 The rows, words and marks are two pure functions, `sliceCard(lane:)` (`SliceCard.swift`, `SliceCardTests`) and `findingsCard(_:stage:round:)` (`FindingsCard.swift`, `FindingsCardTests`, which also reads the golden epic reply); the views only for their heights (`LaneHeaderTests`).
+The words of the whole area are copy keys (`epics*` in `design/copy/`), and `EpicsSpanishTests` and `EpicViewSpanishTests` render each function that builds a sentence in Spanish.
 The session row's words are `sessionRowText` and `RoleIdentities`; the epic's events become the chat's calls in `flowItems` (`EpicTranscriptAdapterTests`).

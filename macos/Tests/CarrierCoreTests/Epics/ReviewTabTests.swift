@@ -37,18 +37,18 @@ private func reply(_ rounds: [EpicReply.Round], stage: String? = nil) -> EpicRep
     )
 }
 
-private func marks(_ round: ReviewRoundView) -> [String] { (round.steps.first?.blockers ?? []).map(\.mark.text) }
+private func marks(_ round: ReviewRoundView) -> [String] { (round.steps.first?.blockers ?? []).map { $0.mark.text(bundle: english.bundle, locale: english.locale) } }
 
 // MARK: card and steps
 
 @Test func withNoRoundTheTabIsEmpty() {
-    #expect(reviewTab(epic(stage: .ship), reply: reply([])).isEmpty)
-    #expect(reviewTab(nil, reply: nil).isEmpty)
-    #expect(reviewTab(epic(stage: .ship), reply: reply([])).headline == nil)
+    #expect(reviewTab(epic(stage: .ship), reply: reply([]), bundle: english.bundle, locale: english.locale).isEmpty)
+    #expect(reviewTab(nil, reply: nil, bundle: english.bundle, locale: english.locale).isEmpty)
+    #expect(reviewTab(epic(stage: .ship), reply: reply([]), bundle: english.bundle, locale: english.locale).headline == nil)
 }
 
 @Test func roundOneBeingReviewedHasANumberedCardAndNoHistory() throws {
-    let model = reviewTab(epic(stage: .review, round: 1), reply: reply([]))
+    let model = reviewTab(epic(stage: .review, round: 1), reply: reply([]), bundle: english.bundle, locale: english.locale)
     let card = try #require(model.card)
     #expect(card.heading == "Now · Round 1")
     #expect(model.headline == "round 1 of 5")
@@ -63,7 +63,7 @@ private func marks(_ round: ReviewRoundView) -> [String] { (round.steps.first?.b
         round(1, "changes_requested", [b("A"), b("B")], fixed: true, commits: 2),
         round(2, "changes_requested", [b("B", mark: "carried"), b("A", mark: "fixed")]),
     ]
-    let model = reviewTab(epic(stage: .fix, round: 2), reply: reply(rounds, stage: "fix"))
+    let model = reviewTab(epic(stage: .fix, round: 2), reply: reply(rounds, stage: "fix"), bundle: english.bundle, locale: english.locale)
     let card = try #require(model.card)
     #expect(card.heading == "Now · Round 2")
     #expect(card.view.chip == ReviewChip(text: "fixing now", tone: .live))
@@ -76,7 +76,7 @@ private func marks(_ round: ReviewRoundView) -> [String] { (round.steps.first?.b
 
 @Test func anApprovedRoundIsTheResult() throws {
     let rounds = [round(1, "changes_requested", [b("A")], fixed: true), round(2, "approved", [b("A", mark: "fixed")])]
-    let model = reviewTab(epic(stage: .review, round: 2), reply: reply(rounds))
+    let model = reviewTab(epic(stage: .review, round: 2), reply: reply(rounds), bundle: english.bundle, locale: english.locale)
     let card = try #require(model.card)
     #expect(card.heading == "Result · Round 2")
     #expect(card.view.chip == ReviewChip(text: "approved", tone: .good))
@@ -90,7 +90,7 @@ private func marks(_ round: ReviewRoundView) -> [String] { (round.steps.first?.b
         round(1, "changes_requested", [b("A")], fixed: true),
         round(2, "limit_reached", [b("A", mark: "carried")]),
     ]
-    let model = reviewTab(epic(.needsHuman, stage: .review, round: 2), reply: reply(rounds))
+    let model = reviewTab(epic(.needsHuman, stage: .review, round: 2), reply: reply(rounds), bundle: english.bundle, locale: english.locale)
     let card = try #require(model.card)
     #expect(card.heading == "Now · Round 2")
     #expect(card.view.chip == ReviewChip(text: "still open", tone: .attention))
@@ -107,7 +107,7 @@ private func marks(_ round: ReviewRoundView) -> [String] { (round.steps.first?.b
         round(2, "limit_reached", [b("A", mark: "carried")]),
     ]
     let fresh = [round(1, "changes_requested", [b("A")])]
-    let model = reviewTab(epic(stage: .fix, round: 1), reply: reply(old + fresh, stage: "fix"))
+    let model = reviewTab(epic(stage: .fix, round: 1), reply: reply(old + fresh, stage: "fix"), bundle: english.bundle, locale: english.locale)
     #expect(model.card?.view.round == 1)
     #expect(model.history.map(\.round) == [2, 1])
     // the new attempt does not compare with the old one: A is new again, and there is no delta against round 2 of the old
@@ -120,14 +120,14 @@ private func marks(_ round: ReviewRoundView) -> [String] { (round.steps.first?.b
 
 @Test func aRequeuedEpicBackInShipHasNoCardButKeepsTheHistory() {
     let old = [round(1, "changes_requested", [b("A")], fixed: true), round(2, "limit_reached", [b("A", mark: "carried")])]
-    let model = reviewTab(epic(stage: .ship), reply: reply(old))
+    let model = reviewTab(epic(stage: .ship), reply: reply(old), bundle: english.bundle, locale: english.locale)
     #expect(model.card == nil)
     #expect(model.history.map(\.round) == [2, 1])
 }
 
 @Test func theFixCommitsShowThreeLinesAndAMoreCount() throws {
     let rounds = [round(1, "changes_requested", [b("A")], fixed: true, commits: 5), round(2, "approved", [b("A", mark: "fixed")])]
-    let model = reviewTab(epic(stage: .review, round: 2), reply: reply(rounds))
+    let model = reviewTab(epic(stage: .review, round: 2), reply: reply(rounds), bundle: english.bundle, locale: english.locale)
     let fix = try #require(model.history.first?.steps.first { $0.number == 2 })
     #expect(fix.title == "Claude pushed 5 commits")
     #expect(fix.commits.map(\.sha) == ["c0ffee0", "c0ffee1", "c0ffee2"])
@@ -142,7 +142,7 @@ private func marks(_ round: ReviewRoundView) -> [String] { (round.steps.first?.b
         EpicReply.Observation(id: nil, title: "Prefer a const", url: nil),
     ]
     let rounds = [round(1, "changes_requested", [b("A")], fixed: true), round(2, "approved", observations: listed), round(3, "approved")]
-    let model = reviewTab(epic(stage: .review, round: 3), reply: reply(rounds))
+    let model = reviewTab(epic(stage: .review, round: 3), reply: reply(rounds), bundle: english.bundle, locale: english.locale)
     #expect(model.history.map { $0.steps.first?.observations.count ?? -1 } == [2, 0]) // newest first
     #expect(model.history[0].steps.first?.observations == listed)
     #expect(model.card?.view.steps.first?.observations.isEmpty == true)
@@ -160,7 +160,7 @@ private func marks(_ round: ReviewRoundView) -> [String] { (round.steps.first?.b
         round(2, "changes_requested", [b("Token reworded", id: "b1", mark: "carried"), b("Log", id: "b2")], fixed: true),
         round(3, "changes_requested", [b("Token reworded again", id: "b1", mark: "carried")]),
     ]
-    let model = reviewTab(epic(stage: .fix, round: 3), reply: reply(rounds, stage: "fix"))
+    let model = reviewTab(epic(stage: .fix, round: 3), reply: reply(rounds, stage: "fix"), bundle: english.bundle, locale: english.locale)
     let card = try #require(model.card).view
     #expect(marks(card) == ["since R1"])
     #expect(card.approximate == false)
@@ -176,7 +176,7 @@ private func marks(_ round: ReviewRoundView) -> [String] { (round.steps.first?.b
         round(2, "changes_requested", [b("Token", mark: "carried"), b("Log")], fixed: true),
         round(3, "changes_requested", [b("Token", mark: "carried")]),
     ]
-    let model = reviewTab(epic(stage: .fix, round: 3), reply: reply(rounds, stage: "fix"))
+    let model = reviewTab(epic(stage: .fix, round: 3), reply: reply(rounds, stage: "fix"), bundle: english.bundle, locale: english.locale)
     let card = try #require(model.card).view
     #expect(marks(card) == ["since R1"])
     #expect(card.approximate)
@@ -186,7 +186,7 @@ private func marks(_ round: ReviewRoundView) -> [String] { (round.steps.first?.b
 }
 
 @Test func theFirstRoundWithoutIdsIsNotApproximateWhileItIsTheLatest() throws {
-    let model = reviewTab(epic(stage: .fix, round: 1), reply: reply([round(1, "changes_requested", [b("A")])], stage: "fix"))
+    let model = reviewTab(epic(stage: .fix, round: 1), reply: reply([round(1, "changes_requested", [b("A")])], stage: "fix"), bundle: english.bundle, locale: english.locale)
     let card = try #require(model.card).view
     #expect(marks(card) == ["new"])
     #expect(card.approximate == false)
@@ -197,7 +197,7 @@ private func marks(_ round: ReviewRoundView) -> [String] { (round.steps.first?.b
         round(1, "changes_requested", [b("Token   expiry is NOT checked")], fixed: true),
         round(2, "changes_requested", [b(" token expiry is not  checked ")]),
     ]
-    let model = reviewTab(epic(stage: .fix, round: 2), reply: reply(rounds, stage: "fix"))
+    let model = reviewTab(epic(stage: .fix, round: 2), reply: reply(rounds, stage: "fix"), bundle: english.bundle, locale: english.locale)
     #expect(marks(try #require(model.card).view) == ["since R1"])
     #expect(marks(model.history[0]) == ["carried over"])
 }
@@ -207,7 +207,7 @@ private func marks(_ round: ReviewRoundView) -> [String] { (round.steps.first?.b
         round(1, "changes_requested", [b("Token")], fixed: true),
         round(2, "changes_requested", [b("Logging")]),
     ]
-    let model = reviewTab(epic(stage: .fix, round: 2), reply: reply(rounds, stage: "fix"))
+    let model = reviewTab(epic(stage: .fix, round: 2), reply: reply(rounds, stage: "fix"), bundle: english.bundle, locale: english.locale)
     #expect(marks(try #require(model.card).view) == ["new"])
     #expect(marks(model.history[0]) == ["fixed"])
 }
@@ -221,7 +221,7 @@ private func marks(_ round: ReviewRoundView) -> [String] { (round.steps.first?.b
         round(3, "changes_requested", [b("A"), b("B")], fixed: true),
         round(4, "changes_requested", [b("A"), b("B"), b("C"), b("D")]),
     ]
-    let model = reviewTab(epic(stage: .fix, round: 4), reply: reply(rounds, stage: "fix"))
+    let model = reviewTab(epic(stage: .fix, round: 4), reply: reply(rounds, stage: "fix"), bundle: english.bundle, locale: english.locale)
     #expect(model.card?.view.delta == 2)
     #expect(model.card?.view.deltaText == "↑ 2")
     #expect(model.history.map(\.delta) == [nil, -1, nil])
@@ -237,7 +237,7 @@ private func marks(_ round: ReviewRoundView) -> [String] { (round.steps.first?.b
         round(2, "changes_requested", [b("B")], fixed: true),
         round(3, "changes_requested", [b("C")]),
     ]
-    let model = reviewTab(epic(stage: .fix, round: 3), reply: reply(rounds, stage: "fix"))
+    let model = reviewTab(epic(stage: .fix, round: 3), reply: reply(rounds, stage: "fix"), bundle: english.bundle, locale: english.locale)
     #expect(model.history.map(\.round) == [2, 1])
 
     let here = EpicRef(repo: "acme/web", issue: 1)
@@ -251,7 +251,7 @@ private func marks(_ round: ReviewRoundView) -> [String] { (round.steps.first?.b
     #expect(folds.isOpen(here, model.history[0].id))
     #expect(folds.isOpen(elsewhere, model.history[0].id) == false)
     // the same round keeps its id when the reply grows
-    let grown = reviewTab(epic(stage: .review, round: 4), reply: reply(rounds + [round(4, "approved")]))
+    let grown = reviewTab(epic(stage: .review, round: 4), reply: reply(rounds + [round(4, "approved")]), bundle: english.bundle, locale: english.locale)
     #expect(grown.history.first { $0.round == 2 }?.id == model.history[0].id)
     folds.toggle(here, model.history[0].id)
     #expect(folds.isOpen(here, model.history[0].id) == false)
@@ -259,7 +259,7 @@ private func marks(_ round: ReviewRoundView) -> [String] { (round.steps.first?.b
 
 @Test func aRequeuedEpicReviewingAgainShowsRoundOneAndKeepsTheLimitRoundInTheHistory() throws {
     let old = [round(1, "changes_requested", [b("A")], fixed: true), round(2, "limit_reached", [b("A", mark: "carried")])]
-    let model = reviewTab(epic(stage: .review, round: 1), reply: reply(old, stage: "review"))
+    let model = reviewTab(epic(stage: .review, round: 1), reply: reply(old, stage: "review"), bundle: english.bundle, locale: english.locale)
     #expect(model.card?.heading == "Now · Round 1")
     #expect(model.card?.view.chip.text == "reviewing")
     #expect(model.history.map(\.round) == [2, 1])
@@ -281,7 +281,7 @@ private func threadsModel(_ threads: [EpicReply.ReviewThread]?, truncated: Bool?
     made.threads = threads
     made.threadsTruncated = truncated
     if hasPullRequest { made.pr = EpicReply.PullRequest(number: 51, url: "https://github.com/acme/web/pull/51", draft: false, mergeState: "clean", reviewDecision: nil, checks: nil) }
-    return reviewTab(epic(stage: .review, round: 1), reply: made).threads
+    return reviewTab(epic(stage: .review, round: 1), reply: made, bundle: english.bundle, locale: english.locale).threads
 }
 
 @Test func threadsAreUnresolvedFirstThenResolvedInGithubsOrder() {
@@ -318,7 +318,7 @@ private func threadsModel(_ threads: [EpicReply.ReviewThread]?, truncated: Bool?
 
 @Test func withoutThreadsFromTheEngineThereIsNoSectionAndWithNoneThereIsAnEmptyOne() {
     #expect(threadsModel(nil) == nil)
-    #expect(reviewTab(nil, reply: nil).threads == nil)
+    #expect(reviewTab(nil, reply: nil, bundle: english.bundle, locale: english.locale).threads == nil)
     #expect(threadsModel([])?.rows.isEmpty == true)
 }
 

@@ -9697,7 +9697,29 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "%1$lld arrastrados"
+            "value": "%#@count@"
+          },
+          "substitutions": {
+            "count": {
+              "argNum": 1,
+              "formatSpecifier": "lld",
+              "variations": {
+                "plural": {
+                  "one": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg arrastrado"
+                    }
+                  },
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg arrastrados"
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -9877,7 +9899,29 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "%1$lld fallidos"
+            "value": "%#@count@"
+          },
+          "substitutions": {
+            "count": {
+              "argNum": 1,
+              "formatSpecifier": "lld",
+              "variations": {
+                "plural": {
+                  "one": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg fallido"
+                    }
+                  },
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg fallidos"
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -9894,7 +9938,29 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "%1$lld aprobados"
+            "value": "%#@count@"
+          },
+          "substitutions": {
+            "count": {
+              "argNum": 1,
+              "formatSpecifier": "lld",
+              "variations": {
+                "plural": {
+                  "one": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg aprobado"
+                    }
+                  },
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg aprobados"
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -9911,7 +9977,29 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "%1$lld pendientes"
+            "value": "%#@count@"
+          },
+          "substitutions": {
+            "count": {
+              "argNum": 1,
+              "formatSpecifier": "lld",
+              "variations": {
+                "plural": {
+                  "one": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg pendiente"
+                    }
+                  },
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg pendientes"
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -10234,7 +10322,29 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "%1$lld restantes"
+            "value": "%#@count@"
+          },
+          "substitutions": {
+            "count": {
+              "argNum": 1,
+              "formatSpecifier": "lld",
+              "variations": {
+                "plural": {
+                  "one": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg restante"
+                    }
+                  },
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg restantes"
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }

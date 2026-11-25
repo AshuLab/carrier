@@ -242,8 +242,8 @@ public enum TranscriptBody: Equatable {
 
 public func transcriptBody(
     _ transcript: Transcript?, slices: [EpicReply.Slice] = [], running: Bool = false, now: Int = Int(Date().timeIntervalSince1970 * 1000),
-    time: TimeFormat = .stored()
+    time: TimeFormat = .stored(), bundle: Bundle? = nil, locale: Locale = .current
 ) -> TranscriptBody {
     guard let transcript else { return .loading }
-    return transcript.structured ? .items(transcript.flow(slices: slices, running: running, now: now, time: time)) : .tail(transcript.tail)
+    return transcript.structured ? .items(transcript.flow(slices: slices, running: running, now: now, time: time, bundle: bundle, locale: locale)) : .tail(transcript.tail)
 }

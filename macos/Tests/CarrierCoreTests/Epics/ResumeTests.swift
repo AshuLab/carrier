@@ -16,7 +16,7 @@ private let failures = ["retries_exhausted", "timeout", "auth", "workspace", "pr
 private let allKinds = ["review_limit", "agent_needs_human"] + failures
 
 @Test func aStoppedEpicGetsACardWithTheReasonInWordsWhateverTheKind() {
-    let titles = allKinds.map { resumeCard(stuck($0), canResume: true)?.title }
+    let titles = allKinds.map { resumeCard(stuck($0), canResume: true, bundle: english.bundle, locale: english.locale)?.title }
     #expect(titles == [
         "Review limit reached", "The agent needs you", "Retries exhausted", "Timed out", "Authentication failed", "Workspace problem",
         "Pull request invalid",
@@ -24,31 +24,31 @@ private let allKinds = ["review_limit", "agent_needs_human"] + failures
 }
 
 @Test func theCardIsOrangeWhenInputIsNeededAndRedWhenSomethingFailed() {
-    #expect(allKinds.map { resumeCard(stuck($0), canResume: true)?.attention } == [.input, .input] + Array(repeating: .error, count: 5))
+    #expect(allKinds.map { resumeCard(stuck($0), canResume: true, bundle: english.bundle, locale: english.locale)?.attention } == [.input, .input] + Array(repeating: .error, count: 5))
 }
 
 @Test func theWordsSayWhatResumingDoesForTheKind() {
     for kind in failures {
-        #expect(resumeCard(stuck(kind), canResume: true)?.words == "Fix the cause first, then resume to start the epic again from ship.")
+        #expect(resumeCard(stuck(kind), canResume: true, bundle: english.bundle, locale: english.locale)?.words == "Fix the cause first, then resume to start the epic again from ship.")
     }
-    #expect(resumeCard(stuck("review_limit"), canResume: true)?.words == "Resuming gives the epic 5 new review rounds.")
+    #expect(resumeCard(stuck("review_limit"), canResume: true, bundle: english.bundle, locale: english.locale)?.words == "Resuming gives the epic 5 new review rounds.")
     var more = stuck("review_limit")
     more.maxReviews = 3
-    #expect(resumeCard(more, canResume: true)?.words == "Resuming gives the epic 3 new review rounds.")
-    #expect(resumeCard(stuck("agent_needs_human"), canResume: true)?.words == "Do what the agent asked on the pull request first, then resume.")
+    #expect(resumeCard(more, canResume: true, bundle: english.bundle, locale: english.locale)?.words == "Resuming gives the epic 3 new review rounds.")
+    #expect(resumeCard(stuck("agent_needs_human"), canResume: true, bundle: english.bundle, locale: english.locale)?.words == "Do what the agent asked on the pull request first, then resume.")
 }
 
 @Test func aKindTheAppDoesNotKnowIsOrangeWithItsReasonAndGenericWords() {
     var odd = stuck("from_the_future")
     odd.needsHumanReason = "something new"
-    let card = resumeCard(odd, canResume: true)
+    let card = resumeCard(odd, canResume: true, bundle: english.bundle, locale: english.locale)
     #expect(card?.title == "Something new" && card?.attention == .input && card?.words == "Deal with the cause first, then resume.")
-    #expect(resumeCard(stuck(nil), canResume: true)?.title == "Needs you")
+    #expect(resumeCard(stuck(nil), canResume: true, bundle: english.bundle, locale: english.locale)?.title == "Needs you")
 }
 
 @Test func theButtonShowsOnlyForAnEngineThatCanBeAsked() {
     for kind in allKinds {
-        let (asked, notAsked) = (resumeCard(stuck(kind), canResume: true), resumeCard(stuck(kind), canResume: false))
+        let (asked, notAsked) = (resumeCard(stuck(kind), canResume: true, bundle: english.bundle, locale: english.locale), resumeCard(stuck(kind), canResume: false, bundle: english.bundle, locale: english.locale))
         #expect(asked?.showsButton == true && notAsked?.showsButton == false)
         // the reason and the words stay either way
         #expect(asked?.title == notAsked?.title && asked?.words == notAsked?.words)
@@ -56,12 +56,12 @@ private let allKinds = ["review_limit", "agent_needs_human"] + failures
 }
 
 @Test func anEpicThatIsNotStoppedHasNoCard() {
-    #expect(resumeCard(stuck("timeout", status: .running), canResume: true) == nil)
-    #expect(resumeCard(stuck(nil, status: .running), canResume: true) == nil)
+    #expect(resumeCard(stuck("timeout", status: .running), canResume: true, bundle: english.bundle, locale: english.locale) == nil)
+    #expect(resumeCard(stuck(nil, status: .running), canResume: true, bundle: english.bundle, locale: english.locale) == nil)
 }
 
 @Test func theSheetSaysWhatWillHappen() {
-    #expect(resumeCard(stuck("auth"), canResume: true)?.sheet == [
+    #expect(resumeCard(stuck("auth"), canResume: true, bundle: english.bundle, locale: english.locale)?.sheet == [
         "solve:epic:ready goes back on the issue.",
         "The epic starts again from ship, reusing its worktree and its pull request.",
         "The review rounds start over.",
@@ -126,7 +126,7 @@ private func connect(_ engine: FixtureEngine) throws -> ControlClient {
 @Test func eachRefusalHasItsOwnWords() {
     #expect(ResumeRefusal.allCases.map(\.rawValue) == ["epic.unknown", "resume.notStopped", "github.unavailable", "resume.didNotRestart"])
     // the engine's own words are not what the card reads: these differ from today's, and the code decides
-    #expect(ResumeRefusal.allCases.map { resumeFailureWords(.refused(Refusal(code: $0.rawValue, text: "other words for \($0.rawValue)"))) } == [
+    #expect(ResumeRefusal.allCases.map { resumeFailureWords(.refused(Refusal(code: $0.rawValue, text: "other words for \($0.rawValue)")), bundle: english.bundle, locale: english.locale) } == [
         "Carrier does not know this epic.",
         "This epic is not stopped, so there is nothing to resume.",
         "GitHub did not answer, so nothing was resumed. Try again.",
@@ -135,12 +135,12 @@ private func connect(_ engine: FixtureEngine) throws -> ControlClient {
 }
 
 @Test func aRefusalWithNoKnownCodeGetsAGenericLineAndTheOtherResultsTheirOwn() {
-    #expect(resumeFailureWords(.refused(Refusal(code: "request.internal", text: "internal error"))) == "Carrier could not resume this epic (internal error).")
+    #expect(resumeFailureWords(.refused(Refusal(code: "request.internal", text: "internal error")), bundle: english.bundle, locale: english.locale) == "Carrier could not resume this epic (internal error).")
     // an engine that predates the codes sends the words only, and the words of a code decide nothing
-    #expect(resumeFailureWords(.refused(.words("unknown epic"))) == "Carrier could not resume this epic (unknown epic).")
-    #expect(resumeFailureWords(.stopped) == "Carrier is not running.")
-    #expect(resumeFailureWords(.unsupported) == "This Carrier cannot resume epics. Update it.")
-    #expect(resumeFailureWords(.resumed) == nil)
+    #expect(resumeFailureWords(.refused(.words("unknown epic")), bundle: english.bundle, locale: english.locale) == "Carrier could not resume this epic (unknown epic).")
+    #expect(resumeFailureWords(.stopped, bundle: english.bundle, locale: english.locale) == "Carrier is not running.")
+    #expect(resumeFailureWords(.unsupported, bundle: english.bundle, locale: english.locale) == "This Carrier cannot resume epics. Update it.")
+    #expect(resumeFailureWords(.resumed, bundle: english.bundle, locale: english.locale) == nil)
 }
 
 // MARK: the fixture
@@ -157,8 +157,8 @@ private func connect(_ engine: FixtureEngine) throws -> ControlClient {
     let epics = try decodeSnapshot(Data(contentsOf: url)).epics
     // usage_limit (an option ran out of credits), engine_error (the engine hit an unexpected error) and skill_missing (a skill the person named is not installed) are not kinds the app words: they are drawn by the generic card for kinds it does not know.
     #expect(Set(epics.filter { $0.status == .needsHuman }.compactMap(\.needsHumanKind)) == Set(allKinds + ["usage_limit", "engine_error", "skill_missing", "reviewers_failed", "lead_limit"]))
-    #expect(epics.filter { $0.status == .running }.allSatisfy { resumeCard($0, canResume: true) == nil })
-    #expect(epics.filter { $0.status == .needsHuman }.allSatisfy { resumeCard($0, canResume: true) != nil })
+    #expect(epics.filter { $0.status == .running }.allSatisfy { resumeCard($0, canResume: true, bundle: english.bundle, locale: english.locale) == nil })
+    #expect(epics.filter { $0.status == .needsHuman }.allSatisfy { resumeCard($0, canResume: true, bundle: english.bundle, locale: english.locale) != nil })
 }
 
 // MARK: a Resume in flight

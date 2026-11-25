@@ -18,7 +18,7 @@ private func running(
 }
 
 @Test func aRunningEpicsCardHasItsStepsWithTheOneInHandFilledAndItsFacts() {
-    let card = epicCard(.active(running()), now: 700_000)
+    let card = epicCard(.active(running()), now: 700_000, bundle: english.bundle, locale: english.locale)
     #expect(card.title == "Rotate the keys" && card.name == "web" && card.subtitle == "acme/web · #12")
     #expect(card.steps.map(\.name) == ["Ship", "Review / Fix", "Ready"])
     #expect(card.steps.map(\.state) == [.done, .current, .waiting])
@@ -31,7 +31,7 @@ private func running(
 }
 
 @Test func theShipStepIsFilledBySlicesClosed() {
-    let card = epicCard(.active(running(stage: .ship, round: nil, slices: .init(done: 3, total: 7))), now: 700_000)
+    let card = epicCard(.active(running(stage: .ship, round: nil, slices: .init(done: 3, total: 7))), now: 700_000, bundle: english.bundle, locale: english.locale)
     #expect(card.steps.map(\.state) == [.current, .waiting, .waiting])
     #expect(card.steps[0].progress == 3.0 / 7.0)
 }
@@ -40,20 +40,20 @@ private func running(
     var stuck = running()
     stuck.status = .needsHuman
     stuck.needsHumanKind = "timeout"
-    #expect(epicCard(.active(stuck), now: 700_000).steps.map(\.state) == [.done, .error, .waiting])
+    #expect(epicCard(.active(stuck), now: 700_000, bundle: english.bundle, locale: english.locale).steps.map(\.state) == [.done, .error, .waiting])
     stuck.needsHumanKind = "agent_needs_human"
-    #expect(epicCard(.active(stuck), now: 700_000).steps.map(\.state) == [.done, .input, .waiting])
+    #expect(epicCard(.active(stuck), now: 700_000, bundle: english.bundle, locale: english.locale).steps.map(\.state) == [.done, .input, .waiting])
 }
 
 @Test func aQueuedEpicHasNoStepsAndOnlySaysWhenItQueued() {
     let queued = PanelSnapshot.QueuedEpic(repo: "acme/web", issue: 20, title: "Export", queuedAt: 640_000)
-    let card = epicCard(.queued(queued, position: 2), now: 700_000)
+    let card = epicCard(.queued(queued, position: 2), now: 700_000, bundle: english.bundle, locale: english.locale)
     #expect(card.steps.isEmpty && card.facts.isEmpty)
     #expect(card.timeline == "queued 1m ago")
 }
 
 @Test func aReadyEpicsStepsAreAllDoneAndItHasItsPR() {
-    let card = epicCard(.finished(.init(repo: "acme/web", issue: 30, prNumber: 31, finishedAt: 695_000, executionId: nil)), now: 700_000)
+    let card = epicCard(.finished(.init(repo: "acme/web", issue: 30, prNumber: 31, finishedAt: 695_000, executionId: nil)), now: 700_000, bundle: english.bundle, locale: english.locale)
     #expect(card.steps.map(\.state) == [.done, .done, .done])
     #expect(card.facts == [.init(label: "PR", value: "#31")])
     #expect(card.timeline == "finished 5s ago")

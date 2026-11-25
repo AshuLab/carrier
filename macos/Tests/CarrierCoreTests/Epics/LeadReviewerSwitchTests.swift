@@ -29,28 +29,28 @@ private func complete() -> LeadReviewerDraft {
 
 @Test func turningItOnSendsNothingUntilIdentityProviderAndModelAreChosen() throws {
     var draft = LeadReviewerDraft()
-    #expect(draft.isComplete == false && draft.missing == ["an identity", "a provider", "a model"])
-    #expect(draft.hint == "Choose an identity, a provider and a model to turn it on. Nothing is written until then.")
+    #expect(draft.isComplete == false && draft.missing == [.identity, .provider, .model])
+    #expect(draft.hint(bundle: english.bundle, locale: english.locale) == "Choose an identity, a provider and a model to turn it on. Nothing is written until then.")
     draft.apply(.bot("acme-lead"))
     draft.apply(.effort("max"))
     draft.apply(.model("   "))
-    #expect(draft.missing == ["a provider", "a model"])
+    #expect(draft.missing == [.provider, .model])
     // once the three are chosen the whole role is what the draft sends, in one request
     draft.apply(.provider("codex"))
     draft.apply(.model(" gpt-5 "))
-    #expect(draft.isComplete && draft.hint == nil && draft.changes == [.bot("acme-lead"), .provider("codex"), .model(" gpt-5 "), .effort("max")])
+    #expect(draft.isComplete && draft.hint(bundle: english.bundle, locale: english.locale) == nil && draft.changes == [.bot("acme-lead"), .provider("codex"), .model(" gpt-5 "), .effort("max")])
 }
 
 @Test func theDraftIsShownInPlaceOfTheEmptyRoleAndTheSwitchRowTellsWhatOffDoes() throws {
     let off = try #require(agentsPage(config: Data(withoutLead.utf8), providers: nil, bots: ForgeBots(names: bots, note: nil))?.rows.first { $0.role == .leadReviewer })
     #expect(off.off && off.usable(turningOn: false) == false && off.usable(turningOn: true))
-    #expect(off.switchDetail == "Off: the file has no lead reviewer")
+    #expect(off.switchDetail(bundle: english.bundle, locale: english.locale) == "Off: the file has no lead reviewer")
     let shown = complete().shown(in: off)
     #expect(shown.fields == RoleFields(profile: "acme-lead", provider: "codex", model: " gpt-5 ") && shown.identity == .forge("acme-lead"))
 
     let on = try #require(agentsPage(config: Data(withLead.utf8), providers: nil, bots: ForgeBots(names: bots, note: nil))?.rows.first { $0.role == .leadReviewer })
     #expect(on.off == false && on.usable(turningOn: false))
-    #expect(on.switchDetail.contains("removes the lead reviewer and its failover steps from the file"))
+    #expect(on.switchDetail(bundle: english.bundle, locale: english.locale).contains("removes the lead reviewer and its failover steps from the file"))
 }
 
 // MARK: the engine is asked to reload

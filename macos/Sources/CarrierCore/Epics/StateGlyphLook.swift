@@ -1,3 +1,5 @@
+import Foundation
+
 /// A color a state's glyph is drawn in: the ones the app tells states apart by. The front-end maps each to the system's.
 public enum GlyphTint: Equatable, Sendable {
     case red, orange, blue, green, gray

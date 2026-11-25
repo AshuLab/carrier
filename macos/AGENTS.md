@@ -5,14 +5,14 @@ How to build, test and run it is in [README.md](README.md); what each area does 
 
 ## Packages and the tree
 
-A SwiftPM package for macOS 26+: `CarrierCore` (library), `Carrier` (AppKit shell), `CarrierCoreTests` and `CarrierTests` (Swift Testing).
+A SwiftPM package for macOS 26+: `CarrierCore` (library), `CarrierUI` (library, the pieces), `Carrier` (AppKit shell), `CarrierCoreTests` and `CarrierTests` (Swift Testing).
 A dependency points down only ([ADR 0052](../docs/adr/0052-the-macos-app-is-split-into-three-targets-by-layer-and-each-target-by-area.md)); the areas are Lifecycle, Sessions, Chat, Epics, Projects, Terminal, Dictation, Usage, KeepAwake, Updates, Health and Settings.
 
 - `CarrierCore/<Area>/`: clients, rules, what a view shows, with no SwiftUI or AppKit; `Platform/` has the protocols for what only the machine does, `Connection/` the sockets, `Theme/`, `Copy/` and `Settings/` the generated tokens, words and preference keys (`pnpm design`), `Support/` and `Fixtures/` what is shared.
 - `Carrier/App/`: the composition root (`AppDelegate`, `MainMenu`, `PanelModel`, the window), where the controllers are built.
 - `Carrier/Features/<Area>/`: thin views and the models only they use.
 - `Carrier/Platform/`: the implementations of `CarrierCore/Platform/` and every framework import.
-- `Carrier/UI/`: the pieces of [ui](../docs/ui.md), which name no type of `Features/`, `App/` or `Platform/`; it becomes the `CarrierUI` target.
+- `CarrierUI/` (its own target, depends on `CarrierCore` only): the pieces of [ui](../docs/ui.md), which cannot name a type of `Carrier/Features/`, `Carrier/App/` or `Carrier/Platform/`: the compiler refuses it. A piece is `public` (its type, its initializer and what the app calls); the words it says come from `CarrierCore` through `Copy`, so it ships no resource bundle of its own.
   Text size and accent reach every view through the environment, never a static: `.scaledFont(...)` for a size, `.tint` or `pieceTheme.accent` for the accent, set by `.themed()` at each window's root; `Font.scaled` and the static accent are gone.
 
 Where a file goes: a Settings page that changes one area lives in that area, one about Carrier's config or the app as a whole in `Features/Settings/`; a file that needs a platform framework and also draws is split in two; a test goes to the folder of what it tests.
@@ -42,14 +42,14 @@ Interface icons: `AppIcon` in three sets (`IconSets.swift`, `IconsTests`), drawn
 
 ## Settings
 
-The window is `SettingsWindow.swift`, a page's pieces `Carrier/UI/` ([settings](../docs/macos/settings.md)); `SettingsIndexDriftTests` keeps the search's `settingsIndex` in step with them.
+The window is `SettingsWindow.swift`, a page's pieces `CarrierUI/` ([settings](../docs/macos/settings.md)); `SettingsIndexDriftTests` keeps the search's `settingsIndex` in step with them.
 The Pieces gallery under `--fixture` (`Carrier/Features/Settings/PiecesGalleryView.swift` and its siblings, its data `CarrierCore/Fixtures/PiecesGalleryData.swift`) is looked at, not tested; `scripts/check-structure.sh` fails for a piece with no `GalleryEntry` ([ui](../docs/ui.md#the-gallery)).
 Where each page lives in the code and what is tested (Providers, Projects, Agents, Sessions, Health): [settings](../docs/macos/settings.md#where-the-pages-live-in-the-code).
 
 ### Preferences
 
 The keys, their types and defaults are `design/preferences.json`, generated into `CarrierCore/Settings/Preferences.generated.swift` (`pnpm design`).
-Views read and write a preference with `@AppStorage(Preference.<name>)`, the initializers of `Carrier/UI/Modifiers/PreferenceStorage.swift` (`PreferenceStorageTests`); code that is not a view uses `AppPreferences`.
+Views read and write a preference with `@AppStorage(Preference.<name>)`, the initializers of `CarrierUI/Modifiers/PreferenceStorage.swift` (`PreferenceStorageTests`); code that is not a view uses `AppPreferences`.
 `CarrierCore/Settings/` is the only place that touches user defaults: `scripts/check-structure.sh` fails on `UserDefaults.standard` or a literal `forKey:` anywhere else, and lists the state it leaves out (the per-session `chat.*.<id>` keys).
 `PreferenceKey` is named `CarrierCore.PreferenceKey` in a file that imports SwiftUI, which has a protocol of that name.
 

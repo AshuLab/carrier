@@ -1,5 +1,6 @@
 import AppKit
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
 /// The Watching page: the repos Carrier takes epics from (the `repos` of `engine.json`, `CarrierCore/RepoList.swift`; their order and summary are

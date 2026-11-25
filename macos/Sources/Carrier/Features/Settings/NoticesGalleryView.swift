@@ -1,4 +1,5 @@
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
 /// A conversation that is not one: every notice the conversation and its message box can show, one under the other, drawn by the real views with

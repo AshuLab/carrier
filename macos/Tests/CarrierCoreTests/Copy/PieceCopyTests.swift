@@ -3,7 +3,7 @@ import Testing
 
 @testable import CarrierCore
 
-// The words the pieces of `Carrier/UI/` say by themselves (an accessibility label, a help, a built-in label), each a copy key. The pieces are looked at in the opened
+// The words the pieces of `CarrierUI/` say by themselves (an accessibility label, a help, a built-in label), each a copy key. The pieces are looked at in the opened
 // app and in the pieces gallery; here the keys are asserted in both languages, with the plural where the English varies by count.
 
 private func both(_ words: (Bundle?, Locale) -> String) -> (en: String, es: String) { (words(english.bundle, english.locale), words(spanish.bundle, spanish.locale)) }

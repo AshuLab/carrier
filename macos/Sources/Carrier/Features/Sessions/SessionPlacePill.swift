@@ -1,5 +1,6 @@
 import AppKit
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
 /// Where an open session works, in the toolbar, as a quiet indicator in the color of the person's accent: the branch for a worktree (a copy

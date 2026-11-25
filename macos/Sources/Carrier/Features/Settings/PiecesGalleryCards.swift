@@ -1,9 +1,10 @@
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
 private typealias ExtraRow = GridRow<TupleView<(Text, PullRequestChip)>>
 
-/// The Cards of `Carrier/UI/` in the states their catalog entries list.
+/// The Cards of `CarrierUI/` in the states their catalog entries list.
 struct PiecesGalleryCards: View {
     private let wide: CGFloat = 520
 

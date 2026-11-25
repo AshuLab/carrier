@@ -1,5 +1,6 @@
 import AppKit
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
 /// The pictures of the bots of Agent Forge. The registry has no avatar of its own, but each bot is a GitHub App and its logo is public (`forgeAvatarURL`),

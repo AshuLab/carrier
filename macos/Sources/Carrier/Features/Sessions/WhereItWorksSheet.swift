@@ -1,4 +1,5 @@
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
 /// Where a session works, as a sheet: the folder itself or a new worktree, each with what it means. Choosing one closes the sheet.

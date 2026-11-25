@@ -1,4 +1,5 @@
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
 /// The Details tab: the four groups of rows, each a card with its title in capitals above it. A row is an icon, a label with its

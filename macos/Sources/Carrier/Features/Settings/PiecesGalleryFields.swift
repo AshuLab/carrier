@@ -1,7 +1,8 @@
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
-/// The Fields of `Carrier/UI/` in the states their catalog entries list.
+/// The Fields of `CarrierUI/` in the states their catalog entries list.
 struct PiecesGalleryFields: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Tokens.Space.s22) {

@@ -1,4 +1,5 @@
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
 /// Where the agent's context was cut, in the feed, under the person's own command (`/clear`, `/compact`) or alone when the agent did it by itself (auto-compact): a fine line across and on it a

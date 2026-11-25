@@ -3,6 +3,7 @@ import SwiftUI
 import Testing
 import CarrierCore
 @testable import Carrier
+@testable import CarrierUI
 
 @MainActor @Test func theAvatarTurnsItsRingOnlyForARunningSessionAndUsesTheRingComponent() throws {
     let view = RunningAvatar(initial: "C", running: true)

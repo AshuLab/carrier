@@ -1,4 +1,5 @@
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
 // The pieces of the window's header while a subagent view is open (the toolbar places them in `PanelView`): its title over the line that says

@@ -1,5 +1,6 @@
 import AppKit
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
 // The detail of the Settings window: the chosen page in a scroll of its own.

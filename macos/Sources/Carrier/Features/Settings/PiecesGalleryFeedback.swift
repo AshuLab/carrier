@@ -1,7 +1,8 @@
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
-/// The Feedback pieces of `Carrier/UI/` in the states their catalog entries list.
+/// The Feedback pieces of `CarrierUI/` in the states their catalog entries list.
 struct PiecesGalleryFeedback: View {
     @Environment(\.pieceTheme) private var theme
     var body: some View {

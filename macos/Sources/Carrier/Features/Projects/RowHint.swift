@@ -1,4 +1,5 @@
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
 /// What a click on the row under the pointer does, as a small solid pill at its end. It is always laid out and only shown under the

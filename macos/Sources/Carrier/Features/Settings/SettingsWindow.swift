@@ -1,5 +1,6 @@
 import AppKit
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
 // Settings in a window of its own (not a sheet over the main one): a sidebar with the pages on the left, the chosen one on the right under a

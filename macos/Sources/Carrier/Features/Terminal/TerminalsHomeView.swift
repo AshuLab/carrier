@@ -1,4 +1,5 @@
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
 /// The centre when the Terminal row is selected: toolbar Search and New Terminal, the empty state when none are open, or the list

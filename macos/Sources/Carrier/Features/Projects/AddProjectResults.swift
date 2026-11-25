@@ -1,5 +1,6 @@
 import AppKit
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
 // The results of the shared sheet: the sections of folders, projects and repositories, and what a hovered or chosen row shows.

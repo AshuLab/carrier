@@ -1,4 +1,5 @@
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
 // The findings of a review round as one work card (docs/ui.md, "The review findings card"; the mockup is "Proposed" of

@@ -1,5 +1,6 @@
 import AppKit
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
 /// Settings page for the embedded Ghostty terminal: theme, minimum contrast, padding, typography overrides, cursor and Zsh behavior.

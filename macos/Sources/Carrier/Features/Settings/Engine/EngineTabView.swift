@@ -1,5 +1,6 @@
 import AppKit
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
 /// The Engine page of Settings (docs/specs/engine-in-settings.md), drawn from `engineGroups`: Starting, Programs, GitHub identity and Files. The programs' versions are

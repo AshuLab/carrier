@@ -1,5 +1,6 @@
 import AppKit
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
 /// Opens the Mac's color panel and tells what the person picks in it, until another place opens it.

@@ -1,5 +1,6 @@
 import AppKit
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
 /// The Providers page of Settings (docs/specs/providers-in-settings.md), three screens of one form, each a place of the window's history (‹ ›):

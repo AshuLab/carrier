@@ -1,5 +1,6 @@
 import AppKit
 import CarrierCore
+import CarrierUI
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     var statusItem: NSStatusItem?
@@ -282,6 +283,3 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         fixtureServer?.stop()
     }
 }
-
-/// Set by build-app.sh when no version is given: this is a development build, not the installed Carrier.
-let isDevBuild = Bundle.main.object(forInfoDictionaryKey: "CarrierChannel") as? String == "dev"

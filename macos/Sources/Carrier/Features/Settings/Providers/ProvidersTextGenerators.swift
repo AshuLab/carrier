@@ -1,5 +1,6 @@
 import AppKit
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
 // The Text generators group of the Providers page: the model that writes text for Carrier, and the titles of earlier sessions.

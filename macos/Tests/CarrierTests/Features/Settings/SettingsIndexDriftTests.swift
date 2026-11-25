@@ -14,8 +14,13 @@ import Testing
         try swiftFiles(under: folder, minimum: minimum).sorted { $0.path < $1.path }.map { try String(contentsOf: $0, encoding: .utf8) }.joined(separator: "\n")
     }
 
-    private static func text(of folder: String) throws -> String {
-        try text(in: sources.appendingPathComponent(folder), minimum: 100)
+    private static func text(of folder: String, minimum: Int = 100) throws -> String {
+        try text(in: sources.appendingPathComponent(folder), minimum: minimum)
+    }
+
+    /// The views of the app and its pieces: the pages in `Carrier` and the rows, groups and selects they are made of in `CarrierUI`.
+    private static func viewsText() throws -> String {
+        try text(of: "Carrier") + "\n" + text(of: "CarrierUI", minimum: 70)
     }
 
     /// Titles drawn with no identifier, because a search has no use for them: a title that is a value (a model's name, an account), or one that
@@ -40,7 +45,7 @@ import Testing
     /// The identifiers the views carry: the one a row or a group is given (`id: "..."`) or anchored with, and the ones the models that a page is
     /// drawn from give (a shortcut's, a behavior row's, a role's and its stages', an engine row's, a dictation screen's, a health row's).
     private static func drawnIdentifiers() throws -> Set<String> {
-        let views = try text(of: "Carrier")
+        let views = try viewsText()
         let core = try text(of: "CarrierCore")
         // a view (or the helper of a page that draws rows) given the identifier as its first argument, and the model groups and rows that carry one
         let carriers = "\(rowViews)|soundRow|row|HealthRow|HealthSection|BehaviorGroup|EngineGroup"
@@ -66,7 +71,7 @@ import Testing
     }
 
     @Test func aRowThatIsSearchedCarriesAnIdentifier() throws {
-        let views = try Self.text(of: "Carrier")
+        let views = try Self.viewsText()
         let bare = try Self.matches(#"(?:\#(Self.rowViews))\(\s*title:\s*"((?:[^"\\]|\\.)*)""#, in: views)
         let missing = Set(bare).subtracting(Self.notSearched).sorted()
         #expect(missing.isEmpty, "drawn with a title and no id: (give it one, and an entry in settingsIndex): \(missing)")

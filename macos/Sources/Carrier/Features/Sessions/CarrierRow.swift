@@ -1,4 +1,5 @@
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
 /// The Carrier section: its name and the engine's state as a pill with the search and the grouping menu, and its slots as bars under

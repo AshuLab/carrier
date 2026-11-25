@@ -1,4 +1,5 @@
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
 /// A long text pasted into the chat, as a card of glass in the family of the attached files: a badge, "Pasted text" over what it holds (its

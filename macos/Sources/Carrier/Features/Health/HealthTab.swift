@@ -1,5 +1,6 @@
 import AppKit
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
 /// The Health tab of Settings (docs/specs/health-check-in-the-app.md): the rows of `healthSections`, each with its state and, when the fixed

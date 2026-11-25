@@ -1,5 +1,6 @@
 import AppKit
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
 /// The shortcuts by group: click one and press the new keys (Esc cancels, Delete clears it); a combination another action has is flagged

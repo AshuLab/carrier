@@ -1,4 +1,5 @@
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
 /// The capsule at the start of a live line naming what the agent waits on; long names (e.g. an MCP server) are cut on one line.

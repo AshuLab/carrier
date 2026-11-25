@@ -1,5 +1,6 @@
 import AppKit
 import CarrierCore
+import CarrierUI
 
 /// The app's two ways to run without a person: `--fixture` (the fake engine and the golden files) and `--selftest` (the menu's actions fired from code).
 extension AppDelegate {

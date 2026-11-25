@@ -1,5 +1,6 @@
 import AppKit
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
 /// The rows of an open session under its row: the agent's messages, notes and errors as the chat draws them, and each run of its

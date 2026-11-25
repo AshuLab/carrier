@@ -1,4 +1,5 @@
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
 /// A role's screen in a repo (`SettingsPlace(.watching, path: [repo, role])`), the Agents page's own screen for what a repo can set: its picture and who it

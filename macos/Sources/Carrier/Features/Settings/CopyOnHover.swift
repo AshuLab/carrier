@@ -1,5 +1,6 @@
 import AppKit
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
 /// A copy button after whatever it modifies, which fades in while the pointer is over the pair and shows a check for a moment once it has

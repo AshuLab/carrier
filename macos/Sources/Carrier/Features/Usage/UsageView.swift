@@ -1,5 +1,6 @@
 import AppKit
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
 /// The one Usage state the window holds, asked of the real chat host (the fixture's under `--fixture`).

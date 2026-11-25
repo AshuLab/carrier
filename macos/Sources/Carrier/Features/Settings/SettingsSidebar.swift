@@ -1,5 +1,6 @@
 import AppKit
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
 // The sidebar of the Settings window: its pages in groups, and what the search found when there is a query.

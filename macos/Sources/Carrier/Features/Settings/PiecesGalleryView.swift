@@ -1,7 +1,8 @@
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
-/// A conversation that is not one: every piece of `Carrier/UI/` in each state its catalog entry (`docs/ui.md`) lists, light or dark, drawn by the
+/// A conversation that is not one: every piece of `CarrierUI/` in each state its catalog entry (`docs/ui.md`) lists, light or dark, drawn by the
 /// real pieces with made-up data (`PiecesGalleryData`), to look at. Only under `--fixture`, for the session the fixture lists with `sessionId`;
 /// no host is asked anything. Its switch keeps its state in the view and never in the preferences, and the language is the app's: to see it in
 /// Spanish, Carrier Dev is opened again with `-AppleLanguages (es)`. Hover and pressed are the live pieces' own: point at one and press it.

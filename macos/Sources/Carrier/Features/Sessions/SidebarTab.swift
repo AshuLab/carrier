@@ -1,4 +1,5 @@
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
 /// The sidebar's grouping and sorts, which its own menus change too (one preference, two controls), and what each session row shows.

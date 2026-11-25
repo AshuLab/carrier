@@ -1,4 +1,5 @@
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
 /// The Sessions section and, while `open`, the sessions under it in the chosen order (or its empty state). Rows of the sidebar's

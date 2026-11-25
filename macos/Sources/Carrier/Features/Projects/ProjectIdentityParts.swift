@@ -1,5 +1,6 @@
 import AppKit
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
 /// The project's Name field: writes on Return or focus loss, reverts on failure, updates when another process changes `projects.json`, and

@@ -18,5 +18,5 @@ Delete the lines that do not apply.
 - [ ] A storage schema changed: the migration from `pnpm db:generate` is committed, and a new table file is in the list in `drizzle.config.ts`
 - [ ] A prompt changed: the snapshots are updated (`pnpm test -u`) and `src/prompts/result.ts` stays in step with `src/execution/caller-result.ts`
 - [ ] Something in `design/` changed: `pnpm design` was run and its generated files are committed
-- [ ] A view of the macOS app changed: I looked at it in Carrier Dev under `--fixture`, and `docs/macos-ui.md` is updated if a piece or a rule changed
+- [ ] A view of the macOS app changed: I looked at it in Carrier Dev under `--fixture`, and `docs/ui.md` is updated if a piece or a rule changed
 - [ ] No secrets in the code, config, logs or this description

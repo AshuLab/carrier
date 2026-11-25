@@ -6,9 +6,11 @@ import SwiftUI
 struct MonoLines: View {
     let lines: [String]
     var redFirst = false
+    /// Whether lines wrap or scroll sideways, and whether they are numbered.
+    let monospace: MonospaceSettings
 
     var body: some View {
-        if MonospaceStyle.shared.settings.wrapLongLines {
+        if monospace.wrapLongLines {
             rows
         } else {
             ScrollView(.horizontal) { rows.fixedSize(horizontal: true, vertical: false) }
@@ -16,7 +18,7 @@ struct MonoLines: View {
     }
 
     @ViewBuilder private var rows: some View {
-        if MonospaceStyle.shared.settings.lineNumbers {
+        if monospace.lineNumbers {
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(Array(lines.enumerated()), id: \.offset) { index, line in
                     HStack(alignment: .top, spacing: 12) {

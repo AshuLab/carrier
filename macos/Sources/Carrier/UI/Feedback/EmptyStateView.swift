@@ -1,4 +1,3 @@
-import AppKit
 import CarrierCore
 import SwiftUI
 
@@ -17,15 +16,6 @@ struct EmptyStateView: View {
     /// The icon before the button's words.
     let actionIcon: AppIcon?
     let actionStyle: EmptyStateActionStyle
-
-    init(
-        state: EmptyState,
-        action: (title: String, run: () -> Void)? = nil,
-        actionIcon: AppIcon? = nil,
-        actionStyle: EmptyStateActionStyle = .secondary
-    ) {
-        self.init(icon: state.icon, title: state.title, line: state.line, action: action, actionIcon: actionIcon, actionStyle: actionStyle)
-    }
 
     init(
         icon: AppIcon,

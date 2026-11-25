@@ -9,7 +9,7 @@ struct BannerView: View {
     let hint: String?
     let tint: Color
     /// The account the banner is about: its mark stands before the title.
-    var account: String?
+    var account: AccountMark?
     /// Puts the details on the pasteboard; nil leaves the button out (a refusal says its reason in full already).
     let copyDetails: (() -> Void)?
     /// Nil when the turn is no longer the last thing: the banner is then only a record.

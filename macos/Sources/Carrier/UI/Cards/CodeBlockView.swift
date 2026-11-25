@@ -4,11 +4,34 @@ import SwiftUI
 /// A fenced block of an agent's message: the language by name (or the file it is from) over the code, coloured by what each piece is. A diff
 /// tints its added and removed lines, a shell session greys its prompts, and Copy, which shows when the pointer is over the block, takes
 /// what can be pasted. Numbers show from five lines, a block of more than 25 folds under Show more lines, and long lines scroll sideways
-/// or wrap, as the monospace settings say.
+/// or wrap, as the monospace settings say. The language, the pieces of the code, the lines of a diff, the words Copy takes and the settings are
+/// values the area gives (`CodeBlockView(language:file:code:)`); the piece draws them.
 struct CodeBlockView: View {
-    let language: String?
+    /// What a piece of code is, which gives it its color.
+    enum Role: Equatable { case plain, prompt, keyword, string, number, comment, function, type }
+
+    /// A piece of code and what it is.
+    struct Run: Equatable {
+        var text: String
+        var role: Role
+    }
+
+    /// One line of a diff, which gives it its tint.
+    enum DiffLine: Equatable { case added, removed, hunk, meta, context }
+
+    /// What the header calls the language ("JavaScript", the fence's own word, "Code").
+    let name: String
     var file: String?
     let code: String
+    /// What Copy puts on the pasteboard: the code as it can be pasted (a shell session without its prompts).
+    let copyText: String
+    /// The block is a diff: its lines are tinted by `diffLines` and not coloured by `runs`.
+    let isDiff: Bool
+    /// The pieces of the text of the code that shows (all of it, or what is left unfolded).
+    let runs: (String) -> [Run]
+    /// The kind of each line of `code`, for a diff.
+    var diffLines: [DiffLine] = []
+    let monospace: MonospaceSettings
     /// From which line the block folds, and how many lines a fold must hide to be worth its button (a message's block spares itself a
     /// fold of a few lines; a tool's output folds where the person's Output length setting says).
     var foldAfter = 25
@@ -24,8 +47,7 @@ struct CodeBlockView: View {
     private static let codePadding: CGFloat = 13
 
     /// Long lines wrap or scroll sideways as the monospace settings say.
-    private var wrapped: Bool { MonospaceStyle.shared.settings.wrapLongLines }
-    private var resolved: String? { resolvedCodeLanguage(language, code: code) }
+    private var wrapped: Bool { monospace.wrapLongLines }
     private var lines: [String] { code.components(separatedBy: "\n") }
     /// A fold hiding two lines is not worth a button.
     private var foldable: Bool { lines.count > foldAfter + spare }
@@ -51,19 +73,19 @@ struct CodeBlockView: View {
         HStack(spacing: 8) {
             if let file {
                 Text(file).scaledFont(11.5, weight: .medium).lineLimit(1).truncationMode(.head)
-                Text(codeLanguageName(language, resolved: resolved)).scaledFont(11).foregroundStyle(.tertiary)
+                Text(name).scaledFont(11).foregroundStyle(.tertiary)
             } else {
-                Text(codeLanguageName(language, resolved: resolved)).scaledFont(11.5).foregroundStyle(.secondary)
+                Text(name).scaledFont(11.5).foregroundStyle(.secondary)
             }
             Spacer(minLength: 0)
-            CodeCopyButton(text: codeCopyText(code, language: resolved), visible: hovering)
+            CodeCopyButton(text: copyText, visible: hovering)
         }
         .padding(.leading, 14).padding(.trailing, 6).padding(.vertical, 6)
         .background(Color.primary.opacity(0.045))
     }
 
     @ViewBuilder private var content: some View {
-        if resolved == "diff" { diff } else { highlighted }
+        if isDiff { diff } else { highlighted }
     }
 
     @ViewBuilder private var highlighted: some View {
@@ -75,7 +97,7 @@ struct CodeBlockView: View {
                     Text((1...shownLines.count).map(String.init).joined(separator: "\n"))
                         .foregroundStyle(.tertiary).multilineTextAlignment(.trailing).textSelection(.disabled).accessibilityHidden(true)
                 }
-                Text(attributed(codeTokens(shownLines.joined(separator: "\n"), language: resolved)))
+                Text(attributed(runs(shownLines.joined(separator: "\n"))))
             }
             .codeFont(11.5)
             .textSelection(.enabled)
@@ -89,7 +111,7 @@ struct CodeBlockView: View {
     /// first row of its line however many rows the line takes. The rows are there only for their size (their text is hidden, and wraps as the
     /// text over them does) and carry the numbers.
     private var wrappedNumbered: some View {
-        layered(attributed(codeTokens(shownLines.joined(separator: "\n"), language: resolved)), rows: shownLines, numbered: true)
+        layered(attributed(runs(shownLines.joined(separator: "\n"))), rows: shownLines, numbered: true)
     }
 
     /// The text of a block over a row per line: `numbered` draws the line numbers in the rows, `tint` and `bar` a row's background and the
@@ -131,12 +153,11 @@ struct CodeBlockView: View {
 
     /// The air between the lines that a text puts itself and rows do not: a block keeps one line height wrapped or not.
     private var rowSpacing: CGFloat {
-        let mono = MonospaceStyle.shared.settings
-        return mono.lineHeight.extraSpacing(forSize: mono.font(11.5).pointSize)
+        monospace.lineHeight.extraSpacing(forSize: monospace.font(11.5).pointSize)
     }
 
     private var diff: some View {
-        let kinds = diffLines(code)
+        let kinds = diffLines
         var text = AttributedString()
         for (index, line) in shownLines.enumerated() {
             var piece = AttributedString(line + (index == shownLines.count - 1 ? "" : "\n"))
@@ -160,7 +181,7 @@ struct CodeBlockView: View {
         .overlay(alignment: .top) { Rectangle().fill(Color.primary.opacity(0.08)).frame(height: 0.5) }
     }
 
-    private func tint(_ kind: DiffLineKind) -> Color {
+    private func tint(_ kind: DiffLine) -> Color {
         switch kind {
         case .added: Color.green.opacity(0.14)
         case .removed: Color.red.opacity(0.14)
@@ -168,7 +189,7 @@ struct CodeBlockView: View {
         }
     }
 
-    private func bar(_ kind: DiffLineKind) -> Color? {
+    private func bar(_ kind: DiffLine) -> Color? {
         switch kind {
         case .added: .green
         case .removed: .red
@@ -176,11 +197,11 @@ struct CodeBlockView: View {
         }
     }
 
-    private func attributed(_ tokens: [CodeToken]) -> AttributedString {
+    private func attributed(_ runs: [Run]) -> AttributedString {
         var out = AttributedString()
-        for token in tokens {
-            var piece = AttributedString(token.text)
-            if let color = CodeColors.color(token.kind, dark: scheme == .dark) { piece.foregroundColor = color }
+        for run in runs {
+            var piece = AttributedString(run.text)
+            if let color = CodeColors.color(run.role, dark: scheme == .dark) { piece.foregroundColor = color }
             out.append(piece)
         }
         return out
@@ -189,8 +210,8 @@ struct CodeBlockView: View {
 
 /// The colours of the pieces of code: a palette for each look, readable on the block's tint.
 private enum CodeColors {
-    static func color(_ kind: CodeTokenKind, dark: Bool) -> Color? {
-        switch kind {
+    static func color(_ role: CodeBlockView.Role, dark: Bool) -> Color? {
+        switch role {
         case .plain: nil
         case .prompt: .secondary.opacity(0.7)
         case .keyword: dark ? rgb(0xC792EA) : rgb(0x8250DF)

@@ -1,7 +1,6 @@
 import AppKit
-import CarrierCore
 
-/// The first line of the menu: a dot coloured by the state, the title in bold and the detail quieter. A view of its own because
+/// The first line of the menu: a dot coloured by the state (`dot`), the title in bold and the detail quieter. A view of its own because
 /// a menu item with no action is drawn grey. It takes no clicks.
 final class StatusHeaderView: NSView {
     private let dot = DotView()
@@ -18,22 +17,18 @@ final class StatusHeaderView: NSView {
 
     required init?(coder: NSCoder) { nil }
 
-    func show(_ status: (title: String, detail: String?, tone: ConnectionState.MenuTone)) {
-        let text = NSMutableAttributedString(string: status.title, attributes: [
+    func show(title: String, detail: String?, dot color: NSColor) {
+        let text = NSMutableAttributedString(string: title, attributes: [
             .font: NSFont.menuTitle,
             .foregroundColor: NSColor.labelColor,
         ])
-        if let detail = status.detail {
+        if let detail {
             text.append(NSAttributedString(string: "   " + detail, attributes: [
                 .font: NSFont.menuFont(ofSize: 12), .foregroundColor: NSColor.secondaryLabelColor,
             ]))
         }
         label.attributedStringValue = text
-        dot.color = switch status.tone {
-        case .stopped: .tertiaryLabelColor
-        case .running: .systemGreen
-        case .attention: .systemOrange
-        }
+        dot.color = color
         dot.needsDisplay = true
         let size = label.intrinsicContentSize
         label.frame = NSRect(x: Self.inset + 16, y: (frame.height - size.height) / 2, width: size.width, height: size.height)

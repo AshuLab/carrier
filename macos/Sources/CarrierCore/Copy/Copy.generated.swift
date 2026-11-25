@@ -4904,8 +4904,20 @@ public enum Copy {
         String(localized: "projectsWorktreeStateNotPushed", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func projectsWorktreeStateClean(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "projectsWorktreeStateClean", bundle: bundle ?? carrierResources, locale: locale)
+    public static func projectsWorktreeStateInMain(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsWorktreeStateInMain", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsWorktreeStatePrOpen(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsWorktreeStatePrOpen", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsWorktreeStatePrClosed(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsWorktreeStatePrClosed", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsWorktreeStatePushed(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsWorktreeStatePushed", bundle: bundle ?? carrierResources, locale: locale)
     }
 
     public static func projectsWorktreeOpen(bundle: Bundle? = nil, locale: Locale = .current) -> String {

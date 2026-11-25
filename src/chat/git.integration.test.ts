@@ -598,7 +598,7 @@ describe.skipIf(!enabled)('the worktrees of a project, with the real git', () =>
   const db = () => openChatDatabase(join(home, 'chat.db'));
   const sessionsOf = (chatDb = db()) => createSessions({ db: chatDb, agents: [{ name: 'claude', account: 'claude' }], clock: new FakeClock(), runners: { claude: new FakeChatRunner() }, env: {}, git: realGit, projects: fakeProjects(realGit), binaryFound: () => true, ages: () => ({ archiveAfterDays: 15, deleteAfterDays: 30 }), onLiveChange: () => {} });
 
-  test('lists the main clone and each worktree under the worktrees folder, joined to its session, with each state, an orphan and a vanished folder left out', async () => {
+  test('lists the main clone and each worktree under the worktrees folder, joined to its session, with its activity and its integration, an orphan and a vanished folder left out', async () => {
     const chatDb = db();
     const s = sessionsOf(chatDb);
     const base = repoAt('project');
@@ -607,39 +607,84 @@ describe.skipIf(!enabled)('the worktrees of a project, with the real git', () =>
       if (live === false) await s.close({ sessionId: session.id });
       return { id: session.id, ...(session.workspace as { path: string; branch: string }) };
     };
-    const [clean, pushed, ahead, dirty, merged, orphan, gone] = [await open('clean'), await open('pushed'), await open('ahead'), await open('dirty'), await open('merged'), await open('orphan'), await open('gone')];
+    const names = ['clean', 'pushed', 'ahead', 'dirty', 'merged', 'merged-empty', 'pr-open', 'pr-draft', 'pr-closed', 'orphan', 'adrift', 'held', 'gone'];
+    const made: Record<string, Awaited<ReturnType<typeof open>>> = {};
+    for (const name of names) made[name] = await open(name); // one after another: each makes a worktree of the same repository
     const live = await open('live', { live: true });
-    git(pushed.path, 'commit', '-q', '--allow-empty', '-m', 'pushed');
-    git(pushed.path, 'update-ref', `refs/remotes/origin/${pushed.branch}`, git(pushed.path, 'rev-parse', 'HEAD').trim());
-    git(ahead.path, 'commit', '-q', '--allow-empty', '-m', 'mine'); // a commit no other branch holds
-    writeFileSync(join(dirty.path, 'a.txt'), 'changed\n');
-    git(merged.path, 'commit', '-q', '--allow-empty', '-m', 'squashed on GitHub'); // not on any remote branch either, but its pull request is merged
-    chatDb.update(sessions).set({ prState: 'merged' }).where(eq(sessions.id, merged.id)).run();
-    chatDb.delete(sessions).where(eq(sessions.id, orphan.id)).run();
-    git(orphan.path, 'checkout', '-q', '--detach'); // no branch to hold commits: only its files count
-    rmSync(gone.path, { recursive: true, force: true }); // git still lists the folder until it prunes
+    const commit = (entry: { path: string }, message: string) => git(entry.path, 'commit', '-q', '--allow-empty', '-m', message);
+    const publish = (entry: { path: string; branch: string }) => git(entry.path, 'update-ref', `refs/remotes/origin/${entry.branch}`, git(entry.path, 'rev-parse', 'HEAD').trim());
+    const saved = (entry: { id: string }, prState: 'open' | 'draft' | 'merged' | 'closed', number: number) => chatDb.update(sessions).set({ prState, prNumber: number, prUrl: `https://github.com/acme/app/pull/${number}`, prRepo: 'acme/app' }).where(eq(sessions.id, entry.id)).run();
+    commit(made['pushed']!, 'pushed');
+    publish(made['pushed']!);
+    commit(made['ahead']!, 'mine'); // a commit no other branch holds
+    writeFileSync(join(made['dirty']!.path, 'a.txt'), 'changed\n');
+    commit(made['merged']!, 'squashed on GitHub'); // not on any remote branch either, but its pull request is merged
+    saved(made['merged']!, 'merged', 41);
+    saved(made['merged-empty']!, 'merged', 42); // its HEAD is in main too: the pull request still wins
+    for (const [name, prState, number] of [['pr-open', 'open', 43], ['pr-draft', 'draft', 44], ['pr-closed', 'closed', 45]] as const) {
+      commit(made[name]!, name);
+      publish(made[name]!);
+      saved(made[name]!, prState, number);
+    }
+    for (const name of ['orphan', 'adrift', 'held']) chatDb.delete(sessions).where(eq(sessions.id, made[name]!.id)).run();
+    for (const name of ['orphan', 'adrift', 'held']) git(made[name]!.path, 'checkout', '-q', '--detach'); // no branch to hold commits
+    commit(made['adrift']!, 'held by no branch');
+    commit(made['held']!, 'held by a branch');
+    git(base, 'branch', 'keeps-held', git(made['held']!.path, 'rev-parse', 'HEAD').trim());
+    rmSync(made['gone']!.path, { recursive: true, force: true }); // git still lists the folder until it prunes
     git(base, 'worktree', 'add', '-q', '-b', 'mine', join(dir, `elsewhere-${Math.random().toString(36).slice(2)}`)); // a worktree git lists that is not under the worktrees folder
+    // the remote default branch: origin/HEAD points at origin/main, which is where main is
+    git(base, 'update-ref', 'refs/remotes/origin/main', git(base, 'rev-parse', 'main').trim());
+    git(base, 'symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/main');
 
     const { main, worktrees } = await s.projectWorktrees({ folder: base });
     const found = Object.fromEntries(worktrees.map((entry) => [entry.path, entry]));
-    // the project's only commit is held by a remote branch (the pushed worktree's)
+    const of = (entry: { path: string }) => found[entry.path];
+    // the project's only commit is held by remote branches
     expect(main).toEqual({ path: realpathSync(base), branch: 'main', state: 'clean' });
-    expect(Object.keys(found).sort()).toEqual([clean, pushed, ahead, dirty, merged, live, orphan].map((entry) => entry.path).sort());
-    expect(found[clean.path]).toMatchObject({ branch: clean.branch, session: { id: clean.id }, state: 'clean' });
-    expect(found[pushed.path]).toMatchObject({ state: 'clean' });
-    expect(found[ahead.path]).toMatchObject({ state: 'notPushed' });
-    expect(found[dirty.path]).toMatchObject({ state: 'uncommitted' });
-    expect(found[merged.path]).toMatchObject({ state: 'merged' });
-    expect(found[live.path]).toMatchObject({ state: 'sessionOpen' });
+    expect(Object.keys(found).sort()).toEqual([...names.filter((name) => name !== 'gone').map((name) => made[name]!), live].map((entry) => entry.path).sort());
+    expect(of(made['clean']!)).toMatchObject({ branch: made['clean']!.branch, session: { id: made['clean']!.id }, activity: null, integration: 'inMain', pullRequest: null });
+    expect(of(made['pushed']!)).toMatchObject({ activity: null, integration: 'pushed', pullRequest: null });
+    expect(of(made['ahead']!)).toMatchObject({ activity: null, integration: 'notPushed' });
+    // uncommitted changes are an activity, and what is in main is said apart from it
+    expect(of(made['dirty']!)).toMatchObject({ activity: 'uncommitted', integration: 'inMain' });
+    expect(of(live)).toMatchObject({ activity: 'sessionOpen', integration: 'inMain' });
+    // a merged pull request wins over what main holds, and links
+    expect(of(made['merged']!)).toMatchObject({ integration: 'merged', pullRequest: { number: 41, url: 'https://github.com/acme/app/pull/41' } });
+    expect(of(made['merged-empty']!)).toMatchObject({ integration: 'merged', pullRequest: { number: 42, url: 'https://github.com/acme/app/pull/42' } });
+    expect(of(made['pr-open']!)).toMatchObject({ integration: 'prOpen', pullRequest: { number: 43 } });
+    expect(of(made['pr-draft']!)).toMatchObject({ integration: 'prOpen', pullRequest: { number: 44 } });
+    expect(of(made['pr-closed']!)).toMatchObject({ integration: 'prClosed', pullRequest: { number: 45 } });
     // an orphan has no session, and its age is the folder's modification time
-    expect(found[orphan.path]).toMatchObject({ branch: null, session: null, state: 'clean', lastActiveAt: statSync(orphan.path).mtimeMs });
+    expect(of(made['orphan']!)).toMatchObject({ branch: null, session: null, activity: null, integration: 'inMain', pullRequest: null, lastActiveAt: statSync(made['orphan']!.path).mtimeMs });
+    // a detached HEAD: its commit that no branch holds is not pushed, and one a branch holds is not
+    expect(of(made['adrift']!)).toMatchObject({ branch: null, integration: 'notPushed' });
+    expect(of(made['held']!)).toMatchObject({ branch: null, integration: 'pushed' });
     // with a session the age is its last activity
-    expect(found[clean.path]!.lastActiveAt).toBe(chatDb.select().from(sessions).where(eq(sessions.id, clean.id)).get()!.lastActiveAt);
+    expect(of(made['clean']!)?.lastActiveAt).toBe(chatDb.select().from(sessions).where(eq(sessions.id, made['clean']!.id)).get()!.lastActiveAt);
+    // the reply has no `state` for a worktree
+    expect(Object.keys(of(made['clean']!)!).sort()).toEqual(['activity', 'branch', 'integration', 'lastActiveAt', 'path', 'pullRequest', 'session']);
     // the main clone: a commit no remote holds is not pushed, a changed file is uncommitted (and wins over it)
     git(base, 'commit', '-q', '--allow-empty', '-m', 'local only');
     expect((await s.projectWorktrees({ folder: base })).main.state).toBe('notPushed');
     writeFileSync(join(base, 'a.txt'), 'changed\n');
     expect((await s.projectWorktrees({ folder: base })).main.state).toBe('uncommitted');
+  });
+
+  test('no worktree is in main without origin/HEAD, or when it points at a branch that is not there', async () => {
+    const { chatDb, s, base, made } = await projectWith(['fresh', 'work']);
+    git(made['work']!.path, 'commit', '-q', '--allow-empty', '-m', 'work');
+    git(made['work']!.path, 'update-ref', `refs/remotes/origin/${made['work']!.branch}`, git(made['work']!.path, 'rev-parse', 'HEAD').trim());
+    const integrations = async () => Object.fromEntries((await s.projectWorktrees({ folder: base })).worktrees.map((entry) => [entry.session?.id, entry.integration]));
+    // no origin/HEAD: the host does not guess main
+    expect(await integrations()).toEqual({ [made['fresh']!.id]: 'pushed', [made['work']!.id]: 'pushed' });
+    // origin/HEAD that points nowhere says nothing either
+    git(base, 'symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/main');
+    expect(await integrations()).toEqual({ [made['fresh']!.id]: 'pushed', [made['work']!.id]: 'pushed' });
+    // once the remote default branch is there, the worktree that never had work is in main and the one with a commit of its own is not
+    git(base, 'update-ref', 'refs/remotes/origin/main', git(base, 'rev-parse', 'main').trim());
+    expect(await integrations()).toEqual({ [made['fresh']!.id]: 'inMain', [made['work']!.id]: 'pushed' });
+    expect(chatDb.select().from(sessions).all()).toHaveLength(2);
   });
 
   /** A project with one session per name, each in its own worktree and closed unless `live`. */

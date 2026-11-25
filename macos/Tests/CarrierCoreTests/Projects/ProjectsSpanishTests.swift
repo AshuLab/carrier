@@ -110,18 +110,20 @@ private func temporaryFolder() throws -> String {
 
 @Test func theWorktreeRowsAreSaidInSpanish() {
     let reply = ProjectWorktrees(main: .init(path: "/p/app", branch: nil), worktrees: [
-        .init(path: "/w/a", branch: "carrier/a", session: .init(id: "1", title: "Add retry"), lastActiveAt: ms(daysAgo: 3), state: .sessionOpen),
-        .init(path: "/w/b", branch: "carrier/b", session: .init(id: "2"), lastActiveAt: ms(daysAgo: 1), state: .merged),
-        .init(path: "/w/c", branch: nil, session: nil, lastActiveAt: ms(daysAgo: 0), state: .uncommitted),
-        .init(path: "/w/d", branch: "carrier/d", session: nil, lastActiveAt: ms(daysAgo: 12), state: .notPushed),
-        .init(path: "/w/e", branch: "carrier/e", session: nil, lastActiveAt: ms(daysAgo: 2), state: .clean),
+        .init(path: "/w/a", branch: "carrier/a", session: .init(id: "1", title: "Add retry"), lastActiveAt: ms(daysAgo: 3), activity: .sessionOpen, integration: .prOpen, pullRequest: .init(number: 7, url: "https://github.com/a/b/pull/7")),
+        .init(path: "/w/b", branch: "carrier/b", session: .init(id: "2"), lastActiveAt: ms(daysAgo: 1), integration: .merged, pullRequest: .init(number: 6, url: "https://github.com/a/b/pull/6")),
+        .init(path: "/w/c", branch: nil, session: nil, lastActiveAt: ms(daysAgo: 0), activity: .uncommitted, integration: .notPushed),
+        .init(path: "/w/d", branch: "carrier/d", session: nil, lastActiveAt: ms(daysAgo: 12), integration: .inMain),
+        .init(path: "/w/e", branch: "carrier/e", session: nil, lastActiveAt: ms(daysAgo: 2), integration: .prClosed),
+        .init(path: "/w/f", branch: "carrier/f", session: nil, lastActiveAt: ms(daysAgo: 2), integration: .pushed),
     ])
     let rows = worktreeRows(reply, now: now, format: utc, bundle: b, locale: l)
     #expect(rows[0].branch == "HEAD desacoplado" && rows[0].detail(bundle: b, locale: l) == "Clon principal")
-    #expect(rows.dropFirst().compactMap(\.state) == ["Sesión abierta", "Fusionado", "Cambios sin confirmar", "Sin subir", "Limpio"])
+    #expect(rows.dropFirst().map(\.activity) == ["Sesión abierta", nil, "Cambios sin confirmar", nil, nil, nil])
+    #expect(rows.dropFirst().compactMap(\.integration) == ["PR abierto", "Fusionado", "Sin subir", "En main", "PR cerrado", "Subido"])
     #expect(rows[2].session == "Sesión sin título" && rows[3].session == "Sin sesión" && rows[3].branch == "HEAD desacoplado")
     #expect(rows[1].detail(bundle: b, locale: l) == "Add retry · \(rows[1].age ?? "")")
-    #expect(rows.map { $0.removeBlockedBy(bundle: b, locale: l) } == [nil, "Su sesión está abierta", nil, nil, nil, nil])
+    #expect(rows.map { $0.removeBlockedBy(bundle: b, locale: l) } == [nil, "Su sesión está abierta", nil, nil, nil, nil, nil])
     #expect(worktreeOpenWords(bundle: b, locale: l) == "Su sesión está abierta")
 }
 
@@ -157,8 +159,8 @@ private func temporaryFolder() throws -> String {
         return try JSONDecoder().decode(ChatSession.self, from: Data(json.utf8))
     }
     let reply = ProjectWorktrees(main: .init(path: "/p/app", branch: "main", state: nil), worktrees: [
-        .init(path: "/w/x", branch: "carrier/x", session: .init(id: "9"), lastActiveAt: 0, state: .sessionOpen),
-        .init(path: "/w/y", branch: nil, session: .init(id: "8"), lastActiveAt: 0, state: .sessionOpen),
+        .init(path: "/w/x", branch: "carrier/x", session: .init(id: "9"), lastActiveAt: 0, activity: .sessionOpen, integration: .inMain),
+        .init(path: "/w/y", branch: nil, session: .init(id: "8"), lastActiveAt: 0, activity: .sessionOpen, integration: .inMain),
     ])
     let refused = projectDeletionCheck(
         path: "/p/app", reply: reply,
@@ -173,8 +175,8 @@ private func temporaryFolder() throws -> String {
     let unsaved = projectDeletionCheck(
         path: "/p/app",
         reply: ProjectWorktrees(main: .init(path: "/p/app", branch: "main", state: .notPushed), worktrees: [
-            .init(path: "/w/a", branch: "carrier/a", session: nil, lastActiveAt: 0, state: .uncommitted),
-            .init(path: "/w/b", branch: "carrier/b", session: nil, lastActiveAt: 0, state: .notPushed),
+            .init(path: "/w/a", branch: "carrier/a", session: nil, lastActiveAt: 0, activity: .uncommitted, integration: .pushed),
+            .init(path: "/w/b", branch: "carrier/b", session: nil, lastActiveAt: 0, integration: .notPushed),
         ]),
         sessions: [], bundle: b, locale: l
     )

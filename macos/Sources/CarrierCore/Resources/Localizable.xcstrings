@@ -42903,13 +42903,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Removes this worktree's folder; its branch and its session stay"
+            "value": "Remove this worktree's folder"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Quita la carpeta de este worktree; su rama y su sesión se quedan"
+            "value": "Quitar la carpeta de este worktree"
           }
         }
       }

@@ -38,8 +38,9 @@ extension ProjectDetailView {
                                 }
                             }
                             if item.hasRemove {
-                                Button { Task { await removeWorktree(item.id) } } label: { Label(Copy.projectsRemove(), icon: .trash) }
-                                    .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).fixedSize()
+                                // the trash alone: the tooltip and the label say what the icon does, so no word sits in the row
+                                Button { Task { await removeWorktree(item.id) } } label: { Glyph(.trash, size: 14).frame(width: 24, height: 24).contentShape(Rectangle()) }
+                                    .buttonStyle(HoverFillButtonStyle()).foregroundStyle(.secondary)
                                     .disabled(item.removeBlockedBy() != nil || removing.contains(item.id))
                                     .help(item.removeBlockedBy() ?? Copy.projectsRemoveWorktreeHelp())
                                     .accessibilityLabel(Copy.projectsRemoveWorktreeLabel(branch: item.branch))

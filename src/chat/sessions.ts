@@ -344,18 +344,28 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
   const sessionOpen: Reason = { code: 'worktree.sessionOpen', words: 'Its session is open' };
   /** What `projectWorktrees` reads of each worktree, with what removing it needs: its session's row and whether it is open. */
   type Entry = { worktree: ProjectWorktree; found: typeof sessions.$inferSelect | undefined; live: boolean; dirty: number };
-  const readProjectWorktrees = async (folder: string) => {
+  const readProjectWorktrees = async (folder: string, { refresh = false } = {}) => {
     const base = checkFolder(folder, carrierHome());
     const [main, ...linked] = await listWorktrees(git, base);
     const root = real(worktreesDir()) + sep;
-    const bySession = new Map(db.select().from(sessions).where(and(eq(sessions.workspaceKind, 'worktree'), isNull(sessions.parentSessionId))).all().map((found) => [real(found.worktreePath!), found]));
+    const sessionsByPath = () => new Map(db.select().from(sessions).where(and(eq(sessions.workspaceKind, 'worktree'), isNull(sessions.parentSessionId))).all().map((found) => [real(found.worktreePath!), found]));
+    const shown = linked.filter(({ path }) => existsSync(path) && real(path).startsWith(root));
+    if (refresh) {
+      // the pull requests the page is about to say, one request for all; without an answer the saved states are used
+      const known = sessionsByPath();
+      try {
+        await data.refresh(shown.flatMap(({ path }) => known.get(real(path)) ?? []));
+      } catch (error) {
+        log.warn('could not refresh the pull request states of a project page, the saved ones are shown', { folder: base, error: error instanceof Error ? error.message : String(error) });
+      }
+    }
+    const bySession = sessionsByPath();
     const entries: Entry[] = [];
     // the remote default branch, which `origin/HEAD` points at; with none (or one pointing at a branch that is not there) nothing is in main, the host does not guess `main`
     const remoteHead = await git.run(base, ['rev-parse', '--verify', '--quiet', 'refs/remotes/origin/HEAD^{commit}']);
     const remoteTip = remoteHead.ok ? remoteHead.out.trim() : null;
     // one worktree after another: each reads a few git processes, and this is one project's page opening
-    for (const { path, branch } of linked) {
-      if (existsSync(path) === false || real(path).startsWith(root) === false) continue;
+    for (const { path, branch } of shown) {
       const found = bySession.get(real(path));
       const family = found === undefined ? undefined : familyClock(found);
       const preview = await previewWorktree(git, { path, branch: branch ?? '', from: '', base }, branch === null ? [] : [branch]);
@@ -1857,9 +1867,10 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
      * is merged (so a squash merge is not "not pushed"), its HEAD is in the remote default branch (`origin/HEAD`, never guessed), it has commits no other branch holds
      * (a detached HEAD's commits that no branch holds), its pull request is open or draft, closed, else pushed. The main clone says only whether it has uncommitted changes, commits on its branch that no remote holds, or neither,
      * which is what the app reads before it moves a project to the Trash.
+     * It first refreshes, in one request, the saved state of the open or draft pull requests of these worktrees' sessions (archived ones too); with no answer from GitHub the saved state is used and the failure is logged.
      */
     async projectWorktrees({ folder }: { folder: string }): Promise<ProjectWorktrees> {
-      const { main, entries } = await readProjectWorktrees(folder);
+      const { main, entries } = await readProjectWorktrees(folder, { refresh: true });
       const unsaved = await previewMain(git, main.path, main.branch);
       return { main: { ...main, state: unsaved.dirty > 0 ? 'uncommitted' : unsaved.unpushed > 0 ? 'notPushed' : 'clean' }, worktrees: entries.map(({ worktree }) => worktree) };
     },
@@ -1879,7 +1890,7 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
      * With `run` it removes them (each one checked again just before) and answers what it removed and what it skipped.
      */
     async cleanProjectWorktrees({ folder, run }: { folder: string; run: boolean }) {
-      const { base, entries } = await readProjectWorktrees(folder);
+      const { base, entries } = await readProjectWorktrees(folder, { refresh: true });
       const removed: { path: string; bytes: number }[] = [];
       const skipped: { path: string; reason: string; code: string; params: TextParams }[] = [];
       for (const entry of entries.filter(({ found, worktree }) => found !== undefined && (worktree.integration === 'merged' || worktree.integration === 'inMain'))) {

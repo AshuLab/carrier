@@ -10,7 +10,8 @@ import { clearWorktree, createWorktree, previewWorktree, removeWorktree, restore
 import { openChatDatabase } from './db.ts';
 import { loadChatConfig } from './config.ts';
 import { FakeChatRunner, fakeProjects } from './fake.ts';
-import { createSessions } from './sessions.ts';
+import { createSessions, type ChatSessionsDeps } from './sessions.ts';
+import { pullRequestKey, type PullRequestInfo, type PullRequests } from './pull-requests.ts';
 import { sessions } from './schema.ts';
 import { eq } from 'drizzle-orm';
 import { FakeClock } from '../orchestration/fake.ts';
@@ -26,6 +27,27 @@ import { fetchFolder, inspectFolder } from './workspace.ts';
 //   CARRIER_IT_GIT=1
 // It also clones, fetches and aborts a clone through `cloneRepo`, with the GitHub URLs rewritten to local ones by a git config of its own (no network, no token).
 const enabled = process.env.CARRIER_IT_GIT === '1';
+
+const logged = vi.hoisted(() => [] as { level: string; args: unknown[] }[]);
+vi.mock('@ashulab/universal-logger', async (importOriginal) => {
+  const at = (level: string) => (...args: unknown[]) => void logged.push({ level, args });
+  return { ...(await importOriginal<object>()), createScopedLogger: () => ({ debug: at('debug'), info: at('info'), warn: at('warn'), error: at('error') }) };
+});
+
+/** GitHub as the host asks it for the states of pull requests: what it answers by `repo#number`, each request noted, or a failure. */
+class FakePulls implements PullRequests {
+  answers: Record<string, PullRequestInfo> = {};
+  asked: string[][] = [];
+  failure: Error | null = null;
+  async find() {
+    return null;
+  }
+  async states(refs: { repo: string; number: number }[]) {
+    this.asked.push(refs.map((ref) => pullRequestKey(ref.repo, ref.number)).sort());
+    if (this.failure !== null) throw this.failure;
+    return new Map(refs.flatMap((ref) => { const key = pullRequestKey(ref.repo, ref.number); return key in this.answers ? [[key, this.answers[key]!] as const] : []; }));
+  }
+}
 
 let dir: string;
 const git = (cwd: string, ...args: string[]) =>
@@ -596,7 +618,7 @@ describe.skipIf(!enabled)('the worktrees of a project, with the real git', () =>
   afterEach(() => void vi.unstubAllEnvs());
 
   const db = () => openChatDatabase(join(home, 'chat.db'));
-  const sessionsOf = (chatDb = db()) => createSessions({ db: chatDb, agents: [{ name: 'claude', account: 'claude' }], clock: new FakeClock(), runners: { claude: new FakeChatRunner() }, env: {}, git: realGit, projects: fakeProjects(realGit), binaryFound: () => true, ages: () => ({ archiveAfterDays: 15, deleteAfterDays: 30 }), onLiveChange: () => {} });
+  const sessionsOf = (chatDb = db(), extra: Partial<ChatSessionsDeps> = {}) => createSessions({ db: chatDb, agents: [{ name: 'claude', account: 'claude' }], clock: new FakeClock(), runners: { claude: new FakeChatRunner() }, env: {}, git: realGit, projects: fakeProjects(realGit), binaryFound: () => true, ages: () => ({ archiveAfterDays: 15, deleteAfterDays: 30 }), onLiveChange: () => {}, ...extra });
 
   test('lists the main clone and each worktree under the worktrees folder, joined to its session, with its activity and its integration, an orphan and a vanished folder left out', async () => {
     const chatDb = db();
@@ -783,6 +805,75 @@ describe.skipIf(!enabled)('the worktrees of a project, with the real git', () =>
     // the branches and the sessions stay
     expect(git(base, 'branch', '--list', 'carrier/done*', 'carrier/in-main').trim().split('\n').map((line) => line.trim()).sort()).toEqual(['carrier/done', 'carrier/done-too', 'carrier/in-main']);
     expect(chatDb.select().from(sessions).where(eq(sessions.id, made['in-main']!.id)).get()).toBeDefined();
+  });
+
+  describe('the pull request state is asked when the page opens', () => {
+    const merged = (number: number): PullRequestInfo => ({ number, url: `https://github.com/acme/app/pull/${number}`, state: 'merged', checks: null });
+    /** Sessions that saved their pull request with a state the sweep would not ask again yet (checked just now); `archive` ones are archived. */
+    const savedProject = async (saved: Record<string, 'open' | 'draft' | 'merged' | 'closed' | null>, archive: string[] = []) => {
+      const pulls = new FakePulls();
+      const clock = new FakeClock();
+      clock.time = 5_000;
+      const { chatDb, base, made } = await projectWith(Object.keys(saved));
+      const s = sessionsOf(chatDb, { pulls, clock });
+      let number = 40;
+      for (const [name, prState] of Object.entries(saved)) {
+        number += 1;
+        if (prState !== null) chatDb.update(sessions).set({ prState, prNumber: number, prUrl: `https://github.com/acme/app/pull/${number}`, prRepo: 'acme/app', prCheckedAt: clock.now() }).where(eq(sessions.id, made[name]!.id)).run();
+        if (archive.includes(name)) await s.archive({ sessionId: made[name]!.id, archived: true });
+      }
+      const stateOf = (name: string) => chatDb.select().from(sessions).where(eq(sessions.id, made[name]!.id)).get()!.prState;
+      return { chatDb, pulls, s, base, made, stateOf };
+    };
+    beforeEach(() => void (logged.length = 0));
+
+    test('an archived session saved as open whose pull request is merged is listed as merged, saved so, and the open and draft ones are asked in one request whatever the age of their state', async () => {
+      const { pulls, s, base, made, stateOf } = await savedProject({ gone: 'open', drafty: 'draft', still: 'open', done: 'merged', shut: 'closed', bare: null }, ['gone']);
+      pulls.answers['acme/app#41'] = merged(41);
+      const integrations = async () => Object.fromEntries((await s.projectWorktrees({ folder: base })).worktrees.map((entry) => [entry.session?.id, [entry.integration, entry.pullRequest?.number ?? null]]));
+      expect(await integrations()).toEqual({
+        [made['gone']!.id]: ['merged', 41],
+        [made['drafty']!.id]: ['prOpen', 42],
+        [made['still']!.id]: ['prOpen', 43],
+        [made['done']!.id]: ['merged', 44],
+        [made['shut']!.id]: ['prClosed', 45],
+        [made['bare']!.id]: ['pushed', null],
+      });
+      expect(pulls.asked).toEqual([['acme/app#41', 'acme/app#42', 'acme/app#43']]);
+      expect(stateOf('gone')).toBe('merged');
+      // asked again, so a state that changed later is seen when the page opens again, and the merged one is final and not asked
+      expect(await s.cleanProjectWorktrees({ folder: base, run: false })).toMatchObject({ removed: expect.arrayContaining([expect.objectContaining({ path: made['gone']!.path })]) });
+      expect(pulls.asked).toEqual([['acme/app#41', 'acme/app#42', 'acme/app#43'], ['acme/app#42', 'acme/app#43']]);
+    });
+
+    test('clean-up with and without run asks the open ones too, and takes the worktree whose pull request merged since it was saved', async () => {
+      const { pulls, s, base, made, stateOf } = await savedProject({ gone: 'open', kept: 'open' }, ['gone']);
+      pulls.answers['acme/app#41'] = merged(41);
+      expect((await s.cleanProjectWorktrees({ folder: base, run: false })).removed.map((entry) => entry.path)).toEqual([made['gone']!.path]);
+      expect(existsSync(made['gone']!.path)).toBe(true);
+      expect((await s.cleanProjectWorktrees({ folder: base, run: true })).removed.map((entry) => entry.path)).toEqual([made['gone']!.path]);
+      expect(existsSync(made['gone']!.path)).toBe(false);
+      expect(pulls.asked).toEqual([['acme/app#41', 'acme/app#42'], ['acme/app#42']]); // the merged one is final: the run asks only for what is still open
+      expect(stateOf('gone')).toBe('merged');
+    });
+
+    test('when GitHub cannot answer the saved state is shown, the listing succeeds and the failure is logged', async () => {
+      const { pulls, s, base, made, stateOf } = await savedProject({ gone: 'open' }, ['gone']);
+      pulls.failure = new Error('gh is not logged in');
+      const { worktrees } = await s.projectWorktrees({ folder: base });
+      expect(worktrees.map((entry) => [entry.session?.id, entry.integration])).toEqual([[made['gone']!.id, 'prOpen']]);
+      expect(stateOf('gone')).toBe('open');
+      expect(logged.filter(({ level }) => level === 'warn').map(({ args }) => JSON.stringify(args))).toEqual([expect.stringContaining('gh is not logged in')]);
+      expect(await s.cleanProjectWorktrees({ folder: base, run: false })).toEqual({ removed: [], skipped: [] });
+    });
+
+    test('a project with no session holding an open pull request makes no request', async () => {
+      const { pulls, s, base } = await savedProject({ done: 'merged', shut: 'closed', bare: null }, ['done']);
+      await s.projectWorktrees({ folder: base });
+      await s.cleanProjectWorktrees({ folder: base, run: false });
+      expect(pulls.asked).toEqual([]);
+      expect(logged.filter(({ level }) => level === 'warn')).toEqual([]);
+    });
   });
 
   test('a folder that is not a repository is refused in words', async () => {

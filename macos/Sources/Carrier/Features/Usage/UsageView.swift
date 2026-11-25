@@ -24,7 +24,7 @@ struct UsageView: View {
                 if tooOld {
                     Text(usageNeedsNewerHost).font(.scaled(12)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
-                if let problem = (tooOld ? nil : store.error?.text) ?? failure { ProblemLine(text: problem) }
+                if let problem = (tooOld ? nil : store.error?.shown()) ?? failure { ProblemLine(text: problem) }
                 if store.quotas.isEmpty, store.error == nil {
                     SettingsTabCard {
                         if store.isLoading {

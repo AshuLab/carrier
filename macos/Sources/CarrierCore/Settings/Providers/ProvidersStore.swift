@@ -99,7 +99,7 @@ import Observation
 
     /// What a failed request says: Carrier's own words for a refusal, a fixed sentence (the error goes to the log) for anything else.
     private func problem(_ error: Error, _ what: String) -> String {
-        if case ControlError.remote(let refusal) = error { return refusal.text }
+        if case ControlError.remote(let refusal) = error { return refusal.shown() }
         log("providers: could not \(what): \(error)")
         return "providers.json could not be written; the file stays as it was."
     }

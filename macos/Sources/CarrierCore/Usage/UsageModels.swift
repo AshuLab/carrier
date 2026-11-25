@@ -215,6 +215,11 @@ public struct UsageQuota: Decodable, Equatable {
     public let aiCreditsNotice: String?
     public let servers: [UsageServer]
 
+    /// `message` in the person's language: the copy of its code, else the host's words.
+    public func shownMessage(bundle: Bundle? = nil, locale: Locale = .current) -> String? {
+        message.map { shownText($0, code: messageCode, params: messageParams, bundle: bundle, locale: locale) }
+    }
+
     private enum CodingKeys: String, CodingKey {
         case account, displayName, provider, status, checkedAt, stale, windows, planType, message, messageCode, messageParams, extraUsage, credits, rateLimitResetCredits, aiCreditsNotice, servers
     }

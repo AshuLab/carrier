@@ -12,7 +12,7 @@ extension NewSessionModel {
                 try await read()
             }
         } catch {
-            log("new session: \(ConversationModel.words(error))")
+            log("new session: \(ConversationModel.refusal(error).text)")
         }
         pickAvailableAgent()
         if let plan = restoring {
@@ -143,7 +143,7 @@ extension NewSessionModel {
             agentCommands = listed.commands
         } catch {
             guard optionsAgent == name else { return }
-            log("new session: could not list the options of \(name): \(ConversationModel.words(error))")
+            log("new session: could not list the options of \(name): \(ConversationModel.refusal(error).text)")
             optionsAgent = nil  // asked again the next time
         }
         loadingOptions = false

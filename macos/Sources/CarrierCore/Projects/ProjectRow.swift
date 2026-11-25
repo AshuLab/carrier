@@ -98,7 +98,7 @@ public struct ProjectRow: Equatable, Identifiable, Sendable {
     public var line: String {
         switch clone?.state {
         case .cloning: clone?.progress ?? "Cloning…"
-        case .failed: clone?.error ?? "The clone failed"
+        case .failed: clone?.shownError() ?? "The clone failed"
         case nil: repo ?? path
         }
     }

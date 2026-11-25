@@ -140,8 +140,8 @@ public func failedTurnBanner(agent: String, error: String) -> FailureBanner {
 /// The banner of a refusal from `open`, `resume` or `send`: the host's own sentence, and for a provider that is not signed in the
 /// line that says where to sign in.
 public func refusalBanner(agent: String, reason: Refusal) -> FailureBanner {
-    if let hint = signInLine(refusal: reason) { return FailureBanner(title: "\(capitalized(agent)) isn't signed in", detail: reason.text, hint: hint) }
-    return FailureBanner(title: "\(capitalized(agent)) couldn't continue", detail: reason.text, hint: nil)
+    if let hint = signInLine(refusal: reason) { return FailureBanner(title: "\(capitalized(agent)) isn't signed in", detail: reason.shown(), hint: hint) }
+    return FailureBanner(title: "\(capitalized(agent)) couldn't continue", detail: reason.shown(), hint: nil)
 }
 
 /// Above the box of a session that is not live: sending to it resumes it.

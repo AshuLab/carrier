@@ -102,7 +102,7 @@ extension ProjectDetailView {
                 close()
             }
         } catch ControlError.remote(let refusal) {
-            deletionAsk = DeletionAsk(title: "\(row.name) was not deleted", message: refusal.text)
+            deletionAsk = DeletionAsk(title: "\(row.name) was not deleted", message: refusal.shown())
         } catch let error as ProjectTrashError {
             deletionAsk = DeletionAsk(title: "\(row.name) was not deleted", message: error.words)
         } catch {
@@ -119,7 +119,7 @@ extension ProjectDetailView {
             // measuring what Clean up takes walks the folders, so only a project with a merged worktree asks
             cleanup = listed.worktrees.contains { $0.state == .merged } ? try? await model.cleanUpWorktrees(of: row.path, run: false) : nil
         } catch ControlError.remote(let refusal) {
-            worktreesProblem = refusal.text
+            worktreesProblem = refusal.shown()
         } catch {
             worktreesProblem = "The chat host did not answer."
         }
@@ -134,7 +134,7 @@ extension ProjectDetailView {
             removeProblems[path] = nil
             cleanUpNote = nil
         } catch ControlError.remote(let refusal) {
-            removeProblems[path] = refusal.text
+            removeProblems[path] = refusal.shown()
         } catch {
             removeProblems[path] = "The chat host did not answer."
         }
@@ -151,7 +151,7 @@ extension ProjectDetailView {
             cleanUpNote = cleanUpReport(try await model.cleanUpWorktrees(of: row.path, run: true))
             removeProblems = [:]
         } catch ControlError.remote(let refusal) {
-            cleanUpNote = refusal.text
+            cleanUpNote = refusal.shown()
         } catch {
             cleanUpNote = "The chat host did not answer."
         }

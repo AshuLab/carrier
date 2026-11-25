@@ -125,7 +125,7 @@ public func reloadWords(_ outcome: ReloadOutcome) -> String? {
     switch outcome {
     // an older Carrier that cannot reload reads the file when it starts: nothing to tell, the next Carrier applies it live
     case .applied, .nobody, .unsupported: nil
-    case .refused(let problem): "Saved, but Carrier kept its settings: \(problem.text)"
+    case .refused(let problem): "Saved, but Carrier kept its settings: \(problem.shown())"
     case .noAnswer: "Saved, but Carrier did not answer: it may not have applied it."
     }
 }

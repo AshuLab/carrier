@@ -1153,7 +1153,7 @@ private func listed(_ id: String, _ stage: String) -> ChatSession {
     host.active = [listed(opened, "answered")]
     await settle { model.watchNotes[opened] != nil }
     #expect(configRepoNames(json: config.json ?? Data()) == ["acme/web", "AshuLab/carrier"])
-    #expect(model.watchNotes[opened] == WatchNote(text: "AshuLab/carrier was added to Carrier's list, but Carrier kept its settings: repos.1.name: bad", failed: true))
+    #expect(model.watchNotes[opened] == WatchNote(text: "AshuLab/carrier was added to Carrier's list, but Carrier kept its settings: \(Copy.text("config.invalid") ?? "")", failed: true))
 }
 
 @MainActor @Test func withNoEngineToAskTheNoteSaysItIsReadAtStartAndWithOneThatDidNotAnswerItSaysSo() async {

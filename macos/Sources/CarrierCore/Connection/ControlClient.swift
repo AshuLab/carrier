@@ -14,7 +14,7 @@ public enum ProtocolMatch: Equatable {
     case match, carrierOlder, appOlder
 
     /// What to tell the person when the protocols differ: which side to update and with which command; nil when they match.
-    public var update: String? { refusal?.text }
+    public var update: String? { refusal?.shown() }
 
     /// The same, with its code.
     var refusal: Refusal? {

@@ -145,6 +145,9 @@ public struct ProjectCleanup: Decodable, Equatable, Sendable {
             self.code = code
             self.params = params
         }
+
+        /// The reason in the person's language: the copy of its code, else its words.
+        public func shownReason(bundle: Bundle? = nil, locale: Locale = .current) -> String { shownText(reason, code: code, params: params, bundle: bundle, locale: locale) }
     }
 
     public let removed: [Removed]
@@ -170,6 +173,6 @@ public func cleanUpWords(_ cleanup: ProjectCleanup) -> String? {
 public func cleanUpReport(_ cleanup: ProjectCleanup) -> String {
     var lines: [String] = []
     if let taken = cleanUpWords(cleanup) { lines.append("Removed \(taken). Their branches and sessions stay.") }
-    for skip in cleanup.skipped { lines.append("Skipped \((skip.path as NSString).lastPathComponent): \(skip.reason).") }
+    for skip in cleanup.skipped { lines.append("Skipped \((skip.path as NSString).lastPathComponent): \(skip.shownReason()).") }
     return lines.isEmpty ? "Nothing to clean up." : lines.joined(separator: "\n")
 }

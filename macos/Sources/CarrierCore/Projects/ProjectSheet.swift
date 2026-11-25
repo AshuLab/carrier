@@ -230,7 +230,7 @@ public struct NewProjectForm: Equatable, Sendable {
     /// folder (`taken` says whether a folder or a project is). nil while nothing is typed and when the name can be used; the host checks both again.
     public func problem(taken: (String) -> Bool) -> String? {
         guard name.isEmpty == false else { return nil }
-        if let refusal = projectNameProblem(name) { return refusal.text }
+        if let refusal = projectNameProblem(name) { return refusal.shown() }
         return taken(folder) ? "\(name) is already a project; choose another name" : nil
     }
 

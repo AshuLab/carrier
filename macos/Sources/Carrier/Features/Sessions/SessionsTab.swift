@@ -194,7 +194,7 @@ struct SessionsTabView: View {
     }
 
     private static func words(_ error: Error) -> String {
-        if case ControlError.remote(let refusal) = error { return refusal.text }
+        if case ControlError.remote(let refusal) = error { return refusal.shown() }
         return "Could not save chat.json: \(error.localizedDescription)"
     }
 }

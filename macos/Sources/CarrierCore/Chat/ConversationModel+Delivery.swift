@@ -106,7 +106,7 @@ extension ConversationModel {
         return refusal
     }
 
-    nonisolated static func words(_ error: Error) -> String { refusal(error).text }
+    nonisolated static func words(_ error: Error) -> String { refusal(error).shown() }
 
     nonisolated static func refusal(_ error: Error) -> Refusal {
         switch error {

@@ -124,7 +124,7 @@ extension NewSessionModel {
             let note = addedRepoNote(repo, outcome: reply.outcome)
             watchNotes[id] = WatchNote(text: note.text, failed: note.failed)
         } catch ControlError.remote(let refusal) {
-            failed(refusal.text)
+            failed(refusal.shown())
         } catch {
             log("new session: could not change the config: \(error)")
             failed("the config file could not be saved")

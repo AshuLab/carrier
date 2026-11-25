@@ -71,7 +71,7 @@ private func group(_ rows: [FeedRow]) -> ToolGroup {
     let refused = refusalBanner(agent: "codex", reason: .words("The agent is still answering"))
     #expect(refused == FailureBanner(title: "Codex couldn't continue", detail: "The agent is still answering", hint: nil))
     let signedOut = refusalBanner(agent: "claude", reason: Refusal(code: "agent.notLoggedIn", params: ["agent": "claude"], text: "Claude is not logged in; run \"claude\" once to log in"))
-    #expect(signedOut.title == "Claude isn't signed in" && signedOut.detail == "Claude is not logged in; run \"claude\" once to log in")
+    #expect(signedOut.title == "Claude isn't signed in" && signedOut.detail == Copy.text("agent.notLoggedIn", ["agent": "claude"]))
     #expect(signedOut.hint == "Sign in from a terminal; Carrier never asks for your password")
 }
 

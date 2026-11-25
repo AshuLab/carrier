@@ -164,9 +164,9 @@ func groupedChecks(_ checks: [DoctorCheck]) -> [HealthRow] {
     return order.map { found in
         let group = members[found]!
         let mark: HealthRow.Mark = group.contains { $0.status == .fail } ? .problem : group.contains { $0.status == .warn } ? .warning : .ok
-        let fix = group.first { $0.fix != nil && $0.status != .ok }?.fix
+        let fix = group.first { $0.fix != nil && $0.status != .ok }?.shownFix()
         if case .single = found, let only = group.first {
-            return HealthRow(title: only.name, mark: mark, detail: only.detail ?? "", fix: only.fix)
+            return HealthRow(title: only.name, mark: mark, detail: only.shownDetail() ?? "", fix: only.shownFix())
         }
         let title: String
         var covers: String
@@ -185,7 +185,7 @@ func groupedChecks(_ checks: [DoctorCheck]) -> [HealthRow] {
             covers = "\(repos) \(repos == 1 ? "repository" : "repositories"), \(identities) \(identities == 1 ? "identity" : "identities")"
         }
         if mark == .ok { return HealthRow(title: title, mark: mark, detail: covers) }
-        let bad = group.filter { $0.status != .ok }.map { "\($0.name)\($0.detail.map { ": \($0)" } ?? "")" }
+        let bad = group.filter { $0.status != .ok }.map { "\($0.name)\($0.shownDetail().map { ": \($0)" } ?? "")" }
         return HealthRow(title: title, mark: mark, detail: "\(bad.count) of \(group.count) not ok\n" + bad.joined(separator: "\n"), fix: fix)
     }
 }

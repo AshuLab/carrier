@@ -60,6 +60,11 @@ public struct ProjectClone: Decodable, Equatable, Identifiable, Sendable {
 
     public var id: String { repo.lowercased() }
 
+    /// Why a failed clone failed in the person's language: the copy of its code, else the host's words; nil when there is none.
+    public func shownError(bundle: Bundle? = nil, locale: Locale = .current) -> String? {
+        error.map { shownText($0, code: code, params: params, bundle: bundle, locale: locale) }
+    }
+
     public init(repo: String, folder: String, state: State, progress: String? = nil, error: String? = nil, code: String? = nil, params: [String: TextParam]? = nil) {
         self.repo = repo
         self.folder = folder

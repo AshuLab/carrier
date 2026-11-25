@@ -97,7 +97,7 @@ extension AddProjectSheet {
                 dismiss()
                 openProject(folder)
             } catch ControlError.remote(let refusal) {
-                problem = refusal.text
+                problem = refusal.shown()
             } catch {
                 problem = hostNotRunning
             }
@@ -116,7 +116,7 @@ extension AddProjectSheet {
         panel.message = "Choose the folder the new project is made in"
         guard panel.runModal() == .OK, let url = panel.url else { return }
         if let refusal = projectsFolderRefusal(url.path, carrierFolder: currentCarrierFolder()) {
-            problem = refusal.text
+            problem = refusal.shown()
             return
         }
         problem = nil

@@ -121,7 +121,7 @@ public func chatFeed(_ events: [ChatEvent], streaming: String = "", pending: Set
             // said by the host (a resume that began a new conversation): a plain line, never the banner of a failed turn; a change of agent is its own row
             release()
             if let switched = event.switched { rows.append(.switched(id: id, switched)) }
-            else if let text = event.text { rows.append(.line(id: id, text: text)) }
+            else if let text = event.shown(event.text) { rows.append(.line(id: id, text: text)) }
         default:
             continue
         }

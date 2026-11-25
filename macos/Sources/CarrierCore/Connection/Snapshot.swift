@@ -194,6 +194,11 @@ public struct PanelEpic: Codable, Equatable, Sendable {
     /// The text code of `needsHumanReason` and its parameters; absent on an engine that predates the codes, which has the words only.
     public var needsHumanCode: String?
     public var needsHumanParams: [String: TextParam]?
+
+    /// `needsHumanReason` in the person's language: the copy of its code, else the engine's words.
+    public func shownNeedsHumanReason(bundle: Bundle? = nil, locale: Locale = .current) -> String? {
+        needsHumanReason.map { shownText($0, code: needsHumanCode, params: needsHumanParams, bundle: bundle, locale: locale) }
+    }
 }
 
 /// Why a snapshot did not decode; `field` is the path of the offending value, like `epics.0.slices.total`.

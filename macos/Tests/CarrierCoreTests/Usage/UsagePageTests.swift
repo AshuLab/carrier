@@ -46,15 +46,15 @@ private func window(_ used: Double, resetsAt: Int? = nil, label: String = "5h", 
 }
 
 @Test func aResetIsCountedDownOrSaidInTheProvidersWords() {
-    #expect(resetText(resetsAt: now + 8_040_000, label: nil, now: now) == "Resets in 2h 14m")
-    #expect(resetText(resetsAt: now - 1, label: "in 3 hours", now: now) == nil)
-    #expect(resetText(resetsAt: nil, label: "in 3 hours", now: now) == "in 3 hours")
+    #expect(resetText(resetsAt: now + 8_040_000, label: nil, now: now, bundle: english.bundle, locale: english.locale) == "Resets in 2h 14m")
+    #expect(resetText(resetsAt: now - 1, label: "in 3 hours", now: now, bundle: english.bundle, locale: english.locale) == nil)
+    #expect(resetText(resetsAt: nil, label: "in 3 hours", now: now, bundle: english.bundle, locale: english.locale) == "in 3 hours")
 }
 
 // MARK: rows
 
 @Test func theListHasTheFourProvidersInOrderAndPoolsTheirMeters() throws {
-    let providers = usageProviders(try snapshot().quotas, now: now)
+    let providers = usageProviders(try snapshot().quotas, now: now, bundle: english.bundle, locale: english.locale)
     #expect(providers.map(\.title) == ["Claude", "Codex", "Antigravity", "Local Servers"])
     let claude = providers[0]
     // the 5h and Weekly of the signed-in account only: the signed-out one has none, and the Opus window is a row of the drawer
@@ -68,7 +68,7 @@ private func window(_ used: Double, resetsAt: Int? = nil, label: String = "5h", 
 }
 
 @Test func aStaleProviderIsMarkedAndKeepsItsNumbers() throws {
-    let codex = usageProviders(try snapshot().quotas, now: now)[1]
+    let codex = usageProviders(try snapshot().quotas, now: now, bundle: english.bundle, locale: english.locale)[1]
     #expect(codex.stale && codex.mark == .warning && codex.subtitle == "Rate limited")
     // the Spark window has its own row: the main 5h is the primary one only
     #expect(codex.meters[0].shape.used == 0.87)
@@ -76,7 +76,7 @@ private func window(_ used: Double, resetsAt: Int? = nil, label: String = "5h", 
 }
 
 @Test func claudesDrawerHasEveryWindowItsSpendAndASignInForASignedOutAccount() throws {
-    let accounts = usageProviders(try snapshot().quotas, now: now)[0].accounts
+    let accounts = usageProviders(try snapshot().quotas, now: now, bundle: english.bundle, locale: english.locale)[0].accounts
     let personal = accounts[0]
     #expect(personal.title == "Personal" && personal.status == "Max plan" && personal.note == nil && personal.canSignIn == false)
     #expect(personal.lines.map(\.title) == ["5h", "Weekly", "By model", "Opus weekly", "Extra usage"])
@@ -86,28 +86,28 @@ private func window(_ used: Double, resetsAt: Int? = nil, label: String = "5h", 
 }
 
 @Test func codexDrawerHasItsLimitsCreditsAndResetCredits() throws {
-    let codex = usageProviders(try snapshot().quotas, now: now)[1].accounts[0]
+    let codex = usageProviders(try snapshot().quotas, now: now, bundle: english.bundle, locale: english.locale)[1].accounts[0]
     #expect(codex.status == "Rate limited")
     #expect(codex.lines.map(\.title) == ["5h", "Weekly", "Other limits", "Spark 5h", "Credits", "Reset credits"])
     #expect(codex.lines[3].reset == "in 3 hours" && codex.lines[4].value == "12.50" && codex.lines[5].value == "1 available")
 }
 
 @Test func antigravityDrawerHasAllItsPoolsAndTheCreditsNotice() throws {
-    let lines = usageProviders(try snapshot().quotas, now: now)[2].accounts[0].lines
+    let lines = usageProviders(try snapshot().quotas, now: now, bundle: english.bundle, locale: english.locale)[2].accounts[0].lines
     #expect(lines.filter(\.heading).map(\.title) == ["Gemini Models", "Claude and GPT models", "Gemini 4 Argon"])
     #expect(lines.filter { $0.shape != nil }.count == 6 && lines.last?.title == "AI credits: Unavailable via native CLI")
 }
 
 @Test func localDrawerHasTheServersTheirModelsAndTheCost() throws {
-    let lines = usageProviders(try snapshot().quotas, now: now)[3].accounts[0].lines
+    let lines = usageProviders(try snapshot().quotas, now: now, bundle: english.bundle, locale: english.locale)[3].accounts[0].lines
     #expect(lines.map(\.title) == ["LM Studio", "Ollama", "$0 local compute"])
     #expect(lines[0].value == "Not running" && lines[1].value == "Ready" && lines[1].detail == "localhost:11434 · Loaded: qwen3:8b, llama3.2:3b")
 }
 
 @Test func anUnknownProviderAndAHostWithNoQuotasGiveNoRows() throws {
-    #expect(usageProviders([], now: now).isEmpty)
+    #expect(usageProviders([], now: now, bundle: english.bundle, locale: english.locale).isEmpty)
     let odd = try JSONDecoder().decode(UsageSnapshot.self, from: Data(#"{"summary":{},"quotas":[{"account":"x","provider":"newcomer","status":"ok"}]}"#.utf8))
-    #expect(usageProviders(odd.quotas, now: now).isEmpty)
+    #expect(usageProviders(odd.quotas, now: now, bundle: english.bundle, locale: english.locale).isEmpty)
 }
 
 // MARK: filter
@@ -261,4 +261,51 @@ private final class Ticks: @unchecked Sendable {
     await refresher.setAttentive(true)?.value
     #expect(refresher.isTimerRunning && host.queries.count == 3)
     refresher.disappear()
+}
+
+// MARK: words of the drawers and the rows, in English
+
+private func provider(_ json: String) throws -> UsageProviderRow {
+    let quota = try JSONDecoder().decode(UsageQuota.self, from: Data(json.utf8))
+    return try #require(usageProviders([quota], now: now, bundle: english.bundle, locale: english.locale).first)
+}
+
+@Test func everyStatusAQuotaCanHaveIsSaid() throws {
+    func status(_ json: String) throws -> String { try provider(#"{"account":"x","provider":"claude",\#(json)}"#).accounts[0].status }
+    #expect(try status(#""status":"ok""#) == "Ready" && status(#""status":"ok","stale":true"#) == "Last known numbers")
+    #expect(try status(#""status":"ok","planType":"pro""#) == "Pro plan")
+    #expect(try status(#""status":"signed_out""#) == "Signed out" && status(#""status":"missing""#) == "Not set up")
+    #expect(try status(#""status":"unavailable""#) == "Unavailable" && status(#""status":"rate_limited""#) == "Rate limited")
+    #expect(try status(#""status":"error""#) == "Check failed")
+}
+
+@Test func severalAccountsAreCountedAndTheOneThatNeedsALookIsNamed() throws {
+    func accounts(_ other: String) throws -> String {
+        let quotas = [#"{"account":"a","provider":"codex","status":"ok"}"#, #"{"account":"b","provider":"codex","status":"\#(other)"}"#]
+            .map { try! JSONDecoder().decode(UsageQuota.self, from: Data($0.utf8)) }
+        return usageProviders(quotas, now: now, bundle: english.bundle, locale: english.locale)[0].subtitle
+    }
+    #expect(try accounts("ok") == "2 accounts" && accounts("signed_out") == "2 accounts · signed out")
+    #expect(Copy.usageAccounts(count: 1, bundle: english.bundle, locale: english.locale) == "1 account")
+}
+
+@Test func theExtraUsageAndTheCreditsOfADrawerSayOnOffAndWhatIsSpent() throws {
+    func values(_ fields: String) throws -> [String?] {
+        try provider(#"{"account":"x","provider":"codex","status":"ok",\#(fields)}"#).accounts[0].lines.map(\.value)
+    }
+    #expect(try values(#""extraUsage":{"isEnabled":false}"#) == ["Off"] && values(#""extraUsage":{"isEnabled":true}"#) == ["On"])
+    #expect(try values(#""extraUsage":{"isEnabled":true,"usedCreditsUsd":3,"monthlyLimitUsd":1234.5}"#) == ["$3.00 of $1234.50 a month"])
+    #expect(try values(#""credits":{"unlimited":true},"rateLimitResetCredits":{"availableCount":2}"#) == ["Unlimited", "2 available"])
+    #expect(try values(#""credits":{"hasCredits":true}"#) == ["Available"] && values(#""credits":{"hasCredits":false}"#) == ["None"])
+}
+
+@Test func aLocalServerIsReadyOrNotAndSaysWhichModelsItHas() throws {
+    let lines = try provider(#"{"account":"local","provider":"local","status":"ok","servers":[{"kind":"ollama","running":true},{"kind":"lmstudio","running":false}]}"#)
+    #expect(lines.accounts[0].title == "Local servers" && lines.title == "Local Servers")
+    let rows = lines.accounts[0].lines
+    #expect(rows.map(\.ready) == [true, false, false] && rows[0].detail == "localhost:11434 · No model loaded" && rows[1].value == "Not running")
+}
+
+@Test func windowsAreNamedInEnglish() {
+    #expect([QuotaKind.fiveHour, .weekly, .monthly].map { $0.title(bundle: english.bundle, locale: english.locale) } == ["5h", "Weekly", "Monthly"])
 }

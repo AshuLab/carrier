@@ -62,7 +62,7 @@ private func golden() throws -> UsageSnapshot { try JSONDecoder().decode(UsageSn
 // MARK: cards
 
 @Test func theFourCardsSayWhatWasSpentAndWhatIsMissing() throws {
-    let kpis = usageKpis(try golden())
+    let kpis = usageKpis(try golden(), bundle: english.bundle, locale: english.locale)
     #expect(kpis.map(\.title) == ["Est. API Cost", "Total Tokens", "Local Compute", "Active Epics / Chats"])
     #expect(kpis[0].value == "$46.82" && kpis[0].footnote == "1 unpriced model is not counted")
     // input + cache read + cache write + output; reasoning is a part of output
@@ -73,7 +73,7 @@ private func golden() throws -> UsageSnapshot { try JSONDecoder().decode(UsageSn
 
 @Test func cardsOfAnEmptyHistoryAreQuiet() throws {
     let empty = try JSONDecoder().decode(UsageSnapshot.self, from: Data(#"{"summary":{}}"#.utf8))
-    let kpis = usageKpis(empty)
+    let kpis = usageKpis(empty, bundle: english.bundle, locale: english.locale)
     #expect(kpis[0].value == "$0.00" && kpis[0].footnote == nil)
     #expect(kpis[1].value == "0" && kpis[2].footnote == "No local models used" && kpis[3].value == "—")
     let full = try golden()
@@ -81,8 +81,8 @@ private func golden() throws -> UsageSnapshot { try JSONDecoder().decode(UsageSn
 }
 
 @Test func countsAndMoneyAreShort() {
-    #expect([0, 999, 1_000, 1_840_000, 21_400_000, 3_200_000_000].map(usageCount) == ["0", "999", "1K", "1.8M", "21.4M", "3.2B"])
-    #expect(usageMoney(0) == "$0.00" && usageMoney(0.001) == "<$0.01" && usageMoney(46.8) == "$46.80")
+    #expect([0, 999, 1_000, 1_840_000, 21_400_000, 3_200_000_000].map { usageCount($0, bundle: english.bundle, locale: english.locale) } == ["0", "999", "1K", "1.8M", "21.4M", "3.2B"])
+    #expect(usageMoney(0, locale: english.locale) == "$0.00" && usageMoney(0.001, locale: english.locale) == "<$0.01" && usageMoney(46.8, locale: english.locale) == "$46.80")
 }
 
 // MARK: chart
@@ -102,8 +102,8 @@ private func golden() throws -> UsageSnapshot { try JSONDecoder().decode(UsageSn
 @Test func theChartKnowsItsWeekendsAndTheNumbersAreGrouped() throws {
     // 2026-11-07 is a Saturday
     #expect(usageBars(try golden(), metric: .cost).map(\.weekend) == [true, true, false, false, false, false, false])
-    #expect(usageGrouped(1_234_567) == "1,234,567" && usageGrouped(999) == "999")
-    #expect(usageMoney(1234.5) == "$1,234.50" && usageMoney(31.2) == "$31.20" && usageMoney(0.001) == "<$0.01")
+    #expect(usageGrouped(1_234_567, locale: english.locale) == "1,234,567" && usageGrouped(999, locale: english.locale) == "999")
+    #expect(usageMoney(1234.5, locale: english.locale) == "$1,234.50" && usageMoney(31.2, locale: english.locale) == "$31.20" && usageMoney(0.001, locale: english.locale) == "<$0.01")
 }
 
 @Test func aDrawerGroupsItsRowsUnderTheirHeadings() {
@@ -124,12 +124,12 @@ private func golden() throws -> UsageSnapshot { try JSONDecoder().decode(UsageSn
 
 @Test func theTooltipOfADaySaysEachProviderAndTheTotal() throws {
     let snapshot = try golden()
-    let cost = usageTooltip(usageBars(snapshot, metric: .cost)[0], metric: .cost)
+    let cost = usageTooltip(usageBars(snapshot, metric: .cost)[0], metric: .cost, bundle: english.bundle, locale: english.locale)
     #expect(cost.title == "Nov 7" && cost.weekday == "Saturday" && cost.lines.map(\.provider) == ["Claude", "Codex", "Antigravity"] && cost.total == "$3.10")
     #expect(cost.lines[1].value == "$0.93")
-    let tokens = usageTooltip(usageBars(snapshot, metric: .tokens)[6], metric: .tokens)
+    let tokens = usageTooltip(usageBars(snapshot, metric: .tokens)[6], metric: .tokens, bundle: english.bundle, locale: english.locale)
     #expect(tokens.lines.map(\.provider) == ["Claude", "Codex", "Antigravity", "Local"] && tokens.total == "3.6M")
-    #expect(usageTooltip(usageBars(snapshot, metric: .cost)[3], metric: .cost) == UsageTooltip(title: "Nov 10", weekday: "Tuesday", lines: [], total: "$0.00"))
+    #expect(usageTooltip(usageBars(snapshot, metric: .cost)[3], metric: .cost, bundle: english.bundle, locale: english.locale) == UsageTooltip(title: "Nov 10", weekday: "Tuesday", lines: [], total: "$0.00"))
 }
 
 @Test func aHostWithoutTheProviderSplitStillDecodes() throws {
@@ -141,7 +141,7 @@ private func golden() throws -> UsageSnapshot { try JSONDecoder().decode(UsageSn
 // MARK: tables
 
 @Test func theModelTableMarksWhatNeedsAPrice() throws {
-    let rows = usageModelRows(try golden())
+    let rows = usageModelRows(try golden(), bundle: english.bundle, locale: english.locale)
     #expect(rows.map(\.model) == ["claude-opus-4-5", "gpt-5-codex", "gemini-4-argon", "my-agent-model", "qwen3:8b"])
     #expect(rows[0].detail == "900K in · 12.6M cache · 380K out" && rows[0].cost == "$31.20")
     // unpriced: no cost at all (it is not $0.00), and the row offers the mapping
@@ -151,7 +151,7 @@ private func golden() throws -> UsageSnapshot { try JSONDecoder().decode(UsageSn
 }
 
 @Test func theWorkspaceTableGroupsByRepoOrFolderAndSource() throws {
-    let rows = usageWorkspaceRows(try golden())
+    let rows = usageWorkspaceRows(try golden(), bundle: english.bundle, locale: english.locale)
     #expect(rows.map(\.source) == ["Epic", "Chat", "External"])
     #expect(rows.map(\.name) == ["acme/web", "Projects/web", "Projects/scratch"])
     #expect(rows[1].path == "/Users/demo/Projects/web" && rows[0].cost == "$28.40" && rows[0].detail == "15M tokens · 190 turns")
@@ -159,24 +159,24 @@ private func golden() throws -> UsageSnapshot { try JSONDecoder().decode(UsageSn
 
 @Test func theWorkspaceTableListsTheTopAndTotalsTheWholeRange() throws {
     let snapshot = try golden()
-    #expect(usageWorkspaceRows(snapshot, limit: 2).count == 2)
-    #expect(usageWorkspaceTotal(snapshot).name == "Total · 3 workspaces")
-    #expect(usageWorkspaceTotal(snapshot, limit: 2).name == "Total · 3 workspaces, top 2 by tokens")
+    #expect(usageWorkspaceRows(snapshot, limit: 2, bundle: english.bundle, locale: english.locale).count == 2)
+    #expect(usageWorkspaceTotal(snapshot, bundle: english.bundle, locale: english.locale).name == "Total · 3 workspaces")
+    #expect(usageWorkspaceTotal(snapshot, limit: 2, bundle: english.bundle, locale: english.locale).name == "Total · 3 workspaces, top 2 by tokens")
     // the total is the range's, not the sum of the rows listed
-    #expect(usageWorkspaceTotal(snapshot, limit: 2).cost == usageMoney(snapshot.summary.costUsd))
+    #expect(usageWorkspaceTotal(snapshot, limit: 2, bundle: english.bundle, locale: english.locale).cost == usageMoney(snapshot.summary.costUsd, locale: english.locale))
 }
 
 @Test func theWorkspaceTableListsTheMostTokensFirst() throws {
     let tokens = try golden().byWorkspace.map { usageTokenTotal($0.row.tokens) }.sorted(by: >)
-    let rows = usageWorkspaceRows(try golden())
+    let rows = usageWorkspaceRows(try golden(), bundle: english.bundle, locale: english.locale)
     #expect(rows.count == tokens.count)
-    #expect(rows.first?.detail.hasPrefix(usageCount(tokens[0])) == true)
+    #expect(rows.first?.detail.hasPrefix(usageCount(tokens[0], bundle: english.bundle, locale: english.locale)) == true)
 }
 
 @Test func theModelTableTotalsTheRangeAndSaysWhatIsLeftOut() throws {
-    let total = usageModelTotal(try golden())
+    let total = usageModelTotal(try golden(), bundle: english.bundle, locale: english.locale)
     #expect(total.model == "Total · 5 models, 1 unpriced not counted")
-    #expect(total.cost == usageMoney(try golden().summary.costUsd))
+    #expect(total.cost == usageMoney(try golden().summary.costUsd, locale: english.locale))
 }
 
 // MARK: override form
@@ -184,32 +184,32 @@ private func golden() throws -> UsageSnapshot { try JSONDecoder().decode(UsageSn
 private let catalog = ["claude-opus-4-5", "gpt-5-codex"]
 
 @Test func localAndClearNeedNothingElse() {
-    #expect(UsageOverrideDraft(mode: .local).check(model: "m", catalog: catalog).override == UsageOverride(model: "m", action: .local))
-    #expect(UsageOverrideDraft(mode: .clear).check(model: "m", catalog: catalog).override == UsageOverride(model: "m", action: .clear))
+    #expect(UsageOverrideDraft(mode: .local).check(model: "m", catalog: catalog, bundle: english.bundle, locale: english.locale).override == UsageOverride(model: "m", action: .local))
+    #expect(UsageOverrideDraft(mode: .clear).check(model: "m", catalog: catalog, bundle: english.bundle, locale: english.locale).override == UsageOverride(model: "m", action: .clear))
 }
 
 @Test func anAliasMustBeAModelOfTheCatalog() {
     var draft = UsageOverrideDraft(mode: .alias)
-    #expect(draft.check(model: "m", catalog: catalog).errors == [.alias: "Choose a model"])
+    #expect(draft.check(model: "m", catalog: catalog, bundle: english.bundle, locale: english.locale).errors == [.alias: "Choose a model"])
     draft.alias = "gpt-6"
-    #expect(draft.check(model: "m", catalog: catalog).errors == [.alias: "Not a model of the price table"])
+    #expect(draft.check(model: "m", catalog: catalog, bundle: english.bundle, locale: english.locale).errors == [.alias: "Not a model of the price table"])
     draft.alias = " gpt-5-codex "
-    #expect(draft.check(model: "m", catalog: catalog).override == UsageOverride(model: "m", action: .alias("gpt-5-codex")))
+    #expect(draft.check(model: "m", catalog: catalog, bundle: english.bundle, locale: english.locale).override == UsageOverride(model: "m", action: .alias("gpt-5-codex")))
 }
 
 @Test func customRatesNeedInputAndOutputAndNothingNegativeOrInfinite() {
     var draft = UsageOverrideDraft(mode: .custom)
-    #expect(draft.check(model: "m", catalog: catalog).errors == [.input: "Required", .output: "Required"])
+    #expect(draft.check(model: "m", catalog: catalog, bundle: english.bundle, locale: english.locale).errors == [.input: "Required", .output: "Required"])
     draft.input = "-1"
     draft.output = "abc"
     draft.cachedInput = "1e999"
     draft.cacheWrite = "20000"
-    let bad = draft.check(model: "m", catalog: catalog)
+    let bad = draft.check(model: "m", catalog: catalog, bundle: english.bundle, locale: english.locale)
     #expect(bad.override == nil)
     #expect(bad.errors == [.input: "Cannot be negative", .output: "Enter a number, like 1.25", .cachedInput: "Enter a number, like 1.25", .cacheWrite: "At most 10,000"])
     for text in ["nan", "inf", "-inf"] {
         draft.output = text
-        #expect(draft.check(model: "m", catalog: catalog).errors[.output] != nil)
+        #expect(draft.check(model: "m", catalog: catalog, bundle: english.bundle, locale: english.locale).errors[.output] != nil)
     }
 }
 
@@ -217,15 +217,37 @@ private let catalog = ["claude-opus-4-5", "gpt-5-codex"]
     var draft = UsageOverrideDraft(mode: .custom)
     draft.input = "1.5"
     draft.output = " 6 "
-    #expect(draft.check(model: "m", catalog: catalog).override == UsageOverride(model: "m", action: .rates(input: 1.5, cachedInput: nil, cacheWrite: nil, output: 6)))
+    #expect(draft.check(model: "m", catalog: catalog, bundle: english.bundle, locale: english.locale).override == UsageOverride(model: "m", action: .rates(input: 1.5, cachedInput: nil, cacheWrite: nil, output: 6)))
     draft.cachedInput = "0.15"
     draft.cacheWrite = "0"
-    #expect(draft.check(model: "m", catalog: catalog).override == UsageOverride(model: "m", action: .rates(input: 1.5, cachedInput: 0.15, cacheWrite: 0, output: 6)))
+    #expect(draft.check(model: "m", catalog: catalog, bundle: english.bundle, locale: english.locale).override == UsageOverride(model: "m", action: .rates(input: 1.5, cachedInput: 0.15, cacheWrite: 0, output: 6)))
 }
 
 @MainActor @Test func aHostWithoutOverridesIsNotAskedAndSaysWhatToDo() async throws {
     let host = try host()
     host.capabilitiesAnswer = [.usage]
-    let refusal = await UsageStore(host: host).override(UsageOverride(model: "m", action: .local))
+    let refusal = await UsageStore(host: host).override(UsageOverride(model: "m", action: .local), bundle: english.bundle, locale: english.locale)
     #expect(refusal == usageNeedsNewerHost && host.overrides.isEmpty && host.queries.isEmpty)
+}
+
+// MARK: one of each plural, in English
+
+@Test func theCardsAndTotalsUseTheOneOfEachPlural() throws {
+    func snapshot(_ json: String) throws -> UsageSnapshot { try JSONDecoder().decode(UsageSnapshot.self, from: Data(json.utf8)) }
+    let kpis = usageKpis(try snapshot(#"{"summary":{"turns":1},"byModel":[{"model":"m","isLocal":true,"turns":1},{"model":"u","costStatus":"unpriced"}]}"#), bundle: english.bundle, locale: english.locale)
+    // the English one says "1 turn", where it said "1 turns" before
+    #expect(kpis[1].footnote == "1 turn" && kpis[2].footnote == "1 local turn" && kpis[0].footnote == "1 unpriced model is not counted")
+    #expect(usageKpis(try snapshot(#"{"summary":{"turns":1234}}"#), bundle: english.bundle, locale: english.locale)[1].footnote == "1,234 turns")
+    let two = try snapshot(#"{"summary":{},"byModel":[{"model":"a","costStatus":"unpriced"},{"model":"b","costStatus":"unpriced"},{"model":"c"}],"byWorkspace":[{"workspace":"a/b","source":"epic"}]}"#)
+    #expect(usageKpis(two, bundle: english.bundle, locale: english.locale)[0].footnote == "2 unpriced models are not counted")
+    #expect(usageModelTotal(two, bundle: english.bundle, locale: english.locale).model == "Total · 3 models, 2 unpriced not counted")
+    #expect(usageModelTotal(try snapshot(#"{"summary":{},"byModel":[{"model":"a"}]}"#), bundle: english.bundle, locale: english.locale).model == "Total · 1 model")
+    #expect(usageWorkspaceTotal(two, bundle: english.bundle, locale: english.locale).name == "Total · 1 workspace")
+}
+
+@Test func aCardOfAnUnknownSourceAndAnEmptyNameAreSaidAndTheHostsSourceIsKept() throws {
+    let odd = try JSONDecoder().decode(UsageSnapshot.self, from: Data(#"{"summary":{},"byWorkspace":[{"workspace":"","source":"newcomer"}]}"#.utf8))
+    let row = usageWorkspaceRows(odd, bundle: english.bundle, locale: english.locale)[0]
+    #expect(row.name == "Unknown" && row.source == "Newcomer" && row.sourceKind == "newcomer")
+    #expect(usageProviderTitle("local", bundle: english.bundle, locale: english.locale) == "Local" && usageProviderTitle("newcomer") == "newcomer")
 }

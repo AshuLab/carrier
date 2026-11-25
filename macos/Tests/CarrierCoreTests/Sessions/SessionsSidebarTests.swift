@@ -13,21 +13,21 @@ private func row(
     )
 }
 
-@Test func noRowsGiveNoGroups() { #expect(sessionGroups([]).isEmpty) }
+@Test func noRowsGiveNoGroups() { #expect(sessionGroups([], bundle: english.bundle, locale: english.locale).isEmpty) }
 
 @Test func oneGroupPerWorkspaceOrderedByNameIgnoringCase() {
-    let groups = sessionGroups([row("1", "web"), row("2", "Carrier"), row("3", "dotfiles"), row("4", "web")])
+    let groups = sessionGroups([row("1", "web"), row("2", "Carrier"), row("3", "dotfiles"), row("4", "web")], bundle: english.bundle, locale: english.locale)
     #expect(groups.map(\.title) == ["Carrier", "dotfiles", "web"])
 }
 
 @Test func rowsAreNewestFirst() {
-    let groups = sessionGroups([row("old", "web", minutesAgo: 90), row("new", "web", minutesAgo: 1), row("mid", "web", minutesAgo: 30)])
+    let groups = sessionGroups([row("old", "web", minutesAgo: 90), row("new", "web", minutesAgo: 1), row("mid", "web", minutesAgo: 30)], bundle: english.bundle, locale: english.locale)
     #expect(groups.count == 1)
     #expect(groups[0].rows.map(\.id) == ["new", "mid", "old"])
 }
 
 @Test func archivedRowsAreLeftOut() {
-    let groups = sessionGroups([row("1", "web"), row("2", "web", archived: true), row("3", "gone", archived: true)])
+    let groups = sessionGroups([row("1", "web"), row("2", "web", archived: true), row("3", "gone", archived: true)], bundle: english.bundle, locale: english.locale)
     #expect(groups.map(\.title) == ["web"])
     #expect(groups[0].rows.map(\.id) == ["1"])
 }
@@ -41,7 +41,7 @@ private func at(_ id: String, _ date: Date, state: SessionState = .idle, archive
     SessionRow(id: id, title: "t\(id)", workspace: "w", agent: "Claude", state: state, updatedAt: date, archived: archived)
 }
 
-private func byAge(_ rows: [SessionRow]) -> [SessionGroup] { sessionGroups(rows, by: .age, now: noon, calendar: utc) }
+private func byAge(_ rows: [SessionRow]) -> [SessionGroup] { sessionGroups(rows, by: .age, now: noon, calendar: utc, bundle: english.bundle, locale: english.locale) }
 
 @Test func ageBucketsBreakAtMidnight() {
     let groups = byAge([at("after", midnight.addingTimeInterval(1)), at("before", midnight.addingTimeInterval(-1))])
@@ -68,16 +68,16 @@ private func byAge(_ rows: [SessionRow]) -> [SessionGroup] { sessionGroups(rows,
         at("done", noon, state: .done), at("idleOld", noon.addingTimeInterval(-90), state: .idle), at("idleNew", noon.addingTimeInterval(-5), state: .idle),
         at("waiting", noon, state: .waiting), at("gone", noon, state: .working, archived: true),
     ]
-    let groups = sessionGroups(rows, by: .status, now: noon, calendar: utc)
+    let groups = sessionGroups(rows, by: .status, now: noon, calendar: utc, bundle: english.bundle, locale: english.locale)
     // `done` is in the type but nothing produces it: it reads as idle
     #expect(groups.map(\.title) == ["Needs you", "Idle"])
     #expect(groups[1].rows.map(\.id) == ["done", "idleNew", "idleOld"])
-    #expect(sessionGroups([], by: .status, now: noon, calendar: utc).isEmpty)
-    #expect(sessionGroups([], by: .age, now: noon, calendar: utc).isEmpty)
+    #expect(sessionGroups([], by: .status, now: noon, calendar: utc, bundle: english.bundle, locale: english.locale).isEmpty)
+    #expect(sessionGroups([], by: .age, now: noon, calendar: utc, bundle: english.bundle, locale: english.locale).isEmpty)
 }
 
 private func found(_ rows: [SessionRow], _ query: String) -> [String] {
-    sessionGroups(rows, query: query).flatMap(\.rows).map(\.id)
+    sessionGroups(rows, query: query, bundle: english.bundle, locale: english.locale).flatMap(\.rows).map(\.id)
 }
 
 @Test func aQueryMatchesTheTitleTheWorkspaceAndTheAgent() {
@@ -106,24 +106,24 @@ private func found(_ rows: [SessionRow], _ query: String) -> [String] {
         at("c", noon.addingTimeInterval(-86400), state: .working), at("x", noon.addingTimeInterval(-2 * 86400), state: .working, archived: true),
     ]
     func titles(_ sort: SessionSort, _ query: String) -> [[String]] {
-        sessionGroups(rows, by: sort, query: query, now: noon, calendar: utc).map { $0.rows.map(\.id) }
+        sessionGroups(rows, by: sort, query: query, now: noon, calendar: utc, bundle: english.bundle, locale: english.locale).map { $0.rows.map(\.id) }
     }
     #expect(titles(.workspace, "t") == [["a", "b", "c"]])
     #expect(titles(.age, "t") == [["a", "b"], ["c"]])
     #expect(titles(.age, "tc") == [["c"]])
-    #expect(sessionGroups(rows, by: .age, query: "tc", now: noon, calendar: utc).map(\.title) == ["Yesterday"])
+    #expect(sessionGroups(rows, by: .age, query: "tc", now: noon, calendar: utc, bundle: english.bundle, locale: english.locale).map(\.title) == ["Yesterday"])
     #expect(titles(.status, "t") == [["a"], ["b", "c"]])
-    #expect(sessionGroups(rows, by: .status, query: "tb", now: noon, calendar: utc).map(\.title) == ["Working"])
+    #expect(sessionGroups(rows, by: .status, query: "tb", now: noon, calendar: utc, bundle: english.bundle, locale: english.locale).map(\.title) == ["Working"])
     #expect(titles(.status, "tx").isEmpty)
 }
 
-@Test func aQueryWithNoMatchGivesNoGroups() { #expect(sessionGroups([row("1", "web")], query: "zzz").isEmpty) }
+@Test func aQueryWithNoMatchGivesNoGroups() { #expect(sessionGroups([row("1", "web")], query: "zzz", bundle: english.bundle, locale: english.locale).isEmpty) }
 
 @Test func anEmptyQueryGivesTheChosenOrder() {
     let rows = [row("1", "web"), row("2", "web", archived: true), row("3", "carrier")]
-    #expect(sessionGroups(rows, query: "") == sessionGroups(rows))
-    #expect(sessionGroups(rows, query: "  ") == sessionGroups(rows))
-    #expect(sessionGroups(rows, query: "").map(\.title) == ["carrier", "web"])
+    #expect(sessionGroups(rows, query: "", bundle: english.bundle, locale: english.locale) == sessionGroups(rows, bundle: english.bundle, locale: english.locale))
+    #expect(sessionGroups(rows, query: "  ", bundle: english.bundle, locale: english.locale) == sessionGroups(rows, bundle: english.bundle, locale: english.locale))
+    #expect(sessionGroups(rows, query: "", bundle: english.bundle, locale: english.locale).map(\.title) == ["carrier", "web"])
 }
 
 @Test func aQueryThatMatchesAWorkspaceNameListsItsSessions() {
@@ -136,9 +136,9 @@ private func found(_ rows: [SessionRow], _ query: String) -> [String] {
     #expect(sessions([]).open == 0)
     #expect(sessions([at("a", noon, archived: true)]).open == 0)
     let one = sessions([at("a", noon, state: .waiting), at("b", noon, archived: true)])
-    #expect(one.open == 1 && one.openLabel == "1 open session")
+    #expect(one.open == 1 && one.openLabel(bundle: english.bundle, locale: english.locale) == "1 open session")
     let five = sessions((1...5).map { at("\($0)", noon, state: .working) } + [at("z", noon, archived: true)])
-    #expect(five.open == 5 && five.openLabel == "5 open sessions")
+    #expect(five.open == 5 && five.openLabel(bundle: english.bundle, locale: english.locale) == "5 open sessions")
 }
 
 @Test func theWaitingCountIsStillTheListedSessionsThatWait() {
@@ -178,24 +178,24 @@ private func found(_ rows: [SessionRow], _ query: String) -> [String] {
 }
 
 @Test func theNoResultsLineSaysWhatWasTyped() {
-    #expect(EmptyState.noResultsLine(for: "zzz") == "Nothing matches “zzz”")
+    #expect(EmptyState.noResultsLine(for: "zzz", bundle: english.bundle, locale: english.locale) == "Nothing matches “zzz”")
 }
 
 @Test func sessionsWithNoRowsOrOnlyArchivedOnesIsEmptyAndHasNothingOpen() {
     for rows in [[], [row("1", "web", archived: true)]] {
         let sessions = Sessions(rows: rows)
         #expect(sessions.open == 0)
-        #expect(SidebarListState(shown: sessionGroups(sessions.rows).count, of: sessions.open, query: "") == .empty)
+        #expect(SidebarListState(shown: sessionGroups(sessions.rows, bundle: english.bundle, locale: english.locale).count, of: sessions.open, query: "") == .empty)
     }
 }
 
 @Test func sessionsWithAnOpenRowAreNotEmpty() {
     let sessions = Sessions(rows: [row("1", "web")])
-    #expect(SidebarListState(shown: sessionGroups(sessions.rows).count, of: sessions.open, query: "") == .rows)
+    #expect(SidebarListState(shown: sessionGroups(sessions.rows, bundle: english.bundle, locale: english.locale).count, of: sessions.open, query: "") == .rows)
 }
 
 private func archivedByAge(_ rows: [SessionRow], _ query: String = "") -> [SessionGroup] {
-    archivedGroups(rows, query: query, now: noon, calendar: utc)
+    archivedGroups(rows, query: query, now: noon, calendar: utc, bundle: english.bundle, locale: english.locale)
 }
 
 @Test func archivedGroupsHoldOnlyArchivedRowsInTheAgeBucketsNewestFirst() {
@@ -214,7 +214,7 @@ private func archivedByAge(_ rows: [SessionRow], _ query: String = "") -> [Sessi
     let groups = archivedGroups([
         row("a1", "web", minutesAgo: 30, archived: true), row("a2", "web", minutesAgo: 5, archived: true),
         row("b1", "api", minutesAgo: 10, archived: true), row("open", "web", archived: false),
-    ], by: .workspace, now: now, calendar: utc)
+    ], by: .workspace, now: now, calendar: utc, bundle: english.bundle, locale: english.locale)
     #expect(groups.map(\.title) == ["api", "web"])
     #expect(groups.map { $0.rows.map(\.id) } == [["b1"], ["a2", "a1"]])
 }

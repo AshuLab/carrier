@@ -1,3 +1,5 @@
+import Foundation
+
 // The sixteen places that can have nothing to show, with their SF Symbol, title and one line
 // (docs/specs/macos-app-redesign.md, story 24; the wording is the mockup's gallery).
 
@@ -27,48 +29,50 @@ public enum EmptyState: CaseIterable {
         }
     }
 
-    public var title: String {
+    public func title(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         switch self {
-        case .reviewNotStarted: "Review has not started"
-        case .noFilesChanged: "No files changed yet"
-        case .noSlices: "No slices yet"
-        case .waitingForSlot: "Waiting for a free slot"
-        case .nothingWaiting: "Nothing waiting"
-        case .nothingNeedsYou: "Nothing needs you"
-        case .idle: "Carrier is idle"
-        case .nothingToTest: "Nothing to test yet"
-        case .noActivity: "No activity yet"
-        case .welcome: "Welcome"
-        case .noSessions: "No sessions yet"
-        case .noSessionsMatch: "No sessions match"
-        case .nothingArchived: "Nothing archived"
-        case .noResults: "No results"
-        case .noEpics: "No epics yet"
-        case .noTerminals: "No terminals yet"
+        case .reviewNotStarted: Copy.emptyReviewNotStartedTitle(bundle: bundle, locale: locale)
+        case .noFilesChanged: Copy.emptyNoFilesChangedTitle(bundle: bundle, locale: locale)
+        case .noSlices: Copy.emptyNoSlicesTitle(bundle: bundle, locale: locale)
+        case .waitingForSlot: Copy.emptyWaitingForSlotTitle(bundle: bundle, locale: locale)
+        case .nothingWaiting: Copy.emptyNothingWaitingTitle(bundle: bundle, locale: locale)
+        case .nothingNeedsYou: Copy.emptyNothingNeedsYouTitle(bundle: bundle, locale: locale)
+        case .idle: Copy.emptyIdleTitle(bundle: bundle, locale: locale)
+        case .nothingToTest: Copy.emptyNothingToTestTitle(bundle: bundle, locale: locale)
+        case .noActivity: Copy.emptyNoActivityTitle(bundle: bundle, locale: locale)
+        case .welcome: Copy.emptyWelcomeTitle(bundle: bundle, locale: locale)
+        case .noSessions: Copy.emptyNoSessionsTitle(bundle: bundle, locale: locale)
+        case .noSessionsMatch: Copy.emptyNoSessionsMatchTitle(bundle: bundle, locale: locale)
+        case .nothingArchived: Copy.emptyNothingArchivedTitle(bundle: bundle, locale: locale)
+        case .noResults: Copy.emptyNoResultsTitle(bundle: bundle, locale: locale)
+        case .noEpics: Copy.emptyNoEpicsTitle(bundle: bundle, locale: locale)
+        case .noTerminals: Copy.emptyNoTerminalsTitle(bundle: bundle, locale: locale)
         }
     }
 
-    public var line: String {
+    public func line(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         switch self {
-        case .reviewNotStarted: "It starts when every slice is merged."
-        case .noFilesChanged: "They appear here as soon as an agent edits one."
-        case .noSlices: "Carrier splits the epic into slices before it starts shipping."
-        case .waitingForSlot: "No agent has started. It begins when a slot is free."
-        case .nothingWaiting: "Epics marked solve:epic:ready show up here."
-        case .nothingNeedsYou: "Carrier will tell you when something does."
-        case .idle: "Mark an epic solve:epic:ready in a watched repo to start one."
-        case .nothingToTest: "Finished epics wait here for you to try them."
-        case .noActivity: "What the agent does shows up here as it works."
-        case .welcome: "Pick Sessions or Carrier in the sidebar."
-        case .noSessions: "Sessions you start are listed here."
-        case .noSessionsMatch: "Nothing fits what you searched or filtered."
-        case .nothingArchived: "Archived sessions are kept here."
-        case .noResults: "Nothing matches your search."
-        case .noEpics: "Label an issue solve:epic:ready and Carrier will pick it up."
-        case .noTerminals: "Terminal sessions you start are listed here."
+        case .reviewNotStarted: Copy.emptyReviewNotStartedLine(bundle: bundle, locale: locale)
+        case .noFilesChanged: Copy.emptyNoFilesChangedLine(bundle: bundle, locale: locale)
+        case .noSlices: Copy.emptyNoSlicesLine(bundle: bundle, locale: locale)
+        case .waitingForSlot: Copy.emptyWaitingForSlotLine(bundle: bundle, locale: locale)
+        case .nothingWaiting: Copy.emptyNothingWaitingLine(bundle: bundle, locale: locale)
+        case .nothingNeedsYou: Copy.emptyNothingNeedsYouLine(bundle: bundle, locale: locale)
+        case .idle: Copy.emptyIdleLine(bundle: bundle, locale: locale)
+        case .nothingToTest: Copy.emptyNothingToTestLine(bundle: bundle, locale: locale)
+        case .noActivity: Copy.emptyNoActivityLine(bundle: bundle, locale: locale)
+        case .welcome: Copy.emptyWelcomeLine(bundle: bundle, locale: locale)
+        case .noSessions: Copy.emptyNoSessionsLine(bundle: bundle, locale: locale)
+        case .noSessionsMatch: Copy.emptyNoSessionsMatchLine(bundle: bundle, locale: locale)
+        case .nothingArchived: Copy.emptyNothingArchivedLine(bundle: bundle, locale: locale)
+        case .noResults: Copy.emptyNoResultsLine(bundle: bundle, locale: locale)
+        case .noEpics: Copy.emptyNoEpicsLine(bundle: bundle, locale: locale)
+        case .noTerminals: Copy.emptyNoTerminalsLine(bundle: bundle, locale: locale)
         }
     }
 
     /// The no-results line of a list searched for `query`, which is what it says in the sidebar.
-    public static func noResultsLine(for query: String) -> String { "Nothing matches “\(query)”" }
+    public static func noResultsLine(for query: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        Copy.emptyNoResultsFor(query: query, bundle: bundle, locale: locale)
+    }
 }

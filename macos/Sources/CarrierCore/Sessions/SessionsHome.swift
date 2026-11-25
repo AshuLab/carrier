@@ -44,9 +44,9 @@ public enum SessionChip: Hashable {
     case agent(String)
     case workspace(String)
 
-    public var title: String {
+    public func title(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         switch self {
-        case .status(let status): status.title
+        case .status(let status): status.title(bundle: bundle, locale: locale)
         case .agent(let name), .workspace(let name): name
         }
     }
@@ -64,31 +64,38 @@ public struct SessionsPage: Equatable {
 /// ("No sessions yet") when no session is active, and "No sessions match" when a search or a filter leaves nothing.
 public func sessionsPage(
     _ rows: [SessionRow], by sort: SessionSort = .workspace, query: String = "", filter: SessionFilter = SessionFilter(), pinned: Set<String> = [], now: Date = Date(),
-    calendar: Calendar = .current
+    calendar: Calendar = .current, bundle: Bundle? = nil, locale: Locale = .current
 ) -> SessionsPage {
     let searching = query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
     let active = rows.filter { $0.archived == false }
     let kept = rows.filter(filter.matches)
-    let groups = searching ? searchResults(kept, query) : sessionGroups(kept, by: sort, pinned: pinned, now: now, calendar: calendar)
+    let groups = searching
+        ? searchResults(kept, query, bundle: bundle, locale: locale)
+        : sessionGroups(kept, by: sort, pinned: pinned, now: now, calendar: calendar, bundle: bundle, locale: locale)
     let shown = groups.reduce(0) { $0 + $1.rows.count }
     let waiting = active.filter { $0.state == .waiting }.count
     let subtitle: String
     if searching {
-        subtitle = shown == 1 ? "1 result" : "\(shown) results"
+        subtitle = Copy.sessionsResultCount(count: shown, bundle: bundle, locale: locale)
     } else if active.isEmpty {
         subtitle = ""
+    } else if filter.count == 0 {
+        subtitle = waiting == 0
+            ? Copy.sessionsSubtitleActive(active: active.count, bundle: bundle, locale: locale)
+            : Copy.sessionsSubtitleActiveWaiting(active: active.count, waiting: waiting, bundle: bundle, locale: locale)
     } else {
-        let count = filter.count == 0 ? "\(active.count) active" : "\(shown) of \(active.count)"
-        subtitle = waiting == 0 ? count : "\(count) · \(waiting) \(waiting == 1 ? "waits" : "wait") for you"
+        subtitle = waiting == 0
+            ? Copy.sessionsSubtitleFiltered(shown: shown, active: active.count, bundle: bundle, locale: locale)
+            : Copy.sessionsSubtitleFilteredWaiting(shown: shown, active: active.count, waiting: waiting, bundle: bundle, locale: locale)
     }
     let empty: EmptyState? = groups.isEmpty ? (searching == false && active.isEmpty ? .noSessions : .noSessionsMatch) : nil
     return SessionsPage(subtitle: subtitle, groups: groups, emptyState: empty)
 }
 
 /// A search on the home is one group, "Results": the active matches newest first and then the archived ones newest first.
-private func searchResults(_ rows: [SessionRow], _ query: String) -> [SessionGroup] {
+private func searchResults(_ rows: [SessionRow], _ query: String, bundle: Bundle?, locale: Locale) -> [SessionGroup] {
     let hits = matching(rows, query)
     let newest: (SessionRow, SessionRow) -> Bool = { $0.sortedAt > $1.sortedAt }
     let found = hits.filter { $0.archived == false }.sorted(by: newest) + hits.filter(\.archived).sorted(by: newest)
-    return found.isEmpty ? [] : [SessionGroup(title: "Results", rows: found)]
+    return found.isEmpty ? [] : [SessionGroup(title: Copy.sessionGroupResults(bundle: bundle, locale: locale), rows: found)]
 }

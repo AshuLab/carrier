@@ -13,7 +13,9 @@ import Testing
 }
 
 @Test func theFieldsSayWhyAValueIsRefusedAndNeverOnEitherSideHasNoComparison() {
-    func problems(_ archive: SessionAge, _ delete: SessionAge) -> [SessionAgeField: String] { sessionAgeProblems(SessionAges(archive: archive, delete: delete)) }
+    func problems(_ archive: SessionAge, _ delete: SessionAge) -> [SessionAgeField: String] {
+        sessionAgeProblems(SessionAges(archive: archive, delete: delete), bundle: english.bundle, locale: english.locale)
+    }
     #expect(problems(.days(15), .days(30)).isEmpty && problems(.days(15), .never).isEmpty && problems(.never, .days(5)).isEmpty && problems(.never, .never).isEmpty)
     #expect(problems(.days(30), .days(30))[.delete]?.contains("greater than the archive age (30 days)") == true)
     #expect(problems(.days(15), .days(10))[.delete] != nil && problems(.days(15), .days(10))[.archive] == nil)
@@ -21,15 +23,15 @@ import Testing
 }
 
 @Test func deleteIsOffWithTheReasonWhileArchiveIsNever() {
-    #expect(deleteAgeOffReason(SessionAges(archive: .never, delete: .days(30)))?.contains("archive is Never") == true)
+    #expect(deleteAgeOffReason(SessionAges(archive: .never, delete: .days(30)), bundle: english.bundle, locale: english.locale)?.contains("archive is Never") == true)
     #expect(deleteAgeOffReason(SessionAges(archive: .days(15), delete: .never)) == nil && deleteAgeOffReason(SessionAges()) == nil)
 }
 
 @Test func aHalfTypedDeleteFieldDoesNotBlockSavingWhileItIsOffButDoesWhenItIsOn() {
     let off = SessionAges(archive: .never, delete: .days(30))
-    #expect(sessionAgeProblems(off, unparsable: [.delete]).isEmpty)
-    #expect(sessionAgeProblems(off, unparsable: [.archive])[.archive] == "Must be a number")
-    #expect(sessionAgeProblems(SessionAges(), unparsable: [.delete])[.delete] == "Must be a number")
+    #expect(sessionAgeProblems(off, unparsable: [.delete], bundle: english.bundle, locale: english.locale).isEmpty)
+    #expect(sessionAgeProblems(off, unparsable: [.archive], bundle: english.bundle, locale: english.locale)[.archive] == "Must be a number")
+    #expect(sessionAgeProblems(SessionAges(), unparsable: [.delete], bundle: english.bundle, locale: english.locale)[.delete] == "Must be a number")
 }
 
 private let utc: Calendar = {
@@ -40,7 +42,7 @@ private let utc: Calendar = {
 
 private func line(_ ages: SessionAges, on year: Int, _ month: Int, _ day: Int, unparsable: Set<SessionAgeField> = []) -> String? {
     let today = utc.date(from: DateComponents(year: year, month: month, day: day, hour: 23, minute: 30))!
-    return sessionAgesLine(ages, today: today, calendar: utc, unparsable: unparsable)
+    return sessionAgesLine(ages, today: today, calendar: utc, unparsable: unparsable, bundle: english.bundle, locale: english.locale)
 }
 
 @Test func theLineSaysWhenASessionLeftAloneFromTodayIsArchivedAndDeleted() {

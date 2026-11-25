@@ -38,7 +38,7 @@ struct SessionSectionsView: View {
                     Button { folds.toggle(section) } label: { SessionHeaderView(section: section, open: open) }
                         .buttonStyle(.plain)
                         .accessibilityLabel(sessionRowLabel(section, open: open))
-                        .accessibilityHint(open ? "Folds this session" : "Opens this session")
+                        .accessibilityHint(open ? Copy.sessionHintFold() : Copy.sessionHintOpen())
                     if open {
                         Color.clear.frame(height: SessionMetrics.toContent)
                         TranscriptRows(content: section.body, flipped: $flipped)
@@ -119,7 +119,7 @@ struct ResultCardView: View {
                 Button(action: toggle) { line }
                     .buttonStyle(.plain)
                     .accessibilityLabel(resultAccessibilityLabel(card, open: open))
-                    .accessibilityHint(open ? "Hides the evidence" : "Shows the evidence")
+                    .accessibilityHint(open ? Copy.sessionHintEvidenceHide() : Copy.sessionHintEvidenceShow())
             } else {
                 line.accessibilityElement(children: .ignore).accessibilityLabel(resultAccessibilityLabel(card, open: open))
             }
@@ -230,7 +230,7 @@ struct SessionHeaderView: View {
         switch sessionSummary(section, open: open) {
         case .stopped(let reason):
             HStack(spacing: Tokens.Space.s8) {
-                Text("stopped").scaledFont(11, weight: .semibold).foregroundStyle(.orange)
+                Text(Copy.sessionStopped()).scaledFont(11, weight: .semibold).foregroundStyle(.orange)
                     .padding(.horizontal, Tokens.Space.s10).padding(.vertical, Tokens.Space.s2).background(Capsule().fill(Color.orange.opacity(0.18)))
                 // up to 300 characters from the engine: two lines, cut at the end, whole in the tooltip
                 if let reason {
@@ -313,7 +313,7 @@ private struct EarlierSessionsRow: View {
                     }
                 }
                 HStack(spacing: Tokens.Space.s4) {
-                    Text(earlier.title).fontWeight(.semibold).foregroundStyle(.primary)
+                    Text(earlier.title()).fontWeight(.semibold).foregroundStyle(.primary)
                     if earlier.detail.isEmpty == false { Text("· \(earlier.detail)") }
                 }
                 .scaledFont(12.5).foregroundStyle(.secondary).lineLimit(1)
@@ -326,9 +326,9 @@ private struct EarlierSessionsRow: View {
             .animation(.easeOut(duration: 0.15), value: hovered)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(earlier.label)
-        .accessibilityValue(open ? "Open" : "Folded")
-        .accessibilityHint(open ? "Folds these sessions" : "Shows these sessions")
+        .accessibilityLabel(earlier.label())
+        .accessibilityValue(open ? Copy.sessionRowOpen() : Copy.sessionRowFolded())
+        .accessibilityHint(open ? Copy.sessionHintEarlierFold() : Copy.sessionHintEarlierShow())
     }
 }
 
@@ -351,7 +351,7 @@ struct AgentAvatar: View {
             .overlay { if working { SpinningRing(diameter: size + 8, lineWidth: 2) } }
             // after the ring, so the mark is over it and not the other way round
             .overlay(alignment: .bottomTrailing) { if mark { corner.offset(x: 4, y: 4) } }
-            .help(working ? "\(harness) · working" : harness)
+            .help(working ? Copy.sessionAgentWorking(agent: harness) : harness)
     }
 
     private var disc: Color {

@@ -42,6 +42,8 @@ How a screen reads a text, so every area does it the same way.
   A text that needs a person's data takes it as labelled arguments (`{busy, number}`, `{branch}`); a sentence is never joined from pieces with `+`.
 - A count that changes the words is a `plural` with `one` and `other` (`{hours, plural, one {# hour} other {# hours}}`), and a `=0` case when zero has words of its own; Spanish declares the same cases.
   A choice among kinds is a `select`; a number that only shows is `{n, number}`, which groups for the locale.
+- A select holds every argument its branches use inside the branches (`{state, select, open {Pull request {number}, open} merged {Pull request {number}, merged}}`); an argument written outside the select is lost by the generator.
+- A list of whole phrases, each its own key, may be joined with `, `, `. ` or ` · ` (a VoiceOver label of several facts, a line of counts); a sentence is never built by joining its words.
 - A pure function of `CarrierCore` that builds a sentence takes `bundle: Bundle? = nil, locale: Locale = .current` last and hands both to `Copy`; a function a view reads as a property becomes a method for it.
 - A test asserts English with `english` and Spanish with `spanish` (`Tests/CarrierCoreTests/Copy/Languages.swift`: `Copy.bundle("en")` and `en_US`, `Copy.bundle("es")` and `es_AR`), passing `bundle: spanish.bundle, locale: spanish.locale`; every plural a function uses has its Spanish case asserted.
 - A text Node sends (a doctor check's detail and fix, a preparation step's detail) is shown through its text code and is not a key of the area.

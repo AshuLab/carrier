@@ -967,4 +967,1062 @@ public enum Copy {
     public static func aboutLinkGitHub(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         String(localized: "aboutLinkGitHub", bundle: bundle ?? carrierResources, locale: locale)
     }
+
+    public static func emptyReviewNotStartedTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "emptyReviewNotStartedTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func emptyReviewNotStartedLine(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "emptyReviewNotStartedLine", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func emptyNoFilesChangedTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "emptyNoFilesChangedTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func emptyNoFilesChangedLine(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "emptyNoFilesChangedLine", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func emptyNoSlicesTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "emptyNoSlicesTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func emptyNoSlicesLine(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "emptyNoSlicesLine", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func emptyWaitingForSlotTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "emptyWaitingForSlotTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func emptyWaitingForSlotLine(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "emptyWaitingForSlotLine", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func emptyNothingWaitingTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "emptyNothingWaitingTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func emptyNothingWaitingLine(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "emptyNothingWaitingLine", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func emptyNothingNeedsYouTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "emptyNothingNeedsYouTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func emptyNothingNeedsYouLine(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "emptyNothingNeedsYouLine", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func emptyIdleTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "emptyIdleTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func emptyIdleLine(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "emptyIdleLine", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func emptyNothingToTestTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "emptyNothingToTestTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func emptyNothingToTestLine(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "emptyNothingToTestLine", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func emptyNoActivityTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "emptyNoActivityTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func emptyNoActivityLine(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "emptyNoActivityLine", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func emptyWelcomeTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "emptyWelcomeTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func emptyWelcomeLine(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "emptyWelcomeLine", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func emptyNoSessionsTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "emptyNoSessionsTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func emptyNoSessionsLine(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "emptyNoSessionsLine", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func emptyNoSessionsMatchTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "emptyNoSessionsMatchTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func emptyNoSessionsMatchLine(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "emptyNoSessionsMatchLine", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func emptyNothingArchivedTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "emptyNothingArchivedTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func emptyNothingArchivedLine(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "emptyNothingArchivedLine", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func emptyNoResultsTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "emptyNoResultsTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func emptyNoResultsLine(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "emptyNoResultsLine", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func emptyNoEpicsTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "emptyNoEpicsTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func emptyNoEpicsLine(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "emptyNoEpicsLine", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func emptyNoTerminalsTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "emptyNoTerminalsTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func emptyNoTerminalsLine(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "emptyNoTerminalsLine", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func emptyNoResultsFor(query: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "emptyNoResultsFor \(query)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionStatusNeedsYou(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionStatusNeedsYou", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionStatusWorking(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionStatusWorking", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionStatusUnread(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionStatusUnread", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionStatusIdle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionStatusIdle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionStatusAsleep(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionStatusAsleep", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionPrMerged(number: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionPrMerged \(number)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionPrClosed(number: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionPrClosed \(number)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionPrDraft(number: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionPrDraft \(number)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionPrPassing(number: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionPrPassing \(number)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionPrFailing(number: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionPrFailing \(number)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionPrPending(number: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionPrPending \(number)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public enum SessionPrSpoken: Sendable { case open; case draft; case merged; case closed }
+    public static func sessionPrSpoken(state: SessionPrSpoken, number: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch state {
+        case .open: return String(localized: "sessionPrSpoken.open \(number)", bundle: bundle ?? carrierResources, locale: locale)
+        case .draft: return String(localized: "sessionPrSpoken.draft \(number)", bundle: bundle ?? carrierResources, locale: locale)
+        case .merged: return String(localized: "sessionPrSpoken.merged \(number)", bundle: bundle ?? carrierResources, locale: locale)
+        case .closed: return String(localized: "sessionPrSpoken.closed \(number)", bundle: bundle ?? carrierResources, locale: locale)
+        }
+    }
+
+    public static func sessionPrChecksPassing(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionPrChecksPassing", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionPrChecksFailing(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionPrChecksFailing", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionPrChecksPending(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionPrChecksPending", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionPrOpenHelp(number: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionPrOpenHelp \(number)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionPrOpenHint(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionPrOpenHint", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionWaitingOn(name: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionWaitingOn \(name)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionWaitingOnMore(name: String, count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionWaitingOnMore \(name) \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionBackgroundCount(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionBackgroundCount \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionOpenLabel(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionOpenLabel \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionsCount(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionsCount \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionTurns(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionTurns \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionGroupPinned(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionGroupPinned", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionGroupToday(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionGroupToday", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionGroupYesterday(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionGroupYesterday", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionGroupLast7Days(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionGroupLast7Days", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionGroupOlder(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionGroupOlder", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionGroupResults(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionGroupResults", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionsResultCount(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionsResultCount \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionsSubtitleActive(active: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionsSubtitleActive \(active)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionsSubtitleActiveWaiting(active: Int, waiting: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionsSubtitleActiveWaiting \(active) \(waiting)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionsSubtitleFiltered(shown: Int, active: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionsSubtitleFiltered \(shown) \(active)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionsSubtitleFilteredWaiting(shown: Int, active: Int, waiting: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionsSubtitleFilteredWaiting \(shown) \(active) \(waiting)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionRoleShip(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionRoleShip", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionRoleReview(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionRoleReview", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionRoleFix(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionRoleFix", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionPlaceShip(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionPlaceShip", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionPlaceReview(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionPlaceReview", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionPlaceFix(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionPlaceFix", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionPlaceRound(round: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionPlaceRound \(round)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionOutcomeCompleted(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionOutcomeCompleted", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionOutcomeChangesRequested(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionOutcomeChangesRequested", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionOutcomeNeedsHuman(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionOutcomeNeedsHuman", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionCiPassed(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionCiPassed", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionCiAbsent(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionCiAbsent", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionCiOther(verdict: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionCiOther \(verdict)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionEarlierTitle(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionEarlierTitle \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionSince(time: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionSince \(time)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionAccount(name: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionAccount \(name)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionStopped(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionStopped", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionStoppedReason(reason: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionStoppedReason \(reason)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionNounCall(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionNounCall \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionNounEdit(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionNounEdit \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionNounTestRun(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionNounTestRun \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionNounError(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionNounError \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionCountsToolCalls(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionCountsToolCalls \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionCountsEdits(count: Int, added: String, removed: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionCountsEdits \(count) \(added) \(removed)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionCountsTestRuns(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionCountsTestRuns \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionCountsErrors(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionCountsErrors \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionRowOpen(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionRowOpen", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionRowFolded(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionRowFolded", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionHintFold(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionHintFold", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionHintOpen(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionHintOpen", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionHintEvidenceHide(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionHintEvidenceHide", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionHintEvidenceShow(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionHintEvidenceShow", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionHintEarlierFold(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionHintEarlierFold", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionHintEarlierShow(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionHintEarlierShow", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionAgentWorking(agent: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionAgentWorking \(agent)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionDone(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionDone", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionNeedsAttention(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionNeedsAttention", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionWaitingBackground(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionWaitingBackground", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionWaitingForYou(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionWaitingForYou", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionWorking(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionWorking", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionNoReplyYet(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionNoReplyYet", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionBaseFolder(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionBaseFolder", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionDiffSpoken(added: Int, removed: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionDiffSpoken \(added) \(removed)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionPin(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionPin", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionUnpin(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionUnpin", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionPinned(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionPinned", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionArchive(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionArchive", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionRestore(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionRestore", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionArchivedTag(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionArchivedTag", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionOpen(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionOpen", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionResume(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionResume", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionDelete(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionDelete", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionPlaceInFolder(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionPlaceInFolder", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionPlaceFolderHelp(folder: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionPlaceFolderHelp \(folder)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionPlaceBranchHelp(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionPlaceBranchHelp", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionsNew(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionsNew", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionsNewIn(workspace: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionsNewIn \(workspace)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionsSearch(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionsSearch", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionsNoneToSearch(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionsNoneToSearch", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionsSort(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionsSort", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionsSortBy(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionsSortBy", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionsFilter(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionsFilter", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionsFilterShow(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionsFilterShow", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionsFilterAgent(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionsFilterAgent", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionsClearFilters(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionsClearFilters", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionsRemoveFilter(name: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionsRemoveFilter \(name)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionSortByWorkspace(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionSortByWorkspace", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionSortByAge(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionSortByAge", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionSortByState(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionSortByState", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionSortWorkspace(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionSortWorkspace", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionSortAge(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionSortAge", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionSortStatus(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionSortStatus", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func archiveTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "archiveTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func archiveCount(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "archiveCount \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func archiveSearch(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "archiveSearch", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func archiveNoneToSearch(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "archiveNoneToSearch", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func archiveSort(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "archiveSort", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func archiveFold(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "archiveFold", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func archiveUnfold(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "archiveUnfold", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func archiveSearchSessions(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "archiveSearchSessions", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func archiveClearSearch(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "archiveClearSearch", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func archiveClearSessions(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "archiveClearSessions", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func archiveSortDateArchived(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "archiveSortDateArchived", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func archiveSortProject(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "archiveSortProject", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarHome(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarHome", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarHomeHelp(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarHomeHelp", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarSessions(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarSessions", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarSessionsHelp(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarSessionsHelp", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarCarrierHelp(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarCarrierHelp", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarSettings(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarSettings", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarUsage(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarUsage", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarSearchEpics(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarSearchEpics", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarCloseEpicSearch(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarCloseEpicSearch", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarNoEpicsToSearch(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarNoEpicsToSearch", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarGroupEpicsBy(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarGroupEpicsBy", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarGroupBy(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarGroupBy", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarGroupByStatus(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarGroupByStatus", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarGroupByRepository(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarGroupByRepository", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarSlotsBusy(busy: Int, total: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarSlotsBusy \(busy) \(total)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarFoldGroup(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarFoldGroup", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarUnfoldGroup(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarUnfoldGroup", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarRunning(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarRunning", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarIdle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarIdle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarPaused(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarPaused", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarStopped(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarStopped", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarProblem(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarProblem", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarConnecting(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarConnecting", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarGroupNeedsAttention(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarGroupNeedsAttention", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarGroupUpNext(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarGroupUpNext", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarGroupReadyForTest(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarGroupReadyForTest", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarGroupDone(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarGroupDone", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarGroupCancelled(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarGroupCancelled", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarPrMerged(number: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarPrMerged \(number)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarMerged(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarMerged", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarCancelled(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarCancelled", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarWaitingForSlot(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarWaitingForSlot", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarPr(number: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarPr \(number)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarReadyForTest(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarReadyForTest", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarStageShip(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarStageShip", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarStageReview(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarStageReview", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarStageFix(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarStageFix", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarStageStarting(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarStageStarting", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarStageRound(stage: String, round: Int, max: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarStageRound \(stage) \(round) \(max)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarStageSlices(stage: String, done: Int, total: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarStageSlices \(stage) \(done) \(total)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarNeedReviewLimit(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarNeedReviewLimit", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarNeedAgentNeedsHuman(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarNeedAgentNeedsHuman", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarNeedRetriesExhausted(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarNeedRetriesExhausted", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarNeedTimeout(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarNeedTimeout", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarNeedAuth(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarNeedAuth", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarNeedWorkspace(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarNeedWorkspace", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarNeedPrInvalid(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarNeedPrInvalid", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarNeedSkillMissing(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarNeedSkillMissing", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarNeedReviewersFailed(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarNeedReviewersFailed", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarNeedLeadLimit(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarNeedLeadLimit", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarNeedYou(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarNeedYou", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionsSettingsNewSessions(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionsSettingsNewSessions", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionsSettingsNewSessionsFooter(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionsSettingsNewSessionsFooter", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionsSettingsStartsWith(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionsSettingsStartsWith", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionsSettingsStartsWithDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionsSettingsStartsWithDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionsSettingsEffortOwn(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionsSettingsEffortOwn", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionsSettingsEffortOwnDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionsSettingsEffortOwnDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionsSettingsFirstProvider(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionsSettingsFirstProvider", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionsSettingsFirstProviderShort(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionsSettingsFirstProviderShort", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionsSettingsWorkIn(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionsSettingsWorkIn", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionsSettingsWorkInDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionsSettingsWorkInDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionsSettingsStartFrom(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionsSettingsStartFrom", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionsSettingsStartFromDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionsSettingsStartFromDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionsSettingsIdleSessions(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionsSettingsIdleSessions", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionsSettingsIdleFooter(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionsSettingsIdleFooter", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionsSettingsSleepAfter(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionsSettingsSleepAfter", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionsSettingsSleepAfterDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionsSettingsSleepAfterDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionsSettingsArchiveAndDelete(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionsSettingsArchiveAndDelete", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionsSettingsArchiveFooter(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionsSettingsArchiveFooter", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionsSettingsArchiveAfter(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionsSettingsArchiveAfter", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionsSettingsArchiveAfterDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionsSettingsArchiveAfterDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionsSettingsDeleteAfter(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionsSettingsDeleteAfter", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionsSettingsDeleteAfterDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionsSettingsDeleteAfterDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionsSettingsAskBeforeDeleting(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionsSettingsAskBeforeDeleting", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionsSettingsAskBeforeDeletingDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionsSettingsAskBeforeDeletingDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionsSettingsWithTheseAges(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionsSettingsWithTheseAges", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionsSettingsStopUsingToday(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionsSettingsStopUsingToday", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionsSettingsLeftAlone(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionsSettingsLeftAlone", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionsSettingsLeftAloneDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionsSettingsLeftAloneDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionsSettingsDays(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionsSettingsDays", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionsSettingsDaysChoice(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionsSettingsDaysChoice", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionsSettingsNever(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionsSettingsNever", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionsSettingsUnreadable(error: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionsSettingsUnreadable \(error)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionsSettingsSaveFailed(error: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionsSettingsSaveFailed \(error)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionAgeWholeNumber(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionAgeWholeNumber", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionAgeGreaterThanArchive(days: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionAgeGreaterThanArchive \(days)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionAgeMustBeNumber(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionAgeMustBeNumber", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionAgeDeleteOff(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionAgeDeleteOff", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionAgeNever(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionAgeNever", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionAgeArchivedNeverDeleted(archive: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionAgeArchivedNeverDeleted \(archive)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sessionAgeArchivedAndDeleted(archive: String, delete: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionAgeArchivedAndDeleted \(archive) \(delete)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarSettingsOrder(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarSettingsOrder", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarSettingsGroupEpicsByDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarSettingsGroupEpicsByDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarSettingsSortSessionsDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarSettingsSortSessionsDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarSettingsSortArchive(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarSettingsSortArchive", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarSettingsSortArchiveDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarSettingsSortArchiveDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarSettingsSessionRows(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarSettingsSessionRows", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarSettingsProjectIcon(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarSettingsProjectIcon", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarSettingsProjectIconDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarSettingsProjectIconDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarSettingsBranch(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarSettingsBranch", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarSettingsBranchDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarSettingsBranchDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarSettingsPullRequest(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarSettingsPullRequest", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarSettingsPullRequestDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarSettingsPullRequestDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarSettingsLinesChanged(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarSettingsLinesChanged", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarSettingsLinesChangedDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarSettingsLinesChangedDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarSettingsProviders(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarSettingsProviders", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarSettingsProvidersDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarSettingsProvidersDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarSettingsAge(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarSettingsAge", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarSettingsAgeDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarSettingsAgeDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarSettingsSampleIdle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarSettingsSampleIdle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarSettingsSampleDone(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarSettingsSampleDone", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func sidebarSettingsSampleWaiting(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sidebarSettingsSampleWaiting", bundle: bundle ?? carrierResources, locale: locale)
+    }
 }

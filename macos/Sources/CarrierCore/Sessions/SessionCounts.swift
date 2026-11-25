@@ -59,11 +59,12 @@ public func sessionCounts(_ events: [ExecEvent]) -> SessionCounts {
 }
 
 /// `8 tool calls · 2 edits +42 −8 · 1 test run · 2 errors`, every part but the tool calls left out at zero.
-public func countsLine(_ counts: SessionCounts) -> String {
-    func plural(_ n: Int, _ noun: String) -> String { "\(n) \(noun)\(n == 1 ? "" : "s")" }
-    var line = plural(counts.calls, "tool call")
-    if counts.edits > 0 { line += " · \(plural(counts.edits, "edit")) +\(counts.added) −\(counts.removed)" }
-    if counts.tests > 0 { line += " · \(plural(counts.tests, "test run"))" }
-    if counts.errors > 0 { line += " · \(plural(counts.errors, "error"))" }
-    return line
+public func countsLine(_ counts: SessionCounts, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+    var parts = [Copy.sessionCountsToolCalls(count: counts.calls, bundle: bundle, locale: locale)]
+    if counts.edits > 0 {
+        parts.append(Copy.sessionCountsEdits(count: counts.edits, added: String(counts.added), removed: String(counts.removed), bundle: bundle, locale: locale))
+    }
+    if counts.tests > 0 { parts.append(Copy.sessionCountsTestRuns(count: counts.tests, bundle: bundle, locale: locale)) }
+    if counts.errors > 0 { parts.append(Copy.sessionCountsErrors(count: counts.errors, bundle: bundle, locale: locale)) }
+    return parts.joined(separator: " · ")
 }

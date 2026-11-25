@@ -92,12 +92,12 @@ public struct ResultCard: Equatable {
     public var hasDetails: Bool { ci != nil }
 }
 
-public func resultCard(_ result: SessionResult?) -> ResultCard? {
+public func resultCard(_ result: SessionResult?, bundle: Bundle? = nil, locale: Locale = .current) -> ResultCard? {
     guard let result else { return nil }
     let outcome: (String, ResultCard.Tone) = switch result.outcome {
-    case "completed": ("Completed", .good)
-    case "changes_requested": ("Changes requested", .warning)
-    case "needs_human": ("Needs a human", .stop)
+    case "completed": (Copy.sessionOutcomeCompleted(bundle: bundle, locale: locale), .good)
+    case "changes_requested": (Copy.sessionOutcomeChangesRequested(bundle: bundle, locale: locale), .warning)
+    case "needs_human": (Copy.sessionOutcomeNeedsHuman(bundle: bundle, locale: locale), .stop)
     default: (result.outcome.replacingOccurrences(of: "_", with: " ").capitalized, .warning) // a value added later still shows
     }
     return ResultCard(
@@ -107,12 +107,12 @@ public func resultCard(_ result: SessionResult?) -> ResultCard? {
     )
 }
 
-/// "CI passed", "No CI", "CI failed".
-public func ciVerdictText(_ word: String) -> String {
+/// "CI passed", "No CI".
+public func ciVerdictText(_ word: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
     switch word {
-    case "passed": "CI passed"
-    case "absent": "No CI"
-    default: "CI \(word)" // a value added later still shows
+    case "passed": Copy.sessionCiPassed(bundle: bundle, locale: locale)
+    case "absent": Copy.sessionCiAbsent(bundle: bundle, locale: locale)
+    default: Copy.sessionCiOther(verdict: word, bundle: bundle, locale: locale) // a value added later still shows
     }
 }
 
@@ -127,7 +127,7 @@ public struct EarlierSessions: Equatable {
     public var sections: [SessionSection]
 
     /// "3 earlier sessions".
-    public var title: String { "\(sections.count) earlier session\(sections.count == 1 ? "" : "s")" }
+    public func title(bundle: Bundle? = nil, locale: Locale = .current) -> String { Copy.sessionEarlierTitle(count: sections.count, bundle: bundle, locale: locale) }
 
     /// "Builder, Reviewer, Fixer · 45m": each role once, in the order they came, and the time they ran together (left out when none is known).
     public var detail: String {
@@ -137,7 +137,9 @@ public struct EarlierSessions: Equatable {
         return (roles.isEmpty ? [] : [roles.joined(separator: ", ")] + (total > 0 ? [formatDuration(total)] : [])).joined(separator: " · ")
     }
 
-    public var label: String { [title, detail].filter { $0.isEmpty == false }.joined(separator: ", ") }
+    public func label(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        [title(bundle: bundle, locale: locale), detail].filter { $0.isEmpty == false }.joined(separator: ", ")
+    }
 }
 
 /// Above `sessionsShown` sessions the oldest ones go behind one row: `earlier` is nil while all of them fit.
@@ -151,6 +153,26 @@ public struct SessionList: Equatable {
     public var loaded: Bool
     /// Every session, oldest first: the log reads top to bottom as it happened, and the last one is what is happening now.
     public var sections: [SessionSection]
+}
+
+/// "Builder", "Reviewer", "Fixer": what the engine's stage is for the person; a stage added later still shows, by its own name.
+private func stageRole(_ stage: String, bundle: Bundle?, locale: Locale) -> String {
+    switch stage {
+    case "ship": Copy.sessionRoleShip(bundle: bundle, locale: locale)
+    case "review": Copy.sessionRoleReview(bundle: bundle, locale: locale)
+    case "fix": Copy.sessionRoleFix(bundle: bundle, locale: locale)
+    default: stage.capitalized
+    }
+}
+
+/// "Ship", "Review", "Fix": where a session without a round is.
+private func stagePlace(_ stage: String, bundle: Bundle?, locale: Locale) -> String {
+    switch stage {
+    case "ship": Copy.sessionPlaceShip(bundle: bundle, locale: locale)
+    case "review": Copy.sessionPlaceReview(bundle: bundle, locale: locale)
+    case "fix": Copy.sessionPlaceFix(bundle: bundle, locale: locale)
+    default: stage.capitalized
+    }
 }
 
 /// Anything but running and finished is a session that stopped before it was done (failed, timed_out, interrupted, invalid_result).
@@ -169,7 +191,7 @@ func sessionState(_ status: String) -> SessionSection.State {
 public func sessionList(
     _ reply: SessionsReply?, transcripts: [String: Transcript] = [:], slices: [EpicReply.Slice] = [],
     now: Int = Int(Date().timeIntervalSince1970 * 1000), time: TimeFormat = .stored(), resumable: Bool = true,
-    folds: SessionFolds? = nil
+    folds: SessionFolds? = nil, bundle: Bundle? = nil, locale: Locale = .current
 ) -> SessionList {
     let all = reply?.sessions ?? []
     let built = all.enumerated().map { index, session -> SessionSection in
@@ -178,7 +200,7 @@ public func sessionList(
         let label: String?
         switch state {
         case .running:
-            label = "since " + clockTime(session.startedAt, time: time)
+            label = Copy.sessionSince(time: clockTime(session.startedAt, time: time), bundle: bundle, locale: locale)
         case .done: label = session.finishedAt.map { formatDuration($0 - session.startedAt) }
         case .stopped: label = nil
         }
@@ -188,13 +210,13 @@ public func sessionList(
             state: state,
             agent: agent,
             initial: session.agent.harness == "codex" ? "X" : agent.prefix(1).uppercased(),
-            role: ["ship": "Builder", "review": "Reviewer", "fix": "Fixer"][session.stage] ?? session.stage.capitalized,
-            place: session.round.map { "Round \($0)" } ?? session.stage.capitalized,
+            role: stageRole(session.stage, bundle: bundle, locale: locale),
+            place: session.round.map { Copy.sessionPlaceRound(round: String($0), bundle: bundle, locale: locale) } ?? stagePlace(session.stage, bundle: bundle, locale: locale),
             counts: transcript.flatMap { $0.structured ? sessionCounts($0.events) : nil },
             timeLabel: label,
             openByDefault: index == 0,
             resume: state == .running || resumable == false ? nil : session.resume,
-            result: resultCard(session.result),
+            result: resultCard(session.result, bundle: bundle, locale: locale),
             failure: session.failure.map { $0.detail.isEmpty ? $0.kind : "\($0.kind): \($0.detail)" },
             engineRole: session.role,
             stage: session.stage,

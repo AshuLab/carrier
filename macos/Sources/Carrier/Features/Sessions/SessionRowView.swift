@@ -58,7 +58,7 @@ struct SessionRowView: View {
     private func place(_ place: SessionPlace) -> Text {
         switch place {
         case .branch(let name): Text("\(Image(inline: .gitBranch)) \(Text(name).scaledFont(11, design: .monospaced))")
-        case .baseFolder: Text("\(Image(inline: .folder)) Base folder")
+        case .baseFolder: Text("\(Image(inline: .folder)) \(Copy.sessionBaseFolder())")
         }
     }
 
@@ -71,9 +71,9 @@ struct SessionRowView: View {
 
     @ViewBuilder private func detail(_ content: SessionRowContent) -> some View {
         if row.state == .waiting && waitsAtTop(content) == false {
-            Text("Needs you").fontWeight(.medium).foregroundStyle(Self.attention)
+            Text(Copy.sessionStatusNeedsYou()).fontWeight(.medium).foregroundStyle(Self.attention)
         } else if row.status == .unread && doneAtTop(content) == false {
-            Text("Done").fontWeight(.medium).foregroundStyle(Color.sessionDone)
+            Text(Copy.sessionDone()).fontWeight(.medium).foregroundStyle(Color.sessionDone)
         } else {
             switch (content.workspace, content.place) {
             case (let workspace?, let placed?): Text("\(workspace) · \(place(placed))").foregroundStyle(.secondary)
@@ -93,8 +93,8 @@ struct SessionRowView: View {
             ageOrStopwatch(content).opacity(hoverActions && hovered ? 0 : 1)
             if hoverActions && hovered {
                 HStack(spacing: Tokens.Space.s2) {
-                    hoverButton(pinned ? .pinOff : .pin, pinned ? "Unpin" : "Pin", togglePin)
-                    hoverButton(.archive, "Archive", why: archiveBlock(row), archive)
+                    hoverButton(pinned ? .pinOff : .pin, pinned ? Copy.sessionUnpin() : Copy.sessionPin(), togglePin)
+                    hoverButton(.archive, Copy.sessionArchive(), why: archiveBlock(row), archive)
                 }
                 .transition(.opacity)
             }
@@ -155,8 +155,8 @@ struct SessionRowView: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(label(content))
         // the buttons are drawn on hover only: VoiceOver reaches the same two here
-        .accessibilityAction(named: pinned ? "Unpin" : "Pin") { if hoverActions { togglePin() } }
-        .accessibilityAction(named: "Archive") { if hoverActions && archiveBlock(row) == nil { archive() } }
+        .accessibilityAction(named: pinned ? Copy.sessionUnpin() : Copy.sessionPin()) { if hoverActions { togglePin() } }
+        .accessibilityAction(named: Copy.sessionArchive()) { if hoverActions && archiveBlock(row) == nil { archive() } }
     }
 
     /// `why` is what keeps the button off: it is the tooltip then, and what VoiceOver reads after the name.
@@ -171,17 +171,17 @@ struct SessionRowView: View {
     /// the parts the person switched off left out.
     private func label(_ content: SessionRowContent) -> String {
         let state: String? = switch row.state {
-        case .working: "Working"
-        case .waiting: "Needs attention"
-        case .idle, .done: row.background.isEmpty == false ? "Waiting on background work" : row.status == .unread ? "Done" : nil
+        case .working: Copy.sessionStatusWorking()
+        case .waiting: Copy.sessionNeedsAttention()
+        case .idle, .done: row.background.isEmpty == false ? Copy.sessionWaitingBackground() : row.status == .unread ? Copy.sessionDone() : nil
         }
         let place: String? = switch content.place {
         case .branch(let name)?: name
-        case .baseFolder?: "Base folder"
+        case .baseFolder?: Copy.sessionBaseFolder()
         case nil: nil
         }
         let age = content.age == nil ? nil : spokenAge(row.updatedAt, now: Date())
-        let work: [String?] = roomy ? [content.pullRequest?.spoken, content.diff.map { "\($0.added) lines added, \($0.removed) removed" }] : []
+        let work: [String?] = roomy ? [content.pullRequest?.spoken(), content.diff.map { Copy.sessionDiffSpoken(added: $0.added, removed: String($0.removed)) }] : []
         return ([row.title, state, row.workspace, place] + work + content.providers + [age]).compactMap { $0 }.joined(separator: ", ")
     }
 }
@@ -195,11 +195,11 @@ struct SessionTimeLabel: View {
 
     var body: some View {
         if row.state == .waiting && age != nil {
-            Text("Needs you").fontWeight(.medium).foregroundStyle(SessionRowView.attention)
+            Text(Copy.sessionStatusNeedsYou()).fontWeight(.medium).foregroundStyle(SessionRowView.attention)
         } else if row.status == .unread, let age {
             // the word, and beside it how long ago it ended: the time it would have shown
             HStack(spacing: Tokens.Space.s4) {
-                Text("Done").fontWeight(.medium).foregroundStyle(Color.sessionDone)
+                Text(Copy.sessionDone()).fontWeight(.medium).foregroundStyle(Color.sessionDone)
                 Text(age).foregroundStyle(.tertiary)
             }
         } else if age != nil, let since = WorkingClock.shared.since(row) {

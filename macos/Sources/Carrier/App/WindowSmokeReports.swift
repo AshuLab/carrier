@@ -24,7 +24,7 @@ extension WindowController {
     /// For `--smoke-window`, with the Archive selected: what the page lists and says, then the window's layout as it is with it on screen.
     var archiveStructure: String {
         let page = archivePage(model.sessions.rows, by: SidebarStore().archiveSort)
-        let line = "archive: \(page.subtitle.isEmpty ? "no count" : page.subtitle), groups \(page.groups.map(\.title)), \(page.emptyState?.title ?? "listed"), clear \(page.canClear ? "enabled" : "disabled")"
+        let line = "archive: \(page.subtitle.isEmpty ? "no count" : page.subtitle), groups \(page.groups.map(\.title)), \(page.emptyState?.title() ?? "listed"), clear \(page.canClear ? "enabled" : "disabled")"
         return line + "\n" + structure
     }
 
@@ -109,7 +109,7 @@ extension WindowController {
         }
         lines.append("sessions: \(model.sessions.rows.count) rows, \(archivedCount(model.sessions.rows)) archived, groups \(sessionGroups(model.sessions.rows).map(\.title))")
         let home = sessionsPage(model.sessions.rows, by: SidebarStore().sessionSort)
-        lines.append("sessions home: \(home.subtitle.isEmpty ? "no count" : home.subtitle), \(home.emptyState?.title ?? "listed")")
+        lines.append("sessions home: \(home.subtitle.isEmpty ? "no count" : home.subtitle), \(home.emptyState?.title() ?? "listed")")
         lines.append("transcript: \(SessionSectionsView.layout)")
         let events = longTranscriptEvents(rounds: 556)
         var transcript = Transcript()

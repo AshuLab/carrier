@@ -18,5 +18,5 @@ import Testing
 }
 
 @Test @MainActor func everyEmptyStateDrawsSomethingInTheCentre() {
-    for state in EmptyState.allCases { #expect(hasInkInTheCentre(state), "\(state.title)") }
+    for state in EmptyState.allCases { #expect(hasInkInTheCentre(state), "\(state.title())") }
 }

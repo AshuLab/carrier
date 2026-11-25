@@ -50,7 +50,7 @@ public func sessionPeek(_ row: SessionRow, now: Date) -> SessionPeek {
     case (.working, _): ("Working…", .working)
     case (_, .working): ("Waiting on background work…", .background)
     case (_, .unread): ("Done", .done)
-    default: (row.status.title, .quiet)
+    default: (row.status.title(), .quiet)
     }
     return SessionPeek(
         title: row.title, name: row.workspace, subtitle: subtitle, tone: tone, lastMessage: row.lastMessage?.isEmpty == false ? row.lastMessage : nil,

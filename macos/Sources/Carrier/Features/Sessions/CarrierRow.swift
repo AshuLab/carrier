@@ -23,8 +23,8 @@ struct CarrierRow: View {
         let snapshot: PanelSnapshot? = if case .running(let snapshot)? = state { snapshot } else { nil }
         // the hover: running says when the next check is, uptime and rate limit; an incompatible engine says why
         let detail: String? = if let snapshot { Self.hover(snapshot) } else if case .incompatible(let update)? = state { update ?? state?.menuLine } else { nil }
-        SidebarSectionRow(title: "Carrier", icon: .send, selected: selected, keepActions: groupMenu || searching, action: select, actions: {
-            Text(card.title)
+        SidebarSectionRow(title: Copy.appName(), icon: .send, selected: selected, keepActions: groupMenu || searching, action: select, actions: {
+            Text(card.title())
                 .sidebarFont(.detail, weight: .semibold)
                 .foregroundStyle(Self.tint(card.kind))
                 .padding(.horizontal, Tokens.Space.s8).padding(.vertical, Tokens.Space.s2)
@@ -33,15 +33,15 @@ struct CarrierRow: View {
             // the epics exist only while Carrier answers, so there is nothing to search or group before
             if snapshot != nil && unfolded {
                 IconButton(
-                    icon: .search, name: searching ? "Close epic search" : "Search epics", enabled: hasEpics, why: "No epics to search",
+                    icon: .search, name: searching ? Copy.sidebarCloseEpicSearch() : Copy.sidebarSearchEpics(), enabled: hasEpics, why: Copy.sidebarNoEpicsToSearch(),
                     shortcut: "⌘F", pressed: searching
                 ) {
                     searching.toggle()
                 }
-                IconButton(icon: .dots, name: "Group epics by") { groupMenu = true }
+                IconButton(icon: .dots, name: Copy.sidebarGroupEpicsBy()) { groupMenu = true }
                     .popover(isPresented: $groupMenu, arrowEdge: .trailing) {
                         ChoiceMenu(
-                            title: "Group by", options: GroupBy.allCases.map { ($0.title, $0) }, selection: $groupBy,
+                            title: Copy.sidebarGroupBy(), options: GroupBy.allCases.map { ($0.title, $0) }, selection: $groupBy,
                             close: { groupMenu = false }
                         )
                     }
@@ -58,10 +58,10 @@ struct CarrierRow: View {
                     Text("\(slots.busy)/\(slots.total)").scaledFont(11).monospacedDigit().foregroundStyle(.secondary)
                 }
                 .accessibilityElement(children: .ignore)
-                .accessibilityLabel("\(slots.busy) of \(slots.total) slots busy")
+                .accessibilityLabel(Copy.sidebarSlotsBusy(busy: slots.busy, total: slots.total))
             }
         })
-        .help(([detail, "Carrier (⌘3)"].compactMap { $0 }).joined(separator: "\n"))
+        .help(([detail, Copy.sidebarCarrierHelp()].compactMap { $0 }).joined(separator: "\n"))
         // remembered so a stopped engine, even after a relaunch, still draws its slots
         .onChange(of: snapshot?.slots.total, initial: true) { if let total = snapshot?.slots.total { SidebarStore().slotsTotal = total } }
     }
@@ -81,7 +81,7 @@ struct CarrierRow: View {
 }
 
 extension GroupBy {
-    var title: String { self == .status ? "Status" : "Repository" }
+    var title: String { self == .status ? Copy.sidebarGroupByStatus() : Copy.sidebarGroupByRepository() }
 }
 
 /// A popover of choices, one ticked; choosing one closes it.

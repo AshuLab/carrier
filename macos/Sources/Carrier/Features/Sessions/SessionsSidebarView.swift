@@ -55,30 +55,30 @@ struct SessionsRows: View {
     }
 
     @ViewBuilder private var header: some View {
-        SidebarSectionRow(title: "Sessions", icon: .messages, selected: selected, keepActions: sortOpen || query != nil, action: select, actions: {
+        SidebarSectionRow(title: Copy.sidebarSessions(), icon: .messages, selected: selected, keepActions: sortOpen || query != nil, action: select, actions: {
             if sessions.open > 0 {
                 Text("\(sessions.open)").sidebarFont(.detail, weight: .semibold).monospacedDigit().foregroundStyle(.secondary)
                     .padding(.horizontal, Tokens.Space.s6).padding(.vertical, Tokens.Space.s1)
                     .background(Capsule().fill(Color.secondary.opacity(0.15)))
-                    .accessibilityLabel(sessions.openLabel)
+                    .accessibilityLabel(sessions.openLabel())
             }
         }, hoverActions: {
             IconButton(
-                icon: .search, name: "Search sessions", enabled: sessions.open > 0, why: "No sessions to search", shortcut: "⌘F",
+                icon: .search, name: Copy.sessionsSearch(), enabled: sessions.open > 0, why: Copy.sessionsNoneToSearch(), shortcut: "⌘F",
                 pressed: query != nil
             ) {
                 if query == nil { openSearch() } else { query = nil }
             }
-            IconButton(icon: .dots, name: "Sort sessions") { sortOpen.toggle() }
+            IconButton(icon: .dots, name: Copy.sessionsSort()) { sortOpen.toggle() }
                 .popover(isPresented: $sortOpen, arrowEdge: .bottom) {
                     ChoiceMenu(
-                        title: "Sort sessions", options: SessionSort.allCases.map { ($0.menuTitle, $0) },
+                        title: Copy.sessionsSort(), options: SessionSort.allCases.map { ($0.menuTitle, $0) },
                         selection: $sort, close: { sortOpen = false }
                     )
                 }
-            IconButton(icon: .plus, name: "New session", action: newSession)
+            IconButton(icon: .plus, name: Copy.sessionsNew(), action: newSession)
         })
-        .help("Sessions (⌘2)")
+        .help(Copy.sidebarSessionsHelp())
         // the field is only drawn while unfolded, so a query must not outlive it: the magnifier would look pressed with no field
         .onChange(of: open) { if open == false { query = nil } }
         .onChange(of: searchRequest) { if searchRequest?.section == .sessions { openSearch() } }
@@ -93,7 +93,7 @@ struct SessionsRows: View {
                 if query != nil {
                     // not `Binding($query)`: its getter force-unwraps, and the field reads it once more after the query is nil
                     SidebarSearchField(
-                        placeholder: "Search sessions", text: Binding(get: { query ?? "" }, set: { query = $0 }), focus: $searching,
+                        placeholder: Copy.sessionsSearch(), text: Binding(get: { query ?? "" }, set: { query = $0 }), focus: $searching,
                         close: { query = nil }
                     )
                 }
@@ -106,9 +106,9 @@ struct SessionsRows: View {
                 switch SidebarListState(shown: groups.count, of: sessions.open, query: query ?? "") {
                 case .empty where ChatHostStarter.shared.missing.isEmpty:
                     let empty = EmptyState.noSessions
-                    SidebarEmptyBlock(icon: empty.icon, title: empty.title, line: empty.line) {
+                    SidebarEmptyBlock(icon: empty.icon, title: empty.title(), line: empty.line()) {
                         // the pill of the title bar's New session
-                        AccentGlassPillButton(title: "New session", icon: .plus, action: newSession).help("New session")
+                        AccentGlassPillButton(title: Copy.sessionsNew(), icon: .plus, action: newSession).help(Copy.sessionsNew())
                     }
                 case .noMatch(let typed): SidebarNoResults(query: typed, clear: { query = "" })
                 case .rows, .empty: EmptyView()
@@ -120,7 +120,7 @@ struct SessionsRows: View {
                     case .header(let group):
                         GroupHeader(
                             title: group.title, over: hovering[group.title]?.isEmpty == false, hover: track(group.title, "header"),
-                            add: sort == .workspace && group.title != "Pinned" ? group.rows.first.map { row in { newSessionIn(row.base) } } : nil
+                            add: sort == .workspace && group.title != Copy.sessionGroupPinned() ? group.rows.first.map { row in { newSessionIn(row.base) } } : nil
                         )
                     case .row(let row, let group):
                         SessionRowView(row: row, showsWorkspace: sort != .workspace, hoverActions: true, roomy: true)
@@ -151,9 +151,9 @@ private enum ListItem: Identifiable {
 extension SessionSort {
     var menuTitle: String {
         switch self {
-        case .workspace: "By workspace"
-        case .age: "By age"
-        case .status: "By state"
+        case .workspace: Copy.sessionSortByWorkspace()
+        case .age: Copy.sessionSortByAge()
+        case .status: Copy.sessionSortByState()
         }
     }
 }
@@ -172,7 +172,7 @@ private struct GroupHeader: View {
             Spacer(minLength: 0)
             if let add {
                 // it hides a moment late: the pointer crossing the gap between two rows, or on its way to the button, does not blink it
-                IconButton(icon: .plus, name: "New session in \(title)", action: add).opacity(over ? 1 : 0)
+                IconButton(icon: .plus, name: Copy.sessionsNewIn(workspace: title), action: add).opacity(over ? 1 : 0)
                     .animation(over ? .easeOut(duration: 0.12) : .easeOut(duration: 0.12).delay(0.15), value: over)
             }
         }

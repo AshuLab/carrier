@@ -26,7 +26,7 @@ private let config = Data("""
 // MARK: who
 
 @Test func aSessionWithAProfileIsNamedByItAndTheToolMovesToTheSecondLine() {
-    let text = sessionRowText(section(profile: "acme-author", account: "pro", model: "sonnet", effort: "high"))
+    let text = sessionRowText(section(profile: "acme-author", account: "pro", model: "sonnet", effort: "high"), bundle: english.bundle, locale: english.locale)
     #expect(text.name == "acme-author")
     #expect(text.role == "Builder · Ship")
     #expect(text.tool == "Claude")
@@ -37,15 +37,15 @@ private let config = Data("""
 }
 
 @Test func aSessionWithNoProfileKeepsTheToolsNameAndLeavesOutWhatItDoesNotKnow() {
-    let text = sessionRowText(section(model: "sonnet"))
+    let text = sessionRowText(section(model: "sonnet"), bundle: english.bundle, locale: english.locale)
     #expect(text.name == "Claude")
     #expect(text.tool == nil)
     #expect(text.how == "sonnet")
     #expect(text.letter == "C")
     #expect(text.identified == false)
-    #expect(sessionRowText(section()).how.isEmpty)
+    #expect(sessionRowText(section(), bundle: english.bundle, locale: english.locale).how.isEmpty)
     // an empty profile is none
-    #expect(sessionRowText(section(profile: "")).name == "Claude")
+    #expect(sessionRowText(section(profile: ""), bundle: english.bundle, locale: english.locale).name == "Claude")
 }
 
 @Test func theConfigNamesTheForgeBotOfTheRoleAndNoOneForAGhProfile() {
@@ -85,7 +85,7 @@ private let config = Data("""
         executionId: "x", stage: "fix", role: "author", round: 2, agent: agent, status: "finished", startedAt: 1000, finishedAt: 61_000, resume: nil
     )
     reply.profile = "acme-author"
-    let built = sessionList(SessionsReply(sessions: [reply])).sections[0]
+    let built = sessionList(SessionsReply(sessions: [reply]), bundle: english.bundle, locale: english.locale).sections[0]
     #expect(built.profile == "acme-author")
     #expect(built.account == "pro")
     #expect(built.model == "sonnet")
@@ -105,49 +105,49 @@ private let config = Data("""
 
 // MARK: the summary line
 
-private func text(_ summary: SessionSummary) -> String { summary.text }
+private func text(_ summary: SessionSummary) -> String { summary.text(bundle: english.bundle, locale: english.locale) }
 
 @Test func aRunningSessionSaysItIsWorkingSinceWhenAndHowManyCalls() {
     let running = section(.running, counts: SessionCounts(calls: 62), time: "since 16:09")
-    #expect(sessionSummary(running, open: true) == sessionSummary(running, open: false))
-    #expect(text(sessionSummary(running, open: true)) == "Working, since 16:09, 62 calls")
-    #expect(text(sessionSummary(section(.running, time: "since 16:09"), open: true)) == "Working, since 16:09")
+    #expect(sessionSummary(running, open: true, bundle: english.bundle, locale: english.locale) == sessionSummary(running, open: false, bundle: english.bundle, locale: english.locale))
+    #expect(text(sessionSummary(running, open: true, bundle: english.bundle, locale: english.locale)) == "Working, since 16:09, 62 calls")
+    #expect(text(sessionSummary(section(.running, time: "since 16:09"), open: true, bundle: english.bundle, locale: english.locale)) == "Working, since 16:09")
 }
 
 @Test func aStoppedSessionShowsItsBadgeAndItsReason() {
-    #expect(sessionSummary(section(.stopped, time: nil, failure: "usage_limit: resets 3:10am"), open: false) == .stopped(reason: "usage_limit: resets 3:10am"))
-    #expect(sessionSummary(section(.stopped, time: nil), open: true) == .stopped(reason: nil))
+    #expect(sessionSummary(section(.stopped, time: nil, failure: "usage_limit: resets 3:10am"), open: false, bundle: english.bundle, locale: english.locale) == .stopped(reason: "usage_limit: resets 3:10am"))
+    #expect(sessionSummary(section(.stopped, time: nil), open: true, bundle: english.bundle, locale: english.locale) == .stopped(reason: nil))
     #expect(text(.stopped(reason: "killed: SIGKILL")) == "stopped, killed: SIGKILL")
 }
 
 @Test func anOpenSessionSaysItsCountsAndHowLongItTook() {
     let counts = SessionCounts(calls: 229, edits: 23, added: 10, removed: 2, tests: 27, errors: 9)
-    #expect(text(sessionSummary(section(counts: counts), open: true)) == "229 calls, 23 edits +10 −2, 27 test runs, 9 errors, 31m")
-    #expect(text(sessionSummary(section(counts: SessionCounts(calls: 1)), open: true)) == "1 call, 31m")
-    #expect(text(sessionSummary(section(counts: nil), open: true)) == "31m")
-    let errors = sessionSummary(section(counts: SessionCounts(calls: 3, errors: 2)), open: true)
+    #expect(text(sessionSummary(section(counts: counts), open: true, bundle: english.bundle, locale: english.locale)) == "229 calls, 23 edits +10 −2, 27 test runs, 9 errors, 31m")
+    #expect(text(sessionSummary(section(counts: SessionCounts(calls: 1)), open: true, bundle: english.bundle, locale: english.locale)) == "1 call, 31m")
+    #expect(text(sessionSummary(section(counts: nil), open: true, bundle: english.bundle, locale: english.locale)) == "31m")
+    let errors = sessionSummary(section(counts: SessionCounts(calls: 3, errors: 2)), open: true, bundle: english.bundle, locale: english.locale)
     guard case .line(let spans) = errors else { Issue.record("not a line"); return }
     #expect(spans.filter { $0.style == .red }.map(\.text) == ["2", "errors"])
 }
 
 @Test func aFoldedSessionSaysHowItEndedInBoldThenTheVerdictAndTheTime() {
     let done = ResultCard(outcome: "Completed", tone: .good, ci: .init(verdict: "passed", evidence: "ok"), reason: nil)
-    let summary = sessionSummary(section(counts: SessionCounts(calls: 5), result: done), open: false)
+    let summary = sessionSummary(section(counts: SessionCounts(calls: 5), result: done), open: false, bundle: english.bundle, locale: english.locale)
     #expect(text(summary) == "Completed, CI passed, 31m")
     guard case .line(let spans) = summary else { Issue.record("not a line"); return }
     #expect(spans.first == SummarySpan(text: "Completed", style: .strong))
     let review = ResultCard(outcome: "Changes requested", tone: .warning, ci: nil, reason: nil)
-    #expect(text(sessionSummary(section(result: review), open: false)) == "Changes requested, 31m")
+    #expect(text(sessionSummary(section(result: review), open: false, bundle: english.bundle, locale: english.locale)) == "Changes requested, 31m")
     // no result: the counts, as when it is open
-    #expect(text(sessionSummary(section(counts: SessionCounts(calls: 4)), open: false)) == "4 calls, 31m")
+    #expect(text(sessionSummary(section(counts: SessionCounts(calls: 4)), open: false, bundle: english.bundle, locale: english.locale)) == "4 calls, 31m")
     // open, the counts win over the outcome
-    #expect(text(sessionSummary(section(counts: SessionCounts(calls: 4), result: done), open: true)) == "4 calls, 31m")
+    #expect(text(sessionSummary(section(counts: SessionCounts(calls: 4), result: done), open: true, bundle: english.bundle, locale: english.locale)) == "4 calls, 31m")
 }
 
 @Test func theRowsLabelSaysWhoWhatAndWhetherItIsOpen() {
     let row = section(profile: "acme-author", account: "pro", model: "sonnet", counts: SessionCounts(calls: 4))
-    #expect(sessionRowLabel(row, open: true) == "acme-author. Builder · Ship. Claude · account pro · sonnet. 4 calls, 31m. Open")
-    #expect(sessionRowLabel(section(), open: false) == "Claude. Builder · Ship. 31m. Folded")
+    #expect(sessionRowLabel(row, open: true, bundle: english.bundle, locale: english.locale) == "acme-author. Builder · Ship. Claude · account pro · sonnet. 4 calls, 31m. Open")
+    #expect(sessionRowLabel(section(), open: false, bundle: english.bundle, locale: english.locale) == "Claude. Builder · Ship. 31m. Folded")
 }
 
 // MARK: earlier sessions
@@ -173,11 +173,11 @@ private func many(_ count: Int) -> [SessionSection] {
 
 @Test func theEarlierRowSaysHowManyWhichRolesOnceEachAndTheTimeTogether() {
     let earlier = EarlierSessions(sections: Array(many(4)))
-    #expect(earlier.title == "4 earlier sessions")
+    #expect(earlier.title(bundle: english.bundle, locale: english.locale) == "4 earlier sessions")
     #expect(earlier.detail == "Builder, Reviewer, Fixer · 1h 00m")
-    #expect(earlier.label == "4 earlier sessions, Builder, Reviewer, Fixer · 1h 00m")
+    #expect(earlier.label(bundle: english.bundle, locale: english.locale) == "4 earlier sessions, Builder, Reviewer, Fixer · 1h 00m")
     let one = EarlierSessions(sections: [section(role: "Builder", duration: 31 * 60_000)])
-    #expect(one.title == "1 earlier session")
+    #expect(one.title(bundle: english.bundle, locale: english.locale) == "1 earlier session")
     #expect(one.detail == "Builder · 31m")
     // no time known: the roles alone
     #expect(EarlierSessions(sections: [section(role: "Fixer")]).detail == "Fixer")

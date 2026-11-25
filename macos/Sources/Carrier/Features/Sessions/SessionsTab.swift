@@ -41,10 +41,10 @@ struct SessionsTabView: View {
     var body: some View {
         SettingsPageBody(reset: reset) {
             SettingsGroup(
-                id: "new-sessions", title: "New sessions",
-                footer: "A new worktree is offered only for a git repository. The message box and the new session screen still change these for that one session. Remote fetches the branch first and falls back to the local one when it cannot be reached."
+                id: "new-sessions", title: Copy.sessionsSettingsNewSessions(),
+                footer: Copy.sessionsSettingsNewSessionsFooter()
             ) {
-                SettingsTabRow(id: "starts-with", title: "Starts with", detail: "Provider, model and reasoning", first: true) {
+                SettingsTabRow(id: "starts-with", title: Copy.sessionsSettingsStartsWith(), detail: Copy.sessionsSettingsStartsWithDetail(), first: true) {
                     ModelPickerButton(
                         provider: startAgent.isEmpty ? nil : startAgent, model: startModel.isEmpty ? nil : startModel, effort: startEffort,
                         accounts: startAccounts, catalog: catalog, showsAccess: false, accessScales: startAccessScales,
@@ -53,8 +53,8 @@ struct SessionsTabView: View {
                             chosen[option] = value
                             startAccess = NewSessionStart.json(fromAccess: chosen)
                         },
-                        effortFallback: (label: "Provider's own", detail: "The level the provider starts with."), allowsDefaultModel: true,
-                        noneTitle: "First provider that can work", placeholder: "First that can work"
+                        effortFallback: (label: Copy.sessionsSettingsEffortOwn(), detail: Copy.sessionsSettingsEffortOwnDetail()), allowsDefaultModel: true,
+                        noneTitle: Copy.sessionsSettingsFirstProvider(), placeholder: Copy.sessionsSettingsFirstProviderShort()
                     ) { pick in
                         switch pick {
                         case .account(let agent, let model): startAgent = agent; startModel = model ?? ""
@@ -65,40 +65,40 @@ struct SessionsTabView: View {
                     }
                     .task { await catalog.load() }
                 }
-                SettingsTabRow(id: "work-in", title: "Work in", detail: "Base folder or a new worktree") {
-                    ChoicePopUp(label: "Work in", options: WorkIn.allCases.map { (value: $0, title: $0.title) }, selection: $workIn)
+                SettingsTabRow(id: "work-in", title: Copy.sessionsSettingsWorkIn(), detail: Copy.sessionsSettingsWorkInDetail()) {
+                    ChoicePopUp(label: Copy.sessionsSettingsWorkIn(), options: WorkIn.allCases.map { (value: $0, title: $0.title) }, selection: $workIn)
                 }
                 let startOff = worktreeStartOffReason(workIn: workIn)
-                SettingsTabRow(id: "start-from", title: "Start from", detail: startOff ?? "Where a new worktree is cut") {
-                    ChoicePopUp(label: "Start from", options: WorktreeStart.allCases.map { (value: $0, title: $0.title) }, selection: $start)
+                SettingsTabRow(id: "start-from", title: Copy.sessionsSettingsStartFrom(), detail: startOff ?? Copy.sessionsSettingsStartFromDetail()) {
+                    ChoicePopUp(label: Copy.sessionsSettingsStartFrom(), options: WorktreeStart.allCases.map { (value: $0, title: $0.title) }, selection: $start)
                         .disabled(startOff != nil || unreadable)
                 }
                 .foregroundStyle(startOff == nil ? Color.primary : Color.secondary)
             }
             SettingsGroup(
-                id: "idle-sessions", title: "Idle sessions",
-                footer: "An idle session you do not open for this long puts its agent to sleep, which frees its memory. It stays in the list, and a message wakes it where it left off. The session you have open stays awake, and so does one that is working or waiting for you."
+                id: "idle-sessions", title: Copy.sessionsSettingsIdleSessions(),
+                footer: Copy.sessionsSettingsIdleFooter()
             ) {
-                SettingsTabRow(id: "sleep-after", title: "Sleep after", detail: "How long an idle session nobody opens keeps its agent running", first: true) {
-                    ChoicePopUp(label: "Sleep after", options: IdleClose.allCases.map { (value: $0, title: $0.title) }, selection: $idle)
+                SettingsTabRow(id: "sleep-after", title: Copy.sessionsSettingsSleepAfter(), detail: Copy.sessionsSettingsSleepAfterDetail(), first: true) {
+                    ChoicePopUp(label: Copy.sessionsSettingsSleepAfter(), options: IdleClose.allCases.map { (value: $0, title: $0.title) }, selection: $idle)
                         .disabled(unreadable)
                 }
             }
             SettingsGroup(
-                id: "archive-and-delete", title: "Archive and delete",
-                footer: "Ages count from a session’s last activity. Delete is off while Archive is Never. Deleting removes the session’s worktree; work that is not saved is kept."
+                id: "archive-and-delete", title: Copy.sessionsSettingsArchiveAndDelete(),
+                footer: Copy.sessionsSettingsArchiveFooter()
             ) {
-                row(id: "archive-after", "Archive after", "Days without activity before it is archived", .archive, off: nil, first: true, age: $draft.archive, fallback: defaultArchiveAfterDays)
-                row(id: "delete-after", "Delete after", "Days an archived session waits before it is deleted", .delete, off: deleteAgeOffReason(draft), age: $draft.delete, fallback: defaultDeleteAfterDays)
-                SettingsTabRow(id: "ask-before-deleting-a-session", title: "Ask before deleting a session", detail: "The question says its worktree goes with it") {
-                    Toggle("Ask before deleting a session", isOn: $confirmDelete).labelsHidden().toggleStyle(.switch)
+                row(id: "archive-after", Copy.sessionsSettingsArchiveAfter(), Copy.sessionsSettingsArchiveAfterDetail(), .archive, off: nil, first: true, age: $draft.archive, fallback: defaultArchiveAfterDays)
+                row(id: "delete-after", Copy.sessionsSettingsDeleteAfter(), Copy.sessionsSettingsDeleteAfterDetail(), .delete, off: deleteAgeOffReason(draft), age: $draft.delete, fallback: defaultDeleteAfterDays)
+                SettingsTabRow(id: "ask-before-deleting-a-session", title: Copy.sessionsSettingsAskBeforeDeleting(), detail: Copy.sessionsSettingsAskBeforeDeletingDetail()) {
+                    Toggle(Copy.sessionsSettingsAskBeforeDeleting(), isOn: $confirmDelete).labelsHidden().toggleStyle(.switch)
                 }
             }
-            SettingsGroup(id: "with-these-ages", title: "With these ages") {
+            SettingsGroup(id: "with-these-ages", title: Copy.sessionsSettingsWithTheseAges()) {
                 // with chat.json unreadable the draft is only the defaults, not what the host will use
                 let line = unreadable ? nil : sessionAgesLine(draft, today: Date(), unparsable: unparsableFields)
-                if let line { SettingsTabRow(title: "A session you stop using today", detail: line, first: true) { EmptyView() } }
-                SettingsTabRow(title: "Left alone", detail: "A session that is working, waiting for you or open is looked at again later", first: line == nil) { EmptyView() }
+                if let line { SettingsTabRow(title: Copy.sessionsSettingsStopUsingToday(), detail: line, first: true) { EmptyView() } }
+                SettingsTabRow(title: Copy.sessionsSettingsLeftAlone(), detail: Copy.sessionsSettingsLeftAloneDetail(), first: line == nil) { EmptyView() }
             }
             if let failure { Label(failure, icon: .warningFilled).scaledFont(12).foregroundStyle(.orange) }
         }
@@ -115,10 +115,10 @@ struct SessionsTabView: View {
             HStack(spacing: Tokens.Space.s10) {
                 if age.wrappedValue != .never {
                     NumberField(key: key, value: days, unparsable: $unparsable, parse: { Int($0) }, format: { String($0) }, step: { $0 + $1 >= 1 ? $0 + $1 : nil })
-                    Text("days").scaledFont(11).foregroundStyle(.secondary)
+                    Text(Copy.sessionsSettingsDays()).scaledFont(11).foregroundStyle(.secondary)
                 }
                 ChoicePopUp(
-                    label: title, options: [(value: false, title: "Days"), (value: true, title: "Never")],
+                    label: title, options: [(value: false, title: Copy.sessionsSettingsDaysChoice()), (value: true, title: Copy.sessionsSettingsNever())],
                     selection: Binding(get: { age.wrappedValue == .never }, set: { never in
                         unparsable.remove(key)
                         age.wrappedValue = never ? .never : .days(fallback)
@@ -153,7 +153,7 @@ struct SessionsTabView: View {
             unreadable = false
         } catch {
             unreadable = true
-            failure = "chat.json could not be read: \(error.localizedDescription)"
+            failure = Copy.sessionsSettingsUnreadable(error: error.localizedDescription)
         }
     }
 
@@ -195,7 +195,7 @@ struct SessionsTabView: View {
 
     private static func words(_ error: Error) -> String {
         if case ControlError.remote(let refusal) = error { return refusal.shown() }
-        return "Could not save chat.json: \(error.localizedDescription)"
+        return Copy.sessionsSettingsSaveFailed(error: error.localizedDescription)
     }
 }
 

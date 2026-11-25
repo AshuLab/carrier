@@ -91,7 +91,7 @@ struct TerminalRows: View {
                 switch SidebarListState(shown: shownTerminals.count, of: terminals.count, query: query ?? "") {
                 case .empty:
                     let empty = EmptyState.noTerminals
-                    SidebarEmptyBlock(icon: empty.icon, title: empty.title, line: empty.line) {
+                    SidebarEmptyBlock(icon: empty.icon, title: empty.title(), line: empty.line()) {
                         // the pill of the title bar's New Terminal
                         AccentGlassPillButton(title: "New Terminal", icon: .plus, action: newTerminal)
                             .help("New terminal session")

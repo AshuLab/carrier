@@ -2,11 +2,29 @@
 # Checks every structure rule of the spec (docs/specs/macos-app-as-the-base-for-a-web-front-end.md, section 9) and prints `file:line: message` for each violation.
 # Greps, not a parser: a false alarm is fixed by renaming or by the rule's own ignore list, not by a smarter tool. Exits 1 on any violation, 0 on none.
 # Every rule is always on: nothing here is switched off by a flag or a comment. Run from anywhere; CI runs it in macos/ right after test-ci.sh.
-# Known limit: a literal passed positionally to a helper of our own (`item(menu, "Quit", ...)` in MainMenu) is seen by no rule: a grep does not know what the helper does with it.
+# Known limits (greps, not a parser; none is fixed by a smarter tool):
+#   - a literal passed positionally to a helper of our own (`item(menu, "Quit", ...)` in MainMenu) is seen by no rule: a grep does not know what the helper does with it.
+#   - `forKey:` with its literal key on the next line, `@AppStorage("key")` and `UserDefaults(suiteName:)` are not seen by the preferences rule.
+#   - only `//` comments and one-line `"..."` strings are stripped: a `/* */` comment or a `"""` multi-line string is read as code, and a string with quotes inside an interpolation
+#     (`"\(a["k"])"`) unbalances the string stripper of the rules that strip them (frameworks, literal sizes).
+#   - `Color(red:`, `NSColor(red:`, `Color(hue:` and `Color(white:` fail even when the values are variables: stricter than the ticket; the colour tokens (CarrierUI/Tokens/) are not read.
 # The rule "a piece names no type of an area" is not here: CarrierUI is a target, and the compiler refuses it.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 FAILED=0
+
+# Sanity: a rule that scans nothing passes for the wrong reason, so the script fails when its inputs are not there.
+# perl reads the rules of literal sizes and literal texts; the tree has well over MIN_SWIFT_FILES Swift files under Sources/ (605 when this was written).
+MIN_SWIFT_FILES=100
+if ! command -v perl > /dev/null; then
+  echo "scripts/check-structure.sh:1: perl is not installed, and the rules of literal sizes and literal texts need it: the structure was not checked"
+  exit 1
+fi
+SWIFT_FILES=$(find Sources -name '*.swift' 2> /dev/null | wc -l | tr -d ' ')
+if [ "$SWIFT_FILES" -le "$MIN_SWIFT_FILES" ]; then
+  echo "scripts/check-structure.sh:1: only $SWIFT_FILES Swift files found under Sources/ (expected more than $MIN_SWIFT_FILES): the structure was not checked"
+  exit 1
+fi
 
 # Rule: no Swift file under Sources/ is longer than 400 lines.
 # Looks at every `*.swift` of the targets in LENGTH_TARGETS and prints the first line past the limit.
@@ -73,26 +91,33 @@ fi
 rm -f /tmp/check-structure-defaults.$$
 
 # Rule: no literal size or colour outside CarrierUI/Tokens/.
-# A literal number as the value of `cornerRadius:` or `spacing:`, in the arguments of `.padding(` (with or without an edge), and a `Color(red:`, `NSColor(red:`,
-# `Color(hue:` or `Color(white:` at all, in every file of Sources/ outside Sources/CarrierUI/Tokens/; a size is a token (`Tokens.Space`, `Tokens.Radius`), a colour a token or a system colour.
-# Ignores: comments and string literals, which are stripped before the lines are read; and a number that is the operand of an operator (`-width / 2`, `index > 0`):
-# that is a computation on a measure, not a size. Only a number standing as a whole argument or as a branch of `? :` counts (`.padding(8)`, `.padding(.top, large ? 24 : 16)`).
+# A literal number anywhere in the value of `cornerRadius:` or `spacing:` (the value may start on the next line), in the arguments of `.padding(` (with or without an edge)
+# or `.cornerRadius(`, and a `Color(red:`, `NSColor(red:`, `Color(hue:`, `Color(white:`, `NSColor(srgbRed:`, `NSColor(calibratedRed:`, `NSColor(calibratedWhite:` or
+# `Color(.sRGB, red:` at all, in every file of Sources/ outside Sources/CarrierUI/Tokens/; a size is a token (`Tokens.Space`, `Tokens.Radius`), a colour a token or a system colour.
+# A number counts wherever it stands in the value: alone, a branch of `? :`, an operand (`depth * 12`, `gap - 2`), inside `CGFloat(8)` or `max(4, x)`; a digit that is part of a name (`s12`) does not.
+# Ignores: comments (from `//` to the end of the line) and one-line string literals, which are stripped before the lines are read; and three things that are not a size:
+#   a number compared with (`index > 0`, `n == 1`: a test), a division by 2 (`width / 2`: half of a measure) and a multiplication by a fraction (`size * 0.28`: a part of a measure).
 # Sources/CarrierUI/Tokens/ is where the numbers live, so it is not read.
 find Sources -name '*.swift' -not -path 'Sources/CarrierUI/Tokens/*' | sort |
   while IFS= read -r file; do
     perl -0777 -ne '
-      my $inner = qr/(?:[^()]|\((?:[^()]|\((?:[^()]|\([^()]*\))*\))*\))*/;
+      my $inner = qr/(?:[^()]++|\((?:[^()]++|\((?:[^()]++|\([^()]*\))*\))*\))*/;
+      my $value = qr/(?:[^(),\n]++|\($inner\))*/;
+      my $ratio = qr/[<>]=?\s*[0-9.]+|[!=]=\s*[0-9.]+|\/\s*2(?![0-9.])|\*\s*0\.[0-9]+/;
+      my $number = qr/(?<![A-Za-z0-9_.])[0-9]/;
       my $s = $_;
       $s =~ s{("(?:[^"\\\n]|\\.)*")|(//[^\n]*)}{defined $1 ? "\"\"" : ""}ge;
-      my $literal = qr/(?:^|[(,:?])\s*-?[0-9]/;
-      while ($s =~ /\b(?:cornerRadius|spacing):([^,)\n]*)|\.padding\(($inner)\)|\b((?:NS)?Color\((?:red|hue|white):)/g) {
-        my ($value, $args, $color, $at, $len) = ($1, $2, $3, $-[0], $+[0] - $-[0]);
-        next unless defined $color or (defined $value and $value =~ /^\s*-?[0-9]|[?:]\s*-?[0-9]/) or (defined $args and $args =~ $literal);
+      while ($s =~ /\b(?:cornerRadius|spacing):\s*($value)|\.(?:padding|cornerRadius)\(($inner)\)|\b((?:NS)?Color\((?:\.sRGB,\s*)?(?:red|hue|white|srgbRed|calibratedRed|calibratedWhite):)/g) {
+        my ($v, $args, $color, $at, $len) = ($1, $2, $3, $-[0], $+[0] - $-[0]);
+        (my $measure = $v // $args // "") =~ s/$ratio//g;
+        next unless defined $color or $measure =~ $number;
         my $line = 1 + (substr($s, 0, $at) =~ tr/\n//);
         my $what = substr($s, $at, $len); $what =~ s/\s+/ /g;
         print "$ARGV:$line: a literal size or colour outside CarrierUI/Tokens/ ($what): use a token of Tokens.Space, Tokens.Radius or the colour tokens\n";
       }
 ' "$file" | sed "s|^-:|$file:|"
+    rc=${PIPESTATUS[0]}
+    [ "$rc" -eq 0 ] || echo "$file:1: perl exited $rc: the file could not be checked for literal sizes or colours"
   done > /tmp/check-structure-look.$$
 if [ -s /tmp/check-structure-look.$$ ]; then
   cat /tmp/check-structure-look.$$
@@ -122,14 +147,14 @@ rm -f /tmp/check-structure-frameworks.$$
 
 # Rule: every piece is named by an entry of the pieces gallery.
 # A piece is a type declared at the top level of a file under Sources/CarrierUI/ outside Tokens/ and Modifiers/: a `struct`, `enum`, `class`, `protocol` or
-# `actor` that starts the line (with `public`, `final` or an attribute such as `@MainActor` before it), so a nested type does not count. An entry names it when its name
+# `actor` that starts the line (with `public`, `internal`, `open`, `final` or an attribute such as `@MainActor` before it, or with no access word), so a nested type does not count. An entry names it when its name
 # is in quotes in a `GalleryEntry(` line of Sources/Carrier/Features/Settings/PiecesGallery*.swift: `GalleryEntry("SpinningRing", "RingLayer")` names both.
 # Ignores: `private` and `fileprivate` types (they start with those words, so the pattern does not see them), and extensions, which declare no type.
 GALLERY=(Sources/Carrier/Features/Settings/PiecesGallery*.swift)
-grep -rnE '^(@[A-Za-z]+ )*(public )?(final )?(struct|enum|class|protocol|actor) [A-Za-z0-9_]+' Sources/CarrierUI --include='*.swift' |
+grep -rnE '^(@[A-Za-z]+ )*((public|internal|open) )?(final )?(struct|enum|class|protocol|actor) [A-Za-z0-9_]+' Sources/CarrierUI --include='*.swift' |
   grep -vE '^Sources/CarrierUI/(Tokens|Modifiers)/' |
   while IFS= read -r hit; do
-    name=$(echo "$hit" | sed -E 's/^[^:]+:[0-9]+:(@[A-Za-z]+ )*(public )?(final )?(struct|enum|class|protocol|actor) ([A-Za-z0-9_]+).*/\5/')
+    name=$(echo "$hit" | sed -E 's/^[^:]+:[0-9]+:(@[A-Za-z]+ )*((public|internal|open) )?(final )?(struct|enum|class|protocol|actor) ([A-Za-z0-9_]+).*/\6/')
     grep -h 'GalleryEntry(' "${GALLERY[@]}" 2>/dev/null | grep -q "\"$name\"" ||
       echo "$hit" | sed -E "s/^([^:]+:[0-9]+):.*/\1: $name is a piece that no GalleryEntry of the pieces gallery names: add its entry to PiecesGallery<Kind>.swift/"
   done > /tmp/check-structure-gallery.$$
@@ -155,7 +180,7 @@ find "${COPY_AREAS[@]}" -name '*.swift' | sort |
       my $s = $_;
       $s =~ s{($str)|(//[^\n]*)}{defined $1 ? $1 : ""}ge;
       # the AppKit calls: withTitle labels, setAccessibilityLabel, and a literal assigned to title, messageText, informativeText, toolTip, subtitle, placeholderString or an accessibility text
-      my $call = qr/(?:\b(?:Text|Label|Button|Toggle|TextField|SecureField)|\.(?:help|accessibilityLabel|accessibilityValue|accessibilityHint|navigationTitle|alert|confirmationDialog)|\bset(?:AccessibilityLabel|AccessibilityHelp|AccessibilityValueDescription))\(\s*|\b(?:title|withTitle):\s*|\.(?:title|messageText|informativeText|toolTip|subtitle|placeholderString|accessibilityLabel|accessibilityHint)\s*=\s*/;
+      my $call = qr/(?:\b(?:Text|Label|Button|Toggle|TextField|SecureField)|\.(?:help|accessibilityLabel|accessibilityValue|accessibilityHint|navigationTitle|alert|confirmationDialog)|\bset(?:AccessibilityLabel|AccessibilityHelp|AccessibilityValueDescription))\(\s*(?:verbatim:\s*)?|\b(?:title|withTitle):\s*|\.(?:title|messageText|informativeText|toolTip|subtitle|placeholderString|accessibilityLabel|accessibilityHint)\s*=\s*/;
       while ($s =~ /$call($str)/g) {
         my ($text, $at) = ($1, $-[0]);
         (my $words = $text) =~ s/\\\($inner\)//g;
@@ -164,6 +189,8 @@ find "${COPY_AREAS[@]}" -name '*.swift' | sort |
         print "$ARGV:$line: $text is a user-facing literal in an area whose texts are copy keys: add the key to design/copy/en.json and es.json and read it through Copy\n";
       }
 ' "$file" | sed "s|^-:|$file:|"
+    rc=${PIPESTATUS[0]}
+    [ "$rc" -eq 0 ] || echo "$file:1: perl exited $rc: the file could not be checked for literal texts"
   done > /tmp/check-structure-copy.$$
 if [ -s /tmp/check-structure-copy.$$ ]; then
   cat /tmp/check-structure-copy.$$

@@ -6,7 +6,7 @@ struct QuotaPercent: View {
     let used: Double
 
     var body: some View {
-        Text("\(Int((used * 100).rounded()))%").font(.scaled(11, weight: .semibold)).monospacedDigit()
+        Text("\(Int((used * 100).rounded()))%").scaledFont(11, weight: .semibold).monospacedDigit()
             .foregroundStyle(used >= 0.9 ? Color.orange : Color.primary)
     }
 }

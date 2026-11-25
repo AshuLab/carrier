@@ -6,6 +6,7 @@ import SwiftUI
 /// this Mac yet has no tabs: its branches are one list in two sections. `browsing` is the same sheet for a session that works in the folder
 /// itself: the pick is the branch the folder is switched to when the message is sent (docs/adr/0018).
 struct BranchSheet: View {
+    @Environment(\.pieceTheme) private var theme
     @Bindable var model: NewSessionModel
     var browsing = false
     @Environment(\.dismiss) private var dismiss
@@ -48,9 +49,9 @@ struct BranchSheet: View {
 
     private var header: some View {
         HStack(spacing: Tokens.Space.s12) {
-            Glyph(.gitBranch, size: 16).foregroundStyle(Color.themeAccent)
+            Glyph(.gitBranch, size: 16).foregroundStyle(.tint)
                 .frame(width: 36, height: 36)
-                .background(RoundedRectangle(cornerRadius: Tokens.Radius.control).fill(Color.themeAccent.opacity(0.16)))
+                .background(RoundedRectangle(cornerRadius: Tokens.Radius.control).fill(.tint.opacity(0.16)))
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: Tokens.Space.s2) {
                 Text(browsing ? "Branches in \(model.folder.map { URL(fileURLWithPath: $0).lastPathComponent } ?? "this folder")" : "Start from a branch").font(.title3.weight(.semibold))
@@ -136,7 +137,7 @@ struct BranchSheet: View {
                 if let tab { model.choose(startBranch: row.name, on: tab) } else { model.choose(startBranch: row.name) }
                 dismiss()
             },
-            fill: chosen ? Color.themeAccent.opacity(0.18) : nil
+            fill: chosen ? theme.accent.opacity(0.18) : nil
         ) { hovering in
             rowContent(row, chosen: chosen, hovering: hovering, notOnOrigin: tab == .local && row.localOnly, counted: tab == .local)
         }
@@ -146,16 +147,16 @@ struct BranchSheet: View {
     private func rowContent(_ row: BranchRow, chosen: Bool, hovering: Bool, notOnOrigin: Bool = false, counted: Bool = false) -> some View {
         let cut = row.name.lastIndex(of: "/").map { row.name.index(after: $0) } ?? row.name.startIndex
         return HStack(spacing: Tokens.Space.s10) {
-            Glyph(.gitBranch).foregroundStyle(chosen ? Color.themeAccent : .secondary).frame(width: 18).accessibilityHidden(true)
+            Glyph(.gitBranch).foregroundStyle(chosen ? theme.accent : .secondary).frame(width: 18).accessibilityHidden(true)
             Text("\(Text(row.name[..<cut]).foregroundStyle(.secondary))\(Text(row.name[cut...]).fontWeight(chosen ? .semibold : .medium))")
                 .lineLimit(1).truncationMode(.middle)
-            if row.isDefault { Badge(text: "default", icon: .starFilled, tint: .themeAccent) }
-            if row.checkedOut { Badge(text: browsing ? "current" : "checked out", icon: .checkCircle, tint: browsing ? .themeAccent : .secondary) }
+            if row.isDefault { Badge(text: "default", icon: .starFilled, tint: theme.accent) }
+            if row.checkedOut { Badge(text: browsing ? "current" : "checked out", icon: .checkCircle, tint: browsing ? theme.accent : .secondary) }
             if notOnOrigin { Badge(text: "not on origin", icon: .cloud, tint: .secondary) }
             if counted, let behind = row.behindText { Badge(text: behind, icon: .arrowDown, tint: .orange) }
             if counted, let notPushed = row.notPushedText { Badge(text: notPushed, icon: .arrowUp, tint: .orange) }
             Spacer(minLength: 8)
-            if chosen { Glyph(.check, label: "Chosen").foregroundStyle(Color.themeAccent) }
+            if chosen { Glyph(.check, label: "Chosen").foregroundStyle(.tint) }
             else { RowHint(text: "Select", shown: hovering) }
         }
         .frame(minHeight: 20).padding(.horizontal, Tokens.Space.s10).padding(.vertical, Tokens.Space.s8)
@@ -180,7 +181,7 @@ struct BranchSheet: View {
     private var newBranch: some View {
         VStack(alignment: .leading, spacing: Tokens.Space.s8) {
             newBranchLine
-            if let warning = model.startWarning { ProblemLine(text: warning, font: .subheadline) }
+            if let warning = model.startWarning { ProblemLine(text: warning, size: 11) }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(Tokens.Space.s12).background(RoundedRectangle(cornerRadius: Tokens.Radius.control).fill(Color.secondary.opacity(0.08)))

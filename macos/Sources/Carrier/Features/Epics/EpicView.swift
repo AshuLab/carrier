@@ -143,7 +143,7 @@ private struct EpicHeaderView: View {
                             .buttonStyle(.plain).help("Open the issue")
                     }
                     ForEach(header.labels, id: \.self) { label in
-                        Text(label).font(.scaled(12, weight: .medium)).padding(.horizontal, Tokens.Space.s8).padding(.vertical, Tokens.Space.s2)
+                        Text(label).scaledFont(12, weight: .medium).padding(.horizontal, Tokens.Space.s8).padding(.vertical, Tokens.Space.s2)
                             .background(Capsule().fill(Color.secondary.opacity(0.15)))
                     }
                 }
@@ -197,7 +197,7 @@ private struct StatePill: View {
             }
             Text(text).lineLimit(1).truncationMode(.tail)
         }
-        .font(.scaled(12, weight: .semibold)).foregroundStyle(color)
+        .scaledFont(12, weight: .semibold).foregroundStyle(color)
         .help(text)
         .padding(.horizontal, Tokens.Space.s12).padding(.vertical, Tokens.Space.s4)
         .background(Capsule().fill(color.opacity(0.2)))
@@ -216,7 +216,7 @@ private struct Chip: View {
             Text(text).lineLimit(1)
             if opens { Glyph(.arrowUpRight, size: 9).foregroundStyle(.tertiary) }
         }
-        .font(.scaled(12, weight: .medium)).foregroundStyle(.secondary)
+        .scaledFont(12, weight: .medium).foregroundStyle(.secondary)
         .padding(.horizontal, Tokens.Space.s10).padding(.vertical, Tokens.Space.s4)
         .background(Capsule().fill(Color.secondary.opacity(0.15)))
     }
@@ -240,6 +240,7 @@ struct PipelineStrip: View {
 }
 
 struct PipelineStepView: View {
+    @Environment(\.pieceTheme) private var theme
     let index: Int
     let step: PipelineStep
 
@@ -288,7 +289,7 @@ struct PipelineStepView: View {
     private var fill: Color? {
         switch step.state {
         case .done: .green
-        case .current: .themeAccent
+        case .current: theme.accent
         case .input: .orange
         case .error: .red
         case .waiting, .cancelled: nil

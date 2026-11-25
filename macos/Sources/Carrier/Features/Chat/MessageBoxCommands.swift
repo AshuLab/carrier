@@ -37,8 +37,8 @@ extension MessageBox {
         HStack(spacing: Tokens.Space.none) {
             HStack(spacing: Tokens.Space.s6) {
                 Glyph(kind.symbol, size: 11).foregroundStyle(kind.color)
-                Text(kind.plural).font(.scaled(12, weight: .semibold))
-                Text("\(count)").font(.scaled(11, weight: .medium)).foregroundStyle(.secondary)
+                Text(kind.plural).scaledFont(12, weight: .semibold)
+                Text("\(count)").scaledFont(11, weight: .medium).foregroundStyle(.secondary)
             }
             .padding(.horizontal, Tokens.Space.s10).frame(height: 24)
             .chatSurface(flat: Color.primary.opacity(0.08), in: Capsule())
@@ -59,12 +59,12 @@ extension MessageBox {
                 VStack(alignment: .leading, spacing: Tokens.Space.s3) {
                     HStack(alignment: .firstTextBaseline, spacing: Tokens.Space.s6) {
                         Text("\(Text("/\(command.source.map { "\($0):" } ?? "")").foregroundStyle(.secondary))\(Text(command.shortName))")
-                            .font(.scaled(13, weight: .medium, design: .monospaced)).lineLimit(1)
+                            .scaledFont(13, weight: .medium, design: .monospaced).lineLimit(1)
                         if let hint = command.argumentHint, hint.isEmpty == false {
-                            Text(hint).font(.scaled(12, design: .monospaced)).foregroundStyle(.secondary).lineLimit(1)
+                            Text(hint).scaledFont(12, design: .monospaced).foregroundStyle(.secondary).lineLimit(1)
                         }
                     }
-                    Text(command.summary).font(.scaled(12)).foregroundStyle(.secondary).lineLimit(1)
+                    Text(command.summary).scaledFont(12).foregroundStyle(.secondary).lineLimit(1)
                 }
                 Spacer(minLength: 8)
             }

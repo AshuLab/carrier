@@ -6,6 +6,7 @@ import SwiftUI
 /// and, while `open`, the archived sessions under it, grouped by age or by workspace, with the search field above them, up to about five
 /// rows before they scroll. The list slides open and shut. Choosing the row opens its list; the sessions above it stay.
 struct ArchiveSection: View {
+    @Environment(\.pieceTheme) private var theme
     let sessions: Sessions
     @Binding var selection: Selection
     let open: Bool
@@ -43,7 +44,7 @@ struct ArchiveSection: View {
                 title: "Archive", icon: .archive, selected: selection == .archive, keepActions: sortOpen || query != nil,
                 action: { selection = .archive }, actions: {
                     if archived > 0 {
-                        Text("\(archived)").font(SidebarMetrics.detail.weight(.semibold).monospacedDigit()).foregroundStyle(.secondary)
+                        Text("\(archived)").sidebarFont(.detail, weight: .semibold).monospacedDigit().foregroundStyle(.secondary)
                             .padding(.horizontal, Tokens.Space.s6).padding(.vertical, Tokens.Space.s1)
                             .background(Capsule().fill(Color.secondary.opacity(0.15)))
                             .accessibilityLabel("\(archived) archived")
@@ -95,7 +96,7 @@ struct ArchiveSection: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: Tokens.Space.s1) {
                 ForEach(groups, id: \.title) { group in
-                    Text(group.title).font(SidebarMetrics.group).foregroundStyle(.secondary).lineLimit(1)
+                    Text(group.title).sidebarFont(.group).foregroundStyle(.secondary).lineLimit(1)
                         .padding(.horizontal, SidebarMetrics.inset).padding(.top, Tokens.Space.s4)
                     ForEach(group.rows, id: \.id) { row in
                         let chosen = selection == .session(id: row.id)
@@ -105,7 +106,7 @@ struct ArchiveSection: View {
                             SessionRowView(row: row, showsWorkspace: true)
                                 .padding(.vertical, Tokens.Space.s2)
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(RoundedRectangle(cornerRadius: Tokens.Radius.control).fill(chosen ? Color.selectedRow(dark: scheme == .dark) : .clear))
+                                .background(RoundedRectangle(cornerRadius: Tokens.Radius.control).fill(chosen ? theme.selectedRow(dark: scheme == .dark) : .clear))
                                 .contentShape(RoundedRectangle(cornerRadius: Tokens.Radius.control))
                         }
                         .buttonStyle(.plain)

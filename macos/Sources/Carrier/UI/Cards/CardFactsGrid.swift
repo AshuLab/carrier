@@ -46,7 +46,7 @@ struct CardFactsGrid<Extra: View>: View {
             }
             extra()
         }
-        .font(SidebarMetrics.detail)
+        .sidebarFont(.detail)
     }
 
     @ViewBuilder private func value(_ fact: Fact) -> some View {

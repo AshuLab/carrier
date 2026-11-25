@@ -31,15 +31,15 @@ struct SubagentRowView: View {
         HStack(spacing: Tokens.Space.s10) {
             lead.frame(width: 16, height: 16)
             KindChipView(chip: .subagent(type: subagent.type))
-            Text(subagent.name).font(.scaled(12.5, weight: .semibold)).foregroundStyle(.primary).lineLimit(1).truncationMode(.tail)
+            Text(subagent.name).scaledFont(12.5, weight: .semibold).foregroundStyle(.primary).lineLimit(1).truncationMode(.tail)
                 .layoutPriority(1)
-            Text(subagent.words).font(.scaled(12)).foregroundStyle(.tertiary).lineLimit(1).truncationMode(.tail)
+            Text(subagent.words).scaledFont(12).foregroundStyle(.tertiary).lineLimit(1).truncationMode(.tail)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            Text(steps).font(.scaled(12)).foregroundStyle(.tertiary).lineLimit(1).fixedSize()
+            Text(steps).scaledFont(12).foregroundStyle(.tertiary).lineLimit(1).fixedSize()
             timer
             if open != nil { CardChevron(open: false, width: 9) }
         }
-        .font(.scaled(12, weight: .medium)).monospacedDigit()
+        .scaledFont(12, weight: .medium).monospacedDigit()
         .padding(.horizontal, Tokens.Space.s10)
         .frame(height: 30)
         .workCard()
@@ -69,7 +69,7 @@ struct SubagentRowView: View {
     }
 
     private func time(_ now: Int) -> some View {
-        Text(formatCallDuration(subagent.elapsedMs(now: now))).font(.scaled(12)).foregroundStyle(.tertiary).lineLimit(1).fixedSize()
+        Text(formatCallDuration(subagent.elapsedMs(now: now))).scaledFont(12).foregroundStyle(.tertiary).lineLimit(1).fixedSize()
     }
 }
 

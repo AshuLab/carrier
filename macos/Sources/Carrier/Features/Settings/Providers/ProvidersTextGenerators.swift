@@ -34,9 +34,9 @@ extension ProvidersTabView {
                 }
             }
         }
-        if let problem = store.editProblem { SettingsGroup(title: "") { ProblemLine(text: problem, font: .scaled(11)) } }
+        if let problem = store.editProblem { SettingsGroup(title: "") { ProblemLine(text: problem, size: 11) } }
         if let note = store.editNote {
-            SettingsGroup(title: "") { Label(note, icon: .info).font(.scaled(11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
+            SettingsGroup(title: "") { Label(note, icon: .info).scaledFont(11).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
         }
     }
 

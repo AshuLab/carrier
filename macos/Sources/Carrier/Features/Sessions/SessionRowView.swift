@@ -57,7 +57,7 @@ struct SessionRowView: View {
 
     private func place(_ place: SessionPlace) -> Text {
         switch place {
-        case .branch(let name): Text("\(Image(inline: .gitBranch)) \(Text(name).font(.scaled(11, design: .monospaced)))")
+        case .branch(let name): Text("\(Image(inline: .gitBranch)) \(Text(name).scaledFont(11, design: .monospaced))")
         case .baseFolder: Text("\(Image(inline: .folder)) Base folder")
         }
     }
@@ -99,7 +99,7 @@ struct SessionRowView: View {
                 .transition(.opacity)
             }
         }
-        .font(SidebarMetrics.detail.monospacedDigit()).lineLimit(1).frame(height: Self.titleLine)
+        .sidebarFont(.detail).monospacedDigit().lineLimit(1).frame(height: Self.titleLine)
         .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: hovered)
         // room for the two buttons even while they are hidden, so the title does not move as the pointer comes in
         .frame(minWidth: hoverActions ? Self.actionsWidth : nil, alignment: .trailing)
@@ -119,13 +119,13 @@ struct SessionRowView: View {
             VStack(alignment: .leading, spacing: roomy ? density.sessionLineGap : SidebarMetrics.lineGap) {
                 HStack(spacing: Tokens.Space.s4) {
                     RollingTitle(text: titles.title(of: row), waiting: titles.waiting.contains(row.id))
-                        .font(SidebarMetrics.item).fontWeight(row.state == .waiting ? .medium : .regular)
+                        .sidebarFont(.item).fontWeight(row.state == .waiting ? .medium : .regular)
                     Spacer(minLength: 4)
                     ageSlot(content)
                 }
                 .frame(height: Self.titleLine)
                 HStack(spacing: Tokens.Space.s4) {
-                    detail(content).font(SidebarMetrics.detail).lineLimit(1).truncationMode(.tail)
+                    detail(content).sidebarFont(.detail).lineLimit(1).truncationMode(.tail)
                     Spacer(minLength: 4)
                     // with no third line the providers sit here; with one they go down to it
                     if third == false { ProviderMarks(names: content.providers) }
@@ -222,7 +222,7 @@ struct ProviderMarks: View {
             ForEach(names.prefix(Self.shown), id: \.self) { name in
                 AccountMark(account: name, size: 12).help(ProviderIdentityStore.shared.shortName(of: name))
             }
-            if names.count > Self.shown { Text("+\(names.count - Self.shown)").font(.scaled(10, weight: .semibold)) }
+            if names.count > Self.shown { Text("+\(names.count - Self.shown)").scaledFont(10, weight: .semibold) }
         }
         .foregroundStyle(.secondary)
     }

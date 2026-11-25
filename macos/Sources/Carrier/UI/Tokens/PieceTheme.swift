@@ -19,6 +19,13 @@ struct PieceTheme: Equatable, Sendable {
 
     var accent: Color { surfaces.accent.map(Color.init) ?? .accentColor }
 
+    /// The accent a main action is tinted with on glass (the New session pill, the message box's send button): darkened, so white reads on it and it is not as loud as the system's prominent button.
+    var accentGlass: Color { accent.mix(with: .black, by: 0.4) }
+
+    /// The fill of the selected row of a sidebar list. On dark the accent is deepened, so the white words keep their contrast and it is not as
+    /// loud as the accent itself; on light the accent at 45 % behind the dark words is already quiet.
+    func selectedRow(dark: Bool) -> Color { dark ? accent.mix(with: .black, by: 0.5).opacity(0.85) : accent.opacity(0.45) }
+
     /// The accent as text on its own tinted piece (the chosen filter, the chosen segment): a little lifted in the dark and deepened in the light, so it keeps its contrast.
     func accentInk(_ scheme: ColorScheme) -> Color { accent.mix(with: scheme == .dark ? .white : .black, by: scheme == .dark ? 0.3 : 0.2) }
 }

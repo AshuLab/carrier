@@ -57,7 +57,7 @@ struct SessionsRows: View {
     @ViewBuilder private var header: some View {
         SidebarSectionRow(title: "Sessions", icon: .messages, selected: selected, keepActions: sortOpen || query != nil, action: select, actions: {
             if sessions.open > 0 {
-                Text("\(sessions.open)").font(SidebarMetrics.detail.weight(.semibold).monospacedDigit()).foregroundStyle(.secondary)
+                Text("\(sessions.open)").sidebarFont(.detail, weight: .semibold).monospacedDigit().foregroundStyle(.secondary)
                     .padding(.horizontal, Tokens.Space.s6).padding(.vertical, Tokens.Space.s1)
                     .background(Capsule().fill(Color.secondary.opacity(0.15)))
                     .accessibilityLabel(sessions.openLabel)
@@ -168,7 +168,7 @@ private struct GroupHeader: View {
 
     var body: some View {
         HStack {
-            Text(title).font(SidebarMetrics.group).foregroundStyle(.secondary).lineLimit(1)
+            Text(title).sidebarFont(.group).foregroundStyle(.secondary).lineLimit(1)
             Spacer(minLength: 0)
             if let add {
                 // it hides a moment late: the pointer crossing the gap between two rows, or on its way to the button, does not blink it

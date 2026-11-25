@@ -5,6 +5,7 @@ import SwiftUI
 /// the column rests as thin marks and opens up when the pointer is over it, the ticks near the pointer growing like the Dock's icons; a tick under the pointer says what the turn was in a card beside the column, and a click scrolls there. More turns than fit scroll
 /// inside the column, which fades out at both ends so it never grows, and keeps the first turn on screen in the middle.
 struct ConversationTimeline: View {
+    @Environment(\.pieceTheme) private var theme
     let markers: [TurnMarker]
     /// The turns on screen.
     let current: Set<String>
@@ -57,7 +58,7 @@ struct ConversationTimeline: View {
         let over = marker.id == hovered
         return Button { select(marker.id) } label: {
             Capsule()
-                .fill(active ? Color.themeAccent : Color.primary.opacity(over ? 0.7 : 0.28))
+                .fill(active ? theme.accent : Color.primary.opacity(over ? 0.7 : 0.28))
                 .frame(width: width(at: index), height: 2.5)
                 .frame(width: 34, height: pitch, alignment: .leading)
                 .padding(.leading, Tokens.Space.s8)
@@ -71,10 +72,10 @@ struct ConversationTimeline: View {
     /// What the turn was: the person's message over the start of the answer. Always laid out, so it fades in and out.
     private func card(_ marker: TurnMarker?) -> some View {
         VStack(alignment: .leading, spacing: Tokens.Space.s8) {
-            Text(marker?.title ?? "").font(.scaled(13.5, weight: .semibold)).lineLimit(2).lineSpacing(2)
+            Text(marker?.title ?? "").scaledFont(13.5, weight: .semibold).lineLimit(2).lineSpacing(2)
             if marker?.preview.isEmpty == false {
                 // the start of the answer is a step quieter than the title, not so quiet that the glass behind it wins
-                Text(marker?.preview ?? "").font(.scaled(12.5)).foregroundStyle(Color.primary.opacity(0.72)).lineLimit(4).lineSpacing(3)
+                Text(marker?.preview ?? "").scaledFont(12.5).foregroundStyle(Color.primary.opacity(0.72)).lineLimit(4).lineSpacing(3)
             }
         }
         .fixedSize(horizontal: false, vertical: true)

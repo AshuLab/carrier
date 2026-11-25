@@ -23,7 +23,7 @@ struct CopyButton: View {
                 Glyph(copied ? .check : .copy).frame(width: 12, height: 14)
                 Text(copied ? "Copied" : "Copy").frame(width: 40, alignment: .leading)
             }
-            .font(.scaled(11)).foregroundStyle(.secondary).contentShape(Rectangle())
+            .scaledFont(11).foregroundStyle(.secondary).contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .help(help)
@@ -82,11 +82,11 @@ struct DiffView: View {
             }
             if rows.count > collapsedDiffRows {
                 Button(showAll ? "Show less" : "Show \(shown.hidden) more \(shown.hidden == 1 ? "line" : "lines")") { showAll.toggle() }
-                    .buttonStyle(.plain).font(.scaled(11)).foregroundStyle(Color.themeAccent)
+                    .buttonStyle(.plain).scaledFont(11).foregroundStyle(.tint)
                     .padding(.horizontal, Tokens.Space.s14).padding(.top, Tokens.Space.s8).padding(.bottom, Tokens.Space.s1)
             }
             if let cut {
-                Text(cut).font(.scaled(11)).foregroundStyle(ConsoleColor.text.opacity(0.6))
+                Text(cut).scaledFont(11).foregroundStyle(ConsoleColor.text.opacity(0.6))
                     .padding(.horizontal, Tokens.Space.s14).padding(.top, Tokens.Space.s8).padding(.bottom, Tokens.Space.s1)
             }
         }

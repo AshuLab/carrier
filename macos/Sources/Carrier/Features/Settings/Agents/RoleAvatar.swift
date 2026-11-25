@@ -104,7 +104,7 @@ struct RoleAvatar: View {
         switch identity {
         case .forge(let bot):
             ZStack {
-                Text(roleInitials(bot)).font(.scaled(size * 0.38, weight: .semibold)).foregroundStyle(.white)
+                Text(roleInitials(bot)).scaledFont(size * 0.38, weight: .semibold).foregroundStyle(.white)
                     .frame(width: size, height: size).background(ProjectIcon.palette[projectColorIndex(bot, count: ProjectIcon.palette.count)])
                 if let image = store.image(for: appId) { Image(nsImage: image).resizable().scaledToFill().frame(width: size, height: size) }
             }
@@ -116,7 +116,7 @@ struct RoleAvatar: View {
             }
             .clipShape(shape)
         case .missing, .unset:
-            Text("?").font(.scaled(size * 0.4, weight: .semibold)).foregroundStyle(.secondary)
+            Text("?").scaledFont(size * 0.4, weight: .semibold).foregroundStyle(.secondary)
                 .frame(width: size, height: size).overlay(shape.strokeBorder(Color.secondary.opacity(0.6), style: StrokeStyle(lineWidth: 1.5, dash: [3, 3])))
         }
     }

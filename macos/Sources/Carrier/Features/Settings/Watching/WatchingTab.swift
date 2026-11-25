@@ -148,7 +148,7 @@ struct WatchingTabView: View {
         if unreadable {
             SettingsGroup(title: "") {
                 Label("The engine is not configured: engine.json in the Carrier folder is missing or is not a JSON object.", icon: .warningFilled)
-                    .font(.scaled(12)).foregroundStyle(.orange)
+                    .scaledFont(12).foregroundStyle(.orange)
             }
         }
         if case .refused(let reason)? = reloaded.outcome {

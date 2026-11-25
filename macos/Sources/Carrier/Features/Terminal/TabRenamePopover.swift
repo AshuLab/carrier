@@ -14,7 +14,7 @@ struct TabRenamePopover: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Tokens.Space.s10) {
             Text("Rename Tab")
-                .font(.scaled(12, weight: .semibold))
+                .scaledFont(12, weight: .semibold)
             TextField("Tab name", text: $title)
                 .settingsField(width: 248, focused: $focused)
                 .onSubmit(save)

@@ -20,8 +20,8 @@ struct AboutTabView: View {
             Image(nsImage: NSApp.applicationIconImage).resizable().frame(width: 64, height: 64).accessibilityHidden(true)
             VStack(alignment: .leading, spacing: Tokens.Space.s8) {
                 VStack(alignment: .leading, spacing: Tokens.Space.s1) {
-                    Text("Carrier").font(.scaled(17, weight: .semibold))
-                    Text("Version \(version)").font(.scaled(12)).foregroundStyle(.secondary).textSelection(.enabled)
+                    Text("Carrier").scaledFont(17, weight: .semibold)
+                    Text("Version \(version)").scaledFont(12).foregroundStyle(.secondary).textSelection(.enabled)
                 }
                 HStack(spacing: Tokens.Space.s8) {
                     ForEach(aboutLinks, id: \.title) { link in

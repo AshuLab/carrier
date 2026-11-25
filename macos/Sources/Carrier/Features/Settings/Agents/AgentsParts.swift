@@ -24,9 +24,9 @@ struct AgentsStatusCard: View {
             Glyph(readiness.tone == .ready ? .check : .exclamation, size: 18, bold: true).foregroundStyle(.white)
                 .frame(width: 34, height: 34).background(Circle().fill(readiness.tone == .ready ? Color.green : Color.orange)).accessibilityHidden(true)
             VStack(alignment: .leading, spacing: Tokens.Space.s4) {
-                Text(readiness.title).font(.scaled(15).weight(.bold))
+                Text(readiness.title).scaledFont(15, weight: .bold)
                 ForEach(readiness.notes, id: \.self) { note in
-                    Text(note).font(.scaled(12)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    Text(note).scaledFont(12).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
                 if let fix = readiness.fix {
                     Button { open(fix) } label: { Label("Open \(fix.title)", icon: .arrowRight).labelStyle(.titleAndIcon) }
@@ -84,6 +84,7 @@ struct EpicRail: View {
 }
 
 private struct RoleRailRow: View {
+    @Environment(\.pieceTheme) private var theme
     let row: RoleRow
     let needsAttention: Bool
     /// Whether the repo has settings of its own for the role (a repo's screen), nil on Agents.
@@ -98,11 +99,11 @@ private struct RoleRailRow: View {
                 avatar
                 VStack(alignment: .leading, spacing: Tokens.Space.s1) {
                     Text(row.title).fontWeight(.medium)
-                    Text(row.what).font(.scaled(11)).foregroundStyle(.secondary).lineLimit(2).multilineTextAlignment(.leading)
+                    Text(row.what).scaledFont(11).foregroundStyle(.secondary).lineLimit(2).multilineTextAlignment(.leading)
                 }
                 Spacer(minLength: 8)
                 trailing
-                if let own { StatusChip(text: own ? "Own" : "Same as everywhere", tint: own ? Color.themeAccent : .secondary) }
+                if let own { StatusChip(text: own ? "Own" : "Same as everywhere", tint: own ? theme.accent : .secondary) }
                 Glyph(.chevronRight, size: 13, bold: true).foregroundStyle(.tertiary)
             }
             .padding(.horizontal, Tokens.Space.s8).frame(minHeight: 54)
@@ -123,8 +124,8 @@ private struct RoleRailRow: View {
         } else {
             let model = [row.fields.model, row.fields.effort].compactMap { $0 }.filter { $0.isEmpty == false }.joined(separator: " \u{00b7} ")
             VStack(alignment: .trailing, spacing: Tokens.Space.s1) {
-                Text(model.isEmpty ? "No model" : model).font(.scaled(12)).foregroundStyle(model.isEmpty ? .secondary : .primary)
-                Text(row.fields.profile ?? "No identity").font(.scaled(12)).foregroundStyle(.secondary)
+                Text(model.isEmpty ? "No model" : model).scaledFont(12).foregroundStyle(model.isEmpty ? .secondary : .primary)
+                Text(row.fields.profile ?? "No identity").scaledFont(12).foregroundStyle(.secondary)
             }
             .lineLimit(1).truncationMode(.middle).frame(maxWidth: 250, alignment: .trailing)
         }
@@ -141,7 +142,7 @@ private struct RailLink<Caption: View>: View {
             // the line goes 8 points past the link on each side, to reach the avatars the rows leave that much room around
             RailLine().stroke(.tertiary, style: StrokeStyle(lineWidth: 2, lineCap: .round, dash: dashed ? [3, 4] : []))
                 .frame(width: 38).padding(.vertical, -8)
-            caption.font(.scaled(11.5)).foregroundStyle(.secondary)
+            caption.scaledFont(11.5).foregroundStyle(.secondary)
             Spacer(minLength: 0)
         }
         .padding(.horizontal, Tokens.Space.s8).frame(minHeight: 34)
@@ -169,8 +170,8 @@ struct RoleHero: View {
         HStack(spacing: Tokens.Space.s16) {
             roleAvatar(row, page: page, icons: icons, size: 64)
             VStack(alignment: .leading, spacing: Tokens.Space.s3) {
-                Text(name).font(.scaled(16).weight(.bold)).lineLimit(1).truncationMode(.middle)
-                Text(row.headline).font(.scaled(12)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+                Text(name).scaledFont(16, weight: .bold).lineLimit(1).truncationMode(.middle)
+                Text(row.headline).scaledFont(12).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
                 source
             }
             Spacer(minLength: 8)
@@ -207,14 +208,14 @@ struct RoleFlowStrip: View {
 
     var body: some View {
         FlowLayout(spacing: Tokens.Space.s8) {
-            Text("In an epic").font(.scaled(11.5)).foregroundStyle(.secondary)
+            Text("In an epic").scaledFont(11.5).foregroundStyle(.secondary)
             ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
                 if index > 0 {
                     Glyph(index == 1 ? .exchange : .arrowRight, size: 11).foregroundStyle(.tertiary).accessibilityHidden(true)
                 }
                 if row.role == current {
-                    Text(row.title).font(.scaled(12, weight: .medium)).padding(.horizontal, Tokens.Space.s10).padding(.vertical, Tokens.Space.s2)
-                        .background(Capsule().fill(Color.themeAccent.opacity(0.18))).overlay(Capsule().strokeBorder(Color.themeAccent, lineWidth: 1.5))
+                    Text(row.title).scaledFont(12, weight: .medium).padding(.horizontal, Tokens.Space.s10).padding(.vertical, Tokens.Space.s2)
+                        .background(Capsule().fill(.tint.opacity(0.18))).overlay(Capsule().strokeBorder(.tint, lineWidth: 1.5))
                         .accessibilityAddTraits(.isSelected)
                 } else {
                     // a role that is off says so in words, not only in a lighter button

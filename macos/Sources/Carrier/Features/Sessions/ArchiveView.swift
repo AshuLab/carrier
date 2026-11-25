@@ -145,7 +145,7 @@ private struct ArchiveRow: View {
             ProjectIcon(base: row.base, name: row.workspace, colorKey: projectColorKey(row.base)).environment(\.rowActive, active)
             VStack(alignment: .leading, spacing: Tokens.Space.s3) {
                 HStack(spacing: Tokens.Space.s6) {
-                    Text(row.title).font(.scaled(13, weight: .medium)).lineLimit(1).truncationMode(.tail)
+                    Text(row.title).scaledFont(13, weight: .medium).lineLimit(1).truncationMode(.tail)
                     RowTag(text: row.workspace)
                 }
                 if let note { Text(note).font(.callout).foregroundStyle(.secondary).lineLimit(2) }

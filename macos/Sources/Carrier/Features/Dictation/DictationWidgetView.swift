@@ -154,10 +154,10 @@ struct PillIcon: View {
     var body: some View {
         switch icon {
         case .sparkle:
-            Glyph(.sparkles, label: "Cleaning").foregroundStyle(Color.themeAccent).glyphPulsing(reduceMotion == false)
+            Glyph(.sparkles, label: "Cleaning").foregroundStyle(.tint).glyphPulsing(reduceMotion == false)
         case .warning:
             Glyph(.warningFilled, label: "Pasted without cleaning: \(cause ?? "")").foregroundStyle(.orange)
-        case .mic: Glyph(.microphone, label: "Listening").foregroundStyle(Color.themeAccent)
+        case .mic: Glyph(.microphone, label: "Listening").foregroundStyle(.tint)
         case .spinner: ProgressView().controlSize(.small).accessibilityLabel("Working")
         case .check: Glyph(.check, label: "Pasted").foregroundStyle(.green)
         case .xmark: Glyph(.close, label: "Cancelled").foregroundStyle(.secondary)

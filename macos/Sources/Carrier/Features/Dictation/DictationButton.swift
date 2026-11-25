@@ -29,6 +29,7 @@ private struct DictationButtonStyle: ButtonStyle {
         let level: Float
         let pressed: Bool
         @State private var hovering = false
+        @Environment(\.pieceTheme) private var theme
         /// How dim the solid microphone is under the level's fill while it listens.
         private static let listeningBase = 0.4
 
@@ -39,12 +40,12 @@ private struct DictationButtonStyle: ButtonStyle {
                 case .mic, .micSlash:
                     // listening is not told by the accent alone (a pale or gray accent reads weakly): the glyph turns from an outline to a dim solid
                     Glyph(presentation.icon == .micSlash ? .microphoneOff : presentation.inAccent ? .microphoneFilled : .microphone, size: 16)
-                        .foregroundStyle(presentation.inAccent ? Color.themeAccent : lit ? Color.primary : Color.secondary)
+                        .foregroundStyle(presentation.inAccent ? theme.accent : lit ? Color.primary : Color.secondary)
                         .opacity(presentation.inAccent ? Self.listeningBase : 1)
                         .overlay {
                             // the capsule fills from the bottom with the level, like the Mac's own Dictation
                             if presentation.inAccent {
-                                Glyph(.microphoneFilled, size: 16).foregroundStyle(Color.themeAccent)
+                                Glyph(.microphoneFilled, size: 16).foregroundStyle(.tint)
                                     .mask { Rectangle().scaleEffect(y: CGFloat(level), anchor: .bottom) }
                             }
                         }

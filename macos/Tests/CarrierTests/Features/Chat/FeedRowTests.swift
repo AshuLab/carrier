@@ -60,7 +60,7 @@ import Testing
 @MainActor @Test func everyStoredPropertyOfARowIsComparedOrDeliberatelyLeftOut() {
     let compared: Set<String> = ["row", "time", "summary", "pinned", "flippedHere", "agent", "commands", "offersWayOut", "work"]
     // `flipped` is only written to, `flippedHere` is what is compared; the environment, the defaults and the states invalidate the row by themselves
-    let notCompared: Set<String> = ["flipped", "actions", "messageTimes", "hovering", "copied", "overCopy"]
+    let notCompared: Set<String> = ["flipped", "actions", "messageTimes", "hovering", "copied", "overCopy", "theme"]
     // a property wrapper shows as `_name` (`__name` for a `@State`), so the underscores are dropped
     let stored = Set(Mirror(reflecting: row()).children.compactMap { $0.label?.drop(while: { $0 == "_" }).description })
     #expect(stored == compared.union(notCompared))

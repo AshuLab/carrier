@@ -129,7 +129,7 @@ final class PillTextView: NSTextView {
     /// so it follows the appearance and the accent.
     static let tentativeColor = NSColor(name: nil) { appearance in
         var color = NSColor.labelColor
-        appearance.performAsCurrentDrawingAppearance { color = NSColor.labelColor.blended(withFraction: 0.4, of: NSColor(Color.themeAccent)) ?? .labelColor }
+        appearance.performAsCurrentDrawingAppearance { color = NSColor.labelColor.blended(withFraction: 0.4, of: NSColor(AppTheme.shared.accent)) ?? .labelColor }
         return color
     }
 

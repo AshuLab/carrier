@@ -4,6 +4,7 @@ import SwiftUI
 /// The nine themes in a grid of three, each as its light and its dark version side by side; the chosen one has the accent's edge.
 struct ThemeGallery: View {
     @Binding var theme: Theme
+    @Environment(\.pieceTheme) private var pieceTheme
 
     var body: some View {
         LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: Tokens.Space.s10), count: 3), spacing: Tokens.Space.s10) {
@@ -14,10 +15,10 @@ struct ThemeGallery: View {
                             ThemePreview(theme: option, scheme: .light)
                             ThemePreview(theme: option, scheme: .dark)
                         }
-                        Text(option.title).font(.scaled(12))
+                        Text(option.title).scaledFont(12)
                     }
                     .padding(Tokens.Space.s8).frame(maxWidth: .infinity)
-                    .overlay(RoundedRectangle(cornerRadius: Tokens.Radius.card).strokeBorder(option == theme ? Color.themeAccent : Color.secondary.opacity(0.2), lineWidth: option == theme ? 2 : 1))
+                    .overlay(RoundedRectangle(cornerRadius: Tokens.Radius.card).strokeBorder(option == theme ? pieceTheme.accent : Color.secondary.opacity(0.2), lineWidth: option == theme ? 2 : 1))
                     .contentShape(RoundedRectangle(cornerRadius: Tokens.Radius.card))
                 }
                 .buttonStyle(.plain)

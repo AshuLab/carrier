@@ -8,6 +8,7 @@ import SwiftUI
 /// down or the pointer is over one; ⌘↩ sends and ⌥⎋ skips (never a bare Return or Escape: the message box under the card is still there).
 /// Options that do not fit scroll.
 struct QuestionCardView: View {
+    @Environment(\.pieceTheme) private var theme
     let card: ApprovalCard
     let behind: Int
     /// The approval, the choice (Send answers or Skip) and, for the first, the answer to each question by its text.
@@ -53,7 +54,7 @@ struct QuestionCardView: View {
                 .frame(height: optionsHeight > 0 ? min(optionsHeight, cardRoom(in: paneHeight)) : nil)
                 .padding(.top, Tokens.Space.s6)
                 if picked.indices.contains(step), picked[step].contains(question.options.count) {
-                    TextField("Your answer", text: $own[step]).textFieldStyle(.plain).font(.scaled(13)).focused($writing)
+                    TextField("Your answer", text: $own[step]).textFieldStyle(.plain).scaledFont(13).focused($writing)
                         .padding(.horizontal, Tokens.Space.s10).padding(.vertical, Tokens.Space.s8)
                         .background(RoundedRectangle(cornerRadius: Tokens.Radius.tile, style: .continuous).fill(Color.primary.opacity(0.07)))
                         .overlay(RoundedRectangle(cornerRadius: Tokens.Radius.tile, style: .continuous).strokeBorder(Color.primary.opacity(writing ? 0.3 : 0.12)))
@@ -67,7 +68,7 @@ struct QuestionCardView: View {
                         if step > 0 { Button { go(step - 1) } label: { Label("Back", icon: .chevronLeft) }.buttonStyle(HoverTextButtonStyle(tint: nil)) }
                         if needsButton {
                             // ⌘↩ and not a plain Return: the message box under the card would lose its Return
-                            Button(last ? "Send" : "Next") { next() }.buttonStyle(HoverTextButtonStyle(tint: .themeAccent)).disabled(complete == false)
+                            Button(last ? "Send" : "Next") { next() }.buttonStyle(HoverTextButtonStyle(tint: theme.accent)).disabled(complete == false)
                                 .keyboardShortcut(.return, modifiers: .command).help("\(last ? "Send" : "Next") (⌘↩)")
                         }
                     }
@@ -98,7 +99,7 @@ struct QuestionCardView: View {
     private var earlier: some View {
         VStack(alignment: .leading, spacing: Tokens.Space.s1) {
             ForEach(0..<step, id: \.self) { at in
-                Text("\(card.questions[at].header) · \(text(of: at))").font(.scaled(11)).foregroundStyle(.tertiary).lineLimit(1).truncationMode(.tail)
+                Text("\(card.questions[at].header) · \(text(of: at))").scaledFont(11).foregroundStyle(.tertiary).lineLimit(1).truncationMode(.tail)
             }
         }
         .padding(.leading, Tokens.Space.s10)
@@ -115,7 +116,7 @@ struct QuestionCardView: View {
 
     /// What the option looks like once picked (the provider's own sample), under its row.
     private func previewBlock(_ preview: String) -> some View {
-        Text(preview).font(.scaled(11, design: .monospaced)).textSelection(.enabled).padding(Tokens.Space.s8)
+        Text(preview).scaledFont(11, design: .monospaced).textSelection(.enabled).padding(Tokens.Space.s8)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(RoundedRectangle(cornerRadius: Tokens.Radius.control, style: .continuous).fill(Color.primary.opacity(0.06)))
             .padding(.leading, Tokens.Space.s40).padding(.trailing, Tokens.Space.s10).padding(.bottom, Tokens.Space.s4)
@@ -162,18 +163,18 @@ struct QuestionCardView: View {
             HStack(alignment: .top, spacing: Tokens.Space.s12) {
                 ZStack {
                     // a circle takes one pick, a square takes several; it is filled only when picked
-                    RoundedRectangle(cornerRadius: question.multiSelect ? Tokens.Radius.small : Tokens.Radius.tile, style: .continuous).fill(chosen ? Color.themeAccent : Color.primary.opacity(0.09))
+                    RoundedRectangle(cornerRadius: question.multiSelect ? Tokens.Radius.small : Tokens.Radius.tile, style: .continuous).fill(chosen ? theme.accent : Color.primary.opacity(0.09))
                     if chosen { Glyph(.check, size: 9, bold: true).foregroundStyle(.white) } else {
-                        Text("\(index + 1)").font(.scaled(10.5, weight: .semibold, design: .monospaced)).foregroundStyle(.secondary)
+                        Text("\(index + 1)").scaledFont(10.5, weight: .semibold, design: .monospaced).foregroundStyle(.secondary)
                     }
                 }
                 .frame(width: 18, height: 18).padding(.top, Tokens.Space.s1)
                 VStack(alignment: .leading, spacing: Tokens.Space.s1) {
-                    Text(label).font(.scaled(13, weight: .semibold))
-                    if let detail, detail.isEmpty == false { Text(detail).font(.scaled(11.5)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
+                    Text(label).scaledFont(13, weight: .semibold)
+                    if let detail, detail.isEmpty == false { Text(detail).scaledFont(11.5).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
                 }
                 Spacer(minLength: 0)
-                Text("⌥\(index + 1)").font(.scaled(11, design: .monospaced)).foregroundStyle(.tertiary).opacity(hovered == index || optionDown ? 1 : 0).padding(.top, Tokens.Space.s2)
+                Text("⌥\(index + 1)").scaledFont(11, design: .monospaced).foregroundStyle(.tertiary).opacity(hovered == index || optionDown ? 1 : 0).padding(.top, Tokens.Space.s2)
             }
             .padding(.horizontal, Tokens.Space.s10).padding(.vertical, Tokens.Space.s8)
             .frame(maxWidth: .infinity, alignment: .leading)

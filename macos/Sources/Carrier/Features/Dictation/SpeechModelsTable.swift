@@ -50,6 +50,7 @@ struct SpeechModelsTable: View {
 }
 
 private struct SpeechModelRowView: View {
+    @Environment(\.pieceTheme) private var theme
     let row: SpeechModelRow
     let compact: Bool
     let choose: (String) -> Void
@@ -59,13 +60,13 @@ private struct SpeechModelRowView: View {
 
     private var nameAndLicence: some View {
         VStack(alignment: .leading, spacing: Tokens.Space.s1) {
-            Text(row.name).font(.scaled(13).weight(.medium)).lineLimit(2)
+            Text(row.name).scaledFont(13, weight: .medium).lineLimit(2)
             HStack(spacing: Tokens.Space.none) {
                 Text("\(row.recognizer) · ").foregroundStyle(.secondary)
                 // underlined: the accent alone does not say it is a link when it is pale or gray
-                Link(destination: row.card) { Text(row.licence).underline() }.tint(Color.themeAccent).help("Open the card of \(row.name)")
+                Link(destination: row.card) { Text(row.licence).underline() }.help("Open the card of \(row.name)")
             }
-            .font(.scaled(11))
+            .scaledFont(11)
         }
     }
 
@@ -86,9 +87,9 @@ private struct SpeechModelRowView: View {
             VStack(alignment: .leading, spacing: Tokens.Space.s6) {
                 nameAndLicence
                 FlowLayout(spacing: Tokens.Space.s8) {
-                    Text(row.size).font(.scaled(12)).monospacedDigit()
-                    Text(row.detectsLanguage ? "\(row.languages) · Detects the language" : row.languages).font(.scaled(12)).foregroundStyle(.secondary)
-                    StatusChip(text: row.text, tint: row.live ? Color.themeAccent : .secondary)
+                    Text(row.size).scaledFont(12).monospacedDigit()
+                    Text(row.detectsLanguage ? "\(row.languages) · Detects the language" : row.languages).scaledFont(12).foregroundStyle(.secondary)
+                    StatusChip(text: row.text, tint: row.live ? theme.accent : .secondary)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -111,13 +112,13 @@ private struct SpeechModelRowView: View {
             radio.frame(width: SpeechModelsTable.Column.radio)
             nameAndLicence
             .frame(maxWidth: .infinity, alignment: .leading)
-            Text(row.size).font(.scaled(12)).monospacedDigit().frame(width: SpeechModelsTable.Column.size, alignment: .leading)
+            Text(row.size).scaledFont(12).monospacedDigit().frame(width: SpeechModelsTable.Column.size, alignment: .leading)
             VStack(alignment: .leading, spacing: Tokens.Space.s1) {
-                Text(row.languages).font(.scaled(12))
-                if row.detectsLanguage { Text("Detects the language").font(.scaled(11)).foregroundStyle(.secondary) }
+                Text(row.languages).scaledFont(12)
+                if row.detectsLanguage { Text("Detects the language").scaledFont(11).foregroundStyle(.secondary) }
             }
             .frame(width: SpeechModelsTable.Column.languages, alignment: .leading)
-            StatusChip(text: row.text, tint: row.live ? Color.themeAccent : .secondary).frame(width: SpeechModelsTable.Column.text, alignment: .leading)
+            StatusChip(text: row.text, tint: row.live ? theme.accent : .secondary).frame(width: SpeechModelsTable.Column.text, alignment: .leading)
             action.frame(width: SpeechModelsTable.Column.action, alignment: .trailing)
         }
     }
@@ -125,7 +126,7 @@ private struct SpeechModelRowView: View {
     /// Always there so the column is the same on every row: lit on the model in use, plain on a model that is on disk, dim and dead on one that is not.
     private var radio: some View {
         Button { choose(row.id) } label: {
-            Glyph(row.radio == true ? .radioOn : .circle, size: 16).foregroundStyle(row.radio == true ? Color.themeAccent : .secondary)
+            Glyph(row.radio == true ? .radioOn : .circle, size: 16).foregroundStyle(row.radio == true ? theme.accent : .secondary)
         }
         .buttonStyle(.plain).disabled(row.radio == nil).opacity(row.radio == nil ? 0.35 : 1)
         .accessibilityLabel("Use \(row.name)")
@@ -141,13 +142,13 @@ private struct SpeechModelRowView: View {
             Button { download(row.id) } label: { Label("Download · \(size)", icon: .download).lineLimit(1).fixedSize() }.buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
         case .downloading(let percent):
             HStack(spacing: Tokens.Space.s6) {
-                ProgressView(value: Double(percent), total: 100).tint(Color.themeAccent)
-                Text("\(percent)%").font(.scaled(11)).foregroundStyle(.secondary).monospacedDigit()
+                ProgressView(value: Double(percent), total: 100)
+                Text("\(percent)%").scaledFont(11).foregroundStyle(.secondary).monospacedDigit()
                 IconButton(icon: .close, name: "Cancel the download of \(row.name)") { cancel(row.id) }
             }
         case .failed(let cause):
             VStack(alignment: .trailing, spacing: Tokens.Space.s2) {
-                Label(cause, icon: .warningFilled).font(.scaled(11)).foregroundStyle(.orange).multilineTextAlignment(.trailing)
+                Label(cause, icon: .warningFilled).scaledFont(11).foregroundStyle(.orange).multilineTextAlignment(.trailing)
                     .fixedSize(horizontal: false, vertical: true)
                 Button { download(row.id) } label: { Label("Retry", icon: .refresh) }.buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
             }

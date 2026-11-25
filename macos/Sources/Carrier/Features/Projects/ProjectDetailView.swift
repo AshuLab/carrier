@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 
 /// One project's screen: its Identity group (name, icon colour and mark, tags), its Pin action in the page's header, Actions row, and its folder and remote.
 struct ProjectDetailView: View {
+    @Environment(\.pieceTheme) var theme
     let row: ProjectRow
     let model: ProjectsModel
     let watchedRepos: [String]?
@@ -128,7 +129,7 @@ struct ProjectDetailView: View {
             if page.carrier { carrierGroup }
             SettingsGroup(title: "") {
                 NavigationRow(title: "Actions", detail: "Commands run for a new worktree or after a clone", first: true, action: openActions) {
-                    Text(projectActionsSummary(row.actions.count)).font(.scaled(12)).foregroundStyle(.secondary)
+                    Text(projectActionsSummary(row.actions.count)).scaledFont(12).foregroundStyle(.secondary)
                 }
             }
             SettingsGroup(title: "") {

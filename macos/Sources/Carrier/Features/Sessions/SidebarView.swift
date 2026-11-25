@@ -128,7 +128,7 @@ struct SidebarView: View {
                                 Glyph(.chevronRight, size: 11).rotationEffect(.degrees(expanded ? 90 : 0))
                                     .opacity(queried ? 0 : 1)
                             }
-                            .font(SidebarMetrics.group).foregroundStyle(.secondary)
+                            .sidebarFont(.group).foregroundStyle(.secondary)
                             .frame(height: 22).padding(.horizontal, SidebarMetrics.inset)
                             .contentShape(Rectangle())
                         }

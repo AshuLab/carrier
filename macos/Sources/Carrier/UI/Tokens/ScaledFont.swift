@@ -3,7 +3,7 @@ import CarrierCore
 import Observation
 import SwiftUI
 
-/// The text size the person chose, for the views to read while they draw: a view that sets a font through `scaled` is drawn again when
+/// The text size the person chose, for the views to read while they draw: a view that reads it while it draws is drawn again when
 /// the size changes, so moving the slider in Settings rescales the whole interface at once.
 @Observable final class TextSize {
     static let shared = TextSize()
@@ -108,7 +108,14 @@ private struct ScaledFont: ViewModifier {
     let design: Font.Design?
     @Environment(\.textScale) private var scale
 
-    func body(content: Content) -> some View { content.font(.system(size: scale.size(base), weight: weight, design: design)) }
+    func body(content: Content) -> some View { content.font(scale.font(base, weight: weight, design: design)) }
+}
+
+extension TypeScale {
+    /// The system font at `base` points scaled by this text size: for a font that is a value (an attributed string's run), where `scaledFont` cannot go.
+    func font(_ base: CGFloat, weight: Font.Weight? = nil, design: Font.Design? = nil) -> Font {
+        .system(size: size(base), weight: weight, design: design)
+    }
 }
 
 extension View {
@@ -121,11 +128,6 @@ extension View {
 extension Font {
     /// The system font of a message at `points`, the chat's own size: the text size of the app does not multiply it.
     static func chat(_ points: CGFloat, weight: Font.Weight? = nil) -> Font { .system(size: points, weight: weight) }
-
-    /// The system font at `base` points scaled by the person's text size; the only way a view sets a size.
-    static func scaled(_ base: CGFloat, weight: Font.Weight? = nil, design: Font.Design? = nil) -> Font {
-        .system(size: TextSize.shared.scale.size(base), weight: weight, design: design)
-    }
 }
 
 extension NSFont {

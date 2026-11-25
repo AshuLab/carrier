@@ -27,7 +27,7 @@ struct ContinueInTerminalView: View {
                             Text("· resumes this session").foregroundStyle(.secondary)
                             Spacer(minLength: 8)
                         }
-                        .font(.scaled(12.5)).lineLimit(1)
+                        .scaledFont(12.5).lineLimit(1)
                         .padding(.horizontal, Tokens.Space.s10).frame(height: 30)
                         .background(RoundedRectangle(cornerRadius: Tokens.Radius.card).fill(Color.primary.opacity(hovered ? 0.05 : 0)))
                         .contentShape(Rectangle())

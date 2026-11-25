@@ -21,6 +21,6 @@ struct PullRequestChip: View {
             Text("PR #\(number)").monospacedDigit()
             if link != nil { Glyph(.arrowUpRight, size: 9).foregroundStyle(.tertiary) }
         }
-        .font(.scaled(12)).foregroundStyle(.secondary).lineLimit(1).fixedSize()
+        .scaledFont(12).foregroundStyle(.secondary).lineLimit(1).fixedSize()
     }
 }

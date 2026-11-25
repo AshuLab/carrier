@@ -12,13 +12,13 @@ extension AddProjectSheet {
         return VStack(spacing: Tokens.Space.none) {
             VStack(alignment: .leading, spacing: Tokens.Space.s14) {
                 HStack(spacing: Tokens.Space.s12) {
-                    Glyph(.folderPlus, size: 16).foregroundStyle(Color.themeAccent)
+                    Glyph(.folderPlus, size: 16).foregroundStyle(.tint)
                         .frame(width: 36, height: 36)
-                        .background(RoundedRectangle(cornerRadius: Tokens.Radius.control).fill(Color.themeAccent.opacity(0.16)))
+                        .background(RoundedRectangle(cornerRadius: Tokens.Radius.control).fill(.tint.opacity(0.16)))
                         .accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: Tokens.Space.s2) {
-                        Text("New project").font(.scaled(16, weight: .semibold))
-                        Text(mode.actsAtOnce ? "An empty git folder, added as a project." : "An empty git folder, made when you send the first message.").font(.scaled(12)).foregroundStyle(.secondary)
+                        Text("New project").scaledFont(16, weight: .semibold)
+                        Text(mode.actsAtOnce ? "An empty git folder, added as a project." : "An empty git folder, made when you send the first message.").scaledFont(12).foregroundStyle(.secondary)
                     }
                 }
                 VStack(alignment: .leading, spacing: Tokens.Space.s6) {
@@ -30,13 +30,13 @@ extension AddProjectSheet {
                         .accessibilityLabel("Name of the new project")
                         .onSubmit(createProject)
                         .onChange(of: form.name) { problem = nil }
-                    Text("Letters, numbers, dots and dashes").font(.scaled(11)).foregroundStyle(.tertiary)
+                    Text("Letters, numbers, dots and dashes").scaledFont(11).foregroundStyle(.tertiary)
                 }
                 VStack(alignment: .leading, spacing: Tokens.Space.s6) {
                     Text(mode.actsAtOnce ? "Create in" : "Will be created in").sectionLabel()
                     HStack(spacing: Tokens.Space.s8) {
                         Text(form.destinationLine().dropFirst("Creates ".count))
-                            .font(.scaled(11, design: .monospaced))
+                            .scaledFont(11, design: .monospaced)
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
                             .truncationMode(.middle)

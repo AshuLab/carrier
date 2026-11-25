@@ -37,7 +37,7 @@ struct PiecesGalleryView: View {
             .padding(.horizontal, Tokens.Space.s40).padding(.vertical, Tokens.Space.s16)
             .frame(maxWidth: 900, alignment: .leading).frame(maxWidth: .infinity)
         }
-        .font(.scaled(13))
+        .scaledFont(13)
         .background(Color(surfaces.window), ignoresSafeAreaEdges: .all)
         .environment(\.colorScheme, dark ? .dark : .light)
         .environment(\.pieceTheme, PieceTheme(surfaces: surfaces, iconWeight: window.iconWeight, iconSet: window.iconSet, statesByShape: window.statesByShape))

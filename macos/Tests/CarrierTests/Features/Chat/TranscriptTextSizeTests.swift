@@ -7,7 +7,7 @@ import Testing
     if let percent { UserDefaults.standard.set(percent, forKey: Preference.appearanceTextSize.name) } else { UserDefaults.standard.removeObject(forKey: Preference.appearanceTextSize.name) }
     defer { UserDefaults.standard.removeObject(forKey: Preference.appearanceTextSize.name) }
     let row = FlowItemView(flow: .note(id: 1, text: "Reading the sources of the slice"), flipped: .constant([]))
-    let renderer = ImageRenderer(content: row.frame(width: 400))
+    let renderer = ImageRenderer(content: row.frame(width: 400).modifier(PieceEnvironment()))
     renderer.scale = 2
     return try #require(renderer.cgImage).height
 }

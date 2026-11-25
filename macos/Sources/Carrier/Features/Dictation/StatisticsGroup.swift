@@ -86,7 +86,7 @@ struct StatisticsGroup: View {
         return VStack(alignment: .leading, spacing: Tokens.Space.s4) {
             HStack(spacing: Tokens.Space.s2) {
                 ForEach(0..<24, id: \.self) { hour in
-                    RoundedRectangle(cornerRadius: Tokens.Radius.tiny).fill(Color.themeAccent.opacity(0.08 + 0.92 * Double(hours.dictations[hour]) / Double(most)))
+                    RoundedRectangle(cornerRadius: Tokens.Radius.tiny).fill(.tint.opacity(0.08 + 0.92 * Double(hours.dictations[hour]) / Double(most)))
                         .frame(height: 34).help("\(String(format: "%02d", hour)):00 · \(hours.dictations[hour]) dictations")
                 }
             }
@@ -95,8 +95,8 @@ struct StatisticsGroup: View {
                     Text("\(hour)").frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
-            .font(.scaled(10)).foregroundStyle(.secondary)
-            Text(line).font(.scaled(11)).foregroundStyle(.secondary).padding(.top, Tokens.Space.s4)
+            .scaledFont(10).foregroundStyle(.secondary)
+            Text(line).scaledFont(11).foregroundStyle(.secondary).padding(.top, Tokens.Space.s4)
         }
         .padding(.vertical, Tokens.Space.s6).frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .ignore).accessibilityLabel("Dictations by hour of the day").accessibilityValue(line)
@@ -105,7 +105,7 @@ struct StatisticsGroup: View {
     /// The last 7 days against the 7 before, in a sentence and a small chart of the words of each day.
     private func weekContent(_ week: DictationFigures, wpm: Int) -> some View {
         VStack(alignment: .leading, spacing: Tokens.Space.s8) {
-            Text(weeklySummary(week, wpm: wpm)).font(.scaled(12)).fixedSize(horizontal: false, vertical: true)
+            Text(weeklySummary(week, wpm: wpm)).scaledFont(12).fixedSize(horizontal: false, vertical: true)
             WeekChart(days: week.days)
         }
         .padding(.vertical, Tokens.Space.s6).frame(maxWidth: .infinity, alignment: .leading)
@@ -140,7 +140,7 @@ struct StatisticsGroup: View {
                             let next = min(max(value + direction * 5, range.lowerBound), range.upperBound)
                             return next == value ? nil : next
                         })
-                    Text("words/min").font(.scaled(11)).foregroundStyle(.secondary)
+                    Text("words/min").scaledFont(11).foregroundStyle(.secondary)
                 }
             }
             SettingsTabRow(id: "reset-statistics", title: "Reset statistics", detail: "Deletes the counters. The history stays, and deleting history never changes the statistics") {
@@ -166,13 +166,13 @@ private struct StatisticsCard: View {
     var body: some View {
         let face = VStack(alignment: .leading, spacing: Tokens.Space.s3) {
             Text(title).sectionLabel().lineLimit(1)
-            Text(value).font(.scaled(24, weight: .bold)).foregroundStyle(.primary).monospacedDigit().lineLimit(1).minimumScaleFactor(0.6)
-            Text(line ?? " ").font(.scaled(10)).foregroundStyle(.secondary)
+            Text(value).scaledFont(24, weight: .bold).foregroundStyle(.primary).monospacedDigit().lineLimit(1).minimumScaleFactor(0.6)
+            Text(line ?? " ").scaledFont(10).foregroundStyle(.secondary)
         }
         // every card is as tall as the tallest, whatever each one wraps
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading).padding(.horizontal, Tokens.Space.s14).padding(.vertical, Tokens.Space.s12)
         return Group {
-            if highlighted { face.background(RoundedRectangle(cornerRadius: Tokens.Radius.roomy).fill(Color.themeAccent.opacity(0.14))) } else { face.settingsCard() }
+            if highlighted { face.background(RoundedRectangle(cornerRadius: Tokens.Radius.roomy).fill(.tint.opacity(0.14))) } else { face.settingsCard() }
         }
         .accessibilityElement(children: .combine)
     }
@@ -189,7 +189,7 @@ private struct StatisticsChart: View {
         let most = days.map(value).max() ?? 0
         Chart(days) { day in
             BarMark(x: .value("Day", day.day, unit: .day), y: .value(metric.title, value(day)))
-                .foregroundStyle(Color.themeAccent.opacity(value(day) == most && most > 0 ? 1 : 0.7))
+                .foregroundStyle(.tint.opacity(value(day) == most && most > 0 ? 1 : 0.7))
                 .accessibilityLabel(day.day.formatted(.dateTime.weekday(.wide).month().day()))
                 .accessibilityValue("\(value(day)) \(metric == .words ? "words" : "dictations")")
         }
@@ -207,7 +207,7 @@ private struct WeekChart: View {
         let busiest = busiestDay(days)?.day
         Chart(days) { day in
             BarMark(x: .value("Day", day.day, unit: .day), y: .value("Words", day.words))
-                .foregroundStyle(Color.themeAccent.opacity(day.day == busiest ? 1 : 0.6))
+                .foregroundStyle(.tint.opacity(day.day == busiest ? 1 : 0.6))
                 .accessibilityLabel(day.day.formatted(.dateTime.weekday(.wide).month().day()))
                 .accessibilityValue("\(day.words) words")
         }

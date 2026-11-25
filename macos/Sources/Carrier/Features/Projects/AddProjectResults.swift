@@ -47,27 +47,27 @@ extension AddProjectSheet {
     private func resultRow(_ item: ProjectSheetResult, highlighted: Bool) -> some View {
         HoverRow(
             action: { activate(item) },
-            fill: highlighted ? Color.themeAccent.opacity(0.16) : nil
+            fill: highlighted ? theme.accent.opacity(0.16) : nil
         ) { hovering in
             HStack(spacing: Tokens.Space.s12) {
                 ProjectIcon(tile: item.tile)
                 VStack(alignment: .leading, spacing: Tokens.Space.s2) {
                     HStack(spacing: Tokens.Space.s6) {
                         Text(item.title)
-                            .font(.scaled(13, weight: .medium))
+                            .scaledFont(13, weight: .medium)
                             .lineLimit(1)
                             .truncationMode(.tail)
                         if let chip = item.chip { StatusChip(text: chip, tint: .secondary) }
                     }
                     Text(item.detail)
-                        .font(.scaled(11, design: item.kind.isRepository ? .default : .monospaced))
+                        .scaledFont(11, design: item.kind.isRepository ? .default : .monospaced)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                         .truncationMode(item.kind.isRepository ? .tail : .middle)
                 }
                 Spacer(minLength: 8)
                 if item.pushed.isEmpty == false {
-                    Text(item.pushed).font(.scaled(11)).foregroundStyle(.tertiary).lineLimit(1).fixedSize()
+                    Text(item.pushed).scaledFont(11).foregroundStyle(.tertiary).lineLimit(1).fixedSize()
                 }
                 actionBadge(item.actionTitle, active: (hovering || highlighted) && item.isEnabled)
             }
@@ -87,7 +87,7 @@ extension AddProjectSheet {
             VStack(alignment: .leading, spacing: Tokens.Space.s6) {
                 HStack(spacing: Tokens.Space.s8) {
                     Text(destination.line)
-                        .font(.scaled(11, design: .monospaced))
+                        .scaledFont(11, design: .monospaced)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                         .truncationMode(.middle)
@@ -110,34 +110,34 @@ extension AddProjectSheet {
         let on = watch.problem == nil && newSession.watch
         return HStack(spacing: Tokens.Space.s8) {
             Toggle("Let Carrier watch this repo", isOn: Binding(get: { on }, set: { newSession.watch = $0 }))
-                .toggleStyle(.switch).controlSize(.small).font(.scaled(11))
+                .toggleStyle(.switch).controlSize(.small).scaledFont(11)
                 .disabled(watch.problem != nil)
-            if let reason = watch.problem { ProblemLine(text: reason, font: .scaled(11), announces: false) }
+            if let reason = watch.problem { ProblemLine(text: reason, size: 11, announces: false) }
             Spacer(minLength: 0)
         }
     }
 
     private func actionBadge(_ title: String, active: Bool) -> some View {
         Text(title)
-            .font(.scaled(11, weight: .semibold))
+            .scaledFont(11, weight: .semibold)
             .foregroundStyle(active ? .white : .secondary)
             .padding(.horizontal, Tokens.Space.s10)
             .padding(.vertical, Tokens.Space.s3)
-            .background(Capsule().fill(active ? Color.accentGlass : Color.primary.opacity(0.08)))
+            .background(Capsule().fill(active ? theme.accentGlass : Color.primary.opacity(0.08)))
     }
 
     // MARK: Drop Veil
 
     var dropVeil: some View {
         VStack(spacing: Tokens.Space.s4) {
-            Glyph(.folderPlus, size: 22).foregroundStyle(Color.themeAccent)
-            Text(mode.actsAtOnce ? "Drop folders to add" : "Drop a folder to work in").font(.scaled(14, weight: .semibold))
-            Text(mode.actsAtOnce ? "Folders are added to your projects; files are refused" : "The folder fills the plan; nothing is written").font(.scaled(12)).foregroundStyle(.secondary)
+            Glyph(.folderPlus, size: 22).foregroundStyle(.tint)
+            Text(mode.actsAtOnce ? "Drop folders to add" : "Drop a folder to work in").scaledFont(14, weight: .semibold)
+            Text(mode.actsAtOnce ? "Folders are added to your projects; files are refused" : "The folder fills the plan; nothing is written").scaledFont(12).foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(RoundedRectangle(cornerRadius: Tokens.Radius.card).fill(Color.themeAccent.opacity(0.14)))
+        .background(RoundedRectangle(cornerRadius: Tokens.Radius.card).fill(.tint.opacity(0.14)))
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: Tokens.Radius.card))
-        .overlay(RoundedRectangle(cornerRadius: Tokens.Radius.card).strokeBorder(Color.themeAccent, style: StrokeStyle(lineWidth: 1.5, dash: [6, 4])))
+        .overlay(RoundedRectangle(cornerRadius: Tokens.Radius.card).strokeBorder(.tint, style: StrokeStyle(lineWidth: 1.5, dash: [6, 4])))
         .padding(Tokens.Space.s8)
         .allowsHitTesting(false)
         .transition(.opacity)

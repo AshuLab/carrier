@@ -7,6 +7,7 @@ import SwiftUI
 /// width the view has: same font, same line spacing, same breaks. ponytail: a font or a break that TextKit sets a little differently from
 /// SwiftUI moves a link's hit area by a few points; an NSTextView would be exact if that is ever noticed.
 struct LinkedText: View {
+    @Environment(\.pieceTheme) private var theme
     let text: AttributedString
     @Environment(\.colorScheme) private var scheme
     @State private var places: [(link: Int, rect: CGRect)] = []
@@ -44,7 +45,7 @@ struct LinkedText: View {
         var out = text
         var index = 0
         for run in text.runs where run.link != nil {
-            if index == hovered { out[run.range].backgroundColor = Color.themeAccent.opacity(scheme == .dark ? 0.45 : 0.3) }
+            if index == hovered { out[run.range].backgroundColor = theme.accent.opacity(scheme == .dark ? 0.45 : 0.3) }
             index += 1
         }
         return out

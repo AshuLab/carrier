@@ -13,6 +13,7 @@ A dependency points down only ([ADR 0052](../docs/adr/0052-the-macos-app-is-spli
 - `Carrier/Features/<Area>/`: thin views and the models only they use.
 - `Carrier/Platform/`: the implementations of `CarrierCore/Platform/` and every framework import.
 - `Carrier/UI/`: the pieces of [ui](../docs/ui.md), which name no type of `Features/`, `App/` or `Platform/`; it becomes the `CarrierUI` target.
+  Text size and accent reach every view through the environment, never a static: `.scaledFont(...)` for a size, `.tint` or `pieceTheme.accent` for the accent, set by `.themed()` at each window's root; `Font.scaled` and `Color.themeAccent` are gone.
 
 Where a file goes: a Settings page that changes one area lives in that area, one about Carrier's config or the app as a whole in `Features/Settings/`; a file that needs a platform framework and also draws is split in two; a test goes to the folder of what it tests.
 No view starts a process, reads or writes a file or opens a socket: it asks a model.

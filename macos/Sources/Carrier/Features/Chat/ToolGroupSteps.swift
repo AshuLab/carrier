@@ -13,7 +13,7 @@ struct ThoughtRowView: View {
             Glyph(.sparkles, size: 8).foregroundStyle(Color.thought)
                 .frame(width: 16, height: 16).background(Circle().fill(Color.thought.opacity(0.2)))
             // as tall as the icon at least, so the first line is level with it
-            Text(thought.text).font(.scaled(12.5)).lineSpacing(2).foregroundStyle(.secondary).lineLimit(whole ? nil : 2).multilineTextAlignment(.leading)
+            Text(thought.text).scaledFont(12.5).lineSpacing(2).foregroundStyle(.secondary).lineLimit(whole ? nil : 2).multilineTextAlignment(.leading)
                 .frame(maxWidth: .infinity, minHeight: 16, alignment: .topLeading).textSelection(.enabled)
         }
         .padding(.vertical, Tokens.Space.s6)
@@ -49,7 +49,7 @@ struct CallRowView: View {
                     }
                     LogChevron(open: open)
                 }
-                .font(.scaled(12))
+                .scaledFont(12)
                 .foregroundStyle(call.status == .failed ? .red : .primary)
                 .padding(.trailing, Tokens.Space.s6).frame(height: 26)
                 .contentShape(Rectangle())
@@ -94,7 +94,7 @@ struct CallDetailView: View {
                     CodeBlockView(language: resolvedCodeLanguage(nil, code: call.arg) ?? "Arguments", code: call.arg)
                 }
                 if call.output.isEmpty {
-                    Text(call.status == .running ? "running…" : "no output").font(.scaled(11.5)).foregroundStyle(.secondary).padding(.horizontal, Tokens.Space.s6)
+                    Text(call.status == .running ? "running…" : "no output").scaledFont(11.5).foregroundStyle(.secondary).padding(.horizontal, Tokens.Space.s6)
                 } else {
                     CodeBlockView(language: "Output", code: call.output.joined(separator: "\n"), foldAfter: OutputLength(rawValue: lines)?.rawValue ?? AppPreferences.defaultOutputLength.rawValue, spare: 0)
                 }

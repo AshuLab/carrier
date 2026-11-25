@@ -4,6 +4,7 @@ import SwiftUI
 /// A row of the feed. It is `Equatable`, used with `.equatable()`: SwiftUI leaves a row that is `==` to the one it has alone, and that is nearly
 /// every row at each poll while the agent writes. A new input of the row has to be added to `==` below, or a change of it is not drawn.
 struct FeedRowView: View, Equatable {
+    @Environment(\.pieceTheme) private var theme
     let row: FeedRow
     /// When the message was written, in ms; nil for a row that is not a stored message.
     let time: Int?
@@ -57,7 +58,7 @@ struct FeedRowView: View, Equatable {
                 if sent.text.isEmpty == false {
                     messageText(sent.text, commands: commands).chatText(bubble: true).textSelection(.enabled)
                         .padding(.horizontal, Tokens.Space.s14).padding(.vertical, Tokens.Space.s8)
-                        .chatSurface(.regular.tint(Color.themeAccent.opacity(0.1)), flat: Color.themeAccent.opacity(0.16), in: RoundedRectangle(cornerRadius: Tokens.Radius.panel))
+                        .chatSurface(.regular.tint(theme.accent.opacity(0.1)), flat: theme.accent.opacity(0.16), in: RoundedRectangle(cornerRadius: Tokens.Radius.panel))
                 }
                 footer(text, summary: nil, asks: false)
             }
@@ -73,7 +74,7 @@ struct FeedRowView: View, Equatable {
             }
             .onHover { hovering = $0 }
         case .turnEnd(_, let summary):
-            Text(summary.text).font(.scaled(12)).foregroundStyle(.secondary).textSelection(.enabled)
+            Text(summary.text).scaledFont(12).foregroundStyle(.secondary).textSelection(.enabled)
         case .tools(let id, let group):
             // a subagent keeps the line live while it runs, after the turn that launched it ended too
             VStack(alignment: .leading, spacing: Tokens.Space.s6) {
@@ -100,7 +101,7 @@ struct FeedRowView: View, Equatable {
                 Text("\u{25A0} You stopped this turn").foregroundStyle(.secondary)
                 if offersWayOut { Button("Continue", action: actions.continueTurn).buttonStyle(.link) }
             }
-            .font(.scaled(12))
+            .scaledFont(12)
         }
     }
 }
@@ -138,12 +139,12 @@ extension FeedRowView {
                     }
                     Text(model)
                 }
-                .font(.scaled(11, weight: .medium)).foregroundStyle(.secondary)
+                .scaledFont(11, weight: .medium).foregroundStyle(.secondary)
                 .padding(.horizontal, Tokens.Space.s8).padding(.vertical, Tokens.Space.s2).background(Capsule().fill(Color.secondary.opacity(0.14)))
                 .help([identity.label == nil ? nil : agent, summary.model ?? model].compactMap { $0 }.joined(separator: " · "))
             }
             if numbers.isEmpty == false {
-                Text(numbers).font(.scaled(12)).foregroundStyle(Color.secondary.opacity(0.8)).help(breakdown(summary))
+                Text(numbers).scaledFont(12).foregroundStyle(Color.secondary.opacity(0.8)).help(breakdown(summary))
             }
         }
     }
@@ -213,7 +214,7 @@ struct MessageTimeLabel: View {
         if mode != .never {
             // a relative time ages while the row stays on screen
             TimelineView(.everyMinute) { context in
-                Text(timeText(Date(ms: ms), now: context.date, format: timeChanges.format)).font(.scaled(12)).monospacedDigit().foregroundStyle(.secondary)
+                Text(timeText(Date(ms: ms), now: context.date, format: timeChanges.format)).scaledFont(12).monospacedDigit().foregroundStyle(.secondary)
                     .opacity(mode.shows(hovering: hovering) ? 1 : 0)
             }
         }

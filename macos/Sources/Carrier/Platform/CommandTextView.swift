@@ -75,7 +75,7 @@ struct CommandTextView: NSViewRepresentable {
         view.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
         view.autoresizingMask = NSView.AutoresizingMask.width
         view.typingAttributes = Self.attributes
-        view.insertionPointColor = NSColor(Color.themeAccent)
+        view.insertionPointColor = NSColor(context.environment.pieceTheme.accent)
         view.setAccessibilityLabel(placeholder)
 
         let scroll = PillScrollView()
@@ -97,7 +97,7 @@ struct CommandTextView: NSViewRepresentable {
         view.onFiles = onFiles
         view.onFileDrag = onFileDrag
         view.onLargePaste = onLargePaste
-        view.insertionPointColor = NSColor(Color.themeAccent)
+        view.insertionPointColor = NSColor(context.environment.pieceTheme.accent)
         // Writing Tools (Apple Intelligence) offer to rewrite what is selected, over the text: they are the person's to switch on
         view.writingToolsBehavior = writingTools ? .default : .none
         view.isContinuousSpellCheckingEnabled = checksSpelling

@@ -50,7 +50,7 @@ struct AccountEditor: View {
             if inFile == false {
                 // never a blank form that would write over an account it did not read
                 SettingsGroup(title: "") {
-                    Label("\(account.title) is not in providers.json, so there is nothing to edit.", icon: .warningFilled).font(.scaled(12)).foregroundStyle(.orange)
+                    Label("\(account.title) is not in providers.json, so there is nothing to edit.", icon: .warningFilled).scaledFont(12).foregroundStyle(.orange)
                 }
             } else {
                 SettingsGroup(title: "Name") {
@@ -93,7 +93,7 @@ struct AccountEditor: View {
                             .accessibilityLabel("Auto-compact after")
                         }
                         field("Launch arguments", "launchArgs", "One per line, added to the ones Carrier passes") {
-                            TextEditor(text: $draft.launchArgs).font(.scaled(11.5, design: .monospaced))
+                            TextEditor(text: $draft.launchArgs).scaledFont(11.5, design: .monospaced)
                                 .scrollContentBackground(.hidden).padding(Tokens.Space.s4)
                                 .background(RoundedRectangle(cornerRadius: Tokens.Radius.small).fill(Color.secondary.opacity(0.12)))
                                 // the size goes last, around the padding, so the row grows with the box and the box does not spill over its neighbours
@@ -113,7 +113,7 @@ struct AccountEditor: View {
                 }
                 if let problem = store.editProblem { SettingsGroup(title: "") { ProblemLine(text: problem) } }
                 if problems["configDir"] == nil, draft.configDir != saved.configDir, let note = store.sharedFolderNote(configDir: draft.configDir, harness: harness, except: account.name) {
-                    SettingsGroup(title: "") { Label(note, icon: .info).font(.scaled(11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
+                    SettingsGroup(title: "") { Label(note, icon: .info).scaledFont(11).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
                 }
                 SettingsGroup(title: "") {
                     SettingsTabRow(title: "Remove account", detail: "Removes \(account.name) from providers.json; refused while a role or a chat names it", first: true) {
@@ -181,7 +181,7 @@ struct AccountEditor: View {
                 Button { draft.icon = choice } label: {
                     iconGlyph(choice).foregroundStyle(tint).frame(width: Self.tile, height: Self.tile)
                         .background(RoundedRectangle(cornerRadius: Tokens.Radius.control).fill(Color.secondary.opacity(0.12)))
-                        .overlay(RoundedRectangle(cornerRadius: Tokens.Radius.control).strokeBorder(Color.themeAccent, lineWidth: on ? 2 : 0))
+                        .overlay(RoundedRectangle(cornerRadius: Tokens.Radius.control).strokeBorder(.tint, lineWidth: on ? 2 : 0))
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain).help(iconName(choice)).accessibilityLabel(iconName(choice)).accessibilityAddTraits(on ? .isSelected : [])
@@ -198,9 +198,9 @@ struct AccountEditor: View {
 
     @ViewBuilder private func iconGlyph(_ choice: AccountIcon?) -> some View {
         if let symbol = choice?.symbol {
-            Image(systemName: symbol).font(.scaled(15, weight: .medium))
+            Image(systemName: symbol).scaledFont(15, weight: .medium)
         } else if choice == .letter {
-            Text(String(account.name.prefix(1)).uppercased()).font(.scaled(13, weight: .bold))
+            Text(String(account.name.prefix(1)).uppercased()).scaledFont(13, weight: .bold)
         } else {
             ProviderMark(name: providerIconName(harness: harness), size: 16)
         }
@@ -280,7 +280,7 @@ struct AddAccountForm: View {
             }
             if let message = problem ?? store.editProblem { SettingsGroup(title: "") { ProblemLine(text: message) } }
             if let note = store.sharedFolderNote(configDir: folder, harness: harness) {
-                SettingsGroup(title: "") { Label(note, icon: .info).font(.scaled(11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
+                SettingsGroup(title: "") { Label(note, icon: .info).scaledFont(11).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
             }
         }
         .writingToolsBehavior(.disabled)

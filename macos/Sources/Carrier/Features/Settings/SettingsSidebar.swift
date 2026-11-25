@@ -53,7 +53,7 @@ struct SettingsSidebar: View {
                                 VStack(alignment: .leading, spacing: Tokens.Space.s1) {
                                     Text(marked(entry.title, words: words))
                                     Text(marked(entry.isPage ? entry.detail : [entry.group, entry.detail].filter { !$0.isEmpty }.joined(separator: " · "), words: words))
-                                        .font(.scaled(11)).foregroundStyle(.secondary).lineLimit(1)
+                                        .scaledFont(11).foregroundStyle(.secondary).lineLimit(1)
                                 }
                                 .frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
                             }

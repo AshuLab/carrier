@@ -63,6 +63,7 @@ private struct ContextRingStyle: ButtonStyle {
 
 /// One ring: a track and the share of it in the accent, orange from 90 % as the Usage page's bars are. No share (not known yet) is the track alone.
 private struct Ring: View {
+    @Environment(\.pieceTheme) private var theme
     let share: Double?
     let diameter: CGFloat
     private let width: CGFloat = 2
@@ -72,7 +73,7 @@ private struct Ring: View {
             Circle().stroke(Color.primary.opacity(0.12), lineWidth: width)
             if let share {
                 Circle().trim(from: 0, to: max(share, 0.02))
-                    .stroke(share >= 0.9 ? Color.orange : Color.themeAccent, style: StrokeStyle(lineWidth: width, lineCap: .round))
+                    .stroke(share >= 0.9 ? Color.orange : theme.accent, style: StrokeStyle(lineWidth: width, lineCap: .round))
                     .rotationEffect(.degrees(-90))
             }
         }
@@ -95,17 +96,17 @@ private struct ContextUsageDetail: View {
             if let context {
                 VStack(alignment: .leading, spacing: Tokens.Space.s3) {
                     if let share = context.share { UsageMeterLine(label: "Context", shape: MeterShape(solid: share)) }
-                    Text(context.text + (context.share == nil ? " context" : "")).font(.scaled(10.5)).foregroundStyle(.secondary)
+                    Text(context.text + (context.share == nil ? " context" : "")).scaledFont(10.5).foregroundStyle(.secondary)
                         .padding(.leading, context.share == nil ? Tokens.Space.none : Tokens.Space.s54)
                 }
             } else {
-                Text("The context is known after the first answer.").font(.scaled(11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                Text("The context is known after the first answer.").scaledFont(11).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
             SettingsDivider()
             if let usage {
                 AccountUsageMeters(usage: usage)
             } else {
-                Text(limitsWords).font(.scaled(11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                Text(limitsWords).scaledFont(11).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
             SettingsDivider()
             HStack {

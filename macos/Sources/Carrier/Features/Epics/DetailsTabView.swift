@@ -29,6 +29,7 @@ struct DetailsTabView: View {
 }
 
 struct DetailsRowView: View {
+    @Environment(\.pieceTheme) private var theme
     let row: DetailsRow
 
     /// Past this many characters a value goes under its label.
@@ -73,7 +74,7 @@ struct DetailsRowView: View {
         switch row.style {
         case .badge:
             if let link {
-                Link(destination: link) { DetailsBadge(text: row.value, color: row.tone == .normal ? .themeAccent : color, linked: true) }
+                Link(destination: link) { DetailsBadge(text: row.value, color: row.tone == .normal ? theme.accent : color, linked: true) }
                     .buttonStyle(.plain).help(link.absoluteString)
             } else {
                 DetailsBadge(text: row.value, color: color, linked: false)

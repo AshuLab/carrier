@@ -69,7 +69,7 @@ struct ProjectActionsView: View {
         .accessibilityElement(children: .contain)
         SettingsTabRow(title: "Command", detail: "Runs with sh -c", problem: problems[.command]) {
             TextField("", text: binding(item.id, \.command), prompt: Text("pnpm install"))
-                .font(.scaled(11.5, design: .monospaced))
+                .scaledFont(11.5, design: .monospaced)
                 .accessibilityLabel("Command")
                 .settingsField(width: 282)
                 .writingToolsBehavior(.disabled)

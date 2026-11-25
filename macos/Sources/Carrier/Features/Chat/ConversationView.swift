@@ -111,9 +111,9 @@ struct ConversationView: View {
                     }
                     if let note = draft?.watchNotes[model.sessionId] {
                         if note.failed {
-                            ProblemLine(text: note.text, font: .scaled(11)).textSelection(.enabled)
+                            ProblemLine(text: note.text, size: 11).textSelection(.enabled)
                         } else {
-                            Label(note.text, icon: .eye).font(.scaled(11)).foregroundStyle(.secondary).textSelection(.enabled)
+                            Label(note.text, icon: .eye).scaledFont(11).foregroundStyle(.secondary).textSelection(.enabled)
                         }
                     }
                     let open = openOutcome(model.rows)
@@ -196,7 +196,7 @@ struct ConversationView: View {
         }
         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { paneHeight = $0 }
         .safeAreaInset(edge: .bottom, spacing: Tokens.Space.none) { if model.archived { archivedBox } else { box.environment(\.conversationHeight, paneHeight) } }
-        .font(.scaled(13))
+        .scaledFont(13)
         .task {
             if let first = draft?.takeFirstMessage(of: model.sessionId) { model.show(firstMessage: first) }
             await model.run()

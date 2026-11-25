@@ -6,10 +6,25 @@ import SwiftUI
 enum SidebarMetrics {
     static let edge: CGFloat = 8
     static let inset: CGFloat = 12
-    static var section: Font { Font.scaled(16, weight: .medium) }
-    static var group: Font { Font.scaled(12, weight: .semibold) }
-    static var item: Font { Font.scaled(14) }
-    static var detail: Font { Font.scaled(12) }
+    enum Level {
+        case section, group, item, detail
+
+        var base: CGFloat {
+            switch self {
+            case .section: 16
+            case .group, .detail: 12
+            case .item: 14
+            }
+        }
+
+        var weight: Font.Weight? {
+            switch self {
+            case .section: .medium
+            case .group: .semibold
+            case .item, .detail: nil
+            }
+        }
+    }
     /// Between rows: each one carries its own vertical padding.
     static let rowGap: CGFloat = 2
     /// The vertical padding of a section's row, and between an item's lines; an item's row takes its padding from the density, on all four
@@ -18,4 +33,11 @@ enum SidebarMetrics {
     static let lineGap: CGFloat = 3
     /// Above a group's title, so it reads where a group begins; under it the first row is closer.
     static let groupTop: CGFloat = 10
+}
+
+extension View {
+    /// The type of a sidebar level (`weight` for a place that sets its own), scaled by the person's text size.
+    func sidebarFont(_ level: SidebarMetrics.Level, weight: Font.Weight? = nil) -> some View {
+        scaledFont(level.base, weight: weight ?? level.weight)
+    }
 }

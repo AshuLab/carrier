@@ -9,6 +9,7 @@ import UniformTypeIdentifiers
 /// in Settings a choice acts at once; in New session (`newSession` is the draft) a choice only fills its plan, and nothing is cloned or written until the
 /// first message is sent.
 struct AddProjectSheet: View {
+    @Environment(\.pieceTheme) var theme
     let mode: ProjectSheetMode
     let model: ProjectsModel
     let recent: [RecentFolder]
@@ -79,7 +80,7 @@ struct AddProjectSheet: View {
                             dismiss()
                             openHealth()
                         }
-                        .buttonStyle(.link).font(.scaled(12))
+                        .buttonStyle(.link).scaledFont(12)
                     }
                 }
                 .padding(.horizontal, Tokens.Space.s24)
@@ -139,13 +140,13 @@ struct AddProjectSheet: View {
 
     private var header: some View {
         HStack(spacing: Tokens.Space.s12) {
-            Glyph(.folderPlus, size: 16).foregroundStyle(Color.themeAccent)
+            Glyph(.folderPlus, size: 16).foregroundStyle(.tint)
                 .frame(width: 36, height: 36)
-                .background(RoundedRectangle(cornerRadius: Tokens.Radius.control).fill(Color.themeAccent.opacity(0.16)))
+                .background(RoundedRectangle(cornerRadius: Tokens.Radius.control).fill(.tint.opacity(0.16)))
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: Tokens.Space.s2) {
-                Text(mode.title).font(.scaled(16, weight: .semibold))
-                Text(mode.subtitle).font(.scaled(12)).foregroundStyle(.secondary)
+                Text(mode.title).scaledFont(16, weight: .semibold)
+                Text(mode.subtitle).scaledFont(12).foregroundStyle(.secondary)
             }
         }
     }

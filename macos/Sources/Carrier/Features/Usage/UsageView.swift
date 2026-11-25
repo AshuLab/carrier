@@ -22,7 +22,7 @@ struct UsageView: View {
                 // an older host is a normal state after an update: told quietly, as an engine too old to reload is
                 let tooOld = store.error?.code == Refusal.usageNeedsNewerHost.code
                 if tooOld {
-                    Text(usageNeedsNewerHost).font(.scaled(12)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    Text(usageNeedsNewerHost).scaledFont(12).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
                 if let problem = (tooOld ? nil : store.error?.shown()) ?? failure { ProblemLine(text: problem) }
                 if store.quotas.isEmpty, store.error == nil {
@@ -91,8 +91,8 @@ private struct ProviderBlock: View {
                 HStack(spacing: Tokens.Space.s12) {
                     UsageProviderMark(title: provider.title, size: 18).frame(width: 22)
                     VStack(alignment: .leading, spacing: Tokens.Space.s1) {
-                        Text(provider.title).font(.scaled(13, weight: .semibold))
-                        Text(provider.subtitle).font(.scaled(11)).foregroundStyle(.secondary).lineLimit(1)
+                        Text(provider.title).scaledFont(13, weight: .semibold)
+                        Text(provider.subtitle).scaledFont(11).foregroundStyle(.secondary).lineLimit(1)
                     }
                     .frame(width: 150, alignment: .leading)
                     ForEach(Array(provider.meters.enumerated()), id: \.offset) { _, meter in
@@ -104,7 +104,7 @@ private struct ProviderBlock: View {
                             .help("The provider is rate limiting the check: these are the last known numbers")
                     }
                     if let reset = provider.earliestReset {
-                        Text(reset).font(.scaled(11)).foregroundStyle(.secondary).lineLimit(1)
+                        Text(reset).scaledFont(11).foregroundStyle(.secondary).lineLimit(1)
                     }
                     usageMark(provider.mark, provider.title)
                     Glyph(.chevronRight, size: 10).foregroundStyle(.secondary)
@@ -154,15 +154,15 @@ private struct AccountBlock: View {
                 HStack(spacing: Tokens.Space.s8) {
                     // a local server's pool is not an account of providers.json: it has no icon or color to wear
                     if harness != "local" { AccountMark(account: account.id, icon: harness, size: 14).help(account.title).accessibilityHidden(true) }
-                    Text(account.title).font(.scaled(12, weight: .semibold))
-                    Text(account.status).font(.scaled(11)).foregroundStyle(.secondary)
+                    Text(account.title).scaledFont(12, weight: .semibold)
+                    Text(account.status).scaledFont(11).foregroundStyle(.secondary)
                     if account.stale { StatusChip(text: "Stale", tint: .orange) }
                     Spacer()
                     if account.canSignIn { Button("Sign in", action: signIn).buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).help("Opens Terminal and signs this account in") }
                     if account.mark != .ok { Button("Check again", action: checkAgain).buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small) }
                 }
             }
-            if let note = account.note { Text(note).font(.scaled(11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
+            if let note = account.note { Text(note).scaledFont(11).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
             ForEach(Array(usageLineGroups(account.lines).enumerated()), id: \.offset) { _, group in
                 LineGroupView(group: group)
             }
@@ -190,7 +190,7 @@ private struct LineGroupView: View {
                 .padding(.horizontal, Tokens.Space.s12).background(RoundedRectangle(cornerRadius: Tokens.Radius.tile).fill(Color.primary.opacity(0.05)))
             }
             ForEach(Array(notes.enumerated()), id: \.offset) { _, line in
-                Text(line.title).font(.scaled(11)).foregroundStyle(.secondary).padding(.leading, Tokens.Space.s4)
+                Text(line.title).scaledFont(11).foregroundStyle(.secondary).padding(.leading, Tokens.Space.s4)
             }
         }
     }
@@ -204,27 +204,27 @@ private struct LineRow: View {
     var body: some View {
         if let shape = line.shape {
             HStack(spacing: Tokens.Space.s14) {
-                Text(line.title).font(.scaled(12)).lineLimit(1).frame(width: 90, alignment: .leading)
+                Text(line.title).scaledFont(12).lineLimit(1).frame(width: 90, alignment: .leading)
                 QuotaBar(shape: shape).frame(maxWidth: 360)
                 QuotaPercent(shape: shape).frame(width: 44, alignment: .trailing)
-                Text(line.reset ?? "").font(.scaled(11)).foregroundStyle(.secondary).lineLimit(1).frame(width: 120, alignment: .leading)
+                Text(line.reset ?? "").scaledFont(11).foregroundStyle(.secondary).lineLimit(1).frame(width: 120, alignment: .leading)
                 Spacer(minLength: 0)
             }
         } else if let detail = line.detail {
             HStack(alignment: .top, spacing: Tokens.Space.s12) {
                 UsageProviderMark(title: line.title.replacingOccurrences(of: " ", with: ""), size: 16).frame(width: 20)
                 VStack(alignment: .leading, spacing: Tokens.Space.s2) {
-                    Text(line.title).font(.scaled(12, weight: .medium))
-                    Text(detail).font(.scaled(11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    Text(line.title).scaledFont(12, weight: .medium)
+                    Text(detail).scaledFont(11).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: 8)
                 if let value = line.value { ServerState(text: value) }
             }
         } else {
             HStack(spacing: Tokens.Space.s10) {
-                Text(line.title).font(.scaled(12))
+                Text(line.title).scaledFont(12)
                 Spacer(minLength: 8)
-                Text(line.value ?? "").font(.scaled(12)).foregroundStyle(.secondary)
+                Text(line.value ?? "").scaledFont(12).foregroundStyle(.secondary)
             }
         }
     }
@@ -237,7 +237,7 @@ private struct ServerState: View {
     var body: some View {
         HStack(spacing: Tokens.Space.s6) {
             Circle().fill(text == "Ready" ? Color.green : Color.secondary.opacity(0.6)).frame(width: 7, height: 7)
-            Text(text).font(.scaled(11)).foregroundStyle(.secondary)
+            Text(text).scaledFont(11).foregroundStyle(.secondary)
         }
     }
 }

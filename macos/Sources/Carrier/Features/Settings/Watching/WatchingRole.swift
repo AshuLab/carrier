@@ -30,7 +30,7 @@ struct RepoRoleScreen: View {
             SettingsGroup(id: "who", title: "Who", footer: mine.isOwn ? nil : "Nothing here is set for this repository: the \(row.title) follows Agents.") {
                 SettingsTabRow(title: "Identity", detail: "The GitHub account it signs as", first: true) { identityPicker }
                 SettingsTabRow(id: "model", title: "Model", detail: "Provider, model and how hard it thinks") { modelPicker }
-                if let problem { ProblemLine(text: problem, font: .scaled(11)).textSelection(.enabled).padding(.vertical, Tokens.Space.s8) }
+                if let problem { ProblemLine(text: problem, size: 11).textSelection(.enabled).padding(.vertical, Tokens.Space.s8) }
             }
             SettingsGroup(id: "persona", title: "Persona") {
                 SettingsTabRow(id: "persona-name", title: "Persona name", detail: "Optional, one line up to 40 characters", first: true) {

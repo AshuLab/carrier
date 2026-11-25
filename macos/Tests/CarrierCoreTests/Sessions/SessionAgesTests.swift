@@ -83,7 +83,7 @@ private func line(_ ages: SessionAges, on year: Int, _ month: Int, _ day: Int, u
 }
 
 @Test func theStartRowIsOffWithTheReasonWhileWorkInIsTheBaseFolder() {
-    #expect(worktreeStartOffReason(workIn: .baseFolder) == "Only for a new worktree")
-    #expect(worktreeStartOffReason(workIn: .newWorktree) == nil)
-    #expect(WorktreeStart.allCases.map(\.title) == ["Remote branch (latest)", "Local branch"])
+    #expect(worktreeStartOffReason(workIn: .baseFolder, bundle: english.bundle, locale: english.locale) == "Only for a new worktree")
+    #expect(worktreeStartOffReason(workIn: .newWorktree, bundle: english.bundle, locale: english.locale) == nil)
+    #expect(WorktreeStart.allCases.map { $0.title(bundle: english.bundle, locale: english.locale) } == ["Remote branch (latest)", "Local branch"])
 }

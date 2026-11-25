@@ -13,19 +13,19 @@ private func temporaryFolder() throws -> String {
 
 @Test func blankNameOrCommandIsAProblemAndValidActionHasNone() {
     let empty = ProjectAction(name: "", command: "", when: .newWorktree)
-    #expect(projectActionProblems(empty) == [.name: "Name must not be blank", .command: "Command must not be blank"])
+    #expect(projectActionProblems(empty, bundle: english.bundle, locale: english.locale) == [.name: "Name must not be blank", .command: "Command must not be blank"])
 
     let spaces = ProjectAction(name: "  \t ", command: "\n ", when: .afterClone)
-    #expect(projectActionProblems(spaces) == [.name: "Name must not be blank", .command: "Command must not be blank"])
+    #expect(projectActionProblems(spaces, bundle: english.bundle, locale: english.locale) == [.name: "Name must not be blank", .command: "Command must not be blank"])
 
     let missingCommand = ProjectAction(name: "Install", command: " ", when: .newWorktree)
-    #expect(projectActionProblems(missingCommand) == [.command: "Command must not be blank"])
+    #expect(projectActionProblems(missingCommand, bundle: english.bundle, locale: english.locale) == [.command: "Command must not be blank"])
 
     let missingName = ProjectAction(name: "", command: "pnpm install", when: .afterClone)
-    #expect(projectActionProblems(missingName) == [.name: "Name must not be blank"])
+    #expect(projectActionProblems(missingName, bundle: english.bundle, locale: english.locale) == [.name: "Name must not be blank"])
 
     let valid = ProjectAction(name: "Install", command: "pnpm install", when: .newWorktree)
-    #expect(projectActionProblems(valid).isEmpty)
+    #expect(projectActionProblems(valid, bundle: english.bundle, locale: english.locale).isEmpty)
 }
 
 @Test func encodingOmitsDefaultOnAndOnFailAndRefusesBlankFields() {
@@ -65,10 +65,10 @@ private func temporaryFolder() throws -> String {
 }
 
 @Test func actionsSummaryMatchesSpecWording() {
-    #expect(projectActionsSummary(0) == "None")
-    #expect(projectActionsSummary(1) == "1 action")
-    #expect(projectActionsSummary(2) == "2 actions")
-    #expect(projectActionsSummary(5) == "5 actions")
+    #expect(projectActionsSummary(0, bundle: english.bundle, locale: english.locale) == "None")
+    #expect(projectActionsSummary(1, bundle: english.bundle, locale: english.locale) == "1 action")
+    #expect(projectActionsSummary(2, bundle: english.bundle, locale: english.locale) == "2 actions")
+    #expect(projectActionsSummary(5, bundle: english.bundle, locale: english.locale) == "5 actions")
 }
 
 @Test func actionsSurviveRoundTripThroughFileAndNeverReadFromRepository() throws {

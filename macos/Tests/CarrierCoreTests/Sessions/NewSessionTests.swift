@@ -156,7 +156,7 @@ private func cleanRepo(_ folder: String) -> WorkspaceInfo {
 @MainActor private func draft(
     _ host: FakeChat, hostStarts: Bool = true, offers: AgentOfferStore? = nil, log: @escaping (String) -> Void = { _ in }
 ) async -> NewSessionModel {
-    let model = NewSessionModel(host: host, offers: offers, ensureHost: { hostStarts }, log: log, sleep: { _ in })
+    let model = NewSessionModel(host: host, offers: offers, ensureHost: { hostStarts }, log: log, sleep: { _ in }, bundle: english.bundle, locale: english.locale)
     await model.load()
     return model
 }
@@ -187,7 +187,7 @@ private func cleanRepo(_ folder: String) -> WorkspaceInfo {
 @MainActor @Test func anAgentWithNoBinaryIsListedDisabledAndNotInstalledAndTheFirstFoundOneIsChosen() async {
     let model = await draft(FakeChat())
     #expect(model.agents == [AgentChoice(name: "codex", harness: "codex", state: .missing), AgentChoice(name: "claude", harness: "claude", state: .ready)])
-    #expect(model.agents.map(\.note) == ["not installed", nil])
+    #expect(model.agents.map { $0.note(bundle: english.bundle, locale: english.locale) } == ["not installed", nil])
     #expect(model.agent == "claude")
 }
 
@@ -276,7 +276,7 @@ private func cleanRepo(_ folder: String) -> WorkspaceInfo {
     let model = await draft(host)
     await model.choose(folder: "/w/api")
     model.text = "hello"
-    #expect(model.hostOlder && model.canSend == false && NewSessionModel.olderHostNotice.contains("Restart"))
+    #expect(model.hostOlder && model.canSend == false && model.olderHostNotice.contains("Restart"))
     #expect(await model.send() == nil)
     #expect(host.calls.isEmpty && model.text == "hello")
 }
@@ -404,7 +404,7 @@ private func cleanRepo(_ folder: String) -> WorkspaceInfo {
     let host = FakeChat()
     host.taken["fix-login"] = NameCheck(valid: true, free: false, reason: "A branch called carrier/fix-login already exists")
     var waits: [Duration] = []
-    let model = NewSessionModel(host: host, sleep: { waits.append($0) })
+    let model = NewSessionModel(host: host, sleep: { waits.append($0) }, bundle: english.bundle, locale: english.locale)
     await model.load()
     await model.choose(folder: "/w/api")
     await model.useWorktree(true)
@@ -426,7 +426,7 @@ private func cleanRepo(_ folder: String) -> WorkspaceInfo {
     let host = FakeChat()
     host.taken["one"] = NameCheck(valid: true, free: false, reason: "taken")
     var typeOver: (() -> Void)?
-    let model = NewSessionModel(host: host, sleep: { _ in typeOver?() })
+    let model = NewSessionModel(host: host, sleep: { _ in typeOver?() }, bundle: english.bundle, locale: english.locale)
     await model.load()
     await model.choose(folder: "/w/api")
     await model.useWorktree(true)
@@ -713,7 +713,8 @@ private final class FakeConfig {
     let config = config ?? FakeConfig()
     let model = NewSessionModel(
         host: host, ensureHost: { true }, log: { _ in }, sleep: { _ in }, projectsFolder: { projects },
-        readConfig: { config.json }, send: config.send, status: ReloadStatus(reload: { .nobody })
+        readConfig: { config.json }, send: config.send, status: ReloadStatus(reload: { .nobody }),
+        bundle: english.bundle, locale: english.locale
     )
     await model.load()
     return model
@@ -797,7 +798,7 @@ private final class FakeConfig {
         try? FileManager.default.removeItem(atPath: folder)
     }
     let file = ProjectsFile(folder: carrier)
-    let model = NewSessionModel(host: FakeChat(), ensureHost: { true }, log: { _ in }, sleep: { _ in }, projects: ProjectsModel(host: CloneHost(writing: carrier), file: file) { _ in nil })
+    let model = NewSessionModel(host: FakeChat(), ensureHost: { true }, log: { _ in }, sleep: { _ in }, projects: ProjectsModel(host: CloneHost(writing: carrier), file: file, bundle: english.bundle, locale: english.locale) { _ in nil }, bundle: english.bundle, locale: english.locale)
     #expect(model.offersAddAsProject == false) // nothing chosen
     await model.choose(folder: folder)
     #expect(model.offersAddAsProject)
@@ -820,7 +821,7 @@ private final class FakeConfig {
         try? FileManager.default.removeItem(atPath: folder)
     }
     let file = ProjectsFile(folder: carrier)
-    let model = NewSessionModel(host: FakeChat(), ensureHost: { true }, log: { _ in }, sleep: { _ in }, projectsFolder: { "/nowhere" }, projects: ProjectsModel(host: CloneHost(writing: carrier), file: file) { _ in nil })
+    let model = NewSessionModel(host: FakeChat(), ensureHost: { true }, log: { _ in }, sleep: { _ in }, projectsFolder: { "/nowhere" }, projects: ProjectsModel(host: CloneHost(writing: carrier), file: file, bundle: english.bundle, locale: english.locale) { _ in nil }, bundle: english.bundle, locale: english.locale)
     model.choose(newProject: "my-idea")
     #expect(model.offersAddAsProject == false) // the host registers a new project itself
     await model.choose(repo: "acme/web")
@@ -1024,13 +1025,13 @@ private final class LateChat: ChatHost, @unchecked Sendable {
 
 @MainActor @Test func openingTheDraftStartsAHostThatIsNotThereAndOffersItsAgents() async {
     let host = LateChat()
-    let model = NewSessionModel(host: host, ensureHost: { host.up = true; return true }, log: { _ in }, sleep: { _ in })
+    let model = NewSessionModel(host: host, ensureHost: { host.up = true; return true }, log: { _ in }, sleep: { _ in }, bundle: english.bundle, locale: english.locale)
     await model.load()
     #expect(host.agentCalls == 2 && model.agents.map(\.name) == ["claude"] && model.agent == "claude")
 
     // one that does not come up is asked once, says nothing and leaves the draft empty
     let dead = LateChat()
-    let none = NewSessionModel(host: dead, ensureHost: { false }, log: { _ in }, sleep: { _ in })
+    let none = NewSessionModel(host: dead, ensureHost: { false }, log: { _ in }, sleep: { _ in }, bundle: english.bundle, locale: english.locale)
     await none.load()
     #expect(dead.agentCalls == 1 && none.agents.isEmpty)
 }
@@ -1344,7 +1345,7 @@ private func agentHealth(_ states: [String: ToolState]) -> HostHealth {
     host.healthReply = HostHealth(git: .ready, gh: .signedOut, agents: [])
     host.capabilities.insert(.health)
     let store = HealthStore(host: host)
-    let model = NewSessionModel(host: host, health: store, log: { _ in }, sleep: { _ in })
+    let model = NewSessionModel(host: host, health: store, log: { _ in }, sleep: { _ in }, bundle: english.bundle, locale: english.locale)
     #expect(model.ghState == nil)
     await store.check(.open)
     #expect(model.ghState == .signedOut)
@@ -1354,7 +1355,7 @@ private func agentHealth(_ states: [String: ToolState]) -> HostHealth {
     let agents = [ChatAgent(name: "a", harness: "claude", found: true), ChatAgent(name: "b", harness: "codex", found: true), ChatAgent(name: "c", harness: "codex", found: true), ChatAgent(name: "d", harness: "codex", found: true)]
     let choices = agentChoices(agents, health: agentHealth(["a": .ready, "b": .signedOut, "c": .missing, "d": .unknown]))
     #expect(choices.map(\.available) == [true, false, false, true])
-    #expect(choices.map(\.note) == [nil, "signed out", "not installed", nil])
+    #expect(choices.map { $0.note(bundle: english.bundle, locale: english.locale) } == [nil, "signed out", "not installed", nil])
 }
 
 @Test func withoutAHealthAnAgentIsReadyWhenItsBinaryWasFoundAndMissingWhenItWasNot() {
@@ -1371,9 +1372,9 @@ private func agentHealth(_ states: [String: ToolState]) -> HostHealth {
     let store = HealthStore(host: host)
     host.capabilities.insert(.health)
     await store.check(.open)
-    let model = NewSessionModel(host: host, health: store, log: { _ in }, sleep: { _ in })
+    let model = NewSessionModel(host: host, health: store, log: { _ in }, sleep: { _ in }, bundle: english.bundle, locale: english.locale)
     await model.load()
-    #expect(model.agents.map(\.note) == ["signed out", nil])
+    #expect(model.agents.map { $0.note(bundle: english.bundle, locale: english.locale) } == ["signed out", nil])
     #expect(model.agent == "codex")
     #expect(model.noAgentReason == nil)
 }
@@ -1383,7 +1384,7 @@ private func agentHealth(_ states: [String: ToolState]) -> HostHealth {
     host.agents = [ChatAgent(name: "claude", harness: "claude", found: true), ChatAgent(name: "codex", harness: "codex", found: true)]
     host.capabilities.insert(.health)
     let store = HealthStore(host: host)
-    let model = NewSessionModel(host: host, health: store, log: { _ in }, sleep: { _ in })
+    let model = NewSessionModel(host: host, health: store, log: { _ in }, sleep: { _ in }, bundle: english.bundle, locale: english.locale)
     await model.load()
     await model.choose(folder: "/w/api")
     model.text = "hello"
@@ -1402,7 +1403,7 @@ private func agentHealth(_ states: [String: ToolState]) -> HostHealth {
     host.capabilities.insert(.health)
     let store = HealthStore(host: host)
     await store.check(.open)
-    let model = NewSessionModel(host: host, health: store, log: { _ in }, sleep: { _ in })
+    let model = NewSessionModel(host: host, health: store, log: { _ in }, sleep: { _ in }, bundle: english.bundle, locale: english.locale)
     await model.load()
     await model.choose(folder: "/w/api")
     model.text = "hello"
@@ -1417,7 +1418,7 @@ private func agentHealth(_ states: [String: ToolState]) -> HostHealth {
     let store = HealthStore(host: host)
     for moment in HealthMoment.allCases { await store.check(moment) }
     #expect(host.healthAsks.isEmpty && store.latest == nil)
-    let model = NewSessionModel(host: host, health: store, log: { _ in }, sleep: { _ in })
+    let model = NewSessionModel(host: host, health: store, log: { _ in }, sleep: { _ in }, bundle: english.bundle, locale: english.locale)
     await model.load()
     #expect(model.agents == [AgentChoice(name: "codex", harness: "codex", state: .missing), AgentChoice(name: "claude", harness: "claude", state: .ready)] && model.agent == "claude")
 }
@@ -1470,7 +1471,7 @@ private func gitHealth(_ git: ToolState) -> HostHealth { HostHealth(git: git, gh
         store = HealthStore(host: host)
         await store?.check(.open)
     }
-    let model = NewSessionModel(host: host, health: store, log: { _ in }, sleep: { _ in })
+    let model = NewSessionModel(host: host, health: store, log: { _ in }, sleep: { _ in }, bundle: english.bundle, locale: english.locale)
     await model.load()
     await model.choose(folder: folder)
     return model
@@ -1500,7 +1501,7 @@ private func gitHealth(_ git: ToolState) -> HostHealth { HostHealth(git: git, gh
     host.capabilities.insert(.health)
     let store = HealthStore(host: host)
     await store.check(.open)
-    let model = NewSessionModel(host: host, health: store, log: { _ in }, sleep: { _ in }, projectsFolder: { "/nowhere" })
+    let model = NewSessionModel(host: host, health: store, log: { _ in }, sleep: { _ in }, projectsFolder: { "/nowhere" }, bundle: english.bundle, locale: english.locale)
     await model.load()
     #expect(model.ghState == .signedOut && model.hostCreates)
     // a folder and a new project never depend on gh
@@ -1627,7 +1628,7 @@ private func tempFile() -> URL { FileManager.default.temporaryDirectory.appendin
 // MARK: what Settings > Sessions says a new session opens with
 
 @MainActor private func draft(_ host: FakeChat, starting start: NewSessionStart) async -> NewSessionModel {
-    let model = NewSessionModel(host: host, ensureHost: { true }, log: { _ in }, sleep: { _ in }, start: { start })
+    let model = NewSessionModel(host: host, ensureHost: { true }, log: { _ in }, sleep: { _ in }, start: { start }, bundle: english.bundle, locale: english.locale)
     await model.load()
     return model
 }
@@ -1681,7 +1682,7 @@ private let accessOptions = claudeOptions + [
 // MARK: what Settings > Sessions says a new session opens in
 
 @MainActor private func draft(_ host: FakeChat, workIn: WorkIn) async -> NewSessionModel {
-    let model = NewSessionModel(host: host, ensureHost: { true }, log: { _ in }, sleep: { _ in }, projectsFolder: { "/nowhere" }, workIn: { workIn })
+    let model = NewSessionModel(host: host, ensureHost: { true }, log: { _ in }, sleep: { _ in }, projectsFolder: { "/nowhere" }, workIn: { workIn }, bundle: english.bundle, locale: english.locale)
     await model.load()
     return model
 }
@@ -1840,7 +1841,7 @@ private let startSides = WorkspaceInfo(
     host.workspaces["/w/api"] = startSides
     if listing { host.capabilities.insert(.worktreeStart) }
     let file = setting.map { Data("{\"worktreeStart\":\"\($0)\"}".utf8) }
-    let model = NewSessionModel(host: host, ensureHost: { true }, log: { _ in }, sleep: { _ in }, readChatConfig: { file })
+    let model = NewSessionModel(host: host, ensureHost: { true }, log: { _ in }, sleep: { _ in }, readChatConfig: { file }, bundle: english.bundle, locale: english.locale)
     await model.load()
     await model.choose(folder: "/w/api")
     await model.useWorktree(true)
@@ -1866,7 +1867,7 @@ private let startSides = WorkspaceInfo(
     let host = FakeChat()
     host.workspaces["/w/api"] = startSides
     host.capabilities.insert(.worktreeStart)
-    let model = NewSessionModel(host: host, ensureHost: { true }, log: { _ in }, sleep: { _ in }, readChatConfig: { nil })
+    let model = NewSessionModel(host: host, ensureHost: { true }, log: { _ in }, sleep: { _ in }, readChatConfig: { nil }, bundle: english.bundle, locale: english.locale)
     await model.load()
     await model.choose(folder: "/w/api")
     await model.useWorktree(true)
@@ -1977,7 +1978,7 @@ private let freshInfo = WorkspaceInfo(
     release?.resume()
     await model.refreshed()
     #expect(model.workspace == freshInfo && model.fetching == false && model.unreachable == false && model.fetchProblem == nil)
-    #expect(model.picker(query: "")?.local.first?.behindText == "14 behind origin")
+    #expect(model.picker(query: "")?.local.first?.behindText(bundle: english.bundle, locale: english.locale) == "14 behind origin")
 }
 
 @MainActor @Test func aFetchInsideTheFreshnessWindowChangesNothingButTheSpinnerEndingAtOnce() async {
@@ -2094,9 +2095,9 @@ private let freshInfo = WorkspaceInfo(
         folder: "/work/web", branch: "main", defaultBranch: "main",
         branches: [.init(name: "main", remote: false), .init(name: "develop", remote: false), .init(name: "origin/release", remote: true)]
     )
-    let projects = ProjectsModel(host: host, file: ProjectsFile(folder: carrier)) { _ in nil }
+    let projects = ProjectsModel(host: host, file: ProjectsFile(folder: carrier), bundle: english.bundle, locale: english.locale) { _ in nil }
     projects.reload()
-    let model = NewSessionModel(host: host, ensureHost: { true }, log: { _ in }, sleep: { _ in }, projectsFolder: { "/nowhere" }, workIn: { settings }, projects: projects)
+    let model = NewSessionModel(host: host, ensureHost: { true }, log: { _ in }, sleep: { _ in }, projectsFolder: { "/nowhere" }, workIn: { settings }, projects: projects, bundle: english.bundle, locale: english.locale)
     await model.load()
     return model
 }
@@ -2157,4 +2158,86 @@ private let freshInfo = WorkspaceInfo(
     let plain = try await draft(defaults: #"{"model":"haiku"}"#, host: host)
     await plain.choose(folder: "/work/web")
     #expect(plain.chosenOptions.isEmpty)
+}
+
+// MARK: in Spanish (design/copy/es.json)
+
+/// The same draft as `draft`, saying its words in Spanish.
+@MainActor private func spanishDraft(_ host: FakeChat, health: HealthStore? = nil, projects: String = "/nowhere") async -> NewSessionModel {
+    let model = NewSessionModel(
+        host: host, health: health, ensureHost: { true }, log: { _ in }, sleep: { _ in }, projectsFolder: { projects }, readChatConfig: { nil },
+        bundle: spanish.bundle, locale: spanish.locale)
+    await model.load()
+    return model
+}
+
+@MainActor @Test func theDraftsSentenceAndWarningAreSpanish() async {
+    let host = FakeChat()
+    host.workspaces["/w/dirty"] = WorkspaceInfo(folder: "/w/dirty", branch: "main", defaultBranch: "main", dirty: 2, branches: [.init(name: "main", remote: false), .init(name: "feat/x", remote: false)])
+    host.workspaces["/w/one"] = WorkspaceInfo(folder: "/w/one", branch: "main", defaultBranch: "main", dirty: 1, branches: [.init(name: "main", remote: false)])
+    host.workspaces["/w/plain"] = WorkspaceInfo(folder: "/w/plain", git: false)
+    let model = await spanishDraft(host)
+    #expect(model.sentence == "Trabaja en Elige un espacio de trabajo… en la carpeta base")
+    await model.choose(folder: "/w/dirty")
+    #expect(model.sentence == "Trabaja en dirty en la carpeta base (main)" && model.sentenceRest == "en la carpeta base (main)")
+    #expect(model.warning == "2 archivos sin confirmar en la carpeta. Un worktree los mantiene fuera del camino del agente.")
+    model.choose(startBranch: "feat/x")
+    #expect(model.warning == "2 archivos sin confirmar en la carpeta, así que cambiar su rama fallará y se queda en la rama en la que está. Guarda el trabajo primero o usa un worktree.")
+    let step = model.sendSteps.first
+    #expect(step?.title == "Cambiar la rama de la carpeta")
+    #expect(step?.parts == [.text("Cambia la carpeta de "), .code("main"), .text(" a "), .code("feat/x"), .text(" al enviar.")])
+    await model.choose(folder: "/w/one")
+    #expect(model.warning == "1 archivo sin confirmar en la carpeta. Un worktree los mantiene fuera del camino del agente.")
+    await model.choose(folder: "/w/plain")
+    #expect(model.sentence == "Trabaja en plain en la carpeta (no es un repositorio git: sin worktree)" && model.sentenceRest == "en la carpeta (no es un repositorio git: sin worktree)")
+    #expect(model.olderHostNotice == "El host de chat es más antiguo que esta app, así que no puede iniciar una sesión. Reinícialo para usar el Carrier instalado.")
+}
+
+@MainActor @Test func theDraftsNewProjectNoteAndNoProviderReasonAreSpanish() async {
+    let host = FakeChat()
+    let model = await spanishDraft(host)
+    model.choose(newProject: "my-idea")
+    #expect(model.projectNote == "/nowhere/local/my-idea se creará, con git listo, cuando se envíe el mensaje.")
+    #expect(model.sentence.hasSuffix("en la carpeta (proyecto nuevo, aún sin commits: sin worktree)"))
+
+    let down = FakeChat()
+    down.agents = [ChatAgent(name: "claude", harness: "claude", found: true), ChatAgent(name: "codex", harness: "codex", found: false), ChatAgent(name: "pi", harness: "pi", found: true)]
+    down.healthReply = agentHealth(["claude": .signedOut, "codex": .missing, "pi": .signedOut])
+    down.capabilities.insert(.health)
+    let store = HealthStore(host: down)
+    await store.check(.open)
+    let none = await spanishDraft(down, health: store)
+    #expect(none.agents.map { $0.note(bundle: spanish.bundle, locale: spanish.locale) } == ["sin sesión iniciada", "no instalado", "sin sesión iniciada"])
+    #expect(none.noAgentReason == "Ningún proveedor puede iniciar una sesión: claude está sin sesión iniciada, codex está no instalado, pi está sin sesión iniciada.")
+}
+
+@MainActor @Test func theSendStepsOfARepositoryAndAWorktreeAreSpanish() async {
+    let host = FakeChat()
+    host.workspaces["/w/api"] = startSides
+    host.capabilities.insert(.worktreeStart)
+    let model = await spanishDraft(host)
+    await model.choose(folder: "/w/api")
+    await model.useWorktree(true)
+    #expect(model.sendSteps.map(\.title) == ["Traer lo último de origin/main", "Crear una rama propia"])
+    #expect(model.sendSteps[0].parts == [.text("Antes hace fetch de "), .code("origin"), .text(". Si no se puede contactar, el worktree empieza desde tu copia local.")])
+    #expect(model.sendSteps[1].parts.contains(.text(" en una carpeta aparte. Tu carpeta actual no se toca.")))
+    #expect(model.sentence.hasPrefix("Trabaja en api en un worktree nuevo carrier/"))
+
+    host.branchesOf["AshuLab/carrier"] = RepoBranches(defaultBranch: "main", branches: ["main"])
+    await model.choose(repo: "AshuLab/carrier")
+    await model.useWorktree(true)
+    #expect(model.sendSteps.map(\.title) == ["Descargar el repositorio", "Crear una rama propia"])
+    #expect(model.sendSteps[0].parts.first == .text("Al enviar, Carrier descarga "))
+    #expect(model.sendSteps[1].parts.last == .text(" en una carpeta aparte."))
+}
+
+@MainActor @Test func aRepositoryThatIsOnThisMacIsUpdatedAndTheStepIsSpanish() async throws {
+    let root = try projectsRoot(["AshuLab/carrier"])
+    defer { try? FileManager.default.removeItem(atPath: root) }
+    let host = FakeChat()
+    host.workspaces[root + "/AshuLab/carrier"] = WorkspaceInfo(folder: root + "/AshuLab/carrier", branch: "main", defaultBranch: "main", branches: [.init(name: "main", remote: false)])
+    let model = await spanishDraft(host, projects: root)
+    await model.choose(repo: "AshuLab/carrier")
+    #expect(model.sendSteps.map(\.title) == ["Actualizar el repositorio"])
+    #expect(model.sendSteps.first?.parts == [.text("Antes actualiza "), .code("AshuLab/carrier"), .text(" desde GitHub")])
 }

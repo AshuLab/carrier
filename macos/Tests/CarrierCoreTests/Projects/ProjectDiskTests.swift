@@ -54,11 +54,11 @@ private let now = Date(timeIntervalSince1970: 1_800_000_000)
         .init(path: "/w/a", branch: "carrier/a", session: .init(id: "1", title: "Add retry"), lastActiveAt: 0, state: .clean),
         .init(path: "/w/new", branch: "carrier/new", session: nil, lastActiveAt: 0, state: .clean),
     ])
-    let rows = worktreeRows(reply, sizes: ["/p/app": 1_830_000_000, "/w/a": 310_000], now: now, format: format)
+    let rows = worktreeRows(reply, sizes: ["/p/app": 1_830_000_000, "/w/a": 310_000], now: now, format: format, bundle: english.bundle, locale: english.locale)
     #expect(rows.map(\.size) == ["1.8 GB", "310 KB", "—"])
     #expect(rows.map(\.bytes) == [1_830_000_000, 310_000, nil])
     // with no figures at all, every row says so
-    #expect(worktreeRows(reply, now: now, format: format).map(\.size) == ["—", "—", "—"])
+    #expect(worktreeRows(reply, now: now, format: format, bundle: english.bundle, locale: english.locale).map(\.size) == ["—", "—", "—"])
 }
 
 @Test func theBarGivesEachFolderItsShareInTheOrderOfTheRowsAndLeavesOutWhatHasNoSize() {
@@ -67,18 +67,18 @@ private let now = Date(timeIntervalSince1970: 1_800_000_000)
         .init(path: "/w/empty", branch: nil, session: nil, lastActiveAt: 0, state: .clean),
         .init(path: "/w/new", branch: nil, session: nil, lastActiveAt: 0, state: .clean),
     ])
-    let shares = diskShares(worktreeRows(reply, sizes: ["/p/app": 750, "/w/a": 250, "/w/empty": 0], now: now, format: format))
+    let shares = diskShares(worktreeRows(reply, sizes: ["/p/app": 750, "/w/a": 250, "/w/empty": 0], now: now, format: format, bundle: english.bundle, locale: english.locale))
     #expect(shares == [DiskShare(id: "/p/app", fraction: 0.75), DiskShare(id: "/w/a", fraction: 0.25)])
-    #expect(diskShares(worktreeRows(reply, now: now, format: format)).isEmpty)
+    #expect(diskShares(worktreeRows(reply, now: now, format: format, bundle: english.bundle, locale: english.locale)).isEmpty)
 }
 
 @Test func theTotalSaysItIsBeingMeasuredWhenTheFigureWasTakenOrThatThereIsNone() {
     let taken = ProjectDiskFigure(folder: "/p/app", bytes: 1, measuredAt: (now.timeIntervalSince1970 - 3 * 3_600) * 1000)
-    #expect(diskTotalWords(taken, measuring: true, now: now, format: format) == "Measuring now")
-    #expect(diskTotalWords(taken, measuring: false, now: now, format: format) == "Measured 3h ago")
-    #expect(diskTotalWords(ProjectDiskFigure(folder: "/p/app", bytes: 1, measuredAt: now.timeIntervalSince1970 * 1000), measuring: false, now: now, format: format) == "Measured just now")
-    #expect(diskTotalWords(nil, measuring: false, now: now, format: format) == "Not measured yet")
-    #expect(diskTotalWords(ProjectDiskFigure(folder: "/p/app", bytes: nil), measuring: false, now: now, format: format) == "Not measured yet")
+    #expect(diskTotalWords(taken, measuring: true, now: now, format: format, bundle: english.bundle, locale: english.locale) == "Measuring now")
+    #expect(diskTotalWords(taken, measuring: false, now: now, format: format, bundle: english.bundle, locale: english.locale) == "Measured 3h ago")
+    #expect(diskTotalWords(ProjectDiskFigure(folder: "/p/app", bytes: 1, measuredAt: now.timeIntervalSince1970 * 1000), measuring: false, now: now, format: format, bundle: english.bundle, locale: english.locale) == "Measured just now")
+    #expect(diskTotalWords(nil, measuring: false, now: now, format: format, bundle: english.bundle, locale: english.locale) == "Not measured yet")
+    #expect(diskTotalWords(ProjectDiskFigure(folder: "/p/app", bytes: nil), measuring: false, now: now, format: format, bundle: english.bundle, locale: english.locale) == "Not measured yet")
 }
 
 private func temporaryProjects(_ paths: [String]) throws -> (folder: String, file: ProjectsFile) {

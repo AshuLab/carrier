@@ -32,13 +32,13 @@ private let bare = "/Users/dev/bare.git"
 }
 
 @Test func theSentenceSaysTheBranchOfTheBaseFolder() throws {
-    #expect(workSentence(folder: carrier, workspace: try workspace(carrier)) == "Work in carrier on the base folder (main)")
-    #expect(workSentence(folder: web, workspace: try workspace(web)) == "Work in web on the base folder (detached HEAD)")
+    #expect(workSentence(folder: carrier, workspace: try workspace(carrier), bundle: english.bundle, locale: english.locale) == "Work in carrier on the base folder (main)")
+    #expect(workSentence(folder: web, workspace: try workspace(web), bundle: english.bundle, locale: english.locale) == "Work in web on the base folder (detached HEAD)")
 }
 
 @Test func aFolderThatIsNotARepositoryOrIsBareSaysWhyThereIsNoWorktree() throws {
-    #expect(workSentence(folder: notes, workspace: try workspace(notes)) == "Work in notes in the folder (not a git repository: no worktree)")
-    #expect(workSentence(folder: bare, workspace: try workspace(bare)) == "Work in bare.git in the folder (bare repository: no worktree)")
+    #expect(workSentence(folder: notes, workspace: try workspace(notes), bundle: english.bundle, locale: english.locale) == "Work in notes in the folder (not a git repository: no worktree)")
+    #expect(workSentence(folder: bare, workspace: try workspace(bare), bundle: english.bundle, locale: english.locale) == "Work in bare.git in the folder (bare repository: no worktree)")
     #expect(try workspace(notes).offersWorktree == false)
     #expect(try workspace(bare).offersWorktree == false)
     #expect(try workspace(carrier).offersWorktree)
@@ -46,17 +46,17 @@ private let bare = "/Users/dev/bare.git"
 
 @Test func theSentenceInAWorktreeNamesTheBranchItIsCutFrom() throws {
     let info = try workspace(carrier)
-    #expect(workSentence(folder: carrier, workspace: info, worktree: ("brave-marine-aiur", "main")) == "Work in carrier in a new worktree carrier/brave-marine-aiur from main")
-    #expect(workSentence(folder: carrier, workspace: info, worktree: ("brave-marine-aiur", nil)) == "Work in carrier in a new worktree carrier/brave-marine-aiur from …")
+    #expect(workSentence(folder: carrier, workspace: info, worktree: ("brave-marine-aiur", "main"), bundle: english.bundle, locale: english.locale) == "Work in carrier in a new worktree carrier/brave-marine-aiur from main")
+    #expect(workSentence(folder: carrier, workspace: info, worktree: ("brave-marine-aiur", nil), bundle: english.bundle, locale: english.locale) == "Work in carrier in a new worktree carrier/brave-marine-aiur from …")
     // a folder that offers no worktree never says one
-    #expect(workSentence(folder: notes, workspace: try workspace(notes), worktree: ("x", "main")) == "Work in notes in the folder (not a git repository: no worktree)")
+    #expect(workSentence(folder: notes, workspace: try workspace(notes), worktree: ("x", "main"), bundle: english.bundle, locale: english.locale) == "Work in notes in the folder (not a git repository: no worktree)")
 }
 
 @Test func uncommittedChangesAreCountedAndAWorktreeIsOfferedAsAWayOut() throws {
-    #expect(uncommittedWarning(try workspace(carrier)) == "3 uncommitted files in the folder. A worktree keeps them out of the agent's way.")
-    #expect(uncommittedWarning(try workspace("/Users/dev/work/web")) == "1 uncommitted file in the folder. A worktree keeps them out of the agent's way.")
-    #expect(uncommittedWarning(try workspace(web)) == nil)
-    #expect(uncommittedWarning(try workspace(notes)) == nil)
+    #expect(uncommittedWarning(try workspace(carrier), bundle: english.bundle, locale: english.locale) == "3 uncommitted files in the folder. A worktree keeps them out of the agent's way.")
+    #expect(uncommittedWarning(try workspace("/Users/dev/work/web"), bundle: english.bundle, locale: english.locale) == "1 uncommitted file in the folder. A worktree keeps them out of the agent's way.")
+    #expect(uncommittedWarning(try workspace(web), bundle: english.bundle, locale: english.locale) == nil)
+    #expect(uncommittedWarning(try workspace(notes), bundle: english.bundle, locale: english.locale) == nil)
 }
 
 @Test func theStartingBranchIsTheCheckedOutOneThenTheDefaultOneThenNilToAsk() throws {
@@ -72,7 +72,7 @@ private let bare = "/Users/dev/bare.git"
 }
 
 @Test func thePickerHasTwoSectionsAndMarksTheCheckedOutBranchAndTagsTheDefault() throws {
-    let picker = branchPicker(try workspace(carrier), now: Date(timeIntervalSince1970: 1_792_000_300))
+    let picker = branchPicker(try workspace(carrier), now: Date(timeIntervalSince1970: 1_792_000_300), bundle: english.bundle, locale: english.locale)
     #expect(picker.local == [
         BranchRow(name: "main", checkedOut: true, isDefault: true, behind: 2), BranchRow(name: "feat/retry-sync", checkedOut: false, isDefault: false, ahead: 1),
         BranchRow(name: "wip/spike", checkedOut: false, isDefault: false, localOnly: true),
@@ -82,21 +82,21 @@ private let bare = "/Users/dev/bare.git"
 }
 
 @Test func theSearchNarrowsBothSectionsIgnoringCase() throws {
-    let picker = branchPicker(try workspace(carrier), query: " RETRY ")
+    let picker = branchPicker(try workspace(carrier), query: " RETRY ", bundle: english.bundle, locale: english.locale)
     #expect(picker.local.map(\.name) == ["feat/retry-sync"] && picker.remote.map(\.name) == ["origin/feat/retry-sync"])
-    #expect(branchPicker(try workspace(carrier), query: "zzz").local.isEmpty)
+    #expect(branchPicker(try workspace(carrier), query: "zzz", bundle: english.bundle, locale: english.locale).local.isEmpty)
     // a detached HEAD checks nothing out
-    #expect(branchPicker(try workspace(web)).local.map(\.checkedOut) == [false])
+    #expect(branchPicker(try workspace(web), bundle: english.bundle, locale: english.locale).local.map(\.checkedOut) == [false])
 }
 
 @Test func theFetchLineSaysHowLongAgoOrThatItNeverHappened() {
     let now = Date(timeIntervalSince1970: 1_792_100_000)
-    func line(_ago seconds: Int) -> String { fetchedLine((1_792_100_000 - seconds) * 1000, now: now) }
+    func line(_ago seconds: Int) -> String { fetchedLine((1_792_100_000 - seconds) * 1000, now: now, bundle: english.bundle, locale: english.locale) }
     #expect(line(_ago: 10) == "Fetched just now" && line(_ago: 60) == "Fetched 1 minute ago" && line(_ago: 7200) == "Fetched 2 hours ago")
     #expect(line(_ago: 86_400) == "Fetched 1 day ago" && line(_ago: 86_400 * 9) == "Fetched 9 days ago")
-    #expect(fetchedLine(nil, now: now) == "Never fetched")
+    #expect(fetchedLine(nil, now: now, bundle: english.bundle, locale: english.locale) == "Never fetched")
     // a clock a little behind the host's is still "just now"
-    #expect(fetchedLine(1_792_100_005_000, now: now) == "Fetched just now")
+    #expect(fetchedLine(1_792_100_005_000, now: now, bundle: english.bundle, locale: english.locale) == "Fetched just now")
 }
 
 @Test func theGoldenFetchHasMoreBranchesAndALaterTime() throws {
@@ -105,14 +105,14 @@ private let bare = "/Users/dev/bare.git"
 }
 
 @Test func aNameIsFreeOnlyWhenValidAndFreeAndOtherwiseCarriesTheHostsReason() throws {
-    #expect(stateOfName(NameCheck(valid: true, free: true)) == .free)
+    #expect(stateOfName(NameCheck(valid: true, free: true), bundle: english.bundle, locale: english.locale) == .free)
     let checks = try #require(golden("chat-names.json")["checks"] as? [String: Any])
     func state(_ name: String) throws -> NameState {
-        stateOfName(try JSONDecoder().decode(NameCheck.self, from: JSONSerialization.data(withJSONObject: try #require(checks[name]))))
+        stateOfName(try JSONDecoder().decode(NameCheck.self, from: JSONSerialization.data(withJSONObject: try #require(checks[name]))), bundle: english.bundle, locale: english.locale)
     }
     #expect(try state("fix-login") == .problem("A branch called carrier/fix-login already exists"))
     #expect(try state("Big_Name") == .problem("The name must start with a lowercase letter or a digit"))
-    #expect(stateOfName(NameCheck(valid: false, free: false)) == .problem("That name cannot be used"))
+    #expect(stateOfName(NameCheck(valid: false, free: false), bundle: english.bundle, locale: english.locale) == .problem("That name cannot be used"))
 }
 
 // The start of a worktree: the branch by its bare name and the side of it (Remote is `origin/<name>`, Local is `<name>`).
@@ -127,7 +127,7 @@ private let sides = WorkspaceInfo(
 )
 
 @Test func eachTabListsItsOwnSideSoABranchIsNeverOfferedTwice() {
-    let picker = branchPicker(sides)
+    let picker = branchPicker(sides, bundle: english.bundle, locale: english.locale)
     #expect(picker.rows(.remote).map(\.name) == ["origin/main", "origin/remote-only", "origin/feat/retry-sync"])
     #expect(picker.rows(.local).map(\.name) == ["main", "local-only", "feat/retry-sync"])
     let names = picker.rows(.remote).map(\.name) + picker.rows(.local).map(\.name)
@@ -135,15 +135,15 @@ private let sides = WorkspaceInfo(
 }
 
 @Test func aLocalBranchWithNoCounterpartOnOriginIsMarkedAndNothingElseIs() {
-    let picker = branchPicker(sides)
+    let picker = branchPicker(sides, bundle: english.bundle, locale: english.locale)
     #expect(picker.rows(.local).map(\.localOnly) == [false, true, false])
     #expect(picker.rows(.remote).allSatisfy { $0.localOnly == false })
     // a search keeps the mark: it depends on the whole list, not on what matched
-    #expect(branchPicker(sides, query: "local").rows(.local).map(\.localOnly) == [true])
+    #expect(branchPicker(sides, query: "local", bundle: english.bundle, locale: english.locale).rows(.local).map(\.localOnly) == [true])
 }
 
 @Test func theSearchHasNoMatchInOneTabAndSomeInTheOther() {
-    let picker = branchPicker(sides, query: "remote-only")
+    let picker = branchPicker(sides, query: "remote-only", bundle: english.bundle, locale: english.locale)
     #expect(picker.rows(.local).isEmpty && picker.rows(.remote).map(\.name) == ["origin/remote-only"])
 }
 
@@ -173,7 +173,7 @@ private let sides = WorkspaceInfo(
 
 @Test func theChosenRowIsTheOneOfTheSideTheWorktreeIsCutFromAndOnlyInThatTab() {
     let point = StartPoint(branch: "main", side: .remote)
-    let picker = branchPicker(sides)
+    let picker = branchPicker(sides, bundle: english.bundle, locale: english.locale)
     #expect(picker.rows(.remote).map { point.chooses($0, on: .remote) } == [true, false, false])
     #expect(picker.rows(.local).map { point.chooses($0, on: .local) } == [false, false, false])
     #expect(StartPoint(branch: "local-only", side: .local).chooses(picker.rows(.local)[1], on: .local))
@@ -192,35 +192,35 @@ private let sides = WorkspaceInfo(
     // a host that does not count says nothing and the app reads the reply all the same
     let old = #"{"folder":"/w","git":true,"bare":false,"linkedWorktree":false,"repo":null,"branch":"main","defaultBranch":"main","dirty":0,"branches":[{"name":"main","remote":false}],"fetchedAt":null}"#
     let info = try JSONDecoder().decode(WorkspaceInfo.self, from: Data(old.utf8))
-    #expect(info.branches.first?.behind == nil && branchPicker(info).local.first?.behindText == nil)
+    #expect(info.branches.first?.behind == nil && branchPicker(info, bundle: english.bundle, locale: english.locale).local.first?.behindText(bundle: english.bundle, locale: english.locale) == nil)
 }
 
 @Test func theBadgesSayHowFarBehindAndHowManyAreNotPushedOnlyWhenNotZero() throws {
-    let rows = branchPicker(try workspace(carrier)).local
-    #expect(rows[0].behindText == "2 behind origin" && rows[0].notPushedText == nil)
-    #expect(rows[1].notPushedText == "1 not pushed" && rows[1].behindText == nil)
-    #expect(rows[2].behindText == nil && rows[2].notPushedText == nil && rows[2].localOnly, "one on neither shows only that it is not on origin")
-    #expect(branchPicker(try workspace(web)).local.map { [$0.behindText, $0.notPushedText] } == [[nil, nil]], "a branch level with origin shows nothing")
-    #expect(branchPicker(try workspace(carrier, in: "chat-fetch.json")).local.first?.behindText == "12 behind origin")
+    let rows = branchPicker(try workspace(carrier), bundle: english.bundle, locale: english.locale).local
+    #expect(rows[0].behindText(bundle: english.bundle, locale: english.locale) == "2 behind origin" && rows[0].notPushedText(bundle: english.bundle, locale: english.locale) == nil)
+    #expect(rows[1].notPushedText(bundle: english.bundle, locale: english.locale) == "1 not pushed" && rows[1].behindText(bundle: english.bundle, locale: english.locale) == nil)
+    #expect(rows[2].behindText(bundle: english.bundle, locale: english.locale) == nil && rows[2].notPushedText(bundle: english.bundle, locale: english.locale) == nil && rows[2].localOnly, "one on neither shows only that it is not on origin")
+    #expect(branchPicker(try workspace(web), bundle: english.bundle, locale: english.locale).local.map { [$0.behindText(bundle: english.bundle, locale: english.locale), $0.notPushedText(bundle: english.bundle, locale: english.locale)] } == [[nil, nil]], "a branch level with origin shows nothing")
+    #expect(branchPicker(try workspace(carrier, in: "chat-fetch.json"), bundle: english.bundle, locale: english.locale).local.first?.behindText(bundle: english.bundle, locale: english.locale) == "12 behind origin")
 }
 
 @Test func theFooterSaysItCouldNotReachOriginOnlyWhenTheFetchOnChoosingFailed() throws {
     let now = Date(timeIntervalSince1970: 1_792_000_300)
-    #expect(branchPicker(try workspace(carrier), now: now).unreachable == nil)
-    let picker = branchPicker(try workspace(carrier), now: now, unreachable: true)
+    #expect(branchPicker(try workspace(carrier), now: now, bundle: english.bundle, locale: english.locale).unreachable == nil)
+    let picker = branchPicker(try workspace(carrier), now: now, unreachable: true, bundle: english.bundle, locale: english.locale)
     #expect(picker.unreachable == "Could not reach origin" && picker.fetched == "Fetched 5 minutes ago")
-    #expect(branchPicker(try workspace(web), unreachable: true).fetched == "Never fetched")
+    #expect(branchPicker(try workspace(web), unreachable: true, bundle: english.bundle, locale: english.locale).fetched == "Never fetched")
 }
 
 @Test func theSummaryWarnsOfALocalBranchBehindOnlyWithLocalAndOfCommitsNotPushedOnlyWithRemote() throws {
     let info = try workspace(carrier)
-    #expect(startWarning(StartPoint(branch: "main", side: .local), in: info) == "main is 2 commits behind origin/main, so the worktree starts without them.")
-    #expect(startWarning(StartPoint(branch: "main", side: .remote), in: info) == nil, "Remote starts from the fresh branch: being behind is no problem")
-    #expect(startWarning(StartPoint(branch: "feat/retry-sync", side: .remote), in: info) == "feat/retry-sync has 1 commit not pushed to origin/feat/retry-sync, so the worktree will not have it.")
-    #expect(startWarning(StartPoint(branch: "feat/retry-sync", side: .local), in: info) == nil, "Local has the commits")
-    #expect(startWarning(StartPoint(branch: "wip/spike", side: .local), in: info) == nil, "on neither: nothing to compare")
-    #expect(startWarning(StartPoint(branch: "main", side: nil), in: info) == nil && startWarning(nil, in: info) == nil && startWarning(StartPoint(branch: "main", side: .local), in: nil) == nil)
-    #expect(startWarning(StartPoint(branch: "main", side: .local), in: WorkspaceInfo(folder: "/w", branches: [.init(name: "main", remote: false, ahead: 0, behind: 1)]))?.hasPrefix("main is 1 commit behind") == true)
+    #expect(startWarning(StartPoint(branch: "main", side: .local), in: info, bundle: english.bundle, locale: english.locale) == "main is 2 commits behind origin/main, so the worktree starts without them.")
+    #expect(startWarning(StartPoint(branch: "main", side: .remote), in: info, bundle: english.bundle, locale: english.locale) == nil, "Remote starts from the fresh branch: being behind is no problem")
+    #expect(startWarning(StartPoint(branch: "feat/retry-sync", side: .remote), in: info, bundle: english.bundle, locale: english.locale) == "feat/retry-sync has 1 commit not pushed to origin/feat/retry-sync, so the worktree will not have it.")
+    #expect(startWarning(StartPoint(branch: "feat/retry-sync", side: .local), in: info, bundle: english.bundle, locale: english.locale) == nil, "Local has the commits")
+    #expect(startWarning(StartPoint(branch: "wip/spike", side: .local), in: info, bundle: english.bundle, locale: english.locale) == nil, "on neither: nothing to compare")
+    #expect(startWarning(StartPoint(branch: "main", side: nil), in: info, bundle: english.bundle, locale: english.locale) == nil && startWarning(nil, in: info, bundle: english.bundle, locale: english.locale) == nil && startWarning(StartPoint(branch: "main", side: .local), in: nil, bundle: english.bundle, locale: english.locale) == nil)
+    #expect(startWarning(StartPoint(branch: "main", side: .local), in: WorkspaceInfo(folder: "/w", branches: [.init(name: "main", remote: false, ahead: 0, behind: 1)]), bundle: english.bundle, locale: english.locale)?.hasPrefix("main is 1 commit behind") == true)
 }
 
 @Test func onlyAFolderWithAnOriginIsFetchedOnChoosing() throws {

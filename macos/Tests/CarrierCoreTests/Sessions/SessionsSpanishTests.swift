@@ -275,3 +275,21 @@ private func snapshot(_ epics: [PanelEpic] = [], queue: [PanelSnapshot.QueuedEpi
     for (kind, words) in kinds { #expect(interventionLine(epic(1, .needsHuman, kind: kind), bundle: es.bundle, locale: es.locale) == words, "\(kind)") }
     #expect(interventionLine(epic(1, .needsHuman), bundle: es.bundle, locale: es.locale) == "te necesita")
 }
+
+// MARK: the words views call straight from Copy
+
+@Test func theCountsViewsSpeakAreSpanishInSingularAndPlural() {
+    func sessions(_ count: Int) -> String { Copy.sessionsCount(count: count, bundle: es.bundle, locale: es.locale) }
+    #expect(sessions(1) == "1 sesión")
+    #expect(sessions(2) == "2 sesiones")
+    #expect(sessions(0) == "0 sesiones")
+    #expect(Copy.sessionTurns(count: 1, bundle: es.bundle, locale: es.locale) == "1 turno")
+    #expect(Copy.sessionTurns(count: 7, bundle: es.bundle, locale: es.locale) == "7 turnos")
+    #expect(Copy.archiveCount(count: 1, bundle: es.bundle, locale: es.locale) == "1 archivada")
+    #expect(Copy.archiveCount(count: 3, bundle: es.bundle, locale: es.locale) == "3 archivadas")
+    #expect(Copy.sessionDiffSpoken(added: 1, removed: "2", bundle: es.bundle, locale: es.locale) == "1 línea añadida, 2 eliminadas")
+    #expect(Copy.sessionDiffSpoken(added: 12, removed: "0", bundle: es.bundle, locale: es.locale) == "12 líneas añadidas, 0 eliminadas")
+    #expect(Copy.sidebarSlotsBusy(busy: 1, total: 3, bundle: es.bundle, locale: es.locale) == "1 de 3 slots ocupados")
+    #expect(Copy.sidebarSlotsBusy(busy: 0, total: 1, bundle: es.bundle, locale: es.locale) == "0 de 1 slots ocupados")
+    #expect(Copy.sessionsRemoveFilter(name: "Trabajando", bundle: es.bundle, locale: es.locale) == "Quitar el filtro Trabajando")
+}

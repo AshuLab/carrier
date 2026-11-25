@@ -9,7 +9,7 @@ private let goldenFile = testPaths().fixtures.appendingPathComponent("chat-edit-
 private let alpha = "/Users/example/work/alpha", alpha2 = "/Users/example/work/alpha-2", gamma = "/Users/example/work/gamma"
 
 /// Each golden case, with the change the app builds for it.
-private let changes: [(name: String, change: ProjectsChange)] = [
+let projectsGoldenChanges: [(name: String, change: ProjectsChange)] = [
     ("addProject", .add(folder: gamma)),
     ("addProjectExisting", .add(folder: gamma + "/")),
     ("removeProject", .remove(path: "/Users/example/work/beta")),
@@ -65,8 +65,8 @@ private let launched = ProcessCommand(program: "/usr/local/bin/carrier", argumen
 /// Whether the reply of a golden case is a refusal, and what it says.
 private func refusal(of reply: [String: Any]) -> Refusal? { reply["ok"] as? Bool == false ? Refusal.read(reply) : nil }
 
-@Test(arguments: changes.map(\.name)) func eachRequestIsEncodedAsItsGoldenFileSays(name: String) throws {
-    let change = try #require(changes.first { $0.name == name }?.change)
+@Test(arguments: projectsGoldenChanges.map(\.name)) func eachRequestIsEncodedAsItsGoldenFileSays(name: String) throws {
+    let change = try #require(projectsGoldenChanges.first { $0.name == name }?.change)
     let request = try golden(name).request
     var sent = change.body
     sent["cmd"] = change.cmd
@@ -78,8 +78,8 @@ private func refusal(of reply: [String: Any]) -> Refusal? { reply["ok"] as? Bool
     #expect(try object(Data("{\"id\":1,\"cmd\":\"\(change.cmd)\"\(change.fields)}".utf8)) == (request.merging(["id": 1]) { $1 }) as NSDictionary)
 }
 
-@Test(arguments: changes.map(\.name)) func theSocketGetsTheRequestWhenTheHelloListsConfigAndItsReplyOrRefusalIsRead(name: String) async throws {
-    let change = try #require(changes.first { $0.name == name }?.change)
+@Test(arguments: projectsGoldenChanges.map(\.name)) func theSocketGetsTheRequestWhenTheHelloListsConfigAndItsReplyOrRefusalIsRead(name: String) async throws {
+    let change = try #require(projectsGoldenChanges.first { $0.name == name }?.change)
     let (request, reply) = try golden(name)
     let asked = Asked()
     let server = TestServer { connection in
@@ -110,8 +110,8 @@ private func refusal(of reply: [String: Any]) -> Refusal? { reply["ok"] as? Bool
     #expect(runner.ran.isEmpty)
 }
 
-@Test(arguments: changes.map(\.name)) func aHostThatDoesNotListConfigIsNotAskedAndCarrierConfigGetsTheRequestOnStandardInput(name: String) async throws {
-    let change = try #require(changes.first { $0.name == name }?.change)
+@Test(arguments: projectsGoldenChanges.map(\.name)) func aHostThatDoesNotListConfigIsNotAskedAndCarrierConfigGetsTheRequestOnStandardInput(name: String) async throws {
+    let change = try #require(projectsGoldenChanges.first { $0.name == name }?.change)
     let (request, reply) = try golden(name)
     var asked = false
     let older = TestServer { connection in

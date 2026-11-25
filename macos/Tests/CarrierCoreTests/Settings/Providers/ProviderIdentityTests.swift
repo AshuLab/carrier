@@ -32,25 +32,9 @@ private let file = Data(#"""
     #expect(AccountIcon.allCases.filter { $0.symbol == nil } == [.letter])
 }
 
-@Test func theEditorStartsFromTheFileAndWritesTheThreeKeysBackNextToTheOnesItDoesNotKnow() throws {
-    var draft = try #require(accountDraft(named: "claude-teams", in: file))
+@Test func theEditorStartsFromTheLabelIconAndColorTheFileHas() throws {
+    let draft = try #require(accountDraft(named: "claude-teams", in: file))
     #expect(draft.label == "Teams" && draft.icon == .people && draft.color == .blue)
-    draft.label = "  Crew "
-    draft.color = .green
-    draft.icon = nil
-    let written = try applyingEdit(name: "claude-teams", draft: draft, to: file)
-    let account = try #require(((try JSONSerialization.jsonObject(with: written) as? [String: Any])?["providers"] as? [String: [String: Any]])?["claude-teams"])
-    #expect(account["label"] as? String == "Crew" && account["color"] as? String == "green")
-    #expect(account["icon"] == nil, "the tool's own mark is no key")
-    #expect(account["launchArgs"] as? [String] == ["--chrome"])
-}
-
-@Test func anEmptiedLabelRemovesTheKey() throws {
-    var draft = try #require(accountDraft(named: "claude-pro", in: file))
-    draft.label = "   "
-    let written = try applyingEdit(name: "claude-pro", draft: draft, to: file)
-    let account = try #require(((try JSONSerialization.jsonObject(with: written) as? [String: Any])?["providers"] as? [String: [String: Any]])?["claude-pro"])
-    #expect(account["label"] == nil && account["color"] as? String == "orange")
 }
 
 @Test func aLabelLongerThanTheLimitOrOfSeveralLinesIsRefusedByItsKey() {

@@ -1,81 +1,14 @@
 import Foundation
 
-// `providers.json` in the Carrier folder (docs/adr/0020): the accounts both the engine and the chat host read and the app writes. The app
-// keeps the keys it does not know and writes the whole file in one step, as it does `chat.json`.
+// `providers.json` in the Carrier folder (docs/adr/0020): the accounts both the engine and the chat host read. The app only reads it; a change is a request to the chat
+// host or to `carrier config` (ADR 0053, `ProvidersRequest`).
 
-public enum ProvidersFileError: Error, Equatable {
-    /// The file is there and is not a JSON object with a `providers` map (or has none): the app never overwrites a file it cannot read.
-    case notAnObject
-    /// An account of that name is already declared; the app never replaces one.
-    case taken(String)
-    /// No account of that name is declared.
-    case missing(String)
-    /// The account is named by a role, a repo override, a failover list or a chat agent, so it stays.
-    case inUse(String, [AccountUse])
-    /// The engine would refuse what was asked, said in words naming the field; nothing was written.
-    case invalid(String)
-}
-
-/// `json` with the accounts added, each `{ harness }` (found by detection); every other key of the file is left as it was. `json` nil is a file that is not there yet, which this makes.
-public func applyingAccounts(_ accounts: [(name: String, harness: String)], to json: Data?) throws -> Data {
-    var file: [String: Any] = [:]
-    if let json {
-        guard let object = (try? JSONSerialization.jsonObject(with: json)) as? [String: Any] else { throw ProvidersFileError.notAnObject }
-        file = object
-    }
-    var providers: [String: Any] = [:]
-    if let existing = file["providers"] {
-        guard let map = existing as? [String: Any] else { throw ProvidersFileError.notAnObject }
-        providers = map
-    }
-    for account in accounts {
-        guard providers[account.name] == nil else { throw ProvidersFileError.taken(account.name) }
-        providers[account.name] = ["harness": account.harness] as [String: Any]
-    }
-    file["providers"] = providers
-    return try JSONSerialization.data(withJSONObject: file, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
-}
-
-/// The servers a text generator can be (`localKinds` of `src/harnesses/local.ts`, the kinds `src/config/providers.ts` accepts). The entry the app writes is named after its server, so the entries it wrote before are the ones with those names.
-public let textGeneratorServers = ["lmstudio", "ollama"]
-
-/// `json` with the text generator chosen: one entry `textGenerators.<server>` of `{ kind, model }` and `textGenerator` naming it, in place of what
-/// the app wrote before; nil clears the choice and that entry. An entry the person wrote by hand stays, and so does every other key of the file.
-/// `json` nil is a file that is not there yet; a file that is not an object, or whose `textGenerators` is not a map, is never overwritten.
-public func applyingTextGenerator(_ choice: (server: String, model: String)?, to json: Data?) throws -> Data {
-    var file: [String: Any] = [:]
-    if let json {
-        guard let object = (try? JSONSerialization.jsonObject(with: json)) as? [String: Any] else { throw ProvidersFileError.notAnObject }
-        file = object
-    }
-    var generators: [String: Any] = [:]
-    if let existing = file["textGenerators"] {
-        guard let map = existing as? [String: Any] else { throw ProvidersFileError.notAnObject }
-        generators = map
-    }
-    for server in textGeneratorServers { generators[server] = nil }
-    file["textGenerator"] = nil
-    if let choice {
-        let model = choice.model.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard textGeneratorServers.contains(choice.server), model.isEmpty == false else {
-            throw ProvidersFileError.invalid("textGenerators.\(choice.server): a text generator is a model of LM Studio or Ollama")
-        }
-        generators[choice.server] = ["kind": choice.server, "model": model] as [String: Any]
-        file["textGenerator"] = choice.server
-    }
-    file["textGenerators"] = generators.isEmpty ? nil : generators
-    return try JSONSerialization.data(withJSONObject: file, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
-}
-
-/// The file on disk. `save` is how the bytes reach it: the whole file at once, through a temporary file that replaces it, so a failed write
-/// leaves the old one.
+/// The file on disk.
 public struct ProvidersFile {
     public let url: URL
-    private let save: (Data, URL) throws -> Void
 
-    public init(folder: String, save: @escaping (Data, URL) throws -> Void = { try $0.write(to: $1, options: .atomic) }) {
+    public init(folder: String) {
         url = URL(fileURLWithPath: CarrierPlaces(folder: folder).providers)
-        self.save = save
     }
 
     /// The file of the folder the app works with (`CARRIER_HOME`, else `~/.carrier`), looked up each time.
@@ -85,10 +18,4 @@ public struct ProvidersFile {
 
     /// The bytes; nil when the file is not there, an error when it is there and cannot be read.
     public func read() throws -> Data? { exists ? try Data(contentsOf: url) : nil }
-
-    /// Makes the Carrier folder when it is not there yet.
-    public func write(_ data: Data) throws {
-        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try save(data, url)
-    }
 }

@@ -18,7 +18,7 @@ final class CloneHost: ChatHost, @unchecked Sendable {
         self.clones = clones
         writes = nil
     }
-    /// The Carrier folder the project requests write, as the fixture host does with the Swift writers (until they go); with none, `changeProjects` is refused as an older host does.
+    /// The Carrier folder the project requests write, as the fixture host does (`applyProjectsChange`); with none, `changeProjects` is refused as an older host does.
     private let writes: String?
     /// The project requests the model sent, in order.
     private(set) var changes: [ProjectsChange] = []
@@ -86,6 +86,13 @@ final class CloneHost: ChatHost, @unchecked Sendable {
     func answer(_ id: String, approval: String, choice: String, answers: [String: String]?) async throws {}
     func events(_ id: String, after: Int, limit: Int) async throws -> ChatEvents { ChatEvents(events: [], cursor: after, options: [], commands: []) }
     func setOption(_ id: String, option: String, value: String) async throws {}
+}
+
+extension ProjectsFile {
+    /// Adds `folder` as a project of origin `added`, as the host does (`applyProjectsChange`), for a test that needs one in the file.
+    func add(folder: String) throws {
+        if let refusal = applyProjectsChange(.add(folder: folder), home: self.folder).refusal { throw ControlError.remote(refusal) }
+    }
 }
 
 private func temporaryFolder() throws -> String {

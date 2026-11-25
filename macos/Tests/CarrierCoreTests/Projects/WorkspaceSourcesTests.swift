@@ -35,17 +35,6 @@ import Testing
     for name in ["", ".", "..", ".hidden", "-x", "a/b", "../x", "a b", "a\n", "é", "ñandú", String(repeating: "a", count: 101)] { #expect(projectNameProblem(name) != nil, "\(name)") }
 }
 
-@Test func changingTheProjectsFolderSetsOnlyThatKeyOfChatJsonAndMakesTheFileWhenItIsNotThere() throws {
-    func change(_ json: String?) throws -> [String: Any] {
-        let updated = try #require(applyingProjectsFolder("/Volumes/code", to: json.map { Data($0.utf8) }))
-        return try #require(try JSONSerialization.jsonObject(with: updated) as? [String: Any])
-    }
-    let existing = try change(#"{"agents":{"a":{"harness":"claude"}},"projectsFolder":"~/old","logLevel":"debug"}"#)
-    #expect(existing["projectsFolder"] as? String == "/Volumes/code" && existing["agents"] != nil && existing["logLevel"] as? String == "debug")
-    #expect(try change(nil) as NSDictionary == ["projectsFolder": "/Volumes/code"])
-    #expect(applyingProjectsFolder("/x", to: Data("[1]".utf8)) == nil && applyingProjectsFolder("/x", to: Data("nope".utf8)) == nil)
-}
-
 @Test func theProjectsFolderMayNotBeTheEngineOrTheChatsStateLogsOrWorktreesOrInsideThem() throws {
     func problem(_ folder: String) -> String? { projectsFolderRefusal(folder, carrierFolder: "/data/carrier")?.text }
     for name in ["engine", "chat/state", "chat/logs", "chat/worktrees"] {

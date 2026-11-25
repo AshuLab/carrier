@@ -109,17 +109,6 @@ public func encodedProjectAction(_ action: ProjectAction) -> [String: Any]? {
     return object
 }
 
-/// `json` with the `actions` of the project at `path` set to `actions`, omitting defaults (`on: true`, `onFail: warn`, and the `actions` key itself
-/// when empty). Returns nil when any action has a blank name or command so nothing invalid is written.
-public func applyingProjectActions(_ actions: [ProjectAction], path: String, to json: Data?) throws -> Data? {
-    var encoded: [[String: Any]] = []
-    for action in actions {
-        guard let item = encodedProjectAction(action) else { return nil }
-        encoded.append(item)
-    }
-    return try applyingProjectEdit(path: path, key: "actions", value: encoded.isEmpty ? nil : encoded, to: json)
-}
-
 /// What should be written to `projects.json` from the editor's current drafts: valid drafts are written, a newly added invalid draft is omitted,
 /// and a previously saved draft whose name or command was cleared keeps its last valid saved value so transient edits do not erase it.
 public func mergedProjectActions(drafts: [ProjectActionDraft], saved: [UUID: ProjectAction]) -> [ProjectAction] {

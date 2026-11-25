@@ -149,25 +149,10 @@ public func worktreeClashRefusal(folder: String, repo: String?, among projects: 
     return nil
 }
 
-/// `json` with `projectsFolder` set to `folder`; the file's other keys are left as they were. `json` nil is a `chat.json` that is not
-/// there yet, which this makes. nil when `json` is not a JSON object: the app never overwrites a file it cannot read.
-public func applyingProjectsFolder(_ folder: String, to json: Data?) -> Data? {
-    var file: [String: Any] = [:]
-    if let json {
-        guard let object = (try? JSONSerialization.jsonObject(with: json)) as? [String: Any] else { return nil }
-        file = object
-    }
-    file["projectsFolder"] = folder
-    return try? JSONSerialization.data(withJSONObject: file, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
-}
-
 private func currentConfigURL() -> URL { URL(fileURLWithPath: configFilePath()) }
 
 /// The config file's bytes, read each time so a change in the file is followed; nil when it cannot be read.
 public func currentConfig() -> Data? { try? Data(contentsOf: currentConfigURL()) }
-
-/// Writes the config file in place; the caller read it just before, as the Watching tab does.
-public func writeCurrentConfig(_ data: Data) throws { try data.write(to: currentConfigURL(), options: .atomic) }
 
 /// The Carrier folder the app works with: `CARRIER_HOME` in its own environment, else `~/.carrier`.
 public func currentCarrierFolder() -> String { carrierFolder(environment: ProcessInfo.processInfo.environment, home: NSHomeDirectory()) }
@@ -178,39 +163,6 @@ private func currentChatConfigURL() -> URL { URL(fileURLWithPath: CarrierPlaces(
 public func currentChatConfig() throws -> Data? {
     let url = currentChatConfigURL()
     return FileManager.default.fileExists(atPath: url.path) ? try Data(contentsOf: url) : nil
-}
-
-/// Writes `chat.json` in place, making the Carrier folder when it is not there yet.
-public func writeCurrentChatConfig(_ data: Data) throws {
-    let url = currentChatConfigURL()
-    try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-    try data.write(to: url, options: .atomic)
-}
-
-/// Writes `folder` as `projectsFolder` in `chat.json` after checking `projectsFolderRefusal`; returns nil on success, or a refusal message.
-public func saveProjectsFolder(
-    _ folder: String,
-    currentPath: String,
-    carrierFolder: String,
-    readChatConfig: () throws -> Data?,
-    writeChatConfig: (Data) throws -> Void,
-    log: (String) -> Void = { _ in }
-) -> String? {
-    func refused(_ reason: String) -> String {
-        "\(reason). The projects folder stays \(currentPath)."
-    }
-    if let problem = projectsFolderRefusal(folder, carrierFolder: carrierFolder) { return refused(problem.text) }
-    let json: Data?
-    do { json = try readChatConfig() } catch {
-        log("could not read chat.json: \(error)")
-        return refused("chat.json could not be read")
-    }
-    guard let updated = applyingProjectsFolder(folder, to: json) else { return refused("chat.json is not a JSON object") }
-    do { try writeChatConfig(updated) } catch {
-        log("could not write chat.json: \(error)")
-        return refused("chat.json is not writable")
-    }
-    return nil
 }
 
 /// `projectsFolder` of the chat's `chat.json`.

@@ -2,7 +2,7 @@ import Foundation
 
 // `setWatchedRepos` and `editBehavior` (and, below, the role requests) as the real engine answers them (src/config/engine-edit.ts), against the fixture home's `engine.json`: the file is read again, the change applied to its raw
 // JSON (every other key and every other repo's fields stay), checked with the words and kinds Node gives, and written only when all hold. The reply is `engine: "applied"`: there is no engine to
-// run on the file. A change that would make the whole file invalid in a way only the engine's full schema sees is not refused here.
+// run on the file. A change that would make the whole file invalid in a way only the engine's full schema sees is not refused here. This is the only Swift code that writes an `engine.json`.
 
 extension FixtureServer {
     func engineConfigReply(_ id: Int, _ request: [String: Any]) -> Data? {
@@ -73,13 +73,13 @@ extension FixtureServer {
     }
 }
 
-// `editRole`, `editRepoRole`, `editPersona`, `editFailover`, `setLeadReviewer` and `setOrchestratorProfile`: the fixture engine runs the same checks the app made before it asked for these (`saveGlobalRole` and the other
-// writers, which only it uses now and which Node's `config/role-edit.ts` repeats word for word) against the fixture home's `engine.json`, `providers.json` and `agent-forge.json`. What Node refuses is refused with
-// the same words; the code is `config.problem` with a key path of `(engine.json)`, the exact path and kind being the real engine's.
+// `editRole`, `editRepoRole`, `editPersona`, `editFailover`, `setLeadReviewer` and `setOrchestratorProfile`: the fixture engine makes the checks Node's `config/role-edit.ts` makes (with its words)
+// against the fixture home's `engine.json`, `providers.json` and `agent-forge.json`. What Node refuses is refused with the same words; the code is `config.problem` with a key path
+// of `(engine.json)`, the exact path and kind being the real engine's.
 
 extension FixtureServer {
     func engineRolesReply(_ id: Int, _ request: [String: Any]) -> Data? {
-        let path = CarrierPlaces(folder: home).engineConfig
+        let url = URL(fileURLWithPath: CarrierPlaces(folder: home).engineConfig)
         let accounts = declaredAccounts(providersJSON: try? Data(contentsOf: URL(fileURLWithPath: CarrierPlaces(folder: home).providers)))
         let bots = forgeBots(registry: try? Data(contentsOf: URL(fileURLWithPath: home + "/agent-forge.json"))).names
         let role = (request["role"] as? String).flatMap(AgentRole.init(rawValue:))
@@ -95,45 +95,193 @@ extension FixtureServer {
             if wire.keys.contains("effort") { found.append(.effort(wire["effort"] as? String)) }
             return found
         }
-        let result: RoleSave
+        /// Reads the file again, lets `change` edit it (the words it returns are a refusal and nothing is written) and writes it back: nil when it went through.
+        func edit(_ change: (inout [String: Any]) -> String?) -> String? {
+            guard let current = try? Data(contentsOf: url), var file = (try? JSONSerialization.jsonObject(with: current)) as? [String: Any] else { return "The config file could not be read." }
+            if let words = change(&file) { return words }
+            guard let data = try? JSONSerialization.data(withJSONObject: file, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]), (try? data.write(to: url, options: .atomic)) != nil else { return "internal error" }
+            return nil
+        }
+        let refusal: String?
         switch request["cmd"] as? String {
         case "editRole":
             guard let role, let wire = request["changes"] as? [String: Any] else { return nil }
-            result = saveGlobalRole(changes(wire), role: role, path: path, accounts: accounts, bots: bots, reload: { .applied })
+            refusal = edit { Self.applyRole(changes(wire), role: role, accounts: accounts, bots: bots, creating: false, to: &$0) }
         case "editRepoRole":
             guard let role, let repo = request["repo"] as? String, request.keys.contains("fields") else { return nil }
             let fields = (request["fields"] as? [String: Any]).map { wire in
                 let persona = (wire["persona"] as? [String: Any]).map { RolePersona(name: $0["name"] as? String, prompt: $0["prompt"] as? String) }
                 return RoleFields(profile: wire["profile"] as? String, provider: wire["provider"] as? String, model: wire["model"] as? String, effort: wire["effort"] as? String, persona: persona)
             }
-            result = saveRepoRole(fields, role: role, repo: repo, path: path, accounts: accounts, reload: { .applied })
+            refusal = edit { Self.applyRepoRole(fields, role: role, repo: repo, accounts: accounts, to: &$0) }
         case "editPersona":
             guard let role else { return nil }
-            result = saveGlobalPersona(name: request["name"] as? String, prompt: request["prompt"] as? String, role: role, path: path, reload: { .applied })
+            refusal = edit { Self.applyPersona(name: request["name"] as? String, prompt: request["prompt"] as? String, role: role, to: &$0) }
         case "editFailover":
             guard let role else { return nil }
-            result = saveGlobalFailover(first: step(request["first"]), second: step(request["second"]), role: role, path: path, accounts: accounts, reload: { .applied })
+            refusal = edit { Self.applyFailover(first: step(request["first"]), second: step(request["second"]), role: role, accounts: accounts, to: &$0) }
         case "setLeadReviewer":
             guard request.keys.contains("draft") else { return nil }
             if let wire = request["draft"] as? [String: Any] {
                 var draft = LeadReviewerDraft()
                 changes(wire).forEach { draft.apply($0) }
-                result = turnLeadReviewerOn(draft, path: path, accounts: accounts, bots: bots, reload: { .applied })
+                refusal = draft.isComplete
+                    ? edit { Self.applyRole(draft.changes, role: .leadReviewer, accounts: accounts, bots: bots, creating: true, to: &$0) }
+                    : "The lead reviewer needs \(draft.missing.joined(separator: ", "))."
             } else {
-                result = turnLeadReviewerOff(path: path, reload: { .applied })
+                refusal = edit { file in
+                    var agents = file["agents"] as? [String: Any] ?? [:]
+                    agents[AgentRole.leadReviewer.rawValue] = nil
+                    file["agents"] = agents
+                    if var failover = file["failover"] as? [String: Any], var roles = failover["roles"] as? [String: Any] {
+                        roles[AgentRole.leadReviewer.rawValue] = nil
+                        failover["roles"] = roles
+                        file["failover"] = failover
+                    }
+                    return nil
+                }
             }
         case "setOrchestratorProfile":
             guard request.keys.contains("name") else { return nil }
-            let url = URL(fileURLWithPath: path)
-            guard var file = (try? Data(contentsOf: url)).flatMap({ try? JSONSerialization.jsonObject(with: $0) }) as? [String: Any] else { result = .failed("\(path) could not be read, so it was not changed"); break }
-            file["orchestratorProfile"] = request["name"] as? String
-            let data = try? JSONSerialization.data(withJSONObject: file, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
-            result = data.map { (try? $0.write(to: url, options: .atomic)) != nil } == true ? .saved : .failed("internal error")
+            refusal = edit { $0["orchestratorProfile"] = request["name"] as? String; return nil }
         default:
             return nil
         }
         // `saved` stays empty: the real engine answers the part it changed, but the app reads the file itself and never decodes it.
-        guard let words = result.problem else { return Self.answer(id, ["saved": [String: Any](), "engine": "applied"]) }
+        guard let words = refusal else { return Self.answer(id, ["saved": [String: Any](), "engine": "applied"]) }
         return Self.refused(id, "config.problem", words, ["path": .string("(engine.json)"), "problem": .string("invalid")])
+    }
+
+    /// `changes` applied together to the global `role` of `file`: a bot the registry (`bots`) does not list, a provider that is not an account, an empty model, or a role left without
+    /// identity, provider or model is refused. With `creating` the role may not be in the file yet (the lead reviewer turned on).
+    private static func applyRole(_ changes: [RoleChange], role: AgentRole, accounts: [String], bots: [String], creating: Bool, to file: inout [String: Any]) -> String? {
+        var agents = file["agents"] as? [String: Any] ?? [:]
+        var entry: [String: Any]
+        if let existing = agents[role.rawValue] as? [String: Any] {
+            entry = existing
+        } else if creating {
+            entry = [:]
+        } else {
+            return "\(role.title) has no entry in engine.json. Add it there first."
+        }
+        var profiles = file["profiles"] as? [String: Any] ?? [:]
+        /// The profile of that kind (and agent) the file has, else a new one named `name`, or `name-2`, `name-3`… when `name` already means something else.
+        func profile(_ name: String, kind: String, agent: String?) -> String {
+            let found = profiles.keys.sorted().first { (profiles[$0] as? [String: Any]).map { $0["kind"] as? String == kind && $0["agent"] as? String == agent } ?? false }
+            var candidate = name
+            var number = 2
+            while found == nil, profiles[candidate] != nil {
+                candidate = "\(name)-\(number)"
+                number += 1
+            }
+            let key = found ?? candidate
+            profiles[key] = profiles[key] ?? (agent.map { ["kind": kind, "agent": $0] } ?? ["kind": kind])
+            return key
+        }
+        for change in changes {
+            switch change {
+            case .bot(let name):
+                guard bots.contains(name) else { return "“\(name)” is not in Agent Forge’s list. Pick another one." }
+                entry["profile"] = profile(name, kind: "forge", agent: name)
+            case .gh: entry["profile"] = profile("gh", kind: "gh", agent: nil)
+            case .provider(let provider): entry["provider"] = provider
+            case .model(let model): entry["model"] = model.trimmingCharacters(in: .whitespacesAndNewlines)
+            case .effort(let effort): entry["effort"] = effort
+            }
+        }
+        let fields = roleFields(entry).normalized()
+        if fields.profile == nil || fields.provider == nil || fields.model == nil {
+            return fields.model == nil ? "The model cannot be empty." : "\(role.title) needs an identity, a provider and a model."
+        }
+        let problems = fields.problems(profiles: Array(profiles.keys), accounts: accounts)
+        if problems.isEmpty == false { return problems.joined(separator: " ") }
+        agents[role.rawValue] = entry
+        file["agents"] = agents
+        file["profiles"] = profiles
+        // A role that now runs on the provider and model one of its failover steps names has no use for that step (the engine refuses the file otherwise): the step goes, a list left empty
+        // goes too, and `failover` with it. A step with no model is another model's, so it stays.
+        if var failover = file["failover"] as? [String: Any], var roles = failover["roles"] as? [String: Any], let steps = roles[role.rawValue] as? [[String: Any]] {
+            let kept = steps.filter { ($0["provider"] as? String) != entry["provider"] as? String || ($0["model"] as? String) != entry["model"] as? String }
+            if kept.count != steps.count {
+                roles[role.rawValue] = kept.isEmpty ? nil : kept
+                failover["roles"] = roles.isEmpty ? nil : roles
+                file["failover"] = failover.isEmpty ? nil : failover
+            }
+        }
+        return nil
+    }
+
+    /// `fields` as the repo's own `role` in `file` (nil resets it: the entry goes, and `agents` with the last), other keys kept.
+    private static func applyRepoRole(_ fields: RoleFields?, role: AgentRole, repo: String, accounts: [String], to file: inout [String: Any]) -> String? {
+        let fields = fields?.normalized()
+        if let found = fields?.problems(profiles: Array((file["profiles"] as? [String: Any] ?? [:]).keys), accounts: accounts), found.isEmpty == false { return found.joined(separator: " ") }
+        guard var repos = file["repos"] as? [[String: Any]], let index = repos.firstIndex(where: { $0["name"] as? String == repo }) else { return "\(repo) is no longer in the config file." }
+        var agents = repos[index]["agents"] as? [String: Any] ?? [:]
+        var entry: [String: Any] = [:]
+        if let fields {
+            entry = agents[role.rawValue] as? [String: Any] ?? [:]
+            entry["profile"] = fields.profile
+            entry["provider"] = fields.provider
+            entry["model"] = fields.model
+            entry["effort"] = fields.effort
+            entry["persona"] = fields.persona.map { ["name": $0.name, "prompt": $0.prompt].compactMapValues { $0 } }
+        }
+        agents[role.rawValue] = entry.isEmpty ? nil : entry
+        repos[index]["agents"] = agents.isEmpty ? nil : agents
+        file["repos"] = repos
+        return nil
+    }
+
+    /// The global `role`'s persona set to `name` and `prompt`, either one alone or both; nil for both removes it.
+    private static func applyPersona(name: String?, prompt: String?, role: AgentRole, to file: inout [String: Any]) -> String? {
+        for (label, text) in [("name", name), ("prompt", prompt)] where text?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == true {
+            return "The persona’s \(label) cannot be empty. Leave it out instead."
+        }
+        let persona = RoleFields(persona: RolePersona(name: name, prompt: prompt)).normalized().persona
+        let problems = RoleFields(persona: persona).problems(profiles: [], accounts: [])
+        if problems.isEmpty == false { return problems.joined(separator: " ") }
+        var agents = file["agents"] as? [String: Any] ?? [:]
+        guard var entry = agents[role.rawValue] as? [String: Any] else { return "\(role.title) has no entry in engine.json. Add it there first." }
+        entry["persona"] = persona.map { ["name": $0.name, "prompt": $0.prompt].compactMapValues { $0 } }
+        agents[role.rawValue] = entry
+        file["agents"] = agents
+        return nil
+    }
+
+    /// The first two steps of the global `role`'s failover set to `first` and `second`, keeping the steps after them. Both nil removes the role's list.
+    private static func applyFailover(first: FailoverStep?, second: FailoverStep?, role: AgentRole, accounts: [String], to file: inout [String: Any]) -> String? {
+        if first == nil, second != nil { return "Then needs a First step." }
+        func clean(_ step: FailoverStep) -> FailoverStep {
+            let model = step.model?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let effort = step.effort?.trimmingCharacters(in: .whitespacesAndNewlines)
+            return FailoverStep(provider: step.provider.trimmingCharacters(in: .whitespacesAndNewlines), model: model?.isEmpty == true ? nil : model, effort: effort?.isEmpty == true ? nil : effort)
+        }
+        let edited = [first, second].compactMap { $0.map(clean) }
+        for (index, step) in edited.enumerated() where accounts.contains(step.provider) == false {
+            return "\(index == 0 ? "First" : "Then"): “\(step.provider)” is not an account of providers.json. Pick another one."
+        }
+        guard let own = (file["agents"] as? [String: Any])?[role.rawValue] as? [String: Any] else { return "\(role.title) has no entry in engine.json. Add it there first." }
+        var failover = file["failover"] as? [String: Any] ?? [:]
+        var roles = failover["roles"] as? [String: Any] ?? [:]
+        if edited.isEmpty {
+            roles.removeValue(forKey: role.rawValue)
+        } else {
+            var steps: [[String: Any]] = edited.map { step in
+                ["provider": step.provider].merging(step.model.map { ["model": $0] } ?? [:]) { $1 }.merging(step.effort.map { ["effort": $0] } ?? [:]) { $1 }
+            }
+            steps.append(contentsOf: Array((roles[role.rawValue] as? [[String: Any]] ?? []).dropFirst(2)))
+            var seen: [[String: String]] = []
+            for (index, step) in steps.enumerated() {
+                let pair = step.compactMapValues { $0 as? String }.filter { $0.key == "provider" || $0.key == "model" }
+                let label = index == 0 ? "First" : index == 1 ? "Then" : "Step \(index + 1)"
+                if seen.contains(pair) { return "\(label) repeats another step of the list." }
+                if pair["provider"] == own["provider"] as? String, pair["model"] == own["model"] as? String { return "\(label) is the role’s own provider and model, so it would move nowhere." }
+                seen.append(pair)
+            }
+            roles[role.rawValue] = steps
+        }
+        failover["roles"] = roles.isEmpty ? nil : roles
+        file["failover"] = failover.isEmpty ? nil : failover
+        return nil
     }
 }

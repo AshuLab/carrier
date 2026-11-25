@@ -2,10 +2,9 @@ import Foundation
 import Testing
 @testable import CarrierCore
 
-// The Use a lead reviewer switch of the Agents page: what turning it off removes from a temporary engine.json, that turning it on writes nothing
-// until identity, provider and model are chosen, and what the page's model says about the dimmed page.
+// The Use a lead reviewer switch of the Agents page: that turning it on sends nothing until identity, provider and model are chosen, and what the page's model says about the dimmed page.
+// What turning it off removes is the engine's (src/config/role-edit.ts).
 
-private let accounts = ["claude", "codex", "agy"]
 private let bots = ["acme-author", "acme-lead"]
 private let withLead = #"""
 {"keep": {"deep": [1]}, "orchestratorProfile": "acme-author",
@@ -20,16 +19,6 @@ private let withoutLead = #"""
  "agents": {"author": {"profile": "me", "provider": "claude", "model": "m"}}}
 """#
 
-private func temporaryConfig(_ text: String) throws -> String {
-    let path = NSTemporaryDirectory() + "carrier-lead-\(UUID().uuidString).json"
-    try text.write(toFile: path, atomically: true, encoding: .utf8)
-    return path
-}
-
-private func file(_ path: String) throws -> [String: Any] {
-    try #require(JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: path))) as? [String: Any])
-}
-
 private func complete() -> LeadReviewerDraft {
     var draft = LeadReviewerDraft()
     draft.apply(.bot("acme-lead"))
@@ -38,32 +27,7 @@ private func complete() -> LeadReviewerDraft {
     return draft
 }
 
-@Test func turningItOffRemovesTheRoleAndItsFailoverStepsAndKeepsEveryOtherKey() throws {
-    let path = try temporaryConfig(withLead)
-    var expected = try file(path)
-    #expect(turnLeadReviewerOff(path: path, reload: { .applied }) == .saved)
-    var agents = try #require(expected["agents"] as? [String: Any])
-    agents["leadReviewer"] = nil
-    expected["agents"] = agents
-    var failover = try #require(expected["failover"] as? [String: Any])
-    var roles = try #require(failover["roles"] as? [String: Any])
-    roles["leadReviewer"] = nil
-    failover["roles"] = roles
-    expected["failover"] = failover
-    #expect(try NSDictionary(dictionary: file(path)).isEqual(to: expected))
-}
-
-@Test func turningItOffWhenTheFileHasNoRoleLeavesTheFileAsItIs() throws {
-    let path = try temporaryConfig(withoutLead)
-    let before = try Data(contentsOf: URL(fileURLWithPath: path))
-    #expect(turnLeadReviewerOff(path: path, reload: { .applied }) == .saved)
-    #expect(try Data(contentsOf: URL(fileURLWithPath: path)) == before)
-    #expect(turnLeadReviewerOff(path: path + ".missing", reload: { .applied }) != .saved)
-}
-
-@Test func turningItOnWritesNothingUntilIdentityProviderAndModelAreChosen() throws {
-    let path = try temporaryConfig(withoutLead)
-    let before = try Data(contentsOf: URL(fileURLWithPath: path))
+@Test func turningItOnSendsNothingUntilIdentityProviderAndModelAreChosen() throws {
     var draft = LeadReviewerDraft()
     #expect(draft.isComplete == false && draft.missing == ["an identity", "a provider", "a model"])
     #expect(draft.hint == "Choose an identity, a provider and a model to turn it on. Nothing is written until then.")
@@ -71,35 +35,10 @@ private func complete() -> LeadReviewerDraft {
     draft.apply(.effort("max"))
     draft.apply(.model("   "))
     #expect(draft.missing == ["a provider", "a model"])
-    // the page never calls with an incomplete draft, and if it did the file stays as it is
-    guard case .refused = turnLeadReviewerOn(draft, path: path, accounts: accounts, bots: bots, reload: { .applied }) else { Issue.record("expected a refusal"); return }
-    #expect(try Data(contentsOf: URL(fileURLWithPath: path)) == before)
-}
-
-@Test func onceTheThreeAreChosenTheWholeRoleIsWrittenAndEveryOtherKeyStays() throws {
-    let path = try temporaryConfig(withoutLead)
-    var draft = complete()
-    draft.apply(.effort("high"))
-    #expect(draft.isComplete && draft.hint == nil)
-    #expect(turnLeadReviewerOn(draft, path: path, accounts: accounts, bots: bots, reload: { .applied }) == .saved)
-    let saved = try file(path)
-    let lead = try #require((saved["agents"] as? [String: Any])?["leadReviewer"] as? [String: Any])
-    #expect(NSDictionary(dictionary: lead).isEqual(to: ["profile": "acme-lead", "provider": "codex", "model": "gpt-5", "effort": "high"]))
-    #expect(saved["keep"] as? Int == 1)
-    #expect((saved["agents"] as? [String: Any])?["author"] != nil)
-}
-
-@Test func aBotOrProviderTheFileWouldRefuseIsRefusedAndNothingIsWritten() throws {
-    let path = try temporaryConfig(withoutLead)
-    let before = try Data(contentsOf: URL(fileURLWithPath: path))
-    var unknownBot = complete()
-    unknownBot.apply(.bot("ghost"))
-    var unknownProvider = complete()
-    unknownProvider.apply(.provider("nope"))
-    for draft in [unknownBot, unknownProvider] {
-        guard case .refused = turnLeadReviewerOn(draft, path: path, accounts: accounts, bots: bots, reload: { .applied }) else { Issue.record("expected a refusal"); return }
-    }
-    #expect(try Data(contentsOf: URL(fileURLWithPath: path)) == before)
+    // once the three are chosen the whole role is what the draft sends, in one request
+    draft.apply(.provider("codex"))
+    draft.apply(.model(" gpt-5 "))
+    #expect(draft.isComplete && draft.hint == nil && draft.changes == [.bot("acme-lead"), .provider("codex"), .model(" gpt-5 "), .effort("max")])
 }
 
 @Test func theDraftIsShownInPlaceOfTheEmptyRoleAndTheSwitchRowTellsWhatOffDoes() throws {
@@ -115,27 +54,3 @@ private func complete() -> LeadReviewerDraft {
 }
 
 // MARK: the engine is asked to reload
-
-@Test func turningTheLeadReviewerOnOrOffAsksTheEngineToReloadAfterTheWriteOnly() throws {
-    let path = try temporaryConfig(withoutLead)
-    let engine = FakeReload(file: path)
-    // an incomplete draft writes nothing and asks nothing
-    #expect(turnLeadReviewerOn(LeadReviewerDraft(), path: path, accounts: accounts, bots: bots, reload: engine.reload) != .saved)
-    #expect(engine.calls == 0)
-    #expect(turnLeadReviewerOn(complete(), path: path, accounts: accounts, bots: bots, reload: engine.reload) == .saved)
-    #expect(engine.calls == 1 && engine.seen[0] == engine.now)
-    #expect(turnLeadReviewerOff(path: path, reload: engine.reload) == .saved)
-    #expect(engine.calls == 2 && engine.seen[1] == engine.now)
-    // already off: the file is left as it is, so there is nothing to apply
-    #expect(turnLeadReviewerOff(path: path, reload: engine.reload) == .saved)
-    #expect(turnLeadReviewerOff(path: path + ".missing", reload: engine.reload) != .saved)
-    #expect(engine.calls == 2)
-}
-
-@Test func aLeadReviewerTheEngineRefusedToApplyStaysSaved() throws {
-    let path = try temporaryConfig(withLead)
-    let engine = FakeReload(file: path, problem: "failover.roles.leadReviewer: bad")
-    let result = turnLeadReviewerOff(path: path, reload: engine.reload)
-    #expect(result == .saved) // what the engine answered is `ReloadStatus`'s
-    #expect((try file(path)["agents"] as? [String: Any])?["leadReviewer"] == nil)
-}

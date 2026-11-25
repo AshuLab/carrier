@@ -1,7 +1,7 @@
 import Foundation
 
-// Changing and resetting a repo's role: writes `repos[].agents.<role>` of `engine.json` and nothing else. The app sends `EngineConfigChange.repoRole` and the engine (src/config/role-edit.ts)
-// writes it; `saveRepoRole` is the fixture engine's copy of that (FixtureServer+EngineConfig.swift). What the page checks while the person types (`RoleFields.problems`) stays.
+// A repo's role: the app sends `EngineConfigChange.repoRole` and the engine (src/config/role-edit.ts) writes `repos[].agents.<role>` of `engine.json`. What the page checks while the person
+// types (`RoleFields.problems`) is here, and the fixture engine makes the same checks (FixtureServer+EngineConfig.swift).
 
 public let roleEfforts = ["low", "medium", "high", "xhigh", "max"]
 
@@ -67,52 +67,5 @@ extension RoleSave {
         case .saved: nil
         case .refused(let words), .failed(let words): words
         }
-    }
-}
-
-/// `.saved` after the write, and the engine asked (what it answers is `ReloadStatus`'s, not the save's). Call it only after the write worked.
-func written(_ reload: AfterWrite) -> RoleSave {
-    _ = reload()
-    return .saved
-}
-
-/// `json` with `repo`'s `role` set to the `fields` that are set, other keys of the entry kept; the entry goes when nothing is left. With `fields`
-/// nil (Reset) the whole entry goes, and `agents` with it when it was the last. nil when `json` has no such repo.
-func applyingRepoRole(_ fields: RoleFields?, role: AgentRole, repo: String, to json: Data) -> Data? {
-    guard var file = (try? JSONSerialization.jsonObject(with: json)) as? [String: Any], var repos = file["repos"] as? [[String: Any]],
-          let index = repos.firstIndex(where: { $0["name"] as? String == repo })
-    else { return nil }
-    var agents = repos[index]["agents"] as? [String: Any] ?? [:]
-    var entry: [String: Any] = [:]
-    if let fields {
-        entry = agents[role.rawValue] as? [String: Any] ?? [:]
-        entry["profile"] = fields.profile
-        entry["provider"] = fields.provider
-        entry["model"] = fields.model
-        entry["effort"] = fields.effort
-        entry["persona"] = fields.persona.map { ["name": $0.name, "prompt": $0.prompt].compactMapValues { $0 } }
-    }
-    agents[role.rawValue] = entry.isEmpty ? nil : entry
-    repos[index]["agents"] = agents.isEmpty ? nil : agents
-    file["repos"] = repos
-    return try? JSONSerialization.data(withJSONObject: file, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
-}
-
-/// Saves `fields` as the repo's own `role` (nil resets it) in the file at `path`, read just now. A profile or account that is not declared
-/// is refused before anything is written.
-func saveRepoRole(_ fields: RoleFields?, role: AgentRole, repo: String, path: String, accounts: [String], reload: AfterWrite) -> RoleSave {
-    let url = URL(fileURLWithPath: path)
-    guard let current = try? Data(contentsOf: url), let roles = repoRoles(json: current, repo: repo) else {
-        return .failed("The config file could not be read.")
-    }
-    let fields = fields?.normalized()
-    if let found = fields?.problems(profiles: roles.profiles, accounts: accounts), found.isEmpty == false { return .refused(found.joined(separator: " ")) }
-    guard let updated = applyingRepoRole(fields, role: role, repo: repo, to: current) else { return .failed("\(repo) is no longer in the config file.") }
-    do {
-        try updated.write(to: url, options: .atomic)
-        return written(reload)
-    } catch {
-        FileHandle.standardError.write(Data("carrier: saving \(path) failed: \(error)\n".utf8))
-        return .failed("Could not save the config file: \(error.localizedDescription)")
     }
 }

@@ -47,33 +47,6 @@ private func temporaryFolder() throws -> String {
     #expect(encodedProjectAction(ProjectAction(name: "Build", command: "", when: .afterClone)) == nil)
 }
 
-@Test func applyingActionsOmitsDefaultsAndEmptyListAndRefusesAnyInvalidAction() throws {
-    let initial = Data(#"{"projects":[{"path":"/a","origin":"cloned","pinned":true,"tags":["swift"]},{"path":"/b","origin":"added"}]}"#.utf8)
-    let actions = [
-        ProjectAction(name: "Install", command: "pnpm install", when: .newWorktree, on: true, onFail: .warn),
-        ProjectAction(name: "Env", command: "cp \"$CARRIER_PROJECT/.env\" .env", when: .afterClone, on: false, onFail: .stop),
-    ]
-    let written = try #require(try applyingProjectActions(actions, path: "/a", to: initial))
-    let raw = try #require(try JSONSerialization.jsonObject(with: written) as? [String: Any])
-    let rawProjects = try #require(raw["projects"] as? [[String: Any]])
-    let rawActions = try #require(rawProjects[0]["actions"] as? [[String: Any]])
-    #expect(rawActions.count == 2)
-    #expect(rawActions[0].keys.sorted() == ["command", "name", "when"])
-    #expect(rawActions[1].keys.sorted() == ["command", "name", "on", "onFail", "when"])
-    #expect(rawProjects[0]["pinned"] as? Bool == true && rawProjects[0]["tags"] as? [String] == ["swift"])
-    #expect(rawProjects[1]["path"] as? String == "/b")
-
-    // blank name or command writes nothing (returns nil)
-    #expect(try applyingProjectActions([ProjectAction(name: "", command: "make", when: .newWorktree)], path: "/a", to: written) == nil)
-    #expect(try applyingProjectActions([ProjectAction(name: "Make", command: " ", when: .afterClone)], path: "/a", to: written) == nil)
-
-    // clearing all actions omits the `actions` key altogether
-    let cleared = try #require(try applyingProjectActions([], path: "/a", to: written))
-    let clearedRaw = try #require(try JSONSerialization.jsonObject(with: cleared) as? [String: Any])
-    let clearedProjects = try #require(clearedRaw["projects"] as? [[String: Any]])
-    #expect(clearedProjects[0]["actions"] == nil)
-}
-
 @Test func mergedDraftsOmitUnsavedBlanksAndPreservePreviouslySavedActionsWhenCleared() {
     let savedAction = ProjectAction(name: "Install", command: "pnpm install", when: .newWorktree)
     let savedDraft = ProjectActionDraft(action: savedAction)
@@ -114,7 +87,7 @@ private func temporaryFolder() throws -> String {
         .write(to: URL(fileURLWithPath: repo + "/package.json"))
 
     let file = ProjectsFile(folder: home)
-    #expect(try file.add(folder: repo) == .added(repo))
+    try file.add(folder: repo)
     #expect(try file.read().first?.actions.isEmpty == true)
 
     let saved = [
@@ -122,14 +95,14 @@ private func temporaryFolder() throws -> String {
         ProjectAction(name: "Copy env", command: "cp \"$CARRIER_PROJECT/.env\" .env", when: .newWorktree, on: false, onFail: .stop),
         ProjectAction(name: "Bootstrap", command: "make bootstrap", when: .afterClone, on: true, onFail: .stop),
     ]
-    #expect(try file.updateActions(path: repo, actions: saved) == true)
+    #expect(applyProjectsChange(.setActions(path: repo, actions: saved), home: home).refusal == nil)
 
     let reloaded = try file.read()
     #expect(reloaded.count == 1)
     #expect(reloaded[0].actions == saved)
 
-    // invalid write is refused and leaves the file intact
-    #expect(try file.updateActions(path: repo, actions: [ProjectAction(name: "", command: "x", when: .newWorktree)]) == false)
+    // an invalid action is refused and leaves the file intact
+    #expect(applyProjectsChange(.setActions(path: repo, actions: [ProjectAction(name: "", command: "x", when: .newWorktree)]), home: home).refusal != nil)
     #expect(try file.read()[0].actions == saved)
 }
 

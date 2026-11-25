@@ -47,8 +47,7 @@ private func sameJSON(_ a: Data, _ b: Data) throws -> Bool {
     defer { server.stop() }
     let client = try #require(ControlClient.connect(path: server.chatSocketPath))
     _ = try client.hello()
-    let file = ProvidersFile(folder: server.home)
-    try file.write(applyingAccounts([(name: "agy", harness: "agy")], to: try file.read()))
+    _ = fixtureProvidersChange(["cmd": "setAccounts", "accounts": [["name": "agy", "harness": "agy"]]], home: server.home)
     let reply = try JSONDecoder().decode(HostProviders.self, from: client.request("providers"))
     #expect(reply.unadded.isEmpty && reply.accounts.map(\.name) == ["claude", "claude-work", "codex", "agy"])
     #expect(reply.accounts.last?.harness == "agy" && reply.accounts.last?.found == true)
@@ -207,8 +206,7 @@ private func sameJSON(_ a: Data, _ b: Data) throws -> Bool {
     let host = SocketChatHost(socketPath: { server.chatSocketPath })
     await #expect(throws: ControlError.remote(Refusal(code: "title.noGenerator", text: "Could not write titles: no text generator is chosen; choose one in Providers"))) { _ = try await host.regenerateTitles() }
 
-    let file = ProvidersFile(folder: server.home)
-    try file.write(applyingTextGenerator((server: "ollama", model: "qwen3:8b"), to: try file.read()))
+    _ = fixtureProvidersChange(["cmd": "setTextGenerator", "choice": ["server": "ollama", "model": "qwen3:8b"]], home: server.home)
     let started = try await host.regenerateTitles()
     #expect(started > 0)
     #expect(try await host.regenerateTitles() == 0)

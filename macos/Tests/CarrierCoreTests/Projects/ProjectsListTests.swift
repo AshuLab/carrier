@@ -47,35 +47,6 @@ private func temporaryFolder() throws -> String {
     #expect(ProjectsProblem(path: "(file)", message: "is not valid JSON").text == "projects.json is not valid JSON")
 }
 
-@Test func addingAFolderWritesAnAddedEntryNamedAfterItAndKeepsEverythingElse() throws {
-    let before = Data(#"{"projects":[{"path":"/a","origin":"cloned","tags":["x"],"icon":{"image":"a.png"}}]}"#.utf8)
-    let result = try applyingProjectAdd(folder: "/Users/ana/Notes", to: before)
-    #expect(result.outcome == .added("/Users/ana/Notes"))
-    let entries = try readProjects(try #require(result.write))
-    #expect(entries.map(\.path) == ["/a", "/Users/ana/Notes"] && entries[1].name == "Notes" && entries[1].origin == "added")
-    #expect(entries[0] == (try readProjects(before))[0])
-    // no file at all is an empty list
-    #expect(try readProjects(applyingProjectAdd(folder: "/x", to: nil).write).map(\.path) == ["/x"])
-}
-
-@Test func addingAFolderThatIsAlreadyAProjectWritesNothingWhateverHowItIsWritten() throws {
-    let file = Data(#"{"projects":[{"path":"~/work/a","origin":"added"}]}"#.utf8)
-    for folder in [NSHomeDirectory() + "/work/a", NSHomeDirectory() + "/work/a/", "~/work/a"] {
-        let result = try applyingProjectAdd(folder: folder, to: file)
-        #expect(result.outcome == .existing("~/work/a") && result.write == nil, Comment(rawValue: folder))
-    }
-}
-
-@Test func aFileThatDoesNotMatchItsSchemaIsNeverWrittenOver() throws {
-    let folder = try temporaryFolder()
-    defer { try? FileManager.default.removeItem(atPath: folder) }
-    let file = ProjectsFile(folder: folder)
-    let bad = Data(#"{"projects":[{"path":"/a","origin":"added","name":""}]}"#.utf8)
-    try bad.write(to: file.url)
-    #expect(throws: ProjectsFileError.invalid([ProjectsProblem(path: "projects.0.name", message: "must not be blank")])) { try file.add(folder: "/b") }
-    #expect(try Data(contentsOf: file.url) == bad)
-}
-
 @MainActor @Test func theModelListsTheFileAndAddsWithoutReopening() async throws {
     let folder = try temporaryFolder()
     let project = try temporaryFolder()
@@ -640,23 +611,6 @@ private func session(_ base: String, _ ago: TimeInterval, now: Date) -> SessionR
     // a file is not a folder to open
     try Data("x".utf8).write(to: URL(fileURLWithPath: folder + "/file"))
     #expect(projectRows(try readProjects(Data(#"{"projects":[{"path":"\#(folder)/file","origin":"added"}]}"#.utf8))) { _ in nil }.map(\.status) == [.notFound])
-}
-
-@Test func locatingReplacesOnlyThePathAndRefusesAnotherProjectsFolder() throws {
-    let json = Data(#"""
-    {"projects":[
-      {"path":"/old/app","name":"App","origin":"cloned","pinned":true,"tags":["x"],"icon":{"color":"blue"},"defaults":{"workIn":"worktree"},"actions":[{"name":"i","command":"pnpm i","when":"newWorktree"}]},
-      {"path":"/b/other","origin":"added"}
-    ]}
-    """#.utf8)
-    let written = try applyingProjectLocation(path: "/old/app", to: "/new/app", in: json)
-    var expected = try #require(JSONSerialization.jsonObject(with: json) as? [String: Any])
-    var projects = try #require(expected["projects"] as? [[String: Any]])
-    projects[0]["path"] = "/new/app"
-    expected["projects"] = projects
-    #expect(NSDictionary(dictionary: try #require(JSONSerialization.jsonObject(with: written) as? [String: Any])).isEqual(to: expected))
-    #expect(throws: ProjectsFileError.self) { try applyingProjectLocation(path: "/old/app", to: "/b/other/", in: json) }
-    #expect(throws: ProjectsFileError.missing("/nope")) { try applyingProjectLocation(path: "/nope", to: "/new/app", in: json) }
 }
 
 @MainActor @Test func locateChecksTheFolderThenPointsTheProjectAtItAndKeepsTheRest() async throws {

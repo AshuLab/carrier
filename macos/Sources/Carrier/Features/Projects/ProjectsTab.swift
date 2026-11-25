@@ -573,7 +573,14 @@ private struct ProjectDetailView: View {
     private func setWatching(_ on: Bool) {
         guard let repo = row.repo else { return }
         Task {
-            watchFailure = await saveWatch(on, repo: repo, path: configFilePath(), send: EngineConfigSender.app.send).problem
+            if let names = currentConfig().flatMap({ configRepoNames(json: $0) }) {
+                switch watchChange(on, repo: repo, in: names) {
+                case .refused(let words): watchFailure = words
+                case .send(let list): watchFailure = await saveEngineConfig(.watchedRepos(list), send: EngineConfigSender.app.send).problem
+                }
+            } else {
+                watchFailure = "The config file could not be read or the list is not valid."
+            }
             reloadWatched()
         }
     }

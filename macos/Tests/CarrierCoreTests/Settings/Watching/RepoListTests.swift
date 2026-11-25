@@ -8,10 +8,6 @@ private func running() throws -> PanelSnapshot {
     try decodeSnapshot(Data(contentsOf: fixtures.appendingPathComponent("snapshot.json")))
 }
 
-private func object(_ data: Data?) -> [String: Any] {
-    (try? JSONSerialization.jsonObject(with: data ?? Data())) as? [String: Any] ?? [:]
-}
-
 private let file = Data(#"""
 {"keep":"~/work","pollIntervalMinutes":2,"limits":{"maxReviews":7},"profiles":{"a":{"kind":"gh"}},
  "repos":[{"name":"AshuLab/carrier"},{"name":"acme/web","agents":{"author":{"profile":"other-bot"}}},{"name":"vemec/encaja"}]}
@@ -81,71 +77,22 @@ func anythingElseIsNot(name: String) { #expect(isRepoName(name) == false) }
 
 // MARK: the Carrier switch of a project (docs/specs/projects.md, "The watch")
 
-private func temporaryConfig(_ data: Data = file) throws -> String {
-    let path = NSTemporaryDirectory() + "carrier-watch-\(UUID().uuidString).json"
-    try data.write(to: URL(fileURLWithPath: path))
-    return path
-}
+private let names = ["AshuLab/carrier", "acme/web", "vemec/encaja"]
 
-@MainActor @Test func turningTheSwitchOnSendsTheListWithTheRepoAddedAndKeepsWhatTheEngineAnswered() async throws {
-    let path = try temporaryConfig()
-    defer { try? FileManager.default.removeItem(atPath: path) }
-    let engine = FakeEngineConfig()
-    let status = ReloadStatus(reload: { .nobody })
-    #expect(await saveWatch(true, repo: "new/thing", path: path, send: engine.send, status: status) == .saved)
-    #expect(engine.sent == [.watchedRepos(["AshuLab/carrier", "acme/web", "vemec/encaja", "new/thing"])])
-    #expect(status.outcome == .applied)
+@Test func turningTheSwitchOnAsksForTheListWithTheRepoAddedAndOnceWhateverTheCaseGitHubGaveIt() {
+    #expect(watchChange(true, repo: "new/thing", in: names) == .send(names + ["new/thing"]))
     // already watched, whatever the case GitHub gave it: nothing is added twice
-    #expect(await saveWatch(true, repo: "ACME/Web", path: path, send: engine.send, status: status) == .saved)
-    #expect(engine.sent.last == .watchedRepos(["AshuLab/carrier", "acme/web", "vemec/encaja"]))
-    // the app never writes the file: it is as it was
-    #expect(try Data(contentsOf: URL(fileURLWithPath: path)) == file)
+    #expect(watchChange(true, repo: "ACME/Web", in: names) == .send(names))
 }
 
-@MainActor @Test func turningTheSwitchOffSendsTheListWithoutOnlyThatEntry() async throws {
-    let path = try temporaryConfig()
-    defer { try? FileManager.default.removeItem(atPath: path) }
-    let engine = FakeEngineConfig()
-    #expect(await saveWatch(false, repo: "Acme/Web", path: path, send: engine.send, status: ReloadStatus(reload: { .nobody })) == .saved)
-    #expect(engine.sent == [.watchedRepos(["AshuLab/carrier", "vemec/encaja"])])
+@Test func turningTheSwitchOffAsksForTheListWithoutOnlyThatEntry() {
+    #expect(watchChange(false, repo: "Acme/Web", in: names) == .send(["AshuLab/carrier", "vemec/encaja"]))
 }
 
-@MainActor @Test func twoWatchedReposWithOneFolderNameAreRefusedWithTheReasonAndNothingIsSent() async throws {
-    let path = try temporaryConfig()
-    defer { try? FileManager.default.removeItem(atPath: path) }
-    let engine = FakeEngineConfig()
-    let result = await saveWatch(true, repo: "other/web", path: path, send: engine.send, status: ReloadStatus(reload: { .nobody }))
-    #expect(result == .refused("other/web has the same folder name as acme/web; Solve's worktree paths have no owner"))
-    #expect(engine.sent.isEmpty)
-}
-
-@MainActor @Test func anInvalidOrUnreadableConfigSendsNothing() async throws {
-    let invalid = try temporaryConfig(Data(#"{"repos":[{"name":"a/web"},{"name":"b/web"}]}"#.utf8))
-    defer { try? FileManager.default.removeItem(atPath: invalid) }
-    let engine = FakeEngineConfig()
-    let status = ReloadStatus(reload: { .nobody })
-    #expect(await saveWatch(false, repo: "x/y", path: invalid, send: engine.send, status: status).problem == "b/web has the same folder name as a/web; Solve's worktree paths have no owner")
-    let notJSON = try temporaryConfig(Data("nope".utf8))
-    defer { try? FileManager.default.removeItem(atPath: notJSON) }
-    #expect(await saveWatch(true, repo: "x/y", path: notJSON, send: engine.send, status: status) == .failed("The config file could not be read or the list is not valid."))
-    #expect(await saveWatch(true, repo: "x/y", path: notJSON + ".missing", send: engine.send, status: status).problem != nil)
-    #expect(engine.sent.isEmpty)
-}
-
-@MainActor @Test func aListTheEngineRefusesIsRefusedWithItsWordsAndOneItCouldNotRunOnIsSavedAndSaidSo() async throws {
-    let path = try temporaryConfig()
-    defer { try? FileManager.default.removeItem(atPath: path) }
-    let engine = FakeEngineConfig()
-    let status = ReloadStatus(reload: { .nobody })
-    engine.failure = ControlError.remote(Refusal(code: "config.problem", params: ["path": "repos[3]", "problem": "notARepo"], text: "x must be owner/name"))
-    #expect(await saveWatch(true, repo: "x/y", path: path, send: engine.send, status: status) == .refused("x must be owner/name"))
-    #expect(status.outcome == nil)
-    engine.failure = nil
-    engine.reply = EngineConfigReply(engine: .refused, reason: .init(code: "config.invalid", params: [:], error: "agents.author.profile: bad"))
-    #expect(await saveWatch(true, repo: "x/y", path: path, send: engine.send, status: status) == .saved)
-    #expect(status.outcome == .refused(Refusal(code: "config.invalid", text: "agents.author.profile: bad")))
-    engine.failure = ControlError.closed
-    #expect(await saveWatch(true, repo: "x/y", path: path, send: engine.send, status: status).problem != nil)
+@Test func twoWatchedReposWithOneFolderNameAreRefusedWithTheReasonAndNothingIsAsked() {
+    #expect(watchChange(true, repo: "other/web", in: names) == .refused("other/web has the same folder name as acme/web; Solve's worktree paths have no owner"))
+    // a list that is already invalid is refused whatever is asked
+    #expect(watchChange(false, repo: "x/y", in: ["a/web", "b/web"]) == .refused("b/web has the same folder name as a/web; Solve's worktree paths have no owner"))
 }
 
 @Test func theSwitchRowSaysWhatIsOnAndWhyNot() throws {

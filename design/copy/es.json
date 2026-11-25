@@ -3361,5 +3361,13 @@
   "choiceProjectMarkHome": "Casa",
   "choiceProjectMarkBolt": "Rayo",
   "choiceProjectMarkBrain": "Cerebro",
-  "choiceProjectMarkStar": "Estrella"
+  "choiceProjectMarkStar": "Estrella",
+  "timeNow": "ahora",
+  "timeMinutes": "{count, number} min",
+  "timeHours": "{count, number} h",
+  "timeDays": "{count, number} d",
+  "timeYesterday": "Ayer {time}",
+  "timeDayAndTime": "{day} {time}",
+  "timeAgo": "hace {duration}",
+  "timeNever": "Nunca"
 }

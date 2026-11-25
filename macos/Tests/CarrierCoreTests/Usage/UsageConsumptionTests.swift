@@ -88,7 +88,7 @@ private func golden() throws -> UsageSnapshot { try JSONDecoder().decode(UsageSn
 // MARK: chart
 
 @Test func theChartStacksTheProvidersOfEachDayInOrder() throws {
-    let bars = usageBars(try golden(), metric: .cost)
+    let bars = usageBars(try golden(), metric: .cost, locale: english.locale)
     #expect(bars.count == 7 && bars[0].label == "Nov 7" && bars[0].date == "2026-11-07")
     // the first days ran no local model; the others did, at $0.00, and still show in the stack
     #expect(bars[0].segments.map(\.provider) == ["claude", "codex", "agy"])
@@ -101,7 +101,7 @@ private func golden() throws -> UsageSnapshot { try JSONDecoder().decode(UsageSn
 
 @Test func theChartKnowsItsWeekendsAndTheNumbersAreGrouped() throws {
     // 2026-11-07 is a Saturday
-    #expect(usageBars(try golden(), metric: .cost).map(\.weekend) == [true, true, false, false, false, false, false])
+    #expect(usageBars(try golden(), metric: .cost, locale: english.locale).map(\.weekend) == [true, true, false, false, false, false, false])
     #expect(usageGrouped(1_234_567, locale: english.locale) == "1,234,567" && usageGrouped(999, locale: english.locale) == "999")
     #expect(usageMoney(1234.5, locale: english.locale) == "$1,234.50" && usageMoney(31.2, locale: english.locale) == "$31.20" && usageMoney(0.001, locale: english.locale) == "<$0.01")
 }
@@ -117,25 +117,25 @@ private func golden() throws -> UsageSnapshot { try JSONDecoder().decode(UsageSn
 
 @Test func theMetricChangesTheHeightsAndNotTheStack() throws {
     let snapshot = try golden()
-    let tokens = usageBars(snapshot, metric: .tokens)
-    #expect(tokens[6].segments.map(\.provider) == usageBars(snapshot, metric: .cost)[6].segments.map(\.provider))
+    let tokens = usageBars(snapshot, metric: .tokens, locale: english.locale)
+    #expect(tokens[6].segments.map(\.provider) == usageBars(snapshot, metric: .cost, locale: english.locale)[6].segments.map(\.provider))
     #expect(Int(tokens[6].total) == 320_000 + 3_000_000 + 160_000 + 136_000)
 }
 
 @Test func theTooltipOfADaySaysEachProviderAndTheTotal() throws {
     let snapshot = try golden()
-    let cost = usageTooltip(usageBars(snapshot, metric: .cost)[0], metric: .cost, bundle: english.bundle, locale: english.locale)
+    let cost = usageTooltip(usageBars(snapshot, metric: .cost, locale: english.locale)[0], metric: .cost, bundle: english.bundle, locale: english.locale)
     #expect(cost.title == "Nov 7" && cost.weekday == "Saturday" && cost.lines.map(\.provider) == ["Claude", "Codex", "Antigravity"] && cost.total == "$3.10")
     #expect(cost.lines[1].value == "$0.93")
-    let tokens = usageTooltip(usageBars(snapshot, metric: .tokens)[6], metric: .tokens, bundle: english.bundle, locale: english.locale)
+    let tokens = usageTooltip(usageBars(snapshot, metric: .tokens, locale: english.locale)[6], metric: .tokens, bundle: english.bundle, locale: english.locale)
     #expect(tokens.lines.map(\.provider) == ["Claude", "Codex", "Antigravity", "Local"] && tokens.total == "3.6M")
-    #expect(usageTooltip(usageBars(snapshot, metric: .cost)[3], metric: .cost, bundle: english.bundle, locale: english.locale) == UsageTooltip(title: "Nov 10", weekday: "Tuesday", lines: [], total: "$0.00"))
+    #expect(usageTooltip(usageBars(snapshot, metric: .cost, locale: english.locale)[3], metric: .cost, bundle: english.bundle, locale: english.locale) == UsageTooltip(title: "Nov 10", weekday: "Tuesday", lines: [], total: "$0.00"))
 }
 
 @Test func aHostWithoutTheProviderSplitStillDecodes() throws {
     let day = try JSONDecoder().decode(UsageDay.self, from: Data(#"{"date":"2026-11-07","costUsd":1}"#.utf8))
     let snapshot = try JSONDecoder().decode(UsageSnapshot.self, from: Data(#"{"summary":{},"daily":[{"date":"2026-11-07"}]}"#.utf8))
-    #expect(day.providers.isEmpty && usageBars(snapshot, metric: .cost)[0].segments.isEmpty)
+    #expect(day.providers.isEmpty && usageBars(snapshot, metric: .cost, locale: english.locale)[0].segments.isEmpty)
 }
 
 // MARK: tables

@@ -11,7 +11,7 @@ private let yesterday = today.addingTimeInterval(-86_400)
 private let older = today.addingTimeInterval(-5 * 86_400)
 
 private func text(_ date: Date, _ style: TimeStyle, _ hours: ClockHours = .h24, locale: Locale = en) -> String {
-    timeText(date, now: now, style: style, hours: hours, locale: locale, timeZone: utc)
+    timeText(date, now: now, style: style, hours: hours, locale: locale, timeZone: utc, bundle: english.bundle)
 }
 
 @Test func relativeIsWhatTheAppShowedBefore() {
@@ -48,7 +48,7 @@ private func text(_ date: Date, _ style: TimeStyle, _ hours: ClockHours = .h24, 
 @Test func theDayChangesWithTheTimeZoneOfTheReader() {
     let tokyo = TimeZone(identifier: "Asia/Tokyo")!
     // 14:32 UTC is 23:32 on the 15th in Tokyo, where 16:00 UTC is already 01:00 on the 16th
-    #expect(timeText(today, now: now, style: .clock, hours: .h24, locale: en, timeZone: tokyo) == "Yesterday 23:32")
+    #expect(timeText(today, now: now, style: .clock, hours: .h24, locale: en, timeZone: tokyo, bundle: english.bundle) == "Yesterday 23:32")
 }
 
 @Test func aClockRangeHasOnlyTheTimeOfDay() {
@@ -60,13 +60,13 @@ private func text(_ date: Date, _ style: TimeStyle, _ hours: ClockHours = .h24, 
     let ms = { (date: Date) in Int(date.timeIntervalSince1970 * 1000) }
     let relative = TimeFormat(style: .relative, hours: .h24, locale: en, timeZone: utc)
     let clock = TimeFormat(style: .clock, hours: .h24, locale: en, timeZone: utc)
-    #expect(agoText(ms(today), now: ms(now), format: relative) == "1h 28m ago")
-    #expect(agoText(ms(today), now: ms(now), format: clock) == "14:32")
-    #expect(agoText(ms(yesterday), now: ms(now), format: clock) == "Yesterday 14:32")
+    #expect(agoText(ms(today), now: ms(now), format: relative, bundle: english.bundle) == "1h 28m ago")
+    #expect(agoText(ms(today), now: ms(now), format: clock, bundle: english.bundle) == "14:32")
+    #expect(agoText(ms(yesterday), now: ms(now), format: clock, bundle: english.bundle) == "Yesterday 14:32")
 }
 
 @Test func theSpokenAgeIsInWordsWhateverTheFormat() {
-    #expect(spokenAge(now.addingTimeInterval(-300), now: now) == "5 minutes ago")
+    #expect(spokenAge(now.addingTimeInterval(-300), now: now, locale: en) == "5 minutes ago")
 }
 
 @Test func theFormatReadsTheSavedPreferencesAndDefaultsToRelativeOnTheSystemClock() {
@@ -82,9 +82,9 @@ private func text(_ date: Date, _ style: TimeStyle, _ hours: ClockHours = .h24, 
 
 @Test func theLastUpdateCheckReadsNeverUntilTheUpdaterHasChecked() {
     let format = TimeFormat(style: .relative, hours: .h24, locale: en, timeZone: utc)
-    #expect(updateCheckedText(nil, now: now, format: format) == "Never")
-    #expect(updateCheckedText(today, now: now, format: format) == "14:32")
-    #expect(updateCheckedText(yesterday, now: now, format: format) == "Yesterday 14:32")
+    #expect(updateCheckedText(nil, now: now, format: format, bundle: english.bundle) == "Never")
+    #expect(updateCheckedText(today, now: now, format: format, bundle: english.bundle) == "14:32")
+    #expect(updateCheckedText(yesterday, now: now, format: format, bundle: english.bundle) == "Yesterday 14:32")
 }
 
 @Test func aClockTimeKeepsItsFormatWhateverWasAskedBetween() {
@@ -95,12 +95,47 @@ private func text(_ date: Date, _ style: TimeStyle, _ hours: ClockHours = .h24, 
         #expect(text(today, .clock, .h24) == "14:32")
         #expect(text(today, .clock, .h12) == "2:32 PM")
         #expect(text(today, .clock, .h24) == "14:32")
-        #expect(timeText(today, now: now, style: .clock, hours: .h24, locale: en, timeZone: buenosAires) == "11:32")
-        #expect(timeText(older, now: now, style: .clock, hours: .h24, locale: en, timeZone: buenosAires) == "Jan 10 11:32")
-        #expect(timeText(today, now: now, style: .clock, hours: .h24, locale: en, timeZone: tokyo) == "Yesterday 23:32")
+        #expect(timeText(today, now: now, style: .clock, hours: .h24, locale: en, timeZone: buenosAires, bundle: english.bundle) == "11:32")
+        #expect(timeText(older, now: now, style: .clock, hours: .h24, locale: en, timeZone: buenosAires, bundle: english.bundle) == "Jan 10 11:32")
+        #expect(timeText(today, now: now, style: .clock, hours: .h24, locale: en, timeZone: tokyo, bundle: english.bundle) == "Yesterday 23:32")
         #expect(text(older, .clock, .h24) == "Jan 10 14:32")
         #expect(text(today, .clock, .system, locale: Locale(identifier: "de_DE")) == "14:32")
         let american = text(today, .clock, .system, locale: en)
         #expect(american.hasPrefix("2:32") && american.hasSuffix("PM"))
     }
+}
+
+private func read(_ date: Date, _ style: TimeStyle, _ hours: ClockHours, in language: (bundle: Bundle, locale: Locale)) -> String {
+    timeText(date, now: now, style: style, hours: hours, locale: language.locale, timeZone: utc, bundle: language.bundle)
+}
+
+@Test func theSameInstantReadsInEnglishAndInSpanish() {
+    let ages: [(Double, String, String)] = [(-5, "now", "ahora"), (-300, "5m", "5 min"), (-3 * 3600, "3h", "3 h"), (-2 * 86400, "2d", "2 d")]
+    for (seconds, inEnglish, inSpanish) in ages {
+        let date = now.addingTimeInterval(seconds)
+        #expect(read(date, .relative, .system, in: english) == inEnglish)
+        #expect(read(date, .relative, .system, in: spanish) == inSpanish)
+    }
+    #expect(read(today, .clock, .h24, in: english) == "14:32" && read(today, .clock, .h24, in: spanish) == "14:32")
+    #expect(read(yesterday, .clock, .h24, in: english) == "Yesterday 14:32")
+    #expect(read(yesterday, .clock, .h24, in: spanish) == "Ayer 14:32")
+    #expect(read(older, .clock, .h24, in: english) == "Jan 10 14:32")
+    #expect(read(older, .clock, .h24, in: spanish) == "10 ene 14:32")
+}
+
+@Test func twelveHoursWritesTheMarksOfTheLanguage() {
+    #expect(read(today, .clock, .h12, in: english) == "2:32 PM")
+    // the space inside "p. m." is a no-break one that the system picks, so the marks are checked around it
+    let afternoon = read(today, .clock, .h12, in: spanish)
+    #expect(afternoon.hasPrefix("2:32") && afternoon.contains("p.") && afternoon.hasSuffix("m.") && !afternoon.contains("PM"))
+    #expect(read(yesterday, .clock, .h12, in: spanish) == "Ayer " + afternoon)
+}
+
+@Test func theAgoLineTheSpokenAgeAndTheLastCheckAreInTheLanguage() {
+    let ms = { (date: Date) in Int(date.timeIntervalSince1970 * 1000) }
+    let relative = TimeFormat(style: .relative, hours: .h24, locale: spanish.locale, timeZone: utc)
+    #expect(agoText(ms(today), now: ms(now), format: relative, bundle: spanish.bundle) == "hace 1h 28m")
+    #expect(spokenAge(now.addingTimeInterval(-300), now: now, locale: spanish.locale) == "hace 5 minutos")
+    #expect(updateCheckedText(nil, now: now, format: relative, bundle: spanish.bundle) == "Nunca")
+    #expect(updateCheckedText(yesterday, now: now, format: relative, bundle: spanish.bundle) == "Ayer 14:32")
 }

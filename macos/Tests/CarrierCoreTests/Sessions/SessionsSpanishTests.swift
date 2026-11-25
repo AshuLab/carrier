@@ -206,8 +206,12 @@ private func section(
     let today = utc.date(from: DateComponents(year: 2026, month: 11, day: 13, hour: 12))!
     func line(_ ages: SessionAges) -> String? { sessionAgesLine(ages, today: today, calendar: utc, bundle: es.bundle, locale: es.locale) }
     #expect(line(SessionAges(archive: .never, delete: .never)) == "Nunca se archiva ni se elimina")
-    #expect(line(SessionAges(archive: .days(15), delete: .never)) == "Se archiva el Nov 28 y nunca se elimina. La edad cuenta desde su última actividad")
-    #expect(line(SessionAges()) == "Se archiva el Nov 28 y se elimina el Dec 13. Ambas edades cuentan desde su última actividad")
+    #expect(line(SessionAges(archive: .days(15), delete: .never)) == "Se archiva el 28 nov y nunca se elimina. La edad cuenta desde su última actividad")
+    #expect(line(SessionAges()) == "Se archiva el 28 nov y se elimina el 13 dic. Ambas edades cuentan desde su última actividad")
+    let lateInYear = utc.date(from: DateComponents(year: 2026, month: 12, day: 20, hour: 12))!
+    #expect(
+        sessionAgesLine(SessionAges(), today: lateInYear, calendar: utc, bundle: es.bundle, locale: es.locale)
+            == "Se archiva el 4 de ene de 2027 y se elimina el 19 de ene de 2027. Ambas edades cuentan desde su última actividad")
 }
 
 // MARK: the sidebar

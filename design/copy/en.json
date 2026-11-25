@@ -3361,5 +3361,13 @@
   "choiceProjectMarkHome": "Home",
   "choiceProjectMarkBolt": "Bolt",
   "choiceProjectMarkBrain": "Brain",
-  "choiceProjectMarkStar": "Star"
+  "choiceProjectMarkStar": "Star",
+  "timeNow": "now",
+  "timeMinutes": "{count, number}m",
+  "timeHours": "{count, number}h",
+  "timeDays": "{count, number}d",
+  "timeYesterday": "Yesterday {time}",
+  "timeDayAndTime": "{day} {time}",
+  "timeAgo": "{duration} ago",
+  "timeNever": "Never"
 }

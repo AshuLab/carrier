@@ -145,10 +145,12 @@ private func quota(_ json: String) throws -> UsageQuota { try JSONDecoder().deco
 
 @Test func theTooltipOfADaySaysEachProviderAndTheTotalWithTheCommaOfTheLocale() throws {
     let snapshot = try golden()
-    let cost = usageTooltip(usageBars(snapshot, metric: .cost)[0], metric: .cost, bundle: b, locale: l)
+    let cost = usageTooltip(usageBars(snapshot, metric: .cost, locale: l)[0], metric: .cost, bundle: b, locale: l)
     #expect(cost.lines.map(\.provider) == ["Claude", "Codex", "Antigravity"] && cost.lines.map(\.providerId) == ["claude", "codex", "agy"])
     #expect(cost.total == "$3,10" && cost.lines[1].value == "$0,93")
-    let tokens = usageTooltip(usageBars(snapshot, metric: .tokens)[6], metric: .tokens, bundle: b, locale: l)
+    #expect(cost.title == "7 nov" && cost.weekday == "sábado")
+    #expect(usageBars(snapshot, metric: .cost, locale: l).map(\.label).prefix(2) == ["7 nov", "8 nov"])
+    let tokens = usageTooltip(usageBars(snapshot, metric: .tokens, locale: l)[6], metric: .tokens, bundle: b, locale: l)
     #expect(tokens.lines.map(\.provider) == ["Claude", "Codex", "Antigravity", "Local"] && tokens.total == "3,6M")
 }
 

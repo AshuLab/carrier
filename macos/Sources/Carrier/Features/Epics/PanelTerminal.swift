@@ -2,7 +2,7 @@ import AppKit
 import CarrierCore
 import SwiftUI
 
-/// The terminals the panel opens and closes: the standalone ones, a session'"s drawer and an epic"'s Continue in Terminal.
+/// The terminals the panel opens and closes: the standalone ones, a session's drawer and an epic's Continue in Terminal.
 extension PanelView {
     func createNewTerminal() {
         let terminalId = terminalStore.createStandaloneTerminal(workingDirectory: NSHomeDirectory())

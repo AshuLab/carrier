@@ -30,10 +30,10 @@ import Testing
 
     private static let rowViews = "SettingsTabRow|SettingsStackedRow|SettingsGroup|NavigationRow|ShortcutRecorderRow"
 
-    private static func matches(_ pattern: String, in text: String) throws -> [String] {
+    private static func matches(_ pattern: String, in text: String, group: Int = 1) throws -> [String] {
         let regex = try NSRegularExpression(pattern: pattern)
         return regex.matches(in: text, range: NSRange(text.startIndex..., in: text)).compactMap { match in
-            Range(match.range(at: 1), in: text).map { String(text[$0]) }
+            Range(match.range(at: group), in: text).map { String(text[$0]) }
         }
     }
 
@@ -102,13 +102,18 @@ import Testing
         }
     }
 
-    @Test func noEntryHoldsATitleOrADetailThatIsALiteralOfTheFile() throws {
-        // the words of the index are copy keys: the file has no quoted sentence, only identifiers and keys
+    @Test func theGroupTheTitleAndTheDetailOfEveryRowAreKeysAndNeverWords() throws {
+        // the words of the index are copy keys: the group of a `page(...)` call and the title and detail of a row tuple are names of keys, of one word or of many
         let file = try String(contentsOf: Self.sources.appendingPathComponent("CarrierCore/Settings/SettingsIndex.swift"), encoding: .utf8)
-        let code = file.split(separator: "\n").filter { $0.contains("//") == false }.joined(separator: "\n")
-        let literals = try Self.matches(#""((?:[^"\\\n]|\\.)*)""#, in: code)
-        let sentences = literals.filter { $0.range(of: #"[A-Za-z]+ [A-Za-z]"#, options: .regularExpression) != nil }
-        #expect(sentences.isEmpty, "a quoted sentence in SettingsIndex.swift (give it a copy key): \(sentences)")
+        let code = file.split(separator: "\n").filter { $0.trimmingCharacters(in: .whitespaces).hasPrefix("//") == false }.joined(separator: "\n")
+        let literal = #""((?:[^"\\\n]|\\.)*)""#
+        let groups = try Self.matches(#"(?:page|screen)\(\.\w+,\s*\#(literal),\s*\#(literal)"#, in: code, group: 2)
+        let titles = try Self.matches(#"\(\s*\#(literal),\s*\#(literal),\s*\#(literal)\)"#, in: code, group: 2)
+        let details = try Self.matches(#"\(\s*\#(literal),\s*\#(literal),\s*\#(literal)\)"#, in: code, group: 3)
+        #expect(groups.count > 50 && titles.count > 100 && titles.count == details.count, "the calls and the rows of the index were read")
+        let keys = try Self.copyKeys("en")
+        let words = (groups + titles + details).filter { $0.isEmpty == false && keys.contains($0) == false }
+        #expect(words.isEmpty, "in SettingsIndex.swift a group, title or detail that is not a key of design/copy/en.json (give it one): \(words)")
     }
 
     @Test func readingAnEmptyFolderFails() throws {

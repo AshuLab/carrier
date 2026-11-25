@@ -33433,7 +33433,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Una dictación que falló, bajo la caja"
+            "value": "Un dictado que falló, bajo la caja"
           }
         }
       }
@@ -49931,7 +49931,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "De dónde se corta un worktree nuevo: la rama remota (la última) o la rama local"
+            "value": "De dónde sale un worktree nuevo: la rama remota (la última) o la rama local"
           }
         }
       }

@@ -152,16 +152,3 @@ private func found(_ query: String, _ language: (bundle: Bundle, locale: Locale)
     // Spanish is not English with the keys missing: a key that is missing reads as the key itself, which no entry may
     for entry in spanishIndex { for key in entry.copyKeys { #expect(entry.title != key && entry.detail != key && entry.group != key, Comment(rawValue: key)) } }
 }
-
-@Test func everyKeyAnEntryUsesIsInBothLanguages() throws {
-    func keys(of language: String) throws -> Set<String> {
-        let data = try Data(contentsOf: testPaths().root.appendingPathComponent("design/copy/\(language).json"))
-        return Set(try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any]).keys)
-    }
-    let (inEnglish, inSpanish) = (try keys(of: "en"), try keys(of: "es"))
-    var used = Set<String>()
-    for entry in englishIndex + spanishIndex { used.formUnion(entry.copyKeys) }
-    #expect(used.count > 100)
-    #expect(used.subtracting(inEnglish).isEmpty, Comment(rawValue: "not in en.json: \(used.subtracting(inEnglish).sorted())"))
-    #expect(used.subtracting(inSpanish).isEmpty, Comment(rawValue: "not in es.json: \(used.subtracting(inSpanish).sorted())"))
-}

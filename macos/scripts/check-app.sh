@@ -6,6 +6,12 @@ PLIST=Carrier.app/Contents/Info.plist
 fail() { echo "check-app: $*" >&2; exit 1; }
 plist() { /usr/libexec/PlistBuddy -c "Print :$1" "$PLIST"; }
 expect() { [ "$2" = "$3" ] || fail "$1 is '$2', expected '$3'"; }
+# the copy catalog is compiled into one folder per language (the bundle nests Contents/Resources with Swift 6.4 and not with 6.3, hence find)
+expect_lprojs() {
+  for lproj in en.lproj es.lproj; do
+    [ -n "$(find Carrier.app/Contents/Resources/Carrier_CarrierCore.bundle -type d -name "$lproj" | head -n 1)" ] || fail "$1: Carrier_CarrierCore.bundle has no $lproj"
+  done
+}
 
 # CARRIER_ARCH=x86_64 checks the Intel app: its binary and its own feed
 case "${CARRIER_ARCH:-}" in
@@ -30,11 +36,8 @@ for name in AppIcon AppIconDev; do
 done
 expect "icon of a release" "$(plist CFBundleIconName)" AppIcon
 [ -f Carrier.app/Contents/Resources/Assets.car ] && [ -f Carrier.app/Contents/Resources/AppIcon.icns ] || fail "a release lacks its compiled icon"
-expect "CFBundleLocalizations of a release" "$(plutil -extract CFBundleLocalizations json -o - "$PLIST")" '["en"]'
-# the copy catalog is compiled into one folder per language (the bundle nests Contents/Resources with Swift 6.4 and not with 6.3)
-for lproj in en.lproj es.lproj; do
-  [ -n "$(find Carrier.app/Contents/Resources/Carrier_CarrierCore.bundle -type d -name "$lproj" | head -n 1)" ] || fail "Carrier_CarrierCore.bundle has no $lproj"
-done
+expect "CFBundleLocalizations of a release" "$(plutil -extract CFBundleLocalizations json -o - "$PLIST")" '["en","es"]'
+expect_lprojs "a release"
 expect "CFBundleVersion for 1.2.3" "$(plist CFBundleVersion)" 10203
 [ -n "$(plutil -extract NSMicrophoneUsageDescription raw "$PLIST")" ] || fail "NSMicrophoneUsageDescription is missing or empty"
 otool -l Carrier.app/Contents/MacOS/Carrier | grep -A2 LC_RPATH | grep -q "path @executable_path/../Frameworks " || fail "no rpath @executable_path/../Frameworks"
@@ -69,7 +72,8 @@ expect "CFBundleVersion for no version" "$(plist CFBundleVersion)" 1
 expect "CFBundleShortVersionString for no version" "$(plist CFBundleShortVersionString)" 0.1.0
 expect "bundle id of a dev build" "$(plist CFBundleIdentifier)" dev.ashulab.carrier.dev
 expect "channel of a dev build" "$(plist CarrierChannel)" dev
-expect "CFBundleLocalizations of a dev build" "$(plutil -extract CFBundleLocalizations json -o - "$PLIST")" '["en"]'
+expect "CFBundleLocalizations of a dev build" "$(plutil -extract CFBundleLocalizations json -o - "$PLIST")" '["en","es"]'
+expect_lprojs "a dev build"
 expect "icon of a dev build" "$(plist CFBundleIconName)" AppIconDev
 [ -f Carrier.app/Contents/Resources/Assets.car ] && [ -f Carrier.app/Contents/Resources/AppIconDev.icns ] || fail "a dev build lacks its compiled icon"
 plist SUFeedURL >/dev/null 2>&1 && fail "a dev build has SUFeedURL, so its updater would start"

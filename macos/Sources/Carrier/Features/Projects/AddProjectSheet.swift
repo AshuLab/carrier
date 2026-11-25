@@ -17,24 +17,21 @@ struct AddProjectSheet: View {
     /// Opens the Health tab of Settings, for the reason `gh` gives when it blocks the repositories.
     var openHealth: () -> Void = {}
 
-    @Environment(\.dismiss) private var dismiss
-    @State private var query = ""
-    @State private var highlightedId: String?
-    @State private var problem: String?
+    @Environment(\.dismiss) var dismiss
+    @State var query = ""
+    @State var highlightedId: String?
+    @State var problem: String?
     @State private var dropping = false
     @State private var loadedRecent: [RecentFolder] = []
-    @State private var github = ProjectSheetGithub(defaultParent: "")
-    @State private var checkTask: Task<Void, Never>?
-    @State private var capabilities: Set<ControlClient.Capability> = []
-    @State private var creating = false
-    @State private var form = NewProjectForm(defaultParent: "")
-    @State private var making = false
+    @State var github = ProjectSheetGithub(defaultParent: "")
+    @State var checkTask: Task<Void, Never>?
+    @State var capabilities: Set<ControlClient.Capability> = []
+    @State var creating = false
+    @State var form = NewProjectForm(defaultParent: "")
+    @State var making = false
     @State private var loadedOnce = false
     @FocusState private var fieldFocused: Bool
-    @FocusState private var nameFocused: Bool
-
-    /// ponytail: five pages of thirty are read, the newest pushes; a person with more types the address or searches for it, which the check below handles.
-    private static let listedPages = 5
+    @FocusState var nameFocused: Bool
 
     private var effectiveRecent: [RecentFolder] { recent.isEmpty ? loadedRecent : recent }
 
@@ -179,266 +176,6 @@ struct AddProjectSheet: View {
         .padding(.vertical, 12)
     }
 
-    // MARK: New project
-
-    /// The form of New project…: a name (a plain folder name) and where it is made, `<projects folder>/local/<name>` with Choose… for this one only. Create asks the
-    /// host to make the folder and register it, then closes the sheet and opens the project's page; a name whose folder is there is refused with the reason and nothing is written.
-    private var newProjectForm: some View {
-        let reason = form.problem(taken: model.isTaken)
-        return VStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 14) {
-                HStack(spacing: 12) {
-                    Glyph(.folderPlus, size: 16).foregroundStyle(Color.themeAccent)
-                        .frame(width: 36, height: 36)
-                        .background(RoundedRectangle(cornerRadius: 8).fill(Color.themeAccent.opacity(0.16)))
-                        .accessibilityHidden(true)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("New project").font(.scaled(16, weight: .semibold))
-                        Text(mode.actsAtOnce ? "An empty git folder, added as a project." : "An empty git folder, made when you send the first message.").font(.scaled(12)).foregroundStyle(.secondary)
-                    }
-                }
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Name").sectionLabel()
-                    TextField("", text: $form.name, prompt: Text("my-project"))
-                        .settingsField(icon: .folder, focused: $nameFocused)
-                        .autocorrectionDisabled()
-                        .writingToolsBehavior(.disabled)
-                        .accessibilityLabel("Name of the new project")
-                        .onSubmit(createProject)
-                        .onChange(of: form.name) { problem = nil }
-                    Text("Letters, numbers, dots and dashes").font(.scaled(11)).foregroundStyle(.tertiary)
-                }
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(mode.actsAtOnce ? "Create in" : "Will be created in").sectionLabel()
-                    HStack(spacing: 8) {
-                        Text(form.destinationLine().dropFirst("Creates ".count))
-                            .font(.scaled(11, design: .monospaced))
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                            .help(form.folder)
-                        if mode.actsAtOnce {
-                            Button("Choose…", action: chooseNewProjectParent)
-                                .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
-                                .accessibilityLabel("Choose where the new project is made")
-                        }
-                        Spacer(minLength: 0)
-                    }
-                }
-                if let line = problem ?? reason { ProblemLine(text: line) }
-            }
-            .padding(.horizontal, 24)
-            .padding(.top, 22)
-            .padding(.bottom, 16)
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            Spacer(minLength: 0)
-            SettingsDivider()
-            HStack(spacing: 12) {
-                Button("Back") {
-                    problem = nil
-                    creating = false
-                }
-                .buttonStyle(SecondaryCapsuleButtonStyle())
-                Spacer(minLength: 8)
-                Button("Cancel") { dismiss() }
-                    .buttonStyle(SecondaryCapsuleButtonStyle())
-                    .keyboardShortcut(.cancelAction)
-                Button(mode.actsAtOnce ? "Create" : "Use this project", action: createProject)
-                    .buttonStyle(PrimaryCapsuleButtonStyle())
-                    .disabled(form.canCreate(taken: model.isTaken) == false || making)
-            }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 12)
-        }
-        .frame(width: 580, height: 460)
-        .onAppear { nameFocused = true }
-    }
-
-    private func createProject() {
-        guard form.canCreate(taken: model.isTaken), making == false else { return }
-        if let newSession {
-            newSession.choose(newProject: form.name)
-            dismiss()
-            return
-        }
-        making = true
-        problem = nil
-        let name = form.name
-        let parent = form.chosenParent
-        Task {
-            defer { making = false }
-            do {
-                let folder = try await model.createProject(name, into: parent)
-                dismiss()
-                openProject(folder)
-            } catch ControlError.remote(let refusal) {
-                problem = refusal.text
-            } catch {
-                problem = hostNotRunning
-            }
-        }
-    }
-
-    /// The folder panel for the folder this one project is made in (the default is left as it is); refused for a folder inside Carrier's own.
-    private func chooseNewProjectParent() {
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = false
-        panel.canChooseDirectories = true
-        panel.canCreateDirectories = true
-        panel.allowsMultipleSelection = false
-        panel.directoryURL = URL(fileURLWithPath: form.parent)
-        panel.prompt = "Choose"
-        panel.message = "Choose the folder the new project is made in"
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        if let refusal = projectsFolderRefusal(url.path, carrierFolder: currentCarrierFolder()) {
-            problem = refusal.text
-            return
-        }
-        problem = nil
-        form.chosenParent = url.path
-    }
-
-    // MARK: Results
-
-    @ViewBuilder private func resultsList(_ current: ProjectSheetState) -> some View {
-        if current.items.isEmpty {
-            let emptyQuery = query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            EmptyStateView(
-                icon: emptyQuery ? .folder : .search,
-                title: emptyQuery ? "No recent folders" : "Nothing matches",
-                line: emptyQuery
-                    ? "Paste a GitHub address, type a path starting with ~ or /, drop folders here, or choose Open a folder… below."
-                    : "Nothing in your recent folders or repositories matches. Paste a GitHub address, or type a path starting with ~ or / to add any folder."
-            )
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else {
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 14) {
-                    ForEach(current.sections) { section in
-                        VStack(alignment: .leading, spacing: 4) {
-                            if let title = section.title {
-                                Text(title)
-                                    .sectionLabel()
-                                    .padding(.horizontal, 10)
-                                    .padding(.bottom, 2)
-                            }
-                            ForEach(section.items) { item in
-                                VStack(alignment: .leading, spacing: 2) {
-                                    resultRow(item, highlighted: highlightedId == item.id)
-                                    if item.destination != nil, highlightedId == item.id || section.id == "path" { destinationLine(item) }
-                                }
-                                .id(item.id)
-                            }
-                        }
-                    }
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 14)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-    }
-
-    private func resultRow(_ item: ProjectSheetResult, highlighted: Bool) -> some View {
-        HoverRow(
-            action: { activate(item) },
-            fill: highlighted ? Color.themeAccent.opacity(0.16) : nil
-        ) { hovering in
-            HStack(spacing: 12) {
-                ProjectIcon(tile: item.tile)
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 6) {
-                        Text(item.title)
-                            .font(.scaled(13, weight: .medium))
-                            .lineLimit(1)
-                            .truncationMode(.tail)
-                        if let chip = item.chip { StatusChip(text: chip, tint: .secondary) }
-                    }
-                    Text(item.detail)
-                        .font(.scaled(11, design: item.kind.isRepository ? .default : .monospaced))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(item.kind.isRepository ? .tail : .middle)
-                }
-                Spacer(minLength: 8)
-                if item.pushed.isEmpty == false {
-                    Text(item.pushed).font(.scaled(11)).foregroundStyle(.tertiary).lineLimit(1).fixedSize()
-                }
-                actionBadge(item.actionTitle, active: (hovering || highlighted) && item.isEnabled)
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 7)
-        }
-        .disabled(item.isEnabled == false)
-        .accessibilityLabel(item.problem.map { "\(item.title), \($0)" } ?? "\(item.title), \(item.detail)")
-        .accessibilityAddTraits(highlighted ? .isSelected : [])
-    }
-
-    /// Where a clone goes, with Choose… to change it for this clone only; a repository the login cannot see says so in orange instead.
-    @ViewBuilder private func destinationLine(_ item: ProjectSheetResult) -> some View {
-        if let problem = item.problem {
-            ProblemLine(text: problem).padding(.horizontal, 10).padding(.bottom, 4)
-        } else if let destination = item.destination, case .cloneRepo(let repo, _) = item.kind {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 8) {
-                    Text(destination.line)
-                        .font(.scaled(11, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .help(destination.parent + "/" + repo)
-                    if destination.canChoose {
-                        Button("Choose…") { chooseParent(for: repo, current: destination.parent) }
-                            .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
-                            .accessibilityLabel("Choose where \(repo) is cloned")
-                    }
-                    Spacer(minLength: 0)
-                }
-                if let watch = item.watch, let newSession { watchChoice(watch, newSession) }
-            }
-            .padding(.horizontal, 10).padding(.bottom, 4)
-        }
-    }
-
-    /// "Let Carrier watch this repo": on by default, a choice of the plan acted on once the first message was prepared; off, with the reason, when it cannot be on.
-    private func watchChoice(_ watch: ProjectSheetWatch, _ newSession: NewSessionModel) -> some View {
-        let on = watch.problem == nil && newSession.watch
-        return HStack(spacing: 8) {
-            Toggle("Let Carrier watch this repo", isOn: Binding(get: { on }, set: { newSession.watch = $0 }))
-                .toggleStyle(.switch).controlSize(.small).font(.scaled(11))
-                .disabled(watch.problem != nil)
-            if let reason = watch.problem { ProblemLine(text: reason, font: .scaled(11), announces: false) }
-            Spacer(minLength: 0)
-        }
-    }
-
-    private func actionBadge(_ title: String, active: Bool) -> some View {
-        Text(title)
-            .font(.scaled(11, weight: .semibold))
-            .foregroundStyle(active ? .white : .secondary)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 3)
-            .background(Capsule().fill(active ? Color.accentGlass : Color.primary.opacity(0.08)))
-    }
-
-    // MARK: Drop Veil
-
-    private var dropVeil: some View {
-        VStack(spacing: 4) {
-            Glyph(.folderPlus, size: 22).foregroundStyle(Color.themeAccent)
-            Text(mode.actsAtOnce ? "Drop folders to add" : "Drop a folder to work in").font(.scaled(14, weight: .semibold))
-            Text(mode.actsAtOnce ? "Folders are added to your projects; files are refused" : "The folder fills the plan; nothing is written").font(.scaled(12)).foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(RoundedRectangle(cornerRadius: 12).fill(Color.themeAccent.opacity(0.14)))
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
-        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Color.themeAccent, style: StrokeStyle(lineWidth: 1.5, dash: [6, 4])))
-        .padding(8)
-        .allowsHitTesting(false)
-        .transition(.opacity)
-    }
-
     // MARK: Actions & Keyboard
 
     private func highlightedOrFirst(in current: ProjectSheetState) -> ProjectSheetResult? {
@@ -458,7 +195,7 @@ struct AddProjectSheet: View {
         return .handled
     }
 
-    private func activate(_ item: ProjectSheetResult) {
+    func activate(_ item: ProjectSheetResult) {
         guard item.isEnabled else { return }
         if let newSession {
             dismiss()
@@ -476,89 +213,6 @@ struct AddProjectSheet: View {
         case .cloneRepo(let repo, let parent):
             clone(repo, into: parent)
         }
-    }
-
-    // MARK: GitHub
-
-    /// The person's repositories, page by page, and what the host can do; the host's own words when it cannot list them.
-    private func loadRepositories(_ host: SocketChatHost) async {
-        let found = (try? await host.capabilities()) ?? []
-        capabilities = found
-        // a host that did not answer is not one that is older: the clone itself says so
-        if found.isEmpty == false { github.canClone = found.contains(newSession == nil ? .projects : .repoBranches) }
-        guard found.contains(.githubRepos) else { return }
-        for page in 1...Self.listedPages {
-            do {
-                let loaded = try await host.githubRepos(page: page)
-                github.repos += loaded.repos.filter { isRepoName($0.name) }
-                if loaded.hasMore == false { return }
-            } catch ControlError.remote(let refusal) {
-                github.listingProblem = refusal.text
-                return
-            } catch {
-                return
-            }
-        }
-    }
-
-    /// A pasted address that is not in the person's repositories is looked up on GitHub once typing pauses, so a repository the login cannot see says so
-    /// before Clone is pressed.
-    private func checkPastedRepository() {
-        checkTask?.cancel()
-        guard let repo = repoReference(query), capabilities.contains(.repoBranches),
-            github.repos.contains(where: { $0.name.lowercased() == repo.lowercased() }) == false
-        else { return }
-        let key = repo.lowercased()
-        switch github.visibility[key] {
-        case .visible, .notVisible, .problem: return
-        case .checking, nil: break
-        }
-        github.visibility[key] = .checking
-        checkTask = Task {
-            try? await Task.sleep(for: .milliseconds(400))
-            guard Task.isCancelled == false else { return }
-            do {
-                _ = try await SocketChatHost().repoBranches(repo)
-                github.visibility[key] = .visible
-            } catch ControlError.remote(let refusal) {
-                github.visibility[key] = isRepoNotVisible(refusal) ? .notVisible : .problem(refusal.text)
-            } catch {
-                github.visibility[key] = nil
-            }
-        }
-    }
-
-    private func clone(_ repo: String, into parent: String?) {
-        problem = nil
-        Task {
-            do {
-                try await model.startClone(repo, into: parent)
-                dismiss()
-            } catch ControlError.remote(let refusal) {
-                problem = refusal.text
-            } catch {
-                problem = hostNotRunning
-            }
-        }
-    }
-
-    /// The system's folder panel for the folder this one clone goes in (the default is left as it is); refused for a folder inside Carrier's own.
-    private func chooseParent(for repo: String, current: String) {
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = false
-        panel.canChooseDirectories = true
-        panel.canCreateDirectories = true
-        panel.allowsMultipleSelection = false
-        panel.directoryURL = URL(fileURLWithPath: current)
-        panel.prompt = "Choose"
-        panel.message = "Choose the folder \(repo) is cloned into"
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        if let refusal = projectsFolderRefusal(url.path, carrierFolder: currentCarrierFolder()) {
-            problem = refusal.text
-            return
-        }
-        problem = nil
-        github.chosenParents[repo.lowercased()] = url.path
     }
 
     private func addFolder(_ path: String) {

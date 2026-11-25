@@ -33,6 +33,13 @@ struct TerminalTabBarView<Trailing: View>: View {
 
     private static var fadeWidth: CGFloat { 28 }
 
+    /// The width of the tabs once measured. Until then, and while a measure says 0, the group takes the room it has: a scroll view
+    /// held at 0 wide lays out nothing and would never measure its tabs.
+    private var groupMaxWidth: CGFloat {
+        guard let width = scroll.contentWidth, width > 0 else { return .infinity }
+        return width
+    }
+
     var body: some View {
         HStack(spacing: Tokens.Space.s8) {
             tabGroup
@@ -93,7 +100,7 @@ struct TerminalTabBarView<Trailing: View>: View {
                 }
             }
         }
-        .frame(maxWidth: scroll.contentWidth ?? .infinity)
+        .frame(maxWidth: groupMaxWidth)
         .padding(Tokens.Space.s4)
         .frame(height: Self.groupHeight)
         .background(Capsule().fill(Color.primary.opacity(0.07)))

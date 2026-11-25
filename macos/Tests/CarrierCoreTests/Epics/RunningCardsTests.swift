@@ -14,13 +14,13 @@ private func load(_ change: (inout PanelSnapshot) -> Void = { _ in }) throws -> 
 private let utc = TimeFormat(style: .relative, hours: .h24, timeZone: TimeZone(identifier: "UTC")!)
 
 @Test func nothingRunningHasNoCardsAndNamesTheRoom() throws {
-    let section = runningSection(try load { $0.epics = []; $0.slots.busy = 0 }, time: utc)
+    let section = runningSection(try load { $0.epics = []; $0.slots.busy = 0 }, time: utc, bundle: english.bundle, locale: english.locale)
     #expect(section.cards.isEmpty)
     #expect(section.room == FreeRoom(title: "3 free", line: "web #20 starts on the next check"))
 }
 
 @Test func partlyFullShowsACardPerRunningEpicAndHowMuchIsFree() throws {
-    let section = runningSection(try load(), time: utc)
+    let section = runningSection(try load(), time: utc, bundle: english.bundle, locale: english.locale)
     #expect(section.cards.map(\.title) == ["Issue 12 of acme/web", "Issue 13 of acme/web"])
     #expect(section.cards[0].subtitle == "acme/web · #12")
     #expect(section.cards[0].selection == .epic(repo: "acme/web", issue: 12))
@@ -29,31 +29,31 @@ private let utc = TimeFormat(style: .relative, hours: .h24, timeZone: TimeZone(i
 }
 
 @Test func fullWithAQueueSaysTheNextOneStartsWhenOneFinishes() throws {
-    let room = runningSection(try load { $0.slots.busy = 3 }, time: utc).room
+    let room = runningSection(try load { $0.slots.busy = 3 }, time: utc, bundle: english.bundle, locale: english.locale).room
     #expect(room == FreeRoom(title: "All 3 in use", line: "web #20 starts when one finishes", hasRoom: false))
 }
 
 @Test func fullWithNoQueueSaysNothingIsWaiting() throws {
-    let room = runningSection(try load { $0.slots.busy = 3; $0.queue = [] }, time: utc).room
+    let room = runningSection(try load { $0.slots.busy = 3; $0.queue = [] }, time: utc, bundle: english.bundle, locale: english.locale).room
     #expect(room == FreeRoom(title: "All 3 in use", line: "Nothing waiting", hasRoom: false))
 }
 
 @Test func progressIsSlicesMergedInShipAndRoundOverMaximumOtherwise() throws {
     let snapshot = try load { $0.epics[1].slices = .init(done: 1, total: 4) }
-    let cards = runningSection(snapshot, time: utc).cards
+    let cards = runningSection(snapshot, time: utc, bundle: english.bundle, locale: english.locale).cards
     #expect(cards[0].progressLine == "round 2/5" && cards[0].progress == 0.4)
     #expect(cards[1].progressLine == "1/4 slices" && cards[1].progress == 0.25)
 }
 
 @Test func anEpicWithNothingToCountYetHasNoBar() throws {
-    let cards = runningSection(try load(), time: utc).cards
+    let cards = runningSection(try load(), time: utc, bundle: english.bundle, locale: english.locale).cards
     #expect(cards[1].progressLine == "ship" && cards[1].progress == nil)
-    let starting = runningSection(try load { $0.epics[1].stage = nil }, time: utc).cards[1]
+    let starting = runningSection(try load { $0.epics[1].stage = nil }, time: utc, bundle: english.bundle, locale: english.locale).cards[1]
     #expect(starting.progressLine == "starting" && starting.progress == nil)
 }
 
 @Test func anAgentRowHasTheAgentRoleRoundActionAndStart() throws {
-    let rows = runningSection(try load { $0.sessions![0].startedAt = 1_700_000_000_000 }, time: utc).cards[0].agents
+    let rows = runningSection(try load { $0.sessions![0].startedAt = 1_700_000_000_000 }, time: utc, bundle: english.bundle, locale: english.locale).cards[0].agents
     #expect(rows.first == AgentRow(
         agent: "Codex", initial: "X", role: "Reviewer", round: "round 2/5", action: "Read src/auth/token.ts",
         since: "since 22:13", running: true
@@ -61,43 +61,43 @@ private let utc = TimeFormat(style: .relative, hours: .h24, timeZone: TimeZone(i
 }
 
 @Test func anEpicWithSeveralReviewersHasARowForEachRunningExecution() throws {
-    let rows = runningSection(try load(), time: utc).cards[0].agents
+    let rows = runningSection(try load(), time: utc, bundle: english.bundle, locale: english.locale).cards[0].agents
     #expect(rows.map(\.agent) == ["Codex", "Antigravity"])
     #expect(rows.map(\.role) == ["Reviewer", "Reviewer"])
     #expect(rows[1].action == "working" && rows[1].round == "round 2/5")
 }
 
 @Test func aShipRowHasNoRoundAndABuilderRole() throws {
-    let row = try #require(runningSection(try load(), time: utc).cards[1].agents.first)
+    let row = try #require(runningSection(try load(), time: utc, bundle: english.bundle, locale: english.locale).cards[1].agents.first)
     #expect(row.agent == "Claude" && row.initial == "C" && row.role == "Builder" && row.round == nil)
     #expect(row.action == "Writing the migration")
 }
 
 @Test func aSessionWithoutAnEventSaysWorking() throws {
-    let row = try #require(runningSection(try load { $0.sessions![2].last = nil }, time: utc).cards[1].agents.first)
+    let row = try #require(runningSection(try load { $0.sessions![2].last = nil }, time: utc, bundle: english.bundle, locale: english.locale).cards[1].agents.first)
     #expect(row.action == "working")
 }
 
 @Test func aRunningEpicWithNoSessionsYetHasACardWithoutRows() throws {
-    #expect(runningSection(try load { $0.sessions = [] }, time: utc).cards.allSatisfy { $0.agents.isEmpty })
-    #expect(runningSection(try load { $0.sessions = nil }, time: utc).cards.count == 2)
+    #expect(runningSection(try load { $0.sessions = [] }, time: utc, bundle: english.bundle, locale: english.locale).cards.allSatisfy { $0.agents.isEmpty })
+    #expect(runningSection(try load { $0.sessions = nil }, time: utc, bundle: english.bundle, locale: english.locale).cards.count == 2)
 }
 
 @Test func theRowSaysItIsNotRunningWhenItsEpicIsNotRunning() throws {
     let snapshot = try load()
     var epic = snapshot.epics[0]
-    #expect(agentRow(snapshot.sessions![0], epic: epic, time: utc).running)
+    #expect(agentRow(snapshot.sessions![0], epic: epic, time: utc, bundle: english.bundle, locale: english.locale).running)
     epic.status = .needsHuman
-    #expect(agentRow(snapshot.sessions![0], epic: epic, time: utc).running == false)
+    #expect(agentRow(snapshot.sessions![0], epic: epic, time: utc, bundle: english.bundle, locale: english.locale).running == false)
 }
 
 @Test func upNextListsTheQueueInOrderWithItsWait() throws {
     let snapshot = try load()
-    let rows = upNext(snapshot)
+    let rows = upNext(snapshot, bundle: english.bundle, locale: english.locale)
     #expect(rows.count == snapshot.queue.count)
     #expect(rows[0].selection == .epic(repo: snapshot.queue[0].repo, issue: snapshot.queue[0].issue))
     #expect(rows[0].line.hasPrefix("1st in queue"))
     #expect(rows.count < 2 || rows[1].line.hasPrefix("2nd in queue"))
-    let unknown = upNext(try load { for i in $0.queue.indices { $0.queue[i].queuedAt = nil } })
+    let unknown = upNext(try load { for i in $0.queue.indices { $0.queue[i].queuedAt = nil } }, bundle: english.bundle, locale: english.locale)
     #expect(unknown[0].line == "1st in queue")
 }

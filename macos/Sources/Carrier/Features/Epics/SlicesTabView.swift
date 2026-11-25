@@ -55,7 +55,7 @@ struct SlicesRing: View {
         .padding(Self.lineWidth / 2)
         .frame(width: Self.size, height: Self.size)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(centre) slices, \(caption)")
+        .accessibilityLabel(Copy.epicsSlicesRingSpoken(centre: centre, caption: caption))
     }
 }
 
@@ -74,14 +74,14 @@ struct SlicesTabView: View {
         } else {
             ScrollView {
                 VStack(alignment: .leading, spacing: Tokens.Space.s4) {
-                    SlicesRing(counts: model.counts, centre: model.centre, caption: model.caption)
+                    SlicesRing(counts: model.counts, centre: model.centre, caption: model.caption())
                         .frame(maxWidth: .infinity).padding(.top, Tokens.Space.s16).padding(.bottom, Tokens.Space.s22)
                     ForEach(model.legend, id: \.group) { entry in
-                        total(entry.group.title, count: entry.count, color: entry.group.color, filter: .only(entry.group), selected: model.selected)
+                        total(entry.group.title(), count: entry.count, color: entry.group.color, filter: .only(entry.group), selected: model.selected)
                     }
-                    total("Total", count: model.total, color: .clear, filter: .all, selected: model.selected)
+                    total(Copy.epicsSlicesTotal(), count: model.total, color: .clear, filter: .all, selected: model.selected)
                     if let why = model.unavailable {
-                        EmptyStateView(icon: why.icon, title: why.title, line: why.line).frame(minHeight: 190)
+                        EmptyStateView(icon: why.icon, title: why.title(), line: why.line()).frame(minHeight: 190)
                     }
                     VStack(spacing: Tokens.Space.s8) {
                         ForEach(model.rows, id: \.number) { SliceRowView(row: $0) }
@@ -127,7 +127,7 @@ struct SliceRowView: View {
                     .foregroundStyle(group == .pending ? Color.secondary : .primary).lineLimit(2)
                 HStack(spacing: Tokens.Space.s6) {
                     if group != .inProgress { chip("#\(row.number)", url: row.issueURL, accent: false) }
-                    if let number = row.prNumber { chip("PR #\(number)", url: row.prURL, accent: true) }
+                    if let number = row.prNumber { chip(Copy.sidebarPr(number: String(number)), url: row.prURL, accent: true) }
                     Text(row.detail).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                 }
             }

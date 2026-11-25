@@ -40,15 +40,15 @@ private struct FilesSummary: View {
 
     var body: some View {
         HStack(spacing: Tokens.Space.s6) {
-            Text("Epic total").font(.caption.weight(.semibold)).foregroundStyle(.secondary).padding(.trailing, Tokens.Space.s2)
-            Pill { Text("\(model.fileCount)").fontWeight(.semibold).foregroundStyle(.primary); Text(model.fileCount == 1 ? "file" : "files") }
+            Text(Copy.epicsFilesTotal()).font(.caption.weight(.semibold)).foregroundStyle(.secondary).padding(.trailing, Tokens.Space.s2)
+            Pill { Text("\(model.fileCount)").fontWeight(.semibold).foregroundStyle(.primary); Text(Copy.epicsFileWord(count: model.fileCount)) }
             Pill { Text("+\(model.added)").fontWeight(.semibold).foregroundStyle(.green) }
             Pill { Text("−\(model.removed)").fontWeight(.semibold).foregroundStyle(.red) }
             DiffSquares(added: model.added, removed: model.removed).padding(.leading, Tokens.Space.s4)
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Epic total: \(model.fileCount) \(model.fileCount == 1 ? "file" : "files"), \(model.added) lines added, \(model.removed) removed")
-        .help("Every session together: each file counted once, the lines of every session added up")
+        .accessibilityLabel(Copy.epicsFilesSpoken(files: model.fileCount, added: model.added, removed: model.removed))
+        .help(Copy.epicsFilesTotalHelp())
     }
 }
 
@@ -80,7 +80,7 @@ private struct FileSectionView: View {
                             Pill {
                                 Glyph(.fileText, size: 10)
                                 Text("\(section.files.count)").fontWeight(.semibold).foregroundStyle(.primary)
-                                Text(section.files.count == 1 ? "file" : "files")
+                                Text(Copy.epicsFileWord(count: section.files.count))
                             }
                             Pill { Text("+\(section.added)").fontWeight(.semibold).foregroundStyle(.green) }
                             Pill { Text("−\(section.removed)").fontWeight(.semibold).foregroundStyle(.red) }
@@ -89,7 +89,7 @@ private struct FileSectionView: View {
                     Spacer(minLength: 8)
                     HStack(spacing: Tokens.Space.s4) {
                         if section.working == false { Glyph(.gitMerge, size: 9) }
-                        Text(section.working ? "not merged yet" : "merged")
+                        Text(section.working ? Copy.epicsFilesNotMerged() : Copy.epicsFilesMerged())
                     }
                     .font(.caption.weight(.medium)).foregroundStyle(section.working ? Color.blue : .purple)
                     .padding(.horizontal, Tokens.Space.s8).padding(.vertical, Tokens.Space.s2)
@@ -143,17 +143,17 @@ private struct OpeningFileRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("\(row.directory)\(row.name), \(row.added) lines added, \(row.removed) removed")
-        .accessibilityValue(open ? "expanded" : "collapsed")
-        .accessibilityHint(open ? "Hides the changes" : "Shows the changes")
+        .accessibilityLabel(Copy.epicsFileSpoken(path: row.directory + row.name, added: row.added, removed: row.removed))
+        .accessibilityValue(open ? Copy.epicsExpanded() : Copy.epicsCollapsed())
+        .accessibilityHint(open ? Copy.epicsFileHide() : Copy.epicsFileShow())
         if open {
             Group {
                 switch fileDiffs.fragments[key] {
                 case .rows(let rows, let truncated)?:
-                    DiffView(rows: rows, showAll: $showAll, cut: truncated ? "The diff was cut: it is longer than Carrier shows" : nil)
+                    DiffView(rows: rows, showAll: $showAll, cut: truncated ? Copy.epicsFileCut() : nil)
                 case .note(let text)?: line(text)
-                case .failed?: line("The changes cannot be loaded")
-                case nil: line("Loading the changes…")
+                case .failed?: line(Copy.epicsFileFailed())
+                case nil: line(Copy.epicsFileLoading())
                 }
             }
             .padding(.horizontal, Tokens.Space.s12).padding(.bottom, Tokens.Space.s10)
@@ -217,7 +217,7 @@ struct FileRowView: View {
         HStack(spacing: Tokens.Space.s6) {
             Text(row.directory).foregroundStyle(.tertiary).lineLimit(1).truncationMode(.middle)
             if row.alsoIn.isEmpty == false {
-                Text("⚠ also in \(row.alsoIn.joined(separator: ", "))").foregroundStyle(.orange).lineLimit(1).fixedSize()
+                Text(Copy.epicsFileAlsoIn(sessions: row.alsoIn.joined(separator: ", "))).foregroundStyle(.orange).lineLimit(1).fixedSize()
             }
         }
         .font(.caption)

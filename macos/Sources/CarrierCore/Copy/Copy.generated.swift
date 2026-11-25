@@ -3393,4 +3393,1318 @@ public enum Copy {
     public static func chatDiffShowMore(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
         String(localized: "chatDiffShowMore \(count)", bundle: bundle ?? carrierResources, locale: locale)
     }
+
+    public static func epicsSlicesLine(done: Int, total: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsSlicesLine \(done) \(total)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsRoundLine(round: Int, max: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsRoundLine \(round) \(max)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsBlockers(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsBlockers \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsBlockersOpen(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsBlockersOpen \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsNoBlockers(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsNoBlockers", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsRepos(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsRepos \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsUptime(duration: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsUptime \(duration)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsNextCheckLine(duration: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsNextCheckLine \(duration)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsNextCheckIn(duration: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsNextCheckIn \(duration)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsNextCheckNow(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsNextCheckNow", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsNextCheckStarting(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsNextCheckStarting", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsAgoUnknown(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsAgoUnknown", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsWorking(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsWorking", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsSince(time: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsSince \(time)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsMenuNeedsAttention(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsMenuNeedsAttention", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsMenuWaiting(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsMenuWaiting", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsMenuReadyPr(number: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsMenuReadyPr \(number)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsMenuMore(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsMenuMore \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsResumeWordsReviewLimit(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsResumeWordsReviewLimit \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsResumeWordsAgentNeedsHuman(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsResumeWordsAgentNeedsHuman", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsResumeWordsFixCause(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsResumeWordsFixCause", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsResumeWordsOther(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsResumeWordsOther", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsResumeSheetLabel(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsResumeSheetLabel", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsResumeSheetStart(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsResumeSheetStart", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsResumeSheetRounds(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsResumeSheetRounds", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsResumeSheetStops(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsResumeSheetStops", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsResumeRefusedUnknown(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsResumeRefusedUnknown", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsResumeRefusedNotStopped(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsResumeRefusedNotStopped", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsResumeRefusedGithub(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsResumeRefusedGithub", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsResumeRefusedNotRestarted(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsResumeRefusedNotRestarted", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsResumeFailed(reason: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsResumeFailed \(reason)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsResumeStopped(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsResumeStopped", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsResumeUnsupported(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsResumeUnsupported", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsResume(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsResume", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsResuming(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsResuming", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsResumeQuestion(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsResumeQuestion", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsCancel(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsCancel", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsTryAgain(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsTryAgain", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsSliceStarting(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsSliceStarting", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsSliceCalls(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsSliceCalls \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsSliceCallsSoFar(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsSliceCallsSoFar \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsSliceEdits(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsSliceEdits \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsSliceTests(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsSliceTests \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsSliceErrors(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsSliceErrors \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsSliceIncomplete(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsSliceIncomplete", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsSliceLane(number: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsSliceLane \(number)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsSliceLaneHelp(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsSliceLaneHelp", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsSliceStateDone(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsSliceStateDone", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsSliceStateFailed(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsSliceStateFailed", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsSliceSpoken(number: String, title: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsSliceSpoken \(number) \(title)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public enum EpicsSlicePrSpoken: Sendable { case merged; case open; case draft; case closed; case unknown }
+    public static func epicsSlicePrSpoken(state: EpicsSlicePrSpoken, number: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch state {
+        case .merged: return String(localized: "epicsSlicePrSpoken.merged \(number)", bundle: bundle ?? carrierResources, locale: locale)
+        case .open: return String(localized: "epicsSlicePrSpoken.open \(number)", bundle: bundle ?? carrierResources, locale: locale)
+        case .draft: return String(localized: "epicsSlicePrSpoken.draft \(number)", bundle: bundle ?? carrierResources, locale: locale)
+        case .closed: return String(localized: "epicsSlicePrSpoken.closed \(number)", bundle: bundle ?? carrierResources, locale: locale)
+        case .unknown: return String(localized: "epicsSlicePrSpoken.unknown \(number)", bundle: bundle ?? carrierResources, locale: locale)
+        }
+    }
+
+    public static func epicsLaneSubagent(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsLaneSubagent", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public enum EpicsLanePullRequest: Sendable { case merged; case open; case draft; case closed; case plain }
+    public static func epicsLanePullRequest(state: EpicsLanePullRequest, number: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch state {
+        case .merged: return String(localized: "epicsLanePullRequest.merged \(number)", bundle: bundle ?? carrierResources, locale: locale)
+        case .open: return String(localized: "epicsLanePullRequest.open \(number)", bundle: bundle ?? carrierResources, locale: locale)
+        case .draft: return String(localized: "epicsLanePullRequest.draft \(number)", bundle: bundle ?? carrierResources, locale: locale)
+        case .closed: return String(localized: "epicsLanePullRequest.closed \(number)", bundle: bundle ?? carrierResources, locale: locale)
+        case .plain: return String(localized: "epicsLanePullRequest.plain \(number)", bundle: bundle ?? carrierResources, locale: locale)
+        }
+    }
+
+    public static func epicsLaneNoPullRequest(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsLaneNoPullRequest", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsLaneResumed(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsLaneResumed \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsGroupMerged(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsGroupMerged", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsGroupInProgress(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsGroupInProgress", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsGroupPending(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsGroupPending", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsSlicesUnavailableTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsSlicesUnavailableTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsSlicesReadingTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsSlicesReadingTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsSlicesUnavailableLine(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsSlicesUnavailableLine", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsSlicesReadingLine(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsSlicesReadingLine", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsSlicesAllMerged(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsSlicesAllMerged", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsSlicesMerged(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsSlicesMerged", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsSliceLaneHint(number: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsSliceLaneHint \(number)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsSliceReady(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsSliceReady", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsSliceAfter(blockers: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsSliceAfter \(blockers)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsSlicesTotal(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsSlicesTotal", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsSlicesRingSpoken(centre: String, caption: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsSlicesRingSpoken \(centre) \(caption)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsDetailsGroupTiming(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsDetailsGroupTiming", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsDetailsGroupProgress(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsDetailsGroupProgress", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsDetailsGroupRun(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsDetailsGroupRun", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsDetailsLabelStage(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsDetailsLabelStage", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsDetailsLabelLastActivity(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsDetailsLabelLastActivity", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsDetailsLabelStarted(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsDetailsLabelStarted", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsDetailsLabelTotalTime(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsDetailsLabelTotalTime", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsDetailsLabelSlices(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsDetailsLabelSlices", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsDetailsLabelReviewRound(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsDetailsLabelReviewRound", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsDetailsLabelBlockers(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsDetailsLabelBlockers", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsDetailsLabelPullRequest(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsDetailsLabelPullRequest", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsDetailsLabelChecks(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsDetailsLabelChecks", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsDetailsLabelBranch(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsDetailsLabelBranch", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsDetailsLabelAgent(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsDetailsLabelAgent", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsDetailsLabelLanes(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsDetailsLabelLanes", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsDetailsLabelRepository(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsDetailsLabelRepository", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public enum EpicsDetailsStage: Sendable { case ship; case review; case fix }
+    public static func epicsDetailsStage(stage: EpicsDetailsStage, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch stage {
+        case .ship: return String(localized: "epicsDetailsStage.ship", bundle: bundle ?? carrierResources, locale: locale)
+        case .review: return String(localized: "epicsDetailsStage.review", bundle: bundle ?? carrierResources, locale: locale)
+        case .fix: return String(localized: "epicsDetailsStage.fix", bundle: bundle ?? carrierResources, locale: locale)
+        }
+    }
+
+    public static func epicsDetailsNeedsYou(stage: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsDetailsNeedsYou \(stage)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsDetailsFinished(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsDetailsFinished", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsDetailsNoMovement(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsDetailsNoMovement", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsDetailsAgentOutput(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsDetailsAgentOutput", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsDetailsNoActivity(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsDetailsNoActivity", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsDetailsRoundAfterShip(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsDetailsRoundAfterShip", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsDetailsRoundLimit(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsDetailsRoundLimit", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsDetailsInProgress(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsDetailsInProgress", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsDetailsRoundCancelled(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsDetailsRoundCancelled", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsDetailsRoundApproved(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsDetailsRoundApproved", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsDetailsOf(done: Int, total: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsDetailsOf \(done) \(total)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsDetailsLeft(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsDetailsLeft \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsDetailsNoneOpen(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsDetailsNoneOpen", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsDetailsBlockersOpen(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsDetailsBlockersOpen \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsDetailsNone(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsDetailsNone", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsDetailsOpensOnGithub(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsDetailsOpensOnGithub", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsDetailsOpensWhenMerged(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsDetailsOpensWhenMerged", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsDetailsNotYet(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsDetailsNotYet", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsDetailsOnThePr(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsDetailsOnThePr", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsDetailsChecksPassing(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsDetailsChecksPassing \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsDetailsChecksFailing(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsDetailsChecksFailing \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsDetailsChecksPending(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsDetailsChecksPending \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsDetailsNoChecks(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsDetailsNoChecks", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public enum EpicsCardTime: Sendable { case queued; case started; case finished }
+    public static func epicsCardTime(when: EpicsCardTime, ago: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch when {
+        case .queued: return String(localized: "epicsCardTime.queued \(ago)", bundle: bundle ?? carrierResources, locale: locale)
+        case .started: return String(localized: "epicsCardTime.started \(ago)", bundle: bundle ?? carrierResources, locale: locale)
+        case .finished: return String(localized: "epicsCardTime.finished \(ago)", bundle: bundle ?? carrierResources, locale: locale)
+        }
+    }
+
+    public static func epicsCardInThisStep(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsCardInThisStep", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsCardReview(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsCardReview", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsCardClosed(done: Int, total: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsCardClosed \(done) \(total)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsCardReason(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsCardReason", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsCardPr(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsCardPr", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsStepQueued(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsStepQueued", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsStepReviewFix(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsStepReviewFix", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsStepReady(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsStepReady", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsStepCancelled(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsStepCancelled", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public enum EpicsQueuePlace: Sendable { case one; case two; case few; case other }
+    public static func epicsQueuePlace(kind: EpicsQueuePlace, place: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch kind {
+        case .one: return String(localized: "epicsQueuePlace.one \(place)", bundle: bundle ?? carrierResources, locale: locale)
+        case .two: return String(localized: "epicsQueuePlace.two \(place)", bundle: bundle ?? carrierResources, locale: locale)
+        case .few: return String(localized: "epicsQueuePlace.few \(place)", bundle: bundle ?? carrierResources, locale: locale)
+        case .other: return String(localized: "epicsQueuePlace.other \(place)", bundle: bundle ?? carrierResources, locale: locale)
+        }
+    }
+
+    public static func epicsStatusUpNext(place: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsStatusUpNext \(place)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsStatusCancelledWhy(reason: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsStatusCancelledWhy \(reason)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsStatusRunning(line: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsStatusRunning \(line)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsStatusNeedsAttention(line: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsStatusNeedsAttention \(line)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsTitleFallback(issue: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsTitleFallback \(issue)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsTabAgentOutput(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsTabAgentOutput", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsTabFilesChanged(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsTabFilesChanged", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsTabSlices(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsTabSlices", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsTabReview(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsTabReview", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsTabDetails(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsTabDetails", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsStateNeedsAttention(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsStateNeedsAttention", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsStateRunning(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsStateRunning", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsStateUpNext(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsStateUpNext", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsStateReady(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsStateReady", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsStateDone(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsStateDone", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsStateCancelled(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsStateCancelled", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsStepSpokenDone(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsStepSpokenDone", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsStepSpokenCurrent(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsStepSpokenCurrent", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsStepSpokenWaiting(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsStepSpokenWaiting", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsStepSpokenInput(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsStepSpokenInput", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsStepSpokenError(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsStepSpokenError", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsStepSpokenCancelled(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsStepSpokenCancelled", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsOpenIssue(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsOpenIssue", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsOpenPr(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsOpenPr", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsOpenIssueHelp(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsOpenIssueHelp", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsOpenPullRequestHelp(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsOpenPullRequestHelp", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsOpenRepository(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsOpenRepository", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsLoadingTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsLoadingTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsLoadingLine(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsLoadingLine", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsRoomFree(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsRoomFree \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsRoomAllUsed(total: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsRoomAllUsed \(total)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsRoomStartsNext(name: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsRoomStartsNext \(name)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsRoomStartsWhenFree(name: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsRoomStartsWhenFree \(name)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsRoomNothing(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsRoomNothing", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsUpNextWaiting(duration: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsUpNextWaiting \(duration)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsYourTurn(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsYourTurn", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsItems(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsItems \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsPlanHeading(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsPlanHeading", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsPlanShip(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsPlanShip", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsPlanReview(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsPlanReview", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsPlanFix(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsPlanFix", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsPlanReady(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsPlanReady", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsPlanSlotFree(busy: Int, total: Int, ahead: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsPlanSlotFree \(busy) \(total) \(ahead)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsPlanSlotsBusy(total: Int, busy: Int, ahead: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsPlanSlotsBusy \(total) \(busy) \(ahead)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsPlanSlotUnknown(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsPlanSlotUnknown", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsStepCloneRunning(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsStepCloneRunning", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsStepCloneDone(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsStepCloneDone", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsStepCloneFailed(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsStepCloneFailed", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsStepFetchRunning(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsStepFetchRunning", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsStepFetchDone(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsStepFetchDone", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsStepFetchFailed(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsStepFetchFailed", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsStepProjectRunning(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsStepProjectRunning", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsStepProjectDone(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsStepProjectDone", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsStepProjectFailed(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsStepProjectFailed", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsStepWorktreeRunning(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsStepWorktreeRunning", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsStepWorktreeDone(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsStepWorktreeDone", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsStepWorktreeFailed(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsStepWorktreeFailed", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsStepCheckoutRunning(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsStepCheckoutRunning", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsStepCheckoutDone(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsStepCheckoutDone", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsStepCheckoutFailed(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsStepCheckoutFailed", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsStepActionRunning(name: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsStepActionRunning \(name)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsStepActionDone(name: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsStepActionDone \(name)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsStepActionFailed(name: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsStepActionFailed \(name)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsStepAnActionRunning(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsStepAnActionRunning", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsStepAnActionDone(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsStepAnActionDone", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsStepAnActionFailed(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsStepAnActionFailed", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsStepAgentRunning(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsStepAgentRunning", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsStepAgentDone(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsStepAgentDone", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsStepAgentFailed(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsStepAgentFailed", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsStepMessageRunning(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsStepMessageRunning", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsStepMessageDone(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsStepMessageDone", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsStepMessageFailed(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsStepMessageFailed", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsStepOtherRunning(step: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsStepOtherRunning \(step)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsStepOtherDone(step: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsStepOtherDone \(step)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsStepOtherFailed(step: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsStepOtherFailed \(step)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsStepAgentNext(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsStepAgentNext", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsStepMessageNext(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsStepMessageNext", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsPrepPreparing(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsPrepPreparing", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsPrepStillWaiting(clock: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsPrepStillWaiting \(clock)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsPrepStopped(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsPrepStopped", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsPrepSlowDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsPrepSlowDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsPrepReady(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsPrepReady", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsPrepStep(step: Int, total: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsPrepStep \(step) \(total)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsPrepStepFirstTime(step: Int, total: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsPrepStepFirstTime \(step) \(total)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsFileBinary(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsFileBinary", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsFileTooBig(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsFileTooBig", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsFileNoChanges(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsFileNoChanges", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsFileNoPreview(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsFileNoPreview", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsFilesTotal(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsFilesTotal", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsFileWord(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsFileWord \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsFilesSpoken(files: Int, added: Int, removed: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsFilesSpoken \(files) \(added) \(removed)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsFilesTotalHelp(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsFilesTotalHelp", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsFilesNotMerged(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsFilesNotMerged", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsFilesMerged(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsFilesMerged", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsFileSpoken(path: String, added: Int, removed: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsFileSpoken \(path) \(added) \(removed)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsExpanded(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsExpanded", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsCollapsed(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsCollapsed", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsFileHide(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsFileHide", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsFileShow(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsFileShow", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsFileCut(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsFileCut", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsFileFailed(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsFileFailed", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsFileLoading(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsFileLoading", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsFileAlsoIn(sessions: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsFileAlsoIn \(sessions)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsMarkNew(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsMarkNew", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsMarkSince(round: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsMarkSince \(round)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsMarkCarriedOver(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsMarkCarriedOver", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsMarkCarried(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsMarkCarried", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsMarkFixed(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsMarkFixed", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsReviewTheAuthor(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsReviewTheAuthor", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsReviewTheReviewer(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsReviewTheReviewer", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsReviewIsReviewing(who: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsReviewIsReviewing \(who)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsReviewRound(round: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsReviewRound \(round)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsReviewIfBlockers(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsReviewIfBlockers", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsReviewVerdict(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsReviewVerdict", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsReviewAfterReview(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsReviewAfterReview", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsChipReviewing(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsChipReviewing", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsReviewReviewed(who: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsReviewReviewed \(who)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsReviewIsFixing(who: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsReviewIsFixing \(who)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsChipFixingNow(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsChipFixingNow", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsReviewPushedFix(who: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsReviewPushedFix \(who)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsReviewPushedCommits(count: Int, who: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsReviewPushedCommits \(count) \(who)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsReviewWaitingAuthor(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsReviewWaitingAuthor", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsReviewApproved(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsReviewApproved", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsReviewLimit(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsReviewLimit", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsReviewLimitDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsReviewLimitDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsReviewReReviewed(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsReviewReReviewed", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsReviewInRound(round: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsReviewInRound \(round)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsReviewReReview(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsReviewReReview", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsReviewChecksAgain(who: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsReviewChecksAgain \(who)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsChipApproved(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsChipApproved", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsChipStillOpen(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsChipStillOpen", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsChipAllFixed(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsChipAllFixed", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsChipCarriedOver(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsChipCarriedOver \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsChipChangesRequested(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsChipChangesRequested", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public enum EpicsReviewHeading: Sendable { case now; case result }
+    public static func epicsReviewHeading(kind: EpicsReviewHeading, round: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch kind {
+        case .now: return String(localized: "epicsReviewHeading.now \(round)", bundle: bundle ?? carrierResources, locale: locale)
+        case .result: return String(localized: "epicsReviewHeading.result \(round)", bundle: bundle ?? carrierResources, locale: locale)
+        }
+    }
+
+    public static func epicsReviewHeadlineOf(round: Int, max: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsReviewHeadlineOf \(round) \(max)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsThreadUnknown(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsThreadUnknown", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsThreadBot(name: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsThreadBot \(name)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsReviewHistory(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsReviewHistory", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsReviewNotStartedAgain(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsReviewNotStartedAgain", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsThreadsTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsThreadsTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsThreadsNone(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsThreadsNone", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsThreadsPartial(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsThreadsPartial", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsThreadOutdated(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsThreadOutdated", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsThreadResolved(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsThreadResolved", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsThreadUnresolved(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsThreadUnresolved", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsReviewNoBlockers(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsReviewNoBlockers", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsReviewApproximate(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsReviewApproximate", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsMoreCommits(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsMoreCommits \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsReviewObservation(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsReviewObservation", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsFindingsReady(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsFindingsReady", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsFindingsChangesRequested(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsFindingsChangesRequested", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsFindingsNone(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsFindingsNone", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsFindingsFixed(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsFindingsFixed \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsSuggestions(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsSuggestions \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsFindingBlocker(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsFindingBlocker", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsFindingSuggestion(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsFindingSuggestion", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsFindingApproximately(mark: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsFindingApproximately \(mark)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsFindingApproximateHelp(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsFindingApproximateHelp", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsFindingsPrSpoken(number: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsFindingsPrSpoken \(number)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsFindingsHide(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsFindingsHide", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsFindingsShow(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsFindingsShow", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsEvidenceHide(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsEvidenceHide", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsEvidenceShow(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsEvidenceShow", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsVerifiedSpoken(verdict: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsVerifiedSpoken \(verdict)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsVerified(verdict: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsVerified \(verdict)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsFindingsOpensDiscussion(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsFindingsOpensDiscussion", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsToolbarSidebar(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsToolbarSidebar", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsToolbarSidebarHelp(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsToolbarSidebarHelp", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsToolbarBack(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsToolbarBack", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsToolbarForward(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsToolbarForward", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsToolbarBackToOutput(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsToolbarBackToOutput", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsToolbarInspector(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsToolbarInspector", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsToolbarInspectorHelp(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsToolbarInspectorHelp", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsToolbarBackToSubagent(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsToolbarBackToSubagent", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsToolbarBackToConversation(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsToolbarBackToConversation", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsToolbarStop(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsToolbarStop", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsToolbarStopSubagentHelp(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsToolbarStopSubagentHelp", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsToolbarHideTerminal(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsToolbarHideTerminal", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsToolbarOpenTerminal(path: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsToolbarOpenTerminal \(path)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsToolbarCheckUsageHelp(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsToolbarCheckUsageHelp", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsToolbarCheckNow(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsToolbarCheckNow", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsToolbarChecking(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsToolbarChecking", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsToolbarCheckGithub(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsToolbarCheckGithub", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsToolbarResumeIntake(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsToolbarResumeIntake", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsToolbarPauseIntake(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsToolbarPauseIntake", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsToolbarStopCarrier(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsToolbarStopCarrier", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsPanelSession(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsPanelSession", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsPanelTerminal(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsPanelTerminal", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsPanelCloseTerminal(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsPanelCloseTerminal", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsPanelUsageSubtitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsPanelUsageSubtitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsTerminalFolderGone(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsTerminalFolderGone", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsLeadAnIdentity(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsLeadAnIdentity", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsLeadAProvider(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsLeadAProvider", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsLeadAModel(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsLeadAModel", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsLeadTwo(first: String, second: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsLeadTwo \(first) \(second)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsLeadThree(first: String, second: String, third: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsLeadThree \(first) \(second) \(third)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsLeadHint(list: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsLeadHint \(list)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsLeadOff(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsLeadOff", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func epicsLeadTurnOff(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "epicsLeadTurnOff", bundle: bundle ?? carrierResources, locale: locale)
+    }
 }

@@ -22,24 +22,24 @@ public struct ResumeCard: Equatable {
 }
 
 /// nil unless the epic is stopped in needs-human. `canResume`: the engine's hello lists `resumeEpic`.
-public func resumeCard(_ epic: PanelEpic, canResume: Bool) -> ResumeCard? {
+public func resumeCard(_ epic: PanelEpic, canResume: Bool, bundle: Bundle? = nil, locale: Locale = .current) -> ResumeCard? {
     guard epic.status == .needsHuman else { return nil }
-    let line = interventionLine(epic)
+    let line = interventionLine(epic, bundle: bundle, locale: locale)
     let attention = Attention(kind: epic.needsHumanKind)
     let words: String
     switch epic.needsHumanKind {
-    case "review_limit": words = "Resuming gives the epic \(epic.maxReviews) new review rounds."
-    case "agent_needs_human": words = "Do what the agent asked on the pull request first, then resume."
-    case "retries_exhausted", "timeout", "auth", "workspace", "pr_invalid": words = "Fix the cause first, then resume to start the epic again from ship."
-    default: words = "Deal with the cause first, then resume."
+    case "review_limit": words = Copy.epicsResumeWordsReviewLimit(count: epic.maxReviews, bundle: bundle, locale: locale)
+    case "agent_needs_human": words = Copy.epicsResumeWordsAgentNeedsHuman(bundle: bundle, locale: locale)
+    case "retries_exhausted", "timeout", "auth", "workspace", "pr_invalid": words = Copy.epicsResumeWordsFixCause(bundle: bundle, locale: locale)
+    default: words = Copy.epicsResumeWordsOther(bundle: bundle, locale: locale)
     }
     return ResumeCard(
         title: line.prefix(1).uppercased() + line.dropFirst(), words: words, attention: attention,
         sheet: [
-            "solve:epic:ready goes back on the issue.",
-            "The epic starts again from ship, reusing its worktree and its pull request.",
-            "The review rounds start over.",
-            "If the cause is not fixed, it stops here again.",
+            Copy.epicsResumeSheetLabel(bundle: bundle, locale: locale),
+            Copy.epicsResumeSheetStart(bundle: bundle, locale: locale),
+            Copy.epicsResumeSheetRounds(bundle: bundle, locale: locale),
+            Copy.epicsResumeSheetStops(bundle: bundle, locale: locale),
         ],
         showsButton: canResume
     )
@@ -52,12 +52,12 @@ public enum ResumeRefusal: String, CaseIterable {
     case githubUnavailable = "github.unavailable"
     case didNotRestart = "resume.didNotRestart"
 
-    var words: String {
+    func words(bundle: Bundle?, locale: Locale) -> String {
         switch self {
-        case .unknownEpic: "Carrier does not know this epic."
-        case .notStopped: "This epic is not stopped, so there is nothing to resume."
-        case .githubUnavailable: "GitHub did not answer, so nothing was resumed. Try again."
-        case .didNotRestart: "The label is back on the issue, but the epic did not start within thirty seconds. The next check will take it."
+        case .unknownEpic: Copy.epicsResumeRefusedUnknown(bundle: bundle, locale: locale)
+        case .notStopped: Copy.epicsResumeRefusedNotStopped(bundle: bundle, locale: locale)
+        case .githubUnavailable: Copy.epicsResumeRefusedGithub(bundle: bundle, locale: locale)
+        case .didNotRestart: Copy.epicsResumeRefusedNotRestarted(bundle: bundle, locale: locale)
         }
     }
 }
@@ -89,11 +89,13 @@ public func resumeEpic(socketPath: String, repo: String, issue: Int) -> ResumeRe
 }
 
 /// What the card says when the epic was not resumed; nil when it was.
-public func resumeFailureWords(_ result: ResumeResult) -> String? {
+public func resumeFailureWords(_ result: ResumeResult, bundle: Bundle? = nil, locale: Locale = .current) -> String? {
     switch result {
     case .resumed: nil
-    case .refused(let refusal): refusal.code.flatMap(ResumeRefusal.init(rawValue:))?.words ?? "Carrier could not resume this epic (\(refusal.shown()))."
-    case .stopped: "Carrier is not running."
-    case .unsupported: "This Carrier cannot resume epics. Update it."
+    case .refused(let refusal):
+        refusal.code.flatMap(ResumeRefusal.init(rawValue:))?.words(bundle: bundle, locale: locale)
+            ?? Copy.epicsResumeFailed(reason: refusal.shown(bundle: bundle, locale: locale), bundle: bundle, locale: locale)
+    case .stopped: Copy.epicsResumeStopped(bundle: bundle, locale: locale)
+    case .unsupported: Copy.epicsResumeUnsupported(bundle: bundle, locale: locale)
     }
 }

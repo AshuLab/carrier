@@ -23,7 +23,7 @@ struct ReviewTabView: View {
                 }
                 ReviewCardView(card: card)
                 if model.history.isEmpty == false {
-                    Text("History · newest first").font(.caption.weight(.semibold)).foregroundStyle(.secondary).padding(.top, Tokens.Space.s6)
+                    Text(Copy.epicsReviewHistory()).font(.caption.weight(.semibold)).foregroundStyle(.secondary).padding(.top, Tokens.Space.s6)
                     ForEach(model.history, id: \.id) { round in
                         ReviewHistoryRow(round: round, open: folds.isOpen(epic, round.id)) { folds.toggle(epic, round.id) }
                     }
@@ -34,8 +34,8 @@ struct ReviewTabView: View {
         } else {
             // back in ship after a requeue: only the earlier attempt's rounds
             VStack(alignment: .leading, spacing: Tokens.Space.s10) {
-                Text("Review has not started again").font(.callout).foregroundStyle(.secondary)
-                Text("History · newest first").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                Text(Copy.epicsReviewNotStartedAgain()).font(.callout).foregroundStyle(.secondary)
+                Text(Copy.epicsReviewHistory()).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
                 ForEach(model.history, id: \.id) { round in
                     ReviewHistoryRow(round: round, open: folds.isOpen(epic, round.id)) { folds.toggle(epic, round.id) }
                 }
@@ -49,13 +49,13 @@ private struct ReviewThreadsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Tokens.Space.s8) {
-            Text("Review threads").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+            Text(Copy.epicsThreadsTitle()).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
             if threads.rows.isEmpty {
-                Text("No review threads on the pull request.").font(.callout).foregroundStyle(.secondary)
+                Text(Copy.epicsThreadsNone()).font(.callout).foregroundStyle(.secondary)
             }
             ForEach(threads.rows, id: \.id) { ReviewThreadRowView(row: $0) }
             if threads.partial {
-                Text("Partial list: the pull request has more threads than are shown.").font(.caption).foregroundStyle(.secondary)
+                Text(Copy.epicsThreadsPartial()).font(.caption).foregroundStyle(.secondary)
             }
         }
     }
@@ -77,8 +77,8 @@ private struct ReviewThreadRowView: View {
             HStack(spacing: Tokens.Space.s6) {
                 Text(row.author).font(.callout.weight(.semibold)).lineLimit(1)
                 Spacer(minLength: 4)
-                if row.outdated { Text("outdated").font(.caption2).foregroundStyle(.orange).fixedSize() }
-                Text(row.resolved ? "resolved" : "unresolved").font(.caption2).foregroundStyle(row.resolved ? Color.green : .secondary).fixedSize()
+                if row.outdated { Text(Copy.epicsThreadOutdated()).font(.caption2).foregroundStyle(.orange).fixedSize() }
+                Text(row.resolved ? Copy.epicsThreadResolved() : Copy.epicsThreadUnresolved()).font(.caption2).foregroundStyle(row.resolved ? Color.green : .secondary).fixedSize()
             }
             Text(row.location).font(.caption.monospaced()).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
             if let firstLine = row.firstLine { Text(firstLine).font(.caption).lineLimit(2) }
@@ -120,8 +120,8 @@ private struct ReviewHistoryRow: View {
                     Glyph(.chevronRight, size: 11, bold: true).foregroundStyle(.secondary)
                         .rotationEffect(.degrees(open ? 90 : 0))
                     VStack(alignment: .leading, spacing: Tokens.Space.s1) {
-                        Text("Round \(round.round)").font(.body.weight(.semibold))
-                        Text(round.blockerCount == 0 ? "No blockers" : "\(round.blockerCount) blocker\(round.blockerCount == 1 ? "" : "s")")
+                        Text(Copy.sessionPlaceRound(round: String(round.round))).font(.body.weight(.semibold))
+                        Text(round.blockerCount == 0 ? Copy.epicsReviewNoBlockers() : Copy.epicsBlockers(count: round.blockerCount))
                             .font(.caption).foregroundStyle(.secondary)
                     }
                     Spacer(minLength: 0)
@@ -172,7 +172,7 @@ private struct ReviewStepsView: View {
         VStack(alignment: .leading, spacing: Tokens.Space.s10) {
             ForEach(round.steps, id: \.number) { ReviewStepRow(step: $0) }
             if round.approximate {
-                Text("Marks are approximate: the reviewer gave no blocker ids, so they come from matching titles.")
+                Text(Copy.epicsReviewApproximate())
                     .font(.caption).foregroundStyle(.secondary)
             }
         }
@@ -197,7 +197,7 @@ private struct ReviewStepRow: View {
                     }
                 }
                 if step.moreCommits > 0 {
-                    Text("+ \(step.moreCommits) more").font(.caption).foregroundStyle(.secondary)
+                    Text(Copy.epicsMoreCommits(count: step.moreCommits)).font(.caption).foregroundStyle(.secondary)
                 }
             }
         }
@@ -230,7 +230,7 @@ private struct ReviewObservationRow: View {
                 Text(observation.title).font(.caption).lineLimit(2)
             }
             Spacer(minLength: 4)
-            Text("observation").font(.caption2).foregroundStyle(.secondary).fixedSize()
+            Text(Copy.epicsReviewObservation()).font(.caption2).foregroundStyle(.secondary).fixedSize()
         }
     }
 }
@@ -248,7 +248,7 @@ private struct ReviewBlockerRow: View {
                 Text(blocker.title).font(.caption).lineLimit(2)
             }
             Spacer(minLength: 4)
-            Text(blocker.mark.text + (blocker.approximate ? " ≈" : "")).font(.caption2).foregroundStyle(color).fixedSize()
+            Text(blocker.mark.text() + (blocker.approximate ? " ≈" : "")).font(.caption2).foregroundStyle(color).fixedSize()
         }
     }
 

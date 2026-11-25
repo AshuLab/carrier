@@ -76,8 +76,11 @@ public struct PipelineStep: Equatable {
 }
 
 /// Queued, Ship, Review / Fix and Ready, each with its state; a stuck or cancelled step carries its words.
-public func pipelineSteps(_ subject: EpicSubject, reply: EpicReply? = nil) -> [PipelineStep] {
-    let names = ["Queued", "Ship", "Review / Fix", "Ready"]
+public func pipelineSteps(_ subject: EpicSubject, reply: EpicReply? = nil, bundle: Bundle? = nil, locale: Locale = .current) -> [PipelineStep] {
+    let names = [
+        Copy.epicsStepQueued(bundle: bundle, locale: locale), Copy.sessionPlaceShip(bundle: bundle, locale: locale),
+        Copy.epicsStepReviewFix(bundle: bundle, locale: locale), Copy.epicsStepReady(bundle: bundle, locale: locale),
+    ]
     func steps(_ states: [StepState], words: String? = nil, loops: Bool = false) -> [PipelineStep] {
         (0..<4).map {
             PipelineStep(
@@ -99,20 +102,27 @@ public func pipelineSteps(_ subject: EpicSubject, reply: EpicReply? = nil) -> [P
         let reached = [true, shipped, reply.map { $0.rounds.isEmpty == false } ?? false, false]
         var states = reached.map { $0 ? StepState.done : .waiting }
         states[reached.firstIndex(of: false) ?? 3] = .cancelled
-        return steps(states, words: "cancelled")
+        return steps(states, words: Copy.epicsStepCancelled(bundle: bundle, locale: locale))
     case .active(let epic):
         let at = epic.stage == .review || epic.stage == .fix ? 2 : 1
         let stuck: StepState = Attention(kind: epic.needsHumanKind) == .error ? .error : .input
         var states = [StepState.done, .waiting, .waiting, .waiting]
         for i in 1...3 { states[i] = i < at ? .done : i == at ? (epic.status == .needsHuman ? stuck : .current) : .waiting }
-        return steps(states, words: interventionLine(epic), loops: at == 2)
+        return steps(states, words: interventionLine(epic, bundle: bundle, locale: locale), loops: at == 2)
     }
 }
 
-/// 1st, 2nd, 3rd, 4th, 11th, 22nd.
-public func ordinal(_ n: Int) -> String {
-    let suffix = (11...13).contains(n % 100) ? "th" : ["th", "st", "nd", "rd", "th", "th", "th", "th", "th", "th"][n % 10]
-    return "\(n)\(suffix)"
+/// "1st in queue", "2nd in queue", "11th in queue": English tells its ordinals apart by the last digits, so the place says which kind it is and the
+/// words of each language follow.
+public func queuePlaceLine(_ position: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+    let kind: Copy.EpicsQueuePlace = switch (position % 10, position % 100) {
+    case (_, 11...13): .other
+    case (1, _): .one
+    case (2, _): .two
+    case (3, _): .few
+    default: .other
+    }
+    return Copy.epicsQueuePlace(kind: kind, place: String(position), bundle: bundle, locale: locale)
 }
 
 // MARK: header
@@ -129,6 +139,7 @@ public struct EpicHeader: Equatable {
     public var prURL: String?
     /// "PR #50"; nil without a number.
     public var prLabel: String?
+    public var prNumber: Int?
     public var issueURL: String
     /// The glyph beside the title.
     public var state: EpicMenuState
@@ -136,34 +147,39 @@ public struct EpicHeader: Equatable {
     public var status: String
 }
 
-public func epicHeader(_ subject: EpicSubject, reply: EpicReply? = nil) -> EpicHeader {
+public func epicHeader(_ subject: EpicSubject, reply: EpicReply? = nil, bundle: Bundle? = nil, locale: Locale = .current) -> EpicHeader {
     let (repo, issue) = (subject.repo, subject.issue)
     var title: String?
     var labels: [String] = []
     var state = EpicMenuState.ready
-    var status = "Ready for test"
+    var status = EpicMenuState.ready.label(bundle: bundle, locale: locale)
     var prURL: String?
     var issueURL = "https://github.com/\(repo)/issues/\(issue)"
     switch subject {
-    case .queued(let epic, let position): (title, state, status) = (epic.title, .waiting, "Up next · \(ordinal(position)) in queue")
+    case .queued(let epic, let position): (title, state, status) = (epic.title, .waiting, Copy.epicsStatusUpNext(place: queuePlaceLine(position, bundle: bundle, locale: locale), bundle: bundle, locale: locale))
     case .finished(let done): (title, prURL) = (done.title, donePullURL(done))
     case .ended(let epic):
         (title, labels, prURL) = (epic.title, epic.labels, donePullURL(epic.asDone))
-        (state, status) = epic.status == .merged ? (.done, "Done") : (.cancelled, epic.cancelReason.flatMap { $0.isEmpty ? nil : "Cancelled · \($0)" } ?? "Cancelled")
+        (state, status) = epic.status == .merged
+            ? (.done, EpicMenuState.done.label(bundle: bundle, locale: locale))
+            : (.cancelled, epic.cancelReason.flatMap { $0.isEmpty ? nil : Copy.epicsStatusCancelledWhy(reason: $0, bundle: bundle, locale: locale) } ?? EpicMenuState.cancelled.label(bundle: bundle, locale: locale))
     case .active(let epic):
         (title, labels, prURL, issueURL) = (epic.title, epic.labels ?? [], epic.prUrl, epic.issueUrl)
-        (state, status) = epic.status == .running ? (.running, "Running · \(runningLine(epic))") : (.needsYou, "Needs attention · \(interventionLine(epic))")
+        (state, status) = epic.status == .running
+            ? (.running, Copy.epicsStatusRunning(line: runningLine(epic, bundle: bundle, locale: locale), bundle: bundle, locale: locale))
+            : (.needsYou, Copy.epicsStatusNeedsAttention(line: interventionLine(epic, bundle: bundle, locale: locale), bundle: bundle, locale: locale))
     }
     prURL = prURL ?? reply?.pr?.url
     let number = reply?.pr?.number ?? prURL.flatMap { URL(string: $0)?.lastPathComponent }.flatMap(Int.init)
     return EpicHeader(
-        title: title.flatMap { $0.isEmpty ? nil : $0 } ?? "Epic #\(issue)",
+        title: title.flatMap { $0.isEmpty ? nil : $0 } ?? Copy.epicsTitleFallback(issue: String(issue), bundle: bundle, locale: locale),
         subtitle: "\(repo) · #\(issue)",
         repo: repo,
         issue: issue,
         labels: labels.filter { $0.hasPrefix("solve:") == false && $0.hasPrefix("carrier:") == false },
         prURL: prURL,
-        prLabel: number.map { "PR #\($0)" },
+        prLabel: number.map { Copy.sidebarPr(number: String($0), bundle: bundle, locale: locale) },
+        prNumber: number,
         issueURL: issueURL,
         state: state,
         status: status
@@ -175,16 +191,16 @@ public func epicHeader(_ subject: EpicSubject, reply: EpicReply? = nil) -> EpicH
 public enum EpicTab: CaseIterable {
     case agentOutput, filesChanged
 
-    public var title: String {
+    public func title(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         switch self {
-        case .agentOutput: "Agent output"
-        case .filesChanged: "Files changed"
+        case .agentOutput: Copy.epicsTabAgentOutput(bundle: bundle, locale: locale)
+        case .filesChanged: Copy.epicsTabFilesChanged(bundle: bundle, locale: locale)
         }
     }
 
     /// The tab's label: Files changed carries the count only when it is above zero.
-    public func title(filesChanged: Int) -> String {
-        self == .filesChanged && filesChanged > 0 ? "\(title) · \(filesChanged)" : title
+    public func title(filesChanged: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        self == .filesChanged && filesChanged > 0 ? "\(title(bundle: bundle, locale: locale)) · \(filesChanged)" : title(bundle: bundle, locale: locale)
     }
 }
 

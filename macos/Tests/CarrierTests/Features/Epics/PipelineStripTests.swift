@@ -6,7 +6,7 @@ import Testing
 
 private let steps: [PipelineStep] = {
     let json = #"{"repo":"acme/web","issue":12,"status":"needs_human","needsHumanKind":"review_limit","stage":"review","round":5,"maxReviews":5,"blockers":0,"stageSince":0,"issueUrl":""}"#
-    return pipelineSteps(.active(try! JSONDecoder().decode(PanelEpic.self, from: Data(json.utf8))))
+    return pipelineSteps(.active(try! JSONDecoder().decode(PanelEpic.self, from: Data(json.utf8))), bundle: Copy.bundle("en"), locale: Locale(identifier: "en_US"))
 }()
 
 /// The height of the strip drawn at `width` points.

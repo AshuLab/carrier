@@ -48,7 +48,7 @@ extension PanelView {
         let launch = embeddedResumeLaunch(resume)
         guard isAccessibleTerminalDirectory(launch.workingDirectory) else {
             NSLog("Carrier: continue in terminal refused because folder is inaccessible: %@", launch.workingDirectory)
-            tell("The session folder is no longer accessible.")
+            tell(Copy.epicsTerminalFolderGone())
             return
         }
         let owner = TerminalOwner.epic(repo: epic.repo, issue: epic.issue)

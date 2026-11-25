@@ -7,24 +7,24 @@ extension PanelView {
     @ToolbarContentBuilder var panelToolbar: some ToolbarContent {
         let shell = model.shell
         ToolbarItem(placement: .navigation) {
-            Button { withAnimation(.smooth(duration: 0.25)) { shell.toggleSidebar() } } label: { Label("Sidebar", systemIcon: .sidebar) }
-                .help("Show or hide the sidebar")
+            Button { withAnimation(.smooth(duration: 0.25)) { shell.toggleSidebar() } } label: { Label(Copy.epicsToolbarSidebar(), systemIcon: .sidebar) }
+                .help(Copy.epicsToolbarSidebarHelp())
         }
         // a subagent view has its own ‹ Back, one level up, in the same place: two with the same name would be one too many
         if shell.subagentHeader == nil {
             ToolbarItemGroup(placement: .navigation) {
-                Button { shell.goBack() } label: { Label("Back", systemIcon: .chevronLeft) }
-                    .disabled(shell.history.canGoBack == false).help("Back")
-                Button { shell.goForward() } label: { Label("Forward", systemIcon: .chevronRight) }
-                    .disabled(shell.history.canGoForward == false).help("Forward")
+                Button { shell.goBack() } label: { Label(Copy.epicsToolbarBack(), systemIcon: .chevronLeft) }
+                    .disabled(shell.history.canGoBack == false).help(Copy.epicsToolbarBack())
+                Button { shell.goForward() } label: { Label(Copy.epicsToolbarForward(), systemIcon: .chevronRight) }
+                    .disabled(shell.history.canGoForward == false).help(Copy.epicsToolbarForward())
             }
         }
         if let epic {
             if let open = shell.subagentHeader {
                 // a slice card's subagent view wears the same header as a conversation's, with the epic in its subtitle and no Stop
                 ToolbarItem(placement: .navigation) {
-                    Button { shell.leaveSubagent() } label: { Label("Back", systemIcon: .chevronLeft) }
-                        .help("Back to Agent output")
+                    Button { shell.leaveSubagent() } label: { Label(Copy.epicsToolbarBack(), systemIcon: .chevronLeft) }
+                        .help(Copy.epicsToolbarBackToOutput())
                 }
                 ToolbarItem(placement: .navigation) {
                     SubagentTitle(title: open.title, subtitle: open.subtitle(of: epic.header.title))
@@ -39,8 +39,8 @@ extension PanelView {
             }
             ToolbarSpacer(.fixed, placement: .primaryAction)
             ToolbarItem(placement: .primaryAction) {
-                Button { withAnimation(.smooth(duration: 0.25)) { shell.toggleInspector() } } label: { Label("Inspector", systemIcon: .sidebarRight) }
-                    .help("Show or hide the inspector")
+                Button { withAnimation(.smooth(duration: 0.25)) { shell.toggleInspector() } } label: { Label(Copy.epicsToolbarInspector(), systemIcon: .sidebarRight) }
+                    .help(Copy.epicsToolbarInspectorHelp())
             }
             if shell.inspectorShown {
                 // The toolbar is the window's, so its right end is over the panel, which runs up behind the title bar. An empty item
@@ -54,8 +54,8 @@ extension PanelView {
             if let open = shell.subagentHeader {
                 // a subagent view wears the window's header: Back next to the sidebar's button, its title, and its state where the worktree pill is
                 ToolbarItem(placement: .navigation) {
-                    Button { shell.leaveSubagent() } label: { Label("Back", systemIcon: .chevronLeft) }
-                        .help(shell.subagents.count > 1 ? "Back to the subagent that launched this one" : "Back to the conversation")
+                    Button { shell.leaveSubagent() } label: { Label(Copy.epicsToolbarBack(), systemIcon: .chevronLeft) }
+                        .help(shell.subagents.count > 1 ? Copy.epicsToolbarBackToSubagent() : Copy.epicsToolbarBackToConversation())
                 }
                 ToolbarItem(placement: .navigation) {
                     SubagentTitle(title: open.title, subtitle: open.subtitle(of: conversationTitle(session)))
@@ -66,9 +66,9 @@ extension PanelView {
                     .sharedBackgroundVisibility(.hidden)
                 if open.canStop {
                     ToolbarItem(placement: .primaryAction) {
-                        ToolbarPillButton(title: "Stop", icon: .stopFilled, iconTint: .red) { shell.perform(.conversation(.stopSubagent)) }
+                        ToolbarPillButton(title: Copy.epicsToolbarStop(), icon: .stopFilled, iconTint: .red) { shell.perform(.conversation(.stopSubagent)) }
                             .glassEffect(.regular, in: .capsule)
-                            .help("Stop this subagent; the main agent goes on")
+                            .help(Copy.epicsToolbarStopSubagentHelp())
                     }
                     .sharedBackgroundVisibility(.hidden)
                 }
@@ -78,7 +78,7 @@ extension PanelView {
             }
             ToolbarSpacer(.fixed, placement: .primaryAction)
             ToolbarItem(placement: .primaryAction) {
-                ToolbarGlassIconButton(icon: .terminal, active: drawerOpen, name: drawerOpen ? "Hide terminal" : "Open terminal in \(abbreviatedTerminalPath(session.folder))") {
+                ToolbarGlassIconButton(icon: .terminal, active: drawerOpen, name: drawerOpen ? Copy.epicsToolbarHideTerminal() : Copy.epicsToolbarOpenTerminal(path: abbreviatedTerminalPath(session.folder))) {
                     toggleSessionTerminal(for: session)
                 }
                 .glassEffect(.regular, in: .capsule)
@@ -91,7 +91,7 @@ extension PanelView {
                 CheckAgainButton(skin: .toolbar, checking: AppUsage.store.isRefreshing, failed: AppUsage.store.error != nil) { AppUsage.refresher.checkAgain() }
                     .glassEffect(.regular, in: .capsule)
                     .padding(.trailing, Tokens.Space.s10)
-                    .help("Asks every provider again, skipping the minute the chat host keeps its answer")
+                    .help(Copy.epicsToolbarCheckUsageHelp())
             }
             .sharedBackgroundVisibility(.hidden)
         }
@@ -100,21 +100,21 @@ extension PanelView {
             ToolbarItem(placement: .primaryAction) {
                 // the engine polls on its own after the answer: the button says so until the next check is scheduled again
                 let checking = isChecking(snapshot, asked: checkAsked, now: Date())
-                CheckAgainButton(skin: .toolbar, title: "Check now", checking: checking) {
+                CheckAgainButton(skin: .toolbar, title: Copy.epicsToolbarCheckNow(), checking: checking) {
                     checkAsked = CheckAsked(at: Date(), nextCheckAt: snapshot.nextCheckAt)
                     MenuControls.shared.checkNow()
                 }
                 .glassEffect(.regular, in: .capsule)
-                .help(checking ? "Checking GitHub…" : "Check GitHub now")
+                .help(checking ? Copy.epicsToolbarChecking() : Copy.epicsToolbarCheckGithub())
             }
             .sharedBackgroundVisibility(.hidden)
             ToolbarSpacer(.fixed, placement: .primaryAction)
             ToolbarItem(placement: .primaryAction) {
                 HStack(spacing: Tokens.Space.none) {
-                    ToolbarPillButton(title: snapshot.paused ? "Resume" : "Pause", icon: snapshot.paused ? .playFilled : .pauseFilled) { MenuControls.shared.pauseOrResume() }
-                        .help(snapshot.paused ? "Resume intake" : "Pause intake")
-                    ToolbarPillButton(title: "Stop", icon: .stopFilled, iconTint: .red) { MenuControls.shared.stopCarrier() }
-                        .help("Stop Carrier")
+                    ToolbarPillButton(title: snapshot.paused ? Copy.lifecycleIntakeResume() : Copy.lifecycleIntakePause(), icon: snapshot.paused ? .playFilled : .pauseFilled) { MenuControls.shared.pauseOrResume() }
+                        .help(snapshot.paused ? Copy.epicsToolbarResumeIntake() : Copy.epicsToolbarPauseIntake())
+                    ToolbarPillButton(title: Copy.epicsToolbarStop(), icon: .stopFilled, iconTint: .red) { MenuControls.shared.stopCarrier() }
+                        .help(Copy.epicsToolbarStopCarrier())
                 }
                 .glassEffect(.regular, in: .capsule)
                 .padding(.trailing, Tokens.Space.s10)

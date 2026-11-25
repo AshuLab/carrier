@@ -228,7 +228,7 @@ public func sessionList(
             body: .items([])
         )
         if folds?.isOpen(section) ?? true {
-            section.body = transcriptBody(transcript, slices: slices, running: state == .running, now: now, time: time)
+            section.body = transcriptBody(transcript, slices: slices, running: state == .running, now: now, time: time, bundle: bundle, locale: locale)
         }
         return section
     }

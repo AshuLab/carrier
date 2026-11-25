@@ -110,7 +110,7 @@ private let es = (bundle: Copy.bundle("es"), locale: Locale(identifier: "es_AR")
     #expect(line(ChatEvent(id: 3, at: 3, kind: "notice", text: "stored words")) == "stored words")
     func reason(_ code: String?) -> String? {
         let failed = ChatEvent(id: 1, at: 1, kind: "step", status: "failed", step: "worktree", detail: "words", code: code, params: [:])
-        return preparationSteps([failed], preparation: .failed).first?.reason
+        return preparationSteps([failed], preparation: .failed, bundle: english.bundle, locale: english.locale).first?.reason
     }
     #expect(reason("session.notice.conversationLost") == Copy.text("session.notice.conversationLost"))
     #expect(reason("session.noSuchCode") == "words" && reason(nil) == "words")

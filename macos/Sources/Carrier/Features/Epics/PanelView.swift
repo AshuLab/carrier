@@ -57,14 +57,14 @@ struct PanelView: View {
     private var title: String {
         if let epic { return "\(epic.subject.repo.split(separator: "/").last ?? "") #\(epic.subject.issue)" }
         switch model.shell.selection {
-        case .sessions: return "Sessions"
-        case .session: return openSession.map { conversationTitle($0) } ?? "Session"
-        case .newSession: return "New session"
-        case .terminals: return "Terminal"
-        case .terminal(let id): return terminalStore.standaloneTerminal(id: id)?.title ?? "Terminal"
-        case .archive: return "Archive"
-        case .usage: return "Usage"
-        default: return "Carrier"
+        case .sessions: return Copy.sidebarSessions()
+        case .session: return openSession.map { conversationTitle($0) } ?? Copy.epicsPanelSession()
+        case .newSession: return Copy.sessionsNew()
+        case .terminals: return Copy.epicsPanelTerminal()
+        case .terminal(let id): return terminalStore.standaloneTerminal(id: id)?.title ?? Copy.epicsPanelTerminal()
+        case .archive: return Copy.archiveTitle()
+        case .usage: return Copy.sidebarUsage()
+        default: return Copy.appName()
         }
     }
 
@@ -82,7 +82,7 @@ struct PanelView: View {
         case .terminals: terminalsSubtitle(count: terminalStore.standaloneTerminals().count)
         case .terminal(let id): terminalStore.standaloneTerminal(id: id)?.subtitle() ?? ""
         case .archive: archivePage(model.sessions.rows, by: archiveSort, query: "").subtitle
-        case .usage: "Limits left and what was used, per account"
+        case .usage: Copy.epicsPanelUsageSubtitle()
         default: ""
         }
     }
@@ -203,7 +203,7 @@ struct PanelView: View {
                             defaultDirectory: target.defaultDirectory,
                             openDefaultTabIfEmpty: target.isSessionDrawer,
                             dismissIcon: target.isSessionDrawer ? .chevronDown : .close,
-                            dismissLabel: target.isSessionDrawer ? "Hide terminal" : "Close terminal",
+                            dismissLabel: target.isSessionDrawer ? Copy.epicsToolbarHideTerminal() : Copy.epicsPanelCloseTerminal(),
                             height: Binding(
                                 get: { CGFloat(terminalDrawerHeight) },
                                 set: { terminalDrawerHeight = Double($0) }

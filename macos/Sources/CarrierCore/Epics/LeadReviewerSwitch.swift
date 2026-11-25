@@ -23,17 +23,33 @@ public struct LeadReviewerDraft: Equatable, Sendable {
         }
     }
 
+    public enum Field: Equatable { case identity, provider, model }
+
     /// Which of the three required fields are still to choose, in the page's order.
-    public var missing: [String] {
-        [identity == nil ? "an identity" : nil, provider == nil ? "a provider" : nil,
-         model.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "a model" : nil].compactMap { $0 }
+    public var missing: [Field] {
+        [identity == nil ? .identity : nil, provider == nil ? .provider : nil,
+         model.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .model : nil].compactMap { $0 }
     }
 
     public var isComplete: Bool { missing.isEmpty }
 
     /// Said on the page while the role is not complete: nothing is written until it is.
-    public var hint: String? {
-        missing.isEmpty ? nil : "Choose \(missing.joined(separator: ", ").replacingLastComma()) to turn it on. Nothing is written until then."
+    public func hint(bundle: Bundle? = nil, locale: Locale = .current) -> String? {
+        let names = missing.map { field in
+            switch field {
+            case .identity: Copy.epicsLeadAnIdentity(bundle: bundle, locale: locale)
+            case .provider: Copy.epicsLeadAProvider(bundle: bundle, locale: locale)
+            case .model: Copy.epicsLeadAModel(bundle: bundle, locale: locale)
+            }
+        }
+        // one, two or three names: "an identity", "an identity and a model", "an identity, a provider and a model"
+        let list = switch names.count {
+        case 0: ""
+        case 1: names[0]
+        case 2: Copy.epicsLeadTwo(first: names[0], second: names[1], bundle: bundle, locale: locale)
+        default: Copy.epicsLeadThree(first: names[0], second: names[1], third: names[2], bundle: bundle, locale: locale)
+        }
+        return missing.isEmpty ? nil : Copy.epicsLeadHint(list: list, bundle: bundle, locale: locale)
     }
 
     /// `row` as the page shows it while the draft is being filled in: the draft's choices in place of the empty role.
@@ -54,19 +70,12 @@ public struct LeadReviewerDraft: Equatable, Sendable {
     }
 }
 
-private extension String {
-    func replacingLastComma() -> String {
-        guard let comma = range(of: ", ", options: .backwards) else { return self }
-        return replacingCharacters(in: comma, with: " and ")
-    }
-}
-
 extension RoleRow {
     /// The Lead reviewer's page can be used when the file has the role, or while the person is filling in the one they are turning on.
     public func usable(turningOn: Bool) -> Bool { off == false || turningOn }
 
     /// The switch row's line: what turning it off does, or that the file has no lead reviewer.
-    public var switchDetail: String {
-        off ? "Off: the file has no lead reviewer" : "Turning it off removes the lead reviewer and its failover steps from the file"
+    public func switchDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        off ? Copy.epicsLeadOff(bundle: bundle, locale: locale) : Copy.epicsLeadTurnOff(bundle: bundle, locale: locale)
     }
 }

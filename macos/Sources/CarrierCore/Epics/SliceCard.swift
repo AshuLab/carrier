@@ -18,6 +18,17 @@ public enum SlicePRState: Equatable {
     /// A pull request from an engine that predates the state.
     case unknown
 
+    /// The kind of the spoken sentence of a pull request, which names its state when it has one.
+    var spoken: Copy.EpicsSlicePrSpoken {
+        switch self {
+        case .merged: .merged
+        case .open: .open
+        case .draft: .draft
+        case .closed: .closed
+        case .unknown: .unknown
+        }
+    }
+
     init(_ state: String?) {
         switch state {
         case "merged": self = .merged
@@ -55,8 +66,6 @@ public struct SliceCardRow: Equatable, Identifiable {
 
 }
 
-private func plural(_ n: Int, _ noun: String) -> String { "\(n) \(noun)\(n == 1 ? "" : "s")" }
-
 private func mark(_ state: SubagentState) -> SliceMark {
     switch state {
     case .running: .working
@@ -65,26 +74,36 @@ private func mark(_ state: SubagentState) -> SliceMark {
     }
 }
 
-public func sliceCard(lane: LaneSection) -> SliceCardRow {
+public func sliceCard(lane: LaneSection, bundle: Bundle? = nil, locale: Locale = .current) -> SliceCardRow {
     let mark = mark(lane.state)
     var quiet: [SliceQuiet] = []
     if lane.isStarting, lane.lastStep == nil {
-        quiet.append(SliceQuiet(text: "starting…", kind: .plain))
+        quiet.append(SliceQuiet(text: Copy.epicsSliceStarting(bundle: bundle, locale: locale), kind: .plain))
     } else {
         if mark == .working, let step = lane.lastStep { quiet.append(SliceQuiet(text: step, kind: .step)) }
-        if lane.counts.calls > 0 { quiet.append(SliceQuiet(text: plural(lane.counts.calls, "call") + (mark == .working ? " so far" : ""), kind: .plain)) }
-        if lane.counts.edits > 0 { quiet.append(SliceQuiet(text: plural(lane.counts.edits, "edit"), kind: .plain)) }
-        if lane.counts.tests > 0 { quiet.append(SliceQuiet(text: plural(lane.counts.tests, "test run"), kind: .plain)) }
-        if lane.counts.errors > 0 { quiet.append(SliceQuiet(text: plural(lane.counts.errors, "error"), kind: .error)) }
-        if mark == .failed { quiet.append(SliceQuiet(text: "did not complete", kind: .error)) }
-        if let number = lane.laneNumber { quiet.append(SliceQuiet(text: "Lane \(number)", kind: .lane)) }
+        if lane.counts.calls > 0 {
+            let calls = mark == .working
+                ? Copy.epicsSliceCallsSoFar(count: lane.counts.calls, bundle: bundle, locale: locale)
+                : Copy.epicsSliceCalls(count: lane.counts.calls, bundle: bundle, locale: locale)
+            quiet.append(SliceQuiet(text: calls, kind: .plain))
+        }
+        if lane.counts.edits > 0 { quiet.append(SliceQuiet(text: Copy.epicsSliceEdits(count: lane.counts.edits, bundle: bundle, locale: locale), kind: .plain)) }
+        if lane.counts.tests > 0 { quiet.append(SliceQuiet(text: Copy.epicsSliceTests(count: lane.counts.tests, bundle: bundle, locale: locale), kind: .plain)) }
+        if lane.counts.errors > 0 { quiet.append(SliceQuiet(text: Copy.epicsSliceErrors(count: lane.counts.errors, bundle: bundle, locale: locale), kind: .error)) }
+        if mark == .failed { quiet.append(SliceQuiet(text: Copy.epicsSliceIncomplete(bundle: bundle, locale: locale), kind: .error)) }
+        if let number = lane.laneNumber { quiet.append(SliceQuiet(text: Copy.epicsSliceLane(number: number, bundle: bundle, locale: locale), kind: .lane)) }
         if mark != .working, let range = lane.timeLabel { quiet.append(SliceQuiet(text: range, kind: .plain)) }
     }
     let prState = SlicePRState(lane.prState)
-    let state = switch mark { case .done: "finished"; case .working: "working"; case .failed: "failed" }
+    let state = switch mark {
+    case .done: Copy.epicsSliceStateDone(bundle: bundle, locale: locale)
+    case .working: Copy.epicsWorking(bundle: bundle, locale: locale)
+    case .failed: Copy.epicsSliceStateFailed(bundle: bundle, locale: locale)
+    }
+    let pullRequest = lane.prNumber.map { Copy.epicsSlicePrSpoken(state: prState.spoken, number: String($0), bundle: bundle, locale: locale) }
+    let slice = lane.slice.map { Copy.epicsSliceSpoken(number: String($0), title: lane.title, bundle: bundle, locale: locale) } ?? lane.title
     return SliceCardRow(
         id: lane.id, number: lane.slice, title: lane.title, mark: mark, quiet: quiet, prNumber: lane.prNumber, prState: prState, lane: lane,
-        spoken: ([lane.slice.map { "Slice \($0), \(lane.title)" } ?? lane.title, state] + quiet.map(\.text)
-            + [lane.prNumber.map { "pull request \($0)" + (prState == .unknown ? "" : " \(prState)") }].compactMap { $0 }).joined(separator: ", ")
+        spoken: ([slice, state] + quiet.map(\.text) + [pullRequest].compactMap { $0 }).joined(separator: ", ")
     )
 }

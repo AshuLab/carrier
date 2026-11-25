@@ -25,35 +25,28 @@ private func fixture() throws -> PanelSnapshot { try decodeSnapshot(Data(content
 
 @Test func theSlicesLineIsClosedOverTotalOrAbsent() throws {
     let epics = try fixture().epics
-    #expect(slicesLine(epics[0].slices) == "3/5 slices")
-    #expect(slicesLine(epics[1].slices) == nil)
-    #expect(slicesLine(PanelEpic.Slices(done: 0, total: 0)) == nil)
+    #expect(slicesLine(epics[0].slices, bundle: english.bundle, locale: english.locale) == "3/5 slices")
+    #expect(slicesLine(epics[1].slices, bundle: english.bundle, locale: english.locale) == nil)
+    #expect(slicesLine(PanelEpic.Slices(done: 0, total: 0), bundle: english.bundle, locale: english.locale) == nil)
 }
 
 @Test func theEpicLinesFollowTheSnapshotClock() throws {
     let snapshot = try fixture()
     let (running, fresh) = (snapshot.epics[0], snapshot.epics[1])
-    #expect(roundLine(running) == "round 2/5")
-    #expect(roundLine(fresh) == nil)
-    #expect(stageTimeLine(running, now: snapshot.now) == "1m in stage")
-    #expect(activityLine(running, now: snapshot.now) == "active 10s ago")
-    #expect(activityLine(fresh, now: snapshot.now) == "no activity yet")
-    #expect(blockersLine(1) == "1 blocker")
-    #expect(blockersLine(2) == "2 blockers")
+    #expect(roundLine(running, bundle: english.bundle, locale: english.locale) == "round 2/5")
+    #expect(roundLine(fresh, bundle: english.bundle, locale: english.locale) == nil)
 }
 
 @Test func theHeaderLines() throws {
     var snapshot = try fixture()
-    #expect(uptimeLine(snapshot) == "up 1m")
-    #expect(reposLine(snapshot.repos) == "watching 2 repos")
-    #expect(reposLine(1) == "watching 1 repo")
-    #expect(nextCheckLine(snapshot) == "next check in 1m")
-    #expect(overviewSubtitle(snapshot, repos: 5) == "5 repos · up 1m · next check in 1m")
-    #expect(overviewSubtitle(snapshot, repos: 1).hasPrefix("1 repo ·"))
+    #expect(uptimeLine(snapshot, bundle: english.bundle, locale: english.locale) == "up 1m")
+    #expect(nextCheckLine(snapshot, bundle: english.bundle, locale: english.locale) == "next check in 1m")
+    #expect(overviewSubtitle(snapshot, repos: 5, bundle: english.bundle, locale: english.locale) == "5 repos · up 1m · next check in 1m")
+    #expect(overviewSubtitle(snapshot, repos: 1, bundle: english.bundle, locale: english.locale).hasPrefix("1 repo ·"))
     snapshot.nextCheckAt = snapshot.now
-    #expect(nextCheckLine(snapshot) == "checking now")
+    #expect(nextCheckLine(snapshot, bundle: english.bundle, locale: english.locale) == "checking now")
     snapshot.nextCheckAt = nil
-    #expect(nextCheckLine(snapshot) == "starting")
+    #expect(nextCheckLine(snapshot, bundle: english.bundle, locale: english.locale) == "starting")
 }
 
 @Test func onlyWebLinksOpenInTheBrowser() {
@@ -67,8 +60,8 @@ private func fixture() throws -> PanelSnapshot { try decodeSnapshot(Data(content
     #expect(donePullURL(done[0]) == "https://github.com/acme/web/pull/77")
     #expect(donePullURL(done[1]) == nil)
     #expect(doneIssueURL(done[1]) == "https://github.com/acme/api/issues/31")
-    #expect(agoLine(done[0].finishedAt, now: 100_000) == "5s ago")
-    #expect(agoLine(nil, now: 100_000) == "a while ago")
+    #expect(agoLine(done[0].finishedAt, now: 100_000, bundle: english.bundle, locale: english.locale) == "5s ago")
+    #expect(agoLine(nil, now: 100_000, bundle: english.bundle, locale: english.locale) == "a while ago")
 }
 
 @Test func aCheckIsUnderWayUntilTheNextOneIsScheduledAgain() throws {

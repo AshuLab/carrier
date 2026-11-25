@@ -69,7 +69,7 @@ private func readiness(_ json: String, providers: String? = nil) throws -> Agent
     let shown = draft.shown(in: off)
     // the switch still says the file has no role, and the page words and draws it as a role that is on
     #expect(shown.off && shown.drafting && shown.headline == "opus · acme-lead")
-    #expect(shown.switchDetail == off.switchDetail)
+    #expect(shown.switchDetail(bundle: english.bundle, locale: english.locale) == off.switchDetail(bundle: english.bundle, locale: english.locale))
     // before anything is chosen it is not "Off" either: it says nothing is set
     #expect(LeadReviewerDraft().shown(in: off).headline == "Not set")
 }

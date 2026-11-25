@@ -11,7 +11,7 @@ struct YourTurnView: View {
     var body: some View {
         let items = yourTurn(snapshot)
         VStack(alignment: .leading, spacing: Tokens.Space.s8) {
-            OverviewTitle(title: "Your turn", detail: items.isEmpty ? nil : "\(items.count) \(items.count == 1 ? "item" : "items")")
+            OverviewTitle(title: Copy.epicsYourTurn(), detail: items.isEmpty ? nil : Copy.epicsItems(count: items.count))
             OverviewCard {
                 if items.isEmpty {
                     EmptyStateView(state: .nothingNeedsYou).frame(minHeight: 170)
@@ -33,8 +33,8 @@ struct YourTurnView: View {
                 Text(item.detail).font(.caption).foregroundStyle(.secondary).lineLimit(2)
             }
             Spacer(minLength: 8)
-            OpenLink(title: "Open issue", url: item.issueLink)
-            OpenLink(title: "Open PR", url: item.prLink)
+            OpenLink(title: Copy.epicsOpenIssue(), url: item.issueLink)
+            OpenLink(title: Copy.epicsOpenPr(), url: item.prLink)
         }
     }
 }

@@ -173,13 +173,13 @@ public enum FileFragment: Equatable {
     case failed
 }
 
-public func fileFragment(_ reply: FileDiffReply) -> FileFragment {
+public func fileFragment(_ reply: FileDiffReply, bundle: Bundle? = nil, locale: Locale = .current) -> FileFragment {
     switch reply.note {
-    case "binary": return .note("Binary file: no preview")
-    case "too-big": return .note("Too big: no preview")
+    case "binary": return .note(Copy.epicsFileBinary(bundle: bundle, locale: locale))
+    case "too-big": return .note(Copy.epicsFileTooBig(bundle: bundle, locale: locale))
     case "no-changes", nil:
-        guard let diff = cardDiff(reply.rows) else { return .note("No changes: the file is as it was") }
+        guard let diff = cardDiff(reply.rows) else { return .note(Copy.epicsFileNoChanges(bundle: bundle, locale: locale)) }
         return .rows(diff.rows, truncated: reply.truncated)
-    default: return .note("No preview")
+    default: return .note(Copy.epicsFileNoPreview(bundle: bundle, locale: locale))
     }
 }

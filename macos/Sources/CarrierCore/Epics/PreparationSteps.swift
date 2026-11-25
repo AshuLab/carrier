@@ -30,7 +30,9 @@ public struct StepRow: Equatable, Identifiable {
 /// `restoring`: the session exists and its worktree folder is coming back, whose steps are the `worktree` one that opens a restore and the project's actions; the log also
 /// holds the steps of the original preparation and of the agent's start, so only the `worktree` and `action` steps that end it are the restore's, from the latest `worktree`
 /// one: restores one after another each begin with their own, and a restore that goes on after it stopped keeps the first try's, so its finished actions still show.
-public func preparationSteps(_ events: [ChatEvent], preparation: ChatSession.Preparation?, progress: String? = nil, restoring: Bool = false) -> [StepRow] {
+public func preparationSteps(
+    _ events: [ChatEvent], preparation: ChatSession.Preparation?, progress: String? = nil, restoring: Bool = false, bundle: Bundle? = nil, locale: Locale = .current
+) -> [StepRow] {
     guard preparation != nil else { return [] }
     var events = events
     if restoring {
@@ -50,23 +52,29 @@ public func preparationSteps(_ events: [ChatEvent], preparation: ChatSession.Pre
     return order.compactMap { key in
         guard let now = latest[key.id] else { return nil }
         return StepRow(
-            step: key.step, status: now.status, line: stepLine(key.step, now.status, action: key.action), reason: now.status == .failed ? now.detail : nil,
+            step: key.step, status: now.status, line: stepLine(key.step, now.status, action: key.action, bundle: bundle, locale: locale), reason: now.status == .failed ? now.detail : nil,
             progress: now.status == .running ? progress : nil, action: key.action, when: key.when
         )
     }
 }
 
-private func stepLine(_ step: String, _ status: StepRow.Status, action: String?) -> String {
+private func stepLine(_ step: String, _ status: StepRow.Status, action: String?, bundle: Bundle?, locale: Locale) -> String {
+    let b = bundle, l = locale
     let words: (running: String, done: String, failed: String) = switch step {
-    case "clone": ("Cloning the repository…", "Cloned the repository", "Could not clone the repository")
-    case "fetch": ("Updating the repository…", "Updated the repository", "Could not update the repository")
-    case "project": ("Creating the project…", "Created the project", "Could not create the project")
-    case "worktree": ("Making the worktree…", "Made the worktree", "Could not make the worktree")
-    case "checkout": ("Checking out the branch…", "Checked out the branch", "Could not check out the branch")
-    case "action": ("Running \(action ?? "an action")…", "Ran \(action ?? "an action")", "\(action ?? "An action") failed")
-    case "agent": ("Starting the agent…", "Started the agent", "Could not start the agent")
-    case "message": ("Waiting for the agent to answer…", "The agent answered", "The agent did not answer")
-    default: ("Working on \(step)…", "Finished \(step)", "Could not finish \(step)")
+    case "clone": (Copy.epicsStepCloneRunning(bundle: b, locale: l), Copy.epicsStepCloneDone(bundle: b, locale: l), Copy.epicsStepCloneFailed(bundle: b, locale: l))
+    case "fetch": (Copy.epicsStepFetchRunning(bundle: b, locale: l), Copy.epicsStepFetchDone(bundle: b, locale: l), Copy.epicsStepFetchFailed(bundle: b, locale: l))
+    case "project": (Copy.epicsStepProjectRunning(bundle: b, locale: l), Copy.epicsStepProjectDone(bundle: b, locale: l), Copy.epicsStepProjectFailed(bundle: b, locale: l))
+    case "worktree": (Copy.epicsStepWorktreeRunning(bundle: b, locale: l), Copy.epicsStepWorktreeDone(bundle: b, locale: l), Copy.epicsStepWorktreeFailed(bundle: b, locale: l))
+    case "checkout": (Copy.epicsStepCheckoutRunning(bundle: b, locale: l), Copy.epicsStepCheckoutDone(bundle: b, locale: l), Copy.epicsStepCheckoutFailed(bundle: b, locale: l))
+    case "action":
+        if let action {
+            (Copy.epicsStepActionRunning(name: action, bundle: b, locale: l), Copy.epicsStepActionDone(name: action, bundle: b, locale: l), Copy.epicsStepActionFailed(name: action, bundle: b, locale: l))
+        } else {
+            (Copy.epicsStepAnActionRunning(bundle: b, locale: l), Copy.epicsStepAnActionDone(bundle: b, locale: l), Copy.epicsStepAnActionFailed(bundle: b, locale: l))
+        }
+    case "agent": (Copy.epicsStepAgentRunning(bundle: b, locale: l), Copy.epicsStepAgentDone(bundle: b, locale: l), Copy.epicsStepAgentFailed(bundle: b, locale: l))
+    case "message": (Copy.epicsStepMessageRunning(bundle: b, locale: l), Copy.epicsStepMessageDone(bundle: b, locale: l), Copy.epicsStepMessageFailed(bundle: b, locale: l))
+    default: (Copy.epicsStepOtherRunning(step: step, bundle: b, locale: l), Copy.epicsStepOtherDone(step: step, bundle: b, locale: l), Copy.epicsStepOtherFailed(step: step, bundle: b, locale: l))
     }
     return switch status {
     case .running: words.running
@@ -94,10 +102,10 @@ public struct OutlineItem: Equatable, Identifiable {
 /// The steps the host recorded and, after them, the two every preparation ends with (the agent starts, the message is sent) while they
 /// have not started, so the list shows where it is going and not only where it is. ponytail: a worktree that has not started is not
 /// known to be coming, so it joins the list when it does.
-public func preparationOutline(_ rows: [StepRow]) -> [OutlineItem] {
+public func preparationOutline(_ rows: [StepRow], bundle: Bundle? = nil, locale: Locale = .current) -> [OutlineItem] {
     var items = rows.map { OutlineItem(step: $0.step, status: $0.status, line: $0.line, reason: $0.reason, progress: $0.progress, icon: $0.icon, id: $0.id) }
     let sent = rows.contains { $0.step == "message" }
-    for (step, line) in [("agent", "Start the agent"), ("message", "Send your message")] where rows.contains(where: { $0.step == step }) == false {
+    for (step, line) in [("agent", Copy.epicsStepAgentNext(bundle: bundle, locale: locale)), ("message", Copy.epicsStepMessageNext(bundle: bundle, locale: locale))] where rows.contains(where: { $0.step == step }) == false {
         if step == "agent" && sent { continue }
         items.append(OutlineItem(step: step, status: nil, line: line, reason: nil, progress: nil))
     }

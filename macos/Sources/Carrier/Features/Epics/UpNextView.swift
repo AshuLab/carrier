@@ -10,7 +10,7 @@ struct UpNextView: View {
     var body: some View {
         let rows = upNext(snapshot)
         VStack(alignment: .leading, spacing: Tokens.Space.s8) {
-            OverviewTitle(title: "Up next", detail: "\(rows.count)")
+            OverviewTitle(title: Copy.epicsStateUpNext(), detail: "\(rows.count)")
             OverviewCard {
                 ForEach(rows.indices, id: \.self) { index in
                     OverviewLinkRow(action: { selection = rows[index].selection }) {

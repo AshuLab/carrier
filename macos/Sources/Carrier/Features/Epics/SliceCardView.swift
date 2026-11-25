@@ -81,7 +81,7 @@ private struct SliceCardRowView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(row.spoken).accessibilityHint("Opens the subagent")
+            .accessibilityLabel(row.spoken).accessibilityHint(Copy.chatSubagentOpensHint())
             if let number = row.prNumber { PullRequestChip(number: number, dot: row.prState.dot, url: prURL).padding(.top, Tokens.Space.s12).padding(.leading, Tokens.Space.s10) }
             // the chevron is the same click, away from the chip; the row's button is the one the keyboard reaches
             Button(action: open) {
@@ -108,7 +108,7 @@ private struct SliceCardRowView: View {
                 case .error: Text(part.text).foregroundStyle(.red)
                 case .lane:
                     Text(part.text).scaledFont(10.5, weight: .semibold).padding(.horizontal, Tokens.Space.s8)
-                        .background(Capsule().fill(Color.primary.opacity(0.1))).help("The lane the agent worked in, read from its worktree")
+                        .background(Capsule().fill(Color.primary.opacity(0.1))).help(Copy.epicsSliceLaneHelp())
                 }
             }
         }

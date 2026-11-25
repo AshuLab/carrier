@@ -125,9 +125,16 @@ extension FixtureServer {
             if let wire = request["draft"] as? [String: Any] {
                 var draft = LeadReviewerDraft()
                 changes(wire).forEach { draft.apply($0) }
+                let needs = draft.missing.map { field in
+                    switch field {
+                    case .identity: "an identity"
+                    case .provider: "a provider"
+                    case .model: "a model"
+                    }
+                }
                 refusal = draft.isComplete
                     ? edit { Self.applyRole(draft.changes, role: .leadReviewer, accounts: accounts, bots: bots, creating: true, to: &$0) }
-                    : "The lead reviewer needs \(draft.missing.joined(separator: ", "))."
+                    : "The lead reviewer needs \(needs.joined(separator: ", "))."
             } else {
                 refusal = edit { file in
                     var agents = file["agents"] as? [String: Any] ?? [:]

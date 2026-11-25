@@ -33,29 +33,29 @@ private func reply(stages: [EpicReply.Stage], rounds: Int = 0) -> EpicReply {
 }
 
 @Test func aWaitingEpicShowsQueuedAsRunningWithNoText() {
-    #expect(line(pipelineSteps(.queued(queuedEpic, position: 1))) == ["Queued:c", "Ship:w", "Review / Fix:w", "Ready:w"])
-    #expect(line(pipelineSteps(.queued(queuedEpic, position: 12))) == ["Queued:c", "Ship:w", "Review / Fix:w", "Ready:w"])
-    #expect([2, 3, 4, 11, 21, 22, 103, 111].map(ordinal) == ["2nd", "3rd", "4th", "11th", "21st", "22nd", "103rd", "111th"])
+    #expect(line(pipelineSteps(.queued(queuedEpic, position: 1), bundle: english.bundle, locale: english.locale)) == ["Queued:c", "Ship:w", "Review / Fix:w", "Ready:w"])
+    #expect(line(pipelineSteps(.queued(queuedEpic, position: 12), bundle: english.bundle, locale: english.locale)) == ["Queued:c", "Ship:w", "Review / Fix:w", "Ready:w"])
+    #expect([2, 3, 4, 11, 21, 22, 103, 111].map { queuePlaceLine($0, bundle: english.bundle, locale: english.locale) } == ["2nd in queue", "3rd in queue", "4th in queue", "11th in queue", "21st in queue", "22nd in queue", "103rd in queue", "111th in queue"])
 }
 
 @Test func shipIsCurrentWithNoTimeEvenWithAReply() {
-    #expect(line(pipelineSteps(.active(epic(stage: .ship, since: 50_000)))) == ["Queued:d", "Ship:c", "Review / Fix:w", "Ready:w"])
-    #expect(line(pipelineSteps(.active(epic(stage: nil)))) == ["Queued:d", "Ship:c", "Review / Fix:w", "Ready:w"])
+    #expect(line(pipelineSteps(.active(epic(stage: .ship, since: 50_000)), bundle: english.bundle, locale: english.locale)) == ["Queued:d", "Ship:c", "Review / Fix:w", "Ready:w"])
+    #expect(line(pipelineSteps(.active(epic(stage: nil)), bundle: english.bundle, locale: english.locale)) == ["Queued:d", "Ship:c", "Review / Fix:w", "Ready:w"])
     let timed = reply(stages: [.init(stage: "queued", startedAt: 0, endedAt: 360_000), .init(stage: "ship", startedAt: 360_000, endedAt: 6_840_000)])
-    #expect(line(pipelineSteps(.active(epic(stage: .ship)), reply: timed)) == ["Queued:d", "Ship:c", "Review / Fix:w", "Ready:w"])
+    #expect(line(pipelineSteps(.active(epic(stage: .ship)), reply: timed, bundle: english.bundle, locale: english.locale)) == ["Queued:d", "Ship:c", "Review / Fix:w", "Ready:w"])
 }
 
 @Test func reviewAndFixAreTheSameCurrentStepWithNoRound() {
     let expected = ["Queued:d", "Ship:d", "Review / Fix:c", "Ready:w"]
-    #expect(line(pipelineSteps(.active(epic(stage: .review, round: 2)))) == expected)
-    #expect(line(pipelineSteps(.active(epic(stage: .fix, round: 2)))) == expected)
-    #expect(line(pipelineSteps(.active(epic(stage: .review)))) == expected)
+    #expect(line(pipelineSteps(.active(epic(stage: .review, round: 2)), bundle: english.bundle, locale: english.locale)) == expected)
+    #expect(line(pipelineSteps(.active(epic(stage: .fix, round: 2)), bundle: english.bundle, locale: english.locale)) == expected)
+    #expect(line(pipelineSteps(.active(epic(stage: .review)), bundle: english.bundle, locale: english.locale)) == expected)
 }
 
 @Test func theReviewLimitAndTheAgentAskingAreInputAtTheStepWhereTheEpicIsStuck() {
-    let limit = pipelineSteps(.active(epic(.needsHuman, stage: .review, round: 5, kind: "review_limit")))
+    let limit = pipelineSteps(.active(epic(.needsHuman, stage: .review, round: 5, kind: "review_limit")), bundle: english.bundle, locale: english.locale)
     #expect(line(limit) == ["Queued:d", "Ship:d", "Review / Fix:i:review limit reached", "Ready:w"])
-    let asking = pipelineSteps(.active(epic(.needsHuman, stage: .ship, kind: "agent_needs_human")))
+    let asking = pipelineSteps(.active(epic(.needsHuman, stage: .ship, kind: "agent_needs_human")), bundle: english.bundle, locale: english.locale)
     #expect(line(asking) == ["Queued:d", "Ship:i:the agent needs you", "Review / Fix:w", "Ready:w"])
 }
 
@@ -65,16 +65,16 @@ private func reply(stages: [EpicReply.Stage], rounds: Int = 0) -> EpicReply {
         "pr_invalid": "pull request invalid",
     ]
     for (kind, text) in words {
-        #expect(line(pipelineSteps(.active(epic(.needsHuman, stage: .ship, kind: kind)))) == ["Queued:d", "Ship:e:\(text)", "Review / Fix:w", "Ready:w"])
+        #expect(line(pipelineSteps(.active(epic(.needsHuman, stage: .ship, kind: kind)), bundle: english.bundle, locale: english.locale)) == ["Queued:d", "Ship:e:\(text)", "Review / Fix:w", "Ready:w"])
     }
-    #expect(line(pipelineSteps(.active(epic(.needsHuman, stage: .review, kind: "timeout"))))[2] == "Review / Fix:e:timed out")
+    #expect(line(pipelineSteps(.active(epic(.needsHuman, stage: .review, kind: "timeout")), bundle: english.bundle, locale: english.locale))[2] == "Review / Fix:e:timed out")
 }
 
 @Test func aStuckEpicWithNoKindOrAnUnknownOneIsInputWithItsReason() {
-    #expect(line(pipelineSteps(.active(epic(.needsHuman, stage: .ship))))[1] == "Ship:i:needs you")
+    #expect(line(pipelineSteps(.active(epic(.needsHuman, stage: .ship)), bundle: english.bundle, locale: english.locale))[1] == "Ship:i:needs you")
     var odd = epic(.needsHuman, stage: .fix, kind: "from_the_future")
     odd.needsHumanReason = "something new"
-    #expect(line(pipelineSteps(.active(odd)))[2] == "Review / Fix:i:something new")
+    #expect(line(pipelineSteps(.active(odd), bundle: english.bundle, locale: english.locale))[2] == "Review / Fix:i:something new")
 }
 
 @Test func attentionIsInputUnlessTheKindIsAFailure() {
@@ -84,7 +84,7 @@ private func reply(stages: [EpicReply.Stage], rounds: Int = 0) -> EpicReply {
 }
 
 @Test func onlyReviewAndFixLoopsAndOnlyWhileItRuns() {
-    func loops(_ subject: EpicSubject, reply: EpicReply? = nil) -> [Bool] { pipelineSteps(subject, reply: reply).map(\.loops) }
+    func loops(_ subject: EpicSubject, reply: EpicReply? = nil) -> [Bool] { pipelineSteps(subject, reply: reply, bundle: english.bundle, locale: english.locale).map(\.loops) }
     let none = [false, false, false, false]
     #expect(loops(.active(epic(stage: .review, round: 2))) == [false, false, true, false])
     #expect(loops(.active(epic(stage: .fix, round: 2))) == [false, false, true, false])
@@ -98,7 +98,7 @@ private func reply(stages: [EpicReply.Stage], rounds: Int = 0) -> EpicReply {
 }
 
 @Test func aReadyEpicIsDoneEverywhereWithNoText() {
-    #expect(line(pipelineSteps(.finished(doneEpic))) == ["Queued:d", "Ship:d", "Review / Fix:d", "Ready:d"])
+    #expect(line(pipelineSteps(.finished(doneEpic), bundle: english.bundle, locale: english.locale)) == ["Queued:d", "Ship:d", "Review / Fix:d", "Ready:d"])
 }
 
 @Test func theSnapshotFindsAnEpicWhereverItIs() {
@@ -115,59 +115,59 @@ private func reply(stages: [EpicReply.Stage], rounds: Int = 0) -> EpicReply {
 
 @Test func theHeaderFallsBackToTheEpicNumberWithoutATitle() {
     var untitled = epic()
-    #expect(epicHeader(.active(untitled)).title == "Epic #12")
+    #expect(epicHeader(.active(untitled), bundle: english.bundle, locale: english.locale).title == "Epic #12")
     untitled.title = ""
-    #expect(epicHeader(.active(untitled)).title == "Epic #12")
+    #expect(epicHeader(.active(untitled), bundle: english.bundle, locale: english.locale).title == "Epic #12")
     untitled.title = "Checkout flow"
-    let header = epicHeader(.active(untitled))
+    let header = epicHeader(.active(untitled), bundle: english.bundle, locale: english.locale)
     #expect(header.title == "Checkout flow" && header.subtitle == "acme/web · #12")
-    #expect(epicHeader(.queued(queuedEpic, position: 1)).title == "Epic #12")
+    #expect(epicHeader(.queued(queuedEpic, position: 1), bundle: english.bundle, locale: english.locale).title == "Epic #12")
     var done = PanelSnapshot.DoneEpic(repo: "acme/web", issue: 12, prNumber: nil, finishedAt: nil, executionId: nil)
-    #expect(epicHeader(.finished(done)).title == "Epic #12")
+    #expect(epicHeader(.finished(done), bundle: english.bundle, locale: english.locale).title == "Epic #12")
     done.title = "Checkout flow"
-    #expect(epicHeader(.finished(done)).title == "Checkout flow")
+    #expect(epicHeader(.finished(done), bundle: english.bundle, locale: english.locale).title == "Checkout flow")
 }
 
 @Test func theHeaderHidesTheSolveAndCarrierLabels() {
     var labelled = epic()
-    #expect(epicHeader(.active(labelled)).labels == [])
+    #expect(epicHeader(.active(labelled), bundle: english.bundle, locale: english.locale).labels == [])
     labelled.labels = ["solve:epic", "carrier:status:running", "shop", "payments"]
-    #expect(epicHeader(.active(labelled)).labels == ["shop", "payments"])
+    #expect(epicHeader(.active(labelled), bundle: english.bundle, locale: english.locale).labels == ["shop", "payments"])
     labelled.labels = ["solve:epic"]
-    #expect(epicHeader(.active(labelled)).labels == [])
+    #expect(epicHeader(.active(labelled), bundle: english.bundle, locale: english.locale).labels == [])
     labelled.labels = ["carrier:status:needs-human", "carrier:stage:building", "Carrier"]
-    #expect(epicHeader(.active(labelled)).labels == ["Carrier"])
+    #expect(epicHeader(.active(labelled), bundle: english.bundle, locale: english.locale).labels == ["Carrier"])
 }
 
 @Test func theHeaderHasNoPullRequestUntilThereIsOne() {
-    let header = epicHeader(.active(epic(stage: .ship)))
+    let header = epicHeader(.active(epic(stage: .ship)), bundle: english.bundle, locale: english.locale)
     #expect(header.prURL == nil && header.prLabel == nil)
     #expect(header.issueURL == "https://github.com/acme/web/issues/12")
     // the toolbar then offers Open issue only, also for an epic still in the queue
-    #expect(epicHeader(.queued(queuedEpic, position: 1)).prURL == nil)
-    #expect(epicHeader(.queued(queuedEpic, position: 1)).issueURL == "https://github.com/acme/web/issues/12")
+    #expect(epicHeader(.queued(queuedEpic, position: 1), bundle: english.bundle, locale: english.locale).prURL == nil)
+    #expect(epicHeader(.queued(queuedEpic, position: 1), bundle: english.bundle, locale: english.locale).issueURL == "https://github.com/acme/web/issues/12")
 }
 
 @Test func theHeaderLinksThePullRequestFromTheSnapshotOrTheReply() {
     var withPR = epic(stage: .review)
     withPR.prUrl = "https://github.com/acme/web/pull/50"
-    let header = epicHeader(.active(withPR))
+    let header = epicHeader(.active(withPR), bundle: english.bundle, locale: english.locale)
     #expect(header.prURL == "https://github.com/acme/web/pull/50" && header.prLabel == "PR #50")
-    let done = epicHeader(.finished(doneEpic))
+    let done = epicHeader(.finished(doneEpic), bundle: english.bundle, locale: english.locale)
     #expect(done.prURL == "https://github.com/acme/web/pull/50" && done.prLabel == "PR #50")
     let pr = EpicReply.PullRequest(number: 51, url: "https://github.com/acme/web/pull/51", draft: false, mergeState: "clean", reviewDecision: nil, checks: nil)
     var fromReply = reply(stages: [])
     fromReply.pr = pr
-    #expect(epicHeader(.active(epic()), reply: fromReply).prLabel == "PR #51")
+    #expect(epicHeader(.active(epic()), reply: fromReply, bundle: english.bundle, locale: english.locale).prLabel == "PR #51")
 }
 
 // MARK: tabs
 
 @Test func theTabsListAgentOutputAndFilesChangedWithACountOnlyAboveZero() {
-    #expect(EpicTab.allCases.map(\.title) == ["Agent output", "Files changed"])
-    #expect(EpicTab.agentOutput.title(filesChanged: 7) == "Agent output")
-    #expect(EpicTab.filesChanged.title(filesChanged: 0) == "Files changed")
-    #expect(EpicTab.filesChanged.title(filesChanged: 3) == "Files changed · 3")
+    #expect(EpicTab.allCases.map { $0.title(bundle: english.bundle, locale: english.locale) } == ["Agent output", "Files changed"])
+    #expect(EpicTab.agentOutput.title(filesChanged: 7, bundle: english.bundle, locale: english.locale) == "Agent output")
+    #expect(EpicTab.filesChanged.title(filesChanged: 0, bundle: english.bundle, locale: english.locale) == "Files changed")
+    #expect(EpicTab.filesChanged.title(filesChanged: 3, bundle: english.bundle, locale: english.locale) == "Files changed · 3")
 }
 
 @Test func aFileTouchedByTwoSessionsCountsOnce() {
@@ -181,16 +181,16 @@ private func reply(stages: [EpicReply.Stage], rounds: Int = 0) -> EpicReply {
 }
 
 @Test func theHeaderSaysTheStateInWords() {
-    let running = epicHeader(.active(epic(.running, stage: .review, round: 2)))
+    let running = epicHeader(.active(epic(.running, stage: .review, round: 2)), bundle: english.bundle, locale: english.locale)
     #expect(running.state == .running)
     #expect(running.status == "Running · review · round 2/5")
     #expect((running.repo, running.issue) == ("acme/web", 12))
-    let stuck = epicHeader(.active(epic(.needsHuman, stage: .review, round: 5, kind: "review_limit")))
+    let stuck = epicHeader(.active(epic(.needsHuman, stage: .review, round: 5, kind: "review_limit")), bundle: english.bundle, locale: english.locale)
     #expect(stuck.state == .needsYou)
     #expect(stuck.status == "Needs attention · review limit reached")
-    #expect(epicHeader(.queued(queuedEpic, position: 2)).status == "Up next · 2nd in queue")
-    #expect(epicHeader(.queued(queuedEpic, position: 2)).state == .waiting)
-    #expect(epicHeader(.finished(doneEpic)).state == .ready)
+    #expect(epicHeader(.queued(queuedEpic, position: 2), bundle: english.bundle, locale: english.locale).status == "Up next · 2nd in queue")
+    #expect(epicHeader(.queued(queuedEpic, position: 2), bundle: english.bundle, locale: english.locale).state == .waiting)
+    #expect(epicHeader(.finished(doneEpic), bundle: english.bundle, locale: english.locale).state == .ready)
 }
 
 // MARK: finished epics
@@ -214,7 +214,7 @@ private func ended(_ status: PanelSnapshot.FinishedEpic.Status, reason: String? 
 }
 
 @Test func aMergedEpicHeaderIsDoneWithItsPullRequestAndLabels() {
-    let header = epicHeader(.ended(ended(.merged)))
+    let header = epicHeader(.ended(ended(.merged)), bundle: english.bundle, locale: english.locale)
     #expect(header.state == .done && header.status == "Done")
     #expect(header.title == "Checkout flow" && header.labels == ["shop"])
     #expect(header.prURL == "https://github.com/acme/web/pull/50" && header.prLabel == "PR #50")
@@ -222,20 +222,20 @@ private func ended(_ status: PanelSnapshot.FinishedEpic.Status, reason: String? 
 }
 
 @Test func aCancelledEpicHeaderSaysWhy() {
-    let header = epicHeader(.ended(ended(.cancelled, reason: "final PR closed without merge", pr: nil)))
+    let header = epicHeader(.ended(ended(.cancelled, reason: "final PR closed without merge", pr: nil)), bundle: english.bundle, locale: english.locale)
     #expect(header.state == .cancelled && header.status == "Cancelled · final PR closed without merge")
     #expect(header.prURL == nil)
-    #expect(epicHeader(.ended(ended(.cancelled))).status == "Cancelled")
+    #expect(epicHeader(.ended(ended(.cancelled)), bundle: english.bundle, locale: english.locale).status == "Cancelled")
 }
 
 @Test func aMergedEpicIsDoneEverywhereAndACancelledOneStopsWhereItHadNotGot() {
-    #expect(line(pipelineSteps(.ended(ended(.merged)))) == ["Queued:d", "Ship:d", "Review / Fix:d", "Ready:d"])
+    #expect(line(pipelineSteps(.ended(ended(.merged)), bundle: english.bundle, locale: english.locale)) == ["Queued:d", "Ship:d", "Review / Fix:d", "Ready:d"])
     // without the reply only the queue is known to have been passed
-    #expect(line(pipelineSteps(.ended(ended(.cancelled)))) == ["Queued:d", "Ship:x:cancelled", "Review / Fix:w", "Ready:w"])
+    #expect(line(pipelineSteps(.ended(ended(.cancelled)), bundle: english.bundle, locale: english.locale)) == ["Queued:d", "Ship:x:cancelled", "Review / Fix:w", "Ready:w"])
     let shipped = reply(stages: [.init(stage: "queued", startedAt: 0, endedAt: 60_000), .init(stage: "ship", startedAt: 60_000, endedAt: 360_000)])
-    #expect(line(pipelineSteps(.ended(ended(.cancelled)), reply: shipped)) == ["Queued:d", "Ship:d", "Review / Fix:x:cancelled", "Ready:w"])
+    #expect(line(pipelineSteps(.ended(ended(.cancelled)), reply: shipped, bundle: english.bundle, locale: english.locale)) == ["Queued:d", "Ship:d", "Review / Fix:x:cancelled", "Ready:w"])
     let reviewed = reply(stages: shipped.stages, rounds: 2)
-    #expect(line(pipelineSteps(.ended(ended(.cancelled)), reply: reviewed))[3] == "Ready:x:cancelled")
+    #expect(line(pipelineSteps(.ended(ended(.cancelled)), reply: reviewed, bundle: english.bundle, locale: english.locale))[3] == "Ready:x:cancelled")
 }
 
 @Test func aFinishedEpicOffersNoContinueButAnOverSessionOfAnotherEpicStillDoes() {

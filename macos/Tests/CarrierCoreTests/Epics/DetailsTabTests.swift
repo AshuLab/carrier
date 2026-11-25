@@ -48,7 +48,7 @@ private func rows(_ model: DetailsTabModel) -> [String: DetailsRow] {
 }
 
 private func model(_ subject: EpicSubject?, _ reply: EpicReply? = nil, sessions: SessionsReply? = nil) -> [String: DetailsRow] {
-    rows(detailsTab(subject, reply: reply, sessions: sessions, now: now, time: utc))
+    rows(detailsTab(subject, reply: reply, sessions: sessions, now: now, time: utc, bundle: english.bundle, locale: english.locale))
 }
 
 private func ran(_ role: String, _ agent: PanelSnapshot.Agent) -> SessionsReply.Session {
@@ -56,29 +56,29 @@ private func ran(_ role: String, _ agent: PanelSnapshot.Agent) -> SessionsReply.
 }
 
 @Test func theGroupsAreTimingProgressPullRequestAndRun() {
-    let groups = detailsTab(active(), reply: nil, now: now, time: utc).groups
+    let groups = detailsTab(active(), reply: nil, now: now, time: utc, bundle: english.bundle, locale: english.locale).groups
     #expect(groups.map(\.title) == ["Timing", "Progress", "Pull request", "Run"])
     #expect(groups.map { $0.rows.map(\.label) } == [
         ["Stage", "Last activity", "Started", "Total time"], ["Slices", "Review round", "Blockers"],
         ["Pull request", "Checks", "Branch"], ["Agent", "Lanes", "Repository"],
     ])
-    #expect(detailsTab(nil, reply: nil, now: now).groups.isEmpty)
+    #expect(detailsTab(nil, reply: nil, now: now, bundle: english.bundle, locale: english.locale).groups.isEmpty)
 }
 
 @Test func aRunningEpicInReviewFillsEveryGroup() {
     let r = model(active(), reply(pr: pull(.init(passing: 5, failing: 0, pending: 0)), lanes: 2))
-    #expect(r["Stage"] == DetailsRow(label: "Stage", note: "In review", value: "5m"))
+    #expect(r["Stage"] == DetailsRow(field: .stage, label: "Stage", note: "In review", value: "5m"))
     #expect(r["Last activity"]?.value == "30s ago")
     #expect(r["Started"]?.value == "12:57")
     #expect(r["Total time"]?.value == "2h 03m")
-    #expect(r["Slices"] == DetailsRow(label: "Slices", note: "all merged", value: "3 of 3"))
-    #expect(r["Review round"] == DetailsRow(label: "Review round", note: "in progress", value: "2 of 5", style: .badge))
+    #expect(r["Slices"] == DetailsRow(field: .slices, label: "Slices", note: "all merged", value: "3 of 3"))
+    #expect(r["Review round"] == DetailsRow(field: .reviewRound, label: "Review round", note: "in progress", value: "2 of 5", style: .badge))
     #expect(r["Blockers"]?.value == "none" && r["Blockers"]?.tone == .good)
     #expect(r["Pull request"]?.value == "PR #50" && r["Pull request"]?.url == "https://github.com/acme/web/pull/50")
-    #expect(r["Checks"] == DetailsRow(label: "Checks", note: "on the PR", value: "5 passing", tone: .good, style: .badge, url: "https://github.com/acme/web/pull/50/checks"))
+    #expect(r["Checks"] == DetailsRow(field: .checks, label: "Checks", note: "on the PR", value: "5 passing", tone: .good, style: .badge, url: "https://github.com/acme/web/pull/50/checks"))
     #expect(r["Branch"]?.value == "feat/x/epic" && r["Branch"]?.style == .badge)
     #expect(r["Branch"]?.url == "https://github.com/acme/web/tree/feat/x/epic")
-    #expect(r["Agent"] == DetailsRow(label: "Agent", note: "gpt-5", value: "Codex"))
+    #expect(r["Agent"] == DetailsRow(field: .agent, label: "Agent", note: "gpt-5", value: "Codex"))
     #expect(r["Lanes"]?.value == "2")
     #expect(r["Repository"]?.value == "acme/web" && r["Repository"]?.url == "https://github.com/acme/web")
 }
@@ -90,10 +90,10 @@ private func ran(_ role: String, _ agent: PanelSnapshot.Agent) -> SessionsReply.
 
 @Test func anEpicInShipHasNoPullRequestYet() {
     let r = model(active(stage: .ship, round: nil, blockers: 0, slices: .init(done: 1, total: 3)), reply(lanes: 3))
-    #expect(r["Pull request"] == DetailsRow(label: "Pull request", note: "opens when every slice is merged", value: "not yet", tone: .dim))
+    #expect(r["Pull request"] == DetailsRow(field: .pullRequest, label: "Pull request", note: "opens when every slice is merged", value: "not yet", tone: .dim))
     #expect(r["Checks"]?.value == "—")
-    #expect(r["Review round"] == DetailsRow(label: "Review round", note: "starts after ship", value: "—", tone: .dim))
-    #expect(r["Slices"] == DetailsRow(label: "Slices", note: "2 left", value: "1 of 3"))
+    #expect(r["Review round"] == DetailsRow(field: .reviewRound, label: "Review round", note: "starts after ship", value: "—", tone: .dim))
+    #expect(r["Slices"] == DetailsRow(field: .slices, label: "Slices", note: "2 left", value: "1 of 3"))
     #expect(r["Stage"]?.note == "Shipping")
     #expect(r["Agent"]?.value == "Claude")
     #expect(r["Lanes"]?.value == "3")
@@ -101,14 +101,14 @@ private func ran(_ role: String, _ agent: PanelSnapshot.Agent) -> SessionsReply.
 
 @Test func openBlockersAreCountedAndRed() {
     let r = model(active(blockers: 2))
-    #expect(r["Blockers"] == DetailsRow(label: "Blockers", note: "open", value: "2", tone: .bad, style: .badge))
+    #expect(r["Blockers"] == DetailsRow(field: .blockers, label: "Blockers", note: "open", value: "2", tone: .bad, style: .badge))
 }
 
 @Test func anEpicThatNeedsYouSaysSo() {
     var epic = active(.needsHuman, round: 5)
     if case .active(var e) = epic { e.needsHumanKind = "review_limit"; epic = .active(e) }
     let r = model(epic)
-    #expect(r["Review round"] == DetailsRow(label: "Review round", note: "limit reached", value: "5 of 5", tone: .attention, style: .badge))
+    #expect(r["Review round"] == DetailsRow(field: .reviewRound, label: "Review round", note: "limit reached", value: "5 of 5", tone: .attention, style: .badge))
     #expect(r["Stage"]?.note == "In review · needs you")
     #expect(r["Last activity"]?.note == "no movement since")
 }
@@ -118,10 +118,10 @@ private func ran(_ role: String, _ agent: PanelSnapshot.Agent) -> SessionsReply.
     var finishedReply = reply(pr: pull(.init(passing: 4, failing: 0, pending: 0)), rounds: [approved()])
     finishedReply.stages = [.init(stage: "queued", startedAt: now - 25 * hour, endedAt: now - 24 * hour), .init(stage: "ship", startedAt: now - 24 * hour, endedAt: nil)]
     let r = model(.finished(done), finishedReply)
-    #expect(r["Stage"] == DetailsRow(label: "Stage", note: "Finished", value: "23h 00m ago"))
+    #expect(r["Stage"] == DetailsRow(field: .stage, label: "Stage", note: "Finished", value: "23h 00m ago"))
     #expect(r["Total time"]?.value == "1h 00m")
     #expect(r["Started"]?.value == "Yesterday 15:00")
-    #expect(r["Review round"] == DetailsRow(label: "Review round", note: "approved", value: "2", tone: .good, style: .badge))
+    #expect(r["Review round"] == DetailsRow(field: .reviewRound, label: "Review round", note: "approved", value: "2", tone: .good, style: .badge))
     #expect(r["Blockers"]?.value == "none")
     #expect(r["Pull request"]?.value == "PR #50")
     #expect(r["Last activity"] == nil)
@@ -148,7 +148,7 @@ private func ran(_ role: String, _ agent: PanelSnapshot.Agent) -> SessionsReply.
 @Test func aQueuedEpicHasOnlyItsWaitAndItsRepository() {
     let queued = PanelSnapshot.QueuedEpic(repo: "acme/web", issue: 12, title: nil, queuedAt: now - 7 * 60_000)
     let r = model(.queued(queued, position: 2))
-    #expect(r["Stage"] == DetailsRow(label: "Stage", note: "2nd in queue", value: "7m"))
+    #expect(r["Stage"] == DetailsRow(field: .stage, label: "Stage", note: "2nd in queue", value: "7m"))
     for label in ["Started", "Total time", "Slices", "Blockers", "Checks", "Branch"] {
         #expect(r[label]?.value == "—", "\(label)")
     }
@@ -181,7 +181,7 @@ private func ran(_ role: String, _ agent: PanelSnapshot.Agent) -> SessionsReply.
     #expect(checks(.init(passing: 5, failing: 1, pending: 2))?.tone == .bad)
     #expect(checks(.init(passing: 5, failing: 0, pending: 2))?.tone == .attention)
     #expect(checks(.init(passing: 0, failing: 0, pending: 3))?.value == "3 pending")
-    #expect(checks(nil) == DetailsRow(label: "Checks", note: "on the PR", value: "no checks", tone: .dim))
+    #expect(checks(nil) == DetailsRow(field: .checks, label: "Checks", note: "on the PR", value: "no checks", tone: .dim))
     #expect(checks(.init(passing: 0, failing: 0, pending: 0))?.value == "no checks")
     #expect(model(active(), reply(pr: nil))["Checks"]?.value == "—")
 }
@@ -193,5 +193,5 @@ private func ran(_ role: String, _ agent: PanelSnapshot.Agent) -> SessionsReply.
         .init(number: 2, title: "b", state: "in_progress", blockedBy: [], prNumber: nil, closedAt: nil, readAt: 0),
         .init(number: 3, title: "c", state: "skipped", blockedBy: [], prNumber: nil, closedAt: nil, readAt: 0),
     ]
-    #expect(model(active(slices: nil), withSlices)["Slices"] == DetailsRow(label: "Slices", note: "1 left", value: "1 of 2"))
+    #expect(model(active(slices: nil), withSlices)["Slices"] == DetailsRow(field: .slices, label: "Slices", note: "1 left", value: "1 of 2"))
 }

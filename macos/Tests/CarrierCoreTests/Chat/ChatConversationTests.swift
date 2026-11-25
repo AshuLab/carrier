@@ -953,7 +953,7 @@ private func step(_ id: Int, _ step: String, _ status: String, _ detail: String?
 @Test func theStepsMakeOneRowEachInTheOrderTheyStartedWithTheLastStatusAndALineInWords() {
     let rows = preparationSteps(
         [step(1, "clone", "running"), step(2, "clone", "done"), step(3, "agent", "running"), say(4), step(5, "agent", "done"), step(6, "message", "running")],
-        preparation: .running
+        preparation: .running, bundle: english.bundle, locale: english.locale
     )
     #expect(rows.map(\.step) == ["clone", "agent", "message"] && rows.map(\.status) == [.done, .done, .running])
     #expect(rows.map(\.line) == ["Cloned the repository", "Started the agent", "Waiting for the agent to answer…"])
@@ -961,15 +961,15 @@ private func step(_ id: Int, _ step: String, _ status: String, _ detail: String?
 }
 
 @Test func aFailedStepShowsItsReasonAndOnlyTheRunningOneTakesTheProgress() {
-    let failed = preparationSteps([step(1, "clone", "done"), step(2, "worktree", "failed", "A branch called carrier/x already exists")], preparation: .failed, progress: "Receiving objects: 45%")
+    let failed = preparationSteps([step(1, "clone", "done"), step(2, "worktree", "failed", "A branch called carrier/x already exists")], preparation: .failed, progress: "Receiving objects: 45%", bundle: english.bundle, locale: english.locale)
     #expect(failed.map(\.status) == [.done, .failed] && failed[1].reason == "A branch called carrier/x already exists" && failed[1].line == "Could not make the worktree")
     #expect(failed.allSatisfy { $0.progress == nil })
-    let cloning = preparationSteps([step(1, "clone", "running")], preparation: .running, progress: "Receiving objects: 45%")
+    let cloning = preparationSteps([step(1, "clone", "running")], preparation: .running, progress: "Receiving objects: 45%", bundle: english.bundle, locale: english.locale)
     #expect(cloning.first?.progress == "Receiving objects: 45%" && cloning.first?.line == "Cloning the repository…")
 }
 
 @Test func aStepThatRunsAgainAfterFailingTakesItsPlaceInTheSameRowWithoutTheOldReason() {
-    let rows = preparationSteps([step(1, "agent", "failed", "claude is not logged in"), step(2, "agent", "running")], preparation: .running)
+    let rows = preparationSteps([step(1, "agent", "failed", "claude is not logged in"), step(2, "agent", "running")], preparation: .running, bundle: english.bundle, locale: english.locale)
     #expect(rows.count == 1 && rows[0].status == .running && rows[0].reason == nil)
 }
 
@@ -981,15 +981,15 @@ private func actionStep(_ id: Int, _ name: String, _ when: String, _ status: Str
     let rows = preparationSteps(
         [step(1, "clone", "done"), actionStep(2, "Install", "afterClone", "running"), actionStep(3, "Install", "afterClone", "done"), step(4, "worktree", "done"),
          actionStep(5, "Install", "newWorktree", "running"), actionStep(6, "Copy env", "newWorktree", "failed", "Copy env failed with exit code 1: no such file")],
-        preparation: .failed, progress: "resolving"
+        preparation: .failed, progress: "resolving", bundle: english.bundle, locale: english.locale
     )
     #expect(rows.map(\.line) == ["Cloned the repository", "Ran Install", "Made the worktree", "Running Install…", "Copy env failed"])
     #expect(rows.map(\.icon) == [nil, .terminal, nil, .terminal, .terminal])
     #expect(Set(rows.map(\.id)).count == 5)
     #expect(rows[3].progress == "resolving" && rows[4].reason == "Copy env failed with exit code 1: no such file")
     // the outline keeps each row's icon and its own id
-    #expect(preparationOutline(rows).prefix(5).map(\.icon) == [nil, .terminal, nil, .terminal, .terminal])
-    #expect(Set(preparationOutline(rows).map(\.id)).count == preparationOutline(rows).count)
+    #expect(preparationOutline(rows, bundle: english.bundle, locale: english.locale).prefix(5).map(\.icon) == [nil, .terminal, nil, .terminal, .terminal])
+    #expect(Set(preparationOutline(rows, bundle: english.bundle, locale: english.locale).map(\.id)).count == preparationOutline(rows, bundle: english.bundle, locale: english.locale).count)
 }
 
 @Test func aRestoreListsOnlyTheStepsFromItsWorktreeMarkerThatEndTheLogAndNotTheStepsOfEarlierTurns() {
@@ -998,15 +998,15 @@ private func actionStep(_ id: Int, _ name: String, _ when: String, _ status: Str
         step(7, "worktree", "running"), step(8, "worktree", "done"), actionStep(9, "Install", "newWorktree", "done"), ChatEvent(id: 10, at: 10, kind: "notice", text: "x"),
         actionStep(11, "Copy env", "newWorktree", "running"),
     ]
-    let restore = preparationSteps(log, preparation: .running, progress: "copying", restoring: true)
+    let restore = preparationSteps(log, preparation: .running, progress: "copying", restoring: true, bundle: english.bundle, locale: english.locale)
     #expect(restore.map(\.line) == ["Made the worktree", "Ran Install", "Running Copy env…"] && restore.map(\.progress) == [nil, nil, "copying"])
     // the same log read as a preparation lists every step, as before
-    #expect(preparationSteps(log, preparation: .running).map(\.step) == ["worktree", "action", "agent", "message", "action"])
+    #expect(preparationSteps(log, preparation: .running, bundle: english.bundle, locale: english.locale).map(\.step) == ["worktree", "action", "agent", "message", "action"])
     // a restore whose first action has not started lists the worktree row, and the steps of the turns before it are not its own
-    #expect(preparationSteps(Array(log.prefix(7)), preparation: .running, restoring: true).map(\.line) == ["Making the worktree…"])
-    #expect(preparationSteps(Array(log.prefix(8)), preparation: .running, restoring: true).map(\.line) == ["Made the worktree"])
+    #expect(preparationSteps(Array(log.prefix(7)), preparation: .running, restoring: true, bundle: english.bundle, locale: english.locale).map(\.line) == ["Making the worktree…"])
+    #expect(preparationSteps(Array(log.prefix(8)), preparation: .running, restoring: true, bundle: english.bundle, locale: english.locale).map(\.line) == ["Made the worktree"])
     // a restore whose worktree could not come back says why
-    let failed = preparationSteps(Array(log.prefix(6)) + [step(7, "worktree", "running"), step(8, "worktree", "failed", "gone")], preparation: .running, restoring: true)
+    let failed = preparationSteps(Array(log.prefix(6)) + [step(7, "worktree", "running"), step(8, "worktree", "failed", "gone")], preparation: .running, restoring: true, bundle: english.bundle, locale: english.locale)
     #expect(failed.map(\.status) == [.failed] && failed.first?.reason == "gone")
 }
 
@@ -1016,13 +1016,13 @@ private func actionStep(_ id: Int, _ name: String, _ when: String, _ status: Str
         step(1, "worktree", "running"), step(2, "worktree", "done"), actionStep(3, "Install", "newWorktree", "done"), actionStep(4, "Old only", "newWorktree", "done"),
         step(5, "worktree", "running"), step(6, "worktree", "done"), actionStep(7, "Install", "newWorktree", "running"),
     ]
-    #expect(preparationSteps(back, preparation: .running, restoring: true).map(\.line) == ["Made the worktree", "Running Install…"])
+    #expect(preparationSteps(back, preparation: .running, restoring: true, bundle: english.bundle, locale: english.locale).map(\.line) == ["Made the worktree", "Running Install…"])
     // a restore that stopped and goes on has the one marker of its first try, and the actions it finished still show
     let resumed = [step(1, "message", "done"), step(2, "worktree", "running"), step(3, "worktree", "done"), actionStep(4, "Install", "newWorktree", "done"), actionStep(5, "Copy env", "newWorktree", "failed"), actionStep(6, "Copy env", "newWorktree", "running")]
-    #expect(preparationSteps(resumed, preparation: .running, restoring: true).map(\.line) == ["Made the worktree", "Ran Install", "Running Copy env…"])
+    #expect(preparationSteps(resumed, preparation: .running, restoring: true, bundle: english.bundle, locale: english.locale).map(\.line) == ["Made the worktree", "Ran Install", "Running Copy env…"])
     // a log from before the marker: the trailing actions, as they were
     let old = [step(1, "message", "done"), actionStep(2, "Install", "newWorktree", "done"), actionStep(3, "Copy env", "newWorktree", "running")]
-    #expect(preparationSteps(old, preparation: .running, restoring: true).map(\.line) == ["Ran Install", "Running Copy env…"])
+    #expect(preparationSteps(old, preparation: .running, restoring: true, bundle: english.bundle, locale: english.locale).map(\.line) == ["Ran Install", "Running Copy env…"])
 }
 
 @MainActor @Test func theModelScopesTheStepsToTheRestoreWhenTheSessionIsNotPreparingButItsPreparationRuns() async {
@@ -1039,10 +1039,10 @@ private func actionStep(_ id: Int, _ name: String, _ when: String, _ status: Str
 
 @Test func theListEndsWhenTheSessionIsNotBeingPreparedAnyMoreOrTheHostSaysNothing() {
     let events = [step(1, "agent", "done"), step(2, "message", "done")]
-    #expect(preparationSteps(events, preparation: nil).isEmpty)
-    #expect(preparationSteps([], preparation: .running).isEmpty)
+    #expect(preparationSteps(events, preparation: nil, bundle: english.bundle, locale: english.locale).isEmpty)
+    #expect(preparationSteps([], preparation: .running, bundle: english.bundle, locale: english.locale).isEmpty)
     // a step or a status this app does not know does not break the list
-    #expect(preparationSteps([step(1, "later", "running"), step(2, "agent", "paused")], preparation: .running).map(\.line) == ["Working on later…"])
+    #expect(preparationSteps([step(1, "later", "running"), step(2, "agent", "paused")], preparation: .running, bundle: english.bundle, locale: english.locale).map(\.line) == ["Working on later…"])
 }
 
 @MainActor @Test func theModelKeepsTheStepsWhileTheHostPreparesAndDropsThemWhenTheAgentAnswers() async {
@@ -1478,12 +1478,12 @@ private func eventsRequest(capabilities: [String]) async throws -> String {
 
 @Test func theOutlineAddsTheStepsThatEveryPreparationEndsWithUntilTheyStart() {
     func row(_ step: String, _ status: StepRow.Status) -> StepRow { StepRow(step: step, status: status, line: step, reason: nil, progress: nil) }
-    let cloning = preparationOutline([row("clone", .running)])
+    let cloning = preparationOutline([row("clone", .running)], bundle: english.bundle, locale: english.locale)
     #expect(cloning.map(\.step) == ["clone", "agent", "message"] && cloning.map(\.status) == [.running, nil, nil])
-    let waiting = preparationOutline([row("worktree", .done), row("agent", .done), row("message", .running)])
+    let waiting = preparationOutline([row("worktree", .done), row("agent", .done), row("message", .running)], bundle: english.bundle, locale: english.locale)
     #expect(waiting.map(\.step) == ["worktree", "agent", "message"] && waiting.allSatisfy { $0.status != nil })
-    #expect(preparationOutline([row("worktree", .done), row("message", .running)]).map(\.step) == ["worktree", "message"])
-    #expect(preparationOutline([]).map(\.line) == ["Start the agent", "Send your message"])
+    #expect(preparationOutline([row("worktree", .done), row("message", .running)], bundle: english.bundle, locale: english.locale).map(\.step) == ["worktree", "message"])
+    #expect(preparationOutline([], bundle: english.bundle, locale: english.locale).map(\.line) == ["Start the agent", "Send your message"])
 }
 
 @Test func theFractionOfAClonesProgressComesFromGitsPercentage() {

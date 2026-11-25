@@ -4,11 +4,11 @@ import SwiftUI
 /// The facts of a card that opens on a row (`SessionPeekView`, `EpicCardView`): a quiet label and a value drawn by its kind. A path or a
 /// branch is one line cut in the middle, with the whole of it in its tooltip and selectable to copy, so a long one never breaks over four
 /// lines; an agent is its account's mark and short name.
-struct CardFactsGrid<Extra: View>: View {
+public struct CardFactsGrid<Extra: View>: View {
     /// One line: a quiet label and a value. `kind` says how the value is drawn, so a long path or branch is cut in the middle on one line instead of broken
     /// over several.
-    struct Fact {
-        enum Kind {
+    public struct Fact {
+        public enum Kind {
             /// Words, which wrap.
             case text
             /// A folder: monospaced, one line, cut in the middle, whole in its tooltip.
@@ -24,13 +24,22 @@ struct CardFactsGrid<Extra: View>: View {
         var kind = Kind.text
         /// A line under the value, smaller and quiet: where it comes from or its whole path.
         var detail: String?
+
+        public init(label: String, value: String, kind: Kind = Kind.text, detail: String? = nil) {
+            self.label = label
+            self.value = value
+            self.kind = kind
+            self.detail = detail
+        }
     }
 
     let facts: [Fact]
     /// More rows after the facts, in the same columns (a session's pull request, its changes and what it waits for).
     @ViewBuilder var extra: () -> Extra
 
-    var body: some View {
+    public init(facts: [Fact], @ViewBuilder extra: @escaping () -> Extra) { self.facts = facts; self.extra = extra }
+
+    public var body: some View {
         Grid(alignment: .leading, horizontalSpacing: 14, verticalSpacing: 6) {
             ForEach(facts.indices, id: \.self) { index in
                 GridRow(alignment: .firstTextBaseline) {
@@ -72,5 +81,5 @@ struct CardFactsGrid<Extra: View>: View {
 }
 
 extension CardFactsGrid where Extra == EmptyView {
-    init(facts: [Fact]) { self.init(facts: facts, extra: { EmptyView() }) }
+    public init(facts: [Fact]) { self.init(facts: facts, extra: { EmptyView() }) }
 }

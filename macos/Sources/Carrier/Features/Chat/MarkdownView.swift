@@ -1,4 +1,5 @@
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
 /// An agent's text: its lines and bullets run together as one text, so a drag selects across them (separate texts select only within

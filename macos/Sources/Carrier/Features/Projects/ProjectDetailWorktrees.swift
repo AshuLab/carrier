@@ -1,5 +1,6 @@
 import AppKit
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
 // The Worktrees and disk group of a project's screen, and what its buttons do: remove a worktree, clean up, delete the project from disk.

@@ -1,7 +1,7 @@
 import CarrierCore
 import SwiftUI
 
-struct NavigationRow<Trailing: View>: View {
+public struct NavigationRow<Trailing: View>: View {
     var id: String?
     let title: String
     let detail: String
@@ -11,7 +11,7 @@ struct NavigationRow<Trailing: View>: View {
     let action: () -> Void
     @ViewBuilder let trailing: Trailing
 
-    init<Leading: View>(title: String, detail: String, leading: Leading, first: Bool = false, action: @escaping () -> Void, @ViewBuilder trailing: () -> Trailing) {
+    public init<Leading: View>(title: String, detail: String, leading: Leading, first: Bool = false, action: @escaping () -> Void, @ViewBuilder trailing: () -> Trailing) {
         self.title = title
         self.detail = detail
         self.first = first
@@ -20,7 +20,7 @@ struct NavigationRow<Trailing: View>: View {
         self.trailing = trailing()
     }
 
-    init(id: String? = nil, title: String, detail: String, first: Bool = false, action: @escaping () -> Void, @ViewBuilder trailing: () -> Trailing) {
+    public init(id: String? = nil, title: String, detail: String, first: Bool = false, action: @escaping () -> Void, @ViewBuilder trailing: () -> Trailing) {
         self.id = id
         self.title = title
         self.detail = detail
@@ -30,7 +30,7 @@ struct NavigationRow<Trailing: View>: View {
         self.trailing = trailing()
     }
 
-    var body: some View {
+    public var body: some View {
         Button(action: action) {
             SettingsTabRow(id: id, title: title, detail: detail, first: first, leading: leading) {
                 HStack(spacing: Tokens.Space.s10) {

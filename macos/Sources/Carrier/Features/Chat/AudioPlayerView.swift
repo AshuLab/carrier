@@ -1,4 +1,5 @@
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
 /// A dictation's audio: a button that plays and pauses, the place it has got to and the time (`AudioPlayback` decides). It plays only while it is on screen.

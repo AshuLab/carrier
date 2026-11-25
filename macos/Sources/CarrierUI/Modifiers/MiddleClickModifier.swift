@@ -3,7 +3,7 @@ import SwiftUI
 
 extension View {
     /// Invokes `action` when the user clicks the middle mouse button (scroll wheel button) inside this view.
-    func onMiddleClick(perform action: @escaping () -> Void) -> some View {
+    public func onMiddleClick(perform action: @escaping () -> Void) -> some View {
         background(MiddleClickRepresentable(action: action).allowsHitTesting(false))
     }
 }
@@ -29,8 +29,8 @@ private struct MiddleClickRepresentable: NSViewRepresentable {
 /// Transparent background AppKit view that observes middle-button (`buttonNumber == 2`) press/release within its visible bounds
 /// without interfering with SwiftUI left-clicks, hover tracking, context menus, or drag-and-drop.
 @MainActor
-final class MiddleClickMonitorView: NSView {
-    static let middleButtonNumber = 2
+public final class MiddleClickMonitorView: NSView {
+    public static let middleButtonNumber = 2
 
     var action: () -> Void = {}
     private var pressedInside = false
@@ -42,18 +42,18 @@ final class MiddleClickMonitorView: NSView {
         }
     }
 
-    override func hitTest(_ point: NSPoint) -> NSView? {
+    public override func hitTest(_ point: NSPoint) -> NSView? {
         nil
     }
 
-    override func viewWillMove(toWindow newWindow: NSWindow?) {
+    public override func viewWillMove(toWindow newWindow: NSWindow?) {
         if newWindow == nil {
             removeMonitor()
         }
         super.viewWillMove(toWindow: newWindow)
     }
 
-    override func viewDidMoveToWindow() {
+    public override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         removeMonitor()
         guard window != nil else { return }
@@ -63,7 +63,7 @@ final class MiddleClickMonitorView: NSView {
         }
     }
 
-    func removeMonitor() {
+    public func removeMonitor() {
         if let monitor {
             NSEvent.removeMonitor(monitor)
             self.monitor = nil
@@ -85,7 +85,7 @@ final class MiddleClickMonitorView: NSView {
 
     /// Evaluates a mouse transition against this view's visible window bounds; exposed internally so tests can drive events deterministically.
     @discardableResult
-    func handleMiddleButtonEvent(
+    public func handleMiddleButtonEvent(
         type: NSEvent.EventType,
         buttonNumber: Int,
         locationInWindow: NSPoint,

@@ -3,14 +3,26 @@ import SwiftUI
 
 /// The glow on the card's edge. Working, a bright arc goes round once every few seconds. Waiting for the person, it does not go anywhere: the
 /// whole edge is lit and breathes, as a light that waits. Without `moves` it is still: the arc, or the edge half lit.
-struct GlowEdge: View {
+public struct GlowEdge: View {
     let color: Color
     let waiting: Bool
     let moves: Bool
     /// The card's corners; the update pill passes half its height, a capsule.
     var cornerRadius: CGFloat = Tokens.Radius.card
 
-    var body: some View {
+    public init(
+        color: Color,
+        waiting: Bool,
+        moves: Bool,
+        cornerRadius: CGFloat = Tokens.Radius.card
+    ) {
+        self.color = color
+        self.waiting = waiting
+        self.moves = moves
+        self.cornerRadius = cornerRadius
+    }
+
+    public var body: some View {
         if moves {
             MovingTimeline { context in
                 let now = context.date.timeIntervalSinceReferenceDate

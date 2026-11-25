@@ -6,11 +6,11 @@ import SwiftUI
 /// red one and "Check failed". The faces share one cell, so the button is as wide as the widest and nothing beside it moves. Its skin is the place's:
 /// the window's toolbar (`.toolbar`, the item adds the glass), a row of a form (`.capsule`) or a page's header (`.text`). Which face it wears is `phase`,
 /// which the area moves (`CheckAgainButton` does, from a check that runs and ends); a click always runs `action`.
-struct CheckButton: View {
-    enum Skin { case toolbar, capsule, text }
+public struct CheckButton: View {
+    public enum Skin { case toolbar, capsule, text }
 
     /// Resting, running, or showing how the last check ended.
-    enum Phase: Equatable { case idle, checking, done, failed }
+    public enum Phase: Equatable { case idle, checking, done, failed }
 
     var skin = Skin.capsule
     /// What the button says at rest; a screen passes its own, and without one it says "Check again".
@@ -18,11 +18,23 @@ struct CheckButton: View {
     let phase: Phase
     let action: () -> Void
 
+    public init(
+        skin: Skin = Skin.capsule,
+        title: String? = nil,
+        phase: Phase,
+        action: @escaping () -> Void
+    ) {
+        self.skin = skin
+        self.title = title
+        self.phase = phase
+        self.action = action
+    }
+
     @State private var hovered = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// The words of a face: the screen's `title` at rest (the piece's own "Check again" without one) and the piece's for the three others.
-    static func words(for phase: Phase, title: String?, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+    public static func words(for phase: Phase, title: String?, bundle: Bundle? = nil, locale: Locale = .current) -> String {
         switch phase {
         case .idle: title ?? Copy.pieceCheckAgain(bundle: bundle, locale: locale)
         case .checking: Copy.pieceChecking(bundle: bundle, locale: locale)
@@ -33,7 +45,7 @@ struct CheckButton: View {
 
     private var words: String { Self.words(for: phase, title: title) }
 
-    var body: some View {
+    public var body: some View {
         Group {
             switch skin {
             case .capsule:

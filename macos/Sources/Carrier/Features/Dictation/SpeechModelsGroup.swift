@@ -1,4 +1,5 @@
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
 /// The Speech models group of the page: the recognizer filter and the table, and the confirmation of a delete.

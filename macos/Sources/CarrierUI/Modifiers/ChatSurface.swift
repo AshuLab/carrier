@@ -10,7 +10,7 @@ private struct ChatSurfaceModifier<S: InsettableShape>: ViewModifier {
     let flat: Color
     let shape: S
 
-    func body(content: Content) -> some View {
+    public func body(content: Content) -> some View {
         switch surface {
         case .glass:
             content.glassEffect(glass, in: shape)
@@ -26,7 +26,7 @@ private struct ChatSurfaceModifier<S: InsettableShape>: ViewModifier {
 
 extension View {
     /// `glass` is what the surface is as glass; `flat` is the fill it has over the window's color as flat.
-    func chatSurface<S: InsettableShape>(_ glass: Glass = .regular, flat: Color = Color.primary.opacity(0.07), in shape: S) -> some View {
+    public func chatSurface<S: InsettableShape>(_ glass: Glass = .regular, flat: Color = Color.primary.opacity(0.07), in shape: S) -> some View {
         modifier(ChatSurfaceModifier(glass: glass, flat: flat, shape: shape))
     }
 }

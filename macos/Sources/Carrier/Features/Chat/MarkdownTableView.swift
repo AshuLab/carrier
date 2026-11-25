@@ -1,4 +1,5 @@
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
 /// A table of pipes, in the glass of the code blocks: a header row, a hairline between the rows, and columns sized to their text, the

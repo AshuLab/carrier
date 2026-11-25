@@ -5,13 +5,13 @@ import SwiftUI
 
 /// A ring: a faint track and an arc over it. The arc turns with one Core Animation animation, capped at 20 fps, which the
 /// render server runs: nothing in the app ticks it, where a SwiftUI repeating animation costs 9% to 12% of a core.
-final class RingLayer: CALayer {
-    static let spinKey = "spin"
+public final class RingLayer: CALayer {
+    public static let spinKey = "spin"
 
     let track = CAShapeLayer(), arc = CAShapeLayer()
 
     /// A ring of `diameter` points; the arc turns only when `animate` is true.
-    static func make(diameter: CGFloat, lineWidth: CGFloat, color: CGColor, animate: Bool) -> RingLayer {
+    public static func make(diameter: CGFloat, lineWidth: CGFloat, color: CGColor, animate: Bool) -> RingLayer {
         let ring = RingLayer()
         ring.bounds = CGRect(x: 0, y: 0, width: diameter, height: diameter)
         let path = CGPath(ellipseIn: ring.bounds.insetBy(dx: lineWidth / 2, dy: lineWidth / 2), transform: nil)
@@ -29,12 +29,12 @@ final class RingLayer: CALayer {
         return ring
     }
 
-    func setColor(_ color: CGColor) {
+    public func setColor(_ color: CGColor) {
         track.strokeColor = color.copy(alpha: 0.25)
         arc.strokeColor = color
     }
 
-    func setAnimating(_ on: Bool) { arc.setSpinning(on) }
+    public func setAnimating(_ on: Bool) { arc.setSpinning(on) }
 }
 
 fileprivate extension CALayer {
@@ -56,7 +56,7 @@ fileprivate extension CALayer {
 
 /// Hosts a RingLayer, or a glyph, and decides whether it turns from the window's visibility and Reduce Motion. The window is kept for the
 /// life of the app and ordering it out does not stop animations, so the host watches occlusion and closing itself.
-final class RingHostView: NSView {
+public final class RingHostView: NSView {
     private static let live = NSHashTable<RingHostView>.weakObjects()
 
     /// The layer that turns and the one that is centred: the ring's arc inside its ring, or the glyph itself.
@@ -68,7 +68,7 @@ final class RingHostView: NSView {
     var windowVisible = false { didSet { refresh() } }
     var reduceMotion = false { didSet { refresh() } }
 
-    init(diameter: CGFloat, lineWidth: CGFloat, color: NSColor) {
+    public init(diameter: CGFloat, lineWidth: CGFloat, color: NSColor) {
         let ring = RingLayer.make(diameter: diameter, lineWidth: lineWidth, color: color.cgColor, animate: false)
         self.ring = ring
         (root, spinner, tint) = (ring, ring.arc, color)
@@ -77,7 +77,7 @@ final class RingHostView: NSView {
     }
 
     /// A white icon, `diameter` points square.
-    init(symbol: AppIcon, diameter: CGFloat) {
+    public init(symbol: AppIcon, diameter: CGFloat) {
         let glyph = CALayer()
         glyph.bounds = CGRect(x: 0, y: 0, width: diameter, height: diameter)
         glyph.contents = Self.whiteImage(symbol, diameter: diameter)
@@ -113,11 +113,11 @@ final class RingHostView: NSView {
         Self.live.add(self)
     }
 
-    required init?(coder: NSCoder) { fatalError("not used") }
+    public required init?(coder: NSCoder) { fatalError("not used") }
 
     deinit { observers.forEach(NotificationCenter.default.removeObserver) }
 
-    override func layout() {
+    public override func layout() {
         super.layout()
         CATransaction.begin()
         CATransaction.setDisableActions(true)
@@ -125,7 +125,7 @@ final class RingHostView: NSView {
         CATransaction.commit()
     }
 
-    override func viewDidMoveToWindow() {
+    public override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         observers.forEach(NotificationCenter.default.removeObserver)
         observers = []
@@ -142,7 +142,7 @@ final class RingHostView: NSView {
         windowVisible = window.occlusionState.contains(.visible)
     }
 
-    override func viewDidChangeEffectiveAppearance() {
+    public override func viewDidChangeEffectiveAppearance() {
         super.viewDidChangeEffectiveAppearance()
         // a layer gets no tint from the system, so its colour is resolved again when the appearance changes
         var resolved = tint.cgColor
@@ -157,51 +157,63 @@ final class RingHostView: NSView {
     }
 
     /// For the self-test: the rings on screen and how many turn.
-    @MainActor static var summary: String {
+    @MainActor public static var summary: String {
         let rings = live.allObjects.filter { $0.window != nil }
         return "rings=\(rings.count) animating=\(rings.filter(\.animating).count)"
     }
 }
 
-struct SpinningRing: NSViewRepresentable {
+public struct SpinningRing: NSViewRepresentable {
     var diameter: CGFloat = 16
     var lineWidth: CGFloat = 2.5
     var color: NSColor = .systemGreen
+
+    public init(
+        diameter: CGFloat = 16,
+        lineWidth: CGFloat = 2.5,
+        color: NSColor = .systemGreen
+    ) {
+        self.diameter = diameter
+        self.lineWidth = lineWidth
+        self.color = color
+    }
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    func makeNSView(context: Context) -> RingHostView {
+    public func makeNSView(context: Context) -> RingHostView {
         let view = RingHostView(diameter: diameter, lineWidth: lineWidth, color: color)
         view.reduceMotion = reduceMotion
         return view
     }
 
-    func updateNSView(_ view: RingHostView, context: Context) { view.reduceMotion = reduceMotion }
+    public func updateNSView(_ view: RingHostView, context: Context) { view.reduceMotion = reduceMotion }
 
-    func sizeThatFits(_ proposal: ProposedViewSize, nsView: RingHostView, context: Context) -> CGSize? {
+    public func sizeThatFits(_ proposal: ProposedViewSize, nsView: RingHostView, context: Context) -> CGSize? {
         CGSize(width: diameter, height: diameter)
     }
 }
 
 /// A glyph that turns by the ring's rule: the same animation, and the same window-visibility and Reduce Motion gating.
-struct SpinningGlyph: NSViewRepresentable {
+public struct SpinningGlyph: NSViewRepresentable {
     var symbol: AppIcon
     var diameter: CGFloat
+
+    public init(symbol: AppIcon, diameter: CGFloat) { self.symbol = symbol; self.diameter = diameter }
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.pieceTheme) private var theme
 
-    func makeNSView(context: Context) -> RingHostView {
+    public func makeNSView(context: Context) -> RingHostView {
         let view = RingHostView(symbol: symbol, diameter: diameter)
         view.reduceMotion = reduceMotion
         return view
     }
 
-    func updateNSView(_ view: RingHostView, context: Context) {
+    public func updateNSView(_ view: RingHostView, context: Context) {
         view.reduceMotion = reduceMotion
         // read here, so the glyph is drawn again in the set and weight the person moves to
         view.setGlyph(symbol, diameter: diameter, set: theme.iconSet, weight: theme.iconWeight)
     }
 
-    func sizeThatFits(_ proposal: ProposedViewSize, nsView: RingHostView, context: Context) -> CGSize? {
+    public func sizeThatFits(_ proposal: ProposedViewSize, nsView: RingHostView, context: Context) -> CGSize? {
         CGSize(width: diameter, height: diameter)
     }
 }

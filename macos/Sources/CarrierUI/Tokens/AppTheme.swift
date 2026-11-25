@@ -5,8 +5,8 @@ import SwiftUI
 
 /// The theme in force, for the views to read while they draw (as `TextSize` does): the theme, the accent, the tint and the translucent
 /// windows of Settings, the color scheme that is showing and the system's Reduce transparency, all turned into `themeSurfaces`.
-@Observable final class AppTheme {
-    static let shared = AppTheme()
+@Observable public final class AppTheme {
+    public static let shared = AppTheme()
 
     private(set) var surfaces = AppTheme.current()
     @ObservationIgnored private var appearance: NSKeyValueObservation?
@@ -37,14 +37,14 @@ import SwiftUI
     }
 
     /// The accent of the app's own views: the theme's, or the Mac's while the theme has none.
-    var accent: Color { surfaces.accent.map(Color.init) ?? .accentColor }
+    public var accent: Color { surfaces.accent.map(Color.init) ?? .accentColor }
 }
 
 extension Color {
-    init(_ color: RGBA) { self.init(.sRGB, red: color.red, green: color.green, blue: color.blue, opacity: color.alpha) }
+    public init(_ color: RGBA) { self.init(.sRGB, red: color.red, green: color.green, blue: color.blue, opacity: color.alpha) }
 
     /// A semantic color of `design/tokens.json`: its light or its dark version, whichever the appearance in force is.
-    init(_ pair: SchemePair<UInt32>) {
+    public init(_ pair: SchemePair<UInt32>) {
         self.init(nsColor: NSColor(name: nil) { appearance in
             let color = RGBA(hex: appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? pair.dark : pair.light)
             return NSColor(srgbRed: color.red, green: color.green, blue: color.blue, alpha: color.alpha)
@@ -52,11 +52,11 @@ extension Color {
     }
 
     /// A color by hue, saturation and brightness: the dictation's, derived from the accent the person picked.
-    init(_ hsb: HSB) { self.init(hue: hsb.hue, saturation: hsb.saturation, brightness: hsb.brightness) }
+    public init(_ hsb: HSB) { self.init(hue: hsb.hue, saturation: hsb.saturation, brightness: hsb.brightness) }
 
     /// The color of the window under a view that has to blend into it (the halo behind the message box's selects): the theme's, or the
     /// system's while the theme has none of its own (Carrier's translucent windows).
-    static var themeWindow: Color {
+    public static var themeWindow: Color {
         let window = AppTheme.shared.surfaces.window
         return window.alpha > 0 ? Color(window) : Color(nsColor: .windowBackgroundColor)
     }
@@ -88,16 +88,16 @@ private struct Themed: ViewModifier {
 }
 
 extension View {
-    func avatarCornerDisc() -> some View { modifier(AvatarCornerDisc()) }
+    public func avatarCornerDisc() -> some View { modifier(AvatarCornerDisc()) }
 
     /// The theme's accent and window color, with the text size and the `PieceTheme` the pieces read, on the root of a window or a sheet. A sheet is another window: it takes neither the accent nor
     /// the color of the window it opens over. Carrier's translucent windows have no color of their own, so the sheet keeps the system's.
-    func themed() -> some View { modifier(Themed()) }
+    public func themed() -> some View { modifier(Themed()) }
 
     /// The color the theme gives the windows, under the content and under the title bar, where a page that has the toolbar's band hidden
     /// would otherwise show the system's grey.
-    func themedWindowBackground() -> some View { background(Color(AppTheme.shared.surfaces.window), ignoresSafeAreaEdges: .all) }
+    public func themedWindowBackground() -> some View { background(Color(AppTheme.shared.surfaces.window), ignoresSafeAreaEdges: .all) }
 
     /// The color the theme gives the sidebar, under the content.
-    func themedSidebarBackground() -> some View { background(Color(AppTheme.shared.surfaces.sidebar)) }
+    public func themedSidebarBackground() -> some View { background(Color(AppTheme.shared.surfaces.sidebar)) }
 }

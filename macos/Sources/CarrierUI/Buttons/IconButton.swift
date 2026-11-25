@@ -3,7 +3,7 @@ import SwiftUI
 
 /// A 24-point button with an accessible name and a tooltip, drawn in `HoverFillButtonStyle`; `why` is the tooltip and the hint while it is
 /// disabled. In a list row it runs its action and does not select the row.
-struct IconButton: View {
+public struct IconButton: View {
     let icon: AppIcon
     let name: String
     var enabled = true
@@ -14,7 +14,25 @@ struct IconButton: View {
     var pressed = false
     let action: () -> Void
 
-    var body: some View {
+    public init(
+        icon: AppIcon,
+        name: String,
+        enabled: Bool = true,
+        why: String? = nil,
+        shortcut: String? = nil,
+        pressed: Bool = false,
+        action: @escaping () -> Void
+    ) {
+        self.icon = icon
+        self.name = name
+        self.enabled = enabled
+        self.why = why
+        self.shortcut = shortcut
+        self.pressed = pressed
+        self.action = action
+    }
+
+    public var body: some View {
         Button(action: action) {
             Glyph(icon, size: 14).frame(width: 24, height: 24).contentShape(Rectangle())
         }

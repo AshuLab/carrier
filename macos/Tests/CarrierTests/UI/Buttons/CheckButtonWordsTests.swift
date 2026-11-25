@@ -1,4 +1,5 @@
 import CarrierCore
+@testable import CarrierUI
 import Foundation
 import Testing
 @testable import Carrier

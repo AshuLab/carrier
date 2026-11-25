@@ -2,13 +2,15 @@ import SwiftUI
 
 /// A quota's track, 8 pt: the use that stays (`solid`, a share of the whole) is solid (the theme's accent, orange from 90 %) and the use the next reset
 /// gives back (`hatched`) is hatched after it. `QuotaPercent` is the number of the same use.
-struct QuotaBar: View {
+public struct QuotaBar: View {
     let solid: Double
     let hatched: Double
     var height: CGFloat = 8
+
+    public init(solid: Double, hatched: Double, height: CGFloat = 8) { self.solid = solid; self.hatched = hatched; self.height = height }
     @Environment(\.pieceTheme) private var theme
 
-    var body: some View {
+    public var body: some View {
         let tint = solid + hatched >= 0.9 ? Color.orange : theme.accent
         GeometryReader { geometry in
             let width = geometry.size.width

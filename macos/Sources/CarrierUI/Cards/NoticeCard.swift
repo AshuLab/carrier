@@ -4,7 +4,7 @@ import SwiftUI
 /// The card the app uses to tell the person something over the message box: a badge, a title, what it means and the actions on the right,
 /// in glass. The errors, the notice of a session that is asleep or archived and the message held while the agent answers are all this
 /// card; each says its own colour, which fills the glass.
-struct NoticeCard<Actions: View, Below: View>: View {
+public struct NoticeCard<Actions: View, Below: View>: View {
     let symbol: AppIcon
     let tint: Color
     let title: String
@@ -22,7 +22,7 @@ struct NoticeCard<Actions: View, Below: View>: View {
     @ViewBuilder var actions: () -> Actions
     /// Under the header, starting where the title does less 10 points: its rows carry their own inset, so a fill under the pointer lines up.
     @ViewBuilder var below: () -> Below
-    init(
+    public init(
         symbol: AppIcon, tint: Color, title: String, detail: String? = nil, hint: String? = nil, tag: String? = nil, detailLines: Int? = nil,
         edge: Bool = false, account: AccountMark? = nil, onTap: (() -> Void)? = nil, @ViewBuilder actions: @escaping () -> Actions,
         @ViewBuilder below: @escaping () -> Below
@@ -31,7 +31,7 @@ struct NoticeCard<Actions: View, Below: View>: View {
         (self.detailLines, self.edge, self.account, self.onTap, self.actions, self.below) = (detailLines, edge, account, onTap, actions, below)
     }
 
-    var body: some View {
+    public var body: some View {
         VStack(alignment: .leading, spacing: Tokens.Space.none) {
             HStack(alignment: .center, spacing: Tokens.Space.s14) {
                 Glyph(symbol, size: 13, bold: true).foregroundStyle(.white)
@@ -76,7 +76,7 @@ struct NoticeCard<Actions: View, Below: View>: View {
 }
 
 extension NoticeCard where Below == EmptyView {
-    init(
+    public init(
         symbol: AppIcon, tint: Color, title: String, detail: String? = nil, hint: String? = nil, tag: String? = nil, detailLines: Int? = nil,
         edge: Bool = false, account: AccountMark? = nil, onTap: (() -> Void)? = nil, @ViewBuilder actions: @escaping () -> Actions
     ) {
@@ -89,5 +89,5 @@ extension NoticeCard where Below == EmptyView {
 
 extension EnvironmentValues {
     /// The colour of the `NoticeCard` the view is in, for its actions (`NoticeActionStyle`).
-    @Entry var noticeTint = Color.gray
+    @Entry public var noticeTint = Color.gray
 }

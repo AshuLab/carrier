@@ -1,4 +1,5 @@
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
 /// The sidebar's title bar, after the window's buttons: the update, from the version found to Restart, as one glass pill

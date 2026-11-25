@@ -2,11 +2,13 @@ import CarrierCore
 import SwiftUI
 
 /// A Carrier home section's title, above the card it heads: the name and, small, what it counts.
-struct OverviewTitle: View {
+public struct OverviewTitle: View {
     let title: String
     var detail: String?
 
-    var body: some View {
+    public init(title: String, detail: String? = nil) { self.title = title; self.detail = detail }
+
+    public var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: Tokens.Space.s8) {
             Text(title).scaledFont(15, weight: .semibold)
             if let detail { Text(detail).font(.caption).foregroundStyle(.secondary) }

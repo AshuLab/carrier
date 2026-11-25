@@ -1,5 +1,6 @@
 import AppKit
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
 /// The draft of a new session in the centre (chat-ui-where2.html): the question, the sentence that says where it works (the workspace,

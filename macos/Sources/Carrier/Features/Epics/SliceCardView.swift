@@ -1,5 +1,6 @@
 import AppKit
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
 // A slice of the epic as a work card, where it was taken (docs/ui.md, "The slice card"; the mockup is S1 of

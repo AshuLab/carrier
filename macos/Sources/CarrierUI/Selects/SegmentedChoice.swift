@@ -4,12 +4,14 @@ import SwiftUI
 /// A few choices that exclude each other, in one quiet capsule: the chosen one is a piece tinted with the person's accent (`.tint`: the one they picked,
 /// else the theme's, else the Mac's) that slides to the next choice. The choices are as wide as the widest one, so the piece does not change size as it moves,
 /// and every one has the same type and padding whether chosen or not (Usage's metric and range).
-struct SegmentedChoice<Value: Hashable>: View {
+public struct SegmentedChoice<Value: Hashable>: View {
     let options: [(value: Value, title: String, icon: AppIcon?)]
     @Binding var selection: Value
+
+    public init(options: [(value: Value, title: String, icon: AppIcon?)], selection: Binding<Value>) { self.options = options; self._selection = selection }
     @Namespace private var thumb
 
-    var body: some View {
+    public var body: some View {
         EqualWidthRow {
             ForEach(Array(options.enumerated()), id: \.offset) { _, option in
                 Segment(title: option.title, icon: option.icon, on: selection == option.value, thumb: thumb) { selection = option.value }

@@ -4,12 +4,14 @@ import SwiftUI
 /// A choice among a few words, the one select of the app's rows: the system's own pop-up menu (a `Picker` in the menu style), which in a form is drawn as
 /// the Mac draws it, the chosen word at the right with the up and down chevrons in a small circle, and opens the system's menu with its own check. It takes
 /// the room of its word: rows no longer give it a width. (AppKit's `NSPopUpButton` in its place drew badly in a form; the SwiftUI picker does not.)
-struct SelectMenu: View {
+public struct SelectMenu: View {
     let items: [String]
     @Binding var selection: Int
+
+    public init(items: [String], selection: Binding<Int>) { self.items = items; self._selection = selection }
     @Environment(\.settingsForm) private var form
 
-    var body: some View {
+    public var body: some View {
         if form {
             Picker(selection: $selection) {
                 ForEach(items.indices, id: \.self) { Text(items[$0]).tag($0) }

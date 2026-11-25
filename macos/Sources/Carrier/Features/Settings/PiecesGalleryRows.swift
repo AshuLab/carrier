@@ -1,7 +1,8 @@
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
-/// The Rows of `Carrier/UI/` in the states their catalog entries list.
+/// The Rows of `CarrierUI/` in the states their catalog entries list.
 struct PiecesGalleryRows: View {
     @Environment(\.pieceTheme) private var theme
     private let wide: CGFloat = 420

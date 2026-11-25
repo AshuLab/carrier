@@ -1,4 +1,5 @@
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
 /// An open session's conversation: the feed of the person's messages and the agent's, newest at the bottom. It polls the chat host

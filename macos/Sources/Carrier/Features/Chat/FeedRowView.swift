@@ -1,4 +1,5 @@
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
 /// A row of the feed. It is `Equatable`, used with `.equatable()`: SwiftUI leaves a row that is `==` to the one it has alone, and that is nearly

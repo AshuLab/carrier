@@ -1,4 +1,5 @@
 import AppKit
+import CarrierUI
 
 /// The first line of the menu: a dot coloured by the state (`dot`), the title in bold and the detail quieter. A view of its own because
 /// a menu item with no action is drawn grey. It takes no clicks.

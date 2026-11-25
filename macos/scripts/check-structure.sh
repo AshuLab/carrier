@@ -88,15 +88,15 @@ fi
 rm -f /tmp/check-structure-frameworks.$$
 
 # Rule: every piece is named by an entry of the pieces gallery.
-# A piece is a type declared at the top level of a file under Sources/Carrier/UI/ outside Tokens/ and Modifiers/: a `struct`, `enum`, `class`, `protocol` or
-# `actor` that starts the line (with `final` or an attribute such as `@MainActor` before it), so a nested type does not count. An entry names it when its name
+# A piece is a type declared at the top level of a file under Sources/CarrierUI/ outside Tokens/ and Modifiers/: a `struct`, `enum`, `class`, `protocol` or
+# `actor` that starts the line (with `public`, `final` or an attribute such as `@MainActor` before it), so a nested type does not count. An entry names it when its name
 # is in quotes in a `GalleryEntry(` line of Sources/Carrier/Features/Settings/PiecesGallery*.swift: `GalleryEntry("SpinningRing", "RingLayer")` names both.
 # Ignores: `private` and `fileprivate` types (they start with those words, so the pattern does not see them), and extensions, which declare no type.
 GALLERY=(Sources/Carrier/Features/Settings/PiecesGallery*.swift)
-grep -rnE '^(@[A-Za-z]+ )*(final )?(struct|enum|class|protocol|actor) [A-Za-z0-9_]+' Sources/Carrier/UI --include='*.swift' |
-  grep -vE '^Sources/Carrier/UI/(Tokens|Modifiers)/' |
+grep -rnE '^(@[A-Za-z]+ )*(public )?(final )?(struct|enum|class|protocol|actor) [A-Za-z0-9_]+' Sources/CarrierUI --include='*.swift' |
+  grep -vE '^Sources/CarrierUI/(Tokens|Modifiers)/' |
   while IFS= read -r hit; do
-    name=$(echo "$hit" | sed -E 's/^[^:]+:[0-9]+:(@[A-Za-z]+ )*(final )?(struct|enum|class|protocol|actor) ([A-Za-z0-9_]+).*/\4/')
+    name=$(echo "$hit" | sed -E 's/^[^:]+:[0-9]+:(@[A-Za-z]+ )*(public )?(final )?(struct|enum|class|protocol|actor) ([A-Za-z0-9_]+).*/\5/')
     grep -h 'GalleryEntry(' "${GALLERY[@]}" 2>/dev/null | grep -q "\"$name\"" ||
       echo "$hit" | sed -E "s/^([^:]+:[0-9]+):.*/\1: $name is a piece that no GalleryEntry of the pieces gallery names: add its entry to PiecesGallery<Kind>.swift/"
   done > /tmp/check-structure-gallery.$$
@@ -112,8 +112,8 @@ rm -f /tmp/check-structure-gallery.$$
 # `.informativeText`, `.toolTip`, `.subtitle`, `.placeholderString` or `.accessibilityLabel`, the call possibly over several lines. Looks at the files of COPY_AREAS, and says
 # which literal and where; a text is a key of design/copy/ read through `Copy` (docs/adr/0054).
 # Ignores: comments (from `//` to the end of the line), the empty string, and a string with no letter once its interpolations are taken out (spaces, punctuation, `"\(x)"`).
-# COPY_AREAS is the whole of Sources/Carrier and Sources/CarrierCore: no file or folder is left out, the two fixture galleries and the generated files included.
-COPY_AREAS=(Sources/Carrier Sources/CarrierCore)
+# COPY_AREAS is the whole of Sources/Carrier, Sources/CarrierUI and Sources/CarrierCore: no file or folder is left out, the two fixture galleries and the generated files included.
+COPY_AREAS=(Sources/Carrier Sources/CarrierUI Sources/CarrierCore)
 find "${COPY_AREAS[@]}" -name '*.swift' | sort |
   while IFS= read -r file; do
     perl -0777 -ne '

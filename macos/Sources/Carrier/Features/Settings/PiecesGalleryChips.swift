@@ -1,7 +1,8 @@
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
-/// The Chips of `Carrier/UI/` in the states their catalog entries list.
+/// The Chips of `CarrierUI/` in the states their catalog entries list.
 struct PiecesGalleryChips: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Tokens.Space.s22) {

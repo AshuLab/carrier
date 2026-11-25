@@ -1,5 +1,6 @@
 import AppKit
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
 /// A text with links: the pointing hand over each one, and the chip lighter under the pointer. `Text` says nothing of where a run was drawn

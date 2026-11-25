@@ -1,4 +1,5 @@
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
 /// The Terminal section in the sidebar and, while `open`, the standalone terminal instances under it (or its empty block).

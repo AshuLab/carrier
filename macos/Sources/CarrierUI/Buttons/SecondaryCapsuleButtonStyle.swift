@@ -2,8 +2,10 @@ import SwiftUI
 
 /// Every other button of Settings: a quiet capsule in the neutral, so the one in the accent (`PrimaryCapsuleButtonStyle`: Done, Save) is
 /// the only one that reads as the screen's main action. Smaller under `.controlSize(.small)`, for the buttons that sit in a row.
-struct SecondaryCapsuleButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View { Face(configuration: configuration) }
+public struct SecondaryCapsuleButtonStyle: ButtonStyle {
+
+    public init() {}
+    public func makeBody(configuration: Configuration) -> some View { Face(configuration: configuration) }
 
     private struct Face: View {
         let configuration: ButtonStyleConfiguration

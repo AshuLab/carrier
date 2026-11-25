@@ -5,8 +5,8 @@ import SwiftUI
 /// applied as a small accent capsule, and the icon turning while `spinning`. The caller puts the glass on the pill (`.glassEffect(.regular,
 /// in: .capsule)`, on the button or on the row of buttons that share one) and hides the toolbar's own (`sharedBackgroundVisibility(.hidden)`):
 /// the toolbar's glass is taller than these labels need and cannot be made smaller.
-struct ToolbarPillButton: View {
-    static let height: CGFloat = 28
+public struct ToolbarPillButton: View {
+    public static let height: CGFloat = 28
 
     let title: String
     var icon: AppIcon?
@@ -17,10 +17,28 @@ struct ToolbarPillButton: View {
     /// The icon's own colour (Stop's red); the words keep the text colour.
     var iconTint: Color?
     let action: () -> Void
+
+    public init(
+        title: String,
+        icon: AppIcon? = nil,
+        mark: Image? = nil,
+        badge: Int = 0,
+        spinning: Bool = false,
+        iconTint: Color? = nil,
+        action: @escaping () -> Void
+    ) {
+        self.title = title
+        self.icon = icon
+        self.mark = mark
+        self.badge = badge
+        self.spinning = spinning
+        self.iconTint = iconTint
+        self.action = action
+    }
     @State private var hovered = false
     @Environment(\.isEnabled) private var enabled
 
-    var body: some View {
+    public var body: some View {
         Button(action: action) {
             HStack(spacing: Tokens.Space.s5) {
                 if let mark {
@@ -46,14 +64,16 @@ struct ToolbarPillButton: View {
 }
 
 /// Accent glass capsule pill button at `ToolbarPillButton.height` (28 pt), shared between headers and primary empty-state CTAs.
-struct AccentGlassPillButton: View {
+public struct AccentGlassPillButton: View {
     @Environment(\.pieceTheme) private var theme
     let title: String
     var icon: AppIcon? = nil
     let action: () -> Void
+
+    public init(title: String, icon: AppIcon? = nil, action: @escaping () -> Void) { self.title = title; self.icon = icon; self.action = action }
     @Environment(\.isEnabled) private var enabled
 
-    var body: some View {
+    public var body: some View {
         Button(action: action) {
             HStack(spacing: Tokens.Space.s5) {
                 if let icon { Glyph(icon, size: 11) }
@@ -72,16 +92,28 @@ struct AccentGlassPillButton: View {
 }
 
 /// Compact icon-only button sized to `ToolbarPillButton.height` (28 pt) for grouped `.glassEffect(.regular, in: .capsule)` toolbars.
-struct ToolbarGlassIconButton: View {
+public struct ToolbarGlassIconButton: View {
     let icon: AppIcon
     /// What the button opened is open: a fill of the accent under the icon, so the state is not the color of the icon alone.
     var active = false
     let name: String
     let action: () -> Void
+
+    public init(
+        icon: AppIcon,
+        active: Bool = false,
+        name: String,
+        action: @escaping () -> Void
+    ) {
+        self.icon = icon
+        self.active = active
+        self.name = name
+        self.action = action
+    }
     @State private var hovered = false
     @Environment(\.isEnabled) private var enabled
 
-    var body: some View {
+    public var body: some View {
         Button(action: action) {
             Glyph(icon, size: 12)
                 .foregroundStyle(active ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary))
@@ -101,13 +133,25 @@ struct ToolbarGlassIconButton: View {
 }
 
 /// Shared toolbar Search toggle that expands inline into a 220 pt glass-pill search field.
-struct ToolbarSearchField: View {
+public struct ToolbarSearchField: View {
     @Binding var query: String?
     let placeholder: String
     let focused: FocusState<Bool>.Binding
     var onDismiss: (() -> Void)? = nil
 
-    var body: some View {
+    public init(
+        query: Binding<String?>,
+        placeholder: String,
+        focused: FocusState<Bool>.Binding,
+        onDismiss: (() -> Void)? = nil
+    ) {
+        self._query = query
+        self.placeholder = placeholder
+        self.focused = focused
+        self.onDismiss = onDismiss
+    }
+
+    public var body: some View {
         if query != nil {
             HStack(spacing: Tokens.Space.s6) {
                 Glyph(.search, size: 11)

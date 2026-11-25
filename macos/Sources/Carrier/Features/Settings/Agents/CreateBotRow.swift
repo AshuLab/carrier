@@ -1,5 +1,6 @@
 import AppKit
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
 /// Create a bot… on the Agents page: Terminal opens on `agent-forge add` (`createBotInTerminal`). The page reads the registry again when the

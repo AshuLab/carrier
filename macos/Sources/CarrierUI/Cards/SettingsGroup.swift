@@ -3,15 +3,29 @@ import SwiftUI
 
 /// A group of a tab: a small uppercase title over a card of rows, or a section of a native `Form`. `footer` is the longer word about the whole
 /// group, under it, so a row's own line can stay short.
-struct SettingsGroup<Content: View, Accessory: View>: View {
+public struct SettingsGroup<Content: View, Accessory: View>: View {
     var id: String?
     let title: String
     var footer: String?
     @ViewBuilder var accessory: Accessory
     @ViewBuilder var content: Content
+
+    public init(
+        id: String? = nil,
+        title: String,
+        footer: String? = nil,
+        @ViewBuilder accessory: () -> Accessory,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.id = id
+        self.title = title
+        self.footer = footer
+        self.accessory = accessory()
+        self.content = content()
+    }
     @Environment(\.settingsForm) private var form
 
-    var body: some View {
+    public var body: some View {
         if form {
             Section {
                 content.environment(\.settingsGroup, id ?? "")
@@ -47,7 +61,7 @@ struct SettingsGroup<Content: View, Accessory: View>: View {
 }
 
 extension SettingsGroup where Accessory == EmptyView {
-    init(id: String? = nil, title: String, footer: String? = nil, @ViewBuilder content: () -> Content) {
+    public init(id: String? = nil, title: String, footer: String? = nil, @ViewBuilder content: () -> Content) {
         self.init(id: id, title: title, footer: footer, accessory: { EmptyView() }, content: content)
     }
 }

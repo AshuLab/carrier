@@ -1,5 +1,6 @@
 import AppKit
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
 /// The Behavior tab: the values of `engine.json` (CarrierCore/EngineConfig.swift), in the three

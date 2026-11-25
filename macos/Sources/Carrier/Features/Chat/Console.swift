@@ -1,5 +1,6 @@
 import AppKit
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
 /// The console's footer button: copies what the block shows and says so for a moment.

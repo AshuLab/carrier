@@ -1,7 +1,7 @@
 # The look of Carrier
 
 How the pieces of Carrier are drawn, so that a new screen or a change reuses what is there and looks like the rest, on the Mac now and in any front-end after it.
-It was written down while polishing Settings (Providers and Repos first); the pieces live in `macos/Sources/Carrier/UI/`.
+It was written down while polishing Settings (Providers and Repos first); the pieces live in `macos/Sources/CarrierUI/`.
 **Before adding a button, a field, a select, a row or a line, look at the catalog below, then at the file it names, and reuse it.
 Do not draw a new one, and do not use the system's plain control where a piece exists.**
 When a piece is missing, add it next to the others, with its catalog entry and its place in the gallery, in the same change.
@@ -145,474 +145,474 @@ A new piece gets a `GalleryEntry("<Name>")` in the file of its kind, or `check-s
 
 ## The catalog
 
-One entry per piece: every type declared at the top level of a file under `Carrier/UI/`, outside `Tokens/` and `Modifiers/`, and the pieces that are modifiers (`SettingsField`, `HoverCard`, `WorkCard`) or families of one file.
+One entry per piece: every type declared at the top level of a file under `CarrierUI/`, outside `Tokens/` and `Modifiers/`, and the pieces that are modifiers (`SettingsField`, `HoverCard`, `WorkCard`) or families of one file.
 `Kind` is the folder, `File` is where it lives, `Web` is its name in a web front-end, `Takes` is its API, `States` are the ones the gallery draws (hover and pressed are the live piece's, where a piece has them).
 Detail on how a screen uses a piece is in the sections after the catalog.
 
 ### IconButton
-Kind: Buttons · File: `macos/Sources/Carrier/UI/Buttons/IconButton.swift` · Web: `<IconButton>`
+Kind: Buttons · File: `macos/Sources/CarrierUI/Buttons/IconButton.swift` · Web: `<IconButton>`
 Takes: `icon`, `name` (the accessible name and the tooltip), `enabled`, `why` (the tooltip while disabled), `shortcut`, `pressed`, `action`.
 States: normal; open (`pressed`, while what it opened is open); disabled; hover and pressed (live).
 Use for: a 24 pt glyph that acts: close, fold, a toolbar of a row. Not for: a button with words (that is a capsule or a `HoverTextButtonStyle`).
 
 ### HoverFillButtonStyle
-Kind: Buttons · File: `macos/Sources/Carrier/UI/Buttons/HoverFillButtonStyle.swift` · Web: `<Button variant="fill">`
+Kind: Buttons · File: `macos/Sources/CarrierUI/Buttons/HoverFillButtonStyle.swift` · Web: `<Button variant="fill">`
 Takes: `open` (the middle fill while what it opened is open), `radius`.
 States: normal; open; disabled; hover and pressed (live).
 Use for: the face of a sidebar or icon button: no fill at rest, a faint one on hover, a stronger one while pressed. Not for: a button that is its words (that is `HoverTextButtonStyle`).
 
 ### HoverTextButtonStyle
-Kind: Buttons · File: `macos/Sources/Carrier/UI/Buttons/HoverTextButtonStyle.swift` · Web: `<Button variant="text">`
+Kind: Buttons · File: `macos/Sources/CarrierUI/Buttons/HoverTextButtonStyle.swift` · Web: `<Button variant="text">`
 Takes: `tint` (nil is quiet grey), `danger` (turns red under the pointer).
 States: normal; tinted; danger; disabled; hover and pressed (live).
 Use for: an action of a page header or beside a message: only its text until the pointer is over it. Not for: the main action of a form (that is `PrimaryCapsuleButtonStyle`).
 
 ### PrimaryCapsuleButtonStyle
-Kind: Buttons · File: `macos/Sources/Carrier/UI/Buttons/PrimaryCapsuleButtonStyle.swift` · Web: `<Button variant="primary">`
+Kind: Buttons · File: `macos/Sources/CarrierUI/Buttons/PrimaryCapsuleButtonStyle.swift` · Web: `<Button variant="primary">`
 Takes: `large` (the one button a screen is about); smaller under `.controlSize(.small)`.
 States: normal; small; large; disabled (grey); pressed (live).
 Use for: the one main action of a form, a footer or a row: Save, Add, Update. Not for: a second button of the same form (that is `SecondaryCapsuleButtonStyle`).
 
 ### SecondaryCapsuleButtonStyle
-Kind: Buttons · File: `macos/Sources/Carrier/UI/Buttons/SecondaryCapsuleButtonStyle.swift` · Web: `<Button variant="secondary">`
+Kind: Buttons · File: `macos/Sources/CarrierUI/Buttons/SecondaryCapsuleButtonStyle.swift` · Web: `<Button variant="secondary">`
 Takes: Nothing; smaller under `.controlSize(.small)`.
 States: normal; small; disabled; hover and pressed (live).
 Use for: every other button of a form: Cancel, Remove, Sign in. Not for: the main action (that is the accent capsule).
 
 ### NoticeActionStyle
-Kind: Buttons · File: `macos/Sources/Carrier/UI/Buttons/NoticeActionStyle.swift` · Web: `<NoticeCard.Action>`
+Kind: Buttons · File: `macos/Sources/CarrierUI/Buttons/NoticeActionStyle.swift` · Web: `<NoticeCard.Action>`
 Takes: `quiet` (the secondary action); the colour comes from the `NoticeCard` it is in (`noticeTint`).
 States: normal; quiet; disabled; hover and pressed (live).
 Use for: an action inside a `NoticeCard`, in the card's own colour. Not for: a button outside a notice.
 
 ### CheckButton
-Kind: Buttons · File: `macos/Sources/Carrier/UI/Buttons/CheckButton.swift` · Web: `<CheckButton>`
+Kind: Buttons · File: `macos/Sources/CarrierUI/Buttons/CheckButton.swift` · Web: `<CheckButton>`
 Takes: `skin` (toolbar, capsule or text), `title` (nil says the piece's own "Check again"; a screen passes its own), `phase` (idle, checking, done, failed), `action`. The words of the three other faces are copy keys of the piece (`pieceChecking`, `pieceUpToDate`, `pieceCheckFailed`).
 States: idle; checking (the arrows turn); done; failed; the text skin.
 Use for: the button that asks again, wherever the app has one (Check again, Check now). Not for: a button that does anything else.
 
 ### ToolbarPillButton
-Kind: Buttons · File: `macos/Sources/Carrier/UI/Buttons/ToolbarPillButton.swift` · Web: `<ToolbarPillButton>`
+Kind: Buttons · File: `macos/Sources/CarrierUI/Buttons/ToolbarPillButton.swift` · Web: `<ToolbarPillButton>`
 Takes: `title`, `icon` or `mark`, `badge` (a count), `spinning`, `iconTint`, `action`; its height is `ToolbarPillButton.height` (28).
 States: normal; with a count; working (the icon turns); disabled; hover (live).
 Use for: a word with its icon on a glass pill of the toolbar: Search, Filter, Stop. Not for: an action inside a page (that is a capsule).
 
 ### AccentGlassPillButton
-Kind: Buttons · File: `macos/Sources/Carrier/UI/Buttons/ToolbarPillButton.swift` · Web: `<AccentGlassPillButton>`
+Kind: Buttons · File: `macos/Sources/CarrierUI/Buttons/ToolbarPillButton.swift` · Web: `<AccentGlassPillButton>`
 Takes: `title`, `icon`, `action`.
 States: normal; with an icon; disabled (dimmed, the glass stops answering the pointer).
 Use for: the main action of a header or of an empty state, on accent glass: New session, Add. Not for: a form's Save (that is `PrimaryCapsuleButtonStyle`).
 
 ### ToolbarGlassIconButton
-Kind: Buttons · File: `macos/Sources/Carrier/UI/Buttons/ToolbarPillButton.swift` · Web: `<ToolbarGlassIconButton>`
+Kind: Buttons · File: `macos/Sources/CarrierUI/Buttons/ToolbarPillButton.swift` · Web: `<ToolbarGlassIconButton>`
 Takes: `icon`, `active` (what it opened is open), `name`, `action`.
 States: normal; selected (`active`); disabled; hover (live).
 Use for: an icon-only button of a glass strip of the toolbar. Not for: a button with words (that is `ToolbarPillButton`).
 
 ### ToolbarSearchField
-Kind: Buttons · File: `macos/Sources/Carrier/UI/Buttons/ToolbarPillButton.swift` · Web: `<ToolbarSearchField>`
+Kind: Buttons · File: `macos/Sources/CarrierUI/Buttons/ToolbarPillButton.swift` · Web: `<ToolbarSearchField>`
 Takes: `query` (nil while closed), `placeholder`, `focused`, `onDismiss`.
 States: closed (the Search pill); open (the field and its close button).
 Use for: the search of a toolbar, which opens inline into a 220 pt pill. Not for: a field of a form (that is `SettingsField`).
 
 ### NoticeCard
-Kind: Cards · File: `macos/Sources/Carrier/UI/Cards/NoticeCard.swift` · Web: `<NoticeCard>`
+Kind: Cards · File: `macos/Sources/CarrierUI/Cards/NoticeCard.swift` · Web: `<NoticeCard>`
 Takes: `symbol`, `tint`, `title`, `detail`, `hint`, `tag`, `detailLines`, `account`, `onTap`, `actions` and `below` (slots).
 States: each tint (info, warning, error); with and without detail; with actions; a disabled action.
 Use for: a notice about the whole page or conversation, over the message box. Not for: a problem of one field (that is `ProblemLine`).
 
 ### OverviewCard
-Kind: Cards · File: `macos/Sources/Carrier/UI/Cards/OverviewCard.swift` · Web: `<OverviewCard>`
+Kind: Cards · File: `macos/Sources/CarrierUI/Cards/OverviewCard.swift` · Web: `<OverviewCard>`
 Takes: `fullWidthDividers`, its rows as content.
 States: normal; with dividers across the whole width.
 Use for: the card of a Carrier home section: rows divided by hairlines. Not for: Settings groups (that is `SettingsGroup`).
 
 ### OverviewLinkRow
-Kind: Cards · File: `macos/Sources/Carrier/UI/Cards/OverviewLinkRow.swift` · Web: `<OverviewLinkRow>`
+Kind: Cards · File: `macos/Sources/CarrierUI/Cards/OverviewLinkRow.swift` · Web: `<OverviewLinkRow>`
 Takes: `action` (nil makes it a plain row), its content.
 States: with an action (a chevron); plain.
 Use for: a row of an `OverviewCard` that goes somewhere. Not for: a row of Settings (that is `NavigationRow`).
 
 ### OverviewTitle
-Kind: Cards · File: `macos/Sources/Carrier/UI/Cards/OverviewTitle.swift` · Web: `<OverviewTitle>`
+Kind: Cards · File: `macos/Sources/CarrierUI/Cards/OverviewTitle.swift` · Web: `<OverviewTitle>`
 Takes: `title`, `detail`.
 States: normal; with detail.
 Use for: the title of a Carrier home section, above its card. Not for: a group of Settings (that is `SettingsGroup`).
 
 ### SettingsGroup
-Kind: Cards · File: `macos/Sources/Carrier/UI/Cards/SettingsGroup.swift` · Web: `<SettingsGroup>`
+Kind: Cards · File: `macos/Sources/CarrierUI/Cards/SettingsGroup.swift` · Web: `<SettingsGroup>`
 Takes: `id`, `title`, `footer`, `accessory` (a control at the right of the title), its rows as content.
 States: normal; with a footer; with an accessory.
 Use for: a group of rows of a Settings page: a small uppercase title over a card, or a section of a form. Not for: a list of things that open a screen of their own (that is a card of `NavigationRow`).
 
 ### SettingsTabCard
-Kind: Cards · File: `macos/Sources/Carrier/UI/Cards/SettingsTabCard.swift` · Web: `<SettingsTabCard>`
+Kind: Cards · File: `macos/Sources/CarrierUI/Cards/SettingsTabCard.swift` · Web: `<SettingsTabCard>`
 Takes: Its rows as content.
 States: normal (drawn inside `SettingsGroup`, and alone under Rows).
 Use for: the card every group of rows sits on, rounded 14. Not for: a card in the feed (that is `WorkCard`).
 
 ### CardFactsGrid
-Kind: Cards · File: `macos/Sources/Carrier/UI/Cards/CardFactsGrid.swift` · Web: `<CardFactsGrid>`
+Kind: Cards · File: `macos/Sources/CarrierUI/Cards/CardFactsGrid.swift` · Web: `<CardFactsGrid>`
 Takes: `facts` (label, value, kind: text, path, branch or account, and a detail line), `extra` (more rows, a slot).
 States: each kind of fact; with extra rows.
 Use for: the facts of a card that opens on a row: a path or branch cut in the middle on one line. Not for: the rows of a form (that is `SettingsTabRow`).
 
 ### CodeBlockView
-Kind: Cards · File: `macos/Sources/Carrier/UI/Cards/CodeBlockView.swift` · Web: `<CodeBlockView>`
+Kind: Cards · File: `macos/Sources/CarrierUI/Cards/CodeBlockView.swift` · Web: `<CodeBlockView>`
 Takes: `name`, `file`, `code`, `copyText`, `isDiff`, `runs`, `diffLines`, `monospace`, `foldAfter`, `spare`.
 States: normal; a diff; folded (a long block under Show more lines); hover (Copy shows, live).
 Use for: a fenced block of an agent's message, coloured by what each piece of code is. Not for: a line of output (that is `MonoLines`).
 
 ### HoverCard
-Kind: Cards · File: `macos/Sources/Carrier/UI/Cards/HoverCard.swift` · Web: `<HoverCard>` around a row
+Kind: Cards · File: `macos/Sources/CarrierUI/Cards/HoverCard.swift` · Web: `<HoverCard>` around a row
 Takes: `.hoverCard { card }` on a view: the card to open.
 States: normal (point at the row and rest; the card opens beside it).
 Use for: a card that opens beside a row when the pointer rests on it. Not for: a menu (that is the system's).
 
 ### WorkCard
-Kind: Cards · File: `macos/Sources/Carrier/UI/Cards/WorkCard.swift` · Web: `<WorkCard>`
+Kind: Cards · File: `macos/Sources/CarrierUI/Cards/WorkCard.swift` · Web: `<WorkCard>`
 Takes: `.workCard()` on a view.
 States: normal.
 Use for: the shell of a card in the feed: a fill and glass, rounded 12 (the tool group, the epic's slices). Not for: a notice (that is `NoticeCard`).
 
 ### Badge
-Kind: Chips · File: `macos/Sources/Carrier/UI/Chips/Badge.swift` · Web: `<Badge>`
+Kind: Chips · File: `macos/Sources/CarrierUI/Chips/Badge.swift` · Web: `<Badge>`
 Takes: `text`, `icon`, `tint`.
 States: normal; warning; info (each is a tint).
 Use for: what a state of a thing is, in a word and an icon in its colour. Not for: a word with no icon (that is `StatusChip`).
 
 ### ChosenMark
-Kind: Chips · File: `macos/Sources/Carrier/UI/Chips/ChosenMark.swift` · Web: `<ChosenMark>`
+Kind: Chips · File: `macos/Sources/CarrierUI/Chips/ChosenMark.swift` · Web: `<ChosenMark>`
 Takes: Nothing.
 States: selected.
 Use for: the mark of the chosen row of a list: a white tick on the accent. Not for: a switch (that is a `Toggle`).
 
 ### PullRequestChip
-Kind: Chips · File: `macos/Sources/Carrier/UI/Chips/PullRequestChip.swift` · Web: `<PullRequestChip>`
+Kind: Chips · File: `macos/Sources/CarrierUI/Chips/PullRequestChip.swift` · Web: `<PullRequestChip>`
 Takes: `number`, `dot` (the state's colour), `link`.
 States: plain; with a state dot; with a link (an arrow, opens GitHub).
 Use for: "PR #736" with a dot for its state. Not for: a state in words (that is `StatusChip`).
 
 ### StatusChip
-Kind: Chips · File: `macos/Sources/Carrier/UI/Chips/StatusChip.swift` · Web: `<StatusChip>`
+Kind: Chips · File: `macos/Sources/CarrierUI/Chips/StatusChip.swift` · Web: `<StatusChip>`
 Takes: `text`, `tint`.
 States: normal; warning; error (each is a tint).
 Use for: a capsule with a word in it: the state is never the colour alone. Not for: a state with an icon (that is `Badge`).
 
 ### BannerView
-Kind: Feedback · File: `macos/Sources/Carrier/UI/Feedback/BannerView.swift` · Web: `<Banner>`
+Kind: Feedback · File: `macos/Sources/CarrierUI/Feedback/BannerView.swift` · Web: `<Banner>`
 Takes: `title`, `detail`, `hint`, `tint`, `account`, `copyDetails` (nil leaves the button out), `retry` (nil makes it a record).
 States: error; warning; record (no retry).
 Use for: a failed turn or a refused send, as a `NoticeCard`. Not for: a notice that is not a failure (that is `NoticeCard`).
 
 ### EmptyStateView
-Kind: Feedback · File: `macos/Sources/Carrier/UI/Feedback/EmptyStateView.swift` · Web: `<EmptyState>`
+Kind: Feedback · File: `macos/Sources/CarrierUI/Feedback/EmptyStateView.swift` · Web: `<EmptyState>`
 Takes: `icon`, `title`, `line`, `action` (title and closure), `actionIcon`, `actionStyle` (secondary or accent glass).
 States: empty; with an action; with an accent glass action and icon.
 Use for: nothing to show: icon, title and a line, centred. Not for: a list that is loading (that is `LoadingStateView`).
 
 ### EmptyStateActionStyle
-Kind: Feedback · File: `macos/Sources/Carrier/UI/Feedback/EmptyStateView.swift` · Web: `<EmptyState actionStyle>`
+Kind: Feedback · File: `macos/Sources/CarrierUI/Feedback/EmptyStateView.swift` · Web: `<EmptyState actionStyle>`
 Takes: A value of `EmptyStateView`: `secondary` or `accentGlass`.
 States: drawn with `EmptyStateView`.
 Use for: which button an empty state's action wears. Not for: any other button.
 
 ### LoadingStateView
-Kind: Feedback · File: `macos/Sources/Carrier/UI/Feedback/EmptyStateView.swift` · Web: `<LoadingState>`
+Kind: Feedback · File: `macos/Sources/CarrierUI/Feedback/EmptyStateView.swift` · Web: `<LoadingState>`
 Takes: `title`, `line`.
 States: loading (it appears after a quarter of a second, so a quick load never flashes it).
 Use for: the shape of an empty state while its content is on its way. Not for: a button that works (that keeps its label and shows a small spinner).
 
 ### GlowEdge
-Kind: Feedback · File: `macos/Sources/Carrier/UI/Feedback/GlowEdge.swift` · Web: `<GlowEdge>`
+Kind: Feedback · File: `macos/Sources/CarrierUI/Feedback/GlowEdge.swift` · Web: `<GlowEdge>`
 Takes: `color`, `waiting`, `moves`, `cornerRadius`.
 States: working (an arc goes round); waiting (the edge breathes); still (no motion).
 Use for: the glow on a card's edge while an agent works or waits. Not for: a progress bar (that is `SegmentedProgress`).
 
 ### ProblemLine
-Kind: Feedback · File: `macos/Sources/Carrier/UI/Feedback/ProblemLine.swift` · Web: `<ProblemLine>`
+Kind: Feedback · File: `macos/Sources/CarrierUI/Feedback/ProblemLine.swift` · Web: `<ProblemLine>`
 Takes: `text`, `font`, `announces` (says it to VoiceOver when it appears or changes).
 States: error.
 Use for: a line that says what went wrong, in orange. Not for: a problem of the whole page (that is `NoticeCard`).
 
 ### RollingTitle
-Kind: Feedback · File: `macos/Sources/Carrier/UI/Feedback/RollingTitle.swift` · Web: `<RollingTitle>`
+Kind: Feedback · File: `macos/Sources/CarrierUI/Feedback/RollingTitle.swift` · Web: `<RollingTitle>`
 Takes: `text`, `waiting`.
 States: normal; waiting (quiet, with a shimmer); the roll when the text changes (live).
 Use for: a session's title in the sidebar, which rolls when it changes. Not for: a title that never changes.
 
 ### Shimmer
-Kind: Feedback · File: `macos/Sources/Carrier/UI/Feedback/Shimmer.swift` · Web: `<Shimmer>` around a text
+Kind: Feedback · File: `macos/Sources/CarrierUI/Feedback/Shimmer.swift` · Web: `<Shimmer>` around a text
 Takes: `active`.
 States: normal; working (a light sweeps over the text).
 Use for: a light over a text that is being written. Not for: a spinner.
 
 ### NumberField
-Kind: Fields · File: `macos/Sources/Carrier/UI/Fields/NumberField.swift` · Web: `<NumberField>`
+Kind: Fields · File: `macos/Sources/CarrierUI/Fields/NumberField.swift` · Web: `<NumberField>`
 Takes: `key`, `value` and `unparsable` (bindings), `parse`, `format`, `step`.
 States: normal; error (an orange ring, from the row's `problem`); focus (live).
 Use for: a number with minus and plus buttons that Save follows as it is typed. Not for: a text (that is `SettingsField`).
 
 ### SettingsField
-Kind: Fields · File: `macos/Sources/Carrier/UI/Fields/SettingsField.swift` · Web: `<TextField>`
+Kind: Fields · File: `macos/Sources/CarrierUI/Fields/SettingsField.swift` · Web: `<TextField>`
 Takes: `.settingsField(width:icon:focused:)` on a `TextField`.
 States: empty; with text; with an icon; error (an orange ring and a mark); focus (live).
 Use for: a text field of a form: a quiet fill and the accent as its ring. Not for: a search of a sidebar (that is `SidebarSearchField`).
 
 ### SidebarSearchField
-Kind: Fields · File: `macos/Sources/Carrier/UI/Fields/SidebarSearch.swift` · Web: `<SidebarSearchField>`
+Kind: Fields · File: `macos/Sources/CarrierUI/Fields/SidebarSearch.swift` · Web: `<SidebarSearchField>`
 Takes: `placeholder`, `text`, `focus`, `close`.
 States: empty; with text (a clear button).
 Use for: the search of a sidebar section, a row of its own. Not for: a toolbar search (that is `ToolbarSearchField`).
 
 ### SidebarEmptyBlock
-Kind: Fields · File: `macos/Sources/Carrier/UI/Fields/SidebarSearch.swift` · Web: `<SidebarEmptyBlock>`
+Kind: Fields · File: `macos/Sources/CarrierUI/Fields/SidebarSearch.swift` · Web: `<SidebarEmptyBlock>`
 Takes: `icon`, `title`, `line`, `action` (a slot).
 States: empty; with an action.
 Use for: what a section's list says when it has nothing. Not for: a page that is empty (that is `EmptyStateView`).
 
 ### SidebarNoResults
-Kind: Fields · File: `macos/Sources/Carrier/UI/Fields/SidebarSearch.swift` · Web: `<SidebarNoResults>`
+Kind: Fields · File: `macos/Sources/CarrierUI/Fields/SidebarSearch.swift` · Web: `<SidebarNoResults>`
 Takes: `icon`, `title`, `line`, `clear`.
 States: no results.
 Use for: what a section's list says when a search matches nothing, with a button that empties the field. Not for: a list that is empty.
 
 ### Glyph
-Kind: Icons · File: `macos/Sources/Carrier/UI/Icons/Icons.swift` · Web: `<Icon>`
+Kind: Icons · File: `macos/Sources/CarrierUI/Icons/Icons.swift` · Web: `<Icon>`
 Takes: `icon` (an `AppIcon`), `size`, `bold`, `label` (for an icon that is a state on its own); `Label(_:icon:)`; the effects `glyphSpinning`, `glyphBouncing`, `glyphKick`, `glyphPulsing`.
 States: normal; large; bold (a white mark on a colour); working (turning); each icon set (Tabler, Lucide, SF Symbols).
 Use for: an icon of the interface in the set the person chose. Not for: an icon the system draws (a menu's keeps its SF Symbol).
 
 ### IconImages
-Kind: Icons · File: `macos/Sources/Carrier/UI/Icons/Icons.swift` · Web: the icon set's own image lookup
+Kind: Icons · File: `macos/Sources/CarrierUI/Icons/Icons.swift` · Web: the icon set's own image lookup
 Takes: `image(_:set:weight:bold:pointSize:)`, `inline(_:side:set:weight:)`.
 States: each icon set (drawn with `Glyph`).
 Use for: the image of an icon where a view cannot go: an attachment, a layer, an inline text. Not for: a view (that is `Glyph`).
 
 ### AccountMark
-Kind: Icons · File: `macos/Sources/Carrier/UI/Icons/AccountMark.swift` · Web: `<AccountMark>`
+Kind: Icons · File: `macos/Sources/CarrierUI/Icons/AccountMark.swift` · Web: `<AccountMark>`
 Takes: `symbol`, `initials`, `tool`, `tint`, `size`.
 States: with a symbol; with initials; with the tool's mark.
 Use for: the mark of an account. Not for: a provider (that is `ProviderMark`).
 
 ### BrandLogo
-Kind: Icons · File: `macos/Sources/Carrier/UI/Icons/BrandLogo.swift` · Web: `<BrandLogo>`
+Kind: Icons · File: `macos/Sources/CarrierUI/Icons/BrandLogo.swift` · Web: `<BrandLogo>`
 Takes: Nothing; a dev build draws it in pink with a DEV MODE badge.
 States: normal.
 Use for: the logo over the sidebar's title bar. Not for: anywhere else.
 
 ### CardChevron
-Kind: Icons · File: `macos/Sources/Carrier/UI/Icons/CardChevron.swift` · Web: `<CardChevron>`
+Kind: Icons · File: `macos/Sources/CarrierUI/Icons/CardChevron.swift` · Web: `<CardChevron>`
 Takes: `open`, `width`.
 States: folded; open.
 Use for: the chevron at the end of a card's line, right when folded and down when open. Not for: a row that opens a screen (that is the chevron of `NavigationRow`).
 
 ### Disc
-Kind: Icons · File: `macos/Sources/Carrier/UI/Icons/Disc.swift` · Web: `<Disc>`
+Kind: Icons · File: `macos/Sources/CarrierUI/Icons/Disc.swift` · Web: `<Disc>`
 Takes: `color`, `mark`, `symbol`, `size`.
 States: normal; told apart by shape (the symbol in its colour).
 Use for: a state's disc: a filled circle with a white mark. Not for: a state with a word (that is `StatusChip`).
 
 ### ProjectIcon
-Kind: Icons · File: `macos/Sources/Carrier/UI/Icons/ProjectIcon.swift` · Web: `<ProjectIcon>`
+Kind: Icons · File: `macos/Sources/CarrierUI/Icons/ProjectIcon.swift` · Web: `<ProjectIcon>`
 Takes: `initials`, `color`, `mark`, `image`, `working`, `background`, `finished`.
 States: initials; a mark; an image; working (an arc goes round); waiting (cyan); finished (green).
 Use for: a project's icon, glass tinted with its colour. Not for: an account (that is `AccountMark`).
 
 ### ProviderMark
-Kind: Icons · File: `macos/Sources/Carrier/UI/Icons/ProviderMark.swift` · Web: `<ProviderMark>`
+Kind: Icons · File: `macos/Sources/CarrierUI/Icons/ProviderMark.swift` · Web: `<ProviderMark>`
 Takes: `name` (the tool), `size`.
 States: each tool's mark; a tool with none (its first letter).
 Use for: the mark of a provider in the text colour. Not for: an account's own mark (that is `AccountMark`).
 
 ### StateGlyph
-Kind: Icons · File: `macos/Sources/Carrier/UI/Icons/StateGlyph.swift` · Web: `<StateGlyph>`
+Kind: Icons · File: `macos/Sources/CarrierUI/Icons/StateGlyph.swift` · Web: `<StateGlyph>`
 Takes: `look` (ring, disc or hollow), `label`.
 States: working (a turning ring); done and error (a disc with a mark); waiting (a hollow circle).
 Use for: the glyph of an epic's state, 20 points square. Not for: a one-off status (that is `StatusMark`).
 
 ### StateMark
-Kind: Icons · File: `macos/Sources/Carrier/UI/Icons/StateMark.swift` · Web: `<StateMark>`
+Kind: Icons · File: `macos/Sources/CarrierUI/Icons/StateMark.swift` · Web: `<StateMark>`
 Takes: `text`, `symbol`, `size`, `weight`.
 States: normal (its text); told apart by shape (its symbol).
 Use for: what a state wears inside its glyph. Not for: a mark on its own.
 
 ### StatusMark
-Kind: Icons · File: `macos/Sources/Carrier/UI/Icons/StatusMark.swift` · Web: `<StatusMark>`
+Kind: Icons · File: `macos/Sources/CarrierUI/Icons/StatusMark.swift` · Web: `<StatusMark>`
 Takes: `symbol`, `color`, `label`.
 States: done; warning; failed.
 Use for: a state as a 16 pt round mark with a white symbol. Not for: a state of an epic (that is `StateGlyph`).
 
 ### FlowLayout
-Kind: Layout · File: `macos/Sources/Carrier/UI/Layout/FlowLayout.swift` · Web: `<Flow>` (flex wrap)
+Kind: Layout · File: `macos/Sources/CarrierUI/Layout/FlowLayout.swift` · Web: `<Flow>` (flex wrap)
 Takes: `spacing`.
 States: normal (a row that wraps).
 Use for: chips of different widths that start a new row when the next does not fit. Not for: columns of equal width (that is `EqualWidthRow`).
 
 ### EqualWidthRow
-Kind: Layout · File: `macos/Sources/Carrier/UI/Layout/EqualWidthRow.swift` · Web: `<EqualWidthRow>` (grid of equal columns)
+Kind: Layout · File: `macos/Sources/CarrierUI/Layout/EqualWidthRow.swift` · Web: `<EqualWidthRow>` (grid of equal columns)
 Takes: Its children.
 States: normal.
 Use for: children side by side, each as wide as the widest. Not for: chips that wrap (that is `FlowLayout`).
 
 ### TickingTimeline
-Kind: Layout · File: `macos/Sources/Carrier/UI/Layout/LookingTimeline.swift` · Web: `useTicker(every)`
+Kind: Layout · File: `macos/Sources/CarrierUI/Layout/LookingTimeline.swift` · Web: `useTicker(every)`
 Takes: `every` (seconds), `content`.
 States: working (a clock that ticks); still (nobody looks: only its first tick).
 Use for: a clock ("Working for 1m 23s") that stops while nobody can see the window. Not for: an animation (that is `MovingTimeline`).
 
 ### MovingTimeline
-Kind: Layout · File: `macos/Sources/Carrier/UI/Layout/LookingTimeline.swift` · Web: `useFrames()`
+Kind: Layout · File: `macos/Sources/CarrierUI/Layout/LookingTimeline.swift` · Web: `useFrames()`
 Takes: `content`.
 States: working (a moving dot).
 Use for: an animation at most 30 frames a second that stops while nobody can see the window. Not for: a clock (that is `TickingTimeline`).
 
 ### LookingSchedule
-Kind: Layout · File: `macos/Sources/Carrier/UI/Layout/LookingTimeline.swift` · Web: part of `useTicker`
+Kind: Layout · File: `macos/Sources/CarrierUI/Layout/LookingTimeline.swift` · Web: part of `useTicker`
 Takes: `period`, `paused`.
 States: drawn with `TickingTimeline`.
 Use for: the schedule `TickingTimeline` runs on. Not for: a `TimelineView` of your own, which would keep drawing in a hidden window.
 
 ### SettingsDivider
-Kind: Layout · File: `macos/Sources/Carrier/UI/Layout/SettingsDivider.swift` · Web: `<Divider>`
+Kind: Layout · File: `macos/Sources/CarrierUI/Layout/SettingsDivider.swift` · Web: `<Divider>`
 Takes: `vertical`.
 States: horizontal; vertical.
 Use for: the line between two rows: one whole point, quiet. Not for: the system's `Divider`, a grey hairline that stands out on dark themes.
 
 ### SettingsPageBody
-Kind: Layout · File: `macos/Sources/Carrier/UI/Layout/SettingsPageBody.swift` · Web: `<SettingsPage>`
+Kind: Layout · File: `macos/Sources/CarrierUI/Layout/SettingsPageBody.swift` · Web: `<SettingsPage>`
 Takes: `reset` (what the toolbar's menu runs after asking), its groups as content.
 States: normal (a column of cards here; a native form on a page that is one).
 Use for: what a Settings page is made of. Not for: a screen of its own.
 
 ### SettingsPreview
-Kind: Layout · File: `macos/Sources/Carrier/UI/Layout/SettingsPreview.swift` · Web: `<SettingsPreview>`
+Kind: Layout · File: `macos/Sources/CarrierUI/Layout/SettingsPreview.swift` · Web: `<SettingsPreview>`
 Takes: Its sample as content.
 States: normal.
 Use for: a sample of what the rows around it change, inside their group. Not for: a card on its own.
 
 ### UnderlineTabs
-Kind: Layout · File: `macos/Sources/Carrier/UI/Layout/UnderlineTabs.swift` · Web: `<Tabs>`
+Kind: Layout · File: `macos/Sources/CarrierUI/Layout/UnderlineTabs.swift` · Web: `<Tabs>`
 Takes: `items` (id, title, icon, count, count colour), `selection`, `fill`.
 States: normal; with icons and counts; filling the width.
 Use for: a row of tabs with no box and a line under the chosen one. Not for: a few choices that exclude each other (that is `SegmentedChoice`).
 
 ### QuotaBar
-Kind: Meters · File: `macos/Sources/Carrier/UI/Meters/QuotaBar.swift` · Web: `<QuotaBar>`
+Kind: Meters · File: `macos/Sources/CarrierUI/Meters/QuotaBar.swift` · Web: `<QuotaBar>`
 Takes: `solid`, `hatched`, `height`.
 States: empty; normal (solid and hatched); high (orange from 90 %).
 Use for: a quota's track: the use that stays is solid, the use the next reset gives back is hatched. Not for: parts of one whole (that is a disk bar).
 
 ### QuotaPercent
-Kind: Meters · File: `macos/Sources/Carrier/UI/Meters/QuotaPercent.swift` · Web: `<QuotaPercent>`
+Kind: Meters · File: `macos/Sources/CarrierUI/Meters/QuotaPercent.swift` · Web: `<QuotaPercent>`
 Takes: `used` (0 to 1).
 States: normal; high (orange from 90 %).
 Use for: the number of a quota, beside its bar. Not for: any other percent.
 
 ### SegmentedProgress
-Kind: Meters · File: `macos/Sources/Carrier/UI/Meters/SegmentedProgress.swift` · Web: `<SegmentedProgress>`
+Kind: Meters · File: `macos/Sources/CarrierUI/Meters/SegmentedProgress.swift` · Web: `<SegmentedProgress>`
 Takes: `done`, `total`, `tint`.
 States: some done; all done; more than 20 steps (it stays at 20 segments).
 Use for: a progress bar of separate steps. Not for: a quota (that is `QuotaBar`).
 
 ### SpinningRing
-Kind: Meters · File: `macos/Sources/Carrier/UI/Meters/SpinningRing.swift` · Web: `<SpinningRing>`
+Kind: Meters · File: `macos/Sources/CarrierUI/Meters/SpinningRing.swift` · Web: `<SpinningRing>`
 Takes: `diameter`, `lineWidth`, `color`; `RingLayer` and `RingHostView` are the layer and the AppKit view it is drawn with.
 States: working (the arc turns, still under Reduce Motion or a hidden window); another colour.
 Use for: a ring that turns by one Core Animation animation, for something that runs. Not for: a bar that fills.
 
 ### RingLayer
-Kind: Meters · File: `macos/Sources/Carrier/UI/Meters/SpinningRing.swift` · Web: part of `<SpinningRing>`
+Kind: Meters · File: `macos/Sources/CarrierUI/Meters/SpinningRing.swift` · Web: part of `<SpinningRing>`
 Takes: `diameter`, `lineWidth`, `color`, `animate` (`RingLayer.make`).
 States: drawn with `SpinningRing`.
 Use for: the Core Animation layer of a ring: a faint track and an arc that turns with one animation. Not for: a view (that is `SpinningRing`).
 
 ### RingHostView
-Kind: Meters · File: `macos/Sources/Carrier/UI/Meters/SpinningRing.swift` · Web: part of `<SpinningRing>`
+Kind: Meters · File: `macos/Sources/CarrierUI/Meters/SpinningRing.swift` · Web: part of `<SpinningRing>`
 Takes: `diameter`, `lineWidth`, `color` or a `symbol`; `reduceMotion`.
 States: drawn with `SpinningRing` and `SpinningGlyph`.
 Use for: the AppKit view that holds a `RingLayer` and stops it while nobody can see the window or Reduce Motion is on. Not for: a view (that is `SpinningRing`).
 
 ### SpinningGlyph
-Kind: Meters · File: `macos/Sources/Carrier/UI/Meters/SpinningRing.swift` · Web: `<SpinningGlyph>`
+Kind: Meters · File: `macos/Sources/CarrierUI/Meters/SpinningRing.swift` · Web: `<SpinningGlyph>`
 Takes: `symbol`, `diameter`.
 States: working.
 Use for: an icon that turns by the ring's rule. Not for: an icon that does not move (that is `Glyph`).
 
 ### WorkingRing
-Kind: Meters · File: `macos/Sources/Carrier/UI/Meters/WorkingRing.swift` · Web: `<WorkingRing>`
+Kind: Meters · File: `macos/Sources/CarrierUI/Meters/WorkingRing.swift` · Web: `<WorkingRing>`
 Takes: `finished`, `background`; `WorkingRingHostView` is the AppKit view it is drawn with.
 States: working; waiting (cyan); finished (green).
 Use for: the arc that goes round a project icon while an agent works. Not for: a ring on its own (that is `SpinningRing`).
 
 ### WorkingRingHostView
-Kind: Meters · File: `macos/Sources/Carrier/UI/Meters/WorkingRing.swift` · Web: part of `<WorkingRing>`
+Kind: Meters · File: `macos/Sources/CarrierUI/Meters/WorkingRing.swift` · Web: part of `<WorkingRing>`
 Takes: `size`, `radius`; `reduceMotion`, `background`, `finished`.
 States: drawn with `WorkingRing`.
 Use for: the AppKit view that draws the arc round a project icon and stops it by the rings' rule. Not for: a view (that is `WorkingRing`).
 
 ### HoverRow
-Kind: Rows · File: `macos/Sources/Carrier/UI/Rows/HoverRow.swift` · Web: `<HoverRow>`
+Kind: Rows · File: `macos/Sources/CarrierUI/Rows/HoverRow.swift` · Web: `<HoverRow>`
 Takes: `action`, `fill`, `content` (it is told whether the pointer is over).
 States: normal; selected (`fill`); disabled; hover (live).
 Use for: a row that is a button. Not for: a row of Settings (that is `SettingsTabRow`).
 
 ### MonoLines
-Kind: Rows · File: `macos/Sources/Carrier/UI/Rows/MonoLines.swift` · Web: `<MonoLines>`
+Kind: Rows · File: `macos/Sources/CarrierUI/Rows/MonoLines.swift` · Web: `<MonoLines>`
 Takes: `lines`, `redFirst`, `monospace` (wrap, line numbers).
 States: wrapped; scrolling with line numbers; the first line red.
 Use for: lines of output as the monospace settings draw them. Not for: a block of code (that is `CodeBlockView`).
 
 ### NavigationRow
-Kind: Rows · File: `macos/Sources/Carrier/UI/Rows/NavigationRow.swift` · Web: `<NavigationRow>`
+Kind: Rows · File: `macos/Sources/CarrierUI/Rows/NavigationRow.swift` · Web: `<NavigationRow>`
 Takes: `title`, `detail`, `leading`, `first`, `action`, `trailing` (a slot).
 States: normal; with a tile before the title and a value at the end; hover (live).
 Use for: a row that opens a screen, a chevron at its end and clickable all over. Not for: a row with a control (that is `SettingsTabRow`).
 
 ### SettingsStackedRow
-Kind: Rows · File: `macos/Sources/Carrier/UI/Rows/SettingsStackedRow.swift` · Web: `<SettingsStackedRow>`
+Kind: Rows · File: `macos/Sources/CarrierUI/Rows/SettingsStackedRow.swift` · Web: `<SettingsStackedRow>`
 Takes: `id`, `title`, `detail`, `first`, `control` (a slot).
 States: normal.
 Use for: a row whose control is wide: title and detail on top, the control under them. Not for: a row with a short control.
 
 ### SettingsTabRow
-Kind: Rows · File: `macos/Sources/Carrier/UI/Rows/SettingsTabRow.swift` · Web: `<SettingsRow>`
+Kind: Rows · File: `macos/Sources/CarrierUI/Rows/SettingsTabRow.swift` · Web: `<SettingsRow>`
 Takes: `id`, `title`, `detail`, `first`, `mono`, `roomy`, `note`, `problem`, `wrapsDetail`, `leading`, `control` (a slot).
 States: normal; with a note; with a tile; error (`problem` replaces the detail, in orange); disabled.
 Use for: a row of a Settings card: title and detail at the left, the control at the right. Not for: a row that opens a screen (that is `NavigationRow`).
 
 ### SidebarSectionRow
-Kind: Rows · File: `macos/Sources/Carrier/UI/Rows/SidebarSectionRow.swift` · Web: `<SidebarSectionRow>`
+Kind: Rows · File: `macos/Sources/CarrierUI/Rows/SidebarSectionRow.swift` · Web: `<SidebarSectionRow>`
 Takes: `title`, `icon`, `selected`, `keepActions`, `action`, `actions`, `hoverActions` and `below` (slots).
 States: normal; selected; with actions (always there) and hover actions (kept while `keepActions`); hover (live).
 Use for: a sidebar section: an icon, a title and its actions. Not for: a session row.
 
 ### SelectMenu
-Kind: Selects · File: `macos/Sources/Carrier/UI/Selects/SelectMenu.swift` · Web: `<Select>`
+Kind: Selects · File: `macos/Sources/CarrierUI/Selects/SelectMenu.swift` · Web: `<Select>`
 Takes: `items` (the words), `selection` (an index).
 States: normal; disabled; open (the system's menu, live).
 Use for: a choice among a few words, the app's one select. Not for: a few choices at once (that is `SegmentedChoice`).
 
 ### ChoicePopUp
-Kind: Selects · File: `macos/Sources/Carrier/UI/Selects/ChoicePopUp.swift` · Web: `<Select>` over values
+Kind: Selects · File: `macos/Sources/CarrierUI/Selects/ChoicePopUp.swift` · Web: `<Select>` over values
 Takes: `label`, `options` (value and title), `selection` (the value).
 States: normal; disabled.
 Use for: `SelectMenu` over a value, so a page binds the value itself. Not for: an index.
 
 ### SegmentedChoice
-Kind: Selects · File: `macos/Sources/Carrier/UI/Selects/SegmentedChoice.swift` · Web: `<SegmentedChoice>`
+Kind: Selects · File: `macos/Sources/CarrierUI/Selects/SegmentedChoice.swift` · Web: `<SegmentedChoice>`
 Takes: `options` (value, title, icon), `selection`.
 States: normal; with icons; hover (live).
 Use for: a few choices that exclude each other in one capsule; the chosen one slides. Not for: a filter that grows with the data.
 
 ### SelectButtonStyle
-Kind: Selects · File: `macos/Sources/Carrier/UI/Selects/SelectButtonStyle.swift` · Web: `<SelectButton>`
+Kind: Selects · File: `macos/Sources/CarrierUI/Selects/SelectButtonStyle.swift` · Web: `<SelectButton>`
 Takes: Nothing.
 States: normal; disabled; hover and pressed (live).
 Use for: the face of a button that opens a choice: its words and `SelectChevron`, a box only under the pointer. Not for: a select in a form (that is `SelectMenu`).
 
 ### SelectChevron
-Kind: Selects · File: `macos/Sources/Carrier/UI/Selects/SelectChevron.swift` · Web: `<SelectChevron>`
+Kind: Selects · File: `macos/Sources/CarrierUI/Selects/SelectChevron.swift` · Web: `<SelectChevron>`
 Takes: Nothing.
 States: normal.
 Use for: the up and down chevrons of a select in their small circle. Not for: a row that opens a screen.
@@ -631,16 +631,16 @@ A web front-end does not copy these; it draws the nearest thing its platform has
 
 ## The page
 
-A Settings page is groups of rows under the window's toolbar, which says what page it is (`SettingsWindow.swift`; the rows, groups, selects and fields it is made of are under `Carrier/UI/`, General, Appearance and Notifications are files of `Features/Settings/`, the Sidebar page is `Carrier/Features/Sessions/SidebarTab.swift` and the Chat page `Carrier/Features/Chat/ChatTab.swift`).
+A Settings page is groups of rows under the window's toolbar, which says what page it is (`SettingsWindow.swift`; the rows, groups, selects and fields it is made of are under `CarrierUI/`, General, Appearance and Notifications are files of `Features/Settings/`, the Sidebar page is `Carrier/Features/Sessions/SidebarTab.swift` and the Chat page `Carrier/Features/Chat/ChatTab.swift`).
 Settings is a window of its own with a native sidebar (`List` in `.sidebar` style, a colored tile before each name, `SettingsTile`) and a toolbar: the page's name is the title and its line the subtitle, ‹ › go back and forward, the page's note (`SettingsNoteView`) and, only on a page that has a Reset, the ⋯ menu are at the right. A page with screens of its own (Providers) sets its screen's title and subtitle (`SettingsTitle`), a screen that edits something (an account) asks the toolbar for its Save or Add (`SettingsSave`), on an accent glass pill with the verb's own icon (Save a check, Add a plus), and a screen with a toggle in its header (Pin on a project's page) asks for a `SettingsHeaderAction` pill (`ToolbarPillButton`). There is no header inside the page and no close button: ⌘W closes the window.
 
 | Piece | What it is |
 |---|---|
 | `SettingsPageBody(reset:)` | What a page is made of. A page in `SettingsPage.usesForm` gets a native `Form` (`.formStyle(.grouped)`: its groups are sections, its rows labeled content, and the form scrolls by itself); the others (the repos, the checks) keep a column of cards in the window's scroll. Give it `reset` and the toolbar's ⋯ menu runs it after asking "Reset <page>?": a page does not draw its own Reset card. |
 | `SettingsGroup(title:)` | A small uppercase title over a card, or a `Section` of a form. `footer:` is the longer word about the whole group (under the card or the section), so a row's own line stays short; `SettingsGroup(title:accessory:content:)` puts a control at the right of the title (the models table's recognizer chips). |
-| `StatusChip(text:tint:)` (`Carrier/UI/Chips/StatusChip.swift`) | A capsule with a word in it, its colour at 16 % under the same colour; the word carries the state, never the colour alone (Dictation's models table: Live, When you stop; Usage's Stale). |
+| `StatusChip(text:tint:)` (`CarrierUI/Chips/StatusChip.swift`) | A capsule with a word in it, its colour at 16 % under the same colour; the word carries the state, never the colour alone (Dictation's models table: Live, When you stop; Usage's Stale). |
 | `DiskBar(shares:color:)` | A bar of parts of one whole (`DiskBar.swift`): one segment for each part, as wide as its share, 1 pt apart on a `primary` 12 % track, 8 pt high and hidden from VoiceOver, so the rows under it say what it draws. The colour of a part is also a 7 pt dot before its figure in its row, or the bar would be a picture with no key (a project's Worktrees and disk group). It is not a meter: a percentage of a limit is `QuotaBar`. The shares are a pure function with a test (`diskShares`). |
-| `Badge(text:icon:tint:)` | `StatusChip` with a symbol before the word (`Carrier/UI/Chips/Badge.swift`). As the label of a plain `Button` it is a small action that is also a state: Usage's `Unpriced · Map` (orange) and `Custom` (secondary) open the price sheet; give the button an `accessibilityLabel` that says what it does. |
+| `Badge(text:icon:tint:)` | `StatusChip` with a symbol before the word (`CarrierUI/Chips/Badge.swift`). As the label of a plain `Button` it is a small action that is also a state: Usage's `Unpriced · Map` (orange) and `Custom` (secondary) open the price sheet; give the button an `accessibilityLabel` that says what it does. |
 | `SettingsTabCard` | The card: 14 pt side padding, rounded 14, `secondary` at 7 %. |
 | `SettingsTabRow` | A row of a card (a `LabeledContent` in a form): title, detail (and `note`, a quiet monospaced third line, cut in the middle to one line, with its whole text as a tooltip and selectable to copy), the control at the right. `leading:` is a tile at the left of the title (Providers' `AccountTile`: the account's mark, 22 pt, in a 38 pt rounded square at `primary` 7 %, so it reads as an avatar); the rest of the row keeps its place. `id:` is what the search finds the row by (see `settingsIndex`). `first: true` on the first row (no line above it). `roomy: true` for a form with many stacked fields (14 pt above and below instead of 10). `wrapsDetail: true` lets the detail run over as many lines as it has instead of two, for a report whose every line is to be read (a clean-up's skipped worktrees). |
 | `.settingsCard()` | The card's background as a modifier (rounded 14, `secondary` at 7 %), for a list, a note or a card that is not a group of rows. Never write the fill out again. |
@@ -729,7 +729,7 @@ Always `SettingsDivider`, never `Divider()`: the system's is a grey hairline tha
 The interface's own icons are named by what they mean (`AppIcon`, `CarrierCore/Shell/AppIcon.swift`: `.check`, `.close`, `.search`…).
 They are drawn in the set the person chose in Appearance › Icon set (`IconSet`, `IconSets.swift`): Tabler (the default), Lucide or SF Symbols.
 `iconAsset(_:in:)` says which SVG or symbol each icon is in each set.
-They are drawn by `Glyph(.check, size: 14)` (`Carrier/UI/Icons/Icons.swift`) and, with words, by `Label("Save", icon: .check)`.
+They are drawn by `Glyph(.check, size: 14)` (`CarrierUI/Icons/Icons.swift`) and, with words, by `Label("Save", icon: .check)`.
 Never write `Image(systemName:)` for a new icon of ours.
 Add the case to `AppIcon`, its entry for all three sets (the `switch` does not build without them) and the SVGs (each set's `SOURCE.txt` says how).
 `IconsTests` fails when a set lacks an icon or its file, and `build-app.sh` when the app lacks one.
@@ -768,16 +768,16 @@ Four kinds. Pick by what the button is, not by taste.
 
 | Kind | Style | For | Where |
 |---|---|---|---|
-| Main | `PrimaryCapsuleButtonStyle` | The one action of a form or of a row: Save, Add, Update (Settings > About, the step of an update found); `.controlSize(.small)` inside compact popovers (`TabRenamePopover`). Accent fill, white label; dim when disabled. | `Carrier/UI/Buttons/PrimaryCapsuleButtonStyle.swift` |
-| Secondary | `SecondaryCapsuleButtonStyle` | Cancel, Remove, Open Agents, Add account, Sign in. A grey capsule; `.controlSize(.small)` inside a row. | `Carrier/UI/Buttons/SecondaryCapsuleButtonStyle.swift` |
-| Text | `HoverTextButtonStyle(tint: nil)` | Actions of a page header (Update, Open on GitHub) and the chevron. No pill until the pointer is over it. | `Carrier/UI/Buttons/HoverTextButtonStyle.swift` |
-| Icon | `IconButton` (`HoverFillButtonStyle`) | A 24 pt glyph with a tooltip and an accessible name: close, fold. | `Carrier/UI/Buttons/IconButton.swift` |
+| Main | `PrimaryCapsuleButtonStyle` | The one action of a form or of a row: Save, Add, Update (Settings > About, the step of an update found); `.controlSize(.small)` inside compact popovers (`TabRenamePopover`). Accent fill, white label; dim when disabled. | `CarrierUI/Buttons/PrimaryCapsuleButtonStyle.swift` |
+| Secondary | `SecondaryCapsuleButtonStyle` | Cancel, Remove, Open Agents, Add account, Sign in. A grey capsule; `.controlSize(.small)` inside a row. | `CarrierUI/Buttons/SecondaryCapsuleButtonStyle.swift` |
+| Text | `HoverTextButtonStyle(tint: nil)` | Actions of a page header (Update, Open on GitHub) and the chevron. No pill until the pointer is over it. | `CarrierUI/Buttons/HoverTextButtonStyle.swift` |
+| Icon | `IconButton` (`HoverFillButtonStyle`) | A 24 pt glyph with a tooltip and an accessible name: close, fold. | `CarrierUI/Buttons/IconButton.swift` |
 | Toolbar pill | `ToolbarPillButton`, `AccentGlassPillButton`, `ToolbarGlassIconButton` or `ToolbarSearchField` on `.glassEffect(.regular, in: .capsule)`, its item with `sharedBackgroundVisibility(.hidden)` | An action or inline search pill in the window's title bar (Search, Filter, Check again, Stop, New session, New Terminal) or a compact glass pill strip (floating pane controls), plus the sidebar's Update (`UpdatePill`, for the states of a download). An item of the sidebar column's `.toolbar` goes after the window's buttons with `placement: .automatic`; `.navigation` puts it on the detail's side. | `ToolbarPillButton.swift`, `UpdatePill.swift` |
 
 - **A button that does something has an icon** with its words: `Label("Save", icon: .check)`. Used: Save `.check`, Cancel `.close`, Remove `.trash`, Add `.plus`, Check again `.refresh`, Open on GitHub `.externalLink`, Reveal clone `.folder`, Reveal `.folder` and Open `.fileText` (a file), Detect `.refresh`, Use another… `.folderPlus`, Use the Homebrew one `.undo`. Outside a `Menu` give the label `.labelStyle(.titleAndIcon)` when it sits in a text or icon style.
 - **A row that acts on a file or folder** (the Engine page's Files) has a Secondary button, Reveal or Open. While the path is missing the button is disabled and reads "Not created yet" with `.folderQuestion`. Its `.accessibilityLabel` is the verb and the row ("Reveal: Logs"), so VoiceOver can tell three such buttons apart.
 - **A button that works for a while** (Detect) keeps its label and its size and is disabled while it runs, with a small `ProgressView` beside it that has an `.accessibilityLabel` ("Detecting"); when it ends, the result is announced to VoiceOver. Swapping the label for the spinner makes the row jump and leaves an unnamed button.
-- **A button that asks again is `CheckAgainButton`** (`Carrier/Features/Health/CheckAgainButton.swift`, its states in `CheckPhase`, drawn by the piece `CheckButton`, `Carrier/UI/Buttons/CheckButton.swift`, which takes the phase as a value): Check again and Check now, in every place. At rest it has the refresh icon and its words; while it checks the arrows turn and it says "Checking…"; a check the person asked for ends in a green mark that draws itself and "Up to date" (a red cross and "Check failed" when it failed, pass `failed:`), for 3 seconds, and rests. A check the page ran by itself (when it opens) ends at rest, claiming nothing. The four faces share one cell, so the button keeps its size and nothing beside it moves; it is never `.disabled` (that dims it): a click while it runs or shows its result does nothing, and one after a failure tries again. The skin is the place's: `.toolbar` (the item adds the glass), `.capsule` (a row of a form, the default) or `.text` (a page's header). Give it `checking:` from the state that already says so; do not draw a spinner beside it.
+- **A button that asks again is `CheckAgainButton`** (`Carrier/Features/Health/CheckAgainButton.swift`, its states in `CheckPhase`, drawn by the piece `CheckButton`, `CarrierUI/Buttons/CheckButton.swift`, which takes the phase as a value): Check again and Check now, in every place. At rest it has the refresh icon and its words; while it checks the arrows turn and it says "Checking…"; a check the person asked for ends in a green mark that draws itself and "Up to date" (a red cross and "Check failed" when it failed, pass `failed:`), for 3 seconds, and rests. A check the page ran by itself (when it opens) ends at rest, claiming nothing. The four faces share one cell, so the button keeps its size and nothing beside it moves; it is never `.disabled` (that dims it): a click while it runs or shows its result does nothing, and one after a failure tries again. The skin is the place's: `.toolbar` (the item adds the glass), `.capsule` (a row of a form, the default) or `.text` (a page's header). Give it `checking:` from the state that already says so; do not draw a spinner beside it.
 - A form that is a card has its buttons in a row: Remove on the left, then a `Spacer`, then Cancel and Save, with 10 pt more above than the fields have between them. A form that is a screen of the Settings window (the account editor) has none: Save (or Add) is the toolbar's, Remove is the last row of the form and asks first (its ellipsis is that question, an alert), and Cancel is the window's back.
 - **Remove with more than one answer is a `confirmationDialog`, and what stops it is an alert**: a project Carrier made asks Remove from Carrier, Also delete from disk (destructive) or Cancel, with what each does in the message; an alert then names what stops the delete (a session of the project open, a failed move to the Trash) with OK, or, for unsaved work only, offers Move to the Trash anyway beside Cancel. A project the person added keeps the plain Remove alert. An idle session whose folder was deleted gets a grey `NoticeCard` (`FolderGoneNotice`, the trash mark) in place of the closed-session notice.
 - Destructive is `role: .destructive`; a plain capsule does not turn red by itself. When a screen has one destructive action, say so with colour (`HoverTextButtonStyle(danger: true)` turns red under the pointer).
@@ -794,7 +794,7 @@ A row that opens an editor or a form shows **a chevron `.chevronRight` at its ri
 
 ## Fields and selects
 
-- **A text field is `TextField(…).settingsField(width:)`** (`Carrier/UI/Fields/SettingsField.swift`): a quiet fill with rounded corners of 8, no line while idle, the theme's accent as a 1.5 pt ring while it has the focus, and a click anywhere in the box puts the cursor in it. `width: 240` for a short value, no width to fill the space given (a multi-line field too). Do not use `.textFieldStyle(.roundedBorder)` in a form. In a form that is a page of the window a field is `TextField("", text:, prompt: Text("…"))` with an `.accessibilityLabel`: a form takes the title of a field for its label (at the left of it, with its text at the trailing edge) and `settingsField` hides it, so a title left as the title would show no prompt and leave the field with no name for VoiceOver.
+- **A text field is `TextField(…).settingsField(width:)`** (`CarrierUI/Fields/SettingsField.swift`): a quiet fill with rounded corners of 8, no line while idle, the theme's accent as a 1.5 pt ring while it has the focus, and a click anywhere in the box puts the cursor in it. `width: 240` for a short value, no width to fill the space given (a multi-line field too). Do not use `.textFieldStyle(.roundedBorder)` in a form. In a form that is a page of the window a field is `TextField("", text:, prompt: Text("…"))` with an `.accessibilityLabel`: a form takes the title of a field for its label (at the left of it, with its text at the trailing edge) and `settingsField` hides it, so a title left as the title would show no prompt and leave the field with no name for VoiceOver.
 - **A slider of a row is `settingsSliderWidth`** (210 pt, the width of a field, so the tracks begin on the same line) **with `.labelsHidden()`**: in a form the track is otherwise drawn at about half of its frame, right-aligned in it.
 - A search field is the same field with `icon: .search` (`settingsField(icon:)` draws the symbol inside the box) and a prompt that says what it searches ("Search repos").
 - A field that saves as the person leaves it (Agents) passes its own focus: `settingsField(width:focused: $focused)`, so the ring and the save follow the same state.
@@ -835,7 +835,7 @@ A row that opens an editor or a form shows **a chevron `.chevronRight` at its ri
   Rows that the engine already caps (the files of a section at 500, a diff at 1000 rows) may be a `LazyVStack` instead, since their cost is bounded by that cap.
 - **A menu's items have an icon, and a `Label` in a `Menu` or a `contextMenu` needs `.labelStyle(.titleAndIcon)` to show it**; this SwiftUI draws a menu's labels title only otherwise.
 - Small facts of a status card are `SettingsTabRow`s: the label as the title, the value as its line under it (monospaced for a path), the action at the right; none draws its own divider. A page of this kind is a `Form` (`SettingsPage.usesForm`), so Agents' pieces (`EpicRail`, `RoleHero`) and the kit's rows keep their own margins.
-- A state is shown by a green, orange or grey dot, or by `StatusMark` (`Carrier/UI/Icons/StatusMark.swift`, a 16 pt round mark: `.check` green, `.exclamation` yellow, `.close` orange), at the right of a row that has no button or before one. While something runs, **each row turns its own `ProgressView` and says "Checking…"**; the page does not say it once in a corner.
+- A state is shown by a green, orange or grey dot, or by `StatusMark` (`CarrierUI/Icons/StatusMark.swift`, a 16 pt round mark: `.check` green, `.exclamation` yellow, `.close` orange), at the right of a row that has no button or before one. While something runs, **each row turns its own `ProgressView` and says "Checking…"**; the page does not say it once in a corner.
 
 ## A value that is not valid
 
@@ -843,11 +843,11 @@ Orange, not red, and nothing moves. This is the default of every row and field: 
 
 ## What the engine answers to a save
 
-A page that writes `engine.json` or `providers.json` does not wait for Carrier: it writes, asks the engine in the background (`ReloadStatus.ask`, in `CarrierCore/Settings/Engine/EngineReload.swift`) and shows the answer when it comes; an answer older than the last save is dropped. A refusal or a missing answer is a problem and is orange: `ProblemLine` (`Carrier/UI/Feedback/ProblemLine.swift`) is the line with the warning mark that VoiceOver reads when it appears, and `ReloadNote` (`Carrier/Features/Settings/ReloadNote.swift`; the page passes it the engine's words) is the page's line for the last answer, with "Ask Carrier again" to ask without saving (the Behavior header offers it too; the doctor's "Check again" is another button). A running Carrier that is too old to reload is not told at all: it reads the file when it starts, and the next one applies it live. A page that is a header note (`SettingsHeaderNoteKey`) wraps it under the title when it does not fit beside it (`ViewThatFits`). The last answer lives in `ReloadStatus.shared`, not in the page's `@State`, so it is still there when the person comes back to the page, and it goes when Carrier starts or stops.
+A page that writes `engine.json` or `providers.json` does not wait for Carrier: it writes, asks the engine in the background (`ReloadStatus.ask`, in `CarrierCore/Settings/Engine/EngineReload.swift`) and shows the answer when it comes; an answer older than the last save is dropped. A refusal or a missing answer is a problem and is orange: `ProblemLine` (`CarrierUI/Feedback/ProblemLine.swift`) is the line with the warning mark that VoiceOver reads when it appears, and `ReloadNote` (`Carrier/Features/Settings/ReloadNote.swift`; the page passes it the engine's words) is the page's line for the last answer, with "Ask Carrier again" to ask without saving (the Behavior header offers it too; the doctor's "Check again" is another button). A running Carrier that is too old to reload is not told at all: it reads the file when it starts, and the next one applies it live. A page that is a header note (`SettingsHeaderNoteKey`) wraps it under the title when it does not fit beside it (`ViewThatFits`). The last answer lives in `ReloadStatus.shared`, not in the page's `@State`, so it is still there when the person comes back to the page, and it goes when Carrier starts or stops.
 
 ## Meters and charts
 
-- **A quota is a `QuotaBar`** (`Carrier/UI/Meters/QuotaBar.swift`), with `QuotaPercent` (`Carrier/UI/Meters/QuotaPercent.swift`: its number, bold, orange from 90 %) and `QuotaMeter` (`Carrier/Features/Usage/QuotaMeter.swift`, only the Usage page draws it: name, percent and bar, for a row's header): an 8 pt capsule track, `primary` at 12 % with a 1 pt edge; the use that stays is solid, the use the next reset gives back is `Hatch`ed after it (diagonal 1.5 pt lines every 4 pt over the tint at 30 %). The tint is the theme's accent, orange from 90 %. Its numbers (the shares, the percent, the reset) come from `MeterShape` in `CarrierCore`, and the bar is hidden from VoiceOver: the percent beside it is the text.
+- **A quota is a `QuotaBar`** (`CarrierUI/Meters/QuotaBar.swift`), with `QuotaPercent` (`CarrierUI/Meters/QuotaPercent.swift`: its number, bold, orange from 90 %) and `QuotaMeter` (`Carrier/Features/Usage/QuotaMeter.swift`, only the Usage page draws it: name, percent and bar, for a row's header): an 8 pt capsule track, `primary` at 12 % with a 1 pt edge; the use that stays is solid, the use the next reset gives back is `Hatch`ed after it (diagonal 1.5 pt lines every 4 pt over the tint at 30 %). The tint is the theme's accent, orange from 90 %. Its numbers (the shares, the percent, the reset) come from `MeterShape` in `CarrierCore`, and the bar is hidden from VoiceOver: the percent beside it is the text.
 - A chart (Swift Charts) sits in a `SettingsTabCard` under a `.sectionLabel()` title, one colour a provider, the legend at the bottom. Hovering a day shows **the chart tooltip** (`Tooltip` in `UsageDailyChart.swift`): 170 pt wide, 8 pt padding, `.regularMaterial` rounded 8 with a 1 pt `primary` at 12 % border, a line per provider with its colour dot, and a `SettingsDivider` before the total; a click keeps it, a second click lets go. The words of the tooltip are a pure function (`usageTooltip`). Every mark has its own `accessibilityLabel` (day and provider) and `accessibilityValue`, so the numbers never depend on the pointer.
 - Keep a chart's expressions small and typed (a mark in its own `@ChartContentBuilder` function, `PlottableValue` written out): CI's compiler times out on a big one.
 - Usage's provider rows only open and close their drawer (the whole row is the button, its chevron a round 24 pt slot); the filter by provider is a `ChoicePopUp` in the filters row, with the search at its right. A table's total is a `UsageFooter`: a band of its own (`primary` at 7 %) that reaches 8 pt past the rows' text, so it reads as a sum.

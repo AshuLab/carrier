@@ -6,7 +6,7 @@ import SwiftUI
 /// and not by the list, so it covers this row and never what unfolds under it. A click anywhere on it, but on its actions, runs `action`.
 /// `actions` are what the row says (a count, a state) and are always there; `hoverActions` are its buttons, which fade in while the pointer
 /// is over the row and stay while `keepActions` (a menu they opened is open, a search they started is on), left of `actions`.
-struct SidebarSectionRow<Actions: View, HoverActions: View, Below: View>: View {
+public struct SidebarSectionRow<Actions: View, HoverActions: View, Below: View>: View {
     @Environment(\.pieceTheme) private var theme
     let title: String
     let icon: AppIcon
@@ -19,7 +19,7 @@ struct SidebarSectionRow<Actions: View, HoverActions: View, Below: View>: View {
     @State private var hovered = false
     @Environment(\.colorScheme) private var scheme
 
-    init(
+    public init(
         title: String, icon: AppIcon, selected: Bool, keepActions: Bool = false, action: @escaping () -> Void,
         @ViewBuilder actions: () -> Actions = { EmptyView() }, @ViewBuilder hoverActions: () -> HoverActions = { EmptyView() },
         @ViewBuilder below: () -> Below = { EmptyView() }
@@ -34,7 +34,7 @@ struct SidebarSectionRow<Actions: View, HoverActions: View, Below: View>: View {
         self.below = below()
     }
 
-    var body: some View {
+    public var body: some View {
         // the system's selection colour at 45% when selected, a faint grey (5%, 7% dark) when hovered
         let dark = scheme == .dark
         VStack(alignment: .leading, spacing: Tokens.Space.s8) {

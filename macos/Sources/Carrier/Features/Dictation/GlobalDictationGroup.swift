@@ -1,5 +1,6 @@
 import AppKit
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
 /// The Global dictation group of the page: Dictate in any app (the switch of the shortcut that opens the widget in any app), Accessibility, the Shortcut

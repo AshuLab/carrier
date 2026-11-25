@@ -16,5 +16,5 @@ private struct WorkCardShell: ViewModifier {
 }
 
 extension View {
-    func workCard() -> some View { modifier(WorkCardShell()) }
+    public func workCard() -> some View { modifier(WorkCardShell()) }
 }

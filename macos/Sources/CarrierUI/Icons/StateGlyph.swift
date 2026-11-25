@@ -4,8 +4,8 @@ import SwiftUI
 /// The glyph of an epic's state, 20 points square as in the mockup: a turning ring while it runs, a filled disc with a mark (or the symbol of its
 /// shape) for a state that needs you or is done, and a hollow grey circle while it waits. The area says which, in which color, with which mark and
 /// words (`StateGlyph(state:attention:)`); the piece only draws them.
-struct StateGlyph: View {
-    enum Look {
+public struct StateGlyph: View {
+    public enum Look {
         case ring
         /// `symbol` is what the disc wears instead of `mark` when the person asked for states to be told apart by shape.
         case disc(color: Color, mark: String, symbol: AppIcon?)
@@ -16,7 +16,9 @@ struct StateGlyph: View {
     /// What a screen reader says for it.
     let label: String
 
-    var body: some View {
+    public init(look: Look, label: String) { self.look = look; self.label = label }
+
+    public var body: some View {
         glyph.frame(width: 20, height: 20).accessibilityElement(children: .ignore).accessibilityLabel(label)
     }
 

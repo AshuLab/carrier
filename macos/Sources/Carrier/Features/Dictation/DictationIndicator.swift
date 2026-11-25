@@ -1,5 +1,6 @@
 import AppKit
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
 /// What the message box shows while it listens: a line outside the box's edge, growing outwards (never into the text), the way the chat's glow goes

@@ -1,5 +1,6 @@
 import AppKit
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
 /// Under an open epic session that is not running: a card line of the feed that opens the embedded terminal drawer

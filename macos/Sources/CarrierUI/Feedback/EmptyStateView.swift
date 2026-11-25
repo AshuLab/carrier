@@ -1,13 +1,13 @@
 import CarrierCore
 import SwiftUI
 
-enum EmptyStateActionStyle {
+public enum EmptyStateActionStyle {
     case secondary
     case accentGlass
 }
 
 /// Icon, title and one line, centred in the space it is given; neutral colours.
-struct EmptyStateView: View {
+public struct EmptyStateView: View {
     let icon: AppIcon
     let title: String
     let line: String
@@ -17,7 +17,7 @@ struct EmptyStateView: View {
     let actionIcon: AppIcon?
     let actionStyle: EmptyStateActionStyle
 
-    init(
+    public init(
         icon: AppIcon,
         title: String,
         line: String,
@@ -33,7 +33,7 @@ struct EmptyStateView: View {
         self.actionStyle = actionStyle
     }
 
-    var body: some View {
+    public var body: some View {
         VStack(spacing: Tokens.Space.s5) {
             Glyph(icon, size: 26)
                 .foregroundStyle(.secondary)
@@ -66,12 +66,14 @@ struct EmptyStateView: View {
 
 /// An empty state's shape (the tile, a title, a line) while what it will show is still on its way: the spinner takes the symbol's
 /// place. It appears after a quarter of a second, so a load that is quick never flashes it.
-struct LoadingStateView: View {
+public struct LoadingStateView: View {
     let title: String
     let line: String
+
+    public init(title: String, line: String) { self.title = title; self.line = line }
     @State private var shown = false
 
-    var body: some View {
+    public var body: some View {
         VStack(spacing: Tokens.Space.s5) {
             ProgressView().controlSize(.regular)
                 .frame(width: 54, height: 54)
@@ -96,7 +98,7 @@ extension View {
     /// An empty state that is the whole page, in a scroll view that has nothing to scroll. With nothing scrolling under it the system draws the
     /// toolbar's own grey band over the page; a page that scrolls lets its colour through to the top of the window, and this one is then as the rest.
     /// (`.toolbarBackgroundVisibility(.hidden, for: .windowToolbar)` does not remove the band here, and the empty state no longer asks for it.)
-    func inPageScroll() -> some View {
+    public func inPageScroll() -> some View {
         ScrollView { containerRelativeFrame(.vertical) }.scrollBounceBehavior(.basedOnSize)
     }
 }

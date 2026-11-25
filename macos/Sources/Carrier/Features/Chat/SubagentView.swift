@@ -1,4 +1,5 @@
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
 /// The subagent view (docs/glossary.md): the brief the subagent was given as a bubble with its own label, then its calls, thoughts and messages

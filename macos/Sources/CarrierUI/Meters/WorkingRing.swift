@@ -7,14 +7,16 @@ import SwiftUI
 /// in along its way and goes once round every few seconds. One Core Animation animation capped at 20 fps, which the render server runs,
 /// and stopped under the rule of the rings (a hidden window, Reduce Motion): then the arc stays still, so a working session is told from
 /// an idle one without motion.
-struct WorkingRing: NSViewRepresentable {
+public struct WorkingRing: NSViewRepresentable {
     /// The agent's turn ended: the arc turns green and goes once round, fast, from where it was.
     var finished = false
     /// The arc is cyan while the agent waits for something it started.
     var background = false
+
+    public init(finished: Bool = false, background: Bool = false) { self.finished = finished; self.background = background }
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    func makeNSView(context: Context) -> WorkingRingHostView {
+    public func makeNSView(context: Context) -> WorkingRingHostView {
         let view = WorkingRingHostView(size: ProjectIcon.size, radius: ProjectIcon.radius)
         view.reduceMotion = reduceMotion
         view.background = background
@@ -22,18 +24,18 @@ struct WorkingRing: NSViewRepresentable {
         return view
     }
 
-    func updateNSView(_ view: WorkingRingHostView, context: Context) {
+    public func updateNSView(_ view: WorkingRingHostView, context: Context) {
         view.reduceMotion = reduceMotion
         view.background = background
         view.finished = finished
     }
 
-    func sizeThatFits(_ proposal: ProposedViewSize, nsView: WorkingRingHostView, context: Context) -> CGSize? {
+    public func sizeThatFits(_ proposal: ProposedViewSize, nsView: WorkingRingHostView, context: Context) -> CGSize? {
         CGSize(width: ProjectIcon.size, height: ProjectIcon.size)
     }
 }
 
-final class WorkingRingHostView: NSView {
+public final class WorkingRingHostView: NSView {
     private static let key = "turn"
     private static let lineWidth: CGFloat = 2
     /// The arc's tail, head and fade, as the chat draws them, over a clear rest of the circle.
@@ -99,7 +101,7 @@ final class WorkingRingHostView: NSView {
         gradient.position = CGPoint(x: edge.bounds.midX, y: edge.bounds.midY)
     }
 
-    override func layout() {
+    public override func layout() {
         super.layout()
         CATransaction.begin()
         CATransaction.setDisableActions(true)
@@ -107,7 +109,7 @@ final class WorkingRingHostView: NSView {
         CATransaction.commit()
     }
 
-    override func viewDidMoveToWindow() {
+    public override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         observers.forEach(NotificationCenter.default.removeObserver)
         observers = []

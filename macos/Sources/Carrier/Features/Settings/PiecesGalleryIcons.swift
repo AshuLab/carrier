@@ -1,7 +1,8 @@
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
-/// The Icons of `Carrier/UI/` in the states their catalog entries list.
+/// The Icons of `CarrierUI/` in the states their catalog entries list.
 struct PiecesGalleryIcons: View {
     @Environment(\.pieceTheme) private var theme
 

@@ -3,7 +3,7 @@ import SwiftUI
 
 /// A row of these tabs: a title and a line under it on the left, the control on the right. In a page that is a native `Form` it is a
 /// `LabeledContent` of its section; elsewhere it is a row of a card.
-struct SettingsTabRow<Control: View>: View {
+public struct SettingsTabRow<Control: View>: View {
     /// What the search finds the row by (`SettingsIndex`), whatever its title says; a row that is not searched (a value, a model's name) has none.
     var id: String?
     let title: String
@@ -22,6 +22,32 @@ struct SettingsTabRow<Control: View>: View {
     /// A tile at the row's left, before the title (an account's avatar); the text keeps its place after it.
     var leading: AnyView?
     @ViewBuilder var control: Control
+
+    public init(
+        id: String? = nil,
+        title: String,
+        detail: String,
+        first: Bool = false,
+        mono: Bool = false,
+        roomy: Bool = false,
+        note: String? = nil,
+        problem: String? = nil,
+        wrapsDetail: Bool = false,
+        leading: AnyView? = nil,
+        @ViewBuilder control: () -> Control
+    ) {
+        self.id = id
+        self.title = title
+        self.detail = detail
+        self.first = first
+        self.mono = mono
+        self.roomy = roomy
+        self.note = note
+        self.problem = problem
+        self.wrapsDetail = wrapsDetail
+        self.leading = leading
+        self.control = control()
+    }
     @Environment(\.settingsForm) private var form
 
     private var words: some View {
@@ -41,7 +67,7 @@ struct SettingsTabRow<Control: View>: View {
         }
     }
 
-    var body: some View {
+    public var body: some View {
         if form {
             // an HStack and not a LabeledContent: that one sets the control at the height of the first line, so on a row with a detail line the
             // switches and selects would not sit in the middle of it

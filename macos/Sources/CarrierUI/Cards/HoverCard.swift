@@ -11,7 +11,7 @@ extension View {
     /// the system's own: the pointer can enter it and what is in it takes clicks. It takes none from the window under it: the first click on
     /// a row, or on a button of the row, is the row's whether its card is open or not (a popover the system closes for a click outside it
     /// swallows that click and the person has to click again).
-    func hoverCard<Card: View>(@ViewBuilder _ card: @escaping () -> Card) -> some View {
+    public func hoverCard<Card: View>(@ViewBuilder _ card: @escaping () -> Card) -> some View {
         modifier(HoverCard(card: card))
     }
 }

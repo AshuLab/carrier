@@ -2,12 +2,14 @@ import CarrierCore
 import SwiftUI
 
 /// A Carrier home card: a rounded fill with its rows divided by hairlines.
-struct OverviewCard<Content: View>: View {
+public struct OverviewCard<Content: View>: View {
     /// Dividers run the card's whole width instead of stopping at its padding: the rows are one unit.
     var fullWidthDividers = false
     @ViewBuilder let content: Content
 
-    var body: some View {
+    public init(fullWidthDividers: Bool = false, @ViewBuilder content: () -> Content) { self.fullWidthDividers = fullWidthDividers; self.content = content() }
+
+    public var body: some View {
         VStack(spacing: Tokens.Space.none) {
             Group(subviews: content) { rows in
                 ForEach(rows) { row in

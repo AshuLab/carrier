@@ -1,7 +1,8 @@
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
-/// The Meters of `Carrier/UI/` in the states their catalog entries list.
+/// The Meters of `CarrierUI/` in the states their catalog entries list.
 struct PiecesGalleryMeters: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Tokens.Space.s22) {

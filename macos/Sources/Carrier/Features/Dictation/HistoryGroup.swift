@@ -1,4 +1,5 @@
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
 /// The History segment of the Dictation page: its settings (Keep the text of my dictations) and the list of what was dictated.

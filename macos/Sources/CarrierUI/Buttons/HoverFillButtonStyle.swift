@@ -3,11 +3,13 @@ import SwiftUI
 
 /// The states of a sidebar button, drawn as the shape of the button: none at rest, a faint fill on hover, a stronger one while the mouse is
 /// down, the middle one while what it opened is `open`, and the whole button dimmed when it is disabled (no fill then).
-struct HoverFillButtonStyle: ButtonStyle {
+public struct HoverFillButtonStyle: ButtonStyle {
     var open = false
     var radius: CGFloat = Tokens.Radius.small
 
-    func makeBody(configuration: Configuration) -> some View {
+    public init(open: Bool = false, radius: CGFloat = Tokens.Radius.small) { self.open = open; self.radius = radius }
+
+    public func makeBody(configuration: Configuration) -> some View {
         Shape(configuration: configuration, open: open, radius: radius)
     }
 

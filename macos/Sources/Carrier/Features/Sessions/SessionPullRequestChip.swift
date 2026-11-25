@@ -1,5 +1,6 @@
 import AppKit
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
 /// A session's pull request in its row: its number and how it stands, tinted by its state (`SessionPullRequest.tone`). A click opens it on GitHub.

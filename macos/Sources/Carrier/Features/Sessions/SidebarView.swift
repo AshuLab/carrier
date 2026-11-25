@@ -1,4 +1,5 @@
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
 /// The sidebar: Home, Sessions, Terminal and Carrier stacked in that order, then Settings and Usage. The open section takes the room that is

@@ -2,14 +2,24 @@ import CarrierCore
 import SwiftUI
 
 /// A row that is a button: it takes a faint fill under the pointer, or `fill` when it is the chosen one.
-struct HoverRow<Content: View>: View {
+public struct HoverRow<Content: View>: View {
     let action: () -> Void
     var fill: Color?
     @ViewBuilder let content: (Bool) -> Content
+
+    public init(
+        action: @escaping () -> Void,
+        fill: Color? = nil,
+        @ViewBuilder content: @escaping (Bool) -> Content
+    ) {
+        self.action = action
+        self.fill = fill
+        self.content = content
+    }
     @State private var hovering = false
     @Environment(\.isEnabled) private var enabled
 
-    var body: some View {
+    public var body: some View {
         Button(action: action) {
             content(hovering && enabled).frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
         }

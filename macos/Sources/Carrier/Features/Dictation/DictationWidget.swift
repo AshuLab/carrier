@@ -1,5 +1,6 @@
 import AppKit
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
 /// The widget of a global dictation: a panel that never takes the focus from the app the person is in (it is not main and does not activate Carrier,

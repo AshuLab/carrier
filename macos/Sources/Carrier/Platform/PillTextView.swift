@@ -1,5 +1,6 @@
 import AppKit
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
 /// The text view: it shows the placeholder, pastes and copies plain text, and counts positions the way the plain text does, where a pill

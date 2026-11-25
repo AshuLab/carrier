@@ -1,5 +1,6 @@
 import AppKit
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
 /// The Agent output tab: one centered row per session (who acted, what it did, how it ran, and a line of numbers) with its transcript

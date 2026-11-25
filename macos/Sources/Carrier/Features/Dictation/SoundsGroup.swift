@@ -1,4 +1,5 @@
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
 /// The Sounds group of the page: a start and an end sound of the global dictation, each on or off, one of macOS's own and a play button, and one volume

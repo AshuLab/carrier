@@ -3,14 +3,16 @@ import SwiftUI
 
 /// Places its views in a row and starts a new row when the next one does not fit: for chips of different widths. Views of different
 /// heights share the middle of their row.
-struct FlowLayout: Layout {
+public struct FlowLayout: Layout {
     var spacing: CGFloat = Tokens.Space.s8
 
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+    public init(spacing: CGFloat = Tokens.Space.s8) { self.spacing = spacing }
+
+    public func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         arrange(proposal.width ?? .infinity, subviews).size
     }
 
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+    public func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
         for (subview, frame) in zip(subviews, arrange(bounds.width, subviews).frames) {
             subview.place(at: CGPoint(x: bounds.minX + frame.minX, y: bounds.minY + frame.minY), proposal: ProposedViewSize(frame.size))
         }

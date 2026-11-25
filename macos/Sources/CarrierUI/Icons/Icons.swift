@@ -4,11 +4,11 @@ import Observation
 import SwiftUI
 
 /// The image of an icon in a set at a weight: the SVG with its stroke rewritten, as a template image so it takes the color of its text. Kept by set, icon and weight.
-@MainActor enum IconImages {
+@MainActor public enum IconImages {
     private static var cache: [String: NSImage] = [:]
 
     /// nil for an SF Symbol, which `Glyph` draws as text.
-    static func image(_ icon: AppIcon, set: IconSet, weight: Double) -> NSImage? {
+    public static func image(_ icon: AppIcon, set: IconSet, weight: Double) -> NSImage? {
         let asset = iconAsset(icon, in: set)
         guard case .svg(_, _, let fill) = asset else { return nil }
         let weight = IconWeight.clamped(weight)
@@ -23,7 +23,7 @@ import SwiftUI
     }
 
     /// The same in the set and weight it is given: what a test, or a caller that holds the appearance itself, asks for.
-    static func image(_ icon: AppIcon, set: IconSet, weight: Double, bold: Bool, pointSize: CGFloat = 24) -> NSImage {
+    public static func image(_ icon: AppIcon, set: IconSet, weight: Double, bold: Bool, pointSize: CGFloat = 24) -> NSImage {
         let weight = weight + (bold ? 0.75 : 0)
         if let image = image(icon, set: set, weight: weight) { return image }
         guard let symbol = NSImage(systemSymbolName: icon.systemSymbolName, accessibilityDescription: nil) else { return NSImage() }
@@ -33,7 +33,7 @@ import SwiftUI
     }
 
     /// The image of an icon in a `Text`, `side` points square: an SVG is made that size, and a symbol, which comes at its own proportions, at that point size.
-    static func inline(_ icon: AppIcon, side: CGFloat, set: IconSet, weight: Double) -> NSImage {
+    public static func inline(_ icon: AppIcon, side: CGFloat, set: IconSet, weight: Double) -> NSImage {
         let image = self.image(icon, set: set, weight: weight, bold: false, pointSize: side)
         let own = (image.copy() as? NSImage) ?? image
         if case .svg = iconAsset(icon, in: set) { own.size = NSSize(width: side, height: side) }
@@ -44,7 +44,7 @@ import SwiftUI
 
 extension NSImage {
     /// A template image drawn in `color` and fitted in `size` without stretching it: a text attachment or a layer gets no tint from the system.
-    func tinted(_ color: NSColor, size: NSSize = NSSize(width: 24, height: 24)) -> NSImage {
+    public func tinted(_ color: NSColor, size: NSSize = NSSize(width: 24, height: 24)) -> NSImage {
         NSImage(size: size, flipped: false) { rect in
             let ratio = min(rect.width / max(self.size.width, 1), rect.height / max(self.size.height, 1))
             let fit = NSSize(width: self.size.width * ratio, height: self.size.height * ratio)
@@ -59,13 +59,13 @@ extension NSImage {
 
 extension Font.Weight {
     /// The font weight an SF Symbol takes for a stroke of `weight` in the grid of the SVGs.
-    init(strokeWeight weight: Double) {
+    public init(strokeWeight weight: Double) {
         self = [Font.Weight.thin, .light, .regular, .medium, .semibold, .bold, .heavy][IconWeight.symbolStep(weight)]
     }
 }
 
 extension NSFont.Weight {
-    init(strokeWeight weight: Double) {
+    public init(strokeWeight weight: Double) {
         self = [NSFont.Weight.thin, .light, .regular, .medium, .semibold, .bold, .heavy][IconWeight.symbolStep(weight)]
     }
 }
@@ -73,7 +73,7 @@ extension NSFont.Weight {
 extension Label where Title == Text, Icon == Image {
     /// A title and an icon for what the system draws: the item of a menu and of the window's toolbar. Its image stays an SF Symbol whatever the set is (an item
     /// whose icon is a view of ours would lose it, or sit badly in the toolbar).
-    init<S: StringProtocol>(_ title: S, systemIcon: AppIcon) {
+    public init<S: StringProtocol>(_ title: S, systemIcon: AppIcon) {
         self.init(title, systemImage: systemIcon.systemSymbolName)
     }
 }
@@ -81,7 +81,7 @@ extension Label where Title == Text, Icon == Image {
 /// An icon of the interface in the set the person chose, at `size` points (scaled by the person's text size), in the color of its text. The icons the system
 /// draws keep SF Symbols whatever the set is; this is for the app's own. `bold` is for a small white mark on a color (a state's check), where the weight the
 /// person chose would be too thin to read: a stroke three quarters thicker.
-struct Glyph: View {
+public struct Glyph: View {
     let icon: AppIcon
     var size: CGFloat = 14
     var bold = false
@@ -90,14 +90,14 @@ struct Glyph: View {
     /// What VoiceOver says of an icon that is a state on its own (a tick that says "Pasted"); an icon beside words is decoration and says nothing.
     var label: String?
 
-    init(_ icon: AppIcon, size: CGFloat = 14, bold: Bool = false, label: String? = nil) {
+    public init(_ icon: AppIcon, size: CGFloat = 14, bold: Bool = false, label: String? = nil) {
         self.icon = icon
         self.size = size
         self.bold = bold
         self.label = label
     }
 
-    var body: some View {
+    public var body: some View {
         let side = textScale.size(size)
         let weight = theme.iconWeight + (bold ? 0.75 : 0)
         Group {
@@ -116,20 +116,20 @@ struct Glyph: View {
 
 extension Label where Title == Text, Icon == Glyph {
     /// A title and an icon of the interface, the way `Label(_:systemImage:)` has them.
-    init<S: StringProtocol>(_ title: S, icon: AppIcon, size: CGFloat = 14) {
+    public init<S: StringProtocol>(_ title: S, icon: AppIcon, size: CGFloat = 14) {
         self.init { Text(title) } icon: { Glyph(icon, size: size) }
     }
 }
 
 extension View {
     /// An icon that turns while `on`, as the SF Symbols' rotate effect did: an SVG has no symbol effects of its own. None of the four moves with Reduce Motion on.
-    func glyphSpinning(_ on: Bool) -> some View { modifier(GlyphSpin(on: on)) }
+    public func glyphSpinning(_ on: Bool) -> some View { modifier(GlyphSpin(on: on)) }
     /// An icon that bounces down while `on`.
-    func glyphBouncing(_ on: Bool) -> some View { modifier(GlyphBounce(on: on)) }
+    public func glyphBouncing(_ on: Bool) -> some View { modifier(GlyphBounce(on: on)) }
     /// An icon that gives a little kick each time `trigger` changes, as the SF Symbols' bounce did.
-    func glyphKick(_ trigger: some Equatable) -> some View { modifier(GlyphKick(trigger: trigger)) }
+    public func glyphKick(_ trigger: some Equatable) -> some View { modifier(GlyphKick(trigger: trigger)) }
     /// An icon that fades in and out while `on`. Only for something that lasts a moment: the animation does not stop while the window is hidden.
-    func glyphPulsing(_ on: Bool) -> some View { modifier(GlyphPulse(on: on)) }
+    public func glyphPulsing(_ on: Bool) -> some View { modifier(GlyphPulse(on: on)) }
 }
 
 private struct GlyphSpin: ViewModifier {

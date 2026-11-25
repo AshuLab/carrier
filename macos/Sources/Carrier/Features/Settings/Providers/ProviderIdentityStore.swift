@@ -1,5 +1,6 @@
 import AppKit
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
 /// The icon, color and label of each account of `providers.json`, read from the file (the Providers page and the chat both look an account up

@@ -2,12 +2,14 @@ import CarrierCore
 import SwiftUI
 
 /// "PR #736" with a dot for its state and an arrow when it opens GitHub; a link when it has a `link`.
-struct PullRequestChip: View {
+public struct PullRequestChip: View {
     let number: Int
     let dot: Color?
     let link: URL?
 
-    var body: some View {
+    public init(number: Int, dot: Color?, link: URL?) { self.number = number; self.dot = dot; self.link = link }
+
+    public var body: some View {
         if let link {
             Link(destination: link) { label }.buttonStyle(.plain).help(link.absoluteString)
         } else {

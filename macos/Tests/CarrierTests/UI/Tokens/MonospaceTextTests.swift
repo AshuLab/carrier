@@ -1,4 +1,5 @@
 import AppKit
+@testable import CarrierUI
 import SwiftUI
 import Testing
 @testable import CarrierCore

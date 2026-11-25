@@ -6,18 +6,23 @@ import SwiftUI
 /// what can be pasted. Numbers show from five lines, a block of more than 25 folds under Show more lines, and long lines scroll sideways
 /// or wrap, as the monospace settings say. The language, the pieces of the code, the lines of a diff, the words Copy takes and the settings are
 /// values the area gives (`CodeBlockView(language:file:code:)`); the piece draws them.
-struct CodeBlockView: View {
+public struct CodeBlockView: View {
     /// What a piece of code is, which gives it its color.
-    enum Role: Equatable { case plain, prompt, keyword, string, number, comment, function, type }
+    public enum Role: Equatable { case plain, prompt, keyword, string, number, comment, function, type }
 
     /// A piece of code and what it is.
-    struct Run: Equatable {
+    public struct Run: Equatable {
         var text: String
         var role: Role
+
+        public init(text: String, role: Role) {
+            self.text = text
+            self.role = role
+        }
     }
 
     /// One line of a diff, which gives it its tint.
-    enum DiffLine: Equatable { case added, removed, hunk, meta, context }
+    public enum DiffLine: Equatable { case added, removed, hunk, meta, context }
 
     /// What the header calls the language ("JavaScript", the fence's own word, "Code").
     let name: String
@@ -37,6 +42,30 @@ struct CodeBlockView: View {
     var foldAfter = 25
     var spare = 4
 
+    public init(
+        name: String,
+        file: String? = nil,
+        code: String,
+        copyText: String,
+        isDiff: Bool,
+        runs: @escaping (String) -> [Run],
+        diffLines: [DiffLine] = [],
+        monospace: MonospaceSettings,
+        foldAfter: Int = 25,
+        spare: Int = 4
+    ) {
+        self.name = name
+        self.file = file
+        self.code = code
+        self.copyText = copyText
+        self.isDiff = isDiff
+        self.runs = runs
+        self.diffLines = diffLines
+        self.monospace = monospace
+        self.foldAfter = foldAfter
+        self.spare = spare
+    }
+
     @Environment(\.colorScheme) private var scheme
     @State private var hovering = false
     @State private var expanded = false
@@ -54,7 +83,7 @@ struct CodeBlockView: View {
     private var folds: Bool { foldable && expanded == false }
     private var shownLines: [String] { folds ? Array(lines.prefix(foldAfter)) : lines }
 
-    var body: some View {
+    public var body: some View {
         VStack(alignment: .leading, spacing: Tokens.Space.none) {
             header
             // a horizontal scroll offers its content no width to wrap at, so a block that wraps has none: the text takes the width of the card

@@ -37,7 +37,7 @@ private struct SettingsFieldModifier: ViewModifier {
 extension View {
     /// `icon` is drawn inside the box before the text (a magnifying glass for a search).
     /// Inside a row with a `problem` the ring is orange and a warning mark sits in the box, the same size as without them: nothing moves.
-    func settingsField(width: CGFloat? = nil, icon: AppIcon? = nil, focused: FocusState<Bool>.Binding? = nil) -> some View {
+    public func settingsField(width: CGFloat? = nil, icon: AppIcon? = nil, focused: FocusState<Bool>.Binding? = nil) -> some View {
         modifier(SettingsFieldModifier(width: width, icon: icon, external: focused))
     }
 }

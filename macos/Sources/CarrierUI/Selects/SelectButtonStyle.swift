@@ -3,8 +3,10 @@ import SwiftUI
 
 /// The face of a button that opens a choice (the model picker's): no box, its words and `SelectChevron` after them as a system pop-up in a form has them,
 /// a little dimmer under the pointer and when pressed.
-struct SelectButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View { Face(configuration: configuration) }
+public struct SelectButtonStyle: ButtonStyle {
+
+    public init() {}
+    public func makeBody(configuration: Configuration) -> some View { Face(configuration: configuration) }
 
     private struct Face: View {
         let configuration: ButtonStyleConfiguration

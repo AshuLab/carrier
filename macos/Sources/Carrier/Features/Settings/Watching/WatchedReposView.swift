@@ -1,5 +1,6 @@
 import AppKit
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
 /// The Carrier home's watched repositories; a thin mapping of `carrierBox(_:)`. What Carrier itself is doing is in the sidebar.

@@ -5,7 +5,7 @@ private struct WindowSizeKey: EnvironmentKey { static let defaultValue = CGSize(
 
 extension EnvironmentValues {
     /// The main window's size, set by the panel for the sheets over it.
-    var windowSize: CGSize {
+    public var windowSize: CGSize {
         get { self[WindowSizeKey.self] }
         set { self[WindowSizeKey.self] = newValue }
     }
@@ -23,5 +23,5 @@ private struct SheetSized: ViewModifier {
 
 extension View {
     /// A sheet of the window's own: three quarters of it, so it grows and shrinks with the window (`sheetSize`), its width capped at `maxWidth`.
-    func windowSheetSize(maxWidth: Double = .infinity) -> some View { modifier(SheetSized(maxWidth: maxWidth)) }
+    public func windowSheetSize(maxWidth: Double = .infinity) -> some View { modifier(SheetSized(maxWidth: maxWidth)) }
 }

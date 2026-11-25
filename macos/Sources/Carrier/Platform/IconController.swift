@@ -1,5 +1,6 @@
 import AppKit
 import CarrierCore
+import CarrierUI
 import QuartzCore
 
 /// Holds the icon's layers. It takes no clicks: the button underneath has to receive them to open the menu.

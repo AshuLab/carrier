@@ -1,10 +1,12 @@
 import SwiftUI
 
 /// A light that sweeps over the text it is on, in the primary colour over the secondary one the text has.
-struct Shimmer: ViewModifier {
+public struct Shimmer: ViewModifier {
     let active: Bool
 
-    func body(content: Content) -> some View {
+    public init(active: Bool) { self.active = active }
+
+    public func body(content: Content) -> some View {
         content.overlay {
             if active {
                 MovingTimeline { context in

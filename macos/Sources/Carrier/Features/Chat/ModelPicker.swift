@@ -1,4 +1,5 @@
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
 /// The models each provider offers, for the Agents page's picker: asked of the chat host (the same list the message box shows) and kept in the

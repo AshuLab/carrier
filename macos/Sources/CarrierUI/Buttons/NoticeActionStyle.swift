@@ -4,10 +4,12 @@ import SwiftUI
 /// An action of a `NoticeCard`, in the card's own colour so it reads on the glass the card is filled with and does not depend on the accent
 /// the person chose: the card's colour, lighter on dark and deeper on light, on a pill of that colour. `quiet` is the secondary action (Copy
 /// details, the cross that drops a message): near-primary words and a pill only under the pointer.
-struct NoticeActionStyle: ButtonStyle {
+public struct NoticeActionStyle: ButtonStyle {
     var quiet = false
 
-    func makeBody(configuration: Configuration) -> some View { Face(configuration: configuration, quiet: quiet) }
+    public init(quiet: Bool = false) { self.quiet = quiet }
+
+    public func makeBody(configuration: Configuration) -> some View { Face(configuration: configuration, quiet: quiet) }
 
     private struct Face: View {
         let configuration: ButtonStyleConfiguration

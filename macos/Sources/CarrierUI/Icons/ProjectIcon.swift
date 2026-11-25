@@ -4,7 +4,7 @@ import SwiftUI
 
 /// A project's icon: its image, or its mark or initials in white on its color, in a rounded square of glass tinted with it. A bright arc goes
 /// round its edge while an agent works (`WorkingRing`). In a sidebar row it is neutral until the row is selected or hovered (`rowActive`).
-struct ProjectIcon: View {
+public struct ProjectIcon: View {
     /// The letters inside the tile, when it has no mark.
     let initials: String
     let color: Color
@@ -15,18 +15,36 @@ struct ProjectIcon: View {
     var background = false
     /// The ring goes once round in green, fast, after `working`: the agent just ended its turn. The owner takes it away a moment later.
     var finished = false
+
+    public init(
+        initials: String,
+        color: Color,
+        mark: AppIcon? = nil,
+        image: NSImage? = nil,
+        working: Bool = false,
+        background: Bool = false,
+        finished: Bool = false
+    ) {
+        self.initials = initials
+        self.color = color
+        self.mark = mark
+        self.image = image
+        self.working = working
+        self.background = background
+        self.finished = finished
+    }
     @Environment(\.rowActive) private var active
-    static let size: CGFloat = 32
-    static let radius: CGFloat = Tokens.Radius.tile
+    public static let size: CGFloat = 32
+    public static let radius: CGFloat = Tokens.Radius.tile
     /// 24 muted colours: 12 hues, each in a fuller and a greyer tone, the brightness of each chosen so the white letters keep at least 4.5:1.
-    static let palette: [Color] = [
+    public static let palette: [Color] = [
         Tokens.ProjectIcon.p01, Tokens.ProjectIcon.p02, Tokens.ProjectIcon.p03, Tokens.ProjectIcon.p04, Tokens.ProjectIcon.p05, Tokens.ProjectIcon.p06,
         Tokens.ProjectIcon.p07, Tokens.ProjectIcon.p08, Tokens.ProjectIcon.p09, Tokens.ProjectIcon.p10, Tokens.ProjectIcon.p11, Tokens.ProjectIcon.p12,
         Tokens.ProjectIcon.p13, Tokens.ProjectIcon.p14, Tokens.ProjectIcon.p15, Tokens.ProjectIcon.p16, Tokens.ProjectIcon.p17, Tokens.ProjectIcon.p18,
         Tokens.ProjectIcon.p19, Tokens.ProjectIcon.p20, Tokens.ProjectIcon.p21, Tokens.ProjectIcon.p22, Tokens.ProjectIcon.p23, Tokens.ProjectIcon.p24,
     ].map { Color($0) }
 
-    var body: some View {
+    public var body: some View {
         Group {
             if let image {
                 Color.clear

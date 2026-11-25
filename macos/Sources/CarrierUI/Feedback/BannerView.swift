@@ -3,7 +3,7 @@ import SwiftUI
 
 /// A failed turn or a refused send: a `NoticeCard` in `tint` (red for a failure, orange for a warning), with the way out as text that lights a pill under
 /// the pointer.
-struct BannerView: View {
+public struct BannerView: View {
     let title: String
     let detail: String
     let hint: String?
@@ -14,9 +14,27 @@ struct BannerView: View {
     let copyDetails: (() -> Void)?
     /// Nil when the turn is no longer the last thing: the banner is then only a record.
     let retry: (() -> Void)?
+
+    public init(
+        title: String,
+        detail: String,
+        hint: String?,
+        tint: Color,
+        account: AccountMark? = nil,
+        copyDetails: (() -> Void)?,
+        retry: (() -> Void)?
+    ) {
+        self.title = title
+        self.detail = detail
+        self.hint = hint
+        self.tint = tint
+        self.account = account
+        self.copyDetails = copyDetails
+        self.retry = retry
+    }
     @State private var copied = false
 
-    var body: some View {
+    public var body: some View {
         NoticeCard(symbol: .exclamation, tint: tint, title: title, detail: detail, hint: hint, edge: true, account: account) {
             if let copyDetails {
                 Button {

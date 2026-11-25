@@ -1,5 +1,6 @@
 import AppKit
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
 /// A `FailureBanner` as a banner: red when the turn failed, orange when the provider is not signed in (chat-ui-conv.html, section 3).

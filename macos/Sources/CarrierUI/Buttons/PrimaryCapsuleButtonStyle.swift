@@ -1,11 +1,13 @@
 import SwiftUI
 
 /// The main button of a tab's footer: a flat accent capsule, grey when it cannot be pressed.
-struct PrimaryCapsuleButtonStyle: ButtonStyle {
+public struct PrimaryCapsuleButtonStyle: ButtonStyle {
     /// The one button a screen is about (Start Carrier), bigger than a footer's.
     var large = false
 
-    func makeBody(configuration: Configuration) -> some View { Face(configuration: configuration, large: large) }
+    public init(large: Bool = false) { self.large = large }
+
+    public func makeBody(configuration: Configuration) -> some View { Face(configuration: configuration, large: large) }
 
     private struct Face: View {
         let configuration: ButtonStyleConfiguration

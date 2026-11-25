@@ -23,7 +23,7 @@ private struct SettingsAnchored: ViewModifier {
 }
 
 extension View {
-    @ViewBuilder func settingsAnchored(_ id: String?, group: String? = nil) -> some View {
+    @ViewBuilder public func settingsAnchored(_ id: String?, group: String? = nil) -> some View {
         if let id { modifier(SettingsAnchored(group: group, id: id)) } else { self }
     }
 }

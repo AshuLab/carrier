@@ -1,5 +1,6 @@
 import AppKit
 import CarrierCore
+import CarrierUI
 import SwiftUI
 
 /// The text of the message box. The text the app holds is plain (`/name` is what a command is in it); here a command the provider lists,

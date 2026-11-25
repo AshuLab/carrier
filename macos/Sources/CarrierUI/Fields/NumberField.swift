@@ -3,7 +3,7 @@ import SwiftUI
 
 /// A text field that hands its number to `value` as it is typed, so Save is on at once; text that is not a number yet is
 /// reported through `unparsable` and the value keeps its last good number.
-struct NumberField<Value: Equatable>: View {
+public struct NumberField<Value: Equatable>: View {
     let key: String
     @Binding var value: Value
     @Binding var unparsable: Set<String>
@@ -12,10 +12,26 @@ struct NumberField<Value: Equatable>: View {
     let format: (Value) -> String
     /// The value one click of − (-1) or + (1) moves to; nil when it would go below the least the engine takes.
     let step: (Value, Int) -> Value?
+
+    public init(
+        key: String,
+        value: Binding<Value>,
+        unparsable: Binding<Set<String>>,
+        parse: @escaping (String) -> Value?,
+        format: @escaping (Value) -> String,
+        step: @escaping (Value, Int) -> Value?
+    ) {
+        self.key = key
+        self._value = value
+        self._unparsable = unparsable
+        self.parse = parse
+        self.format = format
+        self.step = step
+    }
     @State private var text = ""
     @FocusState private var focused: Bool
 
-    var body: some View {
+    public var body: some View {
         HStack(spacing: Tokens.Space.none) {
             stepButton(.minus, -1)
             TextField("", text: $text).textFieldStyle(.plain).multilineTextAlignment(.center).frame(width: 42).focused($focused)

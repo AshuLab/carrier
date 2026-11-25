@@ -2,9 +2,9 @@ import Foundation
 import Testing
 @testable import CarrierCore
 
-// What the app asks for `providers.json` (docs/adr/0020, ADR 0053): Carrier's own code writes the file, so the fake chat host stands in for it with the Swift functions that
-// used to write it (unknown keys kept, the file written whole, a failed write leaving the old one), and the store is checked for what it asks, shows and reads: the first-open
-// creation, the "found, not added" rule, the engine's answer and the refusals, over a temporary folder.
+// What the app asks for `providers.json` (docs/adr/0020, ADR 0053): Carrier's own code writes the file (its rules are tested in src/chat/server.test.ts), so the fake chat host stands in
+// for it with the fixture host's code (`fixtureProvidersChange`), and the store is checked for what it asks, shows and reads: the first-open creation, the "found, not added" rule,
+// the engine's answer and the refusals, over a temporary folder.
 
 private func temporaryFolder() throws -> String {
     let folder = NSTemporaryDirectory() + "carrier-providers-\(UUID().uuidString)"
@@ -19,46 +19,6 @@ private func providers(_ file: ProvidersFile) throws -> [String: [String: Any]] 
     return try #require(json?["providers"] as? [String: [String: Any]])
 }
 
-@Test func addingAnAccountKeepsTheKeysTheAppDoesNotKnowAndWritesTheFileWhole() throws {
-    let existing = Data(#"{"future":{"a":1},"providers":{"claude-work":{"harness":"claude","configDir":"/h/.cw","launchArgs":["--chrome"],"newKey":true}}}"#.utf8)
-    let updated = try applyingAccounts([(name: "codex", harness: "codex")], to: existing)
-    let json = try #require(JSONSerialization.jsonObject(with: updated) as? [String: Any])
-    #expect((json["future"] as? [String: Int]) == ["a": 1])
-    let map = try #require(json["providers"] as? [String: [String: Any]])
-    #expect(map["claude-work"]?["newKey"] as? Bool == true && map["claude-work"]?["launchArgs"] as? [String] == ["--chrome"])
-    #expect(map["codex"]?["harness"] as? String == "codex" && map["codex"]?["enabled"] == nil)
-    #expect(map.keys.sorted() == ["claude-work", "codex"])
-}
-
-@Test func aFileThatIsNotAnObjectWithAProvidersMapIsNeverOverwrittenAndATakenNameIsNeverReplaced() throws {
-    for bad in ["[1]", "not json", #"{"providers":[]}"#] {
-        #expect(throws: ProvidersFileError.notAnObject) { try applyingAccounts([(name: "codex", harness: "codex")], to: Data(bad.utf8)) }
-    }
-    let taken = Data(#"{"providers":{"codex":{"harness":"codex","launchArgs":["-x"]}}}"#.utf8)
-    #expect(throws: ProvidersFileError.taken("codex")) { try applyingAccounts([(name: "codex", harness: "codex")], to: taken) }
-}
-
-@Test func theStoreWritesTheFileInOneStepAndAFailedWriteLeavesTheOldOne() throws {
-    let folder = try temporaryFolder()
-    defer {
-        try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: folder)
-        try? FileManager.default.removeItem(atPath: folder)
-    }
-    let file = ProvidersFile(folder: folder)
-    #expect(file.exists == false)
-    #expect(try file.read() == nil)
-    try file.write(applyingAccounts([(name: "claude", harness: "claude")], to: nil))
-    let before = try text(file)
-    #expect(try providers(file).keys.sorted() == ["claude"])
-    // no temporary file is left beside it
-    #expect(try FileManager.default.contentsOfDirectory(atPath: folder) == ["providers.json"])
-
-    // a folder nobody can write to: the replacement cannot be made, and the old file is as it was
-    try FileManager.default.setAttributes([.posixPermissions: 0o500], ofItemAtPath: folder)
-    #expect(throws: (any Error).self) { try file.write(applyingAccounts([(name: "codex", harness: "codex")], to: Data(before.utf8))) }
-    #expect(try text(file) == before)
-}
-
 // MARK: first open and Add, through a fake host
 
 private final class ProvidersHost: ChatHost, @unchecked Sendable {
@@ -67,9 +27,9 @@ private final class ProvidersHost: ChatHost, @unchecked Sendable {
     var asked = 0
     var regenerateTitlesCalls = 0
     var regenerateTitlesResult: Result<Int, Error> = .success(0)
-    /// What Carrier's writing code works on, who it finds using an account, and what the engine answers once the file is written.
+    /// The file the fixture host's code works on, a failure that makes a request fail as a host that could not write would, and what the engine answers once the file is written.
     var file: ProvidersFile?
-    var uses: () throws -> [String: [AccountUse]] = { [:] }
+    var failure: Error?
     var engine = ReloadOutcome.applied
     /// The requests asked, and how many of them wrote the file (and so asked the engine).
     var requests: [ProvidersRequest] = []
@@ -80,21 +40,9 @@ private final class ProvidersHost: ChatHost, @unchecked Sendable {
     func changeProviders(_ request: ProvidersRequest) async throws -> ProvidersSaved {
         requests.append(request)
         guard let file else { throw ControlError.closed }
-        let current: Data?
-        let updated: Data
-        do {
-            current = try file.read()
-            switch request {
-            case .setAccounts(let accounts): updated = try applyingAccounts(accounts.map { ($0.name, $0.harness) }, to: current)
-            case .addAccount(let name, let harness, let configDir): updated = try applyingNewAccount(name: name, harness: harness, configDir: configDir, to: current)
-            case .editAccount(let name, let draft): updated = try applyingEdit(name: name, draft: draft, to: current)
-            case .removeAccount(let name): updated = try applyingRemoval(name: name, uses: try uses()[name] ?? [], to: current)
-            case .setTextGenerator(let choice): updated = try applyingTextGenerator(choice.map { ($0.server, $0.model) }, to: current)
-            }
-        } catch let error as ProvidersFileError {
-            throw ControlError.remote(fixtureProvidersRefusal(error))
-        }
-        try file.write(updated)
+        if let failure { throw failure }
+        let wire = (try? JSONSerialization.jsonObject(with: request.line)) as? [String: Any] ?? [:]
+        if case .refused(let refusal) = fixtureProvidersChange(wire, home: file.url.deletingLastPathComponent().path) { throw ControlError.remote(refusal) }
         engineAsks += 1
         return try JSONDecoder().decode(ProvidersSaved.self, from: Data(engineReply(engine).utf8))
     }
@@ -137,10 +85,9 @@ private func engineReply(_ outcome: ReloadOutcome) -> String {
 }
 
 @MainActor private func makeStore(
-    _ host: ProvidersHost, _ file: ProvidersFile, uses: @escaping () throws -> [String: [AccountUse]] = { [:] }, engine: ReloadOutcome = .applied,
-    log: @escaping (String) -> Void = { _ in }
+    _ host: ProvidersHost, _ file: ProvidersFile, engine: ReloadOutcome = .applied, log: @escaping (String) -> Void = { _ in }
 ) -> ProvidersStore {
-    (host.file, host.uses, host.engine) = (file, uses, engine)
+    (host.file, host.engine) = (file, engine)
     return ProvidersStore(host: host, file: { file }, log: log, status: ReloadStatus())
 }
 
@@ -175,7 +122,7 @@ private func replyJSON(accounts: [String], unadded: [String] = []) -> String {
     let file = ProvidersFile(folder: folder)
     // an account the person removed: claude is found and has none
     let mine = #"{"providers":{"codex":{"harness":"codex"}},"extra":1}"#
-    try file.write(Data(mine.utf8))
+    try Data(mine.utf8).write(to: file.url)
     let host = try ProvidersHost(replyJSON(accounts: [account("codex", found: true)], unadded: ["claude"]))
     let store = makeStore(host, file)
     await store.createFileIfMissing()
@@ -200,7 +147,7 @@ private func replyJSON(accounts: [String], unadded: [String] = []) -> String {
     let folder = try temporaryFolder()
     defer { try? FileManager.default.removeItem(atPath: folder) }
     let file = ProvidersFile(folder: folder)
-    try file.write(Data(#"{"providers":{"claude":{"harness":"claude","command":"/opt/claude"}}}"#.utf8))
+    try Data(#"{"providers":{"claude":{"harness":"claude","command":"/opt/claude"}}}"#.utf8).write(to: file.url)
     let host = try ProvidersHost(replyJSON(accounts: [account("claude", found: true)], unadded: ["agy"]))
     let store = makeStore(host, file)
     await store.add(harness: "agy")
@@ -209,7 +156,7 @@ private func replyJSON(accounts: [String], unadded: [String] = []) -> String {
     #expect(written["claude"]?["command"] as? String == "/opt/claude" && store.addProblem == nil)
 
     // the person removes claude by hand; opening the app again does not add it back
-    try file.write(Data(#"{"providers":{"agy":{"harness":"agy"}}}"#.utf8))
+    try Data(#"{"providers":{"agy":{"harness":"agy"}}}"#.utf8).write(to: file.url)
     let after = try text(file)
     await store.createFileIfMissing()
     #expect(try text(file) == after)
@@ -222,19 +169,18 @@ private func replyJSON(accounts: [String], unadded: [String] = []) -> String {
     let host = try ProvidersHost(replyJSON(accounts: [], unadded: ["codex"]))
     let store = makeStore(host, file)
 
-    try file.write(Data("[1]".utf8))
+    try Data("[1]".utf8).write(to: file.url)
     await store.add(harness: "codex")
     #expect(store.addProblem?.contains("not a JSON object") == true)
     #expect(try text(file) == "[1]")
 
-    try file.write(Data(#"{"providers":{"codex":{"harness":"claude"}}}"#.utf8))
+    try Data(#"{"providers":{"codex":{"harness":"claude"}}}"#.utf8).write(to: file.url)
     await store.add(harness: "codex")
     #expect(store.addProblem == "There is already an account named codex.")
 
-    let failing = ProvidersFile(folder: folder, save: { _, _ in throw CocoaError(.fileWriteNoPermission) })
-    let stuck = makeStore(host, failing)
-    await stuck.add(harness: "agy")
-    #expect(stuck.addProblem?.contains("could not be written") == true)
+    host.failure = CocoaError(.fileWriteNoPermission)
+    await store.add(harness: "agy")
+    #expect(store.addProblem?.contains("could not be written") == true)
     #expect(try text(file) == #"{"providers":{"codex":{"harness":"claude"}}}"#)
 }
 
@@ -246,53 +192,6 @@ private func map(_ data: Data) throws -> [String: [String: Any]] {
 }
 
 private let base = Data(#"{"future":1,"providers":{"claude":{"harness":"claude","note":"keep","model":"m","newKey":{"a":1}},"codex":{"harness":"codex"},"agy":{"harness":"agy"}}}"#.utf8)
-
-@Test func addingAnAccountWritesItsNameHarnessAndFolderAndRefusesWhatTheEngineWouldRefuse() throws {
-    let added = try map(applyingNewAccount(name: "claude-work", harness: "claude", configDir: "/h/.cw", to: base))
-    #expect(added["claude-work"]?["harness"] as? String == "claude" && added["claude-work"]?["configDir"] as? String == "/h/.cw")
-    #expect(added["claude-work"]?.count == 2)
-    #expect(added["claude"]?["newKey"] != nil && added.keys.sorted() == ["agy", "claude", "claude-work", "codex"])
-    // no folder is no key
-    #expect(try map(applyingNewAccount(name: "codex-2", harness: "codex", configDir: "", to: base))["codex-2"]?.keys.sorted() == ["harness"])
-    #expect(throws: ProvidersFileError.taken("claude")) { try applyingNewAccount(name: "claude", harness: "claude", configDir: "", to: base) }
-    for bad in ["", "Work", "1work", "a_b", "a b", String(repeating: "a", count: 41), "é"] {
-        #expect(throws: (any Error).self, "\(bad)") { try applyingNewAccount(name: bad, harness: "claude", configDir: "", to: base) }
-    }
-    #expect(try map(applyingNewAccount(name: String(repeating: "a", count: 40), harness: "claude", configDir: "", to: base)).count == 4)
-    // a folder that is not absolute is taken from the home folder, so the file is one the engine reads
-    #expect(try map(applyingNewAccount(name: "w", harness: "claude", configDir: "relative/dir", to: base))["w"]?["configDir"] as? String == "~/relative/dir")
-    #expect(throws: ProvidersFileError.self) { try applyingNewAccount(name: "w", harness: "agy", configDir: "", to: base) }
-    #expect(throws: ProvidersFileError.notAnObject) { try applyingNewAccount(name: "w", harness: "claude", configDir: "", to: Data("[]".utf8)) }
-}
-
-@Test func eachFieldWritesItsKeyAndAnEmptiedFieldRemovesIt() throws {
-    var draft = AccountDraft()
-    draft.displayName = " Work "
-    draft.command = "/opt/bin/claude"
-    draft.configDir = "~/.claude-work"
-    draft.autoCompact = "300000"
-    draft.launchArgs = "--chrome\n\n --verbose "
-    draft.idle = .never
-    let written = try map(applyingEdit(name: "claude", draft: draft, to: base))["claude"]
-    #expect(written?["displayName"] as? String == "Work" && written?["command"] as? String == "/opt/bin/claude" && written?["configDir"] as? String == "~/.claude-work")
-    #expect(written?["autoCompact"] as? Int == 300_000 && written?["launchArgs"] as? [String] == ["--chrome", "--verbose"] && written?["idleCompaction"] as? Bool == false)
-    // the keys the editor does not own stay
-    #expect(written?["model"] as? String == "m" && written?["note"] as? String == "keep" && written?["newKey"] != nil)
-
-    // "auto" stays a string; Use default and every emptied field remove their keys
-    draft.autoCompact = "auto"
-    #expect(try map(applyingEdit(name: "claude", draft: draft, to: base))["claude"]?["autoCompact"] as? String == "auto")
-    let again = try applyingEdit(name: "claude", draft: draft, to: applyingEdit(name: "claude", draft: draft, to: base))
-    var cleared = try #require(accountDraft(named: "claude", in: again))
-    #expect(cleared.displayName == "Work" && cleared.launchArgs == "--chrome\n--verbose" && cleared.autoCompact == "auto" && cleared.idle == .never)
-    cleared = AccountDraft()
-    let emptied = try map(applyingEdit(name: "claude", draft: cleared, to: again))["claude"]
-    #expect(emptied?.keys.sorted() == ["harness", "model", "newKey", "note"])
-    let json = try #require(JSONSerialization.jsonObject(with: applyingEdit(name: "claude", draft: draft, to: base)) as? [String: Any])
-    #expect(json["future"] as? Int == 1)
-
-    #expect(throws: ProvidersFileError.missing("nope")) { try applyingEdit(name: "nope", draft: draft, to: base) }
-}
 
 @Test func theEditorRefusesInWordsNamingTheFieldWhatTheSchemaOfTheEngineRefuses() throws {
     func problems(_ harness: String, _ change: (inout AccountDraft) -> Void) -> [String: String] {
@@ -325,18 +224,6 @@ private let base = Data(#"{"future":1,"providers":{"claude":{"harness":"claude",
     #expect(problems("codex") { $0.launchArgs = "-cmodel_provider=x" }["launchArgs"] != nil)
     #expect(problems("codex") { $0.launchArgs = "-c\nfoo=bar\n--oss" }.isEmpty)
     #expect(problems("agy") { $0.launchArgs = "--model" }.isEmpty)
-    // and applyingEdit never writes it
-    var draft = AccountDraft()
-    draft.autoCompact = "5"
-    #expect(throws: ProvidersFileError.self) { try applyingEdit(name: "claude", draft: draft, to: base) }
-}
-
-@Test func removingFreesTheAccountOnlyWhenNothingNamesIt() throws {
-    let removed = try map(applyingRemoval(name: "codex", uses: [], to: base))
-    #expect(removed.keys.sorted() == ["agy", "claude"] && removed["claude"]?["newKey"] != nil)
-    let uses: [AccountUse] = [.role(.author), .repoOverride(repo: "a/b", role: .reviewer), .failover(nil), .chatAgent("claude")]
-    #expect(throws: ProvidersFileError.inUse("claude", uses)) { try applyingRemoval(name: "claude", uses: uses, to: base) }
-    #expect(throws: ProvidersFileError.missing("nope")) { try applyingRemoval(name: "nope", uses: [], to: base) }
 }
 
 @Test func aFailoverStepStopsTheRemovalOfItsAccount() {
@@ -365,10 +252,13 @@ private let base = Data(#"{"future":1,"providers":{"claude":{"harness":"claude",
     let folder = try temporaryFolder()
     defer { try? FileManager.default.removeItem(atPath: folder) }
     let file = ProvidersFile(folder: folder)
-    try file.write(base)
+    try base.write(to: file.url)
     let host = try ProvidersHost(replyJSON(accounts: [account("claude", found: true)]))
-    var uses: [String: [AccountUse]] = ["claude": [.role(.author), .chatAgent("claude")]]
-    let store = makeStore(host, file, uses: { uses })
+    // who names an account is read from the engine's and the chat's files, as the host does
+    let engineFile = URL(fileURLWithPath: CarrierPlaces(folder: folder).engineConfig), chatFile = URL(fileURLWithPath: CarrierPlaces(folder: folder).chatConfig)
+    try Data(#"{"agents":{"author":{"provider":"claude"}}}"#.utf8).write(to: engineFile)
+    try Data(#"{"agents":{"claude":{"account":"claude"}}}"#.utf8).write(to: chatFile)
+    let store = makeStore(host, file)
 
     // add: written, and the host asked again
     #expect(await store.addAccount(name: "claude-work", harness: "claude", configDir: "/h/.cw"))
@@ -404,7 +294,8 @@ private let base = Data(#"{"future":1,"providers":{"claude":{"harness":"claude",
     await store.settled()
     #expect(try providers(file).keys.sorted() == ["agy", "claude", "codex"])
     #expect(store.editProblem == nil)
-    uses = [:]
+    try Data("{}".utf8).write(to: engineFile)
+    try Data(#"{"agents":{}}"#.utf8).write(to: chatFile)
     #expect(await store.remove(name: "claude"))
     await store.settled()
     #expect(try providers(file).keys.sorted() == ["agy", "codex"])
@@ -414,7 +305,7 @@ private let base = Data(#"{"future":1,"providers":{"claude":{"harness":"claude",
     let folder = try temporaryFolder()
     defer { try? FileManager.default.removeItem(atPath: folder) }
     let file = ProvidersFile(folder: folder)
-    try file.write(base)
+    try base.write(to: file.url)
     let host = try ProvidersHost(replyJSON(accounts: []))
     host.reply = try JSONDecoder().decode(HostProviders.self, from: Data(#"{"accounts":[],"unadded":[],"servers":[],"problem":{"path":"providers.codex.model","message":"Invalid input"}}"#.utf8))
     let store = makeStore(host, file)
@@ -424,18 +315,6 @@ private let base = Data(#"{"future":1,"providers":{"claude":{"harness":"claude",
     await store.settled()
     #expect(try providers(file)["codex"]?["displayName"] as? String == "Mine")
     #expect(store.outcome.note?.contains("providers.codex.model") == true && store.outcome.note?.contains("Invalid input") == true)
-}
-
-@MainActor @Test func aChatJsonThatCannotBeReadStopsARemoval() async throws {
-    struct Unreadable: Error {}
-    let folder = try temporaryFolder()
-    defer { try? FileManager.default.removeItem(atPath: folder) }
-    let file = ProvidersFile(folder: folder)
-    try file.write(base)
-    let store = makeStore(try ProvidersHost(replyJSON(accounts: [])), file, uses: { throw Unreadable() })
-    #expect(await store.remove(name: "codex") == false)
-    #expect(try providers(file).keys.contains("codex"))
-    #expect(store.editProblem == "providers.json could not be written; the file stays as it was.")
 }
 
 // MARK: what the engine did with the file
@@ -477,8 +356,8 @@ private var work: AccountDraft {
     await store.add(harness: "agy")
     #expect(host.requests.count == 7 && host.engineAsks == 4)
     // a write that failed
-    let failing = ProvidersFile(folder: folder, save: { _, _ in throw CocoaError(.fileWriteNoPermission) })
-    await makeStore(host, failing).add(harness: "codex")
+    host.failure = CocoaError(.fileWriteNoPermission)
+    await store.add(harness: "codex")
     #expect(host.engineAsks == 4)
 }
 
@@ -486,7 +365,7 @@ private var work: AccountDraft {
     let folder = try temporaryFolder()
     defer { try? FileManager.default.removeItem(atPath: folder) }
     let file = ProvidersFile(folder: folder)
-    try file.write(Data(#"{"providers":{"claude":{"harness":"claude"}}}"#.utf8))
+    try Data(#"{"providers":{"claude":{"harness":"claude"}}}"#.utf8).write(to: file.url)
     let host = try ProvidersHost(replyJSON(accounts: [account("claude", found: true)], unadded: ["agy"]))
     let kept = ReloadOutcome.refused(Refusal(code: "config.problem", params: ["path": "agents.author.provider", "problem": "providerNotDeclared"], text: "agents.author.provider: bad"))
     let store = makeStore(host, file, engine: kept)
@@ -510,7 +389,7 @@ private var work: AccountDraft {
     let folder = try temporaryFolder()
     defer { try? FileManager.default.removeItem(atPath: folder) }
     let file = ProvidersFile(folder: folder)
-    try file.write(Data(#"{"providers":{"claude":{"harness":"claude"}}}"#.utf8))
+    try Data(#"{"providers":{"claude":{"harness":"claude"}}}"#.utf8).write(to: file.url)
     let host = try ProvidersHost(replyJSON(accounts: [account("claude", found: true)]))
     let status = ReloadStatus()
     host.file = file
@@ -531,9 +410,10 @@ private var work: AccountDraft {
     let folder = try temporaryFolder()
     defer { try? FileManager.default.removeItem(atPath: folder) }
     let file = ProvidersFile(folder: folder)
-    try file.write(Data(#"{"providers":{"claude":{"harness":"claude"},"codex":{"harness":"codex"}}}"#.utf8))
+    try Data(#"{"providers":{"claude":{"harness":"claude"},"codex":{"harness":"codex"}}}"#.utf8).write(to: file.url)
     let host = try ProvidersHost(replyJSON(accounts: [account("claude", found: true)]))
-    let store = makeStore(host, file, uses: { ["codex": [.role(.author)]] }, engine: .refused(.words("bad")))
+    try Data(#"{"agents":{"author":{"provider":"codex"}}}"#.utf8).write(to: URL(fileURLWithPath: CarrierPlaces(folder: folder).engineConfig))
+    let store = makeStore(host, file, engine: .refused(.words("bad")))
 
     // Save is written and the engine kept its settings; Remove is refused before it writes anything, and says so
     #expect(await store.save(name: "claude", draft: work))
@@ -548,11 +428,11 @@ private var work: AccountDraft {
     let folder = try temporaryFolder()
     defer { try? FileManager.default.removeItem(atPath: folder) }
     let file = ProvidersFile(folder: folder)
-    try file.write(Data(#"{"providers":{"claude":{"harness":"claude"}}}"#.utf8))
+    try Data(#"{"providers":{"claude":{"harness":"claude"}}}"#.utf8).write(to: file.url)
     let host = try ProvidersHost(replyJSON(accounts: [account("claude", found: true)]))
     var logged: [String] = []
-    let failing = ProvidersFile(folder: folder, save: { _, _ in throw CocoaError(.fileWriteNoPermission) })
-    let store = makeStore(host, failing, log: { logged.append($0) })
+    host.failure = CocoaError(.fileWriteNoPermission)
+    let store = makeStore(host, file, log: { logged.append($0) })
     #expect(await store.save(name: "claude", draft: work) == false)
     #expect(store.editProblem == "providers.json could not be written; the file stays as it was." && logged.count == 1 && logged[0].contains("save claude"))
     // no host running and no carrier to run: nothing can write the file
@@ -565,7 +445,7 @@ private var work: AccountDraft {
     let folder = try temporaryFolder()
     defer { try? FileManager.default.removeItem(atPath: folder) }
     let file = ProvidersFile(folder: folder)
-    try file.write(Data(#"{"providers":{"claude":{"harness":"claude"}}}"#.utf8))
+    try Data(#"{"providers":{"claude":{"harness":"claude"}}}"#.utf8).write(to: file.url)
     let host = try ProvidersHost(replyJSON(accounts: [account("claude", found: true)], unadded: ["agy"]))
     let store = makeStore(host, file, engine: .unsupported)
 
@@ -591,57 +471,12 @@ private var work: AccountDraft {
 
 private func object(_ data: Data) throws -> [String: Any] { try #require(JSONSerialization.jsonObject(with: data) as? [String: Any]) }
 
-@Test func choosingATextGeneratorWritesOneEntryByNameAndKeepsEveryOtherKey() throws {
-    let existing = Data(#"{"future":{"a":1},"providers":{"claude":{"harness":"claude","newKey":true}},"textGenerators":{"mine":{"kind":"ollama","model":"x"}}}"#.utf8)
-    let json = try object(applyingTextGenerator((server: "ollama", model: "qwen3:8b"), to: existing))
-    #expect((json["future"] as? [String: Int]) == ["a": 1])
-    #expect((json["providers"] as? [String: [String: Any]])?["claude"]?["newKey"] as? Bool == true)
-    let generators = try #require(json["textGenerators"] as? [String: [String: String]])
-    // the one the person wrote by hand stays, the app's is named after the server
-    #expect(generators == ["mine": ["kind": "ollama", "model": "x"], "ollama": ["kind": "ollama", "model": "qwen3:8b"]])
-    #expect(json["textGenerator"] as? String == "ollama")
-}
-
-@Test func choosingAnotherReplacesWhatTheAppWroteAndNeverTouchesTheProvidersMap() throws {
-    let first = try applyingTextGenerator((server: "ollama", model: "qwen3:8b"), to: nil)
-    // a file with no providers key stays without it: the engine has its defaults then
-    #expect(try object(first)["providers"] == nil)
-    let second = try object(applyingTextGenerator((server: "lmstudio", model: "gemma"), to: first))
-    #expect((second["textGenerators"] as? [String: [String: String]]) == ["lmstudio": ["kind": "lmstudio", "model": "gemma"]])
-    #expect(second["textGenerator"] as? String == "lmstudio")
-    // another model of the same server replaces the model
-    let third = try object(applyingTextGenerator((server: "lmstudio", model: "llama"), to: try applyingTextGenerator((server: "lmstudio", model: "gemma"), to: nil)))
-    #expect((third["textGenerators"] as? [String: [String: String]]) == ["lmstudio": ["kind": "lmstudio", "model": "llama"]])
-}
-
-@Test func clearingRemovesTheChoiceAndTheEntryTheAppWroteAndKeepsTheRest() throws {
-    let chosen = try applyingTextGenerator((server: "ollama", model: "qwen3:8b"), to: Data(#"{"future":1,"providers":{"claude":{"harness":"claude"}}}"#.utf8))
-    let cleared = try object(applyingTextGenerator(nil, to: chosen))
-    #expect(cleared["textGenerator"] == nil && cleared["textGenerators"] == nil)
-    #expect(cleared["future"] as? Int == 1 && (cleared["providers"] as? [String: Any])?.keys.sorted() == ["claude"])
-    // an entry the person wrote stays, only the choice goes
-    let mine = Data(#"{"textGenerators":{"local":{"kind":"ollama","model":"x"}},"textGenerator":"local"}"#.utf8)
-    let kept = try object(applyingTextGenerator(nil, to: mine))
-    #expect(kept["textGenerator"] == nil && (kept["textGenerators"] as? [String: [String: String]]) == ["local": ["kind": "ollama", "model": "x"]])
-}
-
-@Test func aFileTheAppCannotReadIsNeverOverwrittenByATextGeneratorChoice() throws {
-    for bad in ["[1]", "not json", #"{"textGenerators":[]}"#, #"{"textGenerators":"x"}"#] {
-        #expect(throws: ProvidersFileError.notAnObject) { try applyingTextGenerator((server: "ollama", model: "m"), to: Data(bad.utf8)) }
-        #expect(throws: ProvidersFileError.notAnObject) { try applyingTextGenerator(nil, to: Data(bad.utf8)) }
-    }
-    // a server or model the engine would refuse is never written
-    for bad in [(server: "openai", model: "m"), (server: "ollama", model: "  ")] {
-        #expect(throws: (any Error).self) { try applyingTextGenerator(bad, to: nil) }
-    }
-}
-
 @MainActor @Test func theTextGeneratorIsWrittenAndTheEngineAskedOnlyWhileTheHostListsIt() async throws {
     let folder = try temporaryFolder()
     defer { try? FileManager.default.removeItem(atPath: folder) }
     let file = ProvidersFile(folder: folder)
     let mine = #"{"providers":{"codex":{"harness":"codex"}},"extra":1}"#
-    try file.write(Data(mine.utf8))
+    try Data(mine.utf8).write(to: file.url)
     let host = try ProvidersHost(replyJSON(accounts: [account("codex", found: true)]))
     let store = makeStore(host, file)
     await store.load()

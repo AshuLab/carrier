@@ -29,10 +29,6 @@ extension ReloadOutcome {
 /// What asks the running engine to read its settings again, and says what it answered.
 public typealias Reload = () -> ReloadOutcome
 
-/// What a writer calls after its own successful write, and only then: asks the engine without waiting, so there is no answer to give back
-/// (nil), the answer being `ReloadStatus`'s. A `Reload` is one too.
-public typealias AfterWrite = () -> ReloadOutcome?
-
 /// `Reload` for the engine at `socketPath`. Blocks until the engine has answered (3 s to connect, 3 s to reply at most): a model runs it
 /// with `await reloadOffMain`.
 public func reloadEngine(socketPath: String = controlSocketPath()) -> ReloadOutcome {

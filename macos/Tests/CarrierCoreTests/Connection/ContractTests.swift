@@ -74,3 +74,24 @@ private func golden(_ name: String) throws -> [String: Any] {
         }
     }
 }
+
+// The requests that change a config file (ADR 0053): `config-requests.json` lists those of the two sockets (src/control/config-requests.test.ts, which also checks that each has a golden its
+// schema accepts), and each one the app builds is encoded as its golden says. A request in the list that the app does not build, or one it builds without a golden, fails here.
+@Test func everyConfigRequestOfBothSocketsIsEncodedAsItsGoldenSays() throws {
+    var rows: [(file: String, key: String?, request: Data)] = projectsGoldenChanges.map { ("chat-edit-projects.json", $0.name, $0.change.request) }
+    rows += providersGoldenTable.map { ($0.golden + ".json", nil, $0.request.request) }
+    rows.append(("chat-edit-settings.json", nil, goldenChatSettings.request))
+    rows += ([("engine-set-watched-repos.json", goldenRepos), ("engine-edit-behavior.json", EngineConfigChange.behavior(goldenBehavior()))] + goldenRoleChanges).map { ($0.0, nil, $0.1.request) }
+    var built: Set<String> = []
+    for row in rows {
+        let file = try golden(row.file)
+        let entry = try #require(row.key.map { file[$0] as? [String: Any] } ?? file)
+        let request = try #require(entry["request"] as? [String: Any])
+        let encoded = try #require(JSONSerialization.jsonObject(with: row.request) as? NSDictionary)
+        #expect(encoded == request as NSDictionary, Comment(rawValue: "\(row.file) \(row.key ?? "")"))
+        built.insert(try #require(request["cmd"] as? String))
+    }
+    let listed = try golden("config-requests.json")
+    let all = Set((listed["chat"] as? [String] ?? []) + (listed["engine"] as? [String] ?? []))
+    #expect(all.isEmpty == false && built == all, "built \(built.subtracting(all).sorted()), not built \(all.subtracting(built).sorted())")
+}

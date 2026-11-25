@@ -19,7 +19,7 @@ private func hello(_ capabilities: String) -> String {
 private func object(_ data: Data) throws -> NSDictionary { try #require(JSONSerialization.jsonObject(with: data) as? NSDictionary) }
 
 /// What the Behavior page builds for the golden: a poll every 2.5 minutes, debug logs, the default window and limits except 8 reviews and no limit on the run time.
-private func goldenBehavior() -> EngineConfig {
+func goldenBehavior() -> EngineConfig {
     var config = EngineConfig()
     config.pollIntervalMinutes = 2.5
     config.logLevel = "debug"
@@ -29,7 +29,7 @@ private func goldenBehavior() -> EngineConfig {
 }
 
 /// What the Agents page builds for the goldens of the role requests.
-private let goldenRoleChanges: [(String, EngineConfigChange)] = [
+let goldenRoleChanges: [(String, EngineConfigChange)] = [
     ("engine-edit-role.json", .role(.reviewer, [.bot("nova"), .provider("codex"), .model("gpt-5"), .effort(nil)])),
     ("engine-edit-repo-role.json", .repoRole(repo: "acme/web", role: .reviewer, fields: RoleFields(profile: "author-bot", model: "qwen3-coder", effort: "high", persona: RolePersona(name: "Rex")))),
     ("engine-edit-persona.json", .persona(role: .author, name: "Ada", prompt: nil)),
@@ -39,13 +39,13 @@ private let goldenRoleChanges: [(String, EngineConfigChange)] = [
     ("engine-set-orchestrator-profile.json", .orchestratorProfile("author-bot")),
 ]
 
-private func goldenLead() -> LeadReviewerDraft {
+func goldenLead() -> LeadReviewerDraft {
     var draft = LeadReviewerDraft()
     [RoleChange.gh, .provider("claude"), .model("opus"), .effort("max")].forEach { draft.apply($0) }
     return draft
 }
 
-private let goldenRepos = EngineConfigChange.watchedRepos(["acme/web", "AshuLab/carrier", "new/one"])
+let goldenRepos = EngineConfigChange.watchedRepos(["acme/web", "AshuLab/carrier", "new/one"])
 
 private final class Asked: @unchecked Sendable {
     private let lock = NSLock()

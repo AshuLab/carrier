@@ -1,9 +1,8 @@
 import Foundation
 
-// Add, edit and remove an account of `providers.json` (docs/specs/providers-in-settings.md, docs/adr/0020). The app checks what it cheaply can
-// with the rules of `src/config/providers.ts` (the name's pattern, the range of Auto-compact, absolute paths for the binary, the flags Carrier sets itself)
-// and never writes a file those rules refuse; the rest is the chat host's, which answers `problem` on the next `providers`. Every function takes
-// the file's bytes and returns the whole new file, keeping the keys the app does not know, so the caller has only to write it.
+// The editor of an account of `providers.json` (docs/specs/providers-in-settings.md, docs/adr/0020). The app checks what it cheaply can while the person types
+// with the rules of `src/config/providers.ts` (the name's pattern, the range of Auto-compact, absolute paths for the binary, the flags Carrier sets itself);
+// the write is a request to the chat host (ADR 0053), which refuses what the rules refuse, and the rest is the host's, which answers `problem` on the next `providers`.
 
 public enum IdleCompaction: Equatable, CaseIterable {
     case useDefault, never, always
@@ -74,7 +73,8 @@ public func normalizedConfigDir(_ text: String) -> String {
 /// account being edited. Not a problem: two accounts may share a login for another model or other arguments.
 public func accountSharingFolder(configDir: String, harness: String, except name: String? = nil, in json: Data?) -> String? {
     func resolved(_ path: String) -> String { URL(fileURLWithPath: (normalizedConfigDir(path) as NSString).expandingTildeInPath).standardizedFileURL.path }
-    guard configDir.trimmingCharacters(in: .whitespaces).isEmpty == false, let providers = try? parsed(json).providers else { return nil }
+    guard configDir.trimmingCharacters(in: .whitespaces).isEmpty == false, let json,
+          let providers = ((try? JSONSerialization.jsonObject(with: json)) as? [String: Any])?["providers"] as? [String: Any] else { return nil }
     let wanted = resolved(configDir)
     let toolFolder = ["claude": "~/.claude", "codex": "~/.codex"][harness]
     let key = providers.keys.sorted().first { other in
@@ -167,85 +167,6 @@ public func draftProblems(_ draft: AccountDraft, harness: String) -> [String: St
         problems["idleCompaction"] = "Compact idle threads is for Claude only."
     }
     return problems
-}
-
-/// The first of `problems` in the order of the fields, as the error that refuses the write.
-private func refusal(_ problems: [String: String]) -> ProvidersFileError {
-    .invalid(AccountDraft.fields.compactMap { problems[$0] }.first ?? "The account is not valid.")
-}
-
-/// The file's object and its `providers` map; a file that is not there is an empty one. Throws `notAnObject` for a file it must not overwrite.
-private func parsed(_ json: Data?) throws -> (file: [String: Any], providers: [String: Any]) {
-    var file: [String: Any] = [:]
-    if let json {
-        guard let object = (try? JSONSerialization.jsonObject(with: json)) as? [String: Any] else { throw ProvidersFileError.notAnObject }
-        file = object
-    }
-    var providers: [String: Any] = [:]
-    if let existing = file["providers"] {
-        guard let map = existing as? [String: Any] else { throw ProvidersFileError.notAnObject }
-        providers = map
-    }
-    return (file, providers)
-}
-
-private func serialized(_ file: [String: Any], _ providers: [String: Any]) throws -> Data {
-    var file = file
-    file["providers"] = providers
-    return try JSONSerialization.data(withJSONObject: file, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
-}
-
-/// `json` with a new account of `harness`: its name and, when given, its config folder. Refused for a name that is invalid or taken, a folder
-/// that a path cannot have, and Antigravity, which has one account. A folder that is not absolute is taken from the home folder.
-public func applyingNewAccount(name: String, harness: String, configDir: String, to json: Data?) throws -> Data {
-    if let problem = nameProblem(name) { throw ProvidersFileError.invalid(problem) }
-    guard harness == "claude" || harness == "codex" else { throw ProvidersFileError.invalid("Only Claude Code and Codex take more accounts.") }
-    var draft = AccountDraft()
-    draft.configDir = configDir
-    let problems = draftProblems(draft, harness: harness)
-    guard problems.isEmpty else { throw refusal(problems) }
-    var (file, providers) = try parsed(json)
-    guard providers[name] == nil else { throw ProvidersFileError.taken(name) }
-    var account: [String: Any] = ["harness": harness]
-    if configDir.isEmpty == false { account["configDir"] = normalizedConfigDir(configDir) }
-    providers[name] = account
-    return try serialized(file, providers)
-}
-
-/// `json` with the editor's fields written to the account `name`: a filled field writes its key, an emptied one removes it, and every other key
-/// of the account (`provider`, `model`, the ones the app does not know) stays as it was.
-public func applyingEdit(name: String, draft: AccountDraft, to json: Data?) throws -> Data {
-    var (file, providers) = try parsed(json)
-    guard var account = providers[name] as? [String: Any], let harness = account["harness"] as? String else { throw ProvidersFileError.missing(name) }
-    let problems = draftProblems(draft, harness: harness)
-    guard problems.isEmpty else { throw refusal(problems) }
-    func set(_ key: String, _ value: Any?) { account[key] = value }
-    let display = draft.displayName.trimmingCharacters(in: .whitespaces)
-    set("displayName", display.isEmpty ? nil : display)
-    let label = draft.label.trimmingCharacters(in: .whitespaces)
-    set("label", label.isEmpty ? nil : label)
-    set("icon", draft.icon?.rawValue)
-    set("color", draft.color?.rawValue)
-    set("command", draft.command.isEmpty ? nil : draft.command)
-    set("configDir", draft.configDir.isEmpty ? nil : normalizedConfigDir(draft.configDir))
-    set("autoCompact", draft.autoCompact.isEmpty ? nil : (Int(draft.autoCompact) as Any? ?? draft.autoCompact))
-    set("launchArgs", draft.arguments.isEmpty ? nil : draft.arguments)
-    switch draft.idle {
-    case .useDefault: set("idleCompaction", nil)
-    case .never: set("idleCompaction", false)
-    case .always: set("idleCompaction", true)
-    }
-    providers[name] = account
-    return try serialized(file, providers)
-}
-
-/// `json` without the account `name`. `uses` is who names it (`accountUses`): while anyone does, the account stays.
-public func applyingRemoval(name: String, uses: [AccountUse], to json: Data?) throws -> Data {
-    var (file, providers) = try parsed(json)
-    guard providers[name] != nil else { throw ProvidersFileError.missing(name) }
-    guard uses.isEmpty else { throw ProvidersFileError.inUse(name, uses) }
-    providers[name] = nil
-    return try serialized(file, providers)
 }
 
 /// The editor's fields for the account `name`, as the file has them; nil when the file has no such account.

@@ -38,13 +38,14 @@ public func projectWatchRow(repo: String?, repos: [String]?, state: ConnectionSt
     return ProjectWatchRow(isOn: isOn, canChange: true, detail: detail, problem: failure ?? reposProblem(repos) ?? answer)
 }
 
-/// Watches or stops watching `repo`: the list in the engine config at `path`, read just now, with `repo` added or taken out, is asked of the engine (`send`: `setWatchedRepos`, which keeps every
-/// other key and every other repo's fields), and what the engine answered is kept in `status`. `.refused` carries the reason when the rules of the Watching page would not take the list (the
-/// same folder name as a repo already watched), or the engine's words for what it refused, and nothing is written.
-@MainActor public func saveWatch(_ on: Bool, repo: String, path: String, send: SendEngineConfig, status: ReloadStatus? = nil) async -> RoleSave {
-    guard let json = try? Data(contentsOf: URL(fileURLWithPath: path)), let names = configRepoNames(json: json) else {
-        return .failed("The config file could not be read or the list is not valid.")
-    }
+/// What turning the switch of `repo` asks: the list for `setWatchedRepos` (the one `names`, the config's list now, with `repo` added or taken out; it keeps every other key and every other repo's fields
+/// in the engine), or the reason the Watching page's rules would not take it (the same folder name as a repo already watched), and nothing is sent.
+public enum WatchChange: Equatable {
+    case send([String])
+    case refused(String)
+}
+
+public func watchChange(_ on: Bool, repo: String, in names: [String]) -> WatchChange {
     var next = names.filter { $0.lowercased() != repo.lowercased() }
     if on, isWatched(repo, in: names) == false {
         if let problem = repoProblem(repo, joining: names) { return .refused(problem) }
@@ -53,5 +54,5 @@ public func projectWatchRow(repo: String?, repos: [String]?, state: ConnectionSt
         next = names
     }
     if let problem = reposProblem(next) { return .refused(problem) }
-    return await saveEngineConfig(.watchedRepos(next), send: send, status: status)
+    return .send(next)
 }

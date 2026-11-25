@@ -1,8 +1,22 @@
 import Foundation
 
 // The five requests that write `providers.json`, as the fixture host answers them under `--fixture` (docs/specs/macos-app-as-the-base-for-a-web-front-end.md, section 6):
-// they change the file of the scratch Carrier folder and answer `{ saved, engine }` with the refusals of the real host, so the Providers page works as it does against it.
-// The fixture's engine always applies the file.
+// they change the file of the scratch Carrier folder and answer `{ saved, engine }` with the refusals of the real host (src/chat/providers-edit.ts), so the Providers page works as it does
+// against it. The fixture's engine always applies the file. This is the only Swift code that writes a `providers.json`.
+
+enum ProvidersFileError: Error, Equatable {
+    /// The file is there and is not a JSON object with a `providers` map.
+    case notAnObject
+    case taken(String)
+    case missing(String)
+    /// The account is named by a role, a repo override, a failover list or a chat agent, so it stays.
+    case inUse(String, [AccountUse])
+    /// The words of what the host would refuse.
+    case invalid(String)
+}
+
+/// The servers a text generator can be: the entry the host writes is named after its server.
+private let textGeneratorServers = ["lmstudio", "ollama"]
 
 func fixtureProvidersRefusal(_ error: ProvidersFileError) -> Refusal {
     switch error {
@@ -27,55 +41,80 @@ enum FixtureProvidersAnswer {
 }
 
 func fixtureProvidersChange(_ request: [String: Any], home: String) -> FixtureProvidersAnswer {
-    let file = ProvidersFile(folder: home)
     let places = CarrierPlaces(folder: home)
+    func accountMap(_ value: Any?) -> [String: String] { value as? [String: String] ?? [:] }
     do {
-        let current = try file.read()
-        let updated: Data
-        switch request["cmd"] as? String {
+        var file: [String: Any] = [:]
+        if let current = try ProvidersFile(folder: home).read() {
+            guard let object = (try? JSONSerialization.jsonObject(with: current)) as? [String: Any] else { throw ProvidersFileError.notAnObject }
+            file = object
+        }
+        var providers: [String: Any] = [:]
+        if let existing = file["providers"] {
+            guard let map = existing as? [String: Any] else { throw ProvidersFileError.notAnObject }
+            providers = map
+        }
+        let cmd = request["cmd"] as? String
+        switch cmd {
         case "setAccounts":
-            let accounts = (request["accounts"] as? [[String: String]] ?? []).compactMap { entry in entry["name"].flatMap { name in entry["harness"].map { (name: name, harness: $0) } } }
-            updated = try applyingAccounts(accounts, to: current)
+            for account in request["accounts"] as? [[String: String]] ?? [] {
+                guard let name = account["name"], let harness = account["harness"] else { continue }
+                guard providers[name] == nil else { throw ProvidersFileError.taken(name) }
+                providers[name] = ["harness": harness]
+            }
         case "addAccount":
-            let account = request["account"] as? [String: String] ?? [:]
-            updated = try applyingNewAccount(name: account["name"] ?? "", harness: account["harness"] ?? "", configDir: account["configDir"] ?? "", to: current)
+            let account = accountMap(request["account"])
+            let (name, harness, configDir) = (account["name"] ?? "", account["harness"] ?? "", account["configDir"] ?? "")
+            if let problem = nameProblem(name) { throw ProvidersFileError.invalid(problem) }
+            guard harness == "claude" || harness == "codex" else { throw ProvidersFileError.invalid("Only Claude Code and Codex take more accounts.") }
+            var draft = AccountDraft()
+            draft.configDir = configDir
+            let problems = draftProblems(draft, harness: harness)
+            if let first = AccountDraft.fields.compactMap({ problems[$0] }).first { throw ProvidersFileError.invalid(first) }
+            guard providers[name] == nil else { throw ProvidersFileError.taken(name) }
+            providers[name] = configDir.isEmpty ? ["harness": harness] : ["harness": harness, "configDir": normalizedConfigDir(configDir)]
         case "editAccount":
-            updated = try fixtureEditedAccount(name: request["name"] as? String ?? "", changes: request["changes"] as? [String: Any] ?? [:], in: current)
+            let name = request["name"] as? String ?? ""
+            guard var account = providers[name] as? [String: Any] else { throw ProvidersFileError.missing(name) }
+            for (key, value) in request["changes"] as? [String: Any] ?? [:] { account[key] = value is NSNull ? nil : value }
+            let problems = draftProblems(AccountDraft(account: account), harness: account["harness"] as? String ?? "")
+            if let first = AccountDraft.fields.compactMap({ problems[$0] }).first { throw ProvidersFileError.invalid(first) }
+            providers[name] = account
         case "removeAccount":
             let name = request["name"] as? String ?? ""
-            let uses = accountUses(config: try? Data(contentsOf: URL(fileURLWithPath: places.engineConfig)), chat: try? Data(contentsOf: URL(fileURLWithPath: places.chatConfig)))
-            updated = try applyingRemoval(name: name, uses: uses[name] ?? [], to: current)
+            guard providers[name] != nil else { throw ProvidersFileError.missing(name) }
+            let uses = accountUses(config: try? Data(contentsOf: URL(fileURLWithPath: places.engineConfig)), chat: try? Data(contentsOf: URL(fileURLWithPath: places.chatConfig)))[name] ?? []
+            guard uses.isEmpty else { throw ProvidersFileError.inUse(name, uses) }
+            providers[name] = nil
         case "setTextGenerator":
-            let choice = (request["choice"] as? [String: String]).flatMap { entry in entry["server"].flatMap { server in entry["model"].map { (server: server, model: $0) } } }
-            updated = try applyingTextGenerator(choice, to: current)
+            var generators = file["textGenerators"] as? [String: Any] ?? [:]
+            for server in textGeneratorServers { generators[server] = nil }
+            file["textGenerator"] = nil
+            if let choice = request["choice"] as? [String: String], let server = choice["server"] {
+                let model = (choice["model"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                guard textGeneratorServers.contains(server), model.isEmpty == false else {
+                    throw ProvidersFileError.invalid("textGenerators.\(server): a text generator is a model of LM Studio or Ollama")
+                }
+                generators[server] = ["kind": server, "model": model]
+                file["textGenerator"] = server
+            }
+            file["textGenerators"] = generators.isEmpty ? nil : generators
         default:
             return .refused(Refusal(code: "request.invalid", text: "invalid request"))
         }
-        try file.write(updated)
+        if cmd != "setTextGenerator" { file["providers"] = providers }
+        let updated = try JSONSerialization.data(withJSONObject: file, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
+        try FileManager.default.createDirectory(at: URL(fileURLWithPath: home), withIntermediateDirectories: true)
+        try updated.write(to: URL(fileURLWithPath: places.providers), options: .atomic)
         let whole = (try? JSONSerialization.jsonObject(with: updated)) as? [String: Any] ?? [:]
         let touched = (request["accounts"] as? [[String: String]])?.compactMap { $0["name"] } ?? [(request["account"] as? [String: String])?["name"] ?? request["name"] as? String].compactMap { $0 }
-        let providers = (whole["providers"] as? [String: Any] ?? [:]).filter { touched.contains($0.key) }
-        var saved: [String: Any] = request["cmd"] as? String == "setTextGenerator" ? [:] : ["providers": providers]
-        for key in ["textGenerators", "textGenerator"] where request["cmd"] as? String == "setTextGenerator" { saved[key] = whole[key] }
+        let named = (whole["providers"] as? [String: Any] ?? [:]).filter { touched.contains($0.key) }
+        var saved: [String: Any] = cmd == "setTextGenerator" ? [:] : ["providers": named]
+        for key in ["textGenerators", "textGenerator"] where cmd == "setTextGenerator" { saved[key] = whole[key] }
         return .data(["saved": saved, "engine": "applied"])
     } catch let error as ProvidersFileError {
         return .refused(fixtureProvidersRefusal(error))
     } catch {
         return .refused(Refusal(code: "request.internal", text: "internal error"))
     }
-}
-
-/// `json` with each key of `changes` set on the account `name`; a null removes it, every other key stays.
-private func fixtureEditedAccount(name: String, changes: [String: Any], in json: Data?) throws -> Data {
-    var file: [String: Any] = [:]
-    if let json {
-        guard let object = (try? JSONSerialization.jsonObject(with: json)) as? [String: Any] else { throw ProvidersFileError.notAnObject }
-        file = object
-    }
-    var providers = file["providers"] as? [String: Any] ?? [:]
-    guard var account = providers[name] as? [String: Any] else { throw ProvidersFileError.missing(name) }
-    for (key, value) in changes { account[key] = value is NSNull ? nil : value }
-    providers[name] = account
-    file["providers"] = providers
-    return try JSONSerialization.data(withJSONObject: file, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
 }

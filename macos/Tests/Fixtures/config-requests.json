@@ -1,0 +1,29 @@
+{
+  "chat": [
+    "addAccount",
+    "addProject",
+    "editAccount",
+    "editChatSettings",
+    "editProject",
+    "editProjectDefaults",
+    "editProjectIcon",
+    "editProjectTags",
+    "moveProject",
+    "removeAccount",
+    "removeProject",
+    "setAccounts",
+    "setProjectActions",
+    "setProjectsFolder",
+    "setTextGenerator"
+  ],
+  "engine": [
+    "editBehavior",
+    "editFailover",
+    "editPersona",
+    "editRepoRole",
+    "editRole",
+    "setLeadReviewer",
+    "setOrchestratorProfile",
+    "setWatchedRepos"
+  ]
+}

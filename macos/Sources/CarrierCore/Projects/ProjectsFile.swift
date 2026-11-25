@@ -1,8 +1,8 @@
 import Foundation
 
-// `projects.json` in the Carrier folder (docs/adr/0041): the person's projects, read by the app and the chat host and written by both.
+// `projects.json` in the Carrier folder (docs/adr/0041): the person's projects, read by the app and written by the chat host (ADR 0053).
 // The rules below are `src/config/projects.ts`'s, field by field; `ContractTests` runs the fixture its test writes through both. A file that
-// does not match is reported with the field named and is never written over. An edit keeps every entry, and every key of the entry, it does not touch.
+// does not match is reported with the field named.
 
 /// A field that is wrong and why. `path` is the key's place in the file (`projects.1.name`), `(root)` for the file itself.
 public struct ProjectsProblem: Equatable, Sendable {
@@ -13,7 +13,7 @@ public struct ProjectsProblem: Equatable, Sendable {
 public enum ProjectsFileError: Error, Equatable {
     /// The file is there and does not match its schema, or cannot be read, or an edit would make it not match: nothing was written.
     case invalid([ProjectsProblem])
-    /// No project has that path.
+    /// No project has that path (the fixture host's refusal).
     case missing(String)
 }
 
@@ -170,69 +170,6 @@ public func readProjects(_ data: Data?) throws -> [ProjectEntry] {
     (try parse(data)["projects"] as? [[String: Any]] ?? []).map(ProjectEntry.init(json:))
 }
 
-/// `json` with the key of the project at `path` set to `value`, or taken out when `value` is nil. Everything else in the file is left as it was.
-/// The file is checked before and after: one that does not match, or an edit that would make it not match, throws `invalid` and gives nothing to write.
-public func applyingProjectEdit(path: String, key: String, value: Any?, to json: Data?) throws -> Data {
-    var object = try parse(json)
-    var projects = object["projects"] as? [[String: Any]] ?? []
-    guard let index = projects.firstIndex(where: { $0["path"] as? String == path }) else { throw ProjectsFileError.missing(path) }
-    projects[index][key] = value
-    object["projects"] = projects
-    let data = try JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
-    _ = try parse(data)
-    return data
-}
-
-/// `json` with the project at `path` pointing at `folder`, its new place: only `path` changes, every other key of the entry and of the file is kept. A folder that
-/// is another project's (written any way) throws `invalid` and gives nothing to write. The sessions that remember the old path are not this file's.
-public func applyingProjectLocation(path: String, to folder: String, in json: Data?) throws -> Data {
-    let projects = try readProjects(json)
-    if let index = projects.firstIndex(where: { $0.path != path && isSameFolder($0.path, folder) }) {
-        throw ProjectsFileError.invalid([ProjectsProblem(path: "projects.\(index).path", message: "is already another project's folder")])
-    }
-    return try applyingProjectEdit(path: path, key: "path", value: folder, to: json)
-}
-
-/// `json` with the `icon` sub-keys in `changes` set or removed (`nil` removes that key, and `icon` is removed when no key remains).
-/// Every other key of `icon` (such as `image`), of the entry and of the file is kept.
-public func applyingProjectIconEdit(path: String, changes: [String: String?], to json: Data?) throws -> Data {
-    try applyingProjectObjectEdit(path: path, object: "icon", changes: changes, to: json)
-}
-
-/// `json` with the `defaults` sub-keys in `changes` set or removed (`nil` removes that key, and `defaults` is removed when no key remains), so a value
-/// left on the default writes nothing. Every other key of `defaults`, of the entry and of the file is kept.
-public func applyingProjectDefaultsEdit(path: String, changes: [String: Any?], to json: Data?) throws -> Data {
-    try applyingProjectObjectEdit(path: path, object: "defaults", changes: changes, to: json)
-}
-
-private func applyingProjectObjectEdit(path: String, object key: String, changes: [String: Any?], to json: Data?) throws -> Data {
-    var object = try parse(json)
-    var projects = object["projects"] as? [[String: Any]] ?? []
-    guard let index = projects.firstIndex(where: { $0["path"] as? String == path }) else { throw ProjectsFileError.missing(path) }
-    var inner = projects[index][key] as? [String: Any] ?? [:]
-    for (name, value) in changes { inner[name] = value }
-    projects[index][key] = inner.isEmpty ? nil : inner
-    object["projects"] = projects
-    let data = try JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
-    _ = try parse(data)
-    return data
-}
-
-/// `json` with `tags` of the project at `path` changed by `transform` from what the file holds now, normalized and deduplicated; removes
-/// `tags` when empty. Every other key of the entry and of the file is kept.
-public func applyingProjectTagsEdit(path: String, to json: Data?, transform: ([String]) -> [String]) throws -> Data {
-    var object = try parse(json)
-    var projects = object["projects"] as? [[String: Any]] ?? []
-    guard let index = projects.firstIndex(where: { $0["path"] as? String == path }) else { throw ProjectsFileError.missing(path) }
-    let current = projects[index]["tags"] as? [String] ?? []
-    let next = normalizedProjectTags(transform(current))
-    projects[index]["tags"] = next.isEmpty ? nil : next
-    object["projects"] = projects
-    let data = try JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
-    _ = try parse(data)
-    return data
-}
-
 /// What adding a folder did: it became an entry, or it already was one (its path as the file has it).
 public enum ProjectAdd: Equatable, Sendable {
     case added(String)
@@ -245,31 +182,6 @@ public func isSameFolder(_ a: String, _ b: String) -> Bool { normalizedFolder(a)
 /// A folder written one way whatever it was written as: `~` expanded, symlinks resolved, no trailing slash.
 public func normalizedFolder(_ path: String) -> String {
     URL(fileURLWithPath: (path as NSString).expandingTildeInPath).resolvingSymlinksInPath().path
-}
-
-/// Adding the folder `folder` as a project of origin `added` named after it, in `json`: the bytes to write, nil when it already is a project (nothing
-/// to write). The file is checked before and after, as an edit is, and every key it has is kept.
-public func applyingProjectAdd(folder: String, to json: Data?) throws -> (outcome: ProjectAdd, write: Data?) {
-    var object = try parse(json)
-    var projects = object["projects"] as? [[String: Any]] ?? []
-    if let known = projects.first(where: { isSameFolder($0["path"] as? String ?? "", folder) })?["path"] as? String { return (.existing(known), nil) }
-    projects.append(["path": folder, "name": (folder as NSString).lastPathComponent, "origin": "added"])
-    object["projects"] = projects
-    let data = try JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
-    _ = try parse(data)
-    return (.added(folder), data)
-}
-
-/// `json` without the project at `path`; every other entry and key is kept. The folder is not this file's to touch, only the entry goes.
-public func applyingProjectRemoval(path: String, to json: Data?) throws -> Data {
-    var object = try parse(json)
-    var projects = object["projects"] as? [[String: Any]] ?? []
-    guard let index = projects.firstIndex(where: { $0["path"] as? String == path }) else { throw ProjectsFileError.missing(path) }
-    projects.remove(at: index)
-    object["projects"] = projects
-    let data = try JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
-    _ = try parse(data)
-    return data
 }
 
 /// The file on disk.
@@ -289,54 +201,6 @@ public struct ProjectsFile {
     private func bytes() throws -> Data? { FileManager.default.fileExists(atPath: url.path) ? try Data(contentsOf: url) : nil }
 
     public func read() throws -> [ProjectEntry] { try readProjects(bytes()) }
-
-    /// Reads the file again now and adds `folder` as a project, or says it already is one and writes nothing. Makes the Carrier folder when it is not there yet.
-    public func add(folder: String) throws -> ProjectAdd {
-        let (outcome, data) = try applyingProjectAdd(folder: folder, to: bytes())
-        if let data {
-            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try data.write(to: url, options: .atomic)
-        }
-        return outcome
-    }
-
-    /// Reads the file again now, takes the project at `path` out and writes the whole file atomically.
-    public func remove(path: String) throws {
-        try applyingProjectRemoval(path: path, to: bytes()).write(to: url, options: .atomic)
-    }
-
-    /// Reads the file again now, changes one key of one project and writes the whole file through a temporary file that replaces it.
-    public func update(path: String, key: String, value: Any?) throws {
-        try applyingProjectEdit(path: path, key: key, value: value, to: bytes()).write(to: url, options: .atomic)
-    }
-
-    /// Reads the file again now, points the project at `path` to `folder` and writes the whole file atomically.
-    public func locate(path: String, to folder: String) throws {
-        try applyingProjectLocation(path: path, to: folder, in: bytes()).write(to: url, options: .atomic)
-    }
-
-    /// Reads the file again now, changes one or more keys inside `icon` of one project and writes the whole file atomically.
-    public func updateIcon(path: String, changes: [String: String?]) throws {
-        try applyingProjectIconEdit(path: path, changes: changes, to: bytes()).write(to: url, options: .atomic)
-    }
-
-    /// Reads the file again now, changes one or more keys inside `defaults` of one project and writes the whole file atomically.
-    public func updateDefaults(path: String, changes: [String: Any?]) throws {
-        try applyingProjectDefaultsEdit(path: path, changes: changes, to: bytes()).write(to: url, options: .atomic)
-    }
-
-    /// Reads the file again now, applies `transform` to one project's `tags` and writes the whole file atomically.
-    public func updateTags(path: String, transform: ([String]) -> [String]) throws {
-        try applyingProjectTagsEdit(path: path, to: bytes(), transform: transform).write(to: url, options: .atomic)
-    }
-
-    /// Reads the file again now, replaces the `actions` of `path` when all actions are valid, and writes the file atomically.
-    /// Returns false without writing if any action has a blank name or command.
-    @discardableResult public func updateActions(path: String, actions: [ProjectAction]) throws -> Bool {
-        guard let data = try applyingProjectActions(actions, path: path, to: bytes()) else { return false }
-        try data.write(to: url, options: .atomic)
-        return true
-    }
 }
 
 extension WorkIn {

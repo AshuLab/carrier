@@ -20,16 +20,16 @@ public struct TextGeneratorChoice: Equatable {
     public init(server: String, model: String) { (self.server, self.model) = (server, model) }
 }
 
-/// A change to `providers.json`: one request, with what the Swift function it replaced took.
+/// A change to `providers.json`: one request.
 public enum ProvidersRequest: Equatable {
-    /// Adds each account `{ harness }`; creates the file when it is not there (`applyingAccounts`).
+    /// Adds each account `{ harness }`; the file is made when it is not there.
     case setAccounts([DetectedAccount])
-    /// A new account of a harness, with its config folder when given (`applyingNewAccount`).
+    /// A new account of a harness, with its config folder when given.
     case addAccount(name: String, harness: String, configDir: String)
-    /// The editor's fields written to the account, an emptied one removing its key (`ProvidersEdit.applyingEdit`).
+    /// The editor's fields written to the account, an emptied one removing its key.
     case editAccount(name: String, draft: AccountDraft)
     case removeAccount(name: String)
-    /// nil clears the choice (`applyingTextGenerator`).
+    /// nil clears the choice.
     case setTextGenerator(TextGeneratorChoice?)
 
     /// The request as the socket takes it, without its `id`.

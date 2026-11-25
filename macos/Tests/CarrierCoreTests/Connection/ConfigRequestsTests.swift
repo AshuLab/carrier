@@ -19,7 +19,7 @@ private func golden() throws -> (request: [String: Any], reply: [String: Any]) {
 }
 
 /// What the golden request's changes are, as the Sessions page builds them: ages 7 and Never, a local start, and the default idle time (removed).
-private let goldenChanges = ChatSettingChanges(
+let goldenChatSettings = ChatSettingChanges(
     ChatSettingChanges.ages(SessionAges(archive: .days(7), delete: .never)).values
         .merging(ChatSettingChanges.worktreeStart(.local).values) { $1 }.merging(ChatSettingChanges.idleClose(.tenMinutes).values) { $1 })
 
@@ -58,7 +58,7 @@ private func launcher(_ runner: FakeRunner, command: ProcessCommand? = launched)
     #expect(ChatSettingChanges.worktreeStart(.remote).values == ["worktreeStart": .remove] && ChatSettingChanges.worktreeStart(.local).values == ["worktreeStart": .text("local")])
     #expect(ChatSettingChanges.idleClose(.tenMinutes).values == ["idleCloseMinutes": .remove] && ChatSettingChanges.idleClose(.oneHour).values == ["idleCloseMinutes": .days(60)])
     let wanted = try #require(try golden().request["changes"] as? NSDictionary)
-    #expect(try object(goldenChanges.json) == wanted)
+    #expect(try object(goldenChatSettings.json) == wanted)
 }
 
 @Test func theRequestIsTheGoldenOneAndTheSocketGetsItWhenTheHelloListsConfig() async throws {
@@ -74,7 +74,7 @@ private func launcher(_ runner: FakeRunner, command: ProcessCommand? = launched)
     }
     defer { server.stop() }
     let runner = FakeRunner(.success(ProcessResult(output: "", status: 0)))
-    let saved = try await SocketChatHost(socketPath: { server.path }, configLauncher: launcher(runner)).editChatSettings(goldenChanges)
+    let saved = try await SocketChatHost(socketPath: { server.path }, configLauncher: launcher(runner)).editChatSettings(goldenChatSettings)
     let line = try #require(asked.all.first)
     var sent = try #require(JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any])
     #expect(sent.removeValue(forKey: "id") != nil)
@@ -104,7 +104,7 @@ private func launcher(_ runner: FakeRunner, command: ProcessCommand? = launched)
     defer { older.stop() }
     let output = String(decoding: try JSONSerialization.data(withJSONObject: reply), as: UTF8.self) + "\n"
     let runner = FakeRunner(.success(ProcessResult(output: output, status: 0)))
-    let saved = try await SocketChatHost(socketPath: { older.path }, configLauncher: launcher(runner)).editChatSettings(goldenChanges)
+    let saved = try await SocketChatHost(socketPath: { older.path }, configLauncher: launcher(runner)).editChatSettings(goldenChatSettings)
     #expect(asked == false)
     let command = try #require(runner.ran.first)
     #expect(runner.ran.count == 1 && command.program == launched.program && command.arguments == ["config"] && command.environment == launched.environment)

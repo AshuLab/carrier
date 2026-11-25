@@ -1,7 +1,7 @@
 import Foundation
 
 // "Who works here" on a repo's page, as plain values: what each role of the repo resolves to, from the global `agents` and the repo's
-// own `agents` in `engine.json`. This only reads; writing is RepoRoleSave.swift.
+// own `agents` in `engine.json`. This only reads; a change is a request to the engine (`EngineConfigChange.repoRole`).
 
 public enum AgentRole: String, CaseIterable, Equatable, Sendable {
     case author, reviewer, leadReviewer

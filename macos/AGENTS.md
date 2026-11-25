@@ -66,14 +66,16 @@ The rows are `providersPage(_:config:chat:)` and `providersDirectory` (`Provider
 
 `projects.json` is read and checked by `CarrierCore/ProjectsFile.swift` (`ProjectsFileTests`, `ProjectsListTests`) and written by Node: `ProjectsModel` sends each change as a request of `Connection/ProjectsRequests.swift` (`ProjectsRequestsTests`) and waits for the answer; the same rules as `src/config/projects.ts` are run over `Tests/Fixtures/projects.json` by `ContractTests`.
 
+The app writes no config file: `ContractTests` lists the requests of both sockets that change one (`Tests/Fixtures/config-requests.json`, written by `src/control/config-requests.test.ts`) and checks that each one the app builds is encoded as its golden says. Only `FixtureServer` writes the scratch Carrier folder of `--fixture` (`FixtureServer+Projects`, `+Providers`, `+EngineConfig`), answering the requests like the real ones.
+
 ### Projects page
 
 What the person sees: [settings](../docs/macos/settings.md#projects-page).
 
 The pure rules live in `CarrierCore` (`ProjectsList`, `ProjectSheet`, `ProjectIcon`, `ProjectIconStore`, `ProjectActions`, `ProjectDeletion`, `ProjectWatch`, `ProjectWorktrees`, `ProjectDisk`, `WorkspaceSources`, `ProjectsFile`), each with a `*Tests` of its name; `ProjectsModel` follows the file (another process's write, a file that does not match, refused folders) and `ProjectsModel.shared` is the app's one reading of it.
 Gotchas:
-- An edit changes only its own key: `setDefault` writes `defaults` (`applyingProjectDefaultsEdit`, read by `NewSessionModel.projectDefaults`), `setHidden` `hidden`, `locate` only `path`, `remove` only the entry and its image copy.
-- The Carrier switch asks the engine to change Watching's list (`saveWatch` over `saveEngineConfig`: `setWatchedRepos` to the socket, or `carrier config`; `EngineConfigRequests.swift`, `EngineConfigRequestsTests`).
+- An edit changes only its own key: `setDefault` writes `defaults` (the `editProjectDefaults` request, read by `NewSessionModel.projectDefaults`), `setHidden` `hidden`, `locate` only `path`, `remove` only the entry and its image copy.
+- The Carrier switch asks the engine to change Watching's list (`watchChange` makes the list, `saveEngineConfig` sends it: `setWatchedRepos` to the socket, or `carrier config`; `EngineConfigRequests.swift`, `EngineConfigRequestsTests`).
 - Deleting what Carrier made goes to the Trash (`moveProjectToTrash`, tried by hand) after `projectDeletionCheck`.
 - `projectFolderRefusal` shares `Tests/Fixtures/project-folder.json` with `src/chat/folder.ts`.
 - `projectIdentity`/`projectTile` (`ProjectIcon.swift`) give the tile and title wherever a project shows; `retitled(_:projects:)` (`ChatSessions.swift`) does it for the sidebar.

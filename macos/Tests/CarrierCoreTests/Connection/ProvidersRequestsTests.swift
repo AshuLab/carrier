@@ -27,7 +27,7 @@ private var edited: AccountDraft {
 }
 
 /// Each golden file, with the request as the Providers page builds it and what the engine's answer is in it.
-private let table: [(golden: String, request: ProvidersRequest, outcome: ReloadOutcome)] = [
+let providersGoldenTable: [(golden: String, request: ProvidersRequest, outcome: ReloadOutcome)] = [
     ("chat-set-accounts", .setAccounts([DetectedAccount(name: "agy", harness: "agy")]), .nobody),
     ("chat-add-account", .addAccount(name: "claude-work", harness: "claude", configDir: "~/.claude-work"), .applied),
     ("chat-edit-account", .editAccount(name: "claude-work", draft: edited), .applied),
@@ -64,7 +64,7 @@ private let launched = ProcessCommand(program: "/usr/local/bin/carrier", argumen
 private func launcher(_ runner: FakeRunner) -> CarrierConfigLauncher { CarrierConfigLauncher(runner: runner) { launched } }
 
 @Test func eachRequestIsEncodedAsItsGoldenFileSays() throws {
-    for row in table {
+    for row in providersGoldenTable {
         let (request, _) = try golden(row.golden)
         #expect(try object(row.request.line) == request as NSDictionary, Comment(rawValue: row.golden))
         // what `carrier config` reads: the same request, one line, no id
@@ -77,7 +77,7 @@ private func launcher(_ runner: FakeRunner) -> CarrierConfigLauncher { CarrierCo
 }
 
 @Test func theSocketGetsEachRequestWhenTheHelloListsConfigAndTheReplyTellsWhatTheEngineDid() async throws {
-    for row in table {
+    for row in providersGoldenTable {
         let (request, reply) = try golden(row.golden)
         let asked = Asked()
         let server = TestServer { connection in
@@ -102,7 +102,7 @@ private func launcher(_ runner: FakeRunner) -> CarrierConfigLauncher { CarrierCo
 }
 
 @Test func aHostThatDoesNotListConfigIsNotAskedAndCarrierConfigGetsTheRequestOnStandardInput() async throws {
-    for row in table {
+    for row in providersGoldenTable {
         let (request, reply) = try golden(row.golden)
         var asked = false
         let older = TestServer { connection in

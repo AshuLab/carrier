@@ -222,7 +222,7 @@ public final class FixtureServer {
             try Data(chatConfig.utf8).write(to: URL(fileURLWithPath: places.chatConfig))
             // the accounts of the golden reply, without Antigravity: it is found and has no account, so the page shows its Add row
             let accounts = #"{"providers":{"claude":{"harness":"claude"},"claude-work":{"harness":"claude","displayName":"Work","configDir":"/Users/demo/.claude-work"},"codex":{"harness":"codex","command":"/opt/homebrew/bin/codex"}}}"#
-            try ProvidersFile(folder: home).write(Data(accounts.utf8))
+            try Data(accounts.utf8).write(to: URL(fileURLWithPath: places.providers))
             try Self.writeProjects(home: home)
             listener = try Self.listen(path: places.controlSocket)
             do { chatListener = try Self.listen(path: places.chatSocket) } catch {
@@ -405,9 +405,7 @@ public final class FixtureServer {
         guard FileManager.default.fileExists(atPath: folder) == false else { return Self.refused(id, "project.nameTaken", "\(name) is already a project; choose another name", ["name": .string(name)]) }
         do {
             try FileManager.default.createDirectory(atPath: folder, withIntermediateDirectories: true)
-            let file = ProjectsFile(folder: home)
-            try file.add(folder: folder)
-            try file.update(path: folder, key: "origin", value: "created")
+            try fixtureEditProjects(home: home) { $0.append(["path": folder, "name": (folder as NSString).lastPathComponent, "origin": "created"]) }
         } catch {
             return Self.refused(id, "project.initFailed", "git could not start the project \(name)", ["name": .string(name)])
         }

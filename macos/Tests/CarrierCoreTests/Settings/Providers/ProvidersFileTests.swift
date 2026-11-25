@@ -275,8 +275,8 @@ private let base = Data(#"{"future":1,"providers":{"claude":{"harness":"claude",
     #expect(await store.addAccount(name: "claude", harness: "claude", configDir: "") == false)
     #expect(store.editProblem == "There is already an account named claude.")
     #expect(await store.addAccount(name: "Bad Name", harness: "claude", configDir: "") == false)
-    // the fixture host refuses with a config problem of a kind the copy has no sentence for, which says where
-    #expect(store.editProblem == Copy.text("config.problem", ["path": "providers", "problem": "custom"]))
+    // the fixture host refuses with a config problem of a kind the copy has no sentence for, which says where: the key the name is
+    #expect(store.editProblem == "There is a problem in providers.Bad Name")
     #expect(try text(file) == before)
     #expect(host.asked == 1)
 
@@ -289,7 +289,7 @@ private let base = Data(#"{"future":1,"providers":{"claude":{"harness":"claude",
     draft.autoCompact = "10"
     let saved = try text(file)
     #expect(await store.save(name: "claude-work", draft: draft) == false)
-    #expect(store.editProblem == Copy.text("config.problem", ["path": "providers", "problem": "custom"]))
+    #expect(store.editProblem == "There is a problem in providers.claude-work.autoCompact")
     #expect(try text(file) == saved)
 
     // remove: refused while named, says who; a free one is written

@@ -224,7 +224,7 @@ private func launcher(_ runner: FakeRunner) -> CarrierConfigLauncher { CarrierCo
     #expect(await saveEngineConfig(.behavior(EngineConfig()), send: engine.send, status: status) == .saved)
     #expect(status.outcome == .nobody && engine.sent == [.behavior(EngineConfig())])
     engine.failure = ControlError.remote(Refusal(code: "config.problem", params: ["path": "limits.maxReviews", "problem": "tooSmall"], text: "Must be 1 or more"))
-    #expect(await saveEngineConfig(.behavior(EngineConfig()), send: engine.send, status: status) == .refused(Copy.text("config.problem", ["path": "limits.maxReviews", "problem": "tooSmall"]) ?? ""))
+    #expect(await saveEngineConfig(.behavior(EngineConfig()), send: engine.send, status: status) == .refused("There is a problem in limits.maxReviews"))
     engine.failure = ControlError.timeout
     #expect(await saveEngineConfig(.behavior(EngineConfig()), send: engine.send, status: status).problem != nil)
     #expect(status.outcome == .nobody)
@@ -262,6 +262,6 @@ private func launcher(_ runner: FakeRunner) -> CarrierConfigLauncher { CarrierCo
     let status = ReloadStatus(reload: { .nobody })
     let engine = FakeEngineConfig()
     engine.failure = ControlError.remote(Refusal(code: "config.problem", params: ["path": "agents.author.model", "problem": "empty"], text: "The model cannot be empty."))
-    #expect(await saveEngineConfig(.role(.author, [.model(" ")]), send: engine.send, status: status) == .refused(Copy.text("config.problem", ["path": "agents.author.model", "problem": "empty"]) ?? ""))
+    #expect(await saveEngineConfig(.role(.author, [.model(" ")]), send: engine.send, status: status) == .refused("There is a problem in agents.author.model"))
     #expect(status.outcome == nil && engine.sent == [.role(.author, [.model(" ")])])
 }

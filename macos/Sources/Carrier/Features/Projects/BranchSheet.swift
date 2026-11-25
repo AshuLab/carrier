@@ -21,7 +21,7 @@ struct BranchSheet: View {
         VStack(spacing: Tokens.Space.none) {
             VStack(alignment: .leading, spacing: Tokens.Space.s16) {
                 header
-                TextField("Search branches", text: $query)
+                TextField(Copy.newSessionBranchSearch(), text: $query)
                     .textFieldStyle(.roundedBorder).controlSize(.large).autocorrectionDisabled().focused($searching)
             }
             .padding(.horizontal, Tokens.Space.s24).padding(.top, Tokens.Space.s24).padding(.bottom, Tokens.Space.s16)
@@ -42,7 +42,7 @@ struct BranchSheet: View {
     private func tabs(_ picker: BranchPicker?) -> some View {
         let tab = Binding(get: { model.startTab }, set: { model.choose(startTab: $0) })
         return SegmentedChoice(
-            options: WorktreeStart.allCases.map { (value: $0, title: "\($0.tabTitle) \(picker?.rows($0).count ?? 0)", icon: $0.icon) }, selection: tab
+            options: WorktreeStart.allCases.map { (value: $0, title: "\($0.tabTitle()) \(picker?.rows($0).count ?? 0)", icon: $0.icon) }, selection: tab
         )
         .frame(maxWidth: .infinity)
     }
@@ -54,8 +54,8 @@ struct BranchSheet: View {
                 .background(RoundedRectangle(cornerRadius: Tokens.Radius.control).fill(.tint.opacity(0.16)))
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: Tokens.Space.s2) {
-                Text(browsing ? "Branches in \(model.folder.map { URL(fileURLWithPath: $0).lastPathComponent } ?? "this folder")" : "Start from a branch").font(.title3.weight(.semibold))
-                Text(browsing ? "The folder is switched to the branch you pick when the message is sent." : "The new worktree is cut from the branch you pick.").font(.callout).foregroundStyle(.secondary)
+                Text(browsing ? Copy.newSessionBranchesIn(folder: model.folder.map { URL(fileURLWithPath: $0).lastPathComponent } ?? Copy.newSessionThisFolder()) : Copy.newSessionStartFrom()).font(.title3.weight(.semibold))
+                Text(browsing ? Copy.newSessionBrowseDetail() : Copy.newSessionStartDetail()).font(.callout).foregroundStyle(.secondary)
             }
         }
     }
@@ -68,16 +68,16 @@ struct BranchSheet: View {
         } else if local.isEmpty && remote.isEmpty {
             VStack(spacing: Tokens.Space.s8) {
                 Glyph(query.isEmpty ? .gitBranch : .search, size: 32).foregroundStyle(.secondary).accessibilityHidden(true)
-                Text(query.isEmpty ? "No branches" : "No branch matches “\(query)”").font(.headline)
-                Text(query.isEmpty ? "This repository has no branch to start from yet." : "Search looks at the local and the remote branches. Fetch to see new ones.")
+                Text(query.isEmpty ? Copy.newSessionNoBranches() : Copy.newSessionNoBranchMatches(query: query)).font(.headline)
+                Text(query.isEmpty ? Copy.newSessionNoBranchYet() : Copy.newSessionSearchBoth())
                     .font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: 360)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: Tokens.Space.s24) {
-                    section("Local", .harddrive, local, empty: "No local branches.")
-                    section("Remote", .cloud, remote, empty: "No remote branches yet. Fetch to look for them.")
+                    section(WorktreeStart.local.tabTitle(), .harddrive, local, empty: Copy.newSessionNoLocal())
+                    section(WorktreeStart.remote.tabTitle(), .cloud, remote, empty: Copy.newSessionNoRemote())
                 }
                 .padding(.horizontal, Tokens.Space.s16).padding(.vertical, Tokens.Space.s16)
             }
@@ -90,10 +90,10 @@ struct BranchSheet: View {
             let other = tab == .remote ? WorktreeStart.local : .remote
             VStack(spacing: Tokens.Space.s8) {
                 Glyph(query.isEmpty ? tab.icon : .search, size: 32).foregroundStyle(.secondary).accessibilityHidden(true)
-                Text(query.isEmpty ? "No \(tab.tabTitle.lowercased()) branches" : "No \(tab.tabTitle.lowercased()) branch matches “\(query)”").font(.headline)
+                Text(tabEmptyTitle(tab)).font(.headline)
                 Text(
-                    query.isEmpty ? (tab == .remote ? "Nothing on origin yet. Fetch to look for it." : "This repository has no local branch.")
-                        : otherHas ? "The \(other.tabTitle) tab has matches." : "Search looks at the branches of this tab. Fetch to see new ones."
+                    query.isEmpty ? (tab == .remote ? Copy.newSessionNothingOnOrigin() : Copy.newSessionNoLocalBranch())
+                        : otherHas ? Copy.newSessionOtherTabHas(tab: other.tabTitle()) : Copy.newSessionSearchTab()
                 )
                 .font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: 360)
             }
@@ -105,6 +105,15 @@ struct BranchSheet: View {
                 }
                 .padding(.horizontal, Tokens.Space.s16).padding(.vertical, Tokens.Space.s16)
             }
+        }
+    }
+
+    private func tabEmptyTitle(_ tab: WorktreeStart) -> String {
+        switch (tab, query.isEmpty) {
+        case (.remote, true): Copy.newSessionNoRemoteBranches()
+        case (.local, true): Copy.newSessionNoLocalBranches()
+        case (.remote, false): Copy.newSessionNoRemoteMatch(query: query)
+        case (.local, false): Copy.newSessionNoLocalMatch(query: query)
         }
     }
 
@@ -150,14 +159,14 @@ struct BranchSheet: View {
             Glyph(.gitBranch).foregroundStyle(chosen ? theme.accent : .secondary).frame(width: 18).accessibilityHidden(true)
             Text("\(Text(row.name[..<cut]).foregroundStyle(.secondary))\(Text(row.name[cut...]).fontWeight(chosen ? .semibold : .medium))")
                 .lineLimit(1).truncationMode(.middle)
-            if row.isDefault { Badge(text: "default", icon: .starFilled, tint: theme.accent) }
-            if row.checkedOut { Badge(text: browsing ? "current" : "checked out", icon: .checkCircle, tint: browsing ? theme.accent : .secondary) }
-            if notOnOrigin { Badge(text: "not on origin", icon: .cloud, tint: .secondary) }
-            if counted, let behind = row.behindText { Badge(text: behind, icon: .arrowDown, tint: .orange) }
-            if counted, let notPushed = row.notPushedText { Badge(text: notPushed, icon: .arrowUp, tint: .orange) }
+            if row.isDefault { Badge(text: Copy.newSessionBadgeDefault(), icon: .starFilled, tint: theme.accent) }
+            if row.checkedOut { Badge(text: browsing ? Copy.newSessionBadgeCurrent() : Copy.newSessionBadgeCheckedOut(), icon: .checkCircle, tint: browsing ? theme.accent : .secondary) }
+            if notOnOrigin { Badge(text: Copy.newSessionBadgeNotOnOrigin(), icon: .cloud, tint: .secondary) }
+            if counted, let behind = row.behindText() { Badge(text: behind, icon: .arrowDown, tint: .orange) }
+            if counted, let notPushed = row.notPushedText() { Badge(text: notPushed, icon: .arrowUp, tint: .orange) }
             Spacer(minLength: 8)
-            if chosen { Glyph(.check, label: "Chosen").foregroundStyle(.tint) }
-            else { RowHint(text: "Select", shown: hovering) }
+            if chosen { Glyph(.check, label: Copy.newSessionChosen()).foregroundStyle(.tint) }
+            else { RowHint(text: Copy.newSessionSelect(), shown: hovering) }
         }
         .frame(minHeight: 20).padding(.horizontal, Tokens.Space.s10).padding(.vertical, Tokens.Space.s8)
     }
@@ -167,7 +176,7 @@ struct BranchSheet: View {
         if browsing {
             HStack(alignment: .firstTextBaseline, spacing: Tokens.Space.s8) {
                 Glyph(.info).foregroundStyle(.secondary).accessibilityHidden(true)
-                Text("Picking another branch switches this folder to it when the message is sent, unless it has uncommitted changes. To keep the folder as it is, start a new worktree from it.")
+                Text(Copy.newSessionBrowseSummary())
                     .font(.subheadline).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 0)
             }
@@ -191,9 +200,9 @@ struct BranchSheet: View {
     private var newBranchLine: some View {
         HStack(spacing: Tokens.Space.s8) {
             Glyph(.circlePlus).foregroundStyle(.secondary).accessibilityHidden(true)
-            Text("New branch").font(.subheadline).foregroundStyle(.secondary)
-            Text(model.worktreeName.isEmpty ? "\(worktreeBranchPrefix)<generated when sent>" : "\(worktreeBranchPrefix)\(model.worktreeName)").font(.subheadline.monospaced()).lineLimit(1).truncationMode(.middle)
-            Glyph(.arrowLeft, size: 11, label: "from").foregroundStyle(.secondary)
+            Text(Copy.newSessionNewBranch()).font(.subheadline).foregroundStyle(.secondary)
+            Text(model.worktreeName.isEmpty ? Copy.newSessionBranchGenerated(prefix: worktreeBranchPrefix) : "\(worktreeBranchPrefix)\(model.worktreeName)").font(.subheadline.monospaced()).lineLimit(1).truncationMode(.middle)
+            Glyph(.arrowLeft, size: 11, label: Copy.newSessionFrom()).foregroundStyle(.secondary)
             Text(model.startPoint?.ref ?? "…").font(.subheadline.monospaced().weight(.semibold)).foregroundStyle(model.startPoint?.side?.tint ?? .primary)
                 .lineLimit(1).truncationMode(.middle)
             Spacer(minLength: 0)
@@ -204,9 +213,9 @@ struct BranchSheet: View {
         if model.toClone {
             HStack(spacing: Tokens.Space.s10) {
                 Glyph(.cloud).foregroundStyle(.secondary).accessibilityHidden(true)
-                Text("Branches as GitHub lists them now. The repository is cloned when the message is sent.").font(.subheadline)
+                Text(Copy.newSessionBranchesFromGitHub()).font(.subheadline)
                 Spacer(minLength: 16)
-                Button("Cancel") { dismiss() }.buttonStyle(SecondaryCapsuleButtonStyle()).keyboardShortcut(.cancelAction)
+                Button(Copy.projectsCancel()) { dismiss() }.buttonStyle(SecondaryCapsuleButtonStyle()).keyboardShortcut(.cancelAction)
             }
             .padding(.horizontal, Tokens.Space.s20).padding(.vertical, Tokens.Space.s12)
         } else {
@@ -227,17 +236,17 @@ struct BranchSheet: View {
                     if let unreachable = picker?.unreachable {
                         Text(unreachable).font(.subheadline).foregroundStyle(.orange)
                             .onAppear { AccessibilityNotification.Announcement(unreachable).post() }
-                    } else if stale { Text("The remote branches may be out of date.").font(.subheadline).foregroundStyle(.orange) }
+                    } else if stale { Text(Copy.newSessionStale()).font(.subheadline).foregroundStyle(.orange) }
                 }
                 Button { Task { await model.fetchNow() } } label: {
-                    Label { Text(model.fetching ? "Fetching…" : "Fetch now") } icon: {
+                    Label { Text(model.fetching ? Copy.newSessionFetching() : Copy.newSessionFetchNow()) } icon: {
                         // turns for as long as the fetch takes
                         Glyph(.refresh).glyphSpinning(model.fetching)
                     }
                 }
-                    .controlSize(.small).disabled(model.fetching).help("Ask the remote for its latest branches")
+                    .controlSize(.small).disabled(model.fetching).help(Copy.newSessionFetchHelp())
                 Spacer(minLength: 16)
-                Button("Cancel") { dismiss() }.buttonStyle(SecondaryCapsuleButtonStyle()).keyboardShortcut(.cancelAction)
+                Button(Copy.projectsCancel()) { dismiss() }.buttonStyle(SecondaryCapsuleButtonStyle()).keyboardShortcut(.cancelAction)
             }
             if let problem = model.fetchProblem {
                 HStack(alignment: .firstTextBaseline, spacing: Tokens.Space.s8) {

@@ -47,7 +47,7 @@ extension NewSessionModel {
         } catch {
             guard folder == path else { return }
             // the draft still works: the repository is cloned on its default branch, with no worktree to offer
-            workspaceProblem = report(error, "list the branches of \(name)").text
+            workspaceProblem = report(error, "list the branches of \(name)").shown(bundle: bundle, locale: locale)
         }
     }
 
@@ -70,13 +70,13 @@ extension NewSessionModel {
     /// Adds the folder as a project of origin `added`, with the request the Projects page sends; `addProjectProblem` says why when it could not.
     public func addAsProject() async {
         guard offersAddAsProject, let folder, let projects else { return }
-        addProjectProblem = await projects.add(folder: folder) == nil ? projects.failure ?? projects.problems.first?.text ?? "That folder cannot be added" : nil
+        addProjectProblem = await projects.add(folder: folder) == nil ? projects.failure ?? projects.problems.first?.text(bundle: bundle, locale: locale) ?? Copy.projectsDropCannotAdd(bundle: bundle, locale: locale) : nil
     }
 
     /// The line that says beforehand what sending will make, nil unless the workspace is a new project.
     public var projectNote: String? {
         guard newProject != nil, let folder else { return nil }
-        return "\(folder) will be created, with git ready, when the message is sent."
+        return Copy.newSessionProjectNote(folder: folder, bundle: bundle, locale: locale)
     }
 
     /// What sending will do, in order, for the block under the box: download or update the repository, switch the folder's branch, and cut the worktree's branch. Empty
@@ -86,23 +86,31 @@ extension NewSessionModel {
         if let repo, let folder {
             if toClone {
                 let projects = (projectsPath as NSString).abbreviatingWithTildeInPath
-                steps.append(SendStep(icon: .download, title: "Download the repository", parts: [.text("When you send, Carrier downloads "), .code(repo), .text(" from GitHub into "), .code(projects), .text(". Only this first time: later sessions reuse that copy.")], help: folder))
+                let parts = sendParts([repo, projects]) { Copy.newSessionStepDownloadText(repo: $0[0], folder: $0[1], bundle: bundle, locale: locale) }
+                steps.append(SendStep(icon: .download, title: Copy.newSessionStepDownload(bundle: bundle, locale: locale), parts: parts, help: folder))
             } else {
-                steps.append(SendStep(icon: .refresh, title: "Update the repository", parts: [.text("Updates "), .code(repo), .text(" from GitHub first")], help: folder))
+                let parts = sendParts([repo]) { Copy.newSessionStepUpdateText(repo: $0[0], bundle: bundle, locale: locale) }
+                steps.append(SendStep(icon: .refresh, title: Copy.newSessionStepUpdate(bundle: bundle, locale: locale), parts: parts, help: folder))
             }
         }
         // a fresh clone follows the pick, so only a folder that is already there is switched
         if toClone == false, let change = branchChange {
-            steps.append(SendStep(icon: .exchange, title: "Change the folder's branch", parts: [.text("Switches the folder from "), .code(change.from), .text(" to "), .code(change.to), .text(" when you send.")], help: folder))
+            let parts = sendParts([change.from, change.to]) { Copy.newSessionStepBranchChangeText(from: $0[0], to: $0[1], bundle: bundle, locale: locale) }
+            steps.append(SendStep(icon: .exchange, title: Copy.newSessionStepBranchChange(bundle: bundle, locale: locale), parts: parts, help: folder))
         }
         if worktree, let point = startPoint {
             // a repository from GitHub already has its own step that fetches; an older host does not fetch for a folder
             if point.side == .remote, hostStarts, repo == nil {
-                steps.append(SendStep(icon: .download, title: "Bring the latest \(point.ref)", parts: [.text("Fetches "), .code("origin"), .text(" first. If it cannot be reached, the worktree starts from your local copy.")], help: folder))
+                let parts = sendParts(["origin"]) { Copy.newSessionStepFetchText(remote: $0[0], bundle: bundle, locale: locale) }
+                steps.append(SendStep(icon: .download, title: Copy.newSessionStepFetch(ref: point.ref, bundle: bundle, locale: locale), parts: parts, help: folder))
             }
             let name = worktreeBranchPrefix + (worktreeName.isEmpty ? "<name>" : worktreeName)
-            let tail = toClone ? " in a separate folder." : " in a separate folder. Your current folder is not touched."
-            steps.append(SendStep(icon: .gitBranch, title: "Create a branch of its own", parts: [.text("Creates the branch "), .code(name), .text(" from "), .code(point.ref), .text(tail)], help: nil))
+            let parts = sendParts([name, point.ref]) {
+                toClone
+                    ? Copy.newSessionStepCreateTextClone(name: $0[0], ref: $0[1], bundle: bundle, locale: locale)
+                    : Copy.newSessionStepCreateText(name: $0[0], ref: $0[1], bundle: bundle, locale: locale)
+            }
+            steps.append(SendStep(icon: .gitBranch, title: Copy.newSessionStepCreate(bundle: bundle, locale: locale), parts: parts, help: nil))
         }
         return steps
     }
@@ -110,9 +118,9 @@ extension NewSessionModel {
     /// Asks the engine to add `repo` to the config's `repos` (the list read just now, so a change of another page is not lost); the engine runs on it at once, so nothing is restarted. What it
     /// came to is the session's `watchNotes`.
     private func addToWatched(_ repo: String, session id: String) async {
-        func failed(_ reason: String) { watchNotes[id] = WatchNote(text: "\(repo) could not be added to Carrier's list: \(reason).", failed: true) }
+        func failed(_ reason: String) { watchNotes[id] = WatchNote(text: Copy.newSessionWatchFailed(repo: repo, reason: reason, bundle: bundle, locale: locale), failed: true) }
         guard let json = readConfig(), let names = configRepoNames(json: json) else {
-            return failed("the config file could not be read or is not a JSON object")
+            return failed(Copy.newSessionWatchConfigUnreadable(bundle: bundle, locale: locale))
         }
         if names.contains(where: { $0.lowercased() == repo.lowercased() }) { return }  // another session of it got there first
         if let problem = reposProblem(names + [repo]) { return failed(problem) }
@@ -124,10 +132,10 @@ extension NewSessionModel {
             let note = addedRepoNote(repo, outcome: reply.outcome)
             watchNotes[id] = WatchNote(text: note.text, failed: note.failed)
         } catch ControlError.remote(let refusal) {
-            failed(refusal.shown())
+            failed(refusal.shown(bundle: bundle, locale: locale))
         } catch {
             log("new session: could not change the config: \(error)")
-            failed("the config file could not be saved")
+            failed(Copy.newSessionWatchConfigNotSaved(bundle: bundle, locale: locale))
         }
     }
 

@@ -8,10 +8,13 @@ public enum ProjectIconStoreError: Error, LocalizedError, Equatable, Sendable {
     case unreadableImage
     case encodingFailed
 
-    public var errorDescription: String? {
+    public var errorDescription: String? { words() }
+
+    /// What the person reads, in the language of `bundle` and `locale`.
+    public func words(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         switch self {
-        case .unreadableImage: "The chosen file could not be read as an image."
-        case .encodingFailed: "The image could not be saved as a PNG."
+        case .unreadableImage: Copy.projectsImageUnreadable(bundle: bundle, locale: locale)
+        case .encodingFailed: Copy.projectsImageNotPng(bundle: bundle, locale: locale)
         }
     }
 }

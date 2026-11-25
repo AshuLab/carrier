@@ -17,34 +17,34 @@ extension AddProjectSheet {
                         .background(RoundedRectangle(cornerRadius: Tokens.Radius.control).fill(.tint.opacity(0.16)))
                         .accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: Tokens.Space.s2) {
-                        Text("New project").scaledFont(16, weight: .semibold)
-                        Text(mode.actsAtOnce ? "An empty git folder, added as a project." : "An empty git folder, made when you send the first message.").scaledFont(12).foregroundStyle(.secondary)
+                        Text(Copy.projectsNewTitle()).scaledFont(16, weight: .semibold)
+                        Text(mode.actsAtOnce ? Copy.projectsNewDetailSettings() : Copy.projectsNewDetailNewSession()).scaledFont(12).foregroundStyle(.secondary)
                     }
                 }
                 VStack(alignment: .leading, spacing: Tokens.Space.s6) {
-                    Text("Name").sectionLabel()
-                    TextField("", text: $form.name, prompt: Text("my-project"))
+                    Text(Copy.projectsName()).sectionLabel()
+                    TextField("", text: $form.name, prompt: Text(Copy.projectsNewNamePrompt()))
                         .settingsField(icon: .folder, focused: $nameFocused)
                         .autocorrectionDisabled()
                         .writingToolsBehavior(.disabled)
-                        .accessibilityLabel("Name of the new project")
+                        .accessibilityLabel(Copy.projectsNewNameLabel())
                         .onSubmit(createProject)
                         .onChange(of: form.name) { problem = nil }
-                    Text("Letters, numbers, dots and dashes").scaledFont(11).foregroundStyle(.tertiary)
+                    Text(Copy.projectsNewNameHint()).scaledFont(11).foregroundStyle(.tertiary)
                 }
                 VStack(alignment: .leading, spacing: Tokens.Space.s6) {
-                    Text(mode.actsAtOnce ? "Create in" : "Will be created in").sectionLabel()
+                    Text(mode.actsAtOnce ? Copy.projectsNewCreateIn() : Copy.projectsNewWillCreateIn()).sectionLabel()
                     HStack(spacing: Tokens.Space.s8) {
-                        Text(form.destinationLine().dropFirst("Creates ".count))
+                        Text(abbreviatedSheetPath(form.folder))
                             .scaledFont(11, design: .monospaced)
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
                             .truncationMode(.middle)
                             .help(form.folder)
                         if mode.actsAtOnce {
-                            Button("Choose…", action: chooseNewProjectParent)
+                            Button(Copy.projectsChooseEllipsis(), action: chooseNewProjectParent)
                                 .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
-                                .accessibilityLabel("Choose where the new project is made")
+                                .accessibilityLabel(Copy.projectsNewChooseWhere())
                         }
                         Spacer(minLength: 0)
                     }
@@ -59,16 +59,16 @@ extension AddProjectSheet {
             Spacer(minLength: 0)
             SettingsDivider()
             HStack(spacing: Tokens.Space.s12) {
-                Button("Back") {
+                Button(Copy.projectsBack()) {
                     problem = nil
                     creating = false
                 }
                 .buttonStyle(SecondaryCapsuleButtonStyle())
                 Spacer(minLength: 8)
-                Button("Cancel") { dismiss() }
+                Button(Copy.projectsCancel()) { dismiss() }
                     .buttonStyle(SecondaryCapsuleButtonStyle())
                     .keyboardShortcut(.cancelAction)
-                Button(mode.actsAtOnce ? "Create" : "Use this project", action: createProject)
+                Button(mode.actsAtOnce ? Copy.projectsCreate() : Copy.projectsUseThisProject(), action: createProject)
                     .buttonStyle(PrimaryCapsuleButtonStyle())
                     .disabled(form.canCreate(taken: model.isTaken) == false || making)
             }
@@ -99,7 +99,7 @@ extension AddProjectSheet {
             } catch ControlError.remote(let refusal) {
                 problem = refusal.shown()
             } catch {
-                problem = hostNotRunning
+                problem = hostNotRunningWords()
             }
         }
     }
@@ -112,8 +112,8 @@ extension AddProjectSheet {
         panel.canCreateDirectories = true
         panel.allowsMultipleSelection = false
         panel.directoryURL = URL(fileURLWithPath: form.parent)
-        panel.prompt = "Choose"
-        panel.message = "Choose the folder the new project is made in"
+        panel.prompt = Copy.projectsChoose()
+        panel.message = Copy.projectsNewPanelMessage()
         guard panel.runModal() == .OK, let url = panel.url else { return }
         if let refusal = projectsFolderRefusal(url.path, carrierFolder: currentCarrierFolder()) {
             problem = refusal.shown()

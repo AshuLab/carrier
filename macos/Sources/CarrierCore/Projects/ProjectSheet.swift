@@ -9,41 +9,51 @@ public enum ProjectSheetMode: Equatable, Sendable {
     case settings
     case newSession
 
-    public var title: String {
+    public func title(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         switch self {
-        case .settings: "Add project"
-        case .newSession: "Choose where to work"
+        case .settings: Copy.projectsSheetTitleSettings(bundle: bundle, locale: locale)
+        case .newSession: Copy.projectsSheetTitleNewSession(bundle: bundle, locale: locale)
         }
     }
 
-    public var subtitle: String {
+    public func subtitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         switch self {
-        case .settings: "Paste a GitHub address, search your repositories, or choose a folder on this Mac."
-        case .newSession: "Pick a project, paste a GitHub address, or choose a folder. Nothing is cloned or made until you send the first message."
+        case .settings: Copy.projectsSheetSubtitleSettings(bundle: bundle, locale: locale)
+        case .newSession: Copy.projectsSheetSubtitleNewSession(bundle: bundle, locale: locale)
         }
     }
 
-    public var fieldPlaceholder: String { "Paste a GitHub address, search, or type a path…" }
+    public func fieldPlaceholder(bundle: Bundle? = nil, locale: Locale = .current) -> String { Copy.projectsSheetPlaceholder(bundle: bundle, locale: locale) }
 
     /// Whether a choice acts at once (Settings) or only fills the plan (New session).
     public var actsAtOnce: Bool { self == .settings }
 
-    public var folderActionTitle: String { actsAtOnce ? "Add" : "Use" }
+    public func folderActionTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        actsAtOnce ? Copy.projectsSheetAdd(bundle: bundle, locale: locale) : Copy.projectsSheetUse(bundle: bundle, locale: locale)
+    }
 
-    public var addFolderTitle: String { actsAtOnce ? "Add folder" : "Use folder" }
+    public func addFolderTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        actsAtOnce ? Copy.projectsSheetAddFolder(bundle: bundle, locale: locale) : Copy.projectsSheetUseFolder(bundle: bundle, locale: locale)
+    }
 
-    public var existingDetail: String { "Already a project · Open" }
+    public func existingDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String { Copy.projectsSheetExisting(bundle: bundle, locale: locale) }
 
-    public var existingActionTitle: String { actsAtOnce ? "Open" : "Use" }
+    public func existingActionTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        actsAtOnce ? Copy.projectsSheetOpen(bundle: bundle, locale: locale) : Copy.projectsSheetUse(bundle: bundle, locale: locale)
+    }
 
-    public var repoActionTitle: String { actsAtOnce ? "Clone" : "Use" }
+    public func repoActionTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        actsAtOnce ? Copy.projectsSheetClone(bundle: bundle, locale: locale) : Copy.projectsSheetUse(bundle: bundle, locale: locale)
+    }
 
     /// Settings suggests only folders that are not projects; New session lists the projects that are not hidden first.
     public var includesExistingProjects: Bool { actsAtOnce == false }
 
-    public var openPanelPrompt: String { actsAtOnce ? "Add" : "Use" }
+    public func openPanelPrompt(bundle: Bundle? = nil, locale: Locale = .current) -> String { folderActionTitle(bundle: bundle, locale: locale) }
 
-    public var openPanelMessage: String { actsAtOnce ? "Choose the folder of a project" : "Choose the folder to work in" }
+    public func openPanelMessage(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        actsAtOnce ? Copy.projectsSheetPanelSettings(bundle: bundle, locale: locale) : Copy.projectsSheetPanelNewSession(bundle: bundle, locale: locale)
+    }
 }
 
 /// One row of the shared sheet.
@@ -123,7 +133,7 @@ public enum RepoCheck: Equatable, Sendable {
 }
 
 /// What the sheet says in orange for a repository the login cannot see.
-public let repoNotVisibleLine = "Your GitHub login can't see this repository. Check the name, or sign in with another account."
+public func repoNotVisibleLine(bundle: Bundle? = nil, locale: Locale = .current) -> String { Copy.projectsRepoNotVisible(bundle: bundle, locale: locale) }
 
 /// Whether a host refusal of `repoBranches` says the repository is not there for this login.
 public func isRepoNotVisible(_ refusal: Refusal) -> Bool { refusal.has("github.repoNotFound") }
@@ -224,14 +234,16 @@ public struct NewProjectForm: Equatable, Sendable {
     public var parent: String { chosenParent ?? defaultParent }
     /// Where the project is made; `<name>` stands for the name until one is typed.
     public var folder: String { parent + "/local/" + (name.isEmpty ? "<name>" : name) }
-    public func destinationLine(home: String = NSHomeDirectory()) -> String { "Creates " + abbreviatedSheetPath(folder, home: home) }
+    public func destinationLine(home: String = NSHomeDirectory(), bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        Copy.projectsNewCreates(path: abbreviatedSheetPath(folder, home: home), bundle: bundle, locale: locale)
+    }
 
     /// Why Create cannot go ahead, in the words to show in orange: the name is not a plain folder name (the host's pattern), or something is already at its
     /// folder (`taken` says whether a folder or a project is). nil while nothing is typed and when the name can be used; the host checks both again.
-    public func problem(taken: (String) -> Bool) -> String? {
+    public func problem(taken: (String) -> Bool, bundle: Bundle? = nil, locale: Locale = .current) -> String? {
         guard name.isEmpty == false else { return nil }
-        if let refusal = projectNameProblem(name) { return refusal.shown() }
-        return taken(folder) ? "\(name) is already a project; choose another name" : nil
+        if let refusal = projectNameProblem(name) { return refusal.shown(bundle: bundle, locale: locale) }
+        return taken(folder) ? Copy.projectsNewNameTaken(name: name, bundle: bundle, locale: locale) : nil
     }
 
     public func canCreate(taken: (String) -> Bool) -> Bool { name.isEmpty == false && problem(taken: taken) == nil }
@@ -249,13 +261,15 @@ public enum ProjectDropOutcome: Equatable, Sendable {
 
 /// Adds each unique dropped path through `addFolder`, returning whether to open, close, or show a refusal.
 @MainActor
-public func applyDroppedProjectPaths(_ paths: [String], addFolder: (String) async -> (outcome: ProjectAdd?, error: String?)) async -> ProjectDropOutcome {
+public func applyDroppedProjectPaths(
+    _ paths: [String], bundle: Bundle? = nil, locale: Locale = .current, addFolder: (String) async -> (outcome: ProjectAdd?, error: String?)
+) async -> ProjectDropOutcome {
     var unique: [String] = []
     for path in paths {
         guard unique.contains(where: { isSameSheetFolder($0, path) }) == false else { continue }
         unique.append(path)
     }
-    guard unique.isEmpty == false else { return .refused("Nothing could be read from the drop") }
+    guard unique.isEmpty == false else { return .refused(Copy.projectsDropNothing(bundle: bundle, locale: locale)) }
 
     var addedPaths: [String] = []
     var refusals: [(path: String, reason: String)] = []
@@ -265,7 +279,7 @@ public func applyDroppedProjectPaths(_ paths: [String], addFolder: (String) asyn
         case .added(let p), .existing(let p):
             addedPaths.append(p)
         case nil:
-            refusals.append((path, result.error ?? "That folder cannot be added"))
+            refusals.append((path, result.error ?? Copy.projectsDropCannotAdd(bundle: bundle, locale: locale)))
         }
     }
 
@@ -282,3 +296,6 @@ public func applyDroppedProjectPaths(_ paths: [String], addFolder: (String) asyn
     if addedPaths.count == 1 { return .open(addedPaths[0]) }
     return .addedMultiple
 }
+
+/// What the sheet says when the chat host is not running: the words of the refusal the app makes itself, in the language of `bundle` and `locale`.
+public func hostNotRunningWords(bundle: Bundle? = nil, locale: Locale = .current) -> String { Refusal.hostNotRunning.shown(bundle: bundle, locale: locale) }

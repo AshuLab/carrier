@@ -95,15 +95,17 @@ public struct ProjectRow: Equatable, Identifiable, Sendable {
     /// The folder's own name (what the Name field falls back to when emptied).
     public var folderName: String { projectFolderName(path) }
     /// What the row says under the name: the repository, else where the folder is.
-    public var line: String {
+    public func line(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         switch clone?.state {
-        case .cloning: clone?.progress ?? "Cloning…"
-        case .failed: clone?.shownError() ?? "The clone failed"
+        case .cloning: clone?.progress ?? Copy.projectsCloning(bundle: bundle, locale: locale)
+        case .failed: clone?.shownError(bundle: bundle, locale: locale) ?? Copy.projectsCloneFailed(bundle: bundle, locale: locale)
         case nil: repo ?? path
         }
     }
     /// What the list's Carrier column says.
-    public var carrierText: String { watched ? "Watching" : "Not watched" }
+    public func carrierText(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        watched ? Copy.projectsWatching(bundle: bundle, locale: locale) : Copy.projectsNotWatched(bundle: bundle, locale: locale)
+    }
     /// What its tile's colour is made from, so it matches the project's sessions.
     public var colorKey: String { projectColorKey(path) }
     /// What the project's tile draws: its chosen colour and mark, else initials on a colour made from the name.
@@ -122,13 +124,13 @@ public struct ProjectPage: Equatable, Sendable {
     public let workIn: [WorkIn]
     public let notice: String?
 
-    public init(for row: ProjectRow) {
+    public init(for row: ProjectRow, bundle: Bundle? = nil, locale: Locale = .current) {
         let plain = row.status == .ready && row.isGit == false
         worktrees = row.status == .ready && plain == false
         baseBranch = plain == false
         carrier = plain == false
         remote = plain == false
         workIn = plain ? [.baseFolder] : WorkIn.allCases
-        notice = plain ? "Not a git repository, so it has no worktrees, base branch or Carrier switch." : nil
+        notice = plain ? Copy.projectsNotGit(bundle: bundle, locale: locale) : nil
     }
 }

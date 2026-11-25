@@ -83,42 +83,46 @@ public struct WorktreeRow: Equatable, Identifiable, Sendable {
     /// Whether the row has a Remove button: every worktree does, the main clone does not.
     public var hasRemove: Bool { kind != nil }
     /// Why its Remove button is disabled: only while its session is open. An uncommitted change is refused by the host, with its words, when the button is pressed.
-    public var removeBlockedBy: String? { kind == .sessionOpen ? worktreeOpenWords : nil }
+    public func removeBlockedBy(bundle: Bundle? = nil, locale: Locale = .current) -> String? { kind == .sessionOpen ? worktreeOpenWords(bundle: bundle, locale: locale) : nil }
 
     /// The row's second line: the session and the age, "Main clone" for the main one.
-    public var detail: String { session.map { [$0, age].compactMap { $0 }.joined(separator: " · ") } ?? "Main clone" }
+    public func detail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        session.map { [$0, age].compactMap { $0 }.joined(separator: " · ") } ?? Copy.projectsWorktreeMainClone(bundle: bundle, locale: locale)
+    }
 }
 
-private func branchWords(_ branch: String?) -> String { branch ?? "Detached HEAD" }
+private func branchWords(_ branch: String?, bundle: Bundle?, locale: Locale) -> String { branch ?? Copy.projectsWorktreeDetached(bundle: bundle, locale: locale) }
 
 /// The main clone first, then each worktree as the host listed it; `sizes` are the host's figures by folder.
-public func worktreeRows(_ reply: ProjectWorktrees, sizes: [String: Int] = [:], now: Date, format: TimeFormat = .stored()) -> [WorktreeRow] {
-    let main = WorktreeRow(id: reply.main.path, branch: branchWords(reply.main.branch), session: nil, age: nil, state: nil, kind: nil, bytes: sizes[reply.main.path])
+public func worktreeRows(
+    _ reply: ProjectWorktrees, sizes: [String: Int] = [:], now: Date, format: TimeFormat = .stored(), bundle: Bundle? = nil, locale: Locale = .current
+) -> [WorktreeRow] {
+    let main = WorktreeRow(id: reply.main.path, branch: branchWords(reply.main.branch, bundle: bundle, locale: locale), session: nil, age: nil, state: nil, kind: nil, bytes: sizes[reply.main.path])
     return [main] + reply.worktrees.map { worktree in
         WorktreeRow(
             id: worktree.path,
-            branch: branchWords(worktree.branch),
-            session: worktree.session.map { $0.title ?? "Untitled session" } ?? "No session",
+            branch: branchWords(worktree.branch, bundle: bundle, locale: locale),
+            session: worktree.session.map { $0.title ?? Copy.projectsWorktreeUntitled(bundle: bundle, locale: locale) } ?? Copy.projectsWorktreeNoSession(bundle: bundle, locale: locale),
             age: timeText(Date(timeIntervalSince1970: worktree.lastActiveAt / 1000), now: now, format: format),
-            state: stateWords(worktree.state),
+            state: stateWords(worktree.state, bundle: bundle, locale: locale),
             kind: worktree.state,
             bytes: sizes[worktree.path]
         )
     }
 }
 
-private func stateWords(_ state: ProjectWorktree.State) -> String {
+private func stateWords(_ state: ProjectWorktree.State, bundle: Bundle?, locale: Locale) -> String {
     switch state {
-    case .sessionOpen: "Session open"
-    case .uncommitted: "Uncommitted changes"
-    case .merged: "Merged"
-    case .notPushed: "Not pushed"
-    case .clean: "Clean"
+    case .sessionOpen: Copy.projectsWorktreeStateOpen(bundle: bundle, locale: locale)
+    case .uncommitted: Copy.projectsWorktreeStateUncommitted(bundle: bundle, locale: locale)
+    case .merged: Copy.projectsWorktreeStateMerged(bundle: bundle, locale: locale)
+    case .notPushed: Copy.projectsWorktreeStateNotPushed(bundle: bundle, locale: locale)
+    case .clean: Copy.projectsWorktreeStateClean(bundle: bundle, locale: locale)
     }
 }
 
 /// What the host says when a session holds the worktree, which is also why the button is off while it is.
-public let worktreeOpenWords = "Its session is open"
+public func worktreeOpenWords(bundle: Bundle? = nil, locale: Locale = .current) -> String { Copy.projectsWorktreeOpen(bundle: bundle, locale: locale) }
 
 /// The reply of `cleanProjectWorktrees`: the merged worktrees nothing blocks (the ones Clean up removes, or removed) with the bytes each folder holds, and the ones it skips with the reason.
 public struct ProjectCleanup: Decodable, Equatable, Sendable {
@@ -161,18 +165,19 @@ public struct ProjectCleanup: Decodable, Equatable, Sendable {
     public var bytes: Int { removed.reduce(0) { $0 + $1.bytes } }
 }
 
-func worktreeCount(_ count: Int) -> String { count == 1 ? "1 worktree" : "\(count) worktrees" }
-
 /// The Clean up button's detail: how many worktrees it takes and how much they hold ("3 worktrees, 1.2 GB"); nil when there is none to take, which hides the button.
-public func cleanUpWords(_ cleanup: ProjectCleanup) -> String? {
+public func cleanUpWords(_ cleanup: ProjectCleanup, bundle: Bundle? = nil, locale: Locale = .current) -> String? {
     guard cleanup.removed.isEmpty == false else { return nil }
-    return "\(worktreeCount(cleanup.removed.count)), \(ByteCountFormatter.string(fromByteCount: Int64(cleanup.bytes), countStyle: .file))"
+    return Copy.projectsCleanUpWords(
+        count: cleanup.removed.count, size: ByteCountFormatter.string(fromByteCount: Int64(cleanup.bytes), countStyle: .file), bundle: bundle, locale: locale)
 }
 
 /// What Clean up reports after it ran: what went and, for each worktree it skipped, its folder's name and the reason.
-public func cleanUpReport(_ cleanup: ProjectCleanup) -> String {
+public func cleanUpReport(_ cleanup: ProjectCleanup, bundle: Bundle? = nil, locale: Locale = .current) -> String {
     var lines: [String] = []
-    if let taken = cleanUpWords(cleanup) { lines.append("Removed \(taken). Their branches and sessions stay.") }
-    for skip in cleanup.skipped { lines.append("Skipped \((skip.path as NSString).lastPathComponent): \(skip.shownReason()).") }
-    return lines.isEmpty ? "Nothing to clean up." : lines.joined(separator: "\n")
+    if let taken = cleanUpWords(cleanup, bundle: bundle, locale: locale) { lines.append(Copy.projectsCleanUpRemoved(taken: taken, bundle: bundle, locale: locale)) }
+    for skip in cleanup.skipped {
+        lines.append(Copy.projectsCleanUpSkipped(name: (skip.path as NSString).lastPathComponent, reason: skip.shownReason(bundle: bundle, locale: locale), bundle: bundle, locale: locale))
+    }
+    return lines.isEmpty ? Copy.projectsCleanUpNothing(bundle: bundle, locale: locale) : lines.joined(separator: "\n")
 }

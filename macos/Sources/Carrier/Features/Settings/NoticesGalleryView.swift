@@ -61,7 +61,7 @@ struct NoticesGalleryView: View {
                     item("No provider can start a session") {
                         ProblemNotice(sentences: "No provider can start a session: claude is signed out, codex is not installed.")
                     }
-                    item("The chat host is older than the app") { ProblemNotice(sentences: NewSessionModel.olderHostNotice) }
+                    item("The chat host is older than the app") { ProblemNotice(sentences: Copy.newSessionOlderHost()) }
                     item("The send was refused: not signed in") {
                         FailureBannerView(banner: refusalBanner(agent: "claude", reason: Refusal(code: "agent.notLoggedIn", params: ["agent": "Claude"], text: "Claude is not logged in; run `claude` once to log in")), agent: "claude", copyDetails: false, retry: nil)
                     }

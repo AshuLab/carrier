@@ -10,11 +10,11 @@ extension ProjectDetailView {
     @ViewBuilder var worktreesGroup: some View {
         let figure = model.disk[(row.path as NSString).expandingTildeInPath]
         let measuring = model.measuring.contains((row.path as NSString).expandingTildeInPath)
-        SettingsGroup(title: "Worktrees and disk", footer: "The worktrees Carrier made for sessions of this project, and what each folder takes on disk.") {
+        SettingsGroup(title: Copy.projectsWorktreesTitle(), footer: Copy.projectsWorktreesFooter()) {
             if let worktrees {
                 let items = worktreeRows(worktrees, sizes: figure?.parts ?? [:], now: Date())
                 let shares = diskShares(items)
-                SettingsTabRow(title: "Total", detail: diskTotalWords(figure, measuring: measuring, now: Date()), first: true) {
+                SettingsTabRow(title: Copy.projectsTotal(), detail: diskTotalWords(figure, measuring: measuring, now: Date()), first: true) {
                     HStack(spacing: Tokens.Space.s8) {
                         if measuring { ProgressView().controlSize(.small) }
                         Text(figure?.bytes.map(formatDiskSize) ?? "—").fontWeight(.medium).monospacedDigit()
@@ -26,15 +26,15 @@ extension ProjectDetailView {
                         .overlay(alignment: .top) { SettingsDivider() }
                 }
                 ForEach(items) { item in
-                    SettingsTabRow(title: item.branch, detail: item.detail, mono: true, problem: removeProblems[item.id]) {
+                    SettingsTabRow(title: item.branch, detail: item.detail(), mono: true, problem: removeProblems[item.id]) {
                         HStack(spacing: Tokens.Space.s10) {
                             if let state = item.state, let kind = item.kind { StatusChip(text: state, tint: worktreeTint(kind)) }
                             if item.hasRemove {
-                                Button { Task { await removeWorktree(item.id) } } label: { Label("Remove", icon: .trash) }
+                                Button { Task { await removeWorktree(item.id) } } label: { Label(Copy.projectsRemove(), icon: .trash) }
                                     .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
-                                    .disabled(item.removeBlockedBy != nil || removing.contains(item.id))
-                                    .help(item.removeBlockedBy ?? "Removes this worktree's folder; its branch and its session stay")
-                                    .accessibilityLabel("Remove the worktree \(item.branch)")
+                                    .disabled(item.removeBlockedBy() != nil || removing.contains(item.id))
+                                    .help(item.removeBlockedBy() ?? Copy.projectsRemoveWorktreeHelp())
+                                    .accessibilityLabel(Copy.projectsRemoveWorktreeLabel(branch: item.branch))
                             }
                             HStack(spacing: Tokens.Space.s6) {
                                 Circle().fill(diskColor(item.id, in: items)).frame(width: 7, height: 7).accessibilityHidden(true)
@@ -45,19 +45,19 @@ extension ProjectDetailView {
                     }
                 }
                 if let cleanup, let words = cleanUpWords(cleanup) {
-                    SettingsTabRow(title: "Clean up", detail: "Merged worktrees nothing blocks: \(words)") {
-                        Button { confirmingCleanup = true } label: { Label("Clean up", icon: .trash) }
+                    SettingsTabRow(title: Copy.projectsCleanUp(), detail: Copy.projectsCleanUpDetail(words: words)) {
+                        Button { confirmingCleanup = true } label: { Label(Copy.projectsCleanUp(), icon: .trash) }
                             .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
                             .disabled(removing.isEmpty == false)
                     }
                 }
                 if let cleanUpNote {
-                    SettingsTabRow(title: "Last clean up", detail: cleanUpNote, wrapsDetail: true) { EmptyView() }
+                    SettingsTabRow(title: Copy.projectsLastCleanUp(), detail: cleanUpNote, wrapsDetail: true) { EmptyView() }
                 }
             } else if let worktreesProblem {
-                SettingsTabRow(title: "Worktrees", detail: "", first: true, problem: worktreesProblem) { EmptyView() }
+                SettingsTabRow(title: Copy.projectsWorktrees(), detail: "", first: true, problem: worktreesProblem) { EmptyView() }
             } else {
-                SettingsTabRow(title: "Worktrees", detail: "", first: true) { ProgressView().controlSize(.small) }
+                SettingsTabRow(title: Copy.projectsWorktrees(), detail: "", first: true) { ProgressView().controlSize(.small) }
             }
         }
     }
@@ -69,7 +69,7 @@ extension ProjectDetailView {
     }
 
     /// What the alert of Clean up says it takes and leaves.
-    var cleanUpQuestionWords: String { "Their folders go, with what git ignores in them. Their branches and their sessions stay, and a session's next message brings its folder back." }
+    var cleanUpQuestionWords: String { Copy.projectsCleanUpQuestionWords() }
 
     private func worktreeTint(_ state: ProjectWorktree.State) -> Color {
         switch state {
@@ -94,19 +94,19 @@ extension ProjectDetailView {
         do {
             let (check, folders) = try await model.deletionCheck(of: row.path)
             if check.canGoOn == false {
-                deletionAsk = DeletionAsk(title: "\(row.name) cannot be deleted yet", message: "\(check.refusals.joined(separator: "\n"))\n\nClose the sessions of the project first. Nothing was deleted.")
+                deletionAsk = DeletionAsk(title: Copy.projectsCannotDeleteYet(name: row.name), message: Copy.projectsCannotDeleteMessage(refusals: check.refusals.joined(separator: "\n")))
             } else if check.needsConfirmation && confirmed == false {
-                deletionAsk = DeletionAsk(title: "\(row.name) has work that is not saved", message: "\(check.unsaved.joined(separator: "\n"))\n\nMoving it to the Trash keeps it there until the Trash is emptied.", canConfirm: true)
+                deletionAsk = DeletionAsk(title: Copy.projectsUnsavedTitle(name: row.name), message: Copy.projectsUnsavedMessage(unsaved: check.unsaved.joined(separator: "\n")), canConfirm: true)
             } else {
                 try await model.deleteFromDisk(path: row.path, worktrees: folders)
                 close()
             }
         } catch ControlError.remote(let refusal) {
-            deletionAsk = DeletionAsk(title: "\(row.name) was not deleted", message: refusal.shown())
+            deletionAsk = DeletionAsk(title: Copy.projectsNotDeleted(name: row.name), message: refusal.shown())
         } catch let error as ProjectTrashError {
-            deletionAsk = DeletionAsk(title: "\(row.name) was not deleted", message: error.words)
+            deletionAsk = DeletionAsk(title: Copy.projectsNotDeleted(name: row.name), message: error.words)
         } catch {
-            deletionAsk = DeletionAsk(title: "\(row.name) was not deleted", message: "The chat host did not answer. Nothing was deleted.")
+            deletionAsk = DeletionAsk(title: Copy.projectsNotDeleted(name: row.name), message: Copy.projectsHostNoAnswerNothingDeleted())
         }
     }
 
@@ -121,7 +121,7 @@ extension ProjectDetailView {
         } catch ControlError.remote(let refusal) {
             worktreesProblem = refusal.shown()
         } catch {
-            worktreesProblem = "The chat host did not answer."
+            worktreesProblem = Copy.projectsHostNoAnswer()
         }
     }
 
@@ -136,7 +136,7 @@ extension ProjectDetailView {
         } catch ControlError.remote(let refusal) {
             removeProblems[path] = refusal.shown()
         } catch {
-            removeProblems[path] = "The chat host did not answer."
+            removeProblems[path] = Copy.projectsHostNoAnswer()
         }
         // what is left of the project is measured again, so the total and the bar follow the folders that went
         await model.refreshDisk(.now, of: [row.path])
@@ -153,7 +153,7 @@ extension ProjectDetailView {
         } catch ControlError.remote(let refusal) {
             cleanUpNote = refusal.shown()
         } catch {
-            cleanUpNote = "The chat host did not answer."
+            cleanUpNote = Copy.projectsHostNoAnswer()
         }
         // what is left of the project is measured again, so the total and the bar follow the folders that went
         await model.refreshDisk(.now, of: [row.path])

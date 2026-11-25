@@ -25,7 +25,7 @@ struct ProjectNameField: View {
             .onChange(of: focused) { _, now in if now == false { save() } }
             .onChange(of: stored) { _, now in if focused == false { draft = now } }
             .onDisappear(perform: save)
-            .accessibilityLabel("Name")
+            .accessibilityLabel(Copy.projectsName())
     }
 
     private func save() {
@@ -58,7 +58,7 @@ struct ProjectTagChip: View {
                 Glyph(.close, size: 9, bold: true).foregroundStyle(.secondary)
                     .frame(width: 16, height: 16).background(Circle().fill(Color.primary.opacity(0.12))).contentShape(Circle())
             }
-            .buttonStyle(.plain).help("Remove \(tag)").accessibilityLabel("Remove tag \(tag)")
+            .buttonStyle(.plain).help(Copy.projectsRemoveTag(tag: tag)).accessibilityLabel(Copy.projectsRemoveTagLabel(tag: tag))
         }
         .padding(.leading, Tokens.Space.s10).padding(.trailing, Tokens.Space.s5).padding(.vertical, Tokens.Space.s3)
         .background(Capsule().fill(Color.primary.opacity(0.07)))
@@ -83,10 +83,10 @@ struct ProjectIconPopover: View {
         VStack(alignment: .leading, spacing: Tokens.Space.s12) {
             VStack(alignment: .leading, spacing: Tokens.Space.s6) {
                 HStack {
-                    Text("Color").sectionLabel()
+                    Text(Copy.projectsColor()).sectionLabel()
                     Spacer(minLength: 8)
                     if selectedColor != nil || selectedMark != nil || hasImage {
-                        Button("Reset", action: reset).buttonStyle(HoverTextButtonStyle(tint: nil)).scaledFont(11)
+                        Button(Copy.projectsReset(), action: reset).buttonStyle(HoverTextButtonStyle(tint: nil)).scaledFont(11)
                     }
                 }
                 LazyVGrid(columns: grid, alignment: .leading, spacing: Self.gap) {
@@ -105,7 +105,7 @@ struct ProjectIconPopover: View {
                 }
             }
             VStack(alignment: .leading, spacing: Tokens.Space.s6) {
-                Text("Mark").sectionLabel()
+                Text(Copy.projectsMark()).sectionLabel()
                 let tint = (hasImage ? nil : selectedColor)?.color ?? Color.primary
                 LazyVGrid(columns: grid, alignment: .leading, spacing: Self.gap) {
                     ForEach(projectIconMarks, id: \.self) { choice in
@@ -124,7 +124,7 @@ struct ProjectIconPopover: View {
             }
             SettingsDivider()
             Button(action: chooseImage) {
-                Label("Choose image…", icon: .photo).labelStyle(.titleAndIcon)
+                Label(Copy.projectsChooseImage(), icon: .photo).labelStyle(.titleAndIcon)
             }
             .buttonStyle(SecondaryCapsuleButtonStyle())
             .controlSize(.small)

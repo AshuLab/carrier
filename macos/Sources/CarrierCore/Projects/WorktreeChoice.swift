@@ -146,25 +146,28 @@ public func defaultStartBranch(_ info: WorkspaceInfo) -> String? {
 /// What the sentence says: "Work in web on the base folder (main)", or in a new worktree, or why it cannot be one. `workspace` is nil
 /// while the host has not said what the folder is; `worktree` is the chosen name and branch ("…" while the branch is not chosen).
 /// `gitMissing` (the health says so) says why there is no branch and no worktree, whatever the host could read of the folder.
-public func workSentence(folder: String?, workspace: WorkspaceInfo? = nil, worktree: (name: String, from: String?)? = nil, gitMissing: Bool = false) -> String {
-    guard let folder else { return "Work in Choose a workspace… on the base folder" }
+public func workSentence(
+    folder: String?, workspace: WorkspaceInfo? = nil, worktree: (name: String, from: String?)? = nil, gitMissing: Bool = false,
+    bundle: Bundle? = nil, locale: Locale = .current
+) -> String {
+    guard let folder else { return Copy.newSessionWorkNoFolder(bundle: bundle, locale: locale) }
     let name = URL(fileURLWithPath: folder).lastPathComponent
-    guard gitMissing == false else { return "Work in \(name) in the folder (\(gitMissingReason))" }
-    guard let workspace else { return "Work in \(name) on the base folder" }
-    guard workspace.git else { return "Work in \(name) in the folder (not a git repository: no worktree)" }
-    guard workspace.bare == false else { return "Work in \(name) in the folder (bare repository: no worktree)" }
-    guard workspace.branches.isEmpty == false else { return "Work in \(name) in the folder (new project, no commits yet: no worktree)" }
-    if let worktree { return "Work in \(name) in a new worktree \(worktreeBranchPrefix)\(worktree.name) from \(worktree.from ?? "…")" }
-    return "Work in \(name) on the base folder (\(workspace.branch ?? "detached HEAD"))"
+    guard gitMissing == false else { return Copy.newSessionWorkGitMissing(name: name, reason: gitMissingReason(bundle: bundle, locale: locale), bundle: bundle, locale: locale) }
+    guard let workspace else { return Copy.newSessionWorkBase(name: name, bundle: bundle, locale: locale) }
+    guard workspace.git else { return Copy.newSessionWorkNotGit(name: name, bundle: bundle, locale: locale) }
+    guard workspace.bare == false else { return Copy.newSessionWorkBare(name: name, bundle: bundle, locale: locale) }
+    guard workspace.branches.isEmpty == false else { return Copy.newSessionWorkNoCommits(name: name, bundle: bundle, locale: locale) }
+    if let worktree { return Copy.newSessionWorkWorktree(name: name, branch: worktreeBranchPrefix + worktree.name, from: worktree.from ?? "…", bundle: bundle, locale: locale) }
+    return Copy.newSessionWorkBaseBranch(name: name, branch: workspace.branch ?? Copy.newSessionDetachedHead(bundle: bundle, locale: locale), bundle: bundle, locale: locale)
 }
 
 /// Why there is no New worktree and no branch to show while `git` is missing; the reason points to the Health tab.
-public let gitMissingReason = "git is missing: no worktree, no branch. See Health in Settings"
+public func gitMissingReason(bundle: Bundle? = nil, locale: Locale = .current) -> String { Copy.newSessionGitMissing(bundle: bundle, locale: locale) }
 
 /// The line under the sentence when the base folder has uncommitted changes: how many, and that a worktree keeps them out of the agent's way.
-public func uncommittedWarning(_ workspace: WorkspaceInfo) -> String? {
+public func uncommittedWarning(_ workspace: WorkspaceInfo, bundle: Bundle? = nil, locale: Locale = .current) -> String? {
     guard workspace.offersWorktree, workspace.dirty > 0 else { return nil }
-    return "\(workspace.dirty) uncommitted \(workspace.dirty == 1 ? "file" : "files") in the folder. A worktree keeps them out of the agent's way."
+    return Copy.newSessionUncommittedWarning(count: workspace.dirty, bundle: bundle, locale: locale)
 }
 
 /// A row of the branch picker.
@@ -179,9 +182,9 @@ public struct BranchRow: Equatable {
     public var ahead = 0
 
     /// "3 behind origin", shown when the branch is behind; nil when it is not.
-    public var behindText: String? { behind > 0 ? "\(behind) behind origin" : nil }
+    public func behindText(bundle: Bundle? = nil, locale: Locale = .current) -> String? { behind > 0 ? Copy.newSessionBehindOrigin(count: behind, bundle: bundle, locale: locale) : nil }
     /// "2 not pushed", shown when the branch has commits `origin` lacks; nil when it has none.
-    public var notPushedText: String? { ahead > 0 ? "\(ahead) not pushed" : nil }
+    public func notPushedText(bundle: Bundle? = nil, locale: Locale = .current) -> String? { ahead > 0 ? Copy.newSessionNotPushed(count: ahead, bundle: bundle, locale: locale) : nil }
 }
 
 /// The picker's content: the local and the remote branches in two sections (what a search matches, ignoring case), the checked-out one
@@ -197,7 +200,9 @@ public struct BranchPicker: Equatable {
     public func rows(_ tab: WorktreeStart) -> [BranchRow] { tab == .remote ? remote : local }
 }
 
-public func branchPicker(_ workspace: WorkspaceInfo, query: String = "", now: Date = Date(), unreachable: Bool = false) -> BranchPicker {
+public func branchPicker(
+    _ workspace: WorkspaceInfo, query: String = "", now: Date = Date(), unreachable: Bool = false, bundle: Bundle? = nil, locale: Locale = .current
+) -> BranchPicker {
     let wanted = query.trimmingCharacters(in: .whitespaces)
     let defaults = workspace.defaultBranch.map { [$0, "origin/\($0)"] } ?? []
     let onOrigin = Set(workspace.branches.filter(\.remote).map(\.name))
@@ -212,38 +217,36 @@ public func branchPicker(_ workspace: WorkspaceInfo, query: String = "", now: Da
         }
     return BranchPicker(
         local: rows.filter { $0.remote == false }.map(\.row), remote: rows.filter(\.remote).map(\.row),
-        fetched: fetchedLine(workspace.fetchedAt, now: now), unreachable: unreachable ? unreachableLine : nil
+        fetched: fetchedLine(workspace.fetchedAt, now: now, bundle: bundle, locale: locale), unreachable: unreachable ? unreachableLine(bundle: bundle, locale: locale) : nil
     )
 }
 
 /// The footer's words when the fetch that runs on choosing a project could not reach `origin`; with them, `fetchedLine` says since when the branches stand.
-public let unreachableLine = "Could not reach origin"
+public func unreachableLine(bundle: Bundle? = nil, locale: Locale = .current) -> String { Copy.newSessionUnreachable(bundle: bundle, locale: locale) }
 
 /// The warning under the picker's "from" chip, nil when there is nothing to say: with Local chosen, that the branch is behind its copy on
 /// `origin`; with Remote chosen, that the local branch has commits not pushed that the worktree will not have.
-public func startWarning(_ point: StartPoint?, in workspace: WorkspaceInfo?) -> String? {
+public func startWarning(_ point: StartPoint?, in workspace: WorkspaceInfo?, bundle: Bundle? = nil, locale: Locale = .current) -> String? {
     guard let point, let side = point.side, let local = workspace?.branches.first(where: { $0.remote == false && $0.name == point.branch }) else { return nil }
-    func commits(_ count: Int) -> String { "\(count) \(count == 1 ? "commit" : "commits")" }
     switch side {
     case .local:
         guard let behind = local.behind, behind > 0 else { return nil }
-        return "\(point.branch) is \(commits(behind)) behind origin/\(point.branch), so the worktree starts without \(behind == 1 ? "it" : "them")."
+        return Copy.newSessionStartBehind(branch: point.branch, count: behind, bundle: bundle, locale: locale)
     case .remote:
         guard let ahead = local.ahead, ahead > 0 else { return nil }
-        return "\(point.branch) has \(commits(ahead)) not pushed to origin/\(point.branch), so the worktree will not have \(ahead == 1 ? "it" : "them")."
+        return Copy.newSessionStartNotPushed(branch: point.branch, count: ahead, bundle: bundle, locale: locale)
     }
 }
 
 /// "Fetched 5 minutes ago"; "Never fetched" when the folder has no record of one.
-public func fetchedLine(_ at: Int?, now: Date) -> String {
-    guard let at else { return "Never fetched" }
+public func fetchedLine(_ at: Int?, now: Date, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+    guard let at else { return Copy.newSessionFetchedNever(bundle: bundle, locale: locale) }
     let seconds = max(0, Int(now.timeIntervalSince1970) - at / 1000)
-    func unit(_ count: Int, _ name: String) -> String { "Fetched \(count) \(name)\(count == 1 ? "" : "s") ago" }
     switch seconds {
-    case ..<60: return "Fetched just now"
-    case ..<3600: return unit(seconds / 60, "minute")
-    case ..<86_400: return unit(seconds / 3600, "hour")
-    default: return unit(seconds / 86_400, "day")
+    case ..<60: return Copy.newSessionFetchedNow(bundle: bundle, locale: locale)
+    case ..<3600: return Copy.newSessionFetchedMinutes(count: seconds / 60, bundle: bundle, locale: locale)
+    case ..<86_400: return Copy.newSessionFetchedHours(count: seconds / 3600, bundle: bundle, locale: locale)
+    default: return Copy.newSessionFetchedDays(count: seconds / 86_400, bundle: bundle, locale: locale)
     }
 }
 
@@ -256,6 +259,6 @@ public enum NameState: Equatable {
     case problem(String)
 }
 
-public func stateOfName(_ check: NameCheck) -> NameState {
-    check.valid && check.free ? .free : .problem(check.reason ?? "That name cannot be used")
+public func stateOfName(_ check: NameCheck, bundle: Bundle? = nil, locale: Locale = .current) -> NameState {
+    check.valid && check.free ? .free : .problem(check.reason ?? Copy.newSessionNameCannotBeUsed(bundle: bundle, locale: locale))
 }

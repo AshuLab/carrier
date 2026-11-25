@@ -100,74 +100,76 @@ private let file: Kind = .object(["projects": Field(.list(entry))])
 
 private func isBool(_ value: Any) -> Bool { CFGetTypeID(value as CFTypeRef) == CFBooleanGetTypeID() }
 
-private func problems(_ value: Any, _ kind: Kind, at path: String) -> [ProjectsProblem] {
+private func problems(_ value: Any, _ kind: Kind, at path: String, bundle: Bundle?, locale: Locale) -> [ProjectsProblem] {
     func problem(_ message: String, _ at: String = path) -> [ProjectsProblem] { [ProjectsProblem(path: at, message: message)] }
     func child(_ key: String) -> String { path.isEmpty ? key : path + "." + key }
     func blank(_ text: String) -> Bool { text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    let notString = Copy.projectsProblemNotString(bundle: bundle, locale: locale)
+    let notBlank = Copy.projectsProblemBlank(bundle: bundle, locale: locale)
     switch kind {
     case .path:
-        guard let text = value as? String else { return problem("must be a string") }
-        return text.hasPrefix("/") || text == "~" || text.hasPrefix("~/") ? [] : problem("must be an absolute path or start with ~/")
+        guard let text = value as? String else { return problem(notString) }
+        return text.hasPrefix("/") || text == "~" || text.hasPrefix("~/") ? [] : problem(Copy.projectsProblemNotAbsolute(bundle: bundle, locale: locale))
     case .text:
-        guard let text = value as? String else { return problem("must be a string") }
-        return blank(text) ? problem("must not be blank") : []
+        guard let text = value as? String else { return problem(notString) }
+        return blank(text) ? problem(notBlank) : []
     case .nonEmpty:
-        guard let text = value as? String else { return problem("must be a string") }
-        return text.isEmpty ? problem("must not be empty") : []
+        guard let text = value as? String else { return problem(notString) }
+        return text.isEmpty ? problem(Copy.projectsProblemEmpty(bundle: bundle, locale: locale)) : []
     case .bool:
-        return isBool(value) ? [] : problem("must be true or false")
+        return isBool(value) ? [] : problem(Copy.projectsProblemNotBool(bundle: bundle, locale: locale))
     case .choice(let allowed):
-        guard let text = value as? String, allowed.contains(text) else { return problem("must be one of \(allowed.joined(separator: ", "))") }
+        guard let text = value as? String, allowed.contains(text) else { return problem(Copy.projectsProblemChoice(allowed: allowed.joined(separator: ", "), bundle: bundle, locale: locale)) }
         return []
     case .tags:
-        guard let tags = value as? [Any] else { return problem("must be a list") }
+        guard let tags = value as? [Any] else { return problem(Copy.projectsProblemNotList(bundle: bundle, locale: locale)) }
         var found: [ProjectsProblem] = []
         for (index, tag) in tags.enumerated() {
-            guard let text = tag as? String else { found += problem("must be a string", child(String(index))); continue }
-            if blank(text) { found += problem("must not be blank", child(String(index))) }
-            else if text != text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() { found += problem("must be trimmed and lower case", child(String(index))) }
+            guard let text = tag as? String else { found += problem(notString, child(String(index))); continue }
+            if blank(text) { found += problem(notBlank, child(String(index))) }
+            else if text != text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() { found += problem(Copy.projectsProblemTagTrimmed(bundle: bundle, locale: locale), child(String(index))) }
         }
         let names = tags.compactMap { $0 as? String }
-        return found.isEmpty && Set(names).count != names.count ? problem("must not repeat a tag") : found
+        return found.isEmpty && Set(names).count != names.count ? problem(Copy.projectsProblemTagRepeats(bundle: bundle, locale: locale)) : found
     case .stringMap:
-        guard let object = value as? [String: Any] else { return problem("must be an object") }
-        return object.keys.sorted().flatMap { problems(object[$0] as Any, .nonEmpty, at: child($0)) }
+        guard let object = value as? [String: Any] else { return problem(Copy.projectsProblemNotObject(bundle: bundle, locale: locale)) }
+        return object.keys.sorted().flatMap { problems(object[$0] as Any, .nonEmpty, at: child($0), bundle: bundle, locale: locale) }
     case .object(let fields):
-        guard let object = value as? [String: Any] else { return problem("must be an object") }
-        var found = object.keys.sorted().filter { fields[$0] == nil }.map { ProjectsProblem(path: child($0), message: "is not a key of projects.json") }
+        guard let object = value as? [String: Any] else { return problem(Copy.projectsProblemNotObject(bundle: bundle, locale: locale)) }
+        var found = object.keys.sorted().filter { fields[$0] == nil }.map { ProjectsProblem(path: child($0), message: Copy.projectsProblemUnknownKey(bundle: bundle, locale: locale)) }
         for key in fields.keys.sorted() {
             guard let field = fields[key] else { continue }
-            if let present = object[key] { found += problems(present, field.kind, at: child(key)) }
-            else if field.required { found += problem("is required", child(key)) }
+            if let present = object[key] { found += problems(present, field.kind, at: child(key), bundle: bundle, locale: locale) }
+            else if field.required { found += problem(Copy.projectsProblemRequired(bundle: bundle, locale: locale), child(key)) }
         }
         return found
     case .list(let item):
-        guard let items = value as? [Any] else { return problem("must be a list") }
-        return items.enumerated().flatMap { problems($1, item, at: child(String($0))) }
+        guard let items = value as? [Any] else { return problem(Copy.projectsProblemNotList(bundle: bundle, locale: locale)) }
+        return items.enumerated().flatMap { problems($1, item, at: child(String($0)), bundle: bundle, locale: locale) }
     }
 }
 
-private func parse(_ data: Data?) throws -> [String: Any] {
+private func parse(_ data: Data?, bundle: Bundle?, locale: Locale) throws -> [String: Any] {
     guard let data else { return [:] }
     let json: Any
     do { json = try JSONSerialization.jsonObject(with: data) } catch {
-        throw ProjectsFileError.invalid([ProjectsProblem(path: "(file)", message: "is not valid JSON")])
+        throw ProjectsFileError.invalid([ProjectsProblem(path: "(file)", message: Copy.projectsProblemInvalidJson(bundle: bundle, locale: locale))])
     }
-    var found = problems(json, file, at: "")
+    var found = problems(json, file, at: "", bundle: bundle, locale: locale)
     if found.isEmpty, let object = json as? [String: Any] {
         var seen = Set<String>()
         let projects = object["projects"] as? [[String: Any]] ?? []
         for (index, item) in projects.enumerated() where seen.insert(item["path"] as? String ?? "").inserted == false {
-            found.append(ProjectsProblem(path: "projects.\(index).path", message: "repeats the path of an earlier project"))
+            found.append(ProjectsProblem(path: "projects.\(index).path", message: Copy.projectsProblemRepeatsPath(bundle: bundle, locale: locale)))
         }
         if found.isEmpty { return object }
     }
     throw ProjectsFileError.invalid(found.map { $0.path.isEmpty ? ProjectsProblem(path: "(root)", message: $0.message) : $0 })
 }
 
-/// The entries of the file's bytes, nil being a file that is not there (no projects). Throws `invalid` naming each field that is wrong.
-public func readProjects(_ data: Data?) throws -> [ProjectEntry] {
-    (try parse(data)["projects"] as? [[String: Any]] ?? []).map(ProjectEntry.init(json:))
+/// The entries of the file's bytes, nil being a file that is not there (no projects). Throws `invalid` naming each field that is wrong, in the words of `bundle` and `locale`.
+public func readProjects(_ data: Data?, bundle: Bundle? = nil, locale: Locale = .current) throws -> [ProjectEntry] {
+    (try parse(data, bundle: bundle, locale: locale)["projects"] as? [[String: Any]] ?? []).map(ProjectEntry.init(json:))
 }
 
 /// What adding a folder did: it became an entry, or it already was one (its path as the file has it).
@@ -200,7 +202,7 @@ public struct ProjectsFile {
     /// The bytes; nil when the file is not there, an error when it is there and cannot be read.
     private func bytes() throws -> Data? { FileManager.default.fileExists(atPath: url.path) ? try Data(contentsOf: url) : nil }
 
-    public func read() throws -> [ProjectEntry] { try readProjects(bytes()) }
+    public func read(bundle: Bundle? = nil, locale: Locale = .current) throws -> [ProjectEntry] { try readProjects(bytes(), bundle: bundle, locale: locale) }
 }
 
 extension WorkIn {

@@ -49,7 +49,7 @@ struct ConversationBox: View {
                     // the agents the host can switch the session to; with none listed (an older host) the panel shows the session's own
                     providers: model.switchTargets.isEmpty
                         ? (model.agent.isEmpty ? [] : [ProviderTab(name: model.agent, icon: AgentAccounts.harness(of: model.agent))])
-                        : model.switchTargets.map { ProviderTab(name: $0.name, icon: $0.harness, available: $0.available, note: $0.note) },
+                        : model.switchTargets.map { ProviderTab(name: $0.name, icon: $0.harness, available: $0.available, note: $0.note()) },
                     agent: model.pendingAgent ?? model.agent, locked: model.canSwitchNow == false,
                     options: model.shownOptions,
                     // a closed session lists what it offered when it last ran, and what is chosen waits for the message that wakes it; one the app

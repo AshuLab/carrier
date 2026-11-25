@@ -26,19 +26,20 @@ public struct AvailableRepo: Decodable, Equatable, Sendable {
 }
 
 /// "pushed 3 d ago", "pushed 1 y 2 mo ago"; empty when GitHub gave no time.
-public func pushedLine(_ iso: String?, now: Date) -> String {
+public func pushedLine(_ iso: String?, now: Date, bundle: Bundle? = nil, locale: Locale = .current) -> String {
     guard let iso, let date = ISO8601DateFormatter().date(from: iso) else { return "" }
     let seconds = max(0, Int(now.timeIntervalSince(date)))
     let days = seconds / 86_400
     switch seconds {
-    case ..<3600: return "pushed just now"
-    case ..<86_400: return "pushed \(seconds / 3600) h ago"
+    case ..<3600: return Copy.projectsPushedNow(bundle: bundle, locale: locale)
+    case ..<86_400: return Copy.projectsPushedHours(count: seconds / 3600, bundle: bundle, locale: locale)
     default:
-        if days == 1 { return "pushed yesterday" }
-        if days < 14 { return "pushed \(days) d ago" }
-        if days < 60 { return "pushed \(days / 7) w ago" }
-        if days < 365 { return "pushed \(days / 30) mo ago" }
+        if days == 1 { return Copy.projectsPushedYesterday(bundle: bundle, locale: locale) }
+        if days < 14 { return Copy.projectsPushedDays(count: days, bundle: bundle, locale: locale) }
+        if days < 60 { return Copy.projectsPushedWeeks(count: days / 7, bundle: bundle, locale: locale) }
+        if days < 365 { return Copy.projectsPushedMonths(count: days / 30, bundle: bundle, locale: locale) }
         let months = min(11, days % 365 / 30)
-        return "pushed \(days / 365) y\(months > 0 ? " \(months) mo" : "") ago"
+        if months > 0 { return Copy.projectsPushedYearsMonths(years: days / 365, months: months, bundle: bundle, locale: locale) }
+        return Copy.projectsPushedYears(years: days / 365, bundle: bundle, locale: locale)
     }
 }

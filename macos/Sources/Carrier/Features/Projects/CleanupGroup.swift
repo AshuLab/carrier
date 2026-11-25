@@ -14,17 +14,15 @@ struct CleanupGroup: View {
 
     var body: some View {
         SettingsGroup(
-            id: "cleanup", title: "Cleanup",
-            footer: cleanup.enabled
-                ? "In a message box and in the widget the raw text is used when the server is down, the model is missing or it does not answer in 30 seconds."
-                : "The server, the model, the prompt and the test appear when it is on."
+            id: "cleanup", title: Copy.cleanupGroupTitle(),
+            footer: cleanup.enabled ? Copy.cleanupGroupFooterOn() : Copy.cleanupGroupFooterOff()
         ) {
             SettingsTabRow(
-                id: "clean-the-text-with-a-model", title: "Clean the text with a model",
-                detail: cleanup.enabled && cleanup.canBeOn == false ? "Choose a server and a model below; until then the text stays as dictated" : "After you dictate, a model on this Mac rewrites the text with your prompt",
+                id: "clean-the-text-with-a-model", title: Copy.cleanupGroupToggle(),
+                detail: cleanup.enabled && cleanup.canBeOn == false ? Copy.cleanupGroupToggleDetailNeeds() : Copy.cleanupGroupToggleDetail(),
                 first: true
             ) {
-                Toggle("Clean the text with a model", isOn: Binding(get: { cleanup.enabled }, set: { cleanup.setEnabled($0) }))
+                Toggle(Copy.cleanupGroupToggle(), isOn: Binding(get: { cleanup.enabled }, set: { cleanup.setEnabled($0) }))
                     .labelsHidden().toggleStyle(.switch)
             }
             // the switch is the whole group's: off, there is nothing else to set, so nothing else is drawn
@@ -36,24 +34,24 @@ struct CleanupGroup: View {
         .onChange(of: cleanup.test) { _, test in
             // the result appears under the button, where VoiceOver is not looking
             switch test {
-            case .done(let result): AccessibilityNotification.Announcement("Cleaned in \(String(format: "%.1f", result.seconds)) seconds: \(result.text)").post()
-            case .failed(let failure): AccessibilityNotification.Announcement("Could not clean: \(failure.message)").post()
+            case .done(let result): AccessibilityNotification.Announcement(Copy.cleanupGroupAnnounceDone(seconds: String(format: "%.1f", result.seconds), text: result.text)).post()
+            case .failed(let failure): AccessibilityNotification.Announcement(Copy.cleanupGroupAnnounceFailed(reason: failure.message)).post()
             default: break
             }
         }
     }
 
     private var serverRow: some View {
-        SettingsTabRow(id: "server", title: "Server", detail: "Runs on this Mac; nothing leaves it") {
+        SettingsTabRow(id: "server", title: Copy.cleanupGroupServer(), detail: Copy.cleanupGroupServerDetail()) {
             HStack(spacing: Tokens.Space.s8) {
                 switch cleanup.serverState {
-                case .running: StatusChip(text: "Running", tint: .green)
-                case .notRunning: StatusChip(text: "Not running", tint: .orange)
+                case .running: StatusChip(text: Copy.cleanupGroupRunning(), tint: .green)
+                case .notRunning: StatusChip(text: Copy.cleanupGroupNotRunning(), tint: .orange)
                 case .unknown: EmptyView()
                 }
                 ChoicePopUp(
-                    label: "Server",
-                    options: [(value: "", title: "Choose…")] + CleanupServer.allCases.map { (value: $0.rawValue, title: $0.title) },
+                    label: Copy.cleanupGroupServer(),
+                    options: [(value: "", title: Copy.projectsChooseEllipsis())] + CleanupServer.allCases.map { (value: $0.rawValue, title: $0.title) },
                     selection: Binding(get: { cleanup.server?.rawValue ?? "" }, set: { cleanup.choose(server: CleanupServer(rawValue: $0)) })
                 )
             }
@@ -65,10 +63,10 @@ struct CleanupGroup: View {
         if case .running(let models) = cleanup.serverState { listed = models }
         // the saved model stays on the list when the server is down or no longer lists it, so the popup still shows what is chosen
         let kept = cleanup.model.flatMap { listed.contains($0) ? nil : [$0] } ?? []
-        let detail = cleanup.server == nil ? "Choose a server first" : cleanup.serverState == .notRunning ? "Start the server to see its models" : "Small models are faster; the paste waits for it"
-        return SettingsTabRow(id: "model", title: "Model", detail: detail) {
+        let detail = cleanup.server == nil ? Copy.cleanupGroupModelDetailNoServer() : cleanup.serverState == .notRunning ? Copy.cleanupGroupModelDetailDown() : Copy.cleanupGroupModelDetail()
+        return SettingsTabRow(id: "model", title: Copy.cleanupGroupModel(), detail: detail) {
             ChoicePopUp(
-                label: "Model", options: [(value: "", title: "Choose…")] + (kept + listed).map { (value: $0, title: $0) },
+                label: Copy.cleanupGroupModel(), options: [(value: "", title: Copy.projectsChooseEllipsis())] + (kept + listed).map { (value: $0, title: $0) },
                 selection: Binding(get: { cleanup.model ?? "" }, set: { cleanup.choose(model: $0.isEmpty ? nil : $0) })
             )
             .disabled(cleanup.server == nil)
@@ -76,21 +74,21 @@ struct CleanupGroup: View {
     }
 
     private var promptRow: some View {
-        SettingsStackedRow(id: "prompt", title: "Prompt", detail: "What you ask the model to do with every dictation: drop filler words, translate, make it technical…") {
+        SettingsStackedRow(id: "prompt", title: Copy.cleanupGroupPrompt(), detail: Copy.cleanupGroupPromptDetail()) {
             TextEditor(text: Binding(get: { cleanup.prompt }, set: { cleanup.set(prompt: $0) }))
                 .scaledFont(13).scrollContentBackground(.hidden).frame(height: 96).settingsField()
-                .writingToolsBehavior(.disabled).accessibilityLabel("Cleanup prompt")
+                .writingToolsBehavior(.disabled).accessibilityLabel(Copy.cleanupGroupPromptLabel())
         }
     }
 
     /// The test: the sample the model gets, then what it gives back, each under its own label, so it is plain which text is cleaned and what came out.
     private var tryRow: some View {
-        SettingsStackedRow(id: "try-it", title: "Try it", detail: "Runs the prompt above on this sample dictation, as the model will get it") {
+        SettingsStackedRow(id: "try-it", title: Copy.cleanupGroupTry(), detail: Copy.cleanupGroupTryDetail()) {
             VStack(alignment: .leading, spacing: Tokens.Space.s20) {
-                testPanel("Dictated", text: cleanupSample, tint: .secondary)
+                testPanel(Copy.cleanupGroupDictated(), text: cleanupSample, tint: .secondary)
                 HStack {
                     Spacer()
-                    Button { Task { await cleanup.runTest() } } label: { Label("Clean this sample", icon: .arrowDown) }
+                    Button { Task { await cleanup.runTest() } } label: { Label(Copy.cleanupGroupCleanSample(), icon: .arrowDown) }
                         .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).disabled(cleanup.test == .running)
                     Spacer()
                 }
@@ -105,7 +103,7 @@ struct CleanupGroup: View {
             HStack {
                 Text(label).sectionLabel()
                 Spacer()
-                if let seconds { Text(String(format: "%.1f s", seconds)).scaledFont(11).foregroundStyle(.secondary).monospacedDigit() }
+                if let seconds { Text(Copy.cleanupGroupSeconds(seconds: String(format: "%.1f", seconds))).scaledFont(11).foregroundStyle(.secondary).monospacedDigit() }
             }
             Text(text).scaledFont(13).foregroundStyle(tint).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -117,10 +115,10 @@ struct CleanupGroup: View {
     @ViewBuilder private var testOutput: some View {
         switch cleanup.test {
         case .idle:
-            testPlaceholder("Cleaned", "The result appears here. If the model fails or is slow, the raw text is used and the widget says so.")
+            testPlaceholder(Copy.cleanupGroupCleaned(), Copy.cleanupGroupPlaceholder())
         case .running: testWorking
         case .done(let result):
-            testPanel("Cleaned", text: result.text, tint: .primary, seconds: result.seconds)
+            testPanel(Copy.cleanupGroupCleaned(), text: result.text, tint: .primary, seconds: result.seconds)
         case .failed(let failure): testFailure(failure.message)
         }
     }
@@ -129,10 +127,10 @@ struct CleanupGroup: View {
     private var testWorking: some View {
         VStack(alignment: .leading, spacing: Tokens.Space.s10) {
             HStack(spacing: Tokens.Space.s6) {
-                Text("Cleaned").sectionLabel()
+                Text(Copy.cleanupGroupCleaned()).sectionLabel()
                 Spacer()
                 ProgressView().controlSize(.mini)
-                Text("Cleaning…").scaledFont(11).foregroundStyle(.secondary)
+                Text(Copy.cleanupGroupCleaning()).scaledFont(11).foregroundStyle(.secondary)
             }
             VStack(alignment: .leading, spacing: Tokens.Space.s8) {
                 RoundedRectangle(cornerRadius: Tokens.Radius.tiny).fill(Color.primary.opacity(0.14)).frame(height: 9)
@@ -149,7 +147,7 @@ struct CleanupGroup: View {
     /// The box of the answer when the model gave none: the same box in orange, with the cause as a sentence.
     private func testFailure(_ message: String) -> some View {
         VStack(alignment: .leading, spacing: Tokens.Space.s6) {
-            Label("Could not clean", icon: .warningFilled).sectionLabel().foregroundStyle(.orange)
+            Label(Copy.cleanupGroupCouldNot(), icon: .warningFilled).sectionLabel().foregroundStyle(.orange)
             Text(message).scaledFont(13).foregroundStyle(.primary).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading).padding(Tokens.Space.s12)

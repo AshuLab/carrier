@@ -25,8 +25,8 @@ struct NewSessionView: View {
             Spacer(minLength: 0)
             // the title carries the page alone: large, and centred however many lines it takes
             VStack(spacing: Tokens.Space.s6) {
-                Text("What do you want to work on?").scaledFont(28, weight: .semibold)
-                Text("Pick where it works, then write.").font(.title3).foregroundStyle(.secondary)
+                Text(Copy.newSessionTitle()).scaledFont(28, weight: .semibold)
+                Text(Copy.newSessionSubtitle()).font(.title3).foregroundStyle(.secondary)
             }
             .multilineTextAlignment(.center).frame(maxWidth: .infinity)
             .padding(.bottom, Tokens.Space.s14)
@@ -35,7 +35,7 @@ struct NewSessionView: View {
                 box
                 if let warning = model.warning { uncommittedNotice(warning) }
                 if let reason = model.noAgentReason { ProblemNotice(sentences: reason) }
-                if model.hostOlder { ProblemNotice(sentences: NewSessionModel.olderHostNotice) }
+                if model.hostOlder { ProblemNotice(sentences: model.olderHostNotice) }
                 if model.gitMissing { HealthFixButton(tool: .git, state: .missing) }
                 if model.sendSteps.isEmpty == false { sendSteps }
                 if let refusal = model.refusal {
@@ -77,49 +77,49 @@ struct NewSessionView: View {
     @ViewBuilder private var sentence: some View {
         VStack(alignment: .leading, spacing: Tokens.Space.s6) {
             FlowLayout(spacing: Tokens.Space.s8) {
-                Text("Work in")
+                Text(Copy.newSessionWorkIn())
                 Button {
                     if foldersOpen == false { model.openPicker() }
                     foldersOpen.toggle()
                 } label: {
                     chip(
-                        model.folder.map { URL(fileURLWithPath: $0).lastPathComponent } ?? "Choose a workspace…",
+                        model.folder.map { URL(fileURLWithPath: $0).lastPathComponent } ?? Copy.newSessionChooseWorkspace(),
                         tint: model.folder == nil ? .orange : .primary
                     )
                 }
-                .buttonStyle(SelectButtonStyle()).accessibilityLabel("Workspace")
+                .buttonStyle(SelectButtonStyle()).accessibilityLabel(Copy.newSessionWorkspace())
                 .sheet(isPresented: $foldersOpen) { AddProjectSheet(mode: .newSession, model: ProjectsModel.shared, recent: model.recent, newSession: model, openHealth: openHealth).themed() }
                 // GitHub's branches are being read, or the fetch that choosing a project starts is bringing its own up to date
-                if model.loadingBranches || model.fetching { ProgressView().controlSize(.small).accessibilityLabel(model.fetching ? "Fetching branches" : "Reading branches") }
+                if model.loadingBranches || model.fetching { ProgressView().controlSize(.small).accessibilityLabel(model.fetching ? Copy.newSessionFetchingBranches() : Copy.newSessionReadingBranches()) }
                 if model.folder != nil {
                     if model.offersWorktree {
-                        Text("on")
-                        Button { whereOpen.toggle() } label: { chip(model.worktree ? "New worktree" : "Current folder", icon: model.worktree ? .copy : .folder) }
-                            .buttonStyle(SelectButtonStyle()).accessibilityLabel("Where it works")
+                        Text(Copy.newSessionOn())
+                        Button { whereOpen.toggle() } label: { chip(model.worktree ? Copy.newSessionNewWorktree() : Copy.newSessionCurrentFolder(), icon: model.worktree ? .copy : .folder) }
+                            .buttonStyle(SelectButtonStyle()).accessibilityLabel(Copy.newSessionWhereItWorks())
                             .sheet(isPresented: $whereOpen) { WhereItWorksSheet(model: model).themed() }
                         if model.worktree { worktreeControls } else { currentBranch }
                     } else {
-                        Text(rest)
+                        Text(model.sentenceRest)
                     }
                 }
             }
             .font(.body).foregroundStyle(.secondary)
             .accessibilityElement(children: .contain)
-            if model.branchesPartial { Text("Only the first branches GitHub lists are offered; the others can be checked out once the repository is on this Mac.").font(.subheadline).foregroundStyle(.secondary) }
+            if model.branchesPartial { Text(Copy.newSessionBranchesPartial()).font(.subheadline).foregroundStyle(.secondary) }
             if let note = model.projectNote { Label(note, icon: .folderPlus).font(.subheadline).foregroundStyle(.secondary).textSelection(.enabled) }
             if model.offersAddAsProject {
                 // a folder chosen with Open a folder stays a plain workspace until the person adds it
                 HStack(spacing: Tokens.Space.s8) {
-                    Button { Task { await model.addAsProject() } } label: { Label("Add as project", icon: .folderPlus).labelStyle(.titleAndIcon) }
+                    Button { Task { await model.addAsProject() } } label: { Label(Copy.newSessionAddAsProject(), icon: .folderPlus).labelStyle(.titleAndIcon) }
                         .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
-                        .help("Keep this folder in your projects")
+                        .help(Copy.newSessionAddAsProjectHelp())
                     if let problem = model.addProjectProblem { ProblemLine(text: problem, size: 12) }
                 }
             }
             if case .problem(let reason) = model.nameState, model.worktree {
-                ProblemNotice(title: "That name cannot be used", detail: reason)
+                ProblemNotice(title: Copy.newSessionNameCannotBeUsed(), detail: reason)
             }
-            if let problem = model.workspaceProblem { ProblemNotice(title: "Couldn't use this folder", detail: problem, failed: true) }
+            if let problem = model.workspaceProblem { ProblemNotice(title: Copy.newSessionFolderFailed(), detail: problem, failed: true) }
         }
     }
 
@@ -132,15 +132,9 @@ struct NewSessionView: View {
 
     /// The branch the chosen folder is on: a chip that opens its local branches, like the other controls.
     private var currentBranch: some View {
-        Button { currentBranchOpen.toggle() } label: { chip(model.picked ?? model.workspace?.branch ?? "detached HEAD", icon: .gitBranch) }
-            .buttonStyle(SelectButtonStyle()).accessibilityLabel("Branch of the folder")
+        Button { currentBranchOpen.toggle() } label: { chip(model.picked ?? model.workspace?.branch ?? Copy.newSessionDetachedHead(), icon: .gitBranch) }
+            .buttonStyle(SelectButtonStyle()).accessibilityLabel(Copy.newSessionBranchOfFolder())
             .sheet(isPresented: $currentBranchOpen) { BranchSheet(model: model, browsing: true).themed() }
-    }
-
-    /// What `model.sentence` says after "Work in <workspace> ".
-    private var rest: String {
-        let head = "Work in \(model.folder.map { URL(fileURLWithPath: $0).lastPathComponent } ?? "") "
-        return model.sentence.hasPrefix(head) ? String(model.sentence.dropFirst(head.count)) : model.sentence
     }
 
     /// A control of the sentence, with the face of every select of the app: an icon if it has one, its value and `SelectChevron` after it. Its
@@ -196,12 +190,12 @@ struct NewSessionView: View {
             // the prefix and the name are one word to the eye: no space between them
             HStack(spacing: Tokens.Space.none) {
                 Text(worktreeBranchPrefix).foregroundStyle(.secondary)
-                TextField("name", text: $model.worktreeName)
+                TextField(Copy.newSessionNamePlaceholder(), text: $model.worktreeName)
                     .textFieldStyle(.plain).autocorrectionDisabled().fixedSize()
-                    .foregroundStyle(nameColor).accessibilityLabel("Worktree name")
+                    .foregroundStyle(nameColor).accessibilityLabel(Copy.newSessionWorktreeName())
             }
             Button { Task { await model.rollName() } } label: { Glyph(.refresh, size: 13) }
-                .buttonStyle(.plain).foregroundStyle(.secondary).help("Pick another name").accessibilityLabel("Suggest another name")
+                .buttonStyle(.plain).foregroundStyle(.secondary).help(Copy.newSessionPickAnother()).accessibilityLabel(Copy.newSessionSuggestAnother())
         }
         .font(.callout.monospaced())
         .padding(.horizontal, Tokens.Space.s10).frame(height: controlHeight)
@@ -209,11 +203,11 @@ struct NewSessionView: View {
         .overlay(RoundedRectangle(cornerRadius: Tokens.Radius.control).strokeBorder(nameBorder, lineWidth: 1))
         // the name is checked a moment after typing; typing again cancels the check that was waiting
         .task(id: model.worktreeName) { await model.verifyName() }
-        Text("from")
+        Text(Copy.newSessionFrom())
         // the chip wears the colour of the side the worktree is cut from: the remote copy or the local branch
-        Button { branchesOpen.toggle() } label: { chip(model.startPoint?.ref ?? "Choose a branch…", tint: model.startPoint?.side?.tint ?? .primary, icon: model.startPoint?.side?.icon ?? .gitBranch) }
-            .buttonStyle(SelectButtonStyle()).accessibilityLabel("Start branch")
-            .accessibilityValue(model.startPoint.map { "\($0.side?.tabTitle ?? "Local") \($0.ref)" } ?? "none chosen")
+        Button { branchesOpen.toggle() } label: { chip(model.startPoint?.ref ?? Copy.newSessionChooseBranch(), tint: model.startPoint?.side?.tint ?? .primary, icon: model.startPoint?.side?.icon ?? .gitBranch) }
+            .buttonStyle(SelectButtonStyle()).accessibilityLabel(Copy.newSessionStartBranch())
+            .accessibilityValue(model.startPoint.map { "\(($0.side ?? .local).tabTitle()) \($0.ref)" } ?? Copy.newSessionNoneChosen())
             .sheet(isPresented: $branchesOpen) { BranchSheet(model: model).themed() }
     }
 
@@ -229,14 +223,14 @@ struct NewSessionView: View {
     /// model, the reasoning and the access.
     private var box: some View {
         MessageBox(
-            text: $model.text, placeholder: model.folder == nil ? "Choose a workspace to start…" : "Write the first message…",
-            canSend: model.canSend, canSendWithText: model.canSendWithText, sendHelp: model.canSend ? "Send" : model.hostOlder ? NewSessionModel.olderHostNotice : model.noAgentReason ?? "Choose a workspace and write a message",
+            text: $model.text, placeholder: model.folder == nil ? Copy.newSessionPlaceholderNone() : Copy.newSessionPlaceholderWrite(),
+            canSend: model.canSend, canSendWithText: model.canSendWithText, sendHelp: model.canSend ? Copy.newSessionSend() : model.hostOlder ? model.olderHostNotice : model.noAgentReason ?? Copy.newSessionSendHelp(),
             focus: $boxFocused, commands: model.agentCommands, dictationOwner: "new-session", dictateRequest: dictations, send: send
         ) {
             ComposerMenuButton(
-                providers: model.agents.map { ProviderTab(name: $0.name, icon: $0.harness, available: $0.available, note: $0.note) }, agent: model.agent ?? "",
+                providers: model.agents.map { ProviderTab(name: $0.name, icon: $0.harness, available: $0.available, note: $0.note()) }, agent: model.agent ?? "",
                 options: model.shownOptions,
-                emptyNote: model.loadingOptions ? "Reading what the provider offers…" : "Each provider's models will be listed here.",
+                emptyNote: model.loadingOptions ? Copy.newSessionReadingOptions() : Copy.newSessionEmptyOptions(),
                 chooseAgent: { name in
                     model.agent = name
                     Task { await model.loadOptions() }
@@ -262,7 +256,7 @@ struct UncommittedNotice: View {
 
     var body: some View {
         NoticeCard(symbol: .exclamation, tint: .orange, title: title, detail: detail) {
-            if offersWorktree { Button("Use a worktree", action: useWorktree).buttonStyle(NoticeActionStyle()) }
+            if offersWorktree { Button(Copy.newSessionUseWorktree(), action: useWorktree).buttonStyle(NoticeActionStyle()) }
         }
     }
 }

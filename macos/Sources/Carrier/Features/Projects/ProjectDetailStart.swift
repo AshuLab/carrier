@@ -29,9 +29,9 @@ extension ProjectDetailView {
                 start.access[option] = value
                 Task { await model.setStart(start, path: row.path) }
             },
-            effortFallback: (label: "Same as everywhere", detail: "Follows Settings > Sessions."), inherited: PickerInherited(
+            effortFallback: (label: Copy.projectsSameAsEverywhere(), detail: Copy.projectsFollowsSessionsDetail()), inherited: PickerInherited(
                 provider: everywhereAgent.isEmpty ? nil : everywhereAgent, model: everywhereModel.isEmpty ? nil : everywhereModel,
-                effort: everywhereEffort.isEmpty ? nil : everywhereEffort, follows: "Settings > Sessions"
+                effort: everywhereEffort.isEmpty ? nil : everywhereEffort, follows: Copy.projectsFollowsSessions()
             ),
             allowsDefaultModel: true
         ) { pick in
@@ -63,7 +63,7 @@ extension ProjectDetailView {
     }
 
     var workInOptions: [(value: String?, title: String)] {
-        [(nil, "Default")] + ProjectPage(for: row).workIn.map { ($0.projectValue, $0 == .baseFolder ? "Base folder" : "New worktree") }
+        [(nil, Copy.projectsDefault())] + ProjectPage(for: row).workIn.map { ($0.projectValue, $0 == .baseFolder ? Copy.projectsWorkInBaseFolder() : Copy.projectsWorkInNewWorktree()) }
     }
 
     var branchOptions: [(value: String?, title: String)] {
@@ -73,6 +73,6 @@ extension ProjectDetailView {
             if names.contains(name) == false { names.append(name) }
         }
         if let named = row.defaults.baseBranch, names.contains(named) == false { names.append(named) }
-        return [(nil, "Default branch")] + names.map { ($0, $0) }
+        return [(nil, Copy.projectsDefaultBranch())] + names.map { ($0, $0) }
     }
 }

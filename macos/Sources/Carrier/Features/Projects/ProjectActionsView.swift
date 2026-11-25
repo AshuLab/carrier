@@ -25,11 +25,11 @@ struct ProjectActionsView: View {
         Group {
             group(
                 when: .newWorktree,
-                footer: "Runs in order when a session creates a new worktree, and again when a cleaned one comes back."
+                footer: Copy.projectsActionsFooterNewWorktree()
             )
             group(
                 when: .afterClone,
-                footer: "Runs in order in the folder right after a repository is cloned."
+                footer: Copy.projectsActionsFooterAfterClone()
             )
         }
         .writingToolsBehavior(.disabled)
@@ -39,11 +39,11 @@ struct ProjectActionsView: View {
 
     private func group(when: ProjectActionWhen, footer: String) -> some View {
         let items = drafts.filter { $0.action.when == when }
-        return SettingsGroup(title: when.title, footer: footer) {
+        return SettingsGroup(title: when.title(), footer: footer) {
             ForEach(Array(items.enumerated()), id: \.element.id) { offset, item in
                 actionRows(item, first: offset == 0)
             }
-            Button { add(when) } label: { Label("Add action", icon: .plus).labelStyle(.titleAndIcon) }
+            Button { add(when) } label: { Label(Copy.projectsAddAction(), icon: .plus).labelStyle(.titleAndIcon) }
                 .buttonStyle(HoverTextButtonStyle(tint: nil))
                 .padding(.vertical, Tokens.Space.s10)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -54,31 +54,31 @@ struct ProjectActionsView: View {
     @ViewBuilder private func actionRows(_ item: ProjectActionDraft, first: Bool) -> some View {
         let problems = projectActionProblems(item.action)
         let label = item.action.name.trimmingCharacters(in: .whitespacesAndNewlines)
-        let named = label.isEmpty ? "action" : label
-        SettingsTabRow(title: "Name", detail: "", first: first, problem: problems[.name]) {
+        let named = label.isEmpty ? Copy.projectsActionFallbackName() : label
+        SettingsTabRow(title: Copy.projectsName(), detail: "", first: first, problem: problems[.name]) {
             HStack(spacing: Tokens.Space.s10) {
-                TextField("", text: binding(item.id, \.name), prompt: Text("Install dependencies"))
-                    .accessibilityLabel("Name").settingsField(width: 200)
-                Toggle("On", isOn: binding(item.id, \.on))
+                TextField("", text: binding(item.id, \.name), prompt: Text(Copy.projectsActionNamePrompt()))
+                    .accessibilityLabel(Copy.projectsName()).settingsField(width: 200)
+                Toggle(Copy.projectsActionOn(), isOn: binding(item.id, \.on))
                     .labelsHidden().toggleStyle(.switch).controlSize(.mini)
-                    .accessibilityLabel("Enable \(named)")
-                    .help(item.action.on ? "Turn off" : "Turn on")
-                IconButton(icon: .trash, name: "Delete \(named)") { delete(item.id) }
+                    .accessibilityLabel(Copy.projectsActionEnable(name: named))
+                    .help(item.action.on ? Copy.projectsActionTurnOff() : Copy.projectsActionTurnOn())
+                IconButton(icon: .trash, name: Copy.projectsActionDelete(name: named)) { delete(item.id) }
             }
         }
         .accessibilityElement(children: .contain)
-        SettingsTabRow(title: "Command", detail: "Runs with sh -c", problem: problems[.command]) {
-            TextField("", text: binding(item.id, \.command), prompt: Text("pnpm install"))
+        SettingsTabRow(title: Copy.projectsActionCommand(), detail: Copy.projectsActionCommandDetail(), problem: problems[.command]) {
+            TextField("", text: binding(item.id, \.command), prompt: Text(Copy.projectsActionCommandPrompt()))
                 .scaledFont(11.5, design: .monospaced)
-                .accessibilityLabel("Command")
+                .accessibilityLabel(Copy.projectsActionCommand())
                 .settingsField(width: 282)
                 .writingToolsBehavior(.disabled)
         }
         .accessibilityElement(children: .contain)
-        SettingsTabRow(title: "If it fails", detail: "") {
+        SettingsTabRow(title: Copy.projectsActionIfFails(), detail: "") {
             ChoicePopUp(
-                label: "If it fails",
-                options: ProjectActionOnFail.allCases.map { (value: $0, title: $0.title) },
+                label: Copy.projectsActionIfFails(),
+                options: ProjectActionOnFail.allCases.map { (value: $0, title: $0.title()) },
                 selection: binding(item.id, \.onFail)
             )
         }

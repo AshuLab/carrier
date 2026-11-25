@@ -26,16 +26,23 @@ import Observation
     @ObservationIgnored private let remote: (String) -> String?
     @ObservationIgnored private let readChatConfig: () throws -> Data?
     @ObservationIgnored private let home: String
+    /// The language of the words the model says (the failures and the problems): the app's, unless a test says another.
+    @ObservationIgnored private let bundle: Bundle?
+    @ObservationIgnored private let locale: Locale
 
     public var carrierFolder: String { file.folder }
 
     public init(
         host: ChatHost = SocketChatHost(),
         file: ProjectsFile = .current(),
+        bundle: Bundle? = nil,
+        locale: Locale = .current,
         remote: @escaping (String) -> String? = originRepo(ofFolder:),
         readChatConfig: @escaping () throws -> Data? = currentChatConfig,
         home: String = NSHomeDirectory()
     ) {
+        self.bundle = bundle
+        self.locale = locale
         self.host = host
         self.file = file
         self.imageStore = ProjectIconStore(folder: file.folder)
@@ -52,11 +59,11 @@ import Observation
         var newRows: [ProjectRow] = []
         var newProblems: [ProjectsProblem] = []
         do {
-            newRows = projectRows(try file.read(), remote: remote)
+            newRows = projectRows(try file.read(bundle: bundle, locale: locale), remote: remote)
         } catch ProjectsFileError.invalid(let found) {
             newProblems = found
         } catch {
-            newProblems = [ProjectsProblem(path: "(file)", message: "cannot be read: \(error.localizedDescription)")]
+            newProblems = [ProjectsProblem(path: "(file)", message: Copy.projectsProblemUnreadable(reason: error.localizedDescription, bundle: bundle, locale: locale))]
         }
         if rows != newRows { rows = newRows }
         if problems != newProblems { problems = newProblems }
@@ -106,7 +113,7 @@ import Observation
     public func deletionCheck(of path: String) async throws -> (check: ProjectDeletionCheck, worktrees: [String]) {
         let reply = try await worktrees(of: path)
         let sessions = try await host.list(archived: false)
-        return (projectDeletionCheck(path: path, reply: reply, sessions: sessions), reply.worktrees.map(\.path))
+        return (projectDeletionCheck(path: path, reply: reply, sessions: sessions, bundle: bundle, locale: locale), reply.worktrees.map(\.path))
     }
 
     /// Moves the project's folder and `worktrees` to the Trash and, only when that worked, takes the project out of the list. A folder that cannot be moved
@@ -114,9 +121,9 @@ import Observation
     public func deleteFromDisk(path: String, worktrees: [String], trash: (URL) throws -> URL = systemTrash) async throws {
         // the question only offers it for what Carrier made, and this is the last place that can say no
         guard let entry = rows.first(where: { $0.path == path }), canDeleteFromDisk(origin: entry.origin) else {
-            throw ProjectTrashError(words: "Carrier only deletes the projects it made, so nothing was deleted")
+            throw ProjectTrashError(words: Copy.projectsDeleteOnlyMade(bundle: bundle, locale: locale))
         }
-        try moveProjectToTrash(path: path, worktrees: worktrees, carrierFolder: file.folder, home: home, trash: trash)
+        try moveProjectToTrash(path: path, worktrees: worktrees, carrierFolder: file.folder, home: home, trash: trash, bundle: bundle, locale: locale)
         await remove(path: path)
     }
 
@@ -170,20 +177,20 @@ import Observation
     /// `replacing` is the path of the project being pointed at `folder` (Locate…), which does not count as another. nil when it can; a file that does not
     /// read is left to the write, which says why.
     public func addRefusal(folder: String, replacing: String?) -> String? {
-        if let refusal = projectFolderRefusal(folder, carrierFolder: file.folder) { return refusal.shown() }
+        if let refusal = projectFolderRefusal(folder, carrierFolder: file.folder) { return refusal.shown(bundle: bundle, locale: locale) }
         let others = projectRows((try? file.read()) ?? [], remote: remote).filter { $0.path != replacing }
-        return worktreeClashRefusal(folder: folder, repo: remote(folder), among: others)?.shown()
+        return worktreeClashRefusal(folder: folder, repo: remote(folder), among: others)?.shown(bundle: bundle, locale: locale)
     }
 
     /// Points the project at `path` to `folder`, its new place, after the check for folders that cannot be projects; everything else of the entry stays and
     /// so do the sessions that remember the old path. False when nothing was written: `failure` says why.
     @discardableResult public func locate(path: String, to folder: String) async -> Bool {
         if let refusal = projectFolderRefusal(folder, carrierFolder: file.folder) {
-            failure = refusal.shown()
+            failure = refusal.shown(bundle: bundle, locale: locale)
             return false
         }
         if rows.contains(where: { $0.path != path && isSameFolder($0.path, folder) }) {
-            failure = "That folder is already a project"
+            failure = Copy.projectsFolderAlreadyProject(bundle: bundle, locale: locale)
             return false
         }
         if let refusal = addRefusal(folder: folder, replacing: path) {
@@ -203,7 +210,7 @@ import Observation
             projectsFolderProblem = nil
             projectsPath = projectsFolder(chatJSON: (try? readChatConfig()) ?? nil, carrierFolder: file.folder, home: home)
         } catch {
-            projectsFolderProblem = "\(Self.words(error)). The projects folder stays \(projectsPath)."
+            projectsFolderProblem = Copy.projectsFolderStays(reason: words(error), folder: projectsPath, bundle: bundle, locale: locale)
         }
     }
 
@@ -303,7 +310,7 @@ import Observation
         let previous = entries.first { $0.path == path }?.iconImage
         let name: String
         do { name = try save(imageStore) } catch {
-            failure = (error as? ProjectIconStoreError)?.localizedDescription ?? "The image could not be saved: \(error.localizedDescription)"
+            failure = (error as? ProjectIconStoreError)?.words(bundle: bundle, locale: locale) ?? Copy.projectsImageNotSaved(reason: error.localizedDescription, bundle: bundle, locale: locale)
             return false
         }
         guard await send(.editIcon(path: path, changes: ["image": .text(name)])) != nil else {
@@ -328,14 +335,14 @@ import Observation
             reload()
             return reply
         } catch {
-            failure = Self.words(error)
+            failure = words(error)
             reload()
             return nil
         }
     }
 
-    private static func words(_ error: Error) -> String {
-        if case ControlError.remote(let refusal) = error { return refusal.shown() }
-        return "projects.json cannot be changed: \(ConversationModel.words(error))"
+    private func words(_ error: Error) -> String {
+        if case ControlError.remote(let refusal) = error { return refusal.shown(bundle: bundle, locale: locale) }
+        return Copy.projectsCannotChange(reason: ConversationModel.words(error), bundle: bundle, locale: locale)
     }
 }

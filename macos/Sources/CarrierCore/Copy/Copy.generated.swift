@@ -4707,4 +4707,1704 @@ public enum Copy {
     public static func epicsLeadTurnOff(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         String(localized: "epicsLeadTurnOff", bundle: bundle ?? carrierResources, locale: locale)
     }
+
+    public static func projectsGroupNone(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsGroupNone", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsGroupTag(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsGroupTag", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsGroupCarrier(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsGroupCarrier", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsUntagged(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsUntagged", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsWatching(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsWatching", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsNotWatched(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsNotWatched", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsProblemOfFile(message: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsProblemOfFile \(message)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsProblemOfField(path: String, message: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsProblemOfField \(path) \(message)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsProblemNotString(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsProblemNotString", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsProblemNotAbsolute(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsProblemNotAbsolute", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsProblemBlank(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsProblemBlank", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsProblemEmpty(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsProblemEmpty", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsProblemNotBool(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsProblemNotBool", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsProblemChoice(allowed: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsProblemChoice \(allowed)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsProblemNotList(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsProblemNotList", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsProblemTagTrimmed(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsProblemTagTrimmed", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsProblemTagRepeats(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsProblemTagRepeats", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsProblemNotObject(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsProblemNotObject", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsProblemUnknownKey(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsProblemUnknownKey", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsProblemRequired(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsProblemRequired", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsProblemInvalidJson(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsProblemInvalidJson", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsProblemRepeatsPath(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsProblemRepeatsPath", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsProblemUnreadable(reason: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsProblemUnreadable \(reason)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsRemovalWords(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsRemovalWords", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsCloning(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsCloning", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsCloneFailed(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsCloneFailed", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsNotGit(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsNotGit", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsDeleteOnlyMade(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsDeleteOnlyMade", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsFolderAlreadyProject(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsFolderAlreadyProject", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsFolderStays(reason: String, folder: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsFolderStays \(reason) \(folder)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsImageNotSaved(reason: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsImageNotSaved \(reason)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsCannotChange(reason: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsCannotChange \(reason)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsImageUnreadable(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsImageUnreadable", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsImageNotPng(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsImageNotPng", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsActionWhenNewWorktree(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsActionWhenNewWorktree", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsActionWhenAfterClone(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsActionWhenAfterClone", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsActionOnFailWarn(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsActionOnFailWarn", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsActionOnFailStop(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsActionOnFailStop", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsActionNameBlank(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsActionNameBlank", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsActionCommandBlank(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsActionCommandBlank", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsActionsSummary(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsActionsSummary \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsWorktreeMainClone(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsWorktreeMainClone", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsWorktreeDetached(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsWorktreeDetached", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsWorktreeUntitled(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsWorktreeUntitled", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsWorktreeNoSession(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsWorktreeNoSession", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsWorktreeStateOpen(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsWorktreeStateOpen", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsWorktreeStateUncommitted(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsWorktreeStateUncommitted", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsWorktreeStateMerged(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsWorktreeStateMerged", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsWorktreeStateNotPushed(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsWorktreeStateNotPushed", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsWorktreeStateClean(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsWorktreeStateClean", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsWorktreeOpen(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsWorktreeOpen", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsCleanUpWords(count: Int, size: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsCleanUpWords \(count) \(size)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsCleanUpRemoved(taken: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsCleanUpRemoved \(taken)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsCleanUpSkipped(name: String, reason: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsCleanUpSkipped \(name) \(reason)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsCleanUpNothing(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsCleanUpNothing", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsDeleteFromDisk(worktrees: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsDeleteFromDisk \(worktrees)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsDeleteFromDiskSized(worktrees: Int, size: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsDeleteFromDiskSized \(worktrees) \(size)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsDeleteSessionWorking(name: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsDeleteSessionWorking \(name)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsDeleteSessionWaiting(name: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsDeleteSessionWaiting \(name)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsDeleteSessionOpen(name: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsDeleteSessionOpen \(name)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsDeleteWorktreeSessionOpen(branch: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsDeleteWorktreeSessionOpen \(branch)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsDeleteAWorktree(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsDeleteAWorktree", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsDeleteHostOlder(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsDeleteHostOlder", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsDeleteUncommitted(name: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsDeleteUncommitted \(name)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsDeleteNotPushed(name: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsDeleteNotPushed \(name)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsTrashHome(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsTrashHome", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsTrashTooHigh(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsTrashTooHigh", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsTrashLink(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsTrashLink", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsTrashNotGit(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsTrashNotGit", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsTrashNotWorktree(name: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsTrashNotWorktree \(name)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsTrashNothingRemoved(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsTrashNothingRemoved", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsTrashStuck(names: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsTrashStuck \(names)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsTrashCouldNotMove(name: String, reason: String, left: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsTrashCouldNotMove \(name) \(reason) \(left)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsDiskMeasuring(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsDiskMeasuring", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsDiskNotMeasured(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsDiskNotMeasured", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsDiskMeasuredNow(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsDiskMeasuredNow", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsDiskMeasuredAgo(age: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsDiskMeasuredAgo \(age)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsPushedNow(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsPushedNow", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsPushedHours(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsPushedHours \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsPushedYesterday(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsPushedYesterday", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsPushedDays(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsPushedDays \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsPushedWeeks(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsPushedWeeks \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsPushedMonths(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsPushedMonths \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsPushedYears(years: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsPushedYears \(years)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsPushedYearsMonths(years: Int, months: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsPushedYearsMonths \(years) \(months)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsFolderNotFound(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsFolderNotFound", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsStartRemoteLatest(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsStartRemoteLatest", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsStartLocalBranch(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsStartLocalBranch", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsStartTabRemote(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsStartTabRemote", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsStartTabLocal(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsStartTabLocal", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsStartOnlyNewWorktree(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsStartOnlyNewWorktree", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsRepoEpics(ready: Int, running: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsRepoEpics \(ready) \(running)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsRepoEpicsNeedsYou(epics: String, count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsRepoEpicsNeedsYou \(epics) \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsWatchNoOrigin(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsWatchNoOrigin", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsWatchNoEngine(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsWatchNoEngine", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsWatchOff(repo: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsWatchOff \(repo)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsWatchOffStopped(repo: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsWatchOffStopped \(repo)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionWorkNoFolder(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionWorkNoFolder", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionWorkGitMissing(name: String, reason: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionWorkGitMissing \(name) \(reason)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionWorkBase(name: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionWorkBase \(name)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionWorkNotGit(name: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionWorkNotGit \(name)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionWorkBare(name: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionWorkBare \(name)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionWorkNoCommits(name: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionWorkNoCommits \(name)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionWorkWorktree(name: String, branch: String, from: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionWorkWorktree \(name) \(branch) \(from)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionWorkBaseBranch(name: String, branch: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionWorkBaseBranch \(name) \(branch)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionDetachedHead(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionDetachedHead", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionGitMissing(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionGitMissing", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionUncommittedWarning(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionUncommittedWarning \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionBehindOrigin(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionBehindOrigin \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionNotPushed(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionNotPushed \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionUnreachable(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionUnreachable", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionStartBehind(branch: String, count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionStartBehind \(branch) \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionStartNotPushed(branch: String, count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionStartNotPushed \(branch) \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionFetchedNever(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionFetchedNever", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionFetchedNow(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionFetchedNow", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionFetchedMinutes(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionFetchedMinutes \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionFetchedHours(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionFetchedHours \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionFetchedDays(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionFetchedDays \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionNameCannotBeUsed(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionNameCannotBeUsed", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsSheetTitleSettings(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsSheetTitleSettings", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsSheetTitleNewSession(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsSheetTitleNewSession", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsSheetSubtitleSettings(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsSheetSubtitleSettings", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsSheetSubtitleNewSession(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsSheetSubtitleNewSession", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsSheetPlaceholder(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsSheetPlaceholder", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsSheetAdd(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsSheetAdd", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsSheetUse(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsSheetUse", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsSheetAddFolder(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsSheetAddFolder", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsSheetUseFolder(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsSheetUseFolder", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsSheetExisting(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsSheetExisting", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsSheetOpen(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsSheetOpen", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsSheetClone(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsSheetClone", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsSheetPanelSettings(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsSheetPanelSettings", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsSheetPanelNewSession(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsSheetPanelNewSession", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsRepoNotVisible(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsRepoNotVisible", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsNewCreates(path: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsNewCreates \(path)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsNewNameTaken(name: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsNewNameTaken \(name)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsDropNothing(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsDropNothing", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsDropCannotAdd(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsDropCannotAdd", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsSheetCloneRepo(repo: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsSheetCloneRepo \(repo)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsSheetPrivate(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsSheetPrivate", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsSheetClonesInto(path: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsSheetClonesInto \(path)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsSheetClonedInto(path: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsSheetClonedInto \(path)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsSheetProjects(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsSheetProjects", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsSheetSuggested(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsSheetSuggested", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsSheetYourRepositories(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsSheetYourRepositories", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionAgentMissing(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionAgentMissing", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionAgentSignedOut(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionAgentSignedOut", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionAgentUnavailable(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionAgentUnavailable", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionAgentIs(name: String, note: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionAgentIs \(name) \(note)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionNoProvider(reasons: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionNoProvider \(reasons)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionOlderHost(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionOlderHost", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionBranchChangeWarning(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionBranchChangeWarning \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionProjectNote(folder: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionProjectNote \(folder)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionStepDownload(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionStepDownload", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionStepDownloadText(repo: String, folder: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionStepDownloadText \(repo) \(folder)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionStepUpdate(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionStepUpdate", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionStepUpdateText(repo: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionStepUpdateText \(repo)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionStepBranchChange(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionStepBranchChange", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionStepBranchChangeText(from: String, to: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionStepBranchChangeText \(from) \(to)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionStepFetch(ref: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionStepFetch \(ref)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionStepFetchText(remote: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionStepFetchText \(remote)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionStepCreate(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionStepCreate", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionStepCreateText(name: String, ref: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionStepCreateText \(name) \(ref)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionStepCreateTextClone(name: String, ref: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionStepCreateTextClone \(name) \(ref)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionWatchFailed(repo: String, reason: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionWatchFailed \(repo) \(reason)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionWatchConfigUnreadable(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionWatchConfigUnreadable", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionWatchConfigNotSaved(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionWatchConfigNotSaved", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsActionsTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsActionsTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsNoneYet(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsNoneYet", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsNoneYetLine(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsNoneYetLine", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsAddProject(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsAddProject", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsSearch(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsSearch", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsGroup(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsGroup", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsFilterAll(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsFilterAll", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsFilterWatched(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsFilterWatched", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsFilterLocalOnly(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsFilterLocalOnly", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsFilterHidden(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsFilterHidden", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsNothingMatches(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsNothingMatches", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsNothingMatchesLine(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsNothingMatchesLine", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsClearFilters(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsClearFilters", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsColProject(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsColProject", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsColTags(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsColTags", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsColLastActive(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsColLastActive", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsColDisk(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsColDisk", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsColCarrier(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsColCarrier", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsSortBy(title: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsSortBy \(title)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsSortAscending(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsSortAscending", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsSortDescending(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsSortDescending", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsCloningChip(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsCloningChip", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsFailedChip(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsFailedChip", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsDismiss(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsDismiss", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsDismissClone(repo: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsDismissClone \(repo)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsHidden(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsHidden", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsPinned(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsPinned", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsClonesGoTo(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsClonesGoTo", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsChange(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsChange", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsChangeHelp(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsChangeHelp", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsChoose(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsChoose", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsProblemsFooter(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsProblemsFooter", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsFolderGone(path: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsFolderGone \(path)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsLocate(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsLocate", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsIdentity(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsIdentity", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsName(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsName", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsNameDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsNameDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsIcon(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsIcon", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsIconDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsIconDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsChangeIcon(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsChangeIcon", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsTagsDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsTagsDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsAddTag(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsAddTag", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsNewSessionsHere(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsNewSessionsHere", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsShowWhenStarting(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsShowWhenStarting", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsShowDetailHidden(name: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsShowDetailHidden \(name)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsShowDetailShown(name: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsShowDetailShown \(name)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsStartsWith(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsStartsWith", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsStartsWithDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsStartsWithDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsWorkIn(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsWorkIn", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsWorkInDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsWorkInDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsBaseBranch(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsBaseBranch", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsBaseBranchDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsBaseBranchDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsActionsDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsActionsDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsFolder(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsFolder", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsReveal(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsReveal", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsRemote(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsRemote", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsNoRemote(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsNoRemote", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsOpenGitHub(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsOpenGitHub", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsRemove(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsRemove", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsRemoveDetailDisk(name: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsRemoveDetailDisk \(name)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsRemoveDetail(name: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsRemoveDetail \(name)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsRemoveEllipsis(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsRemoveEllipsis", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsRemoveQuestion(name: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsRemoveQuestion \(name)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsCancel(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsCancel", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsRemoveDialog(name: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsRemoveDialog \(name)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsRemoveFromCarrier(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsRemoveFromCarrier", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsAlsoDelete(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsAlsoDelete", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsRemoveDialogMessage(words: String, delete: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsRemoveDialogMessage \(words) \(delete)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsOk(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsOk", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsMoveToTrashAnyway(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsMoveToTrashAnyway", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsCleanUpQuestion(words: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsCleanUpQuestion \(words)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsCleanUp(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsCleanUp", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsStopWatchingQuestion(repo: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsStopWatchingQuestion \(repo)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsStopWatching(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsStopWatching", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsCarrierGroup(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsCarrierGroup", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsLetWatch(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsLetWatch", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsWatchConfigInvalid(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsWatchConfigInvalid", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsLocatePrompt(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsLocatePrompt", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsLocateMessage(name: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsLocateMessage \(name)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsPin(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsPin", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsUnpinHelp(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsUnpinHelp", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsPinHelp(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsPinHelp", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsIconCustom(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsIconCustom", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsIconAutoColor(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsIconAutoColor", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsIconInitials(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsIconInitials", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsIconSummary(color: String, mark: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsIconSummary \(color) \(mark)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsChooseImageMessage(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsChooseImageMessage", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsSameAsEverywhere(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsSameAsEverywhere", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsFollowsSessionsDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsFollowsSessionsDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsFollowsSessions(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsFollowsSessions", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsDefault(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsDefault", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsWorkInBaseFolder(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsWorkInBaseFolder", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsWorkInNewWorktree(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsWorkInNewWorktree", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsDefaultBranch(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsDefaultBranch", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsWorktreesTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsWorktreesTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsWorktreesFooter(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsWorktreesFooter", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsTotal(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsTotal", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsRemoveWorktreeHelp(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsRemoveWorktreeHelp", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsRemoveWorktreeLabel(branch: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsRemoveWorktreeLabel \(branch)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsCleanUpDetail(words: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsCleanUpDetail \(words)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsLastCleanUp(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsLastCleanUp", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsWorktrees(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsWorktrees", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsCleanUpQuestionWords(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsCleanUpQuestionWords", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsCannotDeleteYet(name: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsCannotDeleteYet \(name)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsCannotDeleteMessage(refusals: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsCannotDeleteMessage \(refusals)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsUnsavedTitle(name: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsUnsavedTitle \(name)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsUnsavedMessage(unsaved: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsUnsavedMessage \(unsaved)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsNotDeleted(name: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsNotDeleted \(name)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsHostNoAnswerNothingDeleted(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsHostNoAnswerNothingDeleted", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsHostNoAnswer(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsHostNoAnswer", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsRemoveTag(tag: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsRemoveTag \(tag)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsRemoveTagLabel(tag: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsRemoveTagLabel \(tag)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsColor(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsColor", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsReset(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsReset", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsMark(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsMark", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsChooseImage(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsChooseImage", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsActionsFooterNewWorktree(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsActionsFooterNewWorktree", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsActionsFooterAfterClone(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsActionsFooterAfterClone", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsAddAction(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsAddAction", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsActionFallbackName(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsActionFallbackName", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsActionNamePrompt(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsActionNamePrompt", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsActionOn(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsActionOn", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsActionEnable(name: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsActionEnable \(name)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsActionTurnOff(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsActionTurnOff", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsActionTurnOn(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsActionTurnOn", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsActionDelete(name: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsActionDelete \(name)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsActionCommand(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsActionCommand", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsActionCommandDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsActionCommandDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsActionCommandPrompt(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsActionCommandPrompt", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsActionIfFails(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsActionIfFails", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsNewTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsNewTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsNewDetailSettings(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsNewDetailSettings", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsNewDetailNewSession(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsNewDetailNewSession", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsNewNamePrompt(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsNewNamePrompt", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsNewNameLabel(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsNewNameLabel", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsNewNameHint(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsNewNameHint", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsNewCreateIn(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsNewCreateIn", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsNewWillCreateIn(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsNewWillCreateIn", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsChooseEllipsis(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsChooseEllipsis", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsNewChooseWhere(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsNewChooseWhere", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsBack(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsBack", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsCreate(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsCreate", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsUseThisProject(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsUseThisProject", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsNewPanelMessage(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsNewPanelMessage", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsCloneIntoMessage(repo: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsCloneIntoMessage \(repo)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsSheetNoRecent(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsSheetNoRecent", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsSheetEmptyLine(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsSheetEmptyLine", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsSheetNoMatchLine(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsSheetNoMatchLine", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsCloneChooseWhere(repo: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsCloneChooseWhere \(repo)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsLetWatchRepo(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsLetWatchRepo", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsDropAddTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsDropAddTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsDropUseTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsDropUseTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsDropAddDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsDropAddDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsDropUseDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsDropUseDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsOpenHealth(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsOpenHealth", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsOpenFolder(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsOpenFolder", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsOpenFolderHelp(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsOpenFolderHelp", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsNewProjectEllipsis(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsNewProjectEllipsis", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsNewProjectHelpSettings(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsNewProjectHelpSettings", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func projectsNewProjectHelpNewSession(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "projectsNewProjectHelpNewSession", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionBranchSearch(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionBranchSearch", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionBranchesIn(folder: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionBranchesIn \(folder)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionThisFolder(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionThisFolder", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionStartFrom(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionStartFrom", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionBrowseDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionBrowseDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionStartDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionStartDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionNoBranches(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionNoBranches", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionNoBranchMatches(query: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionNoBranchMatches \(query)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionNoBranchYet(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionNoBranchYet", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionSearchBoth(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionSearchBoth", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionNoLocal(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionNoLocal", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionNoRemote(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionNoRemote", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionNoRemoteBranches(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionNoRemoteBranches", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionNoLocalBranches(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionNoLocalBranches", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionNoRemoteMatch(query: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionNoRemoteMatch \(query)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionNoLocalMatch(query: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionNoLocalMatch \(query)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionNothingOnOrigin(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionNothingOnOrigin", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionNoLocalBranch(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionNoLocalBranch", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionOtherTabHas(tab: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionOtherTabHas \(tab)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionSearchTab(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionSearchTab", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionBadgeDefault(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionBadgeDefault", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionBadgeCurrent(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionBadgeCurrent", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionBadgeCheckedOut(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionBadgeCheckedOut", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionBadgeNotOnOrigin(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionBadgeNotOnOrigin", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionChosen(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionChosen", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionSelect(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionSelect", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionBrowseSummary(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionBrowseSummary", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionNewBranch(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionNewBranch", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionBranchGenerated(prefix: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionBranchGenerated \(prefix)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionFrom(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionFrom", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionBranchesFromGitHub(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionBranchesFromGitHub", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionStale(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionStale", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionFetching(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionFetching", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionFetchNow(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionFetchNow", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionFetchHelp(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionFetchHelp", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func cleanupGroupTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "cleanupGroupTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func cleanupGroupFooterOn(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "cleanupGroupFooterOn", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func cleanupGroupFooterOff(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "cleanupGroupFooterOff", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func cleanupGroupToggle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "cleanupGroupToggle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func cleanupGroupToggleDetailNeeds(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "cleanupGroupToggleDetailNeeds", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func cleanupGroupToggleDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "cleanupGroupToggleDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func cleanupGroupAnnounceDone(seconds: String, text: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "cleanupGroupAnnounceDone \(seconds) \(text)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func cleanupGroupAnnounceFailed(reason: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "cleanupGroupAnnounceFailed \(reason)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func cleanupGroupServer(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "cleanupGroupServer", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func cleanupGroupServerDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "cleanupGroupServerDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func cleanupGroupRunning(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "cleanupGroupRunning", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func cleanupGroupNotRunning(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "cleanupGroupNotRunning", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func cleanupGroupModel(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "cleanupGroupModel", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func cleanupGroupModelDetailNoServer(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "cleanupGroupModelDetailNoServer", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func cleanupGroupModelDetailDown(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "cleanupGroupModelDetailDown", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func cleanupGroupModelDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "cleanupGroupModelDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func cleanupGroupPrompt(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "cleanupGroupPrompt", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func cleanupGroupPromptDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "cleanupGroupPromptDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func cleanupGroupPromptLabel(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "cleanupGroupPromptLabel", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func cleanupGroupTry(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "cleanupGroupTry", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func cleanupGroupTryDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "cleanupGroupTryDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func cleanupGroupDictated(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "cleanupGroupDictated", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func cleanupGroupCleanSample(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "cleanupGroupCleanSample", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func cleanupGroupSeconds(seconds: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "cleanupGroupSeconds \(seconds)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func cleanupGroupCleaned(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "cleanupGroupCleaned", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func cleanupGroupPlaceholder(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "cleanupGroupPlaceholder", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func cleanupGroupCleaning(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "cleanupGroupCleaning", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func cleanupGroupCouldNot(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "cleanupGroupCouldNot", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionWorkHead(name: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionWorkHead \(name)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionWhereFolderDetail(branch: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionWhereFolderDetail \(branch)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionWhereWorktreeDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionWhereWorktreeDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionCurrentFolder(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionCurrentFolder", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionNewWorktree(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionNewWorktree", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionWhereItWorks(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionWhereItWorks", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionWhereSubtitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionWhereSubtitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionNotChosen(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionNotChosen", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionSubtitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionSubtitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionWorkIn(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionWorkIn", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionChooseWorkspace(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionChooseWorkspace", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionWorkspace(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionWorkspace", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionFetchingBranches(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionFetchingBranches", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionReadingBranches(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionReadingBranches", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionOn(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionOn", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionBranchesPartial(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionBranchesPartial", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionAddAsProject(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionAddAsProject", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionAddAsProjectHelp(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionAddAsProjectHelp", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionFolderFailed(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionFolderFailed", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionBranchOfFolder(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionBranchOfFolder", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionNamePlaceholder(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionNamePlaceholder", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionWorktreeName(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionWorktreeName", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionPickAnother(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionPickAnother", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionSuggestAnother(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionSuggestAnother", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionChooseBranch(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionChooseBranch", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionStartBranch(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionStartBranch", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionNoneChosen(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionNoneChosen", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionPlaceholderNone(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionPlaceholderNone", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionPlaceholderWrite(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionPlaceholderWrite", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionSend(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionSend", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionSendHelp(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionSendHelp", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionReadingOptions(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionReadingOptions", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionEmptyOptions(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionEmptyOptions", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func newSessionUseWorktree(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "newSessionUseWorktree", bundle: bundle ?? carrierResources, locale: locale)
+    }
 }

@@ -18,15 +18,17 @@ public struct RepoStatus: Equatable {
     public var gitHubURL: URL?
 }
 
-public func repoStatus(_ row: RepoRow, engine: String, home: String = NSHomeDirectory(), cloneExists: Bool, notLoaded: String) -> RepoStatus {
+public func repoStatus(
+    _ row: RepoRow, engine: String, home: String = NSHomeDirectory(), cloneExists: Bool, notLoaded: String, bundle: Bundle? = nil, locale: Locale = .current
+) -> RepoStatus {
     let path = row.clonePath(engine: engine)
     var status = RepoStatus(clone: tildePath(path, home: home), clonePath: path, canRevealClone: cloneExists, gitHubURL: row.gitHubURL)
     guard row.isLoaded, let epics = row.epics else {
         status.note = notLoaded
         return status
     }
-    status.epics = [epics.queued > 0 ? "\(epics.queued) ready" : "None ready", epics.running > 0 ? "\(epics.running) running" : "none running"]
-        .joined(separator: " · ") + (epics.needsYou > 0 ? " · \(epics.needsYou) needs you" : "")
+    let counts = Copy.projectsRepoEpics(ready: epics.queued, running: epics.running, bundle: bundle, locale: locale)
+    status.epics = epics.needsYou > 0 ? Copy.projectsRepoEpicsNeedsYou(epics: counts, count: epics.needsYou, bundle: bundle, locale: locale) : counts
     status.lastCheck = row.line
     return status
 }

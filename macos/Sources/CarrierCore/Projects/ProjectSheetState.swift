@@ -21,7 +21,9 @@ public func projectSheetState(
     recent: [RecentFolder],
     projects: [ProjectRow],
     github: ProjectSheetGithub? = nil,
-    home: String = NSHomeDirectory()
+    home: String = NSHomeDirectory(),
+    bundle: Bundle? = nil,
+    locale: Locale = .current
 ) -> ProjectSheetState {
     let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
 
@@ -43,7 +45,7 @@ public func projectSheetState(
             kind: .suggestedFolder(folder),
             title: folder.name,
             detail: abbreviatedSheetPath(folder.path, home: home),
-            actionTitle: mode.folderActionTitle,
+            actionTitle: mode.folderActionTitle(bundle: bundle, locale: locale),
             tile: projectTile(name: folder.name, colorKey: projectColorKey(folder.path))
         )
     }
@@ -53,8 +55,8 @@ public func projectSheetState(
             id: "existing:\(project.path)",
             kind: .existingProject(project),
             title: project.name,
-            detail: mode.includesExistingProjects ? abbreviatedSheetPath(project.path, home: home) : mode.existingDetail,
-            actionTitle: mode.existingActionTitle,
+            detail: mode.includesExistingProjects ? abbreviatedSheetPath(project.path, home: home) : mode.existingDetail(bundle: bundle, locale: locale),
+            actionTitle: mode.existingActionTitle(bundle: bundle, locale: locale),
             tile: project.tile
         )
     }
@@ -70,10 +72,10 @@ public func projectSheetState(
         let parent = chosen ?? github.defaultParent
         var problem: String?
         if github.canClone == false {
-            problem = projectsNeedNewerHost
+            problem = Refusal.projectsNeedNewerHost.shown(bundle: bundle, locale: locale)
         } else if listed == nil {
             switch github.visibility[key] {
-            case .notVisible: problem = repoNotVisibleLine
+            case .notVisible: problem = repoNotVisibleLine(bundle: bundle, locale: locale)
             case .problem(let text): problem = text
             case .checking, .visible, nil: break
             }
@@ -81,15 +83,17 @@ public func projectSheetState(
         return ProjectSheetResult(
             id: "repo:\(key)",
             kind: .cloneRepo(repo: repo, parent: chosen),
-            title: listed == nil ? "Clone \(repo)" : repo,
+            title: listed == nil ? Copy.projectsSheetCloneRepo(repo: repo, bundle: bundle, locale: locale) : repo,
             detail: listed?.about ?? "",
-            actionTitle: mode.repoActionTitle,
+            actionTitle: mode.repoActionTitle(bundle: bundle, locale: locale),
             tile: projectTile(name: repo.split(separator: "/").last.map(String.init) ?? repo, colorKey: repo),
-            chip: listed?.isPrivate == true ? "Private" : nil,
-            pushed: pushedLine(listed?.pushedAt, now: github.now),
+            chip: listed?.isPrivate == true ? Copy.projectsSheetPrivate(bundle: bundle, locale: locale) : nil,
+            pushed: pushedLine(listed?.pushedAt, now: github.now, bundle: bundle, locale: locale),
             problem: problem,
             destination: ProjectSheetDestination(
-                line: (mode.actsAtOnce ? "Clones into " : "Cloned into ") + abbreviatedSheetPath(parent + "/" + repo, home: home) + (mode.actsAtOnce ? "" : " when you send the first message"),
+                line: mode.actsAtOnce
+                    ? Copy.projectsSheetClonesInto(path: abbreviatedSheetPath(parent + "/" + repo, home: home), bundle: bundle, locale: locale)
+                    : Copy.projectsSheetClonedInto(path: abbreviatedSheetPath(parent + "/" + repo, home: home), bundle: bundle, locale: locale),
                 parent: parent, isChosen: chosen != nil, canChoose: mode.actsAtOnce
             ),
             watch: mode.actsAtOnce ? nil : ProjectSheetWatch(problem: github.watched.flatMap { repoProblem(repo, joining: $0) })
@@ -117,9 +121,9 @@ public func projectSheetState(
             pathResult = ProjectSheetResult(
                 id: "path:\(typedPath)",
                 kind: .addPath(path: typedPath),
-                title: mode.addFolderTitle,
+                title: mode.addFolderTitle(bundle: bundle, locale: locale),
                 detail: abbreviatedSheetPath(typedPath, home: home),
-                actionTitle: mode.folderActionTitle,
+                actionTitle: mode.folderActionTitle(bundle: bundle, locale: locale),
                 tile: projectTile(name: displayName, colorKey: projectColorKey(typedPath))
             )
         }
@@ -132,7 +136,7 @@ public func projectSheetState(
                     || abbreviatedSheetPath(folder.path, home: home).localizedCaseInsensitiveContains(trimmed))
         }
         if matchingSuggested.isEmpty == false {
-            sections.append(ProjectSheetSection(id: "suggested", title: "Suggested folders", items: matchingSuggested.map(suggestedResult)))
+            sections.append(ProjectSheetSection(id: "suggested", title: Copy.projectsSheetSuggested(bundle: bundle, locale: locale), items: matchingSuggested.map(suggestedResult)))
         }
     } else {
         if mode.includesExistingProjects {
@@ -143,7 +147,7 @@ public func projectSheetState(
                     || ($0.repo?.localizedCaseInsensitiveContains(trimmed) ?? false)
             }
             if matchingProjects.isEmpty == false {
-                sections.append(ProjectSheetSection(id: "projects", title: "Projects", items: matchingProjects.map(existingResult)))
+                sections.append(ProjectSheetSection(id: "projects", title: Copy.projectsSheetProjects(bundle: bundle, locale: locale), items: matchingProjects.map(existingResult)))
             }
         }
 
@@ -164,12 +168,12 @@ public func projectSheetState(
                 || abbreviatedSheetPath(folder.path, home: home).localizedCaseInsensitiveContains(trimmed)
         }
         if matchingSuggested.isEmpty == false {
-            sections.append(ProjectSheetSection(id: "suggested", title: "Suggested folders", items: matchingSuggested.map(suggestedResult)))
+            sections.append(ProjectSheetSection(id: "suggested", title: Copy.projectsSheetSuggested(bundle: bundle, locale: locale), items: matchingSuggested.map(suggestedResult)))
         }
 
         let repos = matchingRepos(trimmed, except: reference)
         if repos.isEmpty == false {
-            sections.append(ProjectSheetSection(id: "repos", title: "Your repositories", items: repos))
+            sections.append(ProjectSheetSection(id: "repos", title: Copy.projectsSheetYourRepositories(bundle: bundle, locale: locale), items: repos))
         }
         notice = github?.listingProblem
     }

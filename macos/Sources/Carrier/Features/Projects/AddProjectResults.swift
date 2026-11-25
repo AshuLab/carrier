@@ -10,10 +10,10 @@ extension AddProjectSheet {
             let emptyQuery = query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             EmptyStateView(
                 icon: emptyQuery ? .folder : .search,
-                title: emptyQuery ? "No recent folders" : "Nothing matches",
+                title: emptyQuery ? Copy.projectsSheetNoRecent() : Copy.projectsNothingMatches(),
                 line: emptyQuery
-                    ? "Paste a GitHub address, type a path starting with ~ or /, drop folders here, or choose Open a folder… below."
-                    : "Nothing in your recent folders or repositories matches. Paste a GitHub address, or type a path starting with ~ or / to add any folder."
+                    ? Copy.projectsSheetEmptyLine()
+                    : Copy.projectsSheetNoMatchLine()
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
@@ -93,9 +93,9 @@ extension AddProjectSheet {
                         .truncationMode(.middle)
                         .help(destination.parent + "/" + repo)
                     if destination.canChoose {
-                        Button("Choose…") { chooseParent(for: repo, current: destination.parent) }
+                        Button(Copy.projectsChooseEllipsis()) { chooseParent(for: repo, current: destination.parent) }
                             .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
-                            .accessibilityLabel("Choose where \(repo) is cloned")
+                            .accessibilityLabel(Copy.projectsCloneChooseWhere(repo: repo))
                     }
                     Spacer(minLength: 0)
                 }
@@ -109,7 +109,7 @@ extension AddProjectSheet {
     private func watchChoice(_ watch: ProjectSheetWatch, _ newSession: NewSessionModel) -> some View {
         let on = watch.problem == nil && newSession.watch
         return HStack(spacing: Tokens.Space.s8) {
-            Toggle("Let Carrier watch this repo", isOn: Binding(get: { on }, set: { newSession.watch = $0 }))
+            Toggle(Copy.projectsLetWatchRepo(), isOn: Binding(get: { on }, set: { newSession.watch = $0 }))
                 .toggleStyle(.switch).controlSize(.small).scaledFont(11)
                 .disabled(watch.problem != nil)
             if let reason = watch.problem { ProblemLine(text: reason, size: 11, announces: false) }
@@ -131,8 +131,8 @@ extension AddProjectSheet {
     var dropVeil: some View {
         VStack(spacing: Tokens.Space.s4) {
             Glyph(.folderPlus, size: 22).foregroundStyle(.tint)
-            Text(mode.actsAtOnce ? "Drop folders to add" : "Drop a folder to work in").scaledFont(14, weight: .semibold)
-            Text(mode.actsAtOnce ? "Folders are added to your projects; files are refused" : "The folder fills the plan; nothing is written").scaledFont(12).foregroundStyle(.secondary)
+            Text(mode.actsAtOnce ? Copy.projectsDropAddTitle() : Copy.projectsDropUseTitle()).scaledFont(14, weight: .semibold)
+            Text(mode.actsAtOnce ? Copy.projectsDropAddDetail() : Copy.projectsDropUseDetail()).scaledFont(12).foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(RoundedRectangle(cornerRadius: Tokens.Radius.card).fill(.tint.opacity(0.14)))

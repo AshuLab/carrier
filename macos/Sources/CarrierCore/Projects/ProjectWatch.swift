@@ -20,20 +20,24 @@ public struct ProjectWatchRow: Equatable, Sendable {
 
 /// The switch's row. `repos` is the engine config's list as it was when the page opened (nil when the file cannot be read); `failure` is why the last change was
 /// refused; `outcome` is what the engine answered to the last save. A stopped Carrier says it reads the change when it starts.
-public func projectWatchRow(repo: String?, repos: [String]?, state: ConnectionState?, canReload: Bool, outcome: ReloadOutcome?, failure: String?) -> ProjectWatchRow {
+public func projectWatchRow(
+    repo: String?, repos: [String]?, state: ConnectionState?, canReload: Bool, outcome: ReloadOutcome?, failure: String?, bundle: Bundle? = nil, locale: Locale = .current
+) -> ProjectWatchRow {
     guard let repo else {
-        return ProjectWatchRow(isOn: false, canChange: false, detail: "No GitHub origin: Carrier watches GitHub repositories, and this folder has none.", problem: nil)
+        return ProjectWatchRow(isOn: false, canChange: false, detail: Copy.projectsWatchNoOrigin(bundle: bundle, locale: locale), problem: nil)
     }
     guard let repos else {
         return ProjectWatchRow(
             isOn: false, canChange: false, detail: "",
-            problem: "The engine is not configured: engine.json in the Carrier folder is missing or is not a JSON object."
+            problem: Copy.projectsWatchNoEngine(bundle: bundle, locale: locale)
         )
     }
     let isOn = isWatched(repo, in: repos)
     let detail = isOn
         ? settingsNote(state: state, canReload: canReload, outcome: outcome, repo: repo)
-        : "Carrier does not look for epics in \(repo)." + (appliesWhileRunning(state: state, canReload: canReload) ? "" : " Carrier reads the list when it starts.")
+        : appliesWhileRunning(state: state, canReload: canReload)
+            ? Copy.projectsWatchOff(repo: repo, bundle: bundle, locale: locale)
+            : Copy.projectsWatchOffStopped(repo: repo, bundle: bundle, locale: locale)
     let answer = isOn && outcome?.isProblem == true ? outcome.flatMap(reloadWords) : nil
     return ProjectWatchRow(isOn: isOn, canChange: true, detail: detail, problem: failure ?? reposProblem(repos) ?? answer)
 }

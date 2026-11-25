@@ -151,7 +151,7 @@ func applyProjectsChange(_ change: ProjectsChange, home: String) -> (data: [Stri
         }
     } catch ProjectsFileError.invalid(let found) {
         let first = found.first ?? ProjectsProblem(path: "(file)", message: "does not match")
-        return refused("config.problem", first.text, ["path": .string(first.path), "problem": "custom"])
+        return refused("config.problem", first.text(bundle: Copy.bundle("en"), locale: Locale(identifier: "en_US")), ["path": .string(first.path), "problem": "custom"])
     } catch ProjectsFileError.missing(let path) {
         return refused("project.missing", "No project has the path \(path)", ["path": .string(path)])
     } catch {

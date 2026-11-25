@@ -53,11 +53,11 @@ struct AddProjectSheet: View {
             VStack(spacing: Tokens.Space.none) {
                 VStack(alignment: .leading, spacing: Tokens.Space.s14) {
                     header
-                    TextField("", text: $query, prompt: Text(mode.fieldPlaceholder))
+                    TextField("", text: $query, prompt: Text(mode.fieldPlaceholder()))
                         .settingsField(icon: .search, focused: $fieldFocused)
                         .autocorrectionDisabled()
                         .writingToolsBehavior(.disabled)
-                        .accessibilityLabel(mode.title)
+                        .accessibilityLabel(mode.title())
                         .onSubmit {
                             if let item = highlightedOrFirst(in: current) {
                                 activate(item)
@@ -76,7 +76,7 @@ struct AddProjectSheet: View {
                     }
                     if let gh = newSession?.ghState, gh.blocks {
                         HealthFixButton(tool: .gh, state: gh)
-                        Button("Open Health in Settings") {
+                        Button(Copy.projectsOpenHealth()) {
                             dismiss()
                             openHealth()
                         }
@@ -145,8 +145,8 @@ struct AddProjectSheet: View {
                 .background(RoundedRectangle(cornerRadius: Tokens.Radius.control).fill(.tint.opacity(0.16)))
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: Tokens.Space.s2) {
-                Text(mode.title).scaledFont(16, weight: .semibold)
-                Text(mode.subtitle).scaledFont(12).foregroundStyle(.secondary)
+                Text(mode.title()).scaledFont(16, weight: .semibold)
+                Text(mode.subtitle()).scaledFont(12).foregroundStyle(.secondary)
             }
         }
     }
@@ -154,22 +154,22 @@ struct AddProjectSheet: View {
     private var footer: some View {
         HStack(spacing: Tokens.Space.s12) {
             Button(action: openFolderPanel) {
-                Label("Open a folder…", icon: .folderPlus).labelStyle(.titleAndIcon)
+                Label(Copy.projectsOpenFolder(), icon: .folderPlus).labelStyle(.titleAndIcon)
             }
             .buttonStyle(SecondaryCapsuleButtonStyle())
             .keyboardShortcut("o", modifiers: .command)
-            .help("Open a folder on this Mac (\u{2318}O)")
+            .help(Copy.projectsOpenFolderHelp())
             if mode.actsAtOnce || newSession?.hostCreates == true {
-                Button("New project…") {
+                Button(Copy.projectsNewProjectEllipsis()) {
                     form = NewProjectForm(defaultParent: newSession?.projectsPath ?? model.projectsPath)
                     problem = nil
                     creating = true
                 }
                 .buttonStyle(SecondaryCapsuleButtonStyle())
-                .help(mode.actsAtOnce ? "Make an empty git folder and add it as a project" : "Work in a new empty git folder, made when you send the first message")
+                .help(mode.actsAtOnce ? Copy.projectsNewProjectHelpSettings() : Copy.projectsNewProjectHelpNewSession())
             }
             Spacer(minLength: 8)
-            Button("Cancel") { dismiss() }
+            Button(Copy.projectsCancel()) { dismiss() }
                 .buttonStyle(SecondaryCapsuleButtonStyle())
                 .keyboardShortcut(.cancelAction)
         }
@@ -229,7 +229,7 @@ struct AddProjectSheet: View {
                 dismiss()
                 openProject(addedPath)
             case nil:
-                problem = model.failure ?? model.problems.first?.text ?? "That folder cannot be added"
+                problem = model.failure ?? model.problems.first?.text() ?? Copy.projectsDropCannotAdd()
             }
         }
     }
@@ -239,8 +239,8 @@ struct AddProjectSheet: View {
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
-        panel.prompt = mode.openPanelPrompt
-        panel.message = mode.openPanelMessage
+        panel.prompt = mode.openPanelPrompt()
+        panel.message = mode.openPanelMessage()
         guard panel.runModal() == .OK, let url = panel.url else { return }
         addFolder(url.path)
     }
@@ -278,7 +278,7 @@ struct AddProjectSheet: View {
         Task {
             let outcome = await applyDroppedProjectPaths(paths) { path in
                 let result = await model.add(folder: path)
-                return (result, model.failure ?? model.problems.first?.text)
+                return (result, model.failure ?? model.problems.first?.text())
             }
             switch outcome {
             case .open(let path):

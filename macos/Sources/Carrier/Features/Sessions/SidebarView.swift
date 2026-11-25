@@ -105,7 +105,7 @@ struct SidebarView: View {
             if let snapshot, open == .carrier {
                 LazyVStack(alignment: .leading, spacing: SidebarMetrics.rowGap) {
                     if searching {
-                        SidebarSearchField(placeholder: "Search epics", text: $query, focus: $searchFocused, close: { searching = false })
+                        SidebarSearchField(placeholder: Copy.sidebarSearchEpics(), text: $query, focus: $searchFocused, close: { searching = false })
                     }
                     let queried = query.trimmingCharacters(in: .whitespaces).isEmpty == false
                     let groups = sidebarGroups(snapshot, by: groupBy, query: query)
@@ -135,7 +135,7 @@ struct SidebarView: View {
                         .buttonStyle(HoverFillButtonStyle())
                         .padding(.top, SidebarMetrics.groupTop)
                         .accessibilityElement(children: .combine)
-                        .accessibilityHint(expanded ? "Folds the group" : "Unfolds the group")
+                        .accessibilityHint(expanded ? Copy.sidebarFoldGroup() : Copy.sidebarUnfoldGroup())
                         if expanded {
                             ForEach(group.rows, id: \.selection) { row in
                                 SidebarRowView(row: row).selectableSidebarRow(selected: selection == row.selection) { selection = row.selection }
@@ -151,7 +151,7 @@ struct SidebarView: View {
         let epicCount = sidebarEpicCount
         VStack(spacing: Tokens.Space.none) {
             VStack(alignment: .leading, spacing: SidebarMetrics.rowGap) {
-                SidebarSectionRow(title: "Home", icon: .home, selected: selection == .home, action: { selection = .home }).help("Home (⌘1)")
+                SidebarSectionRow(title: Copy.sidebarHome(), icon: .home, selected: selection == .home, action: { selection = .home }).help(Copy.sidebarHomeHelp())
                 ForEach(above, id: \.self) { slot($0, epicCount: epicCount) }
             }
             .padding(.horizontal, SidebarMetrics.edge).padding(.top, Tokens.Space.s8)
@@ -183,8 +183,8 @@ struct SidebarView: View {
             .padding(.horizontal, SidebarMetrics.edge).padding(.vertical, Tokens.Space.s8)
             Divider()
             VStack(spacing: SidebarMetrics.rowGap) {
-                SidebarSectionRow(title: "Settings", icon: .settings, selected: false, action: openSettings)
-                SidebarSectionRow(title: "Usage", icon: .chartBar, selected: selection == .usage, action: { selection = .usage })
+                SidebarSectionRow(title: Copy.sidebarSettings(), icon: .settings, selected: false, action: openSettings)
+                SidebarSectionRow(title: Copy.sidebarUsage(), icon: .chartBar, selected: selection == .usage, action: { selection = .usage })
             }
             .padding(.horizontal, SidebarMetrics.edge).padding(.vertical, Tokens.Space.s8)
         }

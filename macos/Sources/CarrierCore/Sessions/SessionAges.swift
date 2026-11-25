@@ -41,30 +41,32 @@ public func sessionAges(chatJSON: Data?) -> SessionAges {
 
 /// What the fields say is wrong, in words, by field: a number under one day, and (on delete) a delete age that is not greater than the
 /// archive age. The host's own rule: with `never` on either side there is no comparison.
-public func sessionAgeProblems(_ ages: SessionAges, unparsable: Set<SessionAgeField> = []) -> [SessionAgeField: String] {
+public func sessionAgeProblems(_ ages: SessionAges, unparsable: Set<SessionAgeField> = [], bundle: Bundle? = nil, locale: Locale = .current) -> [SessionAgeField: String] {
     var problems: [SessionAgeField: String] = [:]
     for (field, age) in [(SessionAgeField.archive, ages.archive), (.delete, ages.delete)] {
-        if case .days(let days) = age, days < 1 { problems[field] = "Use a whole number of days, 1 or more" }
+        if case .days(let days) = age, days < 1 { problems[field] = Copy.sessionAgeWholeNumber(bundle: bundle, locale: locale) }
     }
     if case .days(let archive) = ages.archive, case .days(let delete) = ages.delete, problems[.delete] == nil, delete <= archive {
-        problems[.delete] = "Must be greater than the archive age (\(archive) days)"
+        problems[.delete] = Copy.sessionAgeGreaterThanArchive(days: archive, bundle: bundle, locale: locale)
     }
     // a field whose text is not a number is refused, except the delete one while it is off: it is not saved then, so it cannot block the other
-    for field in unparsable where !(field == .delete && deleteAgeOffReason(ages) != nil) { problems[field] = "Must be a number" }
+    for field in unparsable where !(field == .delete && deleteAgeOffReason(ages) != nil) { problems[field] = Copy.sessionAgeMustBeNumber(bundle: bundle, locale: locale) }
     return problems
 }
 
 /// Why the delete field is off, in words; nil when it is on. Archive at `never` means nothing is deleted by the clock, whatever delete says.
-public func deleteAgeOffReason(_ ages: SessionAges) -> String? {
-    ages.archive == .never ? "Off while archive is Never: nothing is deleted by the clock" : nil
+public func deleteAgeOffReason(_ ages: SessionAges, bundle: Bundle? = nil, locale: Locale = .current) -> String? {
+    ages.archive == .never ? Copy.sessionAgeDeleteOff(bundle: bundle, locale: locale) : nil
 }
 
 /// The line of the Sessions page about a session left alone from `today`, in dates: both ages count from the same last activity, so both
 /// dates are `today` plus each age. The year is written only for a date that is not in `today`'s year. nil while an age is refused (or its
 /// field is `unparsable`), since the dates would be a guess.
-public func sessionAgesLine(_ ages: SessionAges, today: Date, calendar: Calendar = .current, unparsable: Set<SessionAgeField> = []) -> String? {
-    guard sessionAgeProblems(ages, unparsable: unparsable).isEmpty else { return nil }
-    guard case .days(let archive) = ages.archive else { return "Is never archived or deleted" }
+public func sessionAgesLine(
+    _ ages: SessionAges, today: Date, calendar: Calendar = .current, unparsable: Set<SessionAgeField> = [], bundle: Bundle? = nil, locale: Locale = .current
+) -> String? {
+    guard sessionAgeProblems(ages, unparsable: unparsable, bundle: bundle, locale: locale).isEmpty else { return nil }
+    guard case .days(let archive) = ages.archive else { return Copy.sessionAgeNever(bundle: bundle, locale: locale) }
     func date(after days: Int) -> String {
         let day = calendar.date(byAdding: .day, value: days, to: today) ?? today
         let formatter = DateFormatter()
@@ -72,6 +74,6 @@ public func sessionAgesLine(_ ages: SessionAges, today: Date, calendar: Calendar
         (formatter.locale, formatter.calendar, formatter.timeZone, formatter.dateFormat) = (Locale(identifier: "en_US_POSIX"), calendar, calendar.timeZone, sameYear ? "MMM d" : "MMM d, yyyy")
         return formatter.string(from: day)
     }
-    guard case .days(let delete) = ages.delete else { return "Is archived on \(date(after: archive)) and never deleted. The age counts from its last activity" }
-    return "Is archived on \(date(after: archive)) and deleted on \(date(after: delete)). Both ages count from its last activity"
+    guard case .days(let delete) = ages.delete else { return Copy.sessionAgeArchivedNeverDeleted(archive: date(after: archive), bundle: bundle, locale: locale) }
+    return Copy.sessionAgeArchivedAndDeleted(archive: date(after: archive), delete: date(after: delete), bundle: bundle, locale: locale)
 }

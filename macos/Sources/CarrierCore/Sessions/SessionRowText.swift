@@ -77,13 +77,13 @@ public struct SessionRowText: Equatable {
     public var how: String { ([tool].compactMap { $0 } + details).joined(separator: " · ") }
 }
 
-public func sessionRowText(_ section: SessionSection) -> SessionRowText {
+public func sessionRowText(_ section: SessionSection, bundle: Bundle? = nil, locale: Locale = .current) -> SessionRowText {
     let profile = section.profile.flatMap { $0.isEmpty ? nil : $0 }
     return SessionRowText(
         name: profile ?? section.agent,
         role: "\(section.role) · \(section.place)",
         tool: profile == nil ? nil : section.agent,
-        details: [section.account.map { "account \($0)" }, section.model, section.effort].compactMap { $0 }.filter { $0.isEmpty == false },
+        details: [section.account.map { Copy.sessionAccount(name: $0, bundle: bundle, locale: locale) }, section.model, section.effort].compactMap { $0 }.filter { $0.isEmpty == false },
         letter: profile.map { String($0.prefix(1)).uppercased() } ?? section.initial,
         identified: profile != nil
     )
@@ -102,9 +102,9 @@ public enum SessionSummary: Equatable {
     case line([SummarySpan])
 
     /// What it says, as one sentence for VoiceOver.
-    public var text: String {
+    public func text(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         switch self {
-        case .stopped(let reason): reason.map { "stopped, \($0)" } ?? "stopped"
+        case .stopped(let reason): reason.map { Copy.sessionStoppedReason(reason: $0, bundle: bundle, locale: locale) } ?? Copy.sessionStopped(bundle: bundle, locale: locale)
         case .line(let spans): spans.map(\.text).joined(separator: " ").replacingOccurrences(of: " · ", with: ", ")
         }
     }
@@ -113,8 +113,8 @@ public enum SessionSummary: Equatable {
 /// The line under a session's row. Running: `Working · since 16:09 · 62 calls`. Stopped: the badge and its reason. Open: the counts and the
 /// time (`229 calls · 23 edits +10 −2 · 27 test runs · 9 errors · 31m`). Folded: how it ended in bold, the CI verdict and the time
 /// (`Completed · CI passed · 31m`), or the counts when it has no result.
-public func sessionSummary(_ section: SessionSection, open: Bool) -> SessionSummary {
-    func plural(_ n: Int, _ noun: String) -> [SummarySpan] { [.init(text: "\(n)", style: .strong), .init(text: n == 1 ? noun : noun + "s", style: .plain)] }
+public func sessionSummary(_ section: SessionSection, open: Bool, bundle: Bundle? = nil, locale: Locale = .current) -> SessionSummary {
+    func plural(_ n: Int, _ noun: String) -> [SummarySpan] { [.init(text: "\(n)", style: .strong), .init(text: noun, style: .plain)] }
     func join(_ parts: [[SummarySpan]]) -> [SummarySpan] {
         parts.enumerated().flatMap { index, part in index == 0 ? part : [SummarySpan(text: "·", style: .faint)] + part }
     }
@@ -124,26 +124,32 @@ public func sessionSummary(_ section: SessionSection, open: Bool) -> SessionSumm
     case .stopped:
         return .stopped(reason: section.failure)
     case .running:
-        return .line(join([word("Working", .working), section.timeLabel.map { word($0) }, section.counts.map { plural($0.calls, "call") }].compactMap { $0 }))
+        let calls = section.counts.map { plural($0.calls, Copy.sessionNounCall(count: $0.calls, bundle: bundle, locale: locale)) }
+        return .line(join([word(Copy.sessionStatusWorking(bundle: bundle, locale: locale), .working), section.timeLabel.map { word($0) }, calls].compactMap { $0 }))
     case .done:
         if open == false, let result = section.result {
-            return .line(join([word(result.outcome, .strong), result.ci.map { word(ciVerdictText($0.verdict)) }, time].compactMap { $0 }))
+            return .line(join([word(result.outcome, .strong), result.ci.map { word(ciVerdictText($0.verdict, bundle: bundle, locale: locale)) }, time].compactMap { $0 }))
         }
         var parts: [[SummarySpan]] = []
         if let counts = section.counts {
-            parts.append(plural(counts.calls, "call"))
+            parts.append(plural(counts.calls, Copy.sessionNounCall(count: counts.calls, bundle: bundle, locale: locale)))
             if counts.edits > 0 {
-                parts.append(plural(counts.edits, "edit") + word("+\(counts.added)", .green) + word("−\(counts.removed)", .red))
+                parts.append(
+                    plural(counts.edits, Copy.sessionNounEdit(count: counts.edits, bundle: bundle, locale: locale)) + word("+\(counts.added)", .green) + word("−\(counts.removed)", .red))
             }
-            if counts.tests > 0 { parts.append(plural(counts.tests, "test run")) }
-            if counts.errors > 0 { parts.append(plural(counts.errors, "error").map { SummarySpan(text: $0.text, style: .red) }) }
+            if counts.tests > 0 { parts.append(plural(counts.tests, Copy.sessionNounTestRun(count: counts.tests, bundle: bundle, locale: locale))) }
+            if counts.errors > 0 {
+                parts.append(plural(counts.errors, Copy.sessionNounError(count: counts.errors, bundle: bundle, locale: locale)).map { SummarySpan(text: $0.text, style: .red) })
+            }
         }
         return .line(join(parts + [time].compactMap { $0 }))
     }
 }
 
 /// Whom, what and whether it is open, for the one button that is the whole row.
-public func sessionRowLabel(_ section: SessionSection, open: Bool) -> String {
-    let text = sessionRowText(section)
-    return [text.name, text.role, text.how, sessionSummary(section, open: open).text, open ? "Open" : "Folded"].filter { $0.isEmpty == false }.joined(separator: ". ")
+public func sessionRowLabel(_ section: SessionSection, open: Bool, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+    let text = sessionRowText(section, bundle: bundle, locale: locale)
+    let summary = sessionSummary(section, open: open, bundle: bundle, locale: locale).text(bundle: bundle, locale: locale)
+    let state = open ? Copy.sessionRowOpen(bundle: bundle, locale: locale) : Copy.sessionRowFolded(bundle: bundle, locale: locale)
+    return [text.name, text.role, text.how, summary, state].filter { $0.isEmpty == false }.joined(separator: ". ")
 }

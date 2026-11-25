@@ -20,7 +20,7 @@ struct ArchiveView: View {
         let searched = (query ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
         VStack(alignment: .leading, spacing: Tokens.Space.none) {
             if let empty = page.emptyState {
-                EmptyStateView(state: empty, action: empty == .noSessionsMatch ? ("Clear search", { query = nil }) : nil).inPageScroll()
+                EmptyStateView(state: empty, action: empty == .noSessionsMatch ? (Copy.archiveClearSearch(), { query = nil }) : nil).inPageScroll()
             } else {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: Tokens.Space.s2) {
@@ -65,7 +65,7 @@ struct ArchiveView: View {
         ToolbarItem(placement: .primaryAction) {
             HStack(spacing: Tokens.Space.none) {
                 searchHalf
-                ToolbarPillButton(title: "Filter", icon: .filter) { sortOpen.toggle() }
+                ToolbarPillButton(title: Copy.sessionsFilter(), icon: .filter) { sortOpen.toggle() }
                     .popover(isPresented: $sortOpen, arrowEdge: .bottom) { sortPopover }
             }
             .glassEffect(.regular, in: .capsule)
@@ -73,7 +73,7 @@ struct ArchiveView: View {
         .sharedBackgroundVisibility(.hidden)
         ToolbarSpacer(.fixed, placement: .primaryAction)
         ToolbarItem(placement: .primaryAction) {
-            ToolbarPillButton(title: "Clear sessions…", icon: .trash, action: clear)
+            ToolbarPillButton(title: Copy.archiveClearSessions(), icon: .trash, action: clear)
                 .glassEffect(.regular, in: .capsule)
                 .padding(.trailing, Tokens.Space.s10)
                 .disabled(canClear == false)
@@ -82,12 +82,12 @@ struct ArchiveView: View {
     }
 
     @ViewBuilder private var searchHalf: some View {
-        ToolbarSearchField(query: $query, placeholder: "Search archived sessions", focused: $searching)
+        ToolbarSearchField(query: $query, placeholder: Copy.archiveSearchSessions(), focused: $searching)
     }
 
     private var sortPopover: some View {
         VStack(alignment: .leading, spacing: Tokens.Space.s4) {
-            Text("Sort by").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+            Text(Copy.sessionsSortBy()).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
             ForEach(ArchiveSort.allCases, id: \.self) { option in
                 Button {
                     sort = option
@@ -109,7 +109,7 @@ struct ArchiveView: View {
     private func groupHeader(_ group: SessionGroup) -> some View {
         HStack(spacing: Tokens.Space.s6) {
             Text(group.title).font(.callout.weight(.semibold))
-            Text(group.rows.count == 1 ? "1 session" : "\(group.rows.count) sessions").font(.caption).foregroundStyle(.secondary)
+            Text(Copy.sessionsCount(count: group.rows.count)).font(.caption).foregroundStyle(.secondary)
         }
         .padding(.horizontal, Tokens.Space.s8).padding(.top, Tokens.Space.s14).padding(.bottom, Tokens.Space.s4)
         .accessibilityAddTraits(.isHeader)
@@ -119,8 +119,8 @@ struct ArchiveView: View {
 extension ArchiveSort {
     var title: String {
         switch self {
-        case .dateArchived: "Date archived"
-        case .project: "Project"
+        case .dateArchived: Copy.archiveSortDateArchived()
+        case .project: Copy.archiveSortProject()
         }
     }
 }
@@ -162,9 +162,9 @@ private struct ArchiveRow: View {
         // faded out, not removed or made untouchable, so they stay in the keyboard's and VoiceOver's reach
         .overlay(alignment: .trailing) {
             HStack(spacing: Tokens.Space.s4) {
-                RowIconButton(symbol: .fileText, title: "Open", action: open)
-                RowIconButton(symbol: .undo, title: "Resume", action: resume)
-                RowIconButton(symbol: .trash, title: "Delete", action: delete)
+                RowIconButton(symbol: .fileText, title: Copy.sessionOpen(), action: open)
+                RowIconButton(symbol: .undo, title: Copy.sessionResume(), action: resume)
+                RowIconButton(symbol: .trash, title: Copy.sessionDelete(), action: delete)
             }
             .focused($actionsFocused)
             .opacity(active ? 1 : 0)
@@ -179,15 +179,15 @@ private struct ArchiveRow: View {
         .help(row.title)
         .accessibilityElement(children: .contain)
         .accessibilityAddTraits(.isButton)
-        .accessibilityAction(named: "Open", open)
+        .accessibilityAction(named: Copy.sessionOpen(), open)
     }
 
     /// Where it worked, how many turns it took and the model of the last.
     private var meta: some View {
         HStack(spacing: Tokens.Space.s6) {
-            Label(row.branch ?? "Base folder", icon: row.branch == nil ? .folder : .gitBranch)
+            Label(row.branch ?? Copy.sessionBaseFolder(), icon: row.branch == nil ? .folder : .gitBranch)
                 .labelStyle(.titleAndIcon).lineLimit(1).truncationMode(.middle)
-            if row.turns > 0 { Text("·"); Text(row.turns == 1 ? "1 turn" : "\(row.turns) turns") }
+            if row.turns > 0 { Text("·"); Text(Copy.sessionTurns(count: row.turns)) }
             if let model = TurnSummary(model: row.model).shortModel { Text("·"); Text(model) }
         }
         .font(.caption).foregroundStyle(.tertiary).lineLimit(1)

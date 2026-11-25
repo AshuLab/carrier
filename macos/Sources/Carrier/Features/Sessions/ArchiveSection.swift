@@ -41,37 +41,37 @@ struct ArchiveSection: View {
         let archived = archivedCount(sessions.rows)
         VStack(spacing: Tokens.Space.s2) {
             SidebarSectionRow(
-                title: "Archive", icon: .archive, selected: selection == .archive, keepActions: sortOpen || query != nil,
+                title: Copy.archiveTitle(), icon: .archive, selected: selection == .archive, keepActions: sortOpen || query != nil,
                 action: { selection = .archive }, actions: {
                     if archived > 0 {
                         Text("\(archived)").sidebarFont(.detail, weight: .semibold).monospacedDigit().foregroundStyle(.secondary)
                             .padding(.horizontal, Tokens.Space.s6).padding(.vertical, Tokens.Space.s1)
                             .background(Capsule().fill(Color.secondary.opacity(0.15)))
-                            .accessibilityLabel("\(archived) archived")
+                            .accessibilityLabel(Copy.archiveCount(count: archived))
                     }
                 }, hoverActions: {
                     IconButton(
-                        icon: .search, name: "Search archive", enabled: archived > 0, why: "Nothing archived to search", shortcut: "⌘F",
+                        icon: .search, name: Copy.archiveSearch(), enabled: archived > 0, why: Copy.archiveNoneToSearch(), shortcut: "⌘F",
                         pressed: query != nil
                     ) {
                         if query == nil { openSearch() } else { query = nil }
                     }
-                    IconButton(icon: .dots, name: "Sort archive") { sortOpen.toggle() }
+                    IconButton(icon: .dots, name: Copy.archiveSort()) { sortOpen.toggle() }
                         .popover(isPresented: $sortOpen, arrowEdge: .bottom) {
                             ChoiceMenu(
-                                title: "Sort archive", options: Self.sorts.map { ($0.menuTitle, $0) }, selection: $sort, close: { sortOpen = false }
+                                title: Copy.archiveSort(), options: Self.sorts.map { ($0.menuTitle, $0) }, selection: $sort, close: { sortOpen = false }
                             )
                         }
-                    IconButton(icon: open ? .chevronDown : .chevronRight, name: open ? "Fold archive" : "Unfold archive", action: toggle)
+                    IconButton(icon: open ? .chevronDown : .chevronRight, name: open ? Copy.archiveFold() : Copy.archiveUnfold(), action: toggle)
                 }
             )
-            .help("Archive")
+            .help(Copy.archiveTitle())
             if open {
                 VStack(spacing: Tokens.Space.s2) {
                     if query != nil {
                         // not `Binding($query)`: its getter force-unwraps and crashes once the query is nil
                         SidebarSearchField(
-                            placeholder: "Search archive", text: Binding(get: { query ?? "" }, set: { query = $0 }), focus: $searching,
+                            placeholder: Copy.archiveSearch(), text: Binding(get: { query ?? "" }, set: { query = $0 }), focus: $searching,
                             close: { query = nil }
                         )
                     }

@@ -15,13 +15,13 @@ struct SessionPullRequestChip: View {
         } label: {
             HStack(spacing: Tokens.Space.s4) {
                 Glyph(.gitPullRequest, size: 9)
-                Text(pr.chipText).scaledFont(11, weight: .medium).monospacedDigit()
+                Text(pr.chipText()).scaledFont(11, weight: .medium).monospacedDigit()
             }
             .foregroundStyle(tint).padding(.horizontal, Tokens.Space.s6).frame(height: 17)
             .background(Capsule().fill(tint.opacity(0.16)))
             .contentShape(Capsule())
         }
-        .buttonStyle(.plain).help("Open pull request #\(pr.number) on GitHub").accessibilityLabel(pr.spoken).accessibilityHint("Opens it on GitHub")
+        .buttonStyle(.plain).help(Copy.sessionPrOpenHelp(number: String(pr.number))).accessibilityLabel(pr.spoken()).accessibilityHint(Copy.sessionPrOpenHint())
     }
 }
 
@@ -83,11 +83,11 @@ struct SessionWorkPill: View {
                             } else {
                                 Circle().fill(pr.tint).frame(width: 6, height: 6)
                             }
-                            Text(pr.chipText)
+                            Text(pr.chipText())
                         }
                         .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain).help("Open pull request #\(pr.number) on GitHub").accessibilityLabel(pr.spoken).accessibilityHint("Opens it on GitHub")
+                    .buttonStyle(.plain).help(Copy.sessionPrOpenHelp(number: String(pr.number))).accessibilityLabel(pr.spoken()).accessibilityHint(Copy.sessionPrOpenHint())
                 }
                 if pr != nil, diff != nil { Rectangle().frame(width: 1, height: 9).opacity(0.3) }
                 if let diff { Text("+\(diff.added) −\(diff.removed)") }

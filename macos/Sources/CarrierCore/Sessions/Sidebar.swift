@@ -191,9 +191,9 @@ public struct SidebarCollapse: Equatable {
 /// A non-empty `query` keeps the rows whose title, issue number (with or without `#`) or `owner/name` contain it, ignoring case, and
 /// hides the groups left empty; an empty one changes nothing. Grouped by repository, a query also looks through the finished epics,
 /// so Done and Cancelled are reachable in both groupings.
-public func sidebarGroups(_ snapshot: PanelSnapshot, by groupBy: GroupBy, query: String = "") -> [SidebarGroup] {
+public func sidebarGroups(_ snapshot: PanelSnapshot, by groupBy: GroupBy, query: String = "", bundle: Bundle? = nil, locale: Locale = .current) -> [SidebarGroup] {
     let needle = query.trimmingCharacters(in: .whitespaces)
-    let groups = allSidebarGroups(snapshot, by: groupBy, withFinished: needle.isEmpty == false)
+    let groups = allSidebarGroups(snapshot, by: groupBy, withFinished: needle.isEmpty == false, bundle: bundle, locale: locale)
     guard needle.isEmpty == false else { return groups }
     let number = needle.hasPrefix("#") ? String(needle.dropFirst()) : needle
     func matches(_ row: SidebarRow) -> Bool {
@@ -208,7 +208,7 @@ public func sidebarGroups(_ snapshot: PanelSnapshot, by groupBy: GroupBy, query:
 }
 
 /// `withFinished` adds the finished epics to the repository sections; the status grouping always has them as Done and Cancelled.
-private func allSidebarGroups(_ snapshot: PanelSnapshot, by groupBy: GroupBy, withFinished: Bool) -> [SidebarGroup] {
+private func allSidebarGroups(_ snapshot: PanelSnapshot, by groupBy: GroupBy, withFinished: Bool, bundle: Bundle?, locale: Locale) -> [SidebarGroup] {
     let titles = Dictionary(
         uniqueKeysWithValues: (snapshot.epics.map { (key($0.repo, $0.issue), $0.title) } + snapshot.queue.map { (key($0.repo, $0.issue), $0.title) })
     )
@@ -226,10 +226,11 @@ private func allSidebarGroups(_ snapshot: PanelSnapshot, by groupBy: GroupBy, wi
     func finished(_ status: PanelSnapshot.FinishedEpic.Status) -> [SidebarRow] {
         snapshot.finished.filter { $0.status == status }.map { epic in
             guard status == .cancelled else {
-                return row(.ended(epic), .done, epic.prNumber.map { "PR #\($0) merged" } ?? "merged", since: epic.finishedAt, title: epic.title)
+                let merged = epic.prNumber.map { Copy.sidebarPrMerged(number: String($0), bundle: bundle, locale: locale) } ?? Copy.sidebarMerged(bundle: bundle, locale: locale)
+                return row(.ended(epic), .done, merged, since: epic.finishedAt, title: epic.title)
             }
             let reason = epic.cancelReason.flatMap { $0.isEmpty ? nil : $0 }
-            return row(.ended(epic), .cancelled, reason ?? "cancelled", since: epic.finishedAt, title: epic.title)
+            return row(.ended(epic), .cancelled, reason ?? Copy.sidebarCancelled(bundle: bundle, locale: locale), since: epic.finishedAt, title: epic.title)
         }
     }
 
@@ -238,22 +239,29 @@ private func allSidebarGroups(_ snapshot: PanelSnapshot, by groupBy: GroupBy, wi
         epic.executionId.flatMap { id in snapshot.sessions?.first { $0.executionId == id }?.last?.text }.flatMap { $0.isEmpty ? nil : $0 }
     }
     let needsYou = snapshot.epics.filter { $0.status == .needsHuman }.map {
-        row(.active($0), .needsYou, interventionLine($0), since: $0.stageSince, attention: Attention(kind: $0.needsHumanKind))
+        row(.active($0), .needsYou, interventionLine($0, bundle: bundle, locale: locale), since: $0.stageSince, attention: Attention(kind: $0.needsHumanKind))
     }
-    let running = snapshot.epics.filter { $0.status == .running }.map { row(.active($0), .running, doing($0) ?? runningLine($0), since: $0.stageSince) }
-    let waiting = snapshot.queue.enumerated().map { row(.queued($1, position: $0 + 1), .waiting, "waiting for a slot", since: $1.queuedAt) }
-    let ready = snapshot.done.map { row(.finished($0), .ready, $0.prNumber.map { "PR #\($0)" } ?? "ready for test", since: $0.finishedAt) }
+    let running = snapshot.epics.filter { $0.status == .running }.map {
+        row(.active($0), .running, doing($0) ?? runningLine($0, bundle: bundle, locale: locale), since: $0.stageSince)
+    }
+    let waiting = snapshot.queue.enumerated().map {
+        row(.queued($1, position: $0 + 1), .waiting, Copy.sidebarWaitingForSlot(bundle: bundle, locale: locale), since: $1.queuedAt)
+    }
+    let ready = snapshot.done.map {
+        row(.finished($0), .ready, $0.prNumber.map { Copy.sidebarPr(number: String($0), bundle: bundle, locale: locale) } ?? Copy.sidebarReadyForTest(bundle: bundle, locale: locale), since: $0.finishedAt)
+    }
 
     switch groupBy {
     case .status:
         let hiddenWhenEmpty = [
-            SidebarGroup(title: "Ready for test", rows: ready),
-            SidebarGroup(title: "Done", rows: finished(.merged), startsCollapsed: true),
-            SidebarGroup(title: "Cancelled", rows: finished(.cancelled), startsCollapsed: true),
+            SidebarGroup(title: Copy.sidebarGroupReadyForTest(bundle: bundle, locale: locale), rows: ready),
+            SidebarGroup(title: Copy.sidebarGroupDone(bundle: bundle, locale: locale), rows: finished(.merged), startsCollapsed: true),
+            SidebarGroup(title: Copy.sidebarGroupCancelled(bundle: bundle, locale: locale), rows: finished(.cancelled), startsCollapsed: true),
         ].filter { $0.rows.isEmpty == false }
         return [
-            SidebarGroup(title: "Needs attention", rows: needsYou), SidebarGroup(title: "Running", rows: running),
-            SidebarGroup(title: "Up next", rows: waiting),
+            SidebarGroup(title: Copy.sidebarGroupNeedsAttention(bundle: bundle, locale: locale), rows: needsYou),
+            SidebarGroup(title: Copy.sidebarRunning(bundle: bundle, locale: locale), rows: running),
+            SidebarGroup(title: Copy.sidebarGroupUpNext(bundle: bundle, locale: locale), rows: waiting),
         ] + hiddenWhenEmpty
     case .repo:
         let byRepo = Dictionary(grouping: needsYou + running + waiting + ready + (withFinished ? finished(.merged) + finished(.cancelled) : []), by: \.repo)
@@ -273,14 +281,14 @@ public struct CarrierCardState: Equatable {
     public var slots: (busy: Int, total: Int)?
 
     /// The word of the pill.
-    public var title: String {
+    public func title(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         switch kind {
-        case .running: "Running"
-        case .idle: "Idle"
-        case .paused: "Paused"
-        case .stopped: "Stopped"
-        case .problem: "Problem"
-        case .connecting: "Connecting"
+        case .running: Copy.sidebarRunning(bundle: bundle, locale: locale)
+        case .idle: Copy.sidebarIdle(bundle: bundle, locale: locale)
+        case .paused: Copy.sidebarPaused(bundle: bundle, locale: locale)
+        case .stopped: Copy.sidebarStopped(bundle: bundle, locale: locale)
+        case .problem: Copy.sidebarProblem(bundle: bundle, locale: locale)
+        case .connecting: Copy.sidebarConnecting(bundle: bundle, locale: locale)
         }
     }
 
@@ -306,26 +314,31 @@ private func key(_ repo: String, _ issue: Int) -> String { "\(repo)#\(issue)" }
 
 private func shortName(_ repo: String) -> String { repo.split(separator: "/").last.map(String.init) ?? repo }
 
-func runningLine(_ epic: PanelEpic) -> String {
-    let stage = epic.stage?.rawValue ?? "starting"
-    if let round = epic.round { return "\(stage) · round \(round)/\(epic.maxReviews)" }
-    if let slices = epic.slices, slices.total > 0 { return "\(stage) · \(slices.done)/\(slices.total) slices" }
+func runningLine(_ epic: PanelEpic, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+    let stage = switch epic.stage {
+    case .ship?: Copy.sidebarStageShip(bundle: bundle, locale: locale)
+    case .review?: Copy.sidebarStageReview(bundle: bundle, locale: locale)
+    case .fix?: Copy.sidebarStageFix(bundle: bundle, locale: locale)
+    case nil: Copy.sidebarStageStarting(bundle: bundle, locale: locale)
+    }
+    if let round = epic.round { return Copy.sidebarStageRound(stage: stage, round: round, max: epic.maxReviews, bundle: bundle, locale: locale) }
+    if let slices = epic.slices, slices.total > 0 { return Copy.sidebarStageSlices(stage: stage, done: slices.done, total: slices.total, bundle: bundle, locale: locale) }
     return stage
 }
 
 /// Lower case, as the sidebar's detail line; Your turn capitalises it.
-func interventionLine(_ epic: PanelEpic) -> String {
+func interventionLine(_ epic: PanelEpic, bundle: Bundle? = nil, locale: Locale = .current) -> String {
     switch epic.needsHumanKind {
-    case "review_limit": "review limit reached"
-    case "agent_needs_human": "the agent needs you"
-    case "retries_exhausted": "retries exhausted"
-    case "timeout": "timed out"
-    case "auth": "authentication failed"
-    case "workspace": "workspace problem"
-    case "pr_invalid": "pull request invalid"
-    case "skill_missing": "skill missing"
-    case "reviewers_failed": "a reviewer gave no verdict"
-    case "lead_limit": "lead review limit reached"
-    default: epic.shownNeedsHumanReason() ?? "needs you"
+    case "review_limit": Copy.sidebarNeedReviewLimit(bundle: bundle, locale: locale)
+    case "agent_needs_human": Copy.sidebarNeedAgentNeedsHuman(bundle: bundle, locale: locale)
+    case "retries_exhausted": Copy.sidebarNeedRetriesExhausted(bundle: bundle, locale: locale)
+    case "timeout": Copy.sidebarNeedTimeout(bundle: bundle, locale: locale)
+    case "auth": Copy.sidebarNeedAuth(bundle: bundle, locale: locale)
+    case "workspace": Copy.sidebarNeedWorkspace(bundle: bundle, locale: locale)
+    case "pr_invalid": Copy.sidebarNeedPrInvalid(bundle: bundle, locale: locale)
+    case "skill_missing": Copy.sidebarNeedSkillMissing(bundle: bundle, locale: locale)
+    case "reviewers_failed": Copy.sidebarNeedReviewersFailed(bundle: bundle, locale: locale)
+    case "lead_limit": Copy.sidebarNeedLeadLimit(bundle: bundle, locale: locale)
+    default: epic.shownNeedsHumanReason(bundle: bundle, locale: locale) ?? Copy.sidebarNeedYou(bundle: bundle, locale: locale)
     }
 }

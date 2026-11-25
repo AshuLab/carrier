@@ -40,7 +40,7 @@ struct SessionsHomeView: View {
             } else if let empty = page.emptyState {
                 VStack(alignment: .leading, spacing: Tokens.Space.none) {
                     if filter.chips.isEmpty == false { chips.padding(.horizontal, Tokens.Space.s20).padding(.vertical, Tokens.Space.s8) }
-                    EmptyStateView(state: empty, action: empty == .noSessionsMatch ? ("Clear filters", clear) : nil)
+                    EmptyStateView(state: empty, action: empty == .noSessionsMatch ? (Copy.sessionsClearFilters(), clear) : nil)
                 }
                 .inPageScroll()
             } else {
@@ -108,19 +108,19 @@ struct SessionsHomeView: View {
         .sharedBackgroundVisibility(.hidden)
         ToolbarSpacer(.fixed, placement: .primaryAction)
         ToolbarItem(placement: .primaryAction) {
-            AccentGlassPillButton(title: "New session", icon: .plus, action: newSession)
+            AccentGlassPillButton(title: Copy.sessionsNew(), icon: .plus, action: newSession)
                 .padding(.trailing, Tokens.Space.s10)
-                .help("New session")
+                .help(Copy.sessionsNew())
         }
         .sharedBackgroundVisibility(.hidden)
     }
 
     @ViewBuilder private var searchItem: some View {
-        ToolbarSearchField(query: $query, placeholder: "Search sessions", focused: $searching)
+        ToolbarSearchField(query: $query, placeholder: Copy.sessionsSearch(), focused: $searching)
     }
 
     private var filterItem: some View {
-        ToolbarPillButton(title: "Filter", icon: .filter, badge: filter.count) { filterOpen.toggle() }
+        ToolbarPillButton(title: Copy.sessionsFilter(), icon: .filter, badge: filter.count) { filterOpen.toggle() }
             .popover(isPresented: $filterOpen, arrowEdge: .bottom) {
                 SessionFilterPopover(sort: $sort, filter: $filter, agents: Set(sessions.rows.map(\.agent)).sorted())
             }
@@ -131,22 +131,22 @@ struct SessionsHomeView: View {
             ForEach(filter.chips, id: \.self) { chip in
                 Button { filter.remove(chip) } label: {
                     HStack(spacing: Tokens.Space.s4) {
-                        Text(chip.title)
+                        Text(chip.title())
                         Glyph(.close, size: 8)
                     }
                     .font(.caption.weight(.medium)).foregroundStyle(.white)
                     .padding(.horizontal, Tokens.Space.s10).padding(.vertical, Tokens.Space.s3).background(Capsule().fill(.tint))
                 }
-                .buttonStyle(.plain).accessibilityLabel("Remove filter \(chip.title)")
+                .buttonStyle(.plain).accessibilityLabel(Copy.sessionsRemoveFilter(name: chip.title()))
             }
-            Button("Clear filters", action: clear).buttonStyle(.plain).font(.caption).foregroundStyle(.secondary)
+            Button(Copy.sessionsClearFilters(), action: clear).buttonStyle(.plain).font(.caption).foregroundStyle(.secondary)
         }
     }
 
     private func groupHeader(_ group: SessionGroup) -> some View {
         HStack(spacing: Tokens.Space.s6) {
             Text(group.title).font(.callout.weight(.semibold))
-            Text(group.rows.count == 1 ? "1 session" : "\(group.rows.count) sessions").font(.caption).foregroundStyle(.secondary)
+            Text(Copy.sessionsCount(count: group.rows.count)).font(.caption).foregroundStyle(.secondary)
         }
         .padding(.horizontal, Tokens.Space.s8).padding(.top, Tokens.Space.s14).padding(.bottom, Tokens.Space.s4)
         .accessibilityAddTraits(.isHeader)
@@ -169,7 +169,7 @@ private struct SessionFilterPopover: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Tokens.Space.s4) {
-            heading("Sort by")
+            heading(Copy.sessionsSortBy())
             ForEach(SessionSort.allCases, id: \.self) { option in
                 Button { sort = option } label: {
                     HStack {
@@ -182,16 +182,16 @@ private struct SessionFilterPopover: View {
                 .buttonStyle(.plain).accessibilityAddTraits(sort == option ? .isSelected : [])
             }
             Divider().padding(.vertical, Tokens.Space.s4)
-            heading("Show")
-            ForEach(SessionFilter.offeredStatuses, id: \.self) { Toggle($0.title, isOn: ticked(\.statuses, $0)) }
+            heading(Copy.sessionsFilterShow())
+            ForEach(SessionFilter.offeredStatuses, id: \.self) { Toggle($0.title(), isOn: ticked(\.statuses, $0)) }
             if agents.isEmpty == false {
                 Divider().padding(.vertical, Tokens.Space.s4)
-                heading("Agent")
+                heading(Copy.sessionsFilterAgent())
                 ForEach(agents, id: \.self) { Toggle($0, isOn: ticked(\.agents, $0)) }
             }
             if filter.count > 0 {
                 Divider().padding(.vertical, Tokens.Space.s4)
-                Button("Clear filters") { filter = SessionFilter() }.buttonStyle(.plain).foregroundStyle(.secondary)
+                Button(Copy.sessionsClearFilters()) { filter = SessionFilter() }.buttonStyle(.plain).foregroundStyle(.secondary)
             }
         }
         .padding(Tokens.Space.s12)
@@ -206,9 +206,9 @@ private struct SessionFilterPopover: View {
 extension SessionSort {
     var title: String {
         switch self {
-        case .workspace: "Workspace"
-        case .age: "Age"
-        case .status: "Status"
+        case .workspace: Copy.sessionSortWorkspace()
+        case .age: Copy.sessionSortAge()
+        case .status: Copy.sessionSortStatus()
         }
     }
 }
@@ -238,10 +238,10 @@ private struct SessionHomeRow: View {
                 .environment(\.rowActive, active)
             VStack(alignment: .leading, spacing: Tokens.Space.s3) {
                 HStack(spacing: Tokens.Space.s6) {
-                    if pinned { Glyph(.pinFilled, size: 10, label: "Pinned").foregroundStyle(.secondary) }
+                    if pinned { Glyph(.pinFilled, size: 10, label: Copy.sessionPinned()).foregroundStyle(.secondary) }
                     Text(row.title).scaledFont(13, weight: .medium).lineLimit(1).truncationMode(.tail)
                     if showsWorkspace { RowTag(text: row.workspace) }
-                    if row.archived { RowTag(text: "Archived") }
+                    if row.archived { RowTag(text: Copy.sessionArchivedTag()) }
                 }
                 status
                 meta
@@ -266,7 +266,7 @@ private struct SessionHomeRow: View {
         .help(row.title)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
-        .accessibilityAction(named: "Open", open)
+        .accessibilityAction(named: Copy.sessionOpen(), open)
     }
 
     /// What the session is doing, or the last thing the agent said.
@@ -275,13 +275,13 @@ private struct SessionHomeRow: View {
             Text(waiting).foregroundStyle(Color.backgroundWork).font(.callout).lineLimit(1).truncationMode(.tail)
         } else {
             switch row.state {
-            case .waiting: Text("Waiting for you").fontWeight(.medium).foregroundStyle(SessionRowView.attention).font(.callout)
-            case .working: Text("Working…").foregroundStyle(Color.thought).font(.callout)
+            case .waiting: Text(Copy.sessionWaitingForYou()).fontWeight(.medium).foregroundStyle(SessionRowView.attention).font(.callout)
+            case .working: Text(Copy.sessionWorking()).foregroundStyle(Color.thought).font(.callout)
             case .idle, .done:
                 if let message = row.lastMessage {
                     Text(message).foregroundStyle(.secondary).font(.callout).lineLimit(1).truncationMode(.tail)
                 } else if row.reportsActivity {
-                    Text("No reply yet").foregroundStyle(.tertiary).font(.callout)
+                    Text(Copy.sessionNoReplyYet()).foregroundStyle(.tertiary).font(.callout)
                 }
             }
         }
@@ -294,9 +294,9 @@ private struct SessionHomeRow: View {
                 if let branch = row.branch {
                     Text("\(Image(inline: .gitBranch)) \(Text(branch).scaledFont(11, design: .monospaced))").lineLimit(1).truncationMode(.middle)
                 } else {
-                    Label("Base folder", icon: .folder).labelStyle(.titleAndIcon).lineLimit(1)
+                    Label(Copy.sessionBaseFolder(), icon: .folder).labelStyle(.titleAndIcon).lineLimit(1)
                 }
-                if row.turns > 0 { Text("·"); Text(row.turns == 1 ? "1 turn" : "\(row.turns) turns") }
+                if row.turns > 0 { Text("·"); Text(Copy.sessionTurns(count: row.turns)) }
                 if let model = TurnSummary(model: row.model).shortModel { Text("·"); Text(model) }
             }
             .font(.caption).foregroundStyle(.tertiary)
@@ -308,14 +308,14 @@ private struct SessionHomeRow: View {
 
     private var actionButtons: some View {
         HStack(spacing: Tokens.Space.s4) {
-            RowIconButton(symbol: pinned ? .pinOff : .pin, title: pinned ? "Unpin" : "Pin", selected: pinned) {
+            RowIconButton(symbol: pinned ? .pinOff : .pin, title: pinned ? Copy.sessionUnpin() : Copy.sessionPin(), selected: pinned) {
                 let ids = pinnedIds(pinnedStored)
                 pinnedStored = storedPins(pinned ? ids.subtracting([row.id]) : ids.union([row.id]))
             }
             if row.archived {
-                RowIconButton(symbol: .undo, title: "Restore") { Task { if let refusal = await actions.restore(row.id) { tell(refusal) } } }
+                RowIconButton(symbol: .undo, title: Copy.sessionRestore()) { Task { if let refusal = await actions.restore(row.id) { tell(refusal) } } }
             } else {
-                RowIconButton(symbol: .archive, title: "Archive", why: archiveBlock(row)) { Task { if let refusal = await actions.archive(row.id) { tell(refusal) } } }
+                RowIconButton(symbol: .archive, title: Copy.sessionArchive(), why: archiveBlock(row)) { Task { if let refusal = await actions.archive(row.id) { tell(refusal) } } }
             }
         }
     }

@@ -14,13 +14,13 @@ public enum SessionState: Hashable {
 public enum SessionStatus: CaseIterable, Hashable {
     case needsYou, working, unread, idle, asleep
 
-    public var title: String {
+    public func title(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         switch self {
-        case .needsYou: "Needs you"
-        case .working: "Working"
-        case .unread: "Unread"
-        case .idle: "Idle"
-        case .asleep: "Asleep"
+        case .needsYou: Copy.sessionStatusNeedsYou(bundle: bundle, locale: locale)
+        case .working: Copy.sessionStatusWorking(bundle: bundle, locale: locale)
+        case .unread: Copy.sessionStatusUnread(bundle: bundle, locale: locale)
+        case .idle: Copy.sessionStatusIdle(bundle: bundle, locale: locale)
+        case .asleep: Copy.sessionStatusAsleep(bundle: bundle, locale: locale)
         }
     }
 }
@@ -61,30 +61,36 @@ extension SessionPullRequest {
     }
 
     /// What its chip says: "#983 · Draft", "#412 · ✓", "#979 · CI ✕", "#412 · CI running", "#88 · Merged"; the number alone while it is open and has no checks.
-    public var chipText: String {
+    public func chipText(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         switch state {
-        case .merged: "#\(number) · Merged"
-        case .closed: "#\(number) · Closed"
-        case .draft: "#\(number) · Draft"
+        case .merged: Copy.sessionPrMerged(number: String(number), bundle: bundle, locale: locale)
+        case .closed: Copy.sessionPrClosed(number: String(number), bundle: bundle, locale: locale)
+        case .draft: Copy.sessionPrDraft(number: String(number), bundle: bundle, locale: locale)
         case .open:
             switch checks {
-            case .passing?: "#\(number) · ✓"
-            case .failing?: "#\(number) · CI ✕"
-            case .pending?: "#\(number) · CI running"
+            case .passing?: Copy.sessionPrPassing(number: String(number), bundle: bundle, locale: locale)
+            case .failing?: Copy.sessionPrFailing(number: String(number), bundle: bundle, locale: locale)
+            case .pending?: Copy.sessionPrPending(number: String(number), bundle: bundle, locale: locale)
             case nil: "#\(number)"
             }
         }
     }
 
     /// For VoiceOver: "Pull request 412, open, checks passing".
-    public var spoken: String {
+    public func spoken(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        let kind: Copy.SessionPrSpoken = switch state {
+        case .open: .open
+        case .draft: .draft
+        case .merged: .merged
+        case .closed: .closed
+        }
         let checks: String? = switch checks {
-        case .passing?: "checks passing"
-        case .failing?: "checks failing"
-        case .pending?: "checks running"
+        case .passing?: Copy.sessionPrChecksPassing(bundle: bundle, locale: locale)
+        case .failing?: Copy.sessionPrChecksFailing(bundle: bundle, locale: locale)
+        case .pending?: Copy.sessionPrChecksPending(bundle: bundle, locale: locale)
         case nil: nil
         }
-        return (["Pull request \(number)", state.rawValue] + [checks]).compactMap { $0 }.joined(separator: ", ")
+        return [Copy.sessionPrSpoken(state: kind, number: String(number), bundle: bundle, locale: locale), checks].compactMap { $0 }.joined(separator: ", ")
     }
 }
 
@@ -113,19 +119,23 @@ public struct BackgroundTask: Equatable, Decodable {
 }
 
 /// The tasks the card's line names, one at a time: they take their turn each `tick` (the line rolls from one to the next), and none is no line.
-public func backgroundWords(_ tasks: [BackgroundTask], tick: Int) -> String? {
+public func backgroundWords(_ tasks: [BackgroundTask], tick: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String? {
     guard tasks.isEmpty == false else { return nil }
-    return "Waiting on \(tasks[abs(tick) % tasks.count].name)"
+    return Copy.sessionWaitingOn(name: tasks[abs(tick) % tasks.count].name, bundle: bundle, locale: locale)
 }
 
 /// How many they are, after the words, when there is more than one: "· 3 tasks".
-public func backgroundCount(_ tasks: [BackgroundTask]) -> String? { tasks.count > 1 ? "· \(tasks.count) tasks" : nil }
+public func backgroundCount(_ tasks: [BackgroundTask], bundle: Bundle? = nil, locale: Locale = .current) -> String? {
+    tasks.count > 1 ? Copy.sessionBackgroundCount(count: tasks.count, bundle: bundle, locale: locale) : nil
+}
 
 /// What a session whose turn ended waits for, in a line: "Waiting on pnpm build", "Waiting on pnpm build and 2 more"; nil when it waits for nothing.
-public func waitingOnText(_ tasks: [BackgroundTask]) -> String? {
+public func waitingOnText(_ tasks: [BackgroundTask], bundle: Bundle? = nil, locale: Locale = .current) -> String? {
     guard let first = tasks.first else { return nil }
     let name = first.name
-    return tasks.count == 1 ? "Waiting on \(name)" : "Waiting on \(name) and \(tasks.count - 1) more"
+    return tasks.count == 1
+        ? Copy.sessionWaitingOn(name: name, bundle: bundle, locale: locale)
+        : Copy.sessionWaitingOnMore(name: name, count: tasks.count - 1, bundle: bundle, locale: locale)
 }
 
 public struct SessionRow: Equatable {
@@ -257,7 +267,7 @@ public struct Sessions: Equatable {
     public var open: Int { rows.filter { $0.archived == false }.count }
 
     /// The accessible name of that badge: "1 open session", "5 open sessions".
-    public var openLabel: String { open == 1 ? "1 open session" : "\(open) open sessions" }
+    public func openLabel(bundle: Bundle? = nil, locale: Locale = .current) -> String { Copy.sessionOpenLabel(count: open, bundle: bundle, locale: locale) }
 
     /// How many listed sessions wait for the person: archived ones are not counted.
     public var waiting: Int { rows.filter { $0.state == .waiting && $0.archived == false }.count }
@@ -272,24 +282,25 @@ public enum SessionSort: String, CaseIterable { case workspace, age, status }
 /// non-empty `query` keeps the groups of that order, filtered to the rows whose title, workspace or agent contain it ignoring case.
 /// The `pinned` rows leave their groups for a "Pinned" one first.
 public func sessionGroups(
-    _ rows: [SessionRow], by sort: SessionSort = .workspace, query: String = "", pinned: Set<String> = [], now: Date = Date(), calendar: Calendar = .current
+    _ rows: [SessionRow], by sort: SessionSort = .workspace, query: String = "", pinned: Set<String> = [], now: Date = Date(), calendar: Calendar = .current,
+    bundle: Bundle? = nil, locale: Locale = .current
 ) -> [SessionGroup] {
     let active = matching(rows.filter { $0.archived == false }, query)
-    let pins = newestFirst("Pinned", active.filter { pinned.contains($0.id) })
+    let pins = newestFirst(Copy.sessionGroupPinned(bundle: bundle, locale: locale), active.filter { pinned.contains($0.id) })
     let listed = active.filter { pinned.contains($0.id) == false }
-    return (pins.map { [$0] } ?? []) + ordered(listed, by: sort, now: now, calendar: calendar)
+    return (pins.map { [$0] } ?? []) + ordered(listed, by: sort, now: now, calendar: calendar, bundle: bundle, locale: locale)
 }
 
-private func ordered(_ listed: [SessionRow], by sort: SessionSort, now: Date, calendar: Calendar) -> [SessionGroup] {
+private func ordered(_ listed: [SessionRow], by sort: SessionSort, now: Date, calendar: Calendar, bundle: Bundle?, locale: Locale) -> [SessionGroup] {
     switch sort {
     case .workspace:
         return Dictionary(grouping: listed, by: \.workspace)
             .compactMap { newestFirst($0.key, $0.value) }
             .sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
     case .age:
-        return ageGroups(listed, now: now, calendar: calendar)
+        return ageGroups(listed, now: now, calendar: calendar, bundle: bundle, locale: locale)
     case .status:
-        return SessionStatus.allCases.compactMap { status in newestFirst(status.title, listed.filter { $0.status == status }) }
+        return SessionStatus.allCases.compactMap { status in newestFirst(status.title(bundle: bundle, locale: locale), listed.filter { $0.status == status }) }
     }
 }
 
@@ -297,9 +308,10 @@ private func ordered(_ listed: [SessionRow], by sort: SessionSort, now: Date, ca
 /// one group per workspace, newest first, empty groups left out. A non-empty `query` keeps the groups, filtered to the rows whose
 /// title, workspace or agent contain it ignoring case.
 public func archivedGroups(
-    _ rows: [SessionRow], by sort: SessionSort = .age, query: String = "", now: Date = Date(), calendar: Calendar = .current
+    _ rows: [SessionRow], by sort: SessionSort = .age, query: String = "", now: Date = Date(), calendar: Calendar = .current,
+    bundle: Bundle? = nil, locale: Locale = .current
 ) -> [SessionGroup] {
-    ordered(matching(rows.filter(\.archived), query), by: sort, now: now, calendar: calendar)
+    ordered(matching(rows.filter(\.archived), query), by: sort, now: now, calendar: calendar, bundle: bundle, locale: locale)
 }
 
 func matching(_ rows: [SessionRow], _ query: String) -> [SessionRow] {
@@ -312,15 +324,15 @@ private func newestFirst(_ title: String, _ rows: [SessionRow]) -> SessionGroup?
 }
 
 /// Today, Yesterday, Last 7 days and Older, counted from the start of today in `calendar`.
-private func ageGroups(_ rows: [SessionRow], now: Date, calendar: Calendar) -> [SessionGroup] {
+private func ageGroups(_ rows: [SessionRow], now: Date, calendar: Calendar, bundle: Bundle?, locale: Locale) -> [SessionGroup] {
     let today = calendar.startOfDay(for: now)
     let yesterday = calendar.date(byAdding: .day, value: -1, to: today) ?? today
     let week = calendar.date(byAdding: .day, value: -7, to: today) ?? yesterday
     let buckets: [(String, (Date) -> Bool)] = [
-        ("Today", { $0 >= today }),
-        ("Yesterday", { $0 >= yesterday && $0 < today }),
-        ("Last 7 days", { $0 >= week && $0 < yesterday }),
-        ("Older", { $0 < week }),
+        (Copy.sessionGroupToday(bundle: bundle, locale: locale), { $0 >= today }),
+        (Copy.sessionGroupYesterday(bundle: bundle, locale: locale), { $0 >= yesterday && $0 < today }),
+        (Copy.sessionGroupLast7Days(bundle: bundle, locale: locale), { $0 >= week && $0 < yesterday }),
+        (Copy.sessionGroupOlder(bundle: bundle, locale: locale), { $0 < week }),
     ]
     return buckets.compactMap { title, contains in newestFirst(title, rows.filter { contains($0.sortedAt) }) }
 }

@@ -1,10 +1,12 @@
 #!/bin/bash
-# Runs `swift test` with a watchdog: if it is still running after $1 seconds (default 420), prints where every thread of the
+# Runs `swift test` with a watchdog: if the tests are still running after $1 seconds (default 420), prints where every thread of the
 # test process is stuck (`sample`), kills it and fails, so a hang names its test instead of burning the job's whole timeout.
+# The compile comes first and is not timed (the job's timeout covers it): a cold build is minutes, and a watchdog that counted it would kill a slow compile as if it were a hang.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 LIMIT="${1:-420}"
-swift test --build-system swiftbuild &
+swift build --build-tests --build-system swiftbuild || exit $?
+swift test --skip-build --build-system swiftbuild &
 PID=$!
 for ((i = 0; i < LIMIT; i++)); do
   kill -0 "$PID" 2>/dev/null || { wait "$PID"; exit $?; }

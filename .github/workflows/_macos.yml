@@ -1,17 +1,26 @@
 name: Carrier macOS app
 
-# The app (macos/): its tests and its bundle, in parallel on macOS, the expensive runner.
-# Reusable: ci.yml calls it once the engine and the cheap checks are green, release.yml calls it with `bundle: false` (the tests only: the release builds and checks the bundle itself); run by hand to try a branch.
-# The bundle (~18 min, a cold release build, once per architecture in parallel) runs only when the change can affect it: ci.yml decides. release.yml runs the same check before anything reaches the tap or the update feed.
+# The app (macos/): its tests and its bundle, in parallel on macOS, the scarce runner (it queues).
+# Reusable: macos-tests.yml calls it with `bundle: false`, macos-bundle.yml with `tests: false`, release.yml with `bundle: false` (the tests only: the release builds and checks the bundle itself); run by hand to try a branch.
+# The bundle (~10 min, a cold release build, once per architecture in parallel) runs only when the change can affect it: macos-bundle.yml's paths decide. release.yml runs the same check before anything reaches the tap or the update feed.
+# The tests restore the debug build (`macos/.build`) a push to main saved, so a pull request compiles only what it changed. A push to main and a release start from nothing: what they test is never a cache's.
 on:
   workflow_call:
     inputs:
+      tests:
+        description: Run the unit tests and the structure rules
+        type: boolean
+        default: true
       bundle:
         description: Also build and check the bundle
         type: boolean
         default: true
   workflow_dispatch:
     inputs:
+      tests:
+        description: Run the unit tests and the structure rules
+        type: boolean
+        default: true
       bundle:
         description: Also build and check the bundle
         type: boolean
@@ -23,21 +32,44 @@ permissions:
 jobs:
   test:
     name: Unit tests
+    if: inputs.tests
     runs-on: macos-26
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Toolchain
-        run: xcodebuild -version
+        id: toolchain
+        run: |
+          xcodebuild -version
+          echo "swift=$(swift --version 2>&1 | shasum | cut -c1-12)" >> "$GITHUB_OUTPUT"
+      # The key: the compiler and the resolved packages; the commit makes each save new, the prefixes find the latest one of the same compiler and packages, then of the same compiler.
+      - name: Restore build cache
+        id: cache
+        if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: macos/.build
+          key: swift-test-${{ runner.arch }}-${{ steps.toolchain.outputs.swift }}-${{ hashFiles('macos/Package.resolved') }}-${{ github.sha }}
+          restore-keys: |
+            swift-test-${{ runner.arch }}-${{ steps.toolchain.outputs.swift }}-${{ hashFiles('macos/Package.resolved') }}-
+            swift-test-${{ runner.arch }}-${{ steps.toolchain.outputs.swift }}-
+      # The tests' targets too: `swift test` then has nothing to compile, so the watchdog in test-ci.sh times the tests and not the compiler.
       - name: Build
         working-directory: macos
-        run: swift build --build-system swiftbuild
+        run: swift build --build-tests --build-system swiftbuild
       - name: Test
         working-directory: macos
         run: scripts/test-ci.sh
       - name: Structure
         working-directory: macos
         run: scripts/check-structure.sh
+      # Only a branch's own run saves (a push to main, a manual run): a tag's cache is read by nobody, and a pull request's by no other.
+      - name: Save build cache
+        if: github.event_name != 'pull_request' && github.ref_type == 'branch' && steps.cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: macos/.build
+          key: swift-test-${{ runner.arch }}-${{ steps.toolchain.outputs.swift }}-${{ hashFiles('macos/Package.resolved') }}-${{ github.sha }}
 
   # build-app.sh and what the updater needs from the bundle, for each architecture the release ships (ADR 0051): Intel is cross-compiled on this same runner.
   bundle:

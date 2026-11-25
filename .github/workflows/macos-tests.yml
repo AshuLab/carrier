@@ -1,0 +1,40 @@
+name: macOS tests
+
+# The app's unit tests and its structure rules (macos/scripts/check-structure.sh), on macOS.
+# A pull request into main that is not a draft runs it when the app, its notices or these workflows change. It starts at once: macOS runners queue, so it does not wait for the Linux checks.
+# A push to main runs it too, and it is the one that seeds the build cache the pull requests restore (a pull request cannot read the cache of another one).
+# Run by hand on a branch to try it, twice to see the cache work.
+# The bundle is macos-bundle.yml; the jobs are in _macos.yml, which release.yml calls too.
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - 'macos/**'
+      - 'THIRD-PARTY-NOTICES.md'
+      - '.github/workflows/macos-tests.yml'
+      - '.github/workflows/_macos.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'macos/**'
+      - 'THIRD-PARTY-NOTICES.md'
+      - '.github/workflows/macos-tests.yml'
+      - '.github/workflows/_macos.yml'
+  workflow_dispatch:
+
+# A new push to a PR replaces the previous run; main's and manual runs queue behind each other, so a second manual run finds the cache the first one saved.
+concurrency:
+  group: macos-tests-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  macos:
+    name: Carrier macOS app
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    uses: ./.github/workflows/_macos.yml
+    with:
+      bundle: false

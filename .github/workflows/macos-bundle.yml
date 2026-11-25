@@ -1,0 +1,37 @@
+name: macOS bundle
+
+# build-app.sh and what the updater needs from the bundle (macos/scripts/check-app.sh), once per architecture the release ships: a cold release build, ~10 min each, so it runs only for a change that can affect the packaging.
+# The paths are what build-app.sh and check-app.sh read or write: the scripts, the package, the resources, the key, the fixtures, the notices and the workflows that run it. release.yml builds and checks the bundle again before anything reaches the tap or the update feed.
+# Only a pull request into main that is not a draft; a push to main does not run it.
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - 'macos/build-app.sh'
+      - 'macos/update-key.pub'
+      - 'macos/Package.swift'
+      - 'macos/Package.resolved'
+      - 'macos/scripts/**'
+      - 'macos/Resources/**'
+      - 'macos/Tests/Fixtures/**'
+      - 'macos/Sources/*/Resources/**'
+      - 'THIRD-PARTY-NOTICES.md'
+      - '.github/workflows/macos-bundle.yml'
+      - '.github/workflows/_macos.yml'
+
+concurrency:
+  group: macos-bundle-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  macos:
+    name: Carrier macOS app
+    if: github.event.pull_request.draft == false
+    uses: ./.github/workflows/_macos.yml
+    with:
+      tests: false
+      bundle: true

@@ -271,8 +271,8 @@ struct ProjectDetailView: View {
 
     private var iconSummary: String {
         if row.iconImage != nil { return Copy.projectsIconCustom() }
-        let color = row.iconColor?.rawValue.capitalized ?? Copy.projectsIconAutoColor()
-        let mark = row.iconMark?.rawValue.capitalized ?? Copy.projectsIconInitials()
+        let color = row.iconColor?.title() ?? Copy.projectsIconAutoColor()
+        let mark = row.iconMark.map { projectMarkTitle($0) } ?? Copy.projectsIconInitials()
         return Copy.projectsIconSummary(color: color, mark: mark)
     }
 

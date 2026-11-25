@@ -17,7 +17,7 @@ struct KeybindingsTabView: View {
         let table = ShortcutTable()
         SettingsPageBody(reset: { AppPreferences().reset(.keybindings); revision += 1 }) {
             ForEach(ShortcutGroup.allCases, id: \.self) { group in
-                SettingsGroup(id: group.rawValue, title: group.title) {
+                SettingsGroup(id: group.rawValue, title: group.title()) {
                     ForEach(ShortcutCommand.allCases.filter { $0.group == group }, id: \.self) { command in
                         row(command, table: table, first: command == ShortcutCommand.allCases.first { $0.group == group })
                     }
@@ -31,7 +31,7 @@ struct KeybindingsTabView: View {
         let combo = table.combo(for: command)
         let clash = combo.flatMap { table.clash(of: $0, for: command) }
         let text = shortcutRowText(command: command, combo: combo, clash: clash, refused: refused?.command == command ? refused?.combo : nil, recording: recording == command)
-        return SettingsTabRow(id: command.rawValue, title: command.title, detail: text.detail, first: first) {
+        return SettingsTabRow(id: command.rawValue, title: command.title(), detail: text.detail, first: first) {
             HStack(spacing: Tokens.Space.s8) {
                 if let warning = text.warning {
                     Label(warning, icon: .warningFilled).scaledFont(11).foregroundStyle(.orange)

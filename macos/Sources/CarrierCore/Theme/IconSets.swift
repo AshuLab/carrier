@@ -8,11 +8,11 @@ public enum IconSet: String, CaseIterable, Sendable {
 
     public static let defaultSet = Preference.appearanceIconSet.defaultValue
 
-    public var title: String {
+    public func title(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         switch self {
-        case .tabler: "Tabler"
-        case .lucide: "Lucide"
-        case .sfSymbols: "SF Symbols"
+        case .tabler: Copy.choiceIconSetTabler(bundle: bundle, locale: locale)
+        case .lucide: Copy.choiceIconSetLucide(bundle: bundle, locale: locale)
+        case .sfSymbols: Copy.choiceIconSetSfSymbols(bundle: bundle, locale: locale)
         }
     }
 

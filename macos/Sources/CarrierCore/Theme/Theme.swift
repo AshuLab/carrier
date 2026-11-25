@@ -31,7 +31,19 @@ public enum ThemeScheme: CaseIterable, Sendable { case light, dark }
 public enum Theme: String, CaseIterable, Codable, Sendable {
     case carrier, graphite, ocean, forest, sunset, paper, rose, lavender, midnight
 
-    public var title: String { rawValue.capitalized }
+    public func title(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch self {
+        case .carrier: Copy.choiceThemeCarrier(bundle: bundle, locale: locale)
+        case .graphite: Copy.choiceThemeGraphite(bundle: bundle, locale: locale)
+        case .ocean: Copy.choiceThemeOcean(bundle: bundle, locale: locale)
+        case .forest: Copy.choiceThemeForest(bundle: bundle, locale: locale)
+        case .sunset: Copy.choiceThemeSunset(bundle: bundle, locale: locale)
+        case .paper: Copy.choiceThemePaper(bundle: bundle, locale: locale)
+        case .rose: Copy.choiceThemeRose(bundle: bundle, locale: locale)
+        case .lavender: Copy.choiceThemeLavender(bundle: bundle, locale: locale)
+        case .midnight: Copy.choiceThemeMidnight(bundle: bundle, locale: locale)
+        }
+    }
 
     /// The window, the sidebar and the accent of one version (`design/tokens.json`). Carrier's has no accent of its own: it keeps the Mac's.
     fileprivate func colors(_ scheme: ThemeScheme) -> ThemeColors {
@@ -74,7 +86,19 @@ public struct AccentColor: RawRepresentable, CaseIterable, Hashable, Sendable {
 
     public var isCustom: Bool { Self.hex(rawValue) != nil }
 
-    public var title: String { isCustom ? "Custom" : rawValue.capitalized }
+    /// A preset's name in the app's language; `#rrggbb` is the person's own color. A preset `design/tokens.json` adds is shown by its own name until it has a key.
+    public func title(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch rawValue {
+        case "blue": Copy.choiceAccentBlue(bundle: bundle, locale: locale)
+        case "purple": Copy.choiceAccentPurple(bundle: bundle, locale: locale)
+        case "pink": Copy.choiceAccentPink(bundle: bundle, locale: locale)
+        case "red": Copy.choiceAccentRed(bundle: bundle, locale: locale)
+        case "orange": Copy.choiceAccentOrange(bundle: bundle, locale: locale)
+        case "green": Copy.choiceAccentGreen(bundle: bundle, locale: locale)
+        case "graphite": Copy.choiceAccentGraphite(bundle: bundle, locale: locale)
+        default: isCustom ? Copy.choiceAccentCustom(bundle: bundle, locale: locale) : rawValue.prefix(1).uppercased() + rawValue.dropFirst()
+        }
+    }
 
     public var color: RGBA { RGBA(hex: Self.hex(rawValue) ?? Self.presets.first { $0.name == rawValue }?.hex ?? 0) }
 }
@@ -83,7 +107,13 @@ public struct AccentColor: RawRepresentable, CaseIterable, Hashable, Sendable {
 public enum Tint: String, CaseIterable, Sendable {
     case off, subtle, strong
 
-    public var title: String { rawValue.capitalized }
+    public func title(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch self {
+        case .off: Copy.choiceTintOff(bundle: bundle, locale: locale)
+        case .subtle: Copy.choiceTintSubtle(bundle: bundle, locale: locale)
+        case .strong: Copy.choiceTintStrong(bundle: bundle, locale: locale)
+        }
+    }
 
     /// The accent's opacity over the surface: 0.06 and 0.14 read well on Forest (the spike's note).
     public var opacity: Double {

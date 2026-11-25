@@ -105,9 +105,9 @@ extension AppDelegate {
 
         // Engine: the controls of the menu bar item, with a shortcut when the person gives one
         let engine = submenu(of: main, title: t(.engine))
-        item(engine, ShortcutCommand.startOrStop.title, #selector(MenuControls.startOrStop), shortcut: .startOrStop, in: shortcuts, target: controls)
-        item(engine, ShortcutCommand.pauseOrResume.title, #selector(MenuControls.pauseOrResume), shortcut: .pauseOrResume, in: shortcuts, target: controls)
-        item(engine, ShortcutCommand.checkNow.title, #selector(MenuControls.checkNow), shortcut: .checkNow, in: shortcuts, target: controls)
+        item(engine, ShortcutCommand.startOrStop.title(bundle: bundle, locale: locale), #selector(MenuControls.startOrStop), shortcut: .startOrStop, in: shortcuts, target: controls)
+        item(engine, ShortcutCommand.pauseOrResume.title(bundle: bundle, locale: locale), #selector(MenuControls.pauseOrResume), shortcut: .pauseOrResume, in: shortcuts, target: controls)
+        item(engine, ShortcutCommand.checkNow.title(bundle: bundle, locale: locale), #selector(MenuControls.checkNow), shortcut: .checkNow, in: shortcuts, target: controls)
 
         // Terminal: global creation, drawer toggle, tab, split, focus, zoom, equalize, detach and close controls for keyboard-only and VoiceOver access
         let terminal = submenu(of: main, title: Copy.terminalSection(bundle: bundle, locale: locale))

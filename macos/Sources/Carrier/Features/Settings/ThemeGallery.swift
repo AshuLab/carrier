@@ -15,14 +15,14 @@ struct ThemeGallery: View {
                             ThemePreview(theme: option, scheme: .light)
                             ThemePreview(theme: option, scheme: .dark)
                         }
-                        Text(option.title).scaledFont(12)
+                        Text(option.title()).scaledFont(12)
                     }
                     .padding(Tokens.Space.s8).frame(maxWidth: .infinity)
                     .overlay(RoundedRectangle(cornerRadius: Tokens.Radius.card).strokeBorder(option == theme ? pieceTheme.accent : Color.secondary.opacity(0.2), lineWidth: option == theme ? 2 : 1))
                     .contentShape(RoundedRectangle(cornerRadius: Tokens.Radius.card))
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(option.title).accessibilityAddTraits(option == theme ? .isSelected : [])
+                .accessibilityLabel(option.title()).accessibilityAddTraits(option == theme ? .isSelected : [])
             }
         }
         .padding(.vertical, Tokens.Space.s12)

@@ -1,12 +1,14 @@
+import Foundation
+
 /// What the icon shows, chosen in Settings (story 33).
 public enum IconStyle: String, CaseIterable {
     case countAndBar, countOnly, barOnly
 
-    public var title: String {
+    public func title(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         switch self {
-        case .countAndBar: "Count and bar"
-        case .countOnly: "Count only"
-        case .barOnly: "Bar only"
+        case .countAndBar: Copy.choiceIconStyleCountAndBar(bundle: bundle, locale: locale)
+        case .countOnly: Copy.choiceIconStyleCountOnly(bundle: bundle, locale: locale)
+        case .barOnly: Copy.choiceIconStyleBarOnly(bundle: bundle, locale: locale)
         }
     }
 }

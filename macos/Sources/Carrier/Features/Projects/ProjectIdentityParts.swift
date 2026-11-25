@@ -92,7 +92,7 @@ struct ProjectIconPopover: View {
                 LazyVGrid(columns: grid, alignment: .leading, spacing: Self.gap) {
                     ForEach(ProjectColor.allCases, id: \.self) { choice in
                         let on = hasImage == false && selectedColor == choice
-                        let name = choice.rawValue.capitalized
+                        let name = choice.title()
                         Button { setColor(on ? nil : choice) } label: {
                             Circle().fill(choice.color)
                                 .frame(width: 20, height: 20).padding(Tokens.Space.s5)
@@ -110,7 +110,7 @@ struct ProjectIconPopover: View {
                 LazyVGrid(columns: grid, alignment: .leading, spacing: Self.gap) {
                     ForEach(projectIconMarks, id: \.self) { choice in
                         let on = hasImage == false && selectedMark == choice
-                        let name = choice.rawValue.capitalized
+                        let name = projectMarkTitle(choice)
                         Button { setMark(on ? nil : choice) } label: {
                             Glyph(choice, size: 15).foregroundStyle(tint)
                                 .frame(width: Self.tile, height: Self.tile)

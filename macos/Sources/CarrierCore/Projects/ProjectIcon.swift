@@ -20,10 +20,40 @@ public func projectColorKey(_ pathOrRepo: String) -> String {
 /// The eight colours a project's icon can wear in `projects.json` (`icon.color`), kept by name so the app draws them for light and dark.
 public enum ProjectColor: String, CaseIterable, Sendable {
     case red, orange, yellow, green, teal, blue, purple, pink
+
+    /// The color's name in the app's language, the words a provider's color has too.
+    public func title(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        let name: Copy.ProvidersColorName = switch self {
+        case .red: .red
+        case .orange: .orange
+        case .yellow: .yellow
+        case .green: .green
+        case .teal: .teal
+        case .blue: .blue
+        case .purple: .purple
+        case .pink: .pink
+        }
+        return Copy.providersColorName(which: name, bundle: bundle, locale: locale)
+    }
 }
 
 /// The eight marks a project's icon can wear in `projects.json` (`icon.mark`): existing icons of the app, stored by `AppIcon.rawValue`.
 public let projectIconMarks: [AppIcon] = [.code, .terminal, .cube, .book, .home, .bolt, .brain, .star]
+
+/// A mark's name in the app's language. A mark the picker does not offer, written in `projects.json` by hand, shows by its own name.
+public func projectMarkTitle(_ mark: AppIcon, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+    switch mark {
+    case .code: Copy.choiceProjectMarkCode(bundle: bundle, locale: locale)
+    case .terminal: Copy.choiceProjectMarkTerminal(bundle: bundle, locale: locale)
+    case .cube: Copy.choiceProjectMarkCube(bundle: bundle, locale: locale)
+    case .book: Copy.choiceProjectMarkBook(bundle: bundle, locale: locale)
+    case .home: Copy.choiceProjectMarkHome(bundle: bundle, locale: locale)
+    case .bolt: Copy.choiceProjectMarkBolt(bundle: bundle, locale: locale)
+    case .brain: Copy.choiceProjectMarkBrain(bundle: bundle, locale: locale)
+    case .star: Copy.choiceProjectMarkStar(bundle: bundle, locale: locale)
+    default: mark.rawValue.prefix(1).uppercased() + mark.rawValue.dropFirst()
+    }
+}
 
 /// What gives a project's tile its colour: a chosen colour from `projects.json`, else an index into the app's hashed palette.
 public enum ProjectTileColor: Equatable, Sendable {

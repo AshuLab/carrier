@@ -4,11 +4,11 @@ import Foundation
 // what each row shows and offers, apart from its views.
 
 public extension RecognizerID {
-    var title: String {
+    func title(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         switch self {
-        case .apple: "Apple"
-        case .fluidAudio: "FluidAudio"
-        case .whisper: "Whisper"
+        case .apple: Copy.choiceRecognizerApple(bundle: bundle, locale: locale)
+        case .fluidAudio: Copy.choiceRecognizerFluidAudio(bundle: bundle, locale: locale)
+        case .whisper: Copy.choiceRecognizerWhisper(bundle: bundle, locale: locale)
         }
     }
 }
@@ -120,11 +120,11 @@ public func speechModelRows(
             )
         }
         return SpeechModelRow(
-            id: model.id, name: model.name, recognizer: model.recognizer.title,
+            id: model.id, name: model.name, recognizer: model.recognizer.title(bundle: bundle, locale: locale),
             licence: model.recognizer == .apple ? Copy.dictationSystem(bundle: bundle, locale: locale) : model.licence, card: model.card, size: size, languages: languages,
             detectsLanguage: model.detectsLanguage, text: text, live: live, radio: state == .downloaded ? model.id == inUse : nil, action: action,
             label: Copy.dictationRowLabel(
-                model: model.name, recognizer: model.recognizer.title, size: size, languages: languages, text: text.lowercased(with: locale), status: status, bundle: bundle, locale: locale)
+                model: model.name, recognizer: model.recognizer.title(bundle: bundle, locale: locale), size: size, languages: languages, text: text.lowercased(with: locale), status: status, bundle: bundle, locale: locale)
         )
     }
 }

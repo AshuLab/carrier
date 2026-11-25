@@ -34,7 +34,7 @@ import Testing
 
     @Test func the_persons_own_accent_is_stored_as_a_hex_and_read_back_and_a_bad_value_is_none() throws {
         let own = AccentColor.own(RGBA(hex: 0x12ab9c))
-        #expect(own.rawValue == "#12ab9c" && own.isCustom && own.title == "Custom")
+        #expect(own.rawValue == "#12ab9c" && own.isCustom && own.title(bundle: english.bundle, locale: english.locale) == "Custom")
         #expect(try #require(AccentColor(rawValue: own.rawValue)).color == RGBA(hex: 0x12ab9c))
         #expect(themeSurfaces(.forest, scheme: .dark, accent: own, translucent: false).accent == RGBA(hex: 0x12ab9c))
         #expect(AccentColor(rawValue: "purple") == .purple && AccentColor.purple.isCustom == false)

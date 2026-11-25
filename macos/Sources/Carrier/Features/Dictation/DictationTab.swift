@@ -108,7 +108,7 @@ struct DictationTabView: View {
             return Copy.dictationSummaryGlobal(shortcut: AppPreferences().dictationShortcut.text, activation: way, style: widgetStyle.title())
         case .cleanup:
             guard cleanupOn else { return Copy.dictationOff() }
-            return cleanupServer.map { Copy.dictationSummaryCleanupOn(server: $0.title) } ?? Copy.dictationSummaryCleanupNoServer()
+            return cleanupServer.map { Copy.dictationSummaryCleanupOn(server: $0.title()) } ?? Copy.dictationSummaryCleanupNoServer()
         case .sounds:
             if startOn == false, endOn == false { return Copy.dictationOff() }
             return Copy.dictationSummarySounds(start: startOn ? start : "—", end: endOn ? end : "—", volume: volume)

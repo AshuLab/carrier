@@ -112,11 +112,11 @@ private let l = spanish.locale
     let plain = shortcutRowText(command: .newSession, combo: combo, clash: nil, refused: nil, recording: false, bundle: b, locale: l)
     #expect(plain.keys == "⌘K" && plain.value == "⌘K" && plain.warning == nil)
     #expect(plain.detail == "Predeterminado: \(ShortcutCommand.newSession.defaultCombo!.text)" && plain.defaultButton == "Predeterminado")
-    #expect(plain.label == "Atajo de New session" && plain.backToDefault == "Volver al predeterminado de New session")
+    #expect(plain.label == "Atajo de Nueva sesión" && plain.backToDefault == "Volver al predeterminado de Nueva sesión")
     let waiting = shortcutRowText(command: .newSession, combo: nil, clash: nil, refused: nil, recording: true, bundle: b, locale: l)
     #expect(waiting.keys == "Presiona las teclas…" && waiting.value == "Ninguno")
     #expect(shortcutRowText(command: .newSession, combo: nil, clash: nil, refused: nil, recording: false, bundle: b, locale: l).keys == "Ninguno")
-    #expect(shortcutRowText(command: .home, combo: combo, clash: .search, refused: nil, recording: false, bundle: b, locale: l).warning == "También Search")
+    #expect(shortcutRowText(command: .home, combo: combo, clash: .search, refused: nil, recording: false, bundle: b, locale: l).warning == "También Buscar")
     #expect(shortcutRowText(command: .home, combo: combo, clash: .search, refused: combo, recording: false, bundle: b, locale: l).warning == "⌘K es del sistema")
 }
 

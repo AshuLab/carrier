@@ -92,8 +92,9 @@ test('a providers.json that does not match answers the problem with the key and 
   const reply = await providers()();
   expect(reply).toMatchObject({ accounts: [], unadded: [], servers: [], problem: { path: 'providers.claude.autoCompact' } });
   expect(reply.problem?.message).toBeTruthy();
+  expect(reply.problem).toMatchObject({ code: 'providers.keyInvalid', params: { path: 'providers.claude.autoCompact' } });
   writeFile('{ not json');
-  expect((await providers()()).problem).toMatchObject({ path: '(file)' });
+  expect((await providers()()).problem).toMatchObject({ path: '(file)', code: 'providers.keyInvalid', params: { path: '(file)' } });
 });
 
 test('the text generator the file names is in the reply with its name, kind and model, and absent when it names none', async () => {

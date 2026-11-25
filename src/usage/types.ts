@@ -1,4 +1,5 @@
 import type { Clock } from '../orchestration/clock.ts';
+import type { TextParams } from '../orchestration/text-params.ts';
 import type { LocalProvider } from '../harnesses/local.ts';
 
 export type QuotaProvider = 'claude' | 'codex' | 'agy' | 'local';
@@ -36,6 +37,9 @@ export interface QuotaSnapshot {
   planType?: string;
   /** Why the status is not `ok`; never holds a token or the output of a child process. */
   message?: string;
+  /** The code and parameters of `message`, for a front-end that says it in its own words. */
+  messageCode?: string;
+  messageParams?: TextParams;
   extraUsage?: ExtraUsage;
   credits?: { hasCredits: boolean; unlimited: boolean; balance: string | null };
   rateLimitResetCredits?: unknown;
@@ -46,9 +50,14 @@ export interface QuotaSnapshot {
 /** What a probe throws when it knows the status; anything else becomes `error` with no detail. */
 export class ProbeError extends Error {
   status: Exclude<QuotaStatus, 'ok'>;
-  constructor(status: Exclude<QuotaStatus, 'ok'>, message: string) {
+  code: string;
+  params: TextParams;
+  // Node strips types: `pnpm typecheck` is what refuses an error without its code.
+  constructor(status: Exclude<QuotaStatus, 'ok'>, code: string, message: string, params: TextParams = {}) {
     super(message);
     this.status = status;
+    this.code = code;
+    this.params = params;
   }
 }
 

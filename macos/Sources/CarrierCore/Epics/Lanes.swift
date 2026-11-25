@@ -1,0 +1,152 @@
+import Foundation
+
+// The subagents of a session as sections of their own (docs/specs/macos-app-redesign.md, story 21). A lane is a Claude subagent
+// inside the ship execution: it has no session, so the sections are read-only. The agent is exact (the `agentId` of its events);
+// the lane number and the slice are hints read from the model's own wording (docs/research/claude-subagent-attribution.md).
+
+public struct LaneSection: Equatable, Identifiable {
+    /// The agent id: the key, never the lane or the slice (a lane is reused).
+    public var id: String
+    /// Where it sits in the session's list: the id of its first `task` start, or of its first event when it has none.
+    public var startId: Int
+    /// The slice's title in the epic's list; else the subagent's own description ("Subagent" before it arrives).
+    public var title: String
+    /// The epic's title for `slice`; nil with no slice or no match in the list.
+    public var sliceTitle: String?
+    public var state: SubagentState
+    /// Ms from its first start to the end of its first run, or to `now` while it runs; nil with no start.
+    public var duration: Int?
+    /// The first start and the end of the first run, in ms (the engine's arrival time of those lines); nil until they arrive.
+    public var startedAt: Int?
+    public var endedAt: Int?
+    /// How many times it started again after its first end (a follow-up message with the same agent id).
+    public var resumes: Int
+    /// When it ran, as the row's right side reads it: "14:02–14:09", "since 14:02" while it runs, nil otherwise.
+    public var timeLabel: String?
+    public var counts: SessionCounts
+    public var items: [TranscriptItem]
+    /// The slice the subagent builds, when its description says so (a hint, like the title).
+    public var slice: Int?
+    /// The lane it works in, when its worktree says so (a hint).
+    public var laneNumber: Int?
+    /// The slice's pull request as the row reads it: "PR #5 merged", "PR #5" (an older engine sends no state), or "no PR yet".
+    public var pullRequest: String
+    /// The same pull request as numbers, for the slice card's chip: nil with no slice match or no pull request; the state is `open`,
+    /// `draft`, `merged` or `closed`, nil from an engine that predates it.
+    public var prNumber: Int? = nil
+    public var prState: String? = nil
+    /// The step the subagent is on now (the last tool's name from the newest progress event); nil once it ended or when none arrived.
+    public var lastStep: String? = nil
+
+    /// Just taken: running with no events to count yet.
+    public var isStarting: Bool { state == .running && items.isEmpty }
+
+    /// "resumed once", "resumed 2 times"; nil for one that never ran again.
+    public func resumedLabel(bundle: Bundle? = nil, locale: Locale = .current) -> String? {
+        resumes > 0 ? Copy.epicsLaneResumed(count: resumes, bundle: bundle, locale: locale) : nil
+    }
+}
+
+/// A subagent's latest run: running (a start with no end), finished (the end event completed) or failed (it did not complete).
+public enum SubagentState: Equatable { case running, finished, failed }
+
+/// The state of a slice's pull request as the lane's line names it; a state this app does not know is left out, like an older engine's.
+private func laneRequestState(_ state: String?) -> Copy.EpicsLanePullRequest {
+    switch state {
+    case "merged": .merged
+    case "open": .open
+    case "draft": .draft
+    case "closed": .closed
+    default: .plain
+    }
+}
+
+/// The digits right after `marker`, ignoring case: `number(after: "slice #", in: "Build slice #653")` is 653.
+func number(after marker: String, in text: String) -> Int? {
+    guard let range = text.range(of: marker, options: .caseInsensitive) else { return nil }
+    return Int(text[range.upperBound...].prefix(while: { $0.isASCII && $0.isNumber }))
+}
+
+/// What the events of one subagent say so far.
+struct LaneState: Equatable {
+    var agentId: String
+    /// The text of its first `task` event ("Build slice #653").
+    var description: String?
+    /// `--lane-N` in the first argument that has one (a worktree path of Solve's naming).
+    var lane: Int?
+    var events: [ExecEvent] = []
+    var builder = TranscriptBuilder()
+
+    mutating func add(_ event: ExecEvent) {
+        events.append(event)
+        if event.kind == "task", event.tool == nil, description == nil { description = event.text }
+        if lane == nil, let arg = event.arg { lane = number(after: "--lane-", in: arg) }
+        builder.add(event)
+    }
+
+    mutating func reset() {
+        events = []
+        description = nil
+        lane = nil
+        builder.reset()
+    }
+
+    /// `running` is whether the session is: a start with no end in one that is not did not complete.
+    func section(slices: [EpicReply.Slice], running: Bool, now: Int, time: TimeFormat, bundle: Bundle?, locale: Locale) -> LaneSection {
+        let slice = description.flatMap { number(after: "slice #", in: $0) }
+        let match = slice.flatMap { number in slices.first { $0.number == number } }
+        let sliceTitle = match?.title
+        let pullRequest = match?.prNumber.map { number in
+            Copy.epicsLanePullRequest(state: laneRequestState(match?.prState), number: String(number), bundle: bundle, locale: locale)
+        } ?? Copy.epicsLaneNoPullRequest(bundle: bundle, locale: locale)
+        // Progress `task` events carry `tool` and no `status`; lifecycle events are starts (`tool == nil`) and ends (`status != nil`).
+        let runs = events.filter { $0.kind == "task" && ($0.status != nil || $0.tool == nil) }
+        let start = runs.first { $0.status == nil }
+        let end = runs.first { $0.status != nil }
+        // The latest run decides: a last start is running while the session is, else it did not complete.
+        let state: SubagentState = switch runs.last?.status {
+        case nil: running ? .running : .failed
+        case "ok": .finished
+        default: .failed
+        }
+        let latestStart = events.lastIndex { $0.kind == "task" && $0.status == nil && $0.tool == nil } ?? events.startIndex
+        let lastStep: String? = state == .running
+            ? events[latestStart...].last { $0.kind == "task" && $0.status == nil && $0.tool?.isEmpty == false }?.tool
+            : nil
+        let timeLabel = start.flatMap { start in
+            end.map { "\(clockTime(start.at, time: time))–\(clockTime($0.at, time: time))" }
+                ?? (state == .running ? Copy.epicsSince(time: clockTime(start.at, time: time), bundle: bundle, locale: locale) : nil)
+        }
+        return LaneSection(
+            id: agentId, startId: (start ?? events[0]).id, title: sliceTitle ?? description ?? Copy.epicsLaneSubagent(bundle: bundle, locale: locale), sliceTitle: sliceTitle,
+            state: state,
+            duration: start.flatMap { start in (end?.at ?? (state == .running ? now : nil)).map { $0 - start.at } },
+            startedAt: start?.at, endedAt: end?.at,
+            resumes: runs.drop { $0.status == nil }.dropFirst().filter { $0.status == nil }.count, timeLabel: timeLabel,
+            counts: sessionCounts(events), items: builder.items, slice: slice, laneNumber: lane, pullRequest: pullRequest,
+            prNumber: match?.prNumber, prState: match?.prNumber == nil ? nil : match?.prState,
+            lastStep: lastStep
+        )
+    }
+}
+
+extension Transcript {
+    /// The session's list in event order: the main rows with the subagents at the place they were taken (`flowItems`). The main
+    /// thread's call that launched a subagent shares its `callId` with the subagent's `task` start and is left out: the slice stands for it.
+    public func flow(
+        slices: [EpicReply.Slice] = [], running: Bool = false, now: Int = Int(Date().timeIntervalSince1970 * 1000), time: TimeFormat = .stored(),
+        bundle: Bundle? = nil, locale: Locale = .current
+    ) -> [FlowItem] {
+        let launches = Set(lanes.flatMap { $0.events.filter { $0.kind == "task" && $0.status == nil }.compactMap(\.callId) })
+        let launched = Set(events.filter { $0.agentId == nil && $0.callId.map(launches.contains) == true }.map(\.id))
+        return flowItems(items.filter { launched.contains($0.id) == false }, slices: laneSections(slices: slices, running: running, now: now, time: time, bundle: bundle, locale: locale), running: running)
+    }
+
+    /// The subagents with events, in order of appearance. Events with no agent id are in `items`.
+    public func laneSections(
+        slices: [EpicReply.Slice] = [], running: Bool = false, now: Int = Int(Date().timeIntervalSince1970 * 1000), time: TimeFormat = .stored(),
+        bundle: Bundle? = nil, locale: Locale = .current
+    ) -> [LaneSection] {
+        lanes.map { $0.section(slices: slices, running: running, now: now, time: time, bundle: bundle, locale: locale) }
+    }
+}

@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm';
 import type { ChatDb } from '../chat/db.ts';
 import { usagePriceOverrides } from '../chat/schema.ts';
+import type { TextParams } from '../orchestration/text-params.ts';
 import { litellmPrices } from './prices.generated.ts';
 
 /** US dollars per million tokens. */
@@ -23,7 +24,16 @@ export interface Tokens {
 export type PriceOverride = typeof usagePriceOverrides.$inferSelect;
 
 /** What a person sent that cannot be saved as a price: expected, so the caller reports it as is. */
-export class PriceOverrideInvalid extends Error {}
+export class PriceOverrideInvalid extends Error {
+  code: string;
+  params: TextParams;
+  // Node strips types: `pnpm typecheck` is what refuses an error without its code.
+  constructor(code: string, message: string, params: TextParams = {}) {
+    super(message);
+    this.code = code;
+    this.params = params;
+  }
+}
 
 /** A model id as the price table and the overrides know it: no provider prefix, context tag, date or effort suffix, dots as dashes. */
 export function normalizeModel(model: string): string {
@@ -77,16 +87,16 @@ export function createPriceOverrides(db: ChatDb, now: () => number) {
     list: (): Map<string, PriceOverride> => new Map(db.select().from(usagePriceOverrides).all().map((row) => [row.model, row])),
     set(request: OverrideRequest): void {
       const model = normalizeModel(request.model);
-      if (model === '') throw new PriceOverrideInvalid('the model is empty');
+      if (model === '') throw new PriceOverrideInvalid('usage.price.modelEmpty', 'the model is empty');
       if (request.action === 'clear') return void db.delete(usagePriceOverrides).where(eq(usagePriceOverrides.model, model)).run();
       let values: Partial<PriceOverride> = { mode: 'zero' };
       if (request.action === 'alias') {
         const aliasModel = normalizeModel(request.aliasModel);
-        if (aliasModel === '') throw new PriceOverrideInvalid('the alias target is empty');
+        if (aliasModel === '') throw new PriceOverrideInvalid('usage.price.aliasEmpty', 'the alias target is empty');
         values = { mode: 'alias', aliasModel };
       } else if (request.action === 'custom') {
         const { inputUsdPerMillion, outputUsdPerMillion, cachedInputUsdPerMillion, cacheWriteUsdPerMillion } = request;
-        if (![inputUsdPerMillion, outputUsdPerMillion].every((rate) => typeof rate === 'number') || ![inputUsdPerMillion, outputUsdPerMillion, cachedInputUsdPerMillion, cacheWriteUsdPerMillion].every(validRate)) throw new PriceOverrideInvalid('the input and output rates are required, and a rate is a finite number, zero or more');
+        if (![inputUsdPerMillion, outputUsdPerMillion].every((rate) => typeof rate === 'number') || ![inputUsdPerMillion, outputUsdPerMillion, cachedInputUsdPerMillion, cacheWriteUsdPerMillion].every(validRate)) throw new PriceOverrideInvalid('usage.price.ratesInvalid', 'the input and output rates are required, and a rate is a finite number, zero or more');
         values = { mode: 'custom', inputUsdPerMillion, outputUsdPerMillion, cachedInputUsdPerMillion: cachedInputUsdPerMillion ?? null, cacheWriteUsdPerMillion: cacheWriteUsdPerMillion ?? null };
       }
       const row = { aliasModel: null, inputUsdPerMillion: null, cachedInputUsdPerMillion: null, cacheWriteUsdPerMillion: null, outputUsdPerMillion: null, mode: 'zero' as const, ...values, model, updatedAt: now() };

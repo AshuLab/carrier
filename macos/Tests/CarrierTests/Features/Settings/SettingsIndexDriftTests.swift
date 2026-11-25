@@ -1,0 +1,130 @@
+@testable import CarrierCore
+import Foundation
+import Testing
+
+/// The search finds only what `settingsIndex` lists, so a row the views draw that is not listed cannot be found, and a listed one the views no
+/// longer draw takes the person to nothing. The views are read as text and paired with the index by identifier, never by title: the `id:` a
+/// `SettingsTabRow`, a `SettingsStackedRow` or a `SettingsGroup` carries has to be one of the index, and the identifier of every entry of the
+/// index has to be carried by a view.
+@Suite struct SettingsIndexDriftTests {
+    private static let sources = testPaths().sources
+
+    /// The text of every Swift file of a folder of the sources and its subfolders; fewer than `minimum` files fails.
+    static func text(in folder: URL, minimum: Int) throws -> String {
+        try swiftFiles(under: folder, minimum: minimum).sorted { $0.path < $1.path }.map { try String(contentsOf: $0, encoding: .utf8) }.joined(separator: "\n")
+    }
+
+    private static func text(of folder: String, minimum: Int = 100) throws -> String {
+        try text(in: sources.appendingPathComponent(folder), minimum: minimum)
+    }
+
+    /// The views of the app and its pieces: the pages in `Carrier` and the rows, groups and selects they are made of in `CarrierUI`.
+    private static func viewsText() throws -> String {
+        try text(of: "Carrier") + "\n" + text(of: "CarrierUI", minimum: 70)
+    }
+
+    /// Titles drawn with no identifier, because a search has no use for them: a title that is a value (a model's name, an account), or one that
+    /// exists only while a form is open. A row that is searched carries an identifier (`id:`) and has an entry.
+    private static let notSearched: Set<String> = [
+        "", "Details", "Label, icon and color", "Name", "Config folder", "Days", "Add account", "Carrier \\(version)",
+        "Where it runs", "Advanced", "Remove account", "Accounts", "Models", "Version", "Signed out", "Use in an agent", "Found on this Mac", "Sign-ins and quotas", "Look at this Mac again", "In use", "Choosing is not available",
+        "A session you stop using today", "Identity", "New sessions here", "Show when starting a session", "Agent", "Base branch", "Icon", "Tags", "Folder", "Folder not found", "Remote", "Remove",
+        "New worktree", "After clone", "Command", "If it fails", "Worktrees and disk", "Worktrees", "Total", "Clean up", "Last clean up", "Let Carrier watch this project",
+        "Reset to Agents", "Left alone", "Actions", "Most dictations in a day", "Most words in a day", "Longest dictation", "Longest streak", "\\(metric.title) per day",
+    ]
+
+    private static let rowViews = "SettingsTabRow|SettingsStackedRow|SettingsGroup|NavigationRow|ShortcutRecorderRow"
+
+    private static func matches(_ pattern: String, in text: String, group: Int = 1) throws -> [String] {
+        let regex = try NSRegularExpression(pattern: pattern)
+        return regex.matches(in: text, range: NSRange(text.startIndex..., in: text)).compactMap { match in
+            Range(match.range(at: group), in: text).map { String(text[$0]) }
+        }
+    }
+
+    /// The identifiers the views carry: the one a row or a group is given (`id: "..."`) or anchored with, and the ones the models that a page is
+    /// drawn from give (a shortcut's, a behavior row's, a role's and its stages', an engine row's, a dictation screen's, a health row's).
+    private static func drawnIdentifiers() throws -> Set<String> {
+        let views = try viewsText()
+        let core = try text(of: "CarrierCore")
+        // a view (or the helper of a page that draws rows) given the identifier as its first argument, and the model groups and rows that carry one
+        let carriers = "\(rowViews)|soundRow|row|HealthRow|HealthSection|BehaviorGroup|EngineGroup"
+        let literal = try matches(#"\b(?:\#(carriers))\(\s*id:\s*"([^"]+)""#, in: views + core) + matches(#"settingsAnchored\("([^"]+)""#, in: views)
+        let models = ShortcutCommand.allCases.map(\.rawValue) + behaviorGroups().flatMap { $0.rows.map(\.key) } + AgentRole.allCases.flatMap { [$0.rawValue] + $0.stages().map(\.id) }
+            + EngineRowID.allCases.map(\.rawValue) + DictationScreen.allCases.map(\.rawValue)
+        return Set(literal + models)
+    }
+
+    /// What is drawn with an identifier that no entry has.
+    static func drawnWithNoEntry(_ drawn: Set<String>, entries: [SettingsEntry]) -> [String] {
+        drawn.subtracting(entries.flatMap { [$0.rowID, $0.groupID] }).sorted()
+    }
+
+    /// The entries that no view draws (a page's own entry is the page's, not a row's).
+    static func entriesNoViewDraws(_ drawn: Set<String>, entries: [SettingsEntry]) -> [String] {
+        entries.filter { $0.isPage == false && drawn.contains($0.rowID) == false }.map(\.anchor)
+    }
+
+    @Test func everyRowTheViewsDrawIsAnEntryOfTheIndexByItsIdentifier() throws {
+        let missing = Self.drawnWithNoEntry(try Self.drawnIdentifiers(), entries: settingsIndex)
+        #expect(missing.isEmpty, "drawn by a page but not in settingsIndex (add it in CarrierCore/SettingsIndex.swift): \(missing)")
+    }
+
+    @Test func aRowThatIsSearchedCarriesAnIdentifier() throws {
+        let views = try Self.viewsText()
+        let bare = try Self.matches(#"(?:\#(Self.rowViews))\(\s*title:\s*"((?:[^"\\]|\\.)*)""#, in: views)
+        let missing = Set(bare).subtracting(Self.notSearched).sorted()
+        #expect(missing.isEmpty, "drawn with a title and no id: (give it one, and an entry in settingsIndex): \(missing)")
+    }
+
+    @Test func everyEntryOfTheIndexIsDrawnWithItsIdentifier() throws {
+        let missing = Self.entriesNoViewDraws(try Self.drawnIdentifiers(), entries: settingsIndex)
+        #expect(missing.isEmpty, "in settingsIndex but not drawn any more: \(missing)")
+    }
+
+    @Test func aRowWithNoEntryAndAnEntryWithNoRowAreBothCaught() {
+        let entry = SettingsEntry(page: .general, groupID: "menu-bar", group: "Menu bar", rowID: "icon-style", title: "Icon style")
+        #expect(Self.drawnWithNoEntry(["icon-style", "menu-bar", "stray"], entries: [entry]) == ["stray"])
+        #expect(Self.entriesNoViewDraws(["menu-bar"], entries: [entry]) == ["general.menu-bar.icon-style"])
+        // a title is not what pairs them: the same identifier with another title is the same row
+        let renamed = SettingsEntry(page: .general, groupID: "menu-bar", group: "Barra", rowID: "icon-style", title: "Estilo")
+        #expect(Self.drawnWithNoEntry(["icon-style", "menu-bar"], entries: [renamed]).isEmpty && Self.entriesNoViewDraws(["icon-style"], entries: [renamed]).isEmpty)
+    }
+
+    /// The keys of a language's file of design/copy/.
+    private static func copyKeys(_ language: String) throws -> Set<String> {
+        let data = try Data(contentsOf: testPaths().root.appendingPathComponent("design/copy/\(language).json"))
+        return Set(try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any]).keys)
+    }
+
+    @Test func everyKeyAnEntryUsesIsAKeyOfTheEnglishAndTheSpanishCatalog() throws {
+        let entries = buildSettingsIndex(bundle: Copy.bundle("en"), locale: Locale(identifier: "en_US")) + buildSettingsIndex(bundle: Copy.bundle("es"), locale: Locale(identifier: "es_AR"))
+        let used = Set(entries.flatMap(\.copyKeys))
+        #expect(used.count > 100, "the entries name the keys they read their words from")
+        for language in ["en", "es"] {
+            let missing = used.subtracting(try Self.copyKeys(language)).sorted()
+            #expect(missing.isEmpty, "used by an entry of settingsIndex and not in design/copy/\(language).json: \(missing)")
+        }
+    }
+
+    @Test func theGroupTheTitleAndTheDetailOfEveryRowAreKeysAndNeverWords() throws {
+        // the words of the index are copy keys: the group of a `page(...)` call and the title and detail of a row tuple are names of keys, of one word or of many
+        let file = try String(contentsOf: Self.sources.appendingPathComponent("CarrierCore/Settings/SettingsIndex.swift"), encoding: .utf8)
+        let code = file.split(separator: "\n").filter { $0.trimmingCharacters(in: .whitespaces).hasPrefix("//") == false }.joined(separator: "\n")
+        let literal = #""((?:[^"\\\n]|\\.)*)""#
+        let groups = try Self.matches(#"(?:page|screen)\(\.\w+,\s*\#(literal),\s*\#(literal)"#, in: code, group: 2)
+        let titles = try Self.matches(#"\(\s*\#(literal),\s*\#(literal),\s*\#(literal)\)"#, in: code, group: 2)
+        let details = try Self.matches(#"\(\s*\#(literal),\s*\#(literal),\s*\#(literal)\)"#, in: code, group: 3)
+        #expect(groups.count > 50 && titles.count > 100 && titles.count == details.count, "the calls and the rows of the index were read")
+        let keys = try Self.copyKeys("en")
+        let words = (groups + titles + details).filter { $0.isEmpty == false && keys.contains($0) == false }
+        #expect(words.isEmpty, "in SettingsIndex.swift a group, title or detail that is not a key of design/copy/en.json (give it one): \(words)")
+    }
+
+    @Test func readingAnEmptyFolderFails() throws {
+        let scratch = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: scratch, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: scratch) }
+        #expect(throws: TooFewFiles.self) { try Self.text(in: scratch, minimum: 100) }
+    }
+}

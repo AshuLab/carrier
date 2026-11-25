@@ -1,0 +1,107 @@
+import AppKit
+import CarrierCore
+import CarrierUI
+import SwiftUI
+
+/// The Health tab of Settings (docs/specs/health-check-in-the-app.md): the rows of `healthSections`, each with its state and, when the fixed
+/// list has one, its fix. Check again asks the host for a fresh health and reads what only the app knows again. The tab has no automated test.
+struct HealthTabView: View {
+    let state: ConnectionState?
+    private let store = AppHealth.store
+    private let doctor = AppHealth.doctor
+    @ObservedObject private var start = StartController.shared
+    @ObservedObject private var setup = SetupController.shared
+    @State private var probe = HostFacts()
+    @State private var checking = false
+
+    var body: some View {
+        let facts = CarrierFacts(
+            carrierFound: setup.carrierRuns, installedVersion: probe.installedVersion,
+            hostRunning: probe.hostRunning, hostVersion: probe.hostVersion,
+            hostReportsHealth: probe.hostReportsHealth,
+            configExists: start.configExists, engineRunning: { if case .running? = state { true } else { false } }()
+        )
+        VStack(alignment: .leading, spacing: Tokens.Space.s12) {
+            HStack {
+                Text(Copy.healthQuestion()).scaledFont(12).foregroundStyle(.secondary)
+                Spacer(minLength: 8)
+                CheckAgainButton(checking: checking, failed: doctor.state.failedToAnswer) { Task { await checkAgain() } }
+            }
+            .padding(.horizontal, Tokens.Space.s14)
+            ForEach(healthSections(host: store.latest, facts: facts, doctor: doctor.state), id: \.title) { section in
+                VStack(alignment: .leading, spacing: Tokens.Space.s6) {
+                    Text(section.title).sectionLabel().padding(.leading, Tokens.Space.s14).padding(.top, Tokens.Space.s8)
+                    if let note = section.note {
+                        Text(note).scaledFont(12).foregroundStyle(.secondary).padding(Tokens.Space.s14).frame(maxWidth: .infinity, alignment: .leading)
+                            .settingsCard()
+                    }
+                    // cards side by side: as many as fit, so the tab stays short
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 170), spacing: Tokens.Space.s10, alignment: .top)], alignment: .leading, spacing: Tokens.Space.s10) {
+                        ForEach(Array(section.rows.enumerated()), id: \.offset) { _, row in HealthCardView(row: row).settingsAnchored(row.id, group: section.id) }
+                    }
+                }
+                .settingsAnchored(section.id, group: section.id)
+            }
+        }
+        .task {
+            runDoctor()
+            await read()
+        }
+        // back from Terminal, where `carrier` may have just been installed: it is looked for on the disk again
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in Task { await read() } }
+    }
+
+    /// Not awaited: the layer says it is running and the rest of the tab stays usable. The store ignores a run while one is running.
+    private func runDoctor() {
+        let settings = setup.settings, carrier = setup.carrier, configExists = start.configExists
+        Task { await doctor.check(settings: settings, carrier: carrier, environment: ProcessInfo.processInfo.environment, configExists: configExists) }
+    }
+
+    private func checkAgain() async {
+        checking = true
+        runDoctor()
+        await store.check(.refresh)
+        await read()
+        checking = false
+    }
+
+    private func read() async {
+        let command = startChatHostCommand(settings: setup.settings, carrier: setup.carrier, environment: ProcessInfo.processInfo.environment)
+        probe = await HostProbe.app.read(command)
+    }
+}
+
+/// One check as a card: its mark and name, what it says and, when the fixed list has one, its fix.
+private struct HealthCardView: View {
+    let row: HealthRow
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Tokens.Space.s6) {
+            HStack(spacing: Tokens.Space.s8) {
+                mark
+                Text(row.title).fontWeight(.medium).lineLimit(2)
+            }
+            if row.detail.isEmpty == false {
+                Text(row.detail).scaledFont(11).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
+            if let fix = row.fix {
+                Text(Copy.healthFix(fix: fix)).scaledFont(11).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
+            if let tool = row.tool { HealthFixButton(tool: tool, state: row.state) }
+        }
+        .padding(Tokens.Space.s12).frame(maxWidth: .infinity, alignment: .topLeading)
+        .background(RoundedRectangle(cornerRadius: Tokens.Radius.card).fill(Color.secondary.opacity(0.07)))
+        .accessibilityElement(children: .combine)
+    }
+
+    private var mark: some View {
+        let (symbol, color, label): (AppIcon, Color, String) = switch row.mark {
+        case .ok: (.check, .green, Copy.healthReady())
+        case .warning: (.exclamation, .yellow, Copy.healthMarkWarning())
+        case .problem: (.exclamation, .orange, Copy.healthMarkProblem())
+        case .neutral: (.question, .gray, Copy.healthMarkUnknown())
+        }
+        return Glyph(symbol, size: 11, bold: true).foregroundStyle(.white)
+            .frame(width: 18, height: 18).background(Circle().fill(color)).accessibilityElement(children: .ignore).accessibilityLabel(label)
+    }
+}

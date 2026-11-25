@@ -1,0 +1,24 @@
+{
+  "request": {
+    "cmd": "setTextGenerator",
+    "choice": {
+      "server": "ollama",
+      "model": "qwen3:8b"
+    }
+  },
+  "reply": {
+    "ok": true,
+    "data": {
+      "saved": {
+        "textGenerators": {
+          "ollama": {
+            "kind": "ollama",
+            "model": "qwen3:8b"
+          }
+        },
+        "textGenerator": "ollama"
+      },
+      "engine": "notRunning"
+    }
+  }
+}

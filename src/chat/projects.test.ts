@@ -128,7 +128,7 @@ test('a failed fetch keeps the clone and says so in words', async () => {
 test('gh missing or signed out is a refusal with its own sentence, before git runs', async () => {
   const client = await connect();
   token = async () => {
-    throw new ChatRefused('gh is not signed in to GitHub; run "gh auth login"');
+    throw new ChatRefused('github.notSignedIn', 'gh is not signed in to GitHub; run "gh auth login"');
   };
   await expect(client.request('cloneRepo', { repo: 'acme/app' })).rejects.toThrow('gh is not signed in');
   expect(clones()).toHaveLength(0);
@@ -530,7 +530,7 @@ test('a failed clone stays listed with its reason, never what git said, until it
   const host = fakeProjects(git);
   host.cloneProject({ repo: 'acme/app' });
   await vi.waitFor(() => expect(host.projectClones().clones[0]?.state).toBe('failed'));
-  expect(host.projectClones()).toEqual({ clones: [{ repo: 'acme/app', folder: dest, state: 'failed', error: 'git could not clone acme/app' }] });
+  expect(host.projectClones()).toEqual({ clones: [{ repo: 'acme/app', folder: dest, state: 'failed', error: 'git could not clone acme/app', code: 'project.gitFailed', params: { repo: 'acme/app', step: 'clone' } }] });
   expect(existsSync(join(root, 'projects.json'))).toBe(false);
   expect(host.dismissClone({ repo: 'acme/app' })).toEqual({ clones: [] });
   git.failures.clear();

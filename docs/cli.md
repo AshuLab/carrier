@@ -15,6 +15,7 @@ Reference for the `carrier` command. The quick tour is in the [README](../README
 | `carrier recover` | Continue a running epic whose agent is not alive, from where it really is. |
 | `carrier chat` / `chat-host` | Talk to an agent in a session. |
 | `carrier usage` | Live quotas of your accounts and what was used. |
+| `carrier config` | Change a setting of the Carrier folder: one request as a line of JSON on standard input, the reply as a line on standard output. |
 
 From a clone, run `pnpm build` and then `node dist/terminal/cli/main.js`, or `node src/terminal/cli/main.ts --config ...` (Node 26 runs the TypeScript directly).
 
@@ -115,6 +116,36 @@ It exits 0 on success and 1 on a refusal, with no Carrier running, or when the r
 `carrier chat --workspace <folder> [--agent <name>]` opens a conversation (it prints the answer as it streams; `/options` and `/option <id> <value>` show and change the agent's options; `/agent <name>` switches the session to another agent from `chat.json` when it is idle, keeping the transcript and folder, so the next line goes to that agent, and prints the host's words when it refuses, as it does for a working session or the agent it already has; against a host older than this command it says the host has to be restarted; `/quit` leaves and the session stays open (the chat asks after it every 20 seconds while it is at the prompt, and the host closes an idle session that nobody names for ten minutes)), `carrier chat --list [--archived]`, `--archive`, `--unarchive` and `--delete <id>` (deleting leaves nothing of the session; a working one is refused) talk to the chat host, a process of its own that keeps everything in `<folder>/chat/` (the Carrier folder, `~/.carrier` or `CARRIER_HOME`), and starts it detached when none answers. It needs no engine config: with nothing but the Carrier folder it starts, its optional settings are in `<folder>/chat.json` ([configuration](configuration.md#chat-configuration)), and it reads the accounts its agents name from `<folder>/providers.json`, the file the engine reads too. It ends by itself a minute after the last client leaves, or at once with `carrier chat --stop`. The engine and the host run side by side and neither's stop touches the other. `carrier chat-host` runs it in the foreground. See [ADR 0013](adr/0013-the-chat-host-is-its-own-process-with-an-adapter-per-provider.md) and [the spec](specs/chat-host.md).
 
 `carrier usage [--json] [--refresh] [--days <7|14|30>] [--provider <all|claude|codex|agy|local>] [--source <all|epic|chat|external>]` asks the chat host (started on demand, like `carrier chat`; no engine is needed or started) for the live quotas of each account in `providers.json` (the windows used and when they reset, extra credits where the provider shows them) and for what was used over the last 7, 14 or 30 days (default 30): the total, then by model and by workspace, from epic runs, Carrier chats and the sessions the agent CLIs wrote on their own. Quotas are kept for a minute; `--refresh` asks again. Costs are the API price estimated from a bundled table, not what a plan charges, `$0.00` for local servers; a model with no price shows `unpriced` (the Mac app can map or price it). `--json` prints the host's answer as is. It takes no `--config`.
+
+`carrier config` changes one setting of a Carrier folder file from one line of JSON: see [`carrier config`](#carrier-config).
+
+## `carrier config`
+
+`carrier config` changes one setting of the Carrier folder (`CARRIER_HOME`, else `~/.carrier`; it takes no `--config`).
+It is how the Mac app saves when the process that owns the file is not running, and it works from a terminal too ([who writes each file](configuration.md#who-writes-each-file), [ADR 0053](adr/0053-a-carrier-config-file-has-one-owner-process-and-a-front-end-writes-it-through-that-process.md)).
+
+- The request is one line of JSON on standard input: the request of the owner's socket without its `id`, such as `{"cmd":"editChatSettings","changes":{"archiveAfterDays":7,"idleCloseMinutes":null}}` (`null` removes a key).
+- The reply is one line of JSON on standard output, the one the socket would give without its `id`: `{"ok":true,"data":{...}}`, or `{"ok":false,"error":"...","code":"...","params":{...}}` for a refusal.
+- It forwards the request to the process that owns the file when that one answers its socket and lists the `config` capability, and otherwise writes the file itself with the same code: it edits the raw file, validates the whole result with the file's strict schema and renames a temporary file over it, so a refused change leaves the file as it was.
+- The exit code is 0 when it saved, 1 when it refused (`code` and `params` say what: `config.problem` carries the key path and the kind of problem) and 2 when it could not run (standard input is not JSON, or not a request of the list below: `request.invalidJson` or `request.invalid`).
+- `carrier init` writes `engine.json` and `providers.json` through the same code.
+
+The chat host owns the files of its fifteen requests.
+For `chat.json`: `editChatSettings` (`archiveAfterDays`, `deleteAfterDays`, `worktreeStart`, `idleCloseMinutes`) and `setProjectsFolder { folder }`.
+For `providers.json`:
+`setAccounts` (`{"accounts":[{"name":"agy","harness":"agy"}]}`, adds each account),
+`addAccount` (`{"account":{"name":"claude-work","harness":"claude","configDir":"~/.claude-work"}}`),
+`editAccount` (`{"name":"claude-work","changes":{"displayName":"Work","icon":null}}`),
+`removeAccount` (`{"name":"claude-work"}`, refused while a role, a repo override, a failover list or a chat agent names it) and
+`setTextGenerator` (`{"choice":{"server":"ollama","model":"qwen3:8b"}}`, `{"choice":null}` clears it).
+For `projects.json`:
+`addProject { folder }`, `removeProject { path }`, `editProject { path, key, value }` (`key` is `name`, `pinned` or `hidden`), `moveProject { path, folder }`, `editProjectIcon { path, changes }`, `editProjectDefaults { path, changes }`, `editProjectTags { path, add, remove }` and `setProjectActions { path, actions }`.
+
+The engine owns `engine.json`, through its eight requests:
+`setWatchedRepos { repos }`, `editBehavior { changes }`, `editRole { role, changes }`, `editRepoRole { repo, role, fields }` (`fields: null` removes the override), `editPersona { role, name, prompt }`, `editFailover { role, first, second }`, `setLeadReviewer { draft }` (`draft: null` turns it off) and `setOrchestratorProfile { name }`.
+
+A reply that saved has `saved`, the part of the file it changed (`addProject` also says `added`, `removeProject` says `removed`).
+For `engine.json` and `providers.json` it also has `engine`: `applied` when the running engine read the file again, `refused` (with its `reason` for `engine.json`, `engineReason` for `providers.json`: words, code and params) when it kept its settings and the file is saved all the same, and `notRunning` when no engine answers.
 
 ## What the engine does
 

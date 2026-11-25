@@ -23,6 +23,32 @@ Work already running keeps what it started with, and a change reaches what start
 
 Still read only at start: the Carrier folder, the `--config` path and the one-instance lock, and updates of Carrier or of the agent CLIs. The chat host is separate and reads its own settings as [Chat configuration](#chat-configuration) says.
 
+## Who writes each file
+
+One process writes each of the four config files, and a front-end (the Mac app) changes one through that process, a request at a time ([ADR 0053](adr/0053-a-carrier-config-file-has-one-owner-process-and-a-front-end-writes-it-through-that-process.md)).
+
+| File | Written by | Requests (the `config` capability of its socket) |
+|---|---|---|
+| `engine.json` | the engine | `setWatchedRepos`, `editBehavior`, `editRole`, `editRepoRole`, `editPersona`, `editFailover`, `setLeadReviewer`, `setOrchestratorProfile` |
+| `providers.json` | the chat host | `setAccounts`, `addAccount`, `editAccount`, `removeAccount`, `setTextGenerator` |
+| `projects.json` | the chat host | `addProject`, `removeProject`, `editProject`, `moveProject`, `editProjectIcon`, `editProjectDefaults`, `editProjectTags`, `setProjectActions` |
+| `chat.json` | the chat host | `editChatSettings`, `setProjectsFolder` |
+
+The chat host also adds a project to `projects.json` by itself when a session or a clone starts in a folder it does not list.
+`carrier init` writes `engine.json` and `providers.json` through the same code.
+When the owner is not running, [`carrier config`](cli.md#carrier-config) runs that code itself, so a change never waits for a process to start.
+
+Whoever writes, the code does the same:
+
+- It edits the file's raw JSON, so every key you wrote stays, and it reads the file again just before it writes, so an edit by hand while Carrier runs is not lost.
+- It validates the whole result with the file's strict schema: an unknown key, a wrong type or a result the file would not load is refused with the key path and the kind of problem, and the file is left as it was.
+- It writes a temporary file and renames it over the file, so the file is never half written.
+- `engine.json` must already exist: a request on a missing file is refused, and `carrier init` makes it.
+
+For `engine.json` and `providers.json` the reply also says what the engine did with the saved file: it applied it, it kept its settings and says why (the file is saved all the same), or it was not running.
+
+A file broken by hand is fixed by hand: the engine and the chat host refuse to start on it, and a request on it is refused with the file named, so no writer repairs it.
+
 ## The Carrier folder
 
 Carrier keeps everything it owns in one folder: `~/.carrier/`, or the one in `CARRIER_HOME`. The folder is only that: no key of the config and no `--config` changes it. `--config <file>` only chooses which config file to read (by default `<folder>/engine.json`); to run a second Carrier, give it a second `CARRIER_HOME`.
@@ -34,7 +60,7 @@ The top of the folder holds only the files you edit; each process has its own fo
   engine.json      the engine's config, this page
   chat.json        the chat's settings (see Chat configuration), optional
   providers.json   the accounts both read (see AI providers)
-  projects.json    the projects you work on, read and written by the app and the chat host (see Projects)
+  projects.json    the projects you work on, written by the chat host (see Projects)
   engine/          the engine's own folder
   chat/            the chat host's own folder: state/, logs/, worktrees/, projects/, pending/, sessions/
   app/             the macOS app's own folder: state/, logs/, cache/
@@ -524,9 +550,9 @@ A chat applies every key of its account that starts the CLI: `configDir` and `co
 ## Projects
 
 The projects you work on live in `projects.json` in the Carrier folder (`~/.carrier`, or `CARRIER_HOME`), next to `engine.json`, `chat.json` and `providers.json`: [ADR 0041](adr/0041-a-project-is-an-entry-of-projects-json-identified-by-its-folder.md).
-The app and the chat host both read and write it, each reading the file again just before it writes, so you can edit it by hand while Carrier runs.
+The chat host writes it (the app asks it to, [who writes each file](#who-writes-each-file)) and reads the file again just before it writes, so you can edit it by hand while Carrier runs.
 It is optional: without it there are no projects.
-A file that does not match is reported with the field named and neither the app nor the host writes over it.
+A file that does not match is reported with the field named and the host does not write over it.
 The host reads it as no projects until you fix it.
 
 ```json

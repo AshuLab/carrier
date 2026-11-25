@@ -1,0 +1,54 @@
+import Foundation
+import CarrierCore
+
+/// The one health the app holds: the draft reads it, and what asks again (Check again) goes through it.
+enum AppHealth {
+    @MainActor static let store = HealthStore(host: SocketChatHost())
+    /// The Providers page's state: asked when the app opens too, to write `providers.json` the first time.
+    @MainActor static let providers = ProvidersStore(host: SocketChatHost(configLauncher: .app))
+    /// The engine's setup: runs only when the Health tab opens and on Check again.
+    @MainActor static let doctor = DoctorStore(run: runProcess)
+}
+
+/// Runs `command` (`carrier ...` with its environment) off the main thread and returns what it printed; ended after `doctorTimeout`
+/// (killed a second later). The output of the doctor is the JSON on stdout; stderr is kept for the reason it gives when it refuses the config.
+@Sendable func runProcess(_ command: StartCommand) async -> ProcessOutcome {
+    // `--fixture` has no engine: the doctor answers with the golden output the fixture home holds
+    if CommandLine.arguments.contains("--fixture") {
+        return ProcessOutcome(exitCode: 1, stdout: command.environment["CARRIER_HOME"].flatMap { doctorFixtureOutput(home: $0) } ?? "")
+    }
+    return await Task.detached { () -> ProcessOutcome in
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: command.program)
+        process.arguments = command.arguments
+        process.environment = command.environment
+        let output = Pipe()
+        process.standardOutput = output
+        // stderr goes to a file, not a pipe: a doctor that logs a lot must not block on a pipe nobody reads yet
+        let errorURL = FileManager.default.temporaryDirectory.appendingPathComponent("carrier-doctor-\(UUID().uuidString).err")
+        FileManager.default.createFile(atPath: errorURL.path, contents: nil)
+        defer { try? FileManager.default.removeItem(at: errorURL) }
+        process.standardError = try? FileHandle(forWritingTo: errorURL)
+        process.standardInput = FileHandle.nullDevice
+        do { try process.run() } catch { return ProcessOutcome(startError: "\(error)") }
+        // ponytail: a grandchild holding the pipe open could still block the read past the limit
+        let timedOut = Atomic()
+        DispatchQueue.global().asyncAfter(deadline: .now() + doctorTimeout) {
+            guard process.isRunning else { return }
+            timedOut.set()
+            process.terminate()
+            DispatchQueue.global().asyncAfter(deadline: .now() + 1) { if process.isRunning { kill(process.processIdentifier, SIGKILL) } }
+        }
+        let text = String(decoding: output.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+        process.waitUntilExit()
+        let errors = (try? String(contentsOf: errorURL, encoding: .utf8)) ?? ""
+        return ProcessOutcome(exitCode: process.terminationStatus, stdout: text, stderr: errors, timedOut: timedOut.value)
+    }.value
+}
+
+private final class Atomic: @unchecked Sendable {
+    private let lock = NSLock()
+    private var flag = false
+    func set() { lock.withLock { flag = true } }
+    var value: Bool { lock.withLock { flag } }
+}

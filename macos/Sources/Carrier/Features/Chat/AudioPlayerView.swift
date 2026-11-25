@@ -1,0 +1,30 @@
+import CarrierCore
+import CarrierUI
+import SwiftUI
+
+/// A dictation's audio: a button that plays and pauses, the place it has got to and the time (`AudioPlayback` decides). It plays only while it is on screen.
+struct AudioPlayerView: View {
+    let url: URL
+    @State private var playback: AudioPlayback
+
+    init(url: URL) {
+        self.url = url
+        _playback = State(initialValue: AudioPlayback(url: url, open: SystemAudioPlayer.init(url:)))
+    }
+
+    var body: some View {
+        HStack(spacing: Tokens.Space.s8) {
+            IconButton(icon: playback.playing ? .pauseFilled : .playFilled, name: playback.playing ? Copy.chatAudioPause() : Copy.chatAudioPlay(), enabled: playback.failed == false, why: Copy.chatAudioUnreadable()) {
+                playback.toggle()
+            }
+            if playback.failed {
+                Text(Copy.chatAudioUnreadable()).scaledFont(11).foregroundStyle(.secondary)
+            } else {
+                ProgressView(value: playback.position, total: max(playback.duration, 0.1)).frame(maxWidth: 220)
+                Text("\(dictationClock(playback.position)) / \(dictationClock(playback.duration))").scaledFont(11).monospacedDigit().foregroundStyle(.secondary)
+            }
+        }
+        .onAppear { playback.load() }
+        .onDisappear { playback.stop() }
+    }
+}

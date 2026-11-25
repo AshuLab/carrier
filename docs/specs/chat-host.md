@@ -94,6 +94,26 @@ The chat's configuration is a level of its own, `<folder>/chat/chat.json` ([0016
 
 The agents, the timeout and the log level are read when the host starts. A file that cannot be read or does not match the schema makes the host refuse to start and name the key; it does not run on defaults the person did not choose. The engine's config has no `chat` section.
 
+### Refusals and config requests in the code
+
+`ChatRefused(code, words, params)` (`runner.ts`) is every refusal of the host: the code is a string literal that matches `textCode` (`/^[a-z][a-zA-Z]*(\.[a-z][a-zA-Z]*)+$/`, `<area>.<what>`), each param is a string or a number, and `pnpm typecheck` refuses one without a code ([ADR 0055](../adr/0055-a-refusal-carries-a-code-and-its-parameters-and-its-english-words-are-the-fallback.md)).
+The reply of the socket is `{ id, ok: false, error, code, params }`, today's shape with `code` and `params` beside `error`, so an app that predates the codes reads it as before; the codes are listed with an example of their params in `macos/Tests/Fixtures/text-codes.json` (`UPDATE_FIXTURES=1 pnpm test` rewrites it, `text-codes.test.ts` checks it against the sources).
+A helper that computes a reason elsewhere returns a `Reason` (`code`, `words`, `params`) and its caller throws `refusedFor(reason)`.
+The other texts the host sends keep their words and gain a sibling `code` and `params`: a notice (`text`), a preparation step (`detail`), a clone's `error`, a cleanup's `skipped.reason` and a provider's `problem`.
+A step that fails on a `ChatRefused` keeps its code and params.
+They are stored with the event, and an event stored before them reads back with its words and neither.
+The scanner of `text-codes.test.ts` finds each by the literal `code: '<code>'` beside a literal `params: { ... }`.
+The hello lists `config` when the host answers the fifteen requests that change the files it owns ([ADR 0053](../adr/0053-a-carrier-config-file-has-one-owner-process-and-a-front-end-writes-it-through-that-process.md)); a client sends them only when it is there and runs `carrier config` otherwise ([cli](../cli.md#carrier-config)).
+Each reads the raw file again, applies the change, validates the whole result with the file's strict schema and renames a temporary file over it; a value the schema refuses is `config.problem` with the key path and the kind of problem, and the file is left as it was.
+`project-edits.ts` (`projectEdits`, written through `updateProjectsFile`; a project that is not there is `project.missing`) holds the nine of `projects.json` and the projects folder of `chat.json`:
+`addProject { folder }`, `removeProject { path }`, `editProject { path, key, value }`, `moveProject { path, folder }`, `editProjectIcon { path, changes }`, `editProjectDefaults { path, changes }`, `editProjectTags { path, add, remove }`, `setProjectActions { path, actions }` and `setProjectsFolder { folder }`.
+`editChatSettings { changes }` (`editChatSettings` of `config.ts`) changes `archiveAfterDays`, `deleteAfterDays`, `worktreeStart` and `idleCloseMinutes` of `chat.json`, and `null` removes a key.
+`providers-requests.ts` and `engine-reload.ts` hold the five of `providers.json`: `setAccounts { accounts }`, `addAccount { account }`, `editAccount { name, changes }`, `removeAccount { name }` (refused while a role, a repo override, a failover list or a chat agent names the account) and `setTextGenerator { choice }`.
+`config/providers-edit.ts` writes the file, then `reloadEngine` asks the engine to read it, and the reply is `{ saved, engine }` with `engine` `applied`, `refused` (with `engineReason`) or `notRunning`; `fake-engine.ts` is the engine socket the tests ask.
+When no host answers, `carrier config` runs the same functions in its own process.
+Every request has a golden request and reply, `macos/Tests/Fixtures/chat-*.json`, listed in `config-requests.json` (`src/control/config-requests.test.ts` fails for a request without a golden).
+`disk.ts`: `projectDisk` answers at once what `project_sizes` of `chat.db` holds (main clone and `worktrees/` together; nulls if never measured) and `measuring`. `refresh: 'stale'` queues those never measured or a day old, `now` all; the measure (`du -sk`, faked in tests) runs in the background, a failure is logged and keeps the last figure.
+
 ### What was cut
 
 The chat inside the engine process, for tying conversations to the engine's stop and lock. Reading the providers' own history instead of keeping a transcript, because the list, the search and the statistics would depend on files that differ and change. ACP as the seam, because v2 is alpha and its Claude and Codex agents sit on the same SDK and app-server. A Carrier policy for permissions or for `gh pr merge`, because the provider's own system decides what the agent may do and what the person approves. An on/off switch for the terms question, because this is for personal use and nothing is published. A push channel, because polling by cursor is what the engine's socket already does and the terminal client does not need less than 200 ms. Clone, new repository and scratch folders as workspaces, because the picker that chooses them is the next epic's. A watcher process that kills the agents when the host dies, in favour of the sweep at the next start.

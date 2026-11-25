@@ -53,7 +53,7 @@ const refuses = defineTool({
   access: 'reads',
   input: z.strictObject({}),
   handler: () => {
-    throw new ChatRefused('Not today');
+    throw new ChatRefused('test.refused', 'Not today');
   },
 });
 const breaks = defineTool({
@@ -592,7 +592,7 @@ test('delegate_start is an actsAsSession tool: a token without act can neither l
     expect((await delegate(token, { agent: 'a', task: 'x'.repeat(64_000), requestId: 'r'.repeat(64) })).result.isError).toBe(false);
 
     // the words of a refusal reach the agent as they are
-    const refusing = await startMcpServer({ registry, tools: [delegateStart], sessions: { exists: () => true, live: () => true, delegationRefusal: () => undefined, startChild: async () => { throw new ChatRefused('This session already has 4 children'); } } as any });
+    const refusing = await startMcpServer({ registry, tools: [delegateStart], sessions: { exists: () => true, live: () => true, delegationRefusal: () => undefined, startChild: async () => { throw new ChatRefused('session.children.full', 'This session already has 4 children'); } } as any });
     try {
       const refused = (await (await fetch(refusing.url, { method: 'POST', headers: { authorization: `Bearer ${token}` }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'delegate_start', arguments: { agent: 'a', task: 'x' } } }) })).json()) as any;
       expect(refused.result).toMatchObject({ isError: true, content: [{ text: 'This session already has 4 children' }] });

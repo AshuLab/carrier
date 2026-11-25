@@ -713,7 +713,7 @@ describe.skipIf(!enabled)('the worktrees of a project, with the real git', () =>
     const preview = await s.cleanProjectWorktrees({ folder: base, run: false });
     expect(preview.removed.map((entry) => entry.path).sort()).toEqual([made['done']!.path, made['done-too']!.path].sort());
     expect(preview.removed.find((entry) => entry.path === made['done']!.path)!.bytes).toBeGreaterThanOrEqual(100_000);
-    expect(preview.skipped.sort((a, b) => a.path.localeCompare(b.path))).toEqual([{ path: made['busy']!.path, reason: 'Its session is open' }, { path: made['wip']!.path, reason: 'It has uncommitted changes' }].sort((a, b) => a.path.localeCompare(b.path)));
+    expect(preview.skipped.sort((a, b) => a.path.localeCompare(b.path))).toEqual([{ path: made['busy']!.path, reason: 'Its session is open', code: 'worktree.sessionOpen', params: {} }, { path: made['wip']!.path, reason: 'It has uncommitted changes', code: 'worktree.uncommitted', params: {} }].sort((a, b) => a.path.localeCompare(b.path)));
     expect(Object.values(made).every((entry) => existsSync(entry.path))).toBe(true); // a preview removes nothing
 
     expect(await s.cleanProjectWorktrees({ folder: base, run: true })).toEqual(preview);
@@ -777,7 +777,7 @@ describe.skipIf(!enabled)('cloneRepo, with the real git', () => {
     await new Promise((resolve) => setTimeout(resolve, 500));
     expect(existsSync(join(work, 'projects', 'acme', 'hang'))).toBe(true);
     abort.abort();
-    await expect(cloning).rejects.toThrow(new ChatRefused('The clone was cancelled'));
+    await expect(cloning).rejects.toThrow(new ChatRefused('project.cancelled', 'The clone was cancelled', { step: 'clone' }));
     await vi.waitFor(() => expect(existsSync(join(work, 'projects', 'acme', 'hang'))).toBe(false), { timeout: 3000 });
     expect(Date.now() - started).toBeLessThan(4000);
   });

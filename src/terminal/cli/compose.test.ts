@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { createConnection } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
@@ -11,7 +12,7 @@ import type { GhGitHubOptions } from '../../integrations/github.ts';
 import { FakeClock, FakeGitHub } from '../../orchestration/fake.ts';
 import type { HostRunnerOptions } from '../../harnesses/host-runner.ts';
 import { acquireLock } from '../../storage/lock.ts';
-import { CliError } from './cli-error.ts';
+import { CliError, InvalidConfig } from './cli-error.ts';
 import { connectControl } from './control-client.ts';
 import type { ControlSnapshot } from '../../status/types.ts';
 import { epics } from '../../storage/schema.ts';
@@ -50,6 +51,28 @@ const config = (user: object = {}): Config => {
 };
 
 const sameConfig = () => config();
+
+/** The reply to one request line, as the socket sends it: the hello comes first and is skipped. */
+const rawReply = (socketPath: string, line: string) =>
+  new Promise<unknown>((resolve, reject) => {
+    const socket = createConnection(socketPath);
+    let lines = 0;
+    let pending = '';
+    socket.setEncoding('utf8');
+    socket.on('error', reject);
+    socket.on('data', (chunk: string) => {
+      pending += chunk;
+      for (let end = pending.indexOf('\n'); end >= 0; end = pending.indexOf('\n')) {
+        const message = pending.slice(0, end);
+        pending = pending.slice(end + 1);
+        if (lines++ === 0) socket.write(`${line}\n`);
+        else {
+          socket.destroy();
+          resolve(JSON.parse(message));
+        }
+      }
+    });
+  });
 
 // Fakes in every seam: nothing here reaches GitHub, Forge or a real agent.
 function fakes() {
@@ -346,6 +369,15 @@ test('a reload through the control socket applies the loader\'s next config, and
   await expect(client.request('reload')).rejects.toThrow('Invalid config /c/engine.json:\n  limits.maxReviews: Too small');
   expect(seen.levels).toEqual(['warn']);
   expect(await snapshot()).toEqual({ pollIntervalMs: 3 * MIN, readyLabel: 'carrier:go', slots: 1, maxReviews: 8, finished: 0 });
+  // the client keeps the words only, so the reply is read raw: the code and its parameters sit beside them
+  const refused = () => rawReply(join(root, 'engine', 'state', 'control.sock'), '{"id":1,"cmd":"reload"}');
+  expect(await refused()).toEqual({ id: 1, ok: false, error: 'Invalid config /c/engine.json:\n  limits.maxReviews: Too small', code: 'config.invalid', params: {} });
+
+  // a config the schema refuses names the key and the kind of a problem it knows, with the same lines as the words
+  next = () => {
+    throw new InvalidConfig([{ path: 'repos.2.name', message: 'must be owner/name' }], 'Invalid config /c/engine.json:', '  repos.2.name: must be owner/name');
+  };
+  expect(await refused()).toEqual({ id: 1, ok: false, error: 'Invalid config /c/engine.json:\n  repos.2.name: must be owner/name', code: 'config.problem', params: { path: 'repos[2]', problem: 'notARepo' } });
 });
 
 test('a log level that cannot be applied makes the reload change nothing and say so, instead of leaving half of it applied', async () => {

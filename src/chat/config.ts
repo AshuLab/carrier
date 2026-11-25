@@ -1,8 +1,10 @@
-import { readFileSync } from 'node:fs';
-import { isAbsolute } from 'node:path';
+import { randomUUID } from 'node:crypto';
+import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { dirname, isAbsolute } from 'node:path';
 import { LogLevel } from '@ashulab/universal-logger';
 import { z } from 'zod';
 import { carrierHome, chatConfigPathOf, chatPlacesOf, expandHome } from '../config/places.ts';
+import { ChatRefused } from './runner.ts';
 
 const movedToAccount = (key: string) => z.never({ error: `${key} is declared by the account in providers.json now; name it with "account"` }).optional();
 
@@ -71,3 +73,44 @@ export function readChatConfig(folder = carrierHome()): ChatConfigResult {
 
 /** The error a person sees when `chat.json` is wrong: the file and each key with what is wrong with it. */
 export const chatConfigProblem = (folder: string, errors: ChatConfigError[]) => `Invalid chat config ${chatConfigPathOf(folder)}:\n${errors.map((e) => `  ${e.path}: ${e.message}`).join('\n')}`;
+
+/** The keys the `editChatSettings` request may change: the two ages of the session clock, where a worktree starts and when an idle session sleeps (`setProjectsFolder` changes `projectsFolder` through the same function). */
+export const chatSettingKeys = ['archiveAfterDays', 'deleteAfterDays', 'worktreeStart', 'idleCloseMinutes'] as const;
+
+/**
+ * Changes keys of `chat.json` (ADR 0053): reads the raw file again now (a file that is not there is `{}`), sets each key of `changes` (null removes it, every other key stays as the person wrote it),
+ * validates the whole result with the file's strict schema and writes it through a temporary file and a rename. Answers the saved part: the keys of `changes` as the file now has them.
+ * A file that is not a JSON object, or a result the schema refuses, is a `ChatRefused` (`config.problem`: the key path and the kind, the schema's issue code, as parameters) and the file is left as it was.
+ */
+export function editChatSettings(changes: Partial<Record<(typeof chatSettingKeys)[number] | 'projectsFolder', unknown>>, folder = carrierHome()): { saved: Record<string, unknown> } {
+  const file = chatConfigPathOf(folder);
+  let current: unknown = {};
+  try {
+    current = JSON.parse(readFileSync(file, 'utf8'));
+  } catch (error) {
+    if (error instanceof SyntaxError) throw new ChatRefused('config.problem', `${file} is not valid JSON, so it was not changed`, { path: '(file)', problem: 'notJson' });
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+  }
+  if (typeof current !== 'object' || current === null || Array.isArray(current)) throw new ChatRefused('config.problem', `${file} is not a JSON object, so it was not changed`, { path: '(file)', problem: 'notAnObject' });
+  const next: Record<string, unknown> = { ...current };
+  for (const [key, value] of Object.entries(changes)) {
+    if (value === null) delete next[key];
+    else if (value !== undefined) next[key] = value;
+  }
+  const checked = chatConfigSchema.safeParse(next);
+  if (checked.success === false) {
+    const issue = checked.error.issues[0]!;
+    const path = issue.path.join('.') || '(root)';
+    throw new ChatRefused('config.problem', `${path}: ${issue.message}`, { path, problem: issue.code });
+  }
+  const temporary = `${file}.${process.pid}.${randomUUID()}.tmp`;
+  mkdirSync(dirname(file), { recursive: true });
+  try {
+    writeFileSync(temporary, `${JSON.stringify(next, null, 2)}\n`);
+    renameSync(temporary, file);
+  } catch (error) {
+    rmSync(temporary, { force: true });
+    throw error;
+  }
+  return { saved: Object.fromEntries(Object.keys(changes).filter((key) => key in next).map((key) => [key, next[key]])) };
+}

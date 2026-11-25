@@ -26,7 +26,7 @@ beforeEach(async () => {
     epic: () => null,
     events: () => null,
     files: () => null, fileDiff: () => null,
-    availableRepos: () => Promise.resolve({ repos: [], hasMore: false }), resumeEpic: () => Promise.resolve(), recoverEpic: () => Promise.resolve(), reload: () => {},
+    availableRepos: () => Promise.resolve({ repos: [], hasMore: false }), resumeEpic: () => Promise.resolve(), recoverEpic: () => Promise.resolve(), reload: () => {}, setWatchedRepos: () => ({ saved: {}, engine: 'applied' as const }), editBehavior: () => ({ saved: {}, engine: 'applied' as const }), editEngineFile: () => ({ saved: {}, engine: 'applied' as const }),
   };
   close = (await startControlServer({ stateDir: dir, snapshot: () => ({}), startedAt: 1, controls, stop: async () => {} })).close;
 });
@@ -73,7 +73,7 @@ test('the hello lists sessions', async () => {
 test('a queued epic has no sessions, and an unknown one is an error', async () => {
   epic(1, 'queued');
   expect((await ask(1)).reply).toEqual({ id: 1, ok: true, data: { sessions: [] } });
-  expect((await ask(99)).reply).toEqual({ id: 1, ok: false, error: 'unknown epic' });
+  expect((await ask(99)).reply).toEqual({ id: 1, ok: false, error: 'unknown epic', code: 'epic.unknown', params: {} });
 });
 
 test('a running epic lists its session newest first, with no descriptor while it runs', async () => {

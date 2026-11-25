@@ -7,8 +7,8 @@ const PART = 4000;
 // What each view lists. Reasoning is in neither, and a tool call is its start (its end only says how it went).
 const kinds = { messages: ['user', 'assistant'], activity: ['user', 'assistant', 'tool_start'] };
 
-const noSession = () => new ChatRefused('There is no such session');
-const noItem = () => new ChatRefused('There is no such item');
+const noSession = () => new ChatRefused('history.noSession', 'There is no such session');
+const noItem = () => new ChatRefused('history.noItem', 'There is no such item');
 
 /** What an event says in the history: a message as it was said (a command the person invoked is stored as the command), a tool call as one line with no output. */
 const textOf = (event: StoredEvent, status: Record<string, 'ok' | 'err'>) =>

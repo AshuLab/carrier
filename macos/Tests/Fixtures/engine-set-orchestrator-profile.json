@@ -1,0 +1,15 @@
+{
+  "request": {
+    "cmd": "setOrchestratorProfile",
+    "name": "author-bot"
+  },
+  "reply": {
+    "ok": true,
+    "data": {
+      "saved": {
+        "orchestratorProfile": "author-bot"
+      },
+      "engine": "applied"
+    }
+  }
+}

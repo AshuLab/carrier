@@ -1,0 +1,37 @@
+{
+  "request": {
+    "cmd": "setWatchedRepos",
+    "repos": [
+      "acme/web",
+      "AshuLab/carrier",
+      "new/one"
+    ]
+  },
+  "reply": {
+    "ok": true,
+    "data": {
+      "saved": {
+        "repos": [
+          {
+            "name": "acme/web",
+            "agents": {
+              "author": {
+                "model": "opus"
+              }
+            }
+          },
+          {
+            "name": "AshuLab/carrier",
+            "skills": {
+              "ship": "ship"
+            }
+          },
+          {
+            "name": "new/one"
+          }
+        ]
+      },
+      "engine": "applied"
+    }
+  }
+}

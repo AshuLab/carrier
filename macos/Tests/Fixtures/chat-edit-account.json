@@ -1,0 +1,39 @@
+{
+  "request": {
+    "cmd": "editAccount",
+    "name": "claude-work",
+    "changes": {
+      "displayName": "Work",
+      "label": null,
+      "icon": "bolt",
+      "color": null,
+      "command": null,
+      "configDir": "~/.claude-work",
+      "autoCompact": 250000,
+      "launchArgs": [
+        "--chrome"
+      ],
+      "idleCompaction": null
+    }
+  },
+  "reply": {
+    "ok": true,
+    "data": {
+      "saved": {
+        "providers": {
+          "claude-work": {
+            "harness": "claude",
+            "configDir": "~/.claude-work",
+            "displayName": "Work",
+            "icon": "bolt",
+            "autoCompact": 250000,
+            "launchArgs": [
+              "--chrome"
+            ]
+          }
+        }
+      },
+      "engine": "applied"
+    }
+  }
+}

@@ -34,7 +34,7 @@ pnpm typecheck
 pnpm test
 ```
 
-Run `pnpm typecheck` and `pnpm test` before opening a PR. `pnpm test:integration` uses real tools and skips each file unless its `CARRIER_IT_*` / `CARRIER_TEST_*` variables are set (the header of each file lists them). All repo content (code, docs, tests, strings) is in English.
+Run `pnpm typecheck` and `pnpm test` before opening a PR. `pnpm test:integration` uses real tools and skips each file unless its `CARRIER_IT_*` / `CARRIER_TEST_*` variables are set (the header of each file lists them). All repo content (code, docs, tests, strings) is in English, except the Spanish translations in `design/copy/es.json`.
 
 | Command | What it does |
 |---------|--------------|
@@ -43,6 +43,8 @@ Run `pnpm typecheck` and `pnpm test` before opening a PR. `pnpm test:integration
 | `pnpm test` | Full unit suite — fakes and a temp SQLite, no network and no real agents |
 | `pnpm test:integration` | Integration tests with real tools; they skip with a clear message unless their environment variables are set |
 | `pnpm db:generate` | Generate a Drizzle migration after changing the schema |
+| `pnpm design` | Write the files each front-end gets from `design/` (the copy in English and Spanish, the tokens, the preferences) |
+| `pnpm design:check` | Fail when a committed generated file differs from what `pnpm design` would write; CI runs it |
 
 ## Tech stack
 
@@ -72,7 +74,7 @@ carrier/
 │   │   ├── wizard/     #   `carrier init`: the flow, what it asks (questions/), what it needs from the machine (deps), the recap
 │   │   └── dashboard/  #   the panel: renderers (dashboard, plain), keys and their state, agent-output tail, each epic's stage history
 │   ├── status/         # what Carrier is doing right now, read from SQLite (the view any front-end draws)
-│   ├── control/        # the control socket: snapshot, pause/resume, check, stop, sessions, events, epic, files, fileDiff, availableRepos (a page at a time), resumeEpic, reload
+│   ├── control/        # the control socket: snapshot, pause/resume, check, stop, sessions, events, epic, files, fileDiff, availableRepos (a page at a time), resumeEpic, reload, config
 │   ├── doctor/         # the checks of `carrier doctor` and the remedy for each failure
 │   ├── config/         # config schema, the accounts' `providers.json`, the projects' `projects.json`, defaults, loading/merging, per-repo resolution, JSON Schema, default path
 │   ├── orchestration/  # engine: polling, scheduler, stages, retries, restart, final-PR rules, ports + fakes
@@ -83,6 +85,11 @@ carrier/
 │   ├── storage/        # SQLite schema, migrations, lock, executions, events, retention
 │   ├── logging/        # universal-logger integration
 │   └── format/         # duration formatting
+├── design/             # the one source of the look, the words and the app's preferences, generated for each front-end by `pnpm design`
+│   ├── tokens.json      #   the themes, the accent presets and the semantic colours
+│   ├── preferences.json #   the app's preference keys, types, defaults and Settings page
+│   ├── copy/            #   the words: en.json, es.json (the Spanish translations), fixtures.json (the fixtures' texts)
+│   └── generate.ts      #   writes the generated Swift and TypeScript; `--check` fails when one differs
 ├── macos/              # the native app: a client of the control socket (see its README)
 └── docs/
     ├── specs/          # the specs the features were built from
@@ -142,7 +149,7 @@ Files are not reformatted in bulk: they get it as they are edited.
 
 `main` is the only long-lived branch; there is no `develop` branch.
 Every change reaches `main` through a PR, and PRs merge with merge commits, never squash or rebase.
-A PR into `main` that is not a draft runs CI (Carrier Engine: types, unit tests, migrations, package smoke; Carrier macOS app, only if it changed: unit tests, and the bundle only when the packaging changed (the release checks it again); Changelog; Agent context, a byte budget per `AGENTS.md`; the one check to require is `CI / Success`). After a merge, the engine's checks run again on `main` and needs one teammate's review.
+A PR into `main` that is not a draft runs CI (Carrier Engine: types, unit tests, migrations, design (`pnpm design:check`), package smoke; Carrier macOS app, only if it changed: unit tests, and the bundle only when the packaging changed (the release checks it again); Changelog; Agent context, a byte budget per `AGENTS.md`; the one check to require is `CI / Success`). After a merge, the engine's checks run again on `main` and needs one teammate's review.
 Force-pushes to `main` are refused, and epic branches have no rules, so `ship` merges slices into them unattended.
 
 There are two lanes.

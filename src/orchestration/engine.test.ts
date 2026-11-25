@@ -11,7 +11,8 @@ import { epics } from '../storage/schema.ts';
 import type { QuotaSnapshot } from '../usage/types.ts';
 import { createEngine, type EngineSettings } from './engine.ts';
 import { ReloadRefused } from './reload-refused.ts';
-import type { ResumeRefused } from './resume-refused.ts';
+import type { RecoverRefused, RecoverRefusal } from './recover-refused.ts';
+import type { ResumeRefused, ResumeRefusal } from './resume-refused.ts';
 import { reserve } from './reserve.ts';
 import { FakeAgentRunner, FakeWorkspaces, type Behavior } from '../execution/fake.ts';
 import type { AgentFailure, AgentTask } from '../execution/agent-runner.ts';
@@ -786,11 +787,11 @@ test('with a label named for a kind of stop, the issue shows it beside needs-hum
 });
 
 test.each([
-  ['a missing PR', undefined, 'does not exist'],
-  ['a closed PR', { state: 'closed' as const }, 'is not open'],
-  ['a PR that does not reference the epic', { body: 'Closes #2' }, 'does not reference the epic'],
-  ['a PR with another head', { headSha: 'b'.repeat(40) }, 'head of PR #50'],
-])('%s leaves only that epic in needs_human with the reason, and the slot goes to the next one', async (_, change, reason) => {
+  ['a missing PR', undefined, 'does not exist', 'epic.stop.pullRequestMissing', { pr: 50 }],
+  ['a closed PR', { state: 'closed' as const }, 'is not open', 'epic.stop.pullRequestNotOpen', { pr: 50 }],
+  ['a PR that does not reference the epic', { body: 'Closes #2' }, 'does not reference the epic', 'epic.stop.pullRequestNotLinked', { pr: 50, issue: 1 }],
+  ['a PR with another head', { headSha: 'b'.repeat(40) }, 'head of PR #50', 'epic.stop.pullRequestHeadMismatch', { pr: 50, found: 'b'.repeat(40), reported: SHA }],
+])('%s leaves only that epic in needs_human with the reason, and the slot goes to the next one', async (_, change, reason, code, params) => {
   github.ready = { 'AshuLab/a': ready(1, 2) };
   if (change) pull(50, change);
   pull(51, {}, 2);
@@ -802,6 +803,7 @@ test.each([
   const [first, second] = rows(engine.db);
   expect(first).toMatchObject({ issue: 1, status: 'needs_human', needsHumanKind: 'pr_invalid', finishedAt: 5 * MIN, labelPending: false });
   expect(first?.needsHumanReason).toContain(reason);
+  expect(first).toMatchObject({ needsHumanCode: code, needsHumanParams: params });
   expect(labelsOf(1)).toEqual(['carrier:status:needs-human']);
   // The second one started right away, with no new poll, and was not affected.
   expect(second).toMatchObject({ issue: 2, status: 'running', stage: 'review' });
@@ -815,6 +817,7 @@ test('a needs_human result stops the epic with the caller reason and label', asy
   await clock.advance(5 * MIN);
   await engine.idle();
   expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'agent_needs_human', needsHumanReason: 'a credential is missing', finishedAt: 5 * MIN });
+  expect(rows(engine.db)[0]).toMatchObject({ needsHumanCode: 'epic.stop.agentNeedsHuman', needsHumanParams: { reason: 'a credential is missing' } });
   expect(labelsOf(1)).toEqual(['carrier:status:needs-human']);
 });
 
@@ -892,6 +895,7 @@ test('a workspace that cannot be prepared leaves the epic in needs_human and fre
   };
   await clock.advance(5 * MIN);
   expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'workspace', needsHumanReason: 'could not prepare the workspace: clone failed' });
+  expect(rows(engine.db)[0]).toMatchObject({ needsHumanCode: 'epic.stop.workspacePrepare', needsHumanParams: { error: 'clone failed' } });
   expect(labelsOf(1)).toEqual(['carrier:status:needs-human']);
   expect(rows(engine.db)[1]).toMatchObject({ issue: 2, status: 'running' });
 });
@@ -976,6 +980,7 @@ test('with maxExecutionRetries 3 there are four attempts, then the epic needs a 
   expect(eventsOf(engine.db).map((e) => e.data.attempt)).toEqual([2, 3, 4]);
   expect(rows(engine.db)[0]).toMatchObject({ issue: 1, status: 'needs_human', needsHumanKind: 'retries_exhausted', round: null, finishedAt: 5 * MIN });
   expect(rows(engine.db)[0]?.needsHumanReason).toBe('ran out of ship retries (4 attempts): the agent process ended with an error (crashed: exit code 1)');
+  expect(rows(engine.db)[0]).toMatchObject({ needsHumanCode: 'epic.stop.retriesExhausted', needsHumanParams: { stage: 'ship', attempts: 4, failure: 'the agent process ended with an error (crashed: exit code 1)', idle: 0 } });
   expect(labelsOf(1)).toEqual(['carrier:status:needs-human']);
   expect(rows(engine.db)[1]).toMatchObject({ issue: 2, status: 'running' });
 
@@ -1133,6 +1138,7 @@ test('retries exhausted on a missing result says that no result file was written
   await clock.advance(5 * MIN);
   await engine.idle();
   expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'retries_exhausted', needsHumanReason: 'ran out of ship retries (1 attempts): the agent ended with an invalid result (invalid_result: no result file was written)' });
+  expect(rows(engine.db)[0]).toMatchObject({ needsHumanCode: 'epic.stop.retriesExhausted', needsHumanParams: { stage: 'ship', attempts: 1, failure: 'the agent ended with an invalid result (invalid_result: no result file was written)', idle: 0 } });
 });
 
 test('retries exhausted on a process the idle watchdog killed names limits.idleMinutes', async () => {
@@ -1143,6 +1149,7 @@ test('retries exhausted on a process the idle watchdog killed names limits.idleM
   await clock.advance(5 * MIN);
   await engine.idle();
   expect(rows(engine.db)[0]?.needsHumanReason).toBe('ran out of ship retries (1 attempts): the agent process ended with an error (killed: no output for 2700 seconds) · limits.idleMinutes ended it: raise it or remove it');
+  expect(rows(engine.db)[0]).toMatchObject({ needsHumanCode: 'epic.stop.retriesExhausted', needsHumanParams: { stage: 'ship', attempts: 1, failure: 'the agent process ended with an error (killed: no output for 2700 seconds)', idle: 1 } });
 });
 
 const outOfCredits: AgentFailure = { kind: 'usage_limit', detail: "You've hit your session limit · resets 12:40pm", exitCode: 1, signal: null, hostFreeMemMb: null, hostLoad: null };
@@ -1160,6 +1167,7 @@ test('a usage limit stops the epic at once with the option that ran out and its 
   expect(executionsOf(engine.db)[0]).toMatchObject({ status: 'failed', failureKind: 'usage_limit', failureDetail: outOfCredits.detail, error: null });
   expect(rows(engine.db)[0]).toMatchObject({ issue: 1, status: 'needs_human', needsHumanKind: 'usage_limit', finishedAt: 5 * MIN });
   expect(rows(engine.db)[0]?.needsHumanReason).toBe(`the ship execution ran out of usage on option claude-ashu · carrier restart AshuLab/a#1 --author <option> · ${outOfCredits.detail}`);
+  expect(rows(engine.db)[0]).toMatchObject({ needsHumanCode: 'epic.stop.usageLimit', needsHumanParams: { cause: 'quota', runs: 1, stage: 'ship', option: 'claude-ashu', role: 'author', repo: 'AshuLab/a', issue: 1, wake: 'off', when: '', hours: 12, times: 3, detail: outOfCredits.detail, ranOut: '' } });
   expect(labelsOf(1)).toEqual(['carrier:status:needs-human']);
   expect(rows(engine.db)[1]).toMatchObject({ issue: 2, status: 'running' });
 });
@@ -1187,6 +1195,7 @@ test('an unexpected error while settling one epic stops only that epic with engi
 
   const [stopped, other] = rows(engine.db);
   expect(stopped?.needsHumanReason).toMatch(/^exploded with token \S+ second line$/);
+  expect(stopped).toMatchObject({ needsHumanCode: 'epic.stop.engineError', needsHumanParams: { detail: stopped?.needsHumanReason } });
   expect(stopped?.needsHumanReason).not.toContain('ghp_abcdefghijklmnopqrstuvwxyz0123456789');
   expect(other).toMatchObject({ issue: 2, status: 'running' });
   expect(labelsOf(1)).toEqual(['carrier:status:needs-human']);
@@ -1383,6 +1392,7 @@ test('a step that ran out is not tried again, and when none is left the epic sto
 
   expect(runner.tasks.map((t) => [t.option, t.model])).toEqual([['claude', 'opus'], ['claude', 'haiku'], ['spare', 'pro']]);
   expect(rows(engine.db)[0]?.needsHumanReason).toContain('no step left in failover, ran out: claude opus, claude haiku, spare pro');
+  expect(rows(engine.db)[0]).toMatchObject({ needsHumanCode: 'epic.stop.usageLimit', needsHumanParams: { ranOut: 'claude opus, claude haiku, spare pro' } });
 });
 
 test('failover skips the options that already ran out in this epic, and the one that ran out last is not tried again', async () => {
@@ -1513,6 +1523,7 @@ test('with auto-resume on and a time within the maximum the epic keeps resumeAt,
   expect(fakeQuota.asked).toEqual([{ provider: 'claude', configDir: '/cfg/claude' }]);
   expect(rows(engine.db)[0]).toMatchObject({ resumeAt: 5 * MIN + 3 * HOUR });
   expect(rows(engine.db)[0]?.needsHumanReason).toBe(`the ship execution ran out of usage on option claude · carrier restart AshuLab/a#1 --author <option> · resumes by itself at 1970-01-01T03:05:00.000Z · ${outOfCredits.detail}`);
+  expect(rows(engine.db)[0]).toMatchObject({ needsHumanCode: 'epic.stop.usageLimit', needsHumanParams: { wake: 'scheduled', when: '1970-01-01T03:05:00.000Z', hours: 12 } });
   expect(eventsOf(engine.db)).toMatchObject([{ epicId: 1, at: 5 * MIN, type: 'auto_resume_scheduled', data: { resumeAt: 5 * MIN + 3 * HOUR } }]);
   expect(buildSnapshot(engine.db, { now: clock.now(), maxConcurrentEpics: 1, maxReviews: 5, finishedWindowDays: 15, startedAt: 0, repos: 1, nextCheckAt: null, problem: null, paused: false, slices: engine.slices, version: 'x', pollIntervalMs: 1, labels: defaultLabels }).epics[0]).toMatchObject({ status: 'needs_human', resumeAt: 5 * MIN + 3 * HOUR });
 });
@@ -1547,6 +1558,7 @@ test.each([
 
   expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'usage_limit', resumeAt: null });
   expect(rows(engine.db)[0]?.needsHumanReason).toContain('it will not resume by itself: the provider did not say when the window comes back');
+  expect(rows(engine.db)[0]).toMatchObject({ needsHumanCode: 'epic.stop.usageLimit', needsHumanParams: { wake: 'unknown' } });
   expect(eventTypes(engine.db)).toEqual([]);
 });
 
@@ -1556,6 +1568,7 @@ test('a wait longer than autoResumeMaxHours is not scheduled and the reason says
 
   expect(rows(engine.db)[0]).toMatchObject({ resumeAt: null });
   expect(rows(engine.db)[0]?.needsHumanReason).toContain('the window comes back at 1970-01-01T13:05:00.000Z, more than 12 h away: it will not resume by itself');
+  expect(rows(engine.db)[0]).toMatchObject({ needsHumanCode: 'epic.stop.usageLimit', needsHumanParams: { wake: 'far', when: '1970-01-01T13:05:00.000Z', hours: 12 } });
   expect(eventTypes(engine.db)).toEqual([]);
 });
 
@@ -1721,6 +1734,7 @@ test('an epic wakes up at most three times in a row: the stop after the third st
   expect(fakeQuota.asked).toHaveLength(6); // the fourth stop does not ask
   expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'usage_limit', resumeAt: null, autoResumes: 3 });
   expect(rows(engine.db)[0]?.needsHumanReason).toContain('it already resumed by itself 3 times in a row: it will not again');
+  expect(rows(engine.db)[0]).toMatchObject({ needsHumanCode: 'epic.stop.usageLimit', needsHumanParams: { wake: 'spent', times: 3 } });
   expect(eventTypes(engine.db).filter((t) => t === 'auto_resumed')).toHaveLength(3);
 });
 
@@ -1955,6 +1969,7 @@ test('timed_out keeps the session, needs a human with the reason and launches no
 
   expect(executionsOf(engine.db)[0]).toMatchObject({ epicId: 1, status: 'timed_out', sessionId: 's-1', finishedAt: 5 * MIN });
   expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'timeout', needsHumanReason: 'the ship execution exceeded the time limit of 4 h (limits.maxExecutionHours) · session and worktree are kept: raise the limit or set it to "unlimited", then resume the epic' });
+  expect(rows(engine.db)[0]).toMatchObject({ needsHumanCode: 'epic.stop.timeout', needsHumanParams: { stage: 'ship', limit: '4 h' } });
   expect(labelsOf(1)).toEqual(['carrier:status:needs-human']);
   expect(eventsOf(engine.db)).toEqual([]);
   await clock.advance(10 * MIN);
@@ -2093,6 +2108,7 @@ test('a third moved head in a row stops the epic in pr_invalid, never ready, wit
   expect(runner.tasks.map((t) => t.stage)).toEqual(['ship', 'review', 'review', 'review']);
   expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'pr_invalid', round: 1, headRepeats: 2, reviewedSha: null });
   expect(rows(engine.db)[0]!.needsHumanReason).toContain('changed during the review 3 times in a row');
+  expect(rows(engine.db)[0]).toMatchObject({ needsHumanCode: 'epic.stop.headChangedRepeatedly', needsHumanParams: { pr: 50, times: 3 } });
   expect(eventsOf(engine.db).filter((e) => e.type === 'review_repeated').map((e) => e.data)).toMatchObject([{ from: SHA, to: HEAD2, repeats: 1 }, { from: HEAD2, to: HEAD3, repeats: 2 }]);
   expect(labelsOf(1)).toEqual(['carrier:status:needs-human']);
 });
@@ -2190,6 +2206,7 @@ test('a review after one that completed gets no blockers, even when an earlier r
 test('a needs_human review, an inconclusive one included, stops the epic with its reason', async () => {
   const engine = await reviewing((task) => ({ write: result(task, { outcome: 'needs_human', reason: 'inconclusive review: missing context' }) }));
   expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanReason: 'inconclusive review: missing context', reviewedSha: null });
+  expect(rows(engine.db)[0]).toMatchObject({ needsHumanCode: 'epic.stop.agentNeedsHuman', needsHumanParams: { reason: 'inconclusive review: missing context' } });
   expect(labelsOf(1)).toEqual(['carrier:status:needs-human']);
 });
 
@@ -2362,6 +2379,7 @@ test('an epic whose named ship skill is absent stops with skill_missing before a
   expect(retriesOf(engine.db)).toEqual([]);
   expect(skillStop(engine)).toMatchObject({ status: 'needs_human', needsHumanKind: 'skill_missing' });
   expect(skillStop(engine).needsHumanReason).toMatch(/^the skill my-ship \(skills\.ship\) is not installed for the author: claude looked where it finds skills, in the account folder .*the repo \(/);
+  expect(skillStop(engine)).toMatchObject({ needsHumanCode: 'epic.stop.skillMissing', needsHumanParams: { skill: 'my-ship', key: 'ship', role: 'author', harness: 'claude' } });
   expect(skills.asked[0]).toMatchObject({ harness: 'claude', name: 'my-ship' });
   expect(labelsOf(1)).toEqual(['carrier:status:needs-human']);
 });
@@ -2655,6 +2673,7 @@ test('a ship result whose epic worktree is not among the worktrees of git sends 
   expect(rows(engine.db).map((e) => [e.status, e.needsHumanKind, e.needsHumanReason, e.workspace, e.prNumber])).toEqual([
     ['needs_human', 'workspace', 'could not find the worktree for branch feat/demo/epic in the clone of AshuLab/a', null, null],
   ]);
+  expect(rows(engine.db)[0]).toMatchObject({ needsHumanCode: 'epic.stop.worktreeNotFound', needsHumanParams: { branch: 'feat/demo/epic', repo: 'AshuLab/a' } });
   expect(asked).toBe(1);
   expect(runner.tasks.map((t) => t.stage)).toEqual(['ship']);
 });
@@ -2695,6 +2714,7 @@ test('the fourth error of git worktree list after ship stops the epic with kind 
 
   expect(asked).toBe(4);
   expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'workspace', needsHumanReason: 'could not list the worktrees of the clone of AshuLab/a after 4 attempts: git broke', prNumber: null });
+  expect(rows(engine.db)[0]).toMatchObject({ needsHumanCode: 'epic.stop.worktreeListFailed', needsHumanParams: { repo: 'AshuLab/a', attempts: 4, error: 'git broke' } });
   expect(runner.tasks.map((t) => t.stage)).toEqual(['ship']);
 });
 
@@ -2960,6 +2980,7 @@ test('a review for a PR that no longer references the epic goes to needs_human',
     return { write: result(task, { outcome: 'completed', pr: { number: 50, headSha: SHA }, verification: { ci: 'passed', evidence: 'ok' } }) };
   });
   expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanReason: 'PR #50 is not open' });
+  expect(rows(engine.db)[0]).toMatchObject({ needsHumanCode: 'epic.stop.pullRequestNotOpen', needsHumanParams: { pr: 50 } });
 });
 
 test('a reviewer workspace that cannot be prepared leaves the epic in needs_human', async () => {
@@ -3754,6 +3775,7 @@ test('a second auth_failed stops only the running epics of that profile and thei
 
   const [first, second, third] = rows(engine.db);
   expect(first).toMatchObject({ issue: 1, status: 'needs_human', needsHumanKind: 'auth', needsHumanReason: 'authentication error for profile a', finishedAt: 5 * MIN, labelPending: false });
+  expect(first).toMatchObject({ needsHumanCode: 'epic.stop.auth', needsHumanParams: { profile: 'a', detail: '' } });
   expect(second).toMatchObject({ issue: 2, status: 'needs_human', needsHumanReason: 'authentication error for profile a' });
   expect(third).toMatchObject({ issue: 3, status: 'running' });
   expect(labelsOf(1)).toEqual(['carrier:status:needs-human']);
@@ -3824,6 +3846,7 @@ test('a second authentication signal of the profile in another epic stops the ep
   release();
   await vi.waitFor(() => expect(byStatus(engine.db, 'needs_human')).toEqual([1, 2]));
   expect(rows(engine.db).map((e) => e.needsHumanReason)).toEqual(['authentication error for profile a: 401 again', 'authentication error for profile a: 401 again']);
+  expect(rows(engine.db).map((e) => [e.needsHumanCode, e.needsHumanParams])).toEqual(Array(2).fill(['epic.stop.auth', { profile: 'a', detail: '401 again' }]));
   expect(runner.stopped).toEqual([runsOf(1)[1]!.executionId]);
   expect(runsOf(2)).toHaveLength(1);
 });
@@ -4384,7 +4407,30 @@ async function stoppedEpic() {
   return engine;
 }
 const flush = () => new Promise<void>((resolve) => setImmediate(resolve));
-const refusal = (promise: Promise<void>) => promise.then(() => null, (e: ResumeRefused) => e.reason);
+// the code each reason of a refusal carries ([ADR 0055](../../docs/adr/0055-a-refusal-carries-a-code-and-its-parameters-and-its-english-words-are-the-fallback.md)): `refusal` checks it beside the words
+const codeOf: Record<ResumeRefusal | RecoverRefusal, string> = {
+  'unknown epic': 'epic.unknown',
+  'github unavailable': 'github.unavailable',
+  'not stopped': 'resume.notStopped',
+  'did not restart': 'resume.didNotRestart',
+  'unknown option': 'resume.optionUnknown',
+  'no such role': 'resume.roleUnknown',
+  'no pull request': 'resume.noPullRequest',
+  'pull request not open': 'resume.pullRequestNotOpen',
+  'pull request head changed': 'resume.pullRequestHeadChanged',
+  'extra rounds need a stage': 'resume.extraRoundsNeedStage',
+  'extra rounds need a review limit': 'resume.extraRoundsNeedReviewLimit',
+  'not running': 'recover.notRunning',
+  'agent alive': 'recover.agentAlive',
+  'not started': 'recover.notStarted',
+  'nothing to recover': 'recover.nothingToRecover',
+  'engine unavailable': 'recover.engineUnavailable',
+};
+const refusal = (promise: Promise<void>) => promise.then(() => null, (e: ResumeRefused | RecoverRefused) => {
+  expect(e.code).toBe(codeOf[e.reason]);
+  expect(e.params).toEqual({});
+  return e.reason;
+});
 
 test('resumeEpic puts ready on a needs_human epic, checks, and answers only once it runs again from ship', async () => {
   const engine = await stoppedEpic();
@@ -4541,7 +4587,7 @@ const codexOption = { harness: 'codex' as const, model: 'gpt', configDir: '/cfg/
 const choosing = (options: NonNullable<EffectiveRepoConfig['options']> = { claude: claudeOption, codex: codexOption }): EffectiveRepoConfig[] => [
   { name: 'AshuLab/a', options, providers: options as any, agents: { author: { profile: 'a', option: 'claude', ...claudeOption }, reviewer: { profile: 'b', option: 'codex', ...codexOption } } },
 ];
-const choiceRefusal = (promise: Promise<void>) => promise.then(() => null, (e: ResumeRefused) => e.reason);
+const choiceRefusal = refusal;
 
 test('with two or more accounts a reserved epic starts its author at once, the account of each role recorded', async () => {
   github.ready = { 'AshuLab/a': ready(1, 2) };
@@ -4782,7 +4828,7 @@ test('a repo a reload adds while a poll runs is read by the poll that follows it
 test('a reload that is refused leaves every setting as it was, rethrows the problem and checks nothing', async () => {
   const engine = await start(2);
   const before = settings;
-  expect(() => engine.reload(() => { throw new ReloadRefused('Invalid config /c.json:\n  limits.maxReviews: Too small'); })).toThrow('limits.maxReviews');
+  expect(() => engine.reload(() => { throw new ReloadRefused('config.invalid', 'Invalid config /c.json:\n  limits.maxReviews: Too small'); })).toThrow('limits.maxReviews');
   expect(settings).toBe(before);
   await clock.advance(5 * MIN - 1);
   expect(github.calls).toBe(0); // no check was asked for, and the timer is the one it was
@@ -4915,6 +4961,7 @@ test('a profile removed by a reload stops the epic whose run fails for it and no
   await vi.waitFor(() => expect(byStatus(engine.db, 'needs_human')).toEqual([1]));
   await settle();
   expect(rows(engine.db).find((e) => e.issue === 1)).toMatchObject({ needsHumanKind: 'auth', needsHumanReason: 'profile a was removed from the configuration: put it back, then restart the epic' });
+  expect(rows(engine.db).find((e) => e.issue === 1)).toMatchObject({ needsHumanCode: 'epic.stop.authProfileRemoved', needsHumanParams: { profile: 'a' } });
   expect(byStatus(engine.db, 'running')).toEqual([2]); // its run has the token it started with
   expect(runner.stopped).toEqual([]);
 });
@@ -5517,6 +5564,7 @@ test('an epic whose last execution timed out while it was parked is stopped for 
 
   await clock.advance(5 * MIN);
   expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'timeout', needsHumanReason: 'the review execution exceeded the time limit of 2 h (limits.maxExecutionHours) · session and worktree are kept: raise the limit or set it to "unlimited", then resume the epic' });
+  expect(rows(engine.db)[0]).toMatchObject({ needsHumanCode: 'epic.stop.timeout', needsHumanParams: { stage: 'review', limit: '2 h' } });
   expect(runner.tasks).toEqual([]);
 });
 
@@ -5959,6 +6007,7 @@ test('a resumed review_limit stop runs the rounds it was granted and stops again
   expect(runner.tasks.map((t) => [t.stage, t.context.round])).toEqual([['fix', 2], ['review', 3], ['fix', 3], ['review', 4]]);
   expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'review_limit', round: 4, roundLimit: 4 });
   expect(rows(engine.db)[0]!.needsHumanReason).toBe('review limit: round 4 of 4 still has requested changes');
+  expect(rows(engine.db)[0]).toMatchObject({ needsHumanCode: 'epic.stop.reviewLimit', needsHumanParams: { round: 4, cap: 4 } });
   expect(buildSnapshot(engine.db, { now: clock.now(), maxConcurrentEpics: 1, maxReviews: 2, finishedWindowDays: 15, startedAt: 0, repos: 1, nextCheckAt: null, problem: null, paused: false, slices: engine.slices, version: 'x', pollIntervalMs: 1, labels: defaultLabels }).epics[0]).toMatchObject({ round: 4, maxReviews: 4 });
 });
 
@@ -6087,7 +6136,7 @@ test('a wake-up on the option the epic already holds goes on that option, not on
 
 test('a wake-up refused because its pull request changed stops waiting: resumeAt is cleared so no later poll picks it again, and the panel does not promise a resume', async () => {
   const db = open();
-  seedEpic(db, 1, { status: 'needs_human', stage: 'review', round: 2, prNumber: 50, prHeadSha: SHA, workspace: '/w/epic', needsHumanKind: 'usage_limit', needsHumanReason: `the review execution ran out of usage on option claude · carrier restart AshuLab/a#1 --reviewer <option> · resumes by itself at 1970-01-01T00:01:00.000Z · out`, resumeAt: MIN, config: quotaRepos()[0] });
+  seedEpic(db, 1, { status: 'needs_human', stage: 'review', round: 2, prNumber: 50, prHeadSha: SHA, workspace: '/w/epic', needsHumanKind: 'usage_limit', needsHumanReason: `the review execution ran out of usage on option claude · carrier restart AshuLab/a#1 --reviewer <option> · resumes by itself at 1970-01-01T00:01:00.000Z · out`, needsHumanCode: 'epic.stop.usageLimit', needsHumanParams: { cause: 'quota', runs: 1, stage: 'review', option: 'claude', role: 'reviewer', repo: 'AshuLab/a', issue: 1, wake: 'scheduled', when: '1970-01-01T00:01:00.000Z', hours: 24, times: 3, detail: 'out', ranOut: '' }, resumeAt: MIN, config: quotaRepos()[0] });
   seedExecution(db, 'x1', 1, { status: 'failed', stage: 'review', option: 'claude', harness: 'claude', model: 'opus', configDir: '/cfg/claude', failureKind: 'usage_limit' });
   pull(50, { headSha: 'b'.repeat(40) });
   fakeQuota.snapshots['/cfg/claude'] = back();
@@ -6099,7 +6148,41 @@ test('a wake-up refused because its pull request changed stops waiting: resumeAt
   expect(fakeQuota.asked).toEqual([]);
   expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', resumeAt: null, autoResumes: 0 });
   expect(rows(engine.db)[0]!.needsHumanReason).toBe('the review execution ran out of usage on option claude · carrier restart AshuLab/a#1 --reviewer <option> · it will not resume by itself: pull request head changed · out');
+  // the code follows the words, and its params keep what the words were made of, with the refusal's reason added
+  expect(rows(engine.db)[0]).toMatchObject({ needsHumanCode: 'epic.stop.usageLimitWakeRefused', needsHumanParams: { cause: 'quota', runs: 1, stage: 'review', option: 'claude', role: 'reviewer', repo: 'AshuLab/a', issue: 1, detail: 'out', ranOut: '', why: 'pull request head changed' } });
   expect(buildSnapshot(engine.db, { now: clock.now(), maxConcurrentEpics: 1, maxReviews: 5, finishedWindowDays: 15, startedAt: 0, repos: 1, nextCheckAt: null, problem: null, paused: false, slices: engine.slices, version: 'x', pollIntervalMs: 1, labels: defaultLabels }).epics[0]!.resumeAt).toBeUndefined();
+});
+
+test('a wake-up refused for an epic stopped before the codes clears resumeAt and keeps its words, with no code', async () => {
+  const db = open();
+  seedEpic(db, 1, { status: 'needs_human', stage: 'review', round: 2, prNumber: 50, prHeadSha: SHA, workspace: '/w/epic', needsHumanKind: 'usage_limit', needsHumanReason: 'the review execution ran out of usage on option claude · resumes by itself at 1970-01-01T00:01:00.000Z · out', resumeAt: MIN, config: quotaRepos()[0] });
+  seedExecution(db, 'x1', 1, { status: 'failed', stage: 'review', option: 'claude', harness: 'claude', model: 'opus', configDir: '/cfg/claude', failureKind: 'usage_limit' });
+  pull(50, { headSha: 'b'.repeat(40) });
+  fakeQuota.snapshots['/cfg/claude'] = back();
+  const engine = await restartedWithAutoResume(quotaRepos());
+  await clock.advance(5 * MIN);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', resumeAt: null, needsHumanCode: null, needsHumanParams: null, needsHumanReason: 'the review execution ran out of usage on option claude · resumes by itself at 1970-01-01T00:01:00.000Z · out' });
+});
+
+test('the reason an epic needs a human keeps its code and params after the engine is restarted, and one stored without them reads back with its words only', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  runner.behavior = (task) => ({ write: result(task, { outcome: 'needs_human', reason: 'a credential is missing' }) });
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  // a stop from before the codes: words, no code
+  seedEpic(engine.db, 2, { status: 'needs_human', needsHumanKind: 'agent_needs_human', needsHumanReason: 'an old stop' });
+  await engine.stop();
+  engine.db.$client.close();
+
+  const reopened = openDatabase(join(dir, 'carrier.db'));
+  dbs.push(reopened);
+  const read = buildSnapshot(reopened, { now: clock.now(), maxConcurrentEpics: 1, maxReviews: 5, finishedWindowDays: 15, startedAt: 0, repos: 1, nextCheckAt: null, problem: null, paused: false, slices: engine.slices, version: 'x', pollIntervalMs: 1, labels: defaultLabels }).epics;
+  expect(read.find((e) => e.issue === 1)).toMatchObject({ needsHumanReason: 'a credential is missing', needsHumanCode: 'epic.stop.agentNeedsHuman', needsHumanParams: { reason: 'a credential is missing' } });
+  const old = read.find((e) => e.issue === 2)!;
+  expect(old.needsHumanReason).toBe('an old stop');
+  expect(old).not.toHaveProperty('needsHumanCode');
+  expect(old).not.toHaveProperty('needsHumanParams');
 });
 
 test('a person resuming while the wake-up probes does not have the stage and options they asked overwritten by the wake-up', async () => {
@@ -6979,6 +7062,8 @@ test('with no verdict at all the epic stops in needs-human with reviewers_failed
   const row = rows(engine.db)[0]!;
   expect(row).toMatchObject({ status: 'needs_human', needsHumanKind: 'reviewers_failed', resumeAt: null });
   expect(row.needsHumanReason).toContain('no reviewer gave a verdict in round 1');
+  expect(row).toMatchObject({ needsHumanCode: 'epic.stop.reviewersFailed', needsHumanParams: { round: 1 } });
+  expect(row.needsHumanParams!.detail).toContain('reviewer: cannot verify · ');
   expect(row.needsHumanReason).toContain('reviewer: cannot verify');
   expect(row.needsHumanReason).toContain('reviewer-2: the skill mine (skills.review.review) is not installed for the reviewer-2');
   expect(row.needsHumanReason).toContain('reviewer-3: ran out of usage on option o');
@@ -7049,6 +7134,7 @@ test('a reviewer that asked for changes and gives no verdict in a later round ke
   const row = rows(engine.db)[0]!;
   expect(row).toMatchObject({ status: 'needs_human', needsHumanKind: 'reviewers_failed', round: 2 });
   expect(row.needsHumanReason).toContain('reviewer-2 asked for changes before, its blockers are still open, and it gave no verdict (cannot verify)');
+  expect(row).toMatchObject({ needsHumanCode: 'epic.stop.reviewersNotAgreed', needsHumanParams: { round: 2, detail: 'reviewer-2: cannot verify' } });
   expect(row.needsHumanReason).not.toContain('reviewer:');
   expect(labelsOf(1)).toEqual(['carrier:status:needs-human']);
 });
@@ -7125,6 +7211,7 @@ test('with no verdict and every failure a quota one the epic stops with usage_li
   const WAKE_LAST = 5 * MIN + 3 * HOUR; // the window of the last of them to come back
   expect(rows(engine.db)[0]).toMatchObject({ needsHumanKind: 'usage_limit', resumeAt: WAKE_LAST });
   expect(rows(engine.db)[0]!.needsHumanReason).toContain('no reviewer gave a verdict, every one ran out of usage');
+  expect(rows(engine.db)[0]).toMatchObject({ needsHumanCode: 'epic.stop.usageLimit', needsHumanParams: { cause: 'quota', runs: 2, stage: 'review' } });
   expect(rows(engine.db)[0]!.needsHumanReason).toContain('--reviewer <option>');
   expect(rows(engine.db)[0]!.needsHumanReason).toContain('--reviewer-2 <option>');
   expect(fakeQuota.asked.map((t) => t.configDir).sort()).toEqual(['/cfg/claude', '/cfg/spare']);
@@ -7425,6 +7512,7 @@ test('a lowered maxLeadRounds stops the epic at the next decision', async () => 
   expect(leadTasks()).toHaveLength(2);
   expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'lead_limit', leadRound: 2 });
   expect(rows(engine.db)[0]!.needsHumanReason).toContain('2 rounds');
+  expect(rows(engine.db)[0]).toMatchObject({ needsHumanCode: 'epic.stop.leadLimit', needsHumanParams: { limit: 2 } });
 });
 
 test('the lead\'s exchange does not count toward maxReviews: with maxReviews 1 the epic still ends up ready for test after the lead\'s fixes, and no round is added', async () => {
@@ -7597,6 +7685,7 @@ test('a lead that cannot conclude stops the epic with agent_needs_human, its rea
 
   expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'agent_needs_human' });
   expect(rows(engine.db)[0]!.needsHumanReason).toBe('the lead reviewer cannot conclude: the migration cannot be verified');
+  expect(rows(engine.db)[0]).toMatchObject({ needsHumanCode: 'epic.stop.leadCannotConclude', needsHumanParams: { reason: 'the migration cannot be verified' } });
 });
 
 test('a lead that fails technically is retried with the waits of any execution, counted for the lead alone, and with the retries out the epic stops with retries_exhausted naming the lead', async () => {

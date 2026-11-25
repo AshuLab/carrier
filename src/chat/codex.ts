@@ -85,16 +85,17 @@ export function codexChatRunner(deps: CodexChatDeps = realCodexDeps): ChatRunner
       try {
         binary = deps.resolve(command, env);
       } catch {
-        throw new ChatRefused(`Codex is not installed: ${command === undefined ? 'there is no "codex" on the path' : `"${command}" cannot be run`}`);
+        if (command === undefined) throw new ChatRefused('agent.notInstalled', 'Codex is not installed: there is no "codex" on the path', { agent: 'Codex' });
+        throw new ChatRefused('agent.commandNotRunnable', `Codex is not installed: "${command}" cannot be run`, { agent: 'Codex', command });
       }
-      if (!(await deps.loggedIn(binary, env))) throw new ChatRefused('Codex is not logged in; run "codex login" once to log in');
+      if (!(await deps.loggedIn(binary, env))) throw new ChatRefused('agent.notLoggedIn', 'Codex is not logged in; run "codex login" once to log in', { agent: 'Codex' });
       const conversation = new CodexConversation(options, binary, child);
       try {
         await conversation.start(deps, { folder, env, resume, launch, mcp, instructions });
       } catch (error) {
         log.error('codex could not be started', error);
         await conversation.close();
-        throw new ChatRefused(resume === undefined ? 'Codex could not be started' : 'Codex could not resume that conversation');
+        throw resume === undefined ? new ChatRefused('agent.startFailed', 'Codex could not be started', { agent: 'Codex' }) : new ChatRefused('agent.resumeFailed', 'Codex could not resume that conversation', { agent: 'Codex' });
       }
       return conversation;
     },
@@ -245,8 +246,8 @@ class CodexConversation implements ChatConversation {
 
   answer(approvalId: string, choiceId: string) {
     const ask = this.pending.get(approvalId);
-    if (ask === undefined) throw new ChatRefused('That approval is not pending any more');
-    if (!(choiceId in ask.replies)) throw new ChatRefused('That is not one of the choices');
+    if (ask === undefined) throw new ChatRefused('agent.approval.notPending', 'That approval is not pending any more');
+    if (!(choiceId in ask.replies)) throw new ChatRefused('agent.approval.choiceUnknown', 'That is not one of the choices');
     this.pending.delete(approvalId);
     this.emit({ kind: 'approval_answered', approvalId, choiceId });
     this.respond(ask.requestId, ask.replies[choiceId]);
@@ -263,8 +264,8 @@ class CodexConversation implements ChatConversation {
 
   async setOption(id: string, value: string) {
     const option = this.options.find((o) => o.id === id);
-    if (option === undefined) throw new ChatRefused(`There is no option "${id}"`);
-    if (!option.values.some((v) => v.id === value)) throw new ChatRefused(`"${value}" is not a value of ${id}`);
+    if (option === undefined) throw new ChatRefused('agent.option.unknown', `There is no option "${id}"`, { option: id });
+    if (!option.values.some((v) => v.id === value)) throw new ChatRefused('agent.option.valueUnknown', `"${value}" is not a value of ${id}`, { value, option: id });
     const events: ChatEvent[] = [{ kind: 'option', id, value }];
     if (id === 'model') {
       this.model = value;

@@ -94,7 +94,7 @@ export function parseDefaultBranch(originHead: string | null, branches: { name: 
   return ['main', 'master'].find((name) => branches.some((branch) => branch.name === name || branch.name === `origin/${name}`)) ?? null;
 }
 
-const refused = () => new ChatRefused('Git could not read that folder');
+const refused = () => new ChatRefused('workspace.unreadable', 'Git could not read that folder');
 
 /** A command whose failure with exit status 1 is an answer ("not set", "detached"): the output, or null for that answer; any other failure refuses. */
 function answer(result: GitResult, what: string): string | null {
@@ -169,14 +169,14 @@ export async function fetchFolder(git: Git, folder: string, { signal, now }: { s
     if (current?.fetchedAt != null && now - current.fetchedAt < FETCH_FRESH_MS) return current;
   }
   const probe = await git.run(folder, ['rev-parse', '--git-dir']);
-  if (probe.ok === false && probe.code === 128) throw new ChatRefused('That folder is not a git repository');
+  if (probe.ok === false && probe.code === 128) throw new ChatRefused('workspace.notGit', 'That folder is not a git repository');
   mustRun(probe, 'rev-parse');
-  if (answer(await git.run(folder, ['config', '--get', 'remote.origin.url']), 'config') === null) throw new ChatRefused('That repository has no origin remote to fetch');
+  if (answer(await git.run(folder, ['config', '--get', 'remote.origin.url']), 'config') === null) throw new ChatRefused('workspace.noOrigin', 'That repository has no origin remote to fetch');
   const fetched = await git.run(folder, ['fetch', 'origin', '--prune'], { timeoutMs: FETCH_TIMEOUT_MS, signal });
   if (fetched.ok === false) {
-    if (fetched.aborted === true) throw new ChatRefused('The fetch was stopped'); // the person left: not a failure of git
+    if (fetched.aborted === true) throw new ChatRefused('workspace.fetchStopped', 'The fetch was stopped'); // the person left: not a failure of git
     log.error('git fetch failed', { code: fetched.code, timedOut: fetched.timedOut === true });
-    throw new ChatRefused(fetched.timedOut === true ? 'The fetch took too long and was stopped' : 'The fetch of origin failed');
+    throw fetched.timedOut === true ? new ChatRefused('workspace.fetchTimedOut', 'The fetch took too long and was stopped') : new ChatRefused('workspace.fetchFailed', 'The fetch of origin failed');
   }
   return inspectFolder(git, folder);
 }
@@ -188,16 +188,16 @@ export async function fetchFolder(git: Git, folder: string, { signal, now }: { s
  */
 export async function checkout(git: Git, folder: string, branch: string): Promise<void> {
   const info = await inspectFolder(git, folder);
-  if (info.git === false || info.bare) throw new ChatRefused('That folder is not a git repository with a working folder, so it has no branch to check out');
+  if (info.git === false || info.bare) throw new ChatRefused('workspace.noWorkingFolder', 'That folder is not a git repository with a working folder, so it has no branch to check out');
   const listed = info.branches.find((candidate) => candidate.name === branch);
-  if (listed === undefined) throw new ChatRefused('That branch is not one this repository lists');
+  if (listed === undefined) throw new ChatRefused('workspace.branchNotListed', 'That branch is not one this repository lists');
   if (info.branch === branch) return;
-  if (info.dirty > 0) throw new ChatRefused(`The folder has ${info.dirty} uncommitted ${info.dirty === 1 ? 'file' : 'files'}, so its branch was not changed to ${branch}. Save the work and try again.`);
+  if (info.dirty > 0) throw new ChatRefused('workspace.dirty', `The folder has ${info.dirty} uncommitted ${info.dirty === 1 ? 'file' : 'files'}, so its branch was not changed to ${branch}. Save the work and try again.`, { count: info.dirty, branch });
   const local = listed.remote ? branch.slice('origin/'.length) : branch;
   const twin = listed.remote && info.branches.some((candidate) => candidate.remote === false && candidate.name === local);
   const switched = await git.run(folder, listed.remote && twin === false ? ['switch', '--track', branch] : ['switch', local]);
   if (switched.ok === false) {
     log.error('git switch failed', { code: switched.code, timedOut: switched.timedOut === true });
-    throw new ChatRefused(`Git could not check out ${branch}`);
+    throw new ChatRefused('workspace.checkoutFailed', `Git could not check out ${branch}`, { branch });
   }
 }

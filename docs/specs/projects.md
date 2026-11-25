@@ -104,7 +104,7 @@ type ProjectEntry = {
 
 The schema refuses a repeated path, an empty or blank name or command, an unknown key, a wrong-typed field and an empty path; its test is a table of those and of the well-formed entries, and it writes `macos/Tests/Fixtures/projects.json` for `ContractTests.swift`, as `engine-config-contract.test.ts` does for the engine's file, so that `ProjectsFile.swift` parses, checks and writes the same.
 
-**Who writes what.** The app writes what the person edits, and adding an existing folder, and keeps the keys it does not know, reading the file again just before writing.
+**Who writes what.** The app asks for what the person edits, and for adding an existing folder, and the chat host writes it (`carrier config` does when no host answers; [ADR 0053](../adr/0053-a-carrier-config-file-has-one-owner-process-and-a-front-end-writes-it-through-that-process.md)): it keeps the keys it does not know, reading the file again just before writing.
 The host writes an entry when a preparation that cloned or created succeeds, and when a project is cloned from Settings. `origin` is `cloned` only when the clone step ran in that preparation, `created` for a new project, and `added` for everything else, including a folder that was already in the projects folder and was only fetched; only the first two can be deleted from disk.
 The app watches the file, since the host can change it while Settings is open.
 
@@ -137,7 +137,7 @@ The dialog's words are a pure function of that answer and the project's `origin`
 **Where the identity shows.** A pure function gives a tile from a path and the list (`ProjectIcon.swift`, `ChatSessions.swift`'s group title, the new session picker, and the epic row by the `origin` of the repository); two projects with one name keep the parent folder added to the group title, as the sidebar does for folders.
 The image is copied by the app, reduced to 256 points, into `<folder>/app/project-icons/<random>.png`, and the entry names the file; it is removed with the project, and a missing file draws the colour and mark.
 
-**What the page is.** `SettingsPage.projects` with `usesForm` and `isColumn` false, as Repos and Health, and a project and its Actions are places of Settings with a path (`SettingsPlace`, `SettingsTitle`), as Providers and Agents have; a list row, a tile, a chip, a select and a sort title reuse the pieces of [macos-ui](../macos-ui.md), and a piece that is missing is added there.
+**What the page is.** `SettingsPage.projects` with `usesForm` and `isColumn` false, as Repos and Health, and a project and its Actions are places of Settings with a path (`SettingsPlace`, `SettingsTitle`), as Providers and Agents have; a list row, a tile, a chip, a select and a sort title reuse the pieces of [ui](../ui.md), and a piece that is missing is added there.
 The row goes into `settingsIndex`, and `SettingsIndexDriftTests` keeps it.
 
 **The watch.** The switch uses the writers and the rules of the Repos page (`applyingRepos`, `reposProblem` in `RepoList.swift`, the folder-name rule of watched repos) and the reload answer the other pages show, so the two pages cannot disagree about the file.

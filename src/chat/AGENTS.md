@@ -38,8 +38,8 @@ Adding a `chat.json` field: [`src/config/AGENTS.md`](../config/AGENTS.md#adding-
   `projectClones` lists clones running and failed (kept until `dismissClone`); a running clone holds the idle exit, a stop aborts it and removes what it made.
   `projectWorktrees` (in `sessions.ts`, it joins `chat.db`) answers a project's main clone and its `worktrees/` still on disk with branch, session, age and a state (session open, uncommitted, PR merged, commits no other branch holds, else clean); the main clone says `uncommitted`, `notPushed` or `clean`, which the app reads before the Trash.
   `removeProjectWorktree` takes only one of those folders (`clearWorktree`: the branch stays, `restoreWorktree` brings it back on resume), refused while its session is open or it has uncommitted changes; `cleanProjectWorktrees` lists, and with `run` removes, the merged ones nothing blocks.
-- `disk.ts`: what a project takes on disk, behind the `projects` capability.
-  `projectDisk` answers at once what `project_sizes` of `chat.db` holds (main clone and `worktrees/` together; nulls if never measured) and `measuring`. `refresh: 'stale'` queues those never measured or a day old, `now` all; the measure (`du -sk`, faked in tests) runs in the background, a failure is logged and keeps the last figure.
+- `disk.ts`: what a project takes on disk, behind the `projects` capability ([how](../../docs/specs/chat-host.md#refusals-and-config-requests-in-the-code)).
+- `ChatRefused`, `project-edits.ts`, `providers-requests.ts`, `engine-reload.ts`: [refusals and config requests](../../docs/specs/chat-host.md#refusals-and-config-requests-in-the-code).
 - `providers.ts`: the `providers` request (accounts with their state, `unadded`, local servers, `textGenerator` or `problem`; built from `doctor/detect.ts`).
 - `mcp.ts`: the chat MCP (ADR 0024), a loopback HTTP server the host starts before `chat.sock`; toolkits under `mcp/`.
   `McpSessionRegistry`: a hashed bearer token per live conversation, revoked by `invocationId` when it ends.

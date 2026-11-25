@@ -1,0 +1,297 @@
+{
+  "addProject": {
+    "request": {
+      "cmd": "addProject",
+      "folder": "/Users/example/work/gamma"
+    },
+    "reply": {
+      "ok": true,
+      "data": {
+        "added": true,
+        "saved": {
+          "path": "/Users/example/work/gamma",
+          "name": "gamma",
+          "origin": "added"
+        }
+      }
+    }
+  },
+  "addProjectExisting": {
+    "request": {
+      "cmd": "addProject",
+      "folder": "/Users/example/work/gamma/"
+    },
+    "reply": {
+      "ok": true,
+      "data": {
+        "added": false,
+        "saved": {
+          "path": "/Users/example/work/gamma",
+          "name": "gamma",
+          "origin": "added"
+        }
+      }
+    }
+  },
+  "removeProject": {
+    "request": {
+      "cmd": "removeProject",
+      "path": "/Users/example/work/beta"
+    },
+    "reply": {
+      "ok": true,
+      "data": {
+        "removed": "/Users/example/work/beta"
+      }
+    }
+  },
+  "editProject": {
+    "request": {
+      "cmd": "editProject",
+      "path": "/Users/example/work/alpha",
+      "key": "name",
+      "value": "Alpha"
+    },
+    "reply": {
+      "ok": true,
+      "data": {
+        "saved": {
+          "path": "/Users/example/work/alpha",
+          "name": "Alpha",
+          "origin": "cloned",
+          "tags": [
+            "a",
+            "b"
+          ],
+          "icon": {
+            "color": "blue",
+            "image": "alpha.png"
+          },
+          "defaults": {
+            "agent": "claude",
+            "model": "opus"
+          }
+        }
+      }
+    }
+  },
+  "moveProject": {
+    "request": {
+      "cmd": "moveProject",
+      "path": "/Users/example/work/alpha",
+      "folder": "/Users/example/work/alpha-2"
+    },
+    "reply": {
+      "ok": true,
+      "data": {
+        "saved": {
+          "path": "/Users/example/work/alpha-2",
+          "name": "Alpha",
+          "origin": "cloned",
+          "tags": [
+            "a",
+            "b"
+          ],
+          "icon": {
+            "color": "blue",
+            "image": "alpha.png"
+          },
+          "defaults": {
+            "agent": "claude",
+            "model": "opus"
+          }
+        }
+      }
+    }
+  },
+  "editProjectIcon": {
+    "request": {
+      "cmd": "editProjectIcon",
+      "path": "/Users/example/work/alpha-2",
+      "changes": {
+        "color": null,
+        "mark": "bolt"
+      }
+    },
+    "reply": {
+      "ok": true,
+      "data": {
+        "saved": {
+          "path": "/Users/example/work/alpha-2",
+          "name": "Alpha",
+          "origin": "cloned",
+          "tags": [
+            "a",
+            "b"
+          ],
+          "icon": {
+            "mark": "bolt",
+            "image": "alpha.png"
+          },
+          "defaults": {
+            "agent": "claude",
+            "model": "opus"
+          }
+        }
+      }
+    }
+  },
+  "editProjectDefaults": {
+    "request": {
+      "cmd": "editProjectDefaults",
+      "path": "/Users/example/work/alpha-2",
+      "changes": {
+        "model": null,
+        "workIn": "worktree"
+      }
+    },
+    "reply": {
+      "ok": true,
+      "data": {
+        "saved": {
+          "path": "/Users/example/work/alpha-2",
+          "name": "Alpha",
+          "origin": "cloned",
+          "tags": [
+            "a",
+            "b"
+          ],
+          "icon": {
+            "mark": "bolt",
+            "image": "alpha.png"
+          },
+          "defaults": {
+            "agent": "claude",
+            "workIn": "worktree"
+          }
+        }
+      }
+    }
+  },
+  "editProjectTags": {
+    "request": {
+      "cmd": "editProjectTags",
+      "path": "/Users/example/work/alpha-2",
+      "add": [
+        "C",
+        " d "
+      ],
+      "remove": [
+        "a"
+      ]
+    },
+    "reply": {
+      "ok": true,
+      "data": {
+        "saved": {
+          "path": "/Users/example/work/alpha-2",
+          "name": "Alpha",
+          "origin": "cloned",
+          "tags": [
+            "b",
+            "c",
+            "d"
+          ],
+          "icon": {
+            "mark": "bolt",
+            "image": "alpha.png"
+          },
+          "defaults": {
+            "agent": "claude",
+            "workIn": "worktree"
+          }
+        }
+      }
+    }
+  },
+  "setProjectActions": {
+    "request": {
+      "cmd": "setProjectActions",
+      "path": "/Users/example/work/alpha-2",
+      "actions": [
+        {
+          "name": "Install",
+          "command": "pnpm i",
+          "when": "newWorktree",
+          "onFail": "stop"
+        }
+      ]
+    },
+    "reply": {
+      "ok": true,
+      "data": {
+        "saved": {
+          "path": "/Users/example/work/alpha-2",
+          "name": "Alpha",
+          "origin": "cloned",
+          "tags": [
+            "b",
+            "c",
+            "d"
+          ],
+          "icon": {
+            "mark": "bolt",
+            "image": "alpha.png"
+          },
+          "defaults": {
+            "agent": "claude",
+            "workIn": "worktree"
+          },
+          "actions": [
+            {
+              "name": "Install",
+              "command": "pnpm i",
+              "when": "newWorktree",
+              "onFail": "stop"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "setProjectsFolder": {
+    "request": {
+      "cmd": "setProjectsFolder",
+      "folder": "/Users/example/projects"
+    },
+    "reply": {
+      "ok": true,
+      "data": {
+        "saved": {
+          "projectsFolder": "/Users/example/projects"
+        }
+      }
+    }
+  },
+  "missing": {
+    "request": {
+      "cmd": "removeProject",
+      "path": "/Users/example/work/none"
+    },
+    "reply": {
+      "ok": false,
+      "error": "No project has the path /Users/example/work/none",
+      "code": "project.missing",
+      "params": {
+        "path": "/Users/example/work/none"
+      }
+    }
+  },
+  "refused": {
+    "request": {
+      "cmd": "editProject",
+      "path": "/Users/example/work/gamma",
+      "key": "name",
+      "value": true
+    },
+    "reply": {
+      "ok": false,
+      "error": "projects.json: projects.1.name Invalid input: expected string, received boolean",
+      "code": "config.problem",
+      "params": {
+        "path": "projects.1.name",
+        "problem": "invalid_type"
+      }
+    }
+  }
+}

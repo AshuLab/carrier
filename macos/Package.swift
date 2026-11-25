@@ -3,6 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "Carrier",
+    defaultLocalization: "en",
     platforms: [.macOS(.v26)],
     dependencies: [
         .package(url: "https://github.com/sparkle-project/Sparkle", exact: "2.10.1"),
@@ -11,16 +12,18 @@ let package = Package(
         .package(url: "https://github.com/Lakr233/libghostty-spm.git", exact: "2.2.2026111302"),
     ],
     targets: [
-        .target(name: "CarrierCore", resources: [.copy("Resources/FileIcons"), .copy("Resources/ProviderIcons"), .copy("Resources/TablerIcons"), .copy("Resources/LucideIcons"), .copy("Resources/Brand")]),
+        .target(name: "CarrierCore", resources: [.copy("Resources/FileIcons"), .copy("Resources/ProviderIcons"), .copy("Resources/TablerIcons"), .copy("Resources/LucideIcons"), .copy("Resources/Brand"), .process("Resources/Localizable.xcstrings")]),
+        .target(name: "CarrierUI", dependencies: ["CarrierCore"]),
         .executableTarget(name: "Carrier", dependencies: [
             "CarrierCore",
+            "CarrierUI",
             .product(name: "Sparkle", package: "Sparkle"),
             .product(name: "FluidAudio", package: "FluidAudio"),
             .product(name: "WhisperKit", package: "argmax-oss-swift"),
             .product(name: "GhosttyTerminal", package: "libghostty-spm"),
         ]),
         .testTarget(name: "CarrierCoreTests", dependencies: ["CarrierCore"]),
-        .testTarget(name: "CarrierTests", dependencies: ["Carrier"], resources: [.copy("Resources/hola-es.wav"), .copy("Resources/hello-en.wav")]),
+        .testTarget(name: "CarrierTests", dependencies: ["Carrier", "CarrierUI"], resources: [.copy("Resources/hola-es.wav"), .copy("Resources/hello-en.wav")]),
     ],
     swiftLanguageModes: [.v5]
 )

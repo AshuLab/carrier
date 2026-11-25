@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import type { ChatAgent } from '../chat/config.ts';
 import type { ChatDb } from '../chat/db.ts';
 import { ChatRefused } from '../chat/runner.ts';
+import { providersPathOf } from '../config/places.ts';
 import { providersProblem, readProvidersFile, type Providers } from '../config/providers.ts';
 import { enginePlacesOf } from '../config/places.ts';
 import { createHistory, type HistoryFilter, type HistoryPorts, type HistoryRoots } from './history.ts';
@@ -60,7 +61,7 @@ export function createUsage({ ports, history: historyPorts, db, folder, agents, 
   return {
     async usage({ refresh, days = 30, provider = 'all', source = 'all', search, account }: UsageArgs) {
       const read = readProvidersFile(folder);
-      if (read.ok === false) throw new ChatRefused(providersProblem(folder, read.errors));
+      if (read.ok === false) throw new ChatRefused('providers.invalid', providersProblem(folder, read.errors), { path: providersPathOf(folder) });
       const providers = account === undefined ? read.providers : Object.fromEntries(Object.entries(read.providers).filter(([name]) => name === account));
       const asked = accountsOf(providers).filter((a) => account === undefined || a.account === account).filter((a) => provider === 'all' || a.target.provider === provider);
       const snapshots: (QuotaSnapshot & { account: string; displayName?: string })[] = await Promise.all(asked.map(async (a) => ({ account: a.account, ...(a.displayName !== undefined && { displayName: a.displayName }), ...(await quotas(a.target, { refresh })) })));
@@ -76,7 +77,7 @@ export function createUsage({ ports, history: historyPorts, db, folder, agents, 
       try {
         overrides.set(stored);
       } catch (error) {
-        if (error instanceof PriceOverrideInvalid) throw new ChatRefused(error.message);
+        if (error instanceof PriceOverrideInvalid) throw new ChatRefused(error.code, error.message, error.params);
         throw error;
       }
       return { model: request.model, action: request.action };

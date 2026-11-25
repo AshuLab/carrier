@@ -1,12 +1,14 @@
-import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { createServer, type Server } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { startControlServer } from '../../../control/server.ts';
 import type { SessionsReply } from '../../../control/replies.ts';
 import type { PanelEpic, PanelSnapshot } from '../../../status/types.ts';
-import { statusCommand } from './status.ts';
+import { ControlRefused } from '../control-client.ts';
+import { stagesOf, statusCommand, unknownEpic } from './status.ts';
 
 let root: string;
 let closers: (() => void)[];
@@ -42,7 +44,7 @@ test('status prints the stage lines of a running epic taken over the socket', as
   const controls = {
     poll: () => {}, setPaused: () => {}, logs: () => [],
     sessions: (repo: string, issue: number) => (asked.push(`${repo}#${issue}`), stages(14)),
-    events: () => null, epic: () => null, files: () => null, fileDiff: () => null, availableRepos: () => Promise.resolve({ repos: [], hasMore: false }), resumeEpic: () => Promise.resolve(), recoverEpic: () => Promise.resolve(), reload: () => {},
+    events: () => null, epic: () => null, files: () => null, fileDiff: () => null, availableRepos: () => Promise.resolve({ repos: [], hasMore: false }), resumeEpic: () => Promise.resolve(), recoverEpic: () => Promise.resolve(), reload: () => {}, setWatchedRepos: () => ({ saved: {}, engine: 'applied' as const }), editBehavior: () => ({ saved: {}, engine: 'applied' as const }), editEngineFile: () => ({ saved: {}, engine: 'applied' as const }),
   };
   closers.push((await startControlServer({ stateDir: join(root, 'engine', 'state'), snapshot: () => snapshot, startedAt: 1, controls, stop: async () => {} })).close);
   const { code, text } = await printed();
@@ -57,7 +59,7 @@ test('status draws the kind of a failed stage in the history, and a failed stage
   const controls = {
     poll: () => {}, setPaused: () => {}, logs: () => [],
     sessions: (_repo: string, issue: number) => ({ sessions: [issue === 1 ? killed : failed] }),
-    events: () => null, epic: () => null, files: () => null, fileDiff: () => null, availableRepos: () => Promise.resolve({ repos: [], hasMore: false }), resumeEpic: () => Promise.resolve(), recoverEpic: () => Promise.resolve(), reload: () => {},
+    events: () => null, epic: () => null, files: () => null, fileDiff: () => null, availableRepos: () => Promise.resolve({ repos: [], hasMore: false }), resumeEpic: () => Promise.resolve(), recoverEpic: () => Promise.resolve(), reload: () => {}, setWatchedRepos: () => ({ saved: {}, engine: 'applied' as const }), editBehavior: () => ({ saved: {}, engine: 'applied' as const }), editEngineFile: () => ({ saved: {}, engine: 'applied' as const }),
   };
   closers.push((await startControlServer({ stateDir: join(root, 'engine', 'state'), snapshot: () => snapshot, startedAt: 1, controls, stop: async () => {} })).close);
   const { text } = await printed();
@@ -72,7 +74,7 @@ test('a sessions request that errors or answers unknown epic leaves that epic wi
       if (issue === 1) return null; // unknown epic
       return stages(7);
     },
-    events: () => null, epic: () => null, files: () => null, fileDiff: () => null, availableRepos: () => Promise.resolve({ repos: [], hasMore: false }), resumeEpic: () => Promise.resolve(), recoverEpic: () => Promise.resolve(), reload: () => {},
+    events: () => null, epic: () => null, files: () => null, fileDiff: () => null, availableRepos: () => Promise.resolve({ repos: [], hasMore: false }), resumeEpic: () => Promise.resolve(), recoverEpic: () => Promise.resolve(), reload: () => {}, setWatchedRepos: () => ({ saved: {}, engine: 'applied' as const }), editBehavior: () => ({ saved: {}, engine: 'applied' as const }), editEngineFile: () => ({ saved: {}, engine: 'applied' as const }),
   };
   closers.push((await startControlServer({ stateDir: join(root, 'engine', 'state'), snapshot: () => snapshot, startedAt: 1, controls, stop: async () => {} })).close);
   const { code, text } = await printed();
@@ -113,7 +115,7 @@ test('status asks for the stages of the epics that need a person and the ones re
   const controls = {
     poll: () => {}, setPaused: () => {}, logs: () => [],
     sessions: (repo: string, issue: number) => (asked.push(`${repo}#${issue}`), stages(14)),
-    events: () => null, epic: () => null, files: () => null, fileDiff: () => null, availableRepos: () => Promise.resolve({ repos: [], hasMore: false }), resumeEpic: () => Promise.resolve(), recoverEpic: () => Promise.resolve(), reload: () => {},
+    events: () => null, epic: () => null, files: () => null, fileDiff: () => null, availableRepos: () => Promise.resolve({ repos: [], hasMore: false }), resumeEpic: () => Promise.resolve(), recoverEpic: () => Promise.resolve(), reload: () => {}, setWatchedRepos: () => ({ saved: {}, engine: 'applied' as const }), editBehavior: () => ({ saved: {}, engine: 'applied' as const }), editEngineFile: () => ({ saved: {}, engine: 'applied' as const }),
   };
   const more: PanelSnapshot = {
     ...snapshot,
@@ -125,4 +127,21 @@ test('status asks for the stages of the epics that need a person and the ones re
   expect(code).toBe(0);
   expect(asked).toEqual(['A/a#1', 'A/a#3']);
   expect(text.match(/ship ✓ 14m 00s/g)).toHaveLength(2);
+});
+
+// A client whose `sessions` request is refused as the engine would, in words that are not today's.
+const refusing = (error: Error) => ({ hello: { capabilities: ['sessions'] } as never, request: () => Promise.reject(error) });
+
+test('an epic is left without detail by the code epic.unknown, whatever the words', async () => {
+  expect(await stagesOf(refusing(new ControlRefused('there is no such epic', 'epic.unknown')), 'A/a', 1)).toBeNull();
+});
+
+test('a refusal with another code, or none, is a failure to ask again, whatever its words', async () => {
+  expect(await stagesOf(refusing(new ControlRefused('unknown epic', 'request.internal')), 'A/a', 1)).toBeUndefined();
+  expect(await stagesOf(refusing(new ControlRefused('unknown epic')), 'A/a', 1)).toBeUndefined();
+});
+
+test('the code status decides by is in the golden list of text codes', () => {
+  const codes = Object.keys(JSON.parse(readFileSync(fileURLToPath(new URL('../../../../macos/Tests/Fixtures/text-codes.json', import.meta.url)), 'utf8')));
+  expect(codes).toContain(unknownEpic);
 });

@@ -1,0 +1,309 @@
+import Foundation
+import Testing
+@testable import CarrierCore
+
+// The options pill and its panel: the pill's text and the panel's rows as pure functions over what the provider lists (Claude's
+// three, Codex's four, none), and the change of an option through a fake host, with its refusal.
+
+private func option(_ id: String, _ label: String, _ values: [(String, String)], current: String) -> ChatOption {
+    ChatOption(id: id, label: label, values: values.map { .init(id: $0.0, label: $0.1) }, current: current)
+}
+
+private let claude = [
+    option("model", "Model", [("sonnet", "Sonnet"), ("opus", "Opus")], current: "sonnet"),
+    option("effort", "Effort", [("medium", "Medium"), ("high", "High")], current: "high"),
+    option("permissionMode", "Permissions", [("default", "Ask first"), ("acceptEdits", "Accept edits")], current: "default"),
+]
+
+private let codex = [
+    option("model", "Model", [("gpt-5", "GPT-5")], current: "gpt-5"),
+    option("reasoning", "Reasoning", [("medium", "Medium"), ("high", "High")], current: "medium"),
+    option("approval", "Approvals", [("on-request", "On request"), ("never", "Never")], current: "on-request"),
+    option("sandbox", "Sandbox", [("workspace-write", "Workspace write"), ("read-only", "Read only")], current: "workspace-write"),
+]
+
+@Test func thePillJoinsTheCurrentValuesInTheProvidersOrder() {
+    #expect(optionsPill(claude) == "Sonnet · High · Ask first")
+    #expect(optionsPill(codex) == "GPT-5 · Medium · On request · Workspace write")
+}
+
+@Test func thePillIsAbsentWhenTheProviderListsNoOptions() {
+    #expect(optionsPill([]) == nil)
+}
+
+@Test func aCurrentValueTheProviderDoesNotListShowsAsItIs() {
+    #expect(optionsPill([option("model", "Model", [("sonnet", "Sonnet")], current: "claude-x")]) == "claude-x")
+}
+
+@Test func thePanelHasARowPerOptionWithTheCurrentValueTicked() {
+    let rows = optionRows(claude, bundle: english.bundle, locale: english.locale)
+    #expect(rows.map(\.label) == ["Model", "Effort", "Permissions"])
+    #expect(rows[1].choices.map(\.label) == ["Medium", "High"])
+    #expect(rows[1].choices.map(\.ticked) == [false, true])
+    #expect(optionRows(codex, bundle: english.bundle, locale: english.locale).count == 4)
+    #expect(optionRows([], bundle: english.bundle, locale: english.locale).isEmpty)
+}
+
+@Test func theEventsReplyCarriesTheOptions() throws {
+    let json = """
+    {"events":[],"cursor":0,"streaming":"","approvals":[],"options":[{"id":"model","label":"Model","values":[{"id":"sonnet","label":"Sonnet"}],"current":"sonnet"}]}
+    """
+    #expect(try JSONDecoder().decode(ChatEvents.self, from: Data(json.utf8)).options == [option("model", "Model", [("sonnet", "Sonnet")], current: "sonnet")])
+    // a host that says nothing of options lists none
+    #expect(try JSONDecoder().decode(ChatEvents.self, from: Data(#"{"events":[],"cursor":0,"streaming":""}"#.utf8)).options.isEmpty)
+}
+
+// MARK: through a fake host
+
+private final class OptionsHost: ChatHost, @unchecked Sendable {
+    var options = claude
+    var refuse: Error?
+    var changes: [String] = []
+    var commands: [ChatCommand] = []
+    var sent: [(text: String, command: String?)] = []
+
+    func agents() async throws -> [ChatAgent] { [] }
+    func open(plan: SessionPlan) async throws -> String { "" }
+    func workspace(_ folder: String) async throws -> WorkspaceInfo { WorkspaceInfo(folder: folder, git: false) }
+    func fetch(_ folder: String, ifStale: Bool) async throws -> WorkspaceInfo { WorkspaceInfo(folder: folder, git: false) }
+    func suggestName(_ folder: String) async throws -> String { "" }
+    func checkName(_ folder: String, _ name: String) async throws -> NameCheck { NameCheck(valid: true, free: true) }
+    var sessions: [ChatSession] = []
+    func list(archived: Bool) async throws -> [ChatSession] { archived ? [] : sessions }
+    func resume(_ id: String) async throws {}
+    func send(_ id: String, _ text: String) async throws { sent.append((text, nil)) }
+    func send(_ id: String, _ text: String, command: String?) async throws { sent.append((text, command)) }
+    func interrupt(_ id: String) async throws {}
+    func archive(_ id: String, _ archived: Bool) async throws {}
+    func delete(_ id: String) async throws {}
+    func capabilities() async throws -> Set<ControlClient.Capability> { [] }
+    func githubRepos(page: Int) async throws -> GithubReposPage { throw ControlError.closed }
+    func deletePreview(_ ids: [String]) async throws -> [SessionDeletePreview] { [] }
+    func answer(_ id: String, approval: String, choice: String, answers: [String: String]?) async throws {}
+    func events(_ id: String, after: Int, limit: Int) async throws -> ChatEvents { ChatEvents(events: [], cursor: after, options: options, commands: commands) }
+    func setOption(_ id: String, option: String, value: String) async throws {
+        changes.append("\(option)=\(value)")
+        if let refuse { throw refuse }
+        options = options.map { $0.id == option ? ChatOption(id: $0.id, label: $0.label, values: $0.values, current: value) : $0 }
+    }
+}
+
+@MainActor @Test func theOptionsComeFromTheEventsReplyAndAClosedSessionHasNone() async {
+    let host = OptionsHost()
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
+    #expect(model.options.isEmpty)
+    await model.poll()
+    #expect(optionsPill(model.options) == "Sonnet · High · Ask first")
+    host.options = []
+    await model.poll()
+    #expect(optionsPill(model.options) == nil)
+}
+
+@MainActor @Test func choosingAValueSendsSetOptionAndThePillFollowsTheHostsReply() async {
+    let host = OptionsHost()
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
+    await model.poll()
+    await model.setOption("effort", "medium")
+    #expect(host.changes == ["effort=medium"])
+    #expect(optionsPill(model.options) == "Sonnet · Medium · Ask first" && model.optionRefusal == nil)
+}
+
+@MainActor @Test func aRefusalIsSaidInWordsAndNothingChanges() async {
+    let host = OptionsHost()
+    host.refuse = ControlError.remote(.words("The reasoning effort can only change between turns"))
+    var logged: [String] = []
+    let model = ConversationModel(host: host, sessionId: "s", log: { logged.append($0) })
+    await model.poll()
+    await model.setOption("effort", "medium")
+    #expect(model.optionRefusal == "The reasoning effort can only change between turns")
+    #expect(optionsPill(model.options) == "Sonnet · High · Ask first" && logged.isEmpty)
+    // the next choice that works clears the words
+    host.refuse = nil
+    await model.setOption("effort", "medium")
+    #expect(model.optionRefusal == nil && optionsPill(model.options) == "Sonnet · Medium · Ask first")
+}
+
+@MainActor @Test func aHostThatIsNotAnsweringIsLoggedAndShown() async {
+    let host = OptionsHost()
+    host.refuse = ControlError.closed
+    var logged: [String] = []
+    let model = ConversationModel(host: host, sessionId: "s", log: { logged.append($0) })
+    await model.setOption("model", "opus")
+    #expect(model.optionRefusal == "The chat host is not answering" && logged.count == 1)
+}
+
+// MARK: a closed session
+
+private final class MemoryBox: @unchecked Sendable { var stored: [String: [ChatOption]] = [:] }
+
+@MainActor @Test func aClosedSessionListsWhatItOfferedAndAChoiceWaitsForTheMessageThatWakesIt() async {
+    let box = MemoryBox()
+    let memory = OptionsMemory(load: { box.stored[$0] ?? [] }, save: { box.stored[$0] = $1 })
+    let host = OptionsHost()
+    let running = ConversationModel(host: host, sessionId: "s", log: { _ in }, memory: memory)
+    await running.poll()
+    #expect(box.stored["s"] == claude)
+
+    // the session closes, and the app starts again: the host lists nothing, the memory has what it offered
+    host.options = []
+    let closed = ConversationModel(host: host, sessionId: "s", log: { _ in }, memory: memory)
+    // what it offered is there from the first frame, so the selects do not appear after the view does
+    #expect(optionsPill(closed.shownOptions) == "Sonnet · High · Ask first")
+    await closed.poll()
+    #expect(closed.options.isEmpty && optionsPill(closed.shownOptions) == "Sonnet · High · Ask first")
+
+    // choosing changes the box and asks the host nothing
+    await closed.setOption("effort", "medium")
+    #expect(host.changes.isEmpty && optionsPill(closed.shownOptions) == "Sonnet · Medium · Ask first" && closed.wakeOptions == ["effort": "medium"])
+    // a value the session never offered is not taken
+    await closed.setOption("model", "gpt-5")
+    #expect(closed.wakeOptions == ["effort": "medium"])
+}
+
+@MainActor @Test func theChoicesMadeWhileClosedAreAppliedAfterTheResumeAndBeforeTheMessage() async {
+    let box = MemoryBox()
+    box.stored["s"] = claude
+    let host = OptionsHost()
+    host.options = []
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in }, memory: OptionsMemory(load: { box.stored[$0] ?? [] }, save: { box.stored[$0] = $1 }))
+    await model.poll()
+    await model.setOption("effort", "medium")
+    await model.setOption("model", "opus")
+    model.draft = "hello"
+    await model.submit()
+    // the model first: the reasoning levels depend on it
+    #expect(host.changes == ["model=opus", "effort=medium"] && model.wakeOptions.isEmpty)
+}
+
+// MARK: commands
+
+private final class CommandsBox: @unchecked Sendable { var stored: [String: [ChatCommand]] = [:] }
+
+@MainActor @Test func aMessageThatStartsWithTheNameOfACommandTheSessionListsInvokesItAndAClosedSessionRemembersTheList() async {
+    let box = CommandsBox()
+    let memory = OptionsMemory(
+        load: { _ in [] }, save: { _, _ in }, loadCommands: { box.stored[$0] ?? [] }, saveCommands: { box.stored[$0] = $1 }
+    )
+    let host = OptionsHost()
+    host.commands = [ChatCommand(id: "review", name: "review", description: "Review", argumentHint: "<pr>")]
+    let running = ConversationModel(host: host, sessionId: "s", log: { _ in }, memory: memory)
+    await running.poll()
+    #expect(running.shownCommands.map(\.name) == ["review"] && box.stored["s"]?.count == 1)
+    // each message on a session that is idle: the agent answers one at a time, and a second would wait in the queue
+    for text in ["/review 42", "/review", "/compact now"] {  // the last one is not listed: a message
+        let model = ConversationModel(host: host, sessionId: "s", log: { _ in }, memory: memory)
+        await model.poll()
+        model.draft = text
+        await model.submit()
+    }
+    #expect(host.sent.map(\.command) == ["review", "review", nil] && host.sent.map(\.text) == ["42", "", "/compact now"])
+
+    // closed: the host lists none, the memory has what it listed
+    host.commands = []
+    let closed = ConversationModel(host: host, sessionId: "s", log: { _ in }, memory: memory)
+    await closed.poll()
+    #expect(closed.commands.isEmpty && closed.shownCommands.map(\.name) == ["review"])
+}
+
+private final class AgentBox: @unchecked Sendable {
+    var stored: [String: String] = [:]
+    var writes = 0
+}
+
+@MainActor @Test func aSessionTheAppSawKeepsItsProviderFromTheFirstFrame() async {
+    let box = AgentBox()
+    let memory = OptionsMemory(load: { _ in [] }, save: { _, _ in }, loadAgent: { box.stored[$0] ?? "" }, saveAgent: { box.stored[$0] = $1 })
+    let host = OptionsHost()
+    let json = #"{"id":"s","agent":"claude","harness":"claude","folder":"/x","state":"idle","createdAt":1,"lastActiveAt":1,"archived":false,"live":true}"#
+    host.sessions = [try! JSONDecoder().decode(ChatSession.self, from: Data(json.utf8))]
+    let first = ConversationModel(host: host, sessionId: "s", log: { _ in }, memory: memory)
+    #expect(first.agent.isEmpty)  // never seen: nothing to show yet
+    await first.poll()
+    #expect(box.stored["s"] == first.agent && first.agent.isEmpty == false)
+    #expect(ConversationModel(host: host, sessionId: "s", log: { _ in }, memory: memory).agent == first.agent)
+}
+
+@MainActor @Test func theAgentIsWrittenOnlyWhenItChanges() async {
+    let box = AgentBox()
+    let memory = OptionsMemory(
+        load: { _ in [] }, save: { _, _ in }, loadAgent: { box.stored[$0] ?? "" }, saveAgent: { box.writes += 1; box.stored[$0] = $1 }
+    )
+    func session(_ agent: String) -> ChatSession {
+        let json = #"{"id":"s","agent":"\#(agent)","harness":"claude","folder":"/x","state":"idle","createdAt":1,"lastActiveAt":1,"archived":false,"live":true}"#
+        return try! JSONDecoder().decode(ChatSession.self, from: Data(json.utf8))
+    }
+    let host = OptionsHost()
+    host.sessions = [session("claude")]
+    // a write to the defaults wakes every observer of them, and the poll runs four times a second
+    let first = ConversationModel(host: host, sessionId: "s", log: { _ in }, memory: memory)
+    for _ in 0..<3 { await first.poll() }
+    #expect(box.writes == 1)
+    // a model for a session the app already saw starts from what was written, so it writes nothing new
+    let second = ConversationModel(host: host, sessionId: "s", log: { _ in }, memory: memory)
+    for _ in 0..<2 { await second.poll() }
+    #expect(box.writes == 1)
+    // the host says another agent: that is written
+    host.sessions = [session("codex")]
+    await second.poll()
+    #expect(box.writes == 2 && box.stored["s"] == "codex")
+}
+
+@MainActor @Test func whatIsTypedInTheBoxIsStillThereWhenThePersonComesBackToTheSession() {
+    let box = AgentBox()
+    let memory = OptionsMemory(load: { _ in [] }, save: { _, _ in }, loadDraft: { box.stored[$0] ?? "" }, saveDraft: { box.stored[$0] = $1 })
+    let first = ConversationModel(host: OptionsHost(), sessionId: "s", log: { _ in }, memory: memory)
+    first.draft = "half a thought"
+    // the view is gone (the person went to the terminal or to another session) and comes back with a new model
+    #expect(ConversationModel(host: OptionsHost(), sessionId: "s", log: { _ in }, memory: memory).draft == "half a thought")
+    #expect(ConversationModel(host: OptionsHost(), sessionId: "other", log: { _ in }, memory: memory).draft.isEmpty)
+    first.draft = ""
+    #expect(ConversationModel(host: OptionsHost(), sessionId: "s", log: { _ in }, memory: memory).draft.isEmpty)
+}
+
+// MARK: forgetting a deleted session
+
+private func keptKeys(_ defaults: UserDefaults, for id: String) -> Set<String> {
+    Set(defaults.dictionaryRepresentation().keys.filter { $0.hasSuffix(".\(id)") })
+}
+
+@Test func forgettingASessionRemovesEveryKeyItHasAndNoOtherSessions() throws {
+    let suite = "carrier.tests.forget.\(UUID().uuidString)"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    let memory = OptionsMemory.stored(in: defaults)
+    let ids = ["s1", "s10"]  // one id is a prefix of the other
+    defer {
+        defaults.removePersistentDomain(forName: suite)
+        for id in ids { memory.saveDraft(id, "") }  // the drafts are process-global
+    }
+    let command = ChatCommand(id: "review", name: "review", description: "Review", argumentHint: nil)
+    for id in ids {
+        memory.save(id, claude)
+        memory.saveCommands(id, [command])
+        memory.saveAgent(id, "claude")
+        memory.saveDraft(id, "half a thought")
+    }
+    #expect(keptKeys(defaults, for: "s1") == Set(SessionKey.allCases.map { $0.key("s1") }))
+
+    memory.forget("s1")
+
+    #expect(keptKeys(defaults, for: "s1").isEmpty)
+    #expect(memory.load("s1").isEmpty && memory.loadCommands("s1").isEmpty && memory.loadAgent("s1") == "" && memory.loadDraft("s1") == "")
+    #expect(memory.load("s10").count == claude.count && memory.loadCommands("s10").count == 1)
+    #expect(memory.loadAgent("s10") == "claude" && memory.loadDraft("s10") == "half a thought")
+}
+
+@MainActor @Test func theAppWiringForgetsADeletedSessionAndKeepsAnArchivedOne() async throws {
+    let suite = "carrier.tests.wiring.\(UUID().uuidString)"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let memory = OptionsMemory.stored(in: defaults)
+    let actions = SessionActions(host: OptionsHost(), log: { _ in })
+    actions.forgetDeletedSessions(in: memory)
+    for id in ["archived", "deleted"] { memory.saveAgent(id, "claude") }
+
+    _ = await actions.archive("archived")
+    #expect(memory.loadAgent("archived") == "claude")
+    _ = await actions.delete("deleted")
+    #expect(memory.loadAgent("deleted") == "")
+    #expect(memory.loadAgent("archived") == "claude")
+}

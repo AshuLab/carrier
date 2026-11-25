@@ -1,8 +1,10 @@
+import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { stripVTControlCharacters } from 'node:util';
 import { expect, test } from 'vitest';
 import { defaults, loadConfig } from '../../config/load.ts';
 import { Cancelled, type Ui } from '../prompts/types.ts';
+import { realDeps } from './deps.ts';
 import { asFiles, fakeDeps, fakeMachine, okCheck, providersWritten, quietUi, useTempDir } from './testing.ts';
 import { runInit } from './wizard.ts';
 
@@ -518,4 +520,28 @@ test('with a single identity the orchestrator answers itself and says so', async
   await runInit({ repo: ['A/b'], out }, { ...ui, note: (message, title) => void notes.push({ title, message }) }, deps);
   expect(notes.find((n) => n.title === 'GitHub identity for the orchestrator')?.message).toContain('the only identity there is');
   expect(JSON.parse(written[out]!).orchestratorProfile).toBe('gh');
+});
+
+// the real writing code, in a scratch Carrier folder and with no socket
+const viaModule = () => ({ ...fakeDeps().deps, writeConfig: realDeps.writeConfig });
+
+test('the two files are written by the config writing module: --out chooses engine.json, providers.json stays in the Carrier folder and no temporary file is left', async () => {
+  const folder = join(dir, 'module', 'carrier');
+  const out = join(dir, 'module', 'elsewhere', 'engine.json');
+  await runInit({ repo: ['A/b'], out, yes: true }, quietUi().ui, viaModule(), folder);
+  expect(Object.keys(JSON.parse(readFileSync(out, 'utf8')))).toContain('repos');
+  expect(JSON.parse(readFileSync(join(folder, 'providers.json'), 'utf8')).providers).toHaveProperty('claude');
+  expect(readFileSync(out, 'utf8')).toMatch(/\n$/);
+  expect(readdirSync(folder)).toEqual(['providers.json']);
+  expect(readdirSync(join(dir, 'module', 'elsewhere'))).toEqual(['engine.json']);
+});
+
+test('a providers.json the writing module refuses is left as it was, the refusal\'s words are the error and engine.json is not written', async () => {
+  const folder = join(dir, 'refused', 'carrier');
+  mkdirSync(folder, { recursive: true });
+  writeFileSync(join(folder, 'providers.json'), '{ not json');
+  const out = join(folder, 'engine.json');
+  await expect(runInit({ repo: ['A/b'], out, yes: true }, quietUi().ui, viaModule(), folder)).rejects.toThrow(`${join(folder, 'providers.json')} is not valid JSON, so it was not changed`);
+  expect(readFileSync(join(folder, 'providers.json'), 'utf8')).toBe('{ not json');
+  expect(readdirSync(folder)).toEqual(['providers.json']);
 });

@@ -1,0 +1,31 @@
+{
+  "request": {
+    "cmd": "editBehavior",
+    "changes": {
+      "pollIntervalMinutes": 2.5,
+      "logLevel": "debug",
+      "finishedWindowDays": 15,
+      "limits": {
+        "maxConcurrentEpics": 3,
+        "maxReviews": 8,
+        "maxExecutionRetries": 3,
+        "maxExecutionHours": "unlimited",
+        "githubCallTimeoutSeconds": 30
+      }
+    }
+  },
+  "reply": {
+    "ok": true,
+    "data": {
+      "saved": {
+        "pollIntervalMinutes": 2.5,
+        "logLevel": "debug",
+        "limits": {
+          "maxReviews": 8,
+          "maxExecutionHours": "unlimited"
+        }
+      },
+      "engine": "applied"
+    }
+  }
+}

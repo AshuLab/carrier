@@ -11,7 +11,8 @@
     "resumeFromStage",
     "resumeReviewerOptions",
     "recoverEpic",
-    "reload"
+    "reload",
+    "config"
   ],
   "chat": [
     "agents",
@@ -54,6 +55,7 @@
     "projects",
     "textGenerators",
     "regenerateTitle",
-    "regenerateTitles"
+    "regenerateTitles",
+    "config"
   ]
 }

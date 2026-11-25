@@ -1,0 +1,98 @@
+import CarrierCore
+import CarrierUI
+import SwiftUI
+
+/// The sidebar's title bar, after the window's buttons: the update, from the version found to Restart, as one glass pill
+/// (docs/research/macos-app-design/explorations/update-pill-options.html, option B). It slides in out of a blur; while it downloads the
+/// version rolls to the percent and the chat's thinking glow runs round its edge; done, a tick bounces and it rolls to Restart, whose words
+/// shimmer. A failed download leaves Retry. Absent while there is nothing new.
+struct UpdatePill: View {
+    @Environment(\.pieceTheme) private var theme
+    let updater: any Updater
+    /// The tick and "Ready" between the download and Restart.
+    @State private var justDownloaded = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    @ToolbarContentBuilder static func item(_ updater: any Updater) -> some ToolbarContent {
+        ToolbarItem(placement: .automatic) { UpdatePill(updater: updater) }.sharedBackgroundVisibility(.hidden)
+    }
+
+    private var phase: UpdatePhase { updater.flow.phase }
+
+    var body: some View {
+        ZStack {
+            if phase != .none {
+                Button { updater.press() } label: {
+                    HStack(spacing: Tokens.Space.s5) {
+                        icon
+                        // the words that leave roll out of the pill, not over the title bar
+                        ZStack { label }.clipped()
+                    }
+                    .padding(.horizontal, Tokens.Space.s12).frame(height: ToolbarPillButton.height)
+                    .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .glassEffect(.regular, in: .capsule)
+                .overlay {
+                    // mounted only while it shows: at opacity 0 its timeline still ran at the display's rate, for as long as an update waited
+                    if downloading {
+                        GlowEdge(color: .thought, waiting: false, moves: reduceMotion == false, cornerRadius: ToolbarPillButton.height / 2)
+                            .allowsHitTesting(false)
+                            .transition(.opacity)
+                    }
+                }
+                .help(help)
+                .accessibilityLabel(help)
+                .transition(.move(edge: .leading).combined(with: .blurReplace))
+            }
+        }
+        .animation(reduceMotion ? nil : .spring(duration: 0.45, bounce: 0.3), value: phase)
+        .animation(reduceMotion ? nil : .spring(duration: 0.45, bounce: 0.3), value: justDownloaded)
+        .onChange(of: phase) { old, new in
+            guard case .downloading = old, case .ready = new else { return }
+            justDownloaded = true
+            Task {
+                try? await Task.sleep(for: .milliseconds(750))
+                justDownloaded = false
+            }
+        }
+    }
+
+    private var downloading: Bool {
+        if case .downloading = phase { true } else { false }
+    }
+
+    private var icon: some View {
+        let (name, tint): (AppIcon, Color) = switch phase {
+        case .none, .available: (.downloadTray, theme.accent)
+        case .downloading: (.downloadTray, .primary)
+        case .ready: justDownloaded ? (.check, .primary) : (.refresh, theme.accent)
+        case .installing: (.refresh, theme.accent)
+        case .failed: (.warning, .orange)
+        }
+        return Glyph(name, size: 11).foregroundStyle(tint)
+            .glyphBouncing(downloading && reduceMotion == false)
+            .glyphSpinning(phase == .installing && reduceMotion == false)
+    }
+
+    /// Each kind of words rolls in from below; the percent only turns its digits.
+    private var label: some View {
+        let (kind, text): (String, String) = switch phase {
+        case .none: ("none", "")
+        case .available(let version): ("version", version)
+        case .downloading(_, let percent): ("percent", Copy.updatesPillPercent(percent: percent))
+        case .ready: justDownloaded ? ("done", Copy.updatesPillReady()) : ("restart", Copy.updatesActionRestart())
+        case .installing: ("installing", Copy.updatesRestarting())
+        case .failed: ("failed", Copy.updatesActionRetry())
+        }
+        let shimmers = kind == "restart" || kind == "installing"
+        return Text(text).scaledFont(12, weight: .medium).monospacedDigit()
+            .foregroundStyle(shimmers && reduceMotion == false ? .secondary : .primary)
+            .modifier(Shimmer(active: shimmers && reduceMotion == false))
+            .contentTransition(.numericText())
+            .id(kind)
+            .transition(.push(from: .bottom).combined(with: .opacity))
+    }
+
+    private var help: String { phase.pillHelp(justDownloaded: justDownloaded) }
+}

@@ -1,4 +1,5 @@
 import type { Account } from '../config/providers.ts';
+import type { TextParams } from '../orchestration/text-params.ts';
 
 // The chat runner: the port through which the host drives one provider (docs/specs/chat-host.md, Decisions). It speaks
 // Carrier's own chat events whatever the provider speaks, and it is not the engine's `AgentRunner`: nothing in it is
@@ -69,7 +70,7 @@ export type ChatEvent =
   | { kind: 'compact'; trigger?: 'manual' | 'auto'; before?: number; after?: number; ms?: number; error?: string }
   | { kind: 'background'; /** Every task the agent has running in the background (a command, a monitor, a subagent) after the change; the whole set each time, never stored. */ tasks: BackgroundTask[] }
   | { kind: 'error'; text: string; /** Set when the provider says the account ran out, which a retried rate limit never is. */ reason?: 'usage_limit'; /** When it resets, in ms since the epoch, when the provider gives a timestamp. */ resetsAt?: number; /** When it resets, in the provider's own words, when it gives only those. Never set with `resetsAt`. */ resetText?: string }
-  | { kind: 'notice'; text: string; /** The id the provider no longer had, kept so the cause can be looked for. */ lostNativeId?: string; /** Set when the notice is a switch of agent, naming the agents as the config does and the models they run: the old agent's last turn (else its option) and the new conversation's own. */ switched?: { from: string; to: string; fromModel?: string; toModel?: string } }; // said by the host, never by an adapter: a plain line, not a failure
+  | { kind: 'notice'; text: string; /** The code and parameters of `text`; a notice stored before they existed has neither. */ code?: string; params?: TextParams; /** The id the provider no longer had, kept so the cause can be looked for. */ lostNativeId?: string; /** Set when the notice is a switch of agent, naming the agents as the config does and the models they run: the old agent's last turn (else its option) and the new conversation's own. */ switched?: { from: string; to: string; fromModel?: string; toModel?: string } }; // said by the host, never by an adapter: a plain line, not a failure
 
 export interface ChatConversation {
   readonly options: ChatOption[];
@@ -106,5 +107,27 @@ export interface ChatRunner {
   open(args: { folder: string; resume?: string; options?: Record<string, string>; /** The agent's `command` from the config: the binary to run, else the one on the path. */ command?: string; /** The account's compaction and launch arguments; none when it sets none. */ launch?: ChatLaunch; env: NodeJS.ProcessEnv; /** The chat MCP of this one conversation, by the key it is registered under, its URL and its bearer token (never logged, never in `argv`); none for a probe. */ mcp?: { serverName: string; url: string; token: string; /** Every tool of the chat MCP, by name: the adapter lets them run without asking. */ tools?: string[] }; /** What the conversation opens with as its instructions (the handoff of a switched session, ADR 0032): Claude's appended system prompt, Codex's developer instructions. Never in front of a message. */ instructions?: string; /** Set for a child session (ADR 0033): its approvals offer Allow and Deny and none of the provider's suggestions, which would raise what it may do. */ child?: boolean }): Promise<ChatConversation>;
 }
 
-/** A failure whose message is for the person, in words: it travels to the client as it is. Any other error is logged and reaches the client as "internal error". */
-export class ChatRefused extends Error {}
+export type { TextParams };
+
+/** A code is `<area>.<what>`, named by what happened ([ADR 0055](../../docs/adr/0055-a-refusal-carries-a-code-and-its-parameters-and-its-english-words-are-the-fallback.md)). */
+export const textCode = /^[a-z][a-zA-Z]*(\.[a-z][a-zA-Z]*)+$/;
+
+/** A reason computed apart from the throw: a code, its English words and its parameters. */
+export type Reason = { code: string; words: string; params?: TextParams };
+
+/**
+ * A failure whose message is for the person, in words: it travels to the client as it is, with its code and parameters beside it. Any other error is logged and reaches the client as "internal error".
+ * Node strips types, so `pnpm typecheck` is what refuses a `ChatRefused` without its code.
+ */
+export class ChatRefused extends Error {
+  code: string;
+  params: TextParams;
+  constructor(code: string, message: string, params: TextParams = {}) {
+    super(message);
+    this.code = code;
+    this.params = params;
+  }
+}
+
+/** A `ChatRefused` for a reason a helper computed. */
+export const refusedFor = (reason: Reason) => new ChatRefused(reason.code, reason.words, reason.params);

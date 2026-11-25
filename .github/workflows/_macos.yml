@@ -31,10 +31,13 @@ jobs:
         run: xcodebuild -version
       - name: Build
         working-directory: macos
-        run: swift build
+        run: swift build --build-system swiftbuild
       - name: Test
         working-directory: macos
         run: scripts/test-ci.sh
+      - name: Structure
+        working-directory: macos
+        run: scripts/check-structure.sh
 
   # build-app.sh and what the updater needs from the bundle, for each architecture the release ships (ADR 0051): Intel is cross-compiled on this same runner.
   bundle:

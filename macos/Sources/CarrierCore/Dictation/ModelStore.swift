@@ -1,0 +1,252 @@
+import Foundation
+import Observation
+
+// The speech models a person has on disk (docs/specs/dictation-in-the-app.md, stories 9 and 10): their states, the download with its progress,
+// the cancel, the retry and the delete, behind a downloader port. The real downloaders belong to their recognizers (FluidAudio and WhisperKit);
+// a fixture build uses `FixtureModelDownloader`.
+
+/// Why a download failed, in words for the person: what they caused or can fix, not a bug.
+public enum ModelDownloadFailure: Error, Equatable, Sendable {
+    case noConnection, noSpace, didNotCheck
+    /// Anything else the download threw, in the system's own words, which are not translated.
+    case other(String)
+
+    public func cause(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch self {
+        case .noConnection: Copy.dictationDownloadNoConnection(bundle: bundle, locale: locale)
+        case .noSpace: Copy.dictationDownloadNoSpace(bundle: bundle, locale: locale)
+        case .didNotCheck: Copy.dictationDownloadDidNotCheck(bundle: bundle, locale: locale)
+        case .other(let detail): Copy.dictationDownloadFailed(detail: detail, bundle: bundle, locale: locale)
+        }
+    }
+
+    /// What a failure of the network or the disk tells the person, as the table has it: only the causes that are theirs to fix. A bad response or
+    /// a 404 is not "No connection"; nil for those and for anything else, which is told with its description.
+    public init?(_ error: Error) {
+        switch error {
+        case let error as URLError where [.notConnectedToInternet, .networkConnectionLost, .timedOut].contains(error.code): self = .noConnection
+        case let error as CocoaError where error.code == .fileWriteOutOfSpace: self = .noSpace
+        case let error as POSIXError where error.code == .ENOSPC: self = .noSpace
+        default: return nil
+        }
+    }
+}
+
+public enum ModelState: Equatable, Sendable {
+    case notDownloaded
+    /// A fraction, `0...1`.
+    case downloading(Double)
+    case failed(String)
+    case downloaded
+}
+
+/// Owns the states of the models the app lists. A model lives in `<root>/<recognizer>/<model>/` and counts as downloaded when its folder holds
+/// `complete`, which is written last: a folder without it is a partial download, removed when the store starts, when a download is cancelled
+/// and when it fails. Nothing outside `models` can be downloaded. Apple's has no download: the system manages it, so it is always downloaded.
+@MainActor @Observable public final class ModelStore {
+    static let marker = "complete"
+
+    public let root: URL
+    /// The size of the files under `root`.
+    public private(set) var usedBytes: Int64 = 0
+    private var inFlight: [String: ModelState] = [:]
+    /// Bumped when the disk changes under a model (a download ends, a delete): the marker is read at each `state(of:)`, so a model that
+    /// registers late is still seen as downloaded, and this is what makes a view that reads the state ask again.
+    private var revision = 0
+    @ObservationIgnored private var tasks: [String: Task<Void, Never>] = [:]
+    /// The count of what the models take, which is a walk of every file: the one the init starts, and the number of the latest measurement,
+    /// so that an older one that ends late does not write over a newer.
+    @ObservationIgnored private var measuring: Task<Void, Never>?
+    @ObservationIgnored private var measurement = 0
+    @ObservationIgnored private let models: @MainActor () -> [SpeechModel]
+    @ObservationIgnored private let downloader: any ModelDownloader
+    @ObservationIgnored private let inUse: @MainActor () -> String?
+    @ObservationIgnored private let log: @MainActor (DictationFailure) -> Void
+    @ObservationIgnored private let announce: @MainActor (String) -> Void
+    @ObservationIgnored private let freeSpace: @MainActor (URL) -> Int64?
+    @ObservationIgnored private let count: @Sendable (URL) async -> Int64
+    /// The language the causes that the table shows and the announcements are said in; the log keeps its English.
+    @ObservationIgnored private let bundle: Bundle?
+    @ObservationIgnored private let locale: Locale
+
+    /// `models` is the list on offer (it may grow as recognizers register), `inUse` the id of the model dictation uses, which has no delete.
+    /// `freeSpace` is what the volume of the folder has free; nil (unknown) does not stop a download.
+    /// `count` is the init's count of what the models take, which runs off the main thread (a test holds it to end it late).
+    public init(
+        root: URL, models: @escaping @MainActor () -> [SpeechModel], downloader: any ModelDownloader, inUse: @escaping @MainActor () -> String?,
+        log: @escaping @MainActor (DictationFailure) -> Void = { _ in }, announce: @escaping @MainActor (String) -> Void = { _ in },
+        freeSpace: @escaping @MainActor (URL) -> Int64? = ModelStore.availableBytes,
+        count: (@Sendable (URL) async -> Int64)? = nil, bundle: Bundle? = nil, locale: Locale = .current
+    ) {
+        self.root = root
+        self.models = models
+        self.downloader = downloader
+        self.inUse = inUse
+        self.log = log
+        self.announce = announce
+        self.freeSpace = freeSpace
+        self.count = count ?? { Self.bytes(under: $0) }
+        self.bundle = bundle
+        self.locale = locale
+        removePartials()
+        measureInBackground()
+    }
+
+    /// `<root>/<recognizer>/<model>`, the model being the id without its recognizer's prefix.
+    public func folder(for model: SpeechModel) -> URL { Self.folder(in: root, for: model) }
+
+    /// The same folder for whoever loads the model: a recognizer reads from where the store downloaded to.
+    public nonisolated static func folder(in root: URL, for model: SpeechModel) -> URL {
+        let name = model.id.split(separator: ".", maxSplits: 1).last.map(String.init) ?? model.id
+        return root.appending(path: model.recognizer.rawValue.lowercased()).appending(path: name)
+    }
+
+    /// A folder with its marker is downloaded, whatever else is known: the disk is the authority, so a model that was on it before the store
+    /// knew the recognizer is never offered for download over its own files.
+    public func state(of model: SpeechModel) -> ModelState {
+        _ = revision
+        guard model.bytes != nil, hasMarker(model) == false else { return .downloaded }
+        return inFlight[model.id] ?? .notDownloaded
+    }
+
+    /// Starts the download of a listed model that is not downloaded (a failed one is tried again): only the person's action calls this.
+    public func download(_ id: String) {
+        guard let model = models().first(where: { $0.id == id }), let bytes = model.bytes else { return }
+        switch state(of: model) {
+        case .notDownloaded, .failed: break
+        case .downloading, .downloaded: return
+        }
+        // ponytail: each download is checked alone; downloads that run in parallel are not summed, the first to find the disk full fails with this
+        if let free = freeSpace(root), free < bytes {
+            fail(model, .noSpace)
+            return
+        }
+        inFlight[id] = .downloading(0)
+        tasks[id] = Task { await run(model) }
+    }
+
+    /// Stops a download; its row goes back to Download once nothing of it is left on disk.
+    public func cancel(_ id: String) { tasks[id]?.cancel() }
+
+    /// Deletes a downloaded model and frees its space. Refused, with false, for the model in use, Apple's and one that is not downloaded.
+    @discardableResult
+    public func delete(_ id: String) -> Bool {
+        guard let model = models().first(where: { $0.id == id }), state(of: model) == .downloaded, model.bytes != nil, inUse() != id else { return false }
+        do {
+            try FileManager.default.removeItem(at: folder(for: model))
+        } catch {
+            log(DictationFailure("Deleting \(model.name) failed: \(error.localizedDescription)"))
+            return false
+        }
+        refresh()
+        return true
+    }
+
+    /// Waits for the downloads that run.
+    func settled() async {
+        for task in Array(tasks.values) { await task.value }
+    }
+
+    private func run(_ model: SpeechModel) async {
+        let folder = folder(for: model)
+        do {
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            try await downloader.download(model, into: folder) { [weak self] fraction in self?.progressed(model.id, fraction) }
+            try Task.checkCancellation()
+            try Data().write(to: folder.appending(path: Self.marker))
+            inFlight[model.id] = nil
+            announce(Copy.dictationDownloaded(model: model.name, bundle: bundle, locale: locale))
+        } catch {
+            // a folder that holds the marker is a model that is there: whatever this run did, it never removes one
+            if hasMarker(model) == false { try? FileManager.default.removeItem(at: folder) }
+            if Task.isCancelled || error is CancellationError {
+                inFlight[model.id] = nil
+            } else {
+                fail(model, error as? ModelDownloadFailure ?? .other(error.localizedDescription))
+            }
+        }
+        tasks[model.id] = nil
+        refresh()
+    }
+
+    private func fail(_ model: SpeechModel, _ failure: ModelDownloadFailure) {
+        inFlight[model.id] = .failed(failure.cause(bundle: bundle, locale: locale))
+        log(DictationFailure("Downloading \(model.name) failed: \(failure.cause(bundle: Copy.bundle("en"), locale: Locale(identifier: "en_US")))"))
+    }
+
+    private func hasMarker(_ model: SpeechModel) -> Bool {
+        FileManager.default.fileExists(atPath: folder(for: model).appending(path: Self.marker).path)
+    }
+
+    /// What the volume that holds `url` has free for the person's use, from the nearest folder that exists.
+    public nonisolated static func availableBytes(at url: URL) -> Int64? {
+        var folder = url
+        while FileManager.default.fileExists(atPath: folder.path) == false, folder.pathComponents.count > 1 { folder = folder.deletingLastPathComponent() }
+        return (try? folder.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]))?.volumeAvailableCapacityForImportantUsage
+    }
+
+    private func progressed(_ id: String, _ fraction: Double) {
+        if case .downloading = inFlight[id] { inFlight[id] = .downloading(min(1, max(0, fraction))) }
+    }
+
+    /// A folder with no marker is a partial download: a quit app left it.
+    private func removePartials() {
+        let fileManager = FileManager.default
+        for recognizer in (try? fileManager.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)) ?? [] {
+            for model in (try? fileManager.contentsOfDirectory(at: recognizer, includingPropertiesForKeys: nil)) ?? []
+            where fileManager.fileExists(atPath: model.appending(path: Self.marker).path) == false {
+                try? fileManager.removeItem(at: model)
+            }
+        }
+    }
+
+    /// Counts what the models take now, in the main thread: after a download or a delete, which the person did and waits to see.
+    private func refresh() {
+        let signpost = Signposts.launch.beginInterval("model store refresh")
+        defer { Signposts.launch.endInterval("model store refresh", signpost) }
+        revision += 1
+        measurement += 1
+        usedBytes = Self.bytes(under: root)
+    }
+
+    /// The same count, off the main thread, for the init: walking the folder of every model is not the first frame's to wait for.
+    private func measureInBackground() {
+        measurement += 1
+        let mine = measurement, root = root, count = count
+        measuring = Task { [weak self] in
+            let bytes = await Task.detached { await count(root) }.value
+            guard let self, measurement == mine else { return }
+            usedBytes = bytes
+        }
+    }
+
+    /// Waits for the measurement the init started.
+    func measured() async { await measuring?.value }
+
+    nonisolated static func bytes(under root: URL) -> Int64 {
+        let files = FileManager.default.enumerator(at: root, includingPropertiesForKeys: [.fileSizeKey, .isRegularFileKey])
+        return (files?.allObjects as? [URL] ?? []).reduce(0) { total, file in
+            let values = try? file.resourceValues(forKeys: [.fileSizeKey, .isRegularFileKey])
+            return total + (values?.isRegularFile == true ? Int64(values?.fileSize ?? 0) : 0)
+        }
+    }
+}
+
+/// The downloader of `--fixture` builds: ten steps of progress and a file a thousandth of the model's size, so Storage moves; the entry named
+/// `failingID` fails with no connection part way, so Retry can be seen. Nothing goes over the network.
+public struct FixtureModelDownloader: ModelDownloader {
+    public static let failingID = "fixture.whisper-large-v3-turbo"
+
+    private let sleep: @Sendable (Duration) async throws -> Void
+
+    public init(sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }) { self.sleep = sleep }
+
+    public func download(_ model: SpeechModel, into folder: URL, progress: @MainActor @Sendable (Double) -> Void) async throws {
+        try Data(count: Int((model.bytes ?? 0) / 1000)).write(to: folder.appending(path: "weights.bin"))
+        for step in 1...10 {
+            try await sleep(.milliseconds(250))
+            await progress(Double(step) / 10)
+            if model.id == Self.failingID, step == 4 { throw ModelDownloadFailure.noConnection }
+        }
+    }
+}

@@ -17,6 +17,22 @@
       "live": true
     },
     {
+      "id": "b4000000-0000-4000-8000-000000000003",
+      "agent": "claude",
+      "harness": "claude",
+      "folder": "/Users/dev/carrier",
+      "workspace": {
+        "kind": "folder"
+      },
+      "title": "Pieces",
+      "nativeId": "n-pieces",
+      "state": "idle",
+      "createdAgo": 3600000,
+      "lastActiveAgo": 6000,
+      "archived": false,
+      "live": true
+    },
+    {
       "id": "b4000000-0000-4000-8000-000000000002",
       "agent": "claude",
       "harness": "claude",

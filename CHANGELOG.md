@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- `carrier config` changes a setting of the Carrier folder from a script or the Mac app: it reads one request as a line of JSON on standard input (`{"cmd":"editChatSettings","changes":{"idleCloseMinutes":30}}`), hands it to the chat host when one answers and otherwise writes `chat.json` itself with the same code, and prints the reply as one line of JSON.
+  It exits 0 when it saved, 1 when it refused (the value is left as it was) and 2 when standard input is not a request.
+  The Sessions page of Settings saves the two ages, "Start from" and "Sleep after" through it.
+- The Mac app is in Spanish when macOS is in Spanish, and in English otherwise (it has no language setting of its own).
+  Every text of the app, from the menus and the window titles to the Settings pages, the notifications and the refusals of the chat host and the engine, has English and Spanish words, and a refusal reaches the app as a text code with its parameters, so the app words it in the person's language.
+  Dates, times and relative times follow the person's region.
+  The app's code is now organized by area in three targets (`CarrierCore`, `CarrierUI` and `Carrier`), with its look, its words and its preferences generated from one neutral source (`pnpm design`), and a structure check in CI (`macos/scripts/check-structure.sh`).
+
 ## [0.19.0] - 2026-11-24
 
 Several reviewers and a lead reviewer, the skill of each stage named in `engine.json`, `carrier recover` and `carrier restart --from`, automatic resume after a usage limit, a Watching page for the repos Carrier takes epics from, and the Mac app for Intel Macs.

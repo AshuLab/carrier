@@ -1,0 +1,13 @@
+{
+  "request": {
+    "cmd": "setLeadReviewer",
+    "draft": null
+  },
+  "reply": {
+    "ok": true,
+    "data": {
+      "saved": {},
+      "engine": "applied"
+    }
+  }
+}

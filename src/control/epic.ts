@@ -268,7 +268,7 @@ export async function epicOf(db: Db, repo: string, issue: number): Promise<EpicR
   const threads = db.select().from(epicReviewThreads).where(eq(epicReviewThreads.epicId, epic.id)).orderBy(epicReviewThreads.position).all();
   const hints = liveHints(db, epic.id);
 
-  const hitLimit = epic.status === 'needs_human' && epic.needsHumanReason?.startsWith('review limit') === true;
+  const hitLimit = epic.status === 'needs_human' && epic.needsHumanKind === 'review_limit';
   const rounds = await Promise.all(found.slice(-MAX_ROUNDS).map(async ({ round, attempt: of, fixed }) => {
     // Nothing answered it and nothing follows: the epic stopped there for the limit.
     if (fixed === false && (of < attempt || hitLimit)) {

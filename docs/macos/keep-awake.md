@@ -49,12 +49,12 @@ Why it was built and what was left out: the [spec](../specs/keep-awake.md).
 
 ## Code and tests
 
-One power assertion for the system (`PreventUserIdleSystemSleep`) and one for the display (`PreventUserIdleDisplaySleep`), taken through `IOPMAssertionCreateWithName` in `Carrier/KeepAwakeController.swift`.
+One power assertion for the system (`PreventUserIdleSystemSleep`) and one for the display (`PreventUserIdleDisplaySleep`), taken through `IOPMAssertionCreateWithName` in `Carrier/Platform/SystemKeepAwakeAssertion.swift`, behind the `KeepAwakeAssertion` that `Carrier/Platform/KeepAwakeController.swift` takes.
 They are the system's own: they go when the app quits or dies, with no child process and no password.
 
-- The decision, the time left and the words are pure functions in `CarrierCore/KeepAwake.swift` (`awakeDecision`, `awakeStatus`, `awakeRemaining`, `awakeToggleTitle`, `nextAwakeChange`, `awakeMenuKey`, the notices), tested in `KeepAwakeTests`.
-- The controller feeds them the epics running (from the engine's snapshot, in `AppDelegate.watchCarrier`), the chat sessions working (from the host's list, in `watchChatSessions`; zero when the host does not answer: a stale update), the battery (`IOPSNotificationCreateRunLoopSource`) and the settings, and a timer wakes it at the end of a length or of the grace.
+- The decision, the time left and the words are pure functions in `CarrierCore/KeepAwake/KeepAwake.swift` (`awakeDecision`, `awakeStatus`, `awakeRemaining`, `awakeToggleTitle`, `nextAwakeChange`, `awakeMenuKey`, the notices), tested in `KeepAwakeTests`.
+- The controller feeds them the epics running (from the engine's snapshot, in `AppDelegate.watchCarrier`), the chat sessions working (from the host's list, in `watchChatSessions`; zero when the host does not answer: a stale update), the battery (`KeepAwakeAssertion.watchPower`, `IOPSNotificationCreateRunLoopSource` in the adapter) and the settings, and a timer wakes it at the end of a length or of the grace.
   It is started on the shared instance only, and not under a self-test or a smoke run.
-- `KeepAwakeControllerTests` give the controller a clock, a battery and a notification of their own, and ask the system itself (`IOPMCopyAssertionsByProcess`) what the process holds, so an assertion never let go is seen.
-  They also register a real shortcut twice to see the refusal.
+- `KeepAwakeControllerTests` give the controller a fake `KeepAwakeAssertion` and `GlobalShortcut`, a clock, a battery and a notification of their own; `SystemKeepAwakeAssertionTests` ask the system itself (`IOPMCopyAssertionsByProcess`) what the process holds, so an assertion never let go is seen.
+  Their fake shortcut refuses the same keys twice, as the system does.
 - Untested: the status menu (`KeepAwakeMenu.swift`), the page (`KeepAwakeTab.swift`), the cup of `IconController`, and how `AppDelegate` reads the epics and the sessions.

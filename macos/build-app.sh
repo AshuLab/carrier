@@ -57,8 +57,9 @@ esac
 if [ "${CARRIER_REUSE_BUILD:-}" = 1 ]; then
   [ -x .build/release/Carrier ] || { echo "error: CARRIER_REUSE_BUILD=1 but .build/release/Carrier does not exist" >&2; exit 1; }
 else
+  # --build-system swiftbuild: Swift 6.3's default (native) build system copies Localizable.xcstrings instead of compiling it into en.lproj and es.lproj; 6.4 defaults to swiftbuild
   # (${ARCH_FLAGS[@]+...}: bash 3.2 of macOS, under set -u, takes an empty array as unset)
-  swift build -c release ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"}
+  swift build --build-system swiftbuild -c release ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"}
 fi
 # the Intel app must hold an x86_64 binary and nothing else, whatever .build/release was left holding
 if [ -n "${CARRIER_ARCH:-}" ]; then
@@ -101,6 +102,7 @@ cp .build/checkouts/argmax-oss-swift/LICENSE .build/checkouts/argmax-oss-swift/N
 cp .build/checkouts/libghostty-spm/LICENSE "$LICENSES/libghostty-spm/LICENSE"
 cp .build/checkouts/DisplayLink/LICENSE "$LICENSES/DisplayLink/LICENSE"
 cp ../THIRD-PARTY-NOTICES.md "$LICENSES/THIRD-PARTY-NOTICES.md"
+# CFBundleLocalizations declares en and es: the app follows the language macOS gives it (no language setting of its own), and macOS's own texts turn Spanish with it
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -120,6 +122,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 <key>NSHighResolutionCapable</key><true/>
 <key>NSPrincipalClass</key><string>NSApplication</string>
 <key>NSMicrophoneUsageDescription</key><string>$MIC_USAGE</string>
+<key>CFBundleLocalizations</key><array><string>en</string><string>es</string></array>
 <key>NSHumanReadableCopyright</key><string>Copyright © 2026 AshuLab</string>
 $UPDATER
 </dict></plist>

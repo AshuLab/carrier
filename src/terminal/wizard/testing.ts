@@ -121,7 +121,10 @@ export const fakeDeps = (over: Partial<InitDeps> = {}) => {
     configFolders: () => [],
     loggedIn: async () => true,
     exists: () => false,
-    write: (path, content) => (written[path] = content),
+    writeConfig: ({ engine, file, providers, folder }) => {
+      written[file] = `${JSON.stringify(engine, null, 2)}\n`;
+      written[providersPathOf(folder)] = `${JSON.stringify({ providers }, null, 2)}\n`;
+    },
     doctor: async () => [okCheck],
     readConfig: () => ({}),
     forgeAdd: () => false,

@@ -8,7 +8,7 @@ import { type ChatAgent, loadChatConfig } from './config.ts';
 import { FakeClock } from '../orchestration/fake.ts';
 import { openChatDatabase } from './db.ts';
 import { FakeChatRunner, FakeGit, FakeShell, FakeTextGenerator, fakeProjects, type FakeConversation, type FakeRepo } from './fake.ts';
-import { ChatRefused, type ChatEvent } from './runner.ts';
+import { ChatRefused, textCode, type ChatEvent } from './runner.ts';
 import { chatCaps } from './transcript.ts';
 import { chatEvents, chatTurns, sessions as schemaSessions } from './schema.ts';
 import type { HealthProbes } from './health.ts';
@@ -434,7 +434,7 @@ test('setOption refuses, with the reason and changing nothing, an unlisted optio
   await expect(sessions.setOption({ sessionId: id, option: 'speed', value: 'fast' })).rejects.toThrow('no option "speed"');
   await expect(sessions.setOption({ sessionId: id, option: 'mode', value: 'yolo' })).rejects.toThrow('"yolo" is not a value of the option "mode"; it offers: plan');
   conversation.setOption = async () => {
-    throw new ChatRefused('Only between turns');
+    throw new ChatRefused('session.busy', 'Only between turns');
   };
   await expect(sessions.setOption({ sessionId: id, option: 'mode', value: 'plan' })).rejects.toThrow('Only between turns');
   expect(sessions.events({ sessionId: id, limit: 10 }).events).toEqual([]);
@@ -873,7 +873,7 @@ test('a resume that began a new conversation says so once, in a notice that keep
   const resumed = await sessions.resume({ sessionId: id });
   expect(resumed.session.nativeId).toBeNull();
   const notices = () => sessions.events({ sessionId: id, limit: 50 }).events.filter((e) => e.kind === 'notice');
-  expect(notices()).toEqual([expect.objectContaining({ kind: 'notice', lostNativeId: 'native-1', text: expect.stringContaining('new one in the same folder') })]);
+  expect(notices()).toEqual([expect.objectContaining({ kind: 'notice', lostNativeId: 'native-1', text: expect.stringContaining('new one in the same folder'), code: 'session.notice.conversationLost', params: {} })]);
   // woken and closed with nothing said: the next wake does not try the dead id again, nor say it again
   await sessions.close({ sessionId: id });
   await sessions.resume({ sessionId: id });
@@ -2371,13 +2371,14 @@ test('a session that was preparing when the host stopped comes back with the run
   const next = createSessions({ db: openChatDatabase(join(dir, 'chat.db')), agents: [{ name: 'claude', account: 'claude' }], clock: new FakeClock(), runners: { claude: new FakeChatRunner() }, env: {}, git: new FakeGit(), projects: fakeProjects(new FakeGit()), binaryFound: () => true, ages: () => ({ archiveAfterDays: 15, deleteAfterDays: 30 }), onLiveChange: () => {} });
   expect(next.list({}).sessions[0]).toMatchObject({ id: session.id, state: 'idle', preparation: 'failed', live: false });
   expect((next.events({ sessionId: session.id, limit: 200 }).events as any[]).map((e) => `${e.step}:${e.status}:${e.detail}`)).toEqual(['agent:running:undefined', 'agent:failed:Carrier stopped while this step was running']);
+  expect((next.events({ sessionId: session.id, limit: 200 }).events as any[]).at(-1)).toMatchObject({ code: 'session.step.interrupted', params: {} });
 });
 
 test('the host is not idle while a session is preparing, and is again once the preparation failed', async () => {
   const s = setup();
   let release!: () => void;
   const gate = new Promise<void>((resolve) => (release = resolve));
-  s.claude.open = async () => (await gate, Promise.reject(new ChatRefused('not today')));
+  s.claude.open = async () => (await gate, Promise.reject(new ChatRefused('session.busy', 'not today')));
   expect(s.sessions.liveCount()).toBe(0);
   const { session } = await s.sessions.openPlan({ plan: planFor() });
   expect(s.sessions.liveCount()).toBe(1);
@@ -2506,6 +2507,7 @@ describe('where a new worktree of a plan starts', () => {
 
   const fetches = (s: ReturnType<typeof startSetup>) => s.git.calls.filter((call) => call.args[0] === 'fetch');
   const noticesOf = (s: ReturnType<typeof startSetup>, id: string) => (s.sessions.events({ sessionId: id, limit: 200 }).events as any[]).filter((event) => event.kind === 'notice').map((event) => event.text);
+  const noticeCodesOf = (s: ReturnType<typeof startSetup>, id: string) => (s.sessions.events({ sessionId: id, limit: 200 }).events as any[]).filter((event) => event.kind === 'notice').map(({ code, params }) => ({ code, params }));
   const sent = (s: ReturnType<typeof startSetup>, id: string) => vi.waitFor(() => expect(stepsOf(s, id)).toContain('agent:running'));
 
   test('a last fetch older than five minutes runs the fetch step before the worktree, which is cut from what it brought', async () => {
@@ -2546,6 +2548,7 @@ describe('where a new worktree of a plan starts', () => {
     expect(addOf(s.git)).toBe('refs/heads/main');
     expect(rows('sessions')[0]).toMatchObject({ worktreeFrom: 'main' });
     expect(noticesOf(s, session.id)).toEqual([`${reason}, so this worktree started from the local branch main, which is 3 commits behind origin/main.`]);
+    expect(noticeCodesOf(s, session.id)).toEqual([{ code: 'session.notice.startedFromLocal', params: { branch: 'main', remote: 'origin/main', behind: 3, reason, reasonCode: expect.stringMatching(textCode) } }]);
   });
 
   test('a fetch that takes origin/<branch> away falls back to the local branch without a count', async () => {
@@ -2559,6 +2562,7 @@ describe('where a new worktree of a plan starts', () => {
     await sent(s, session.id);
     expect(addOf(s.git)).toBe('refs/heads/main');
     expect(noticesOf(s, session.id)).toEqual(['origin/main is no longer on origin, so this worktree started from the local branch main.']);
+    expect(noticeCodesOf(s, session.id)).toEqual([{ code: 'session.notice.startedFromLocal', params: { branch: 'main', remote: 'origin/main', behind: 0, reason: 'origin/main is no longer on origin', reasonCode: 'session.fetch.remoteGone' } }]);
   });
 
   test('a branch that exists only on origin, when the fetch fails, is cut from the copy the last fetch left and the notice says so', async () => {
@@ -2572,6 +2576,7 @@ describe('where a new worktree of a plan starts', () => {
     expect(addOf(s.git)).toBe('refs/remotes/origin/dev');
     expect(rows('sessions')[0]).toMatchObject({ worktreeFrom: 'origin/dev' });
     expect(noticesOf(s, session.id)).toEqual(['The fetch of origin failed, so this worktree started from the copy of origin/dev the last fetch left.']);
+    expect(noticeCodesOf(s, session.id)).toEqual([{ code: 'session.notice.startedFromFetched', params: { remote: 'origin/dev', reason: 'The fetch of origin failed', reasonCode: expect.stringMatching(textCode) } }]);
   });
 
   test('leaving while the fetch is out ends the preparation with no fallback, no notice and no worktree', async () => {
@@ -3312,6 +3317,7 @@ test('without an MCP endpoint, or when the harness could not use it, the session
   const { session } = await none.sessions.open({ agent: 'claude', folder: work });
   expect(none.claude.opened[0]!.mcp).toBeUndefined();
   expect(noticesOf(none, session.id)).toEqual([expect.stringContaining('not available')]);
+  expect(noticeCodes(none, session.id)).toEqual([{ code: 'session.notice.mcpNotStarted', params: {} }]);
   none.claude.conversations[0]!.reply = () => {};
   expect(() => none.sessions.send({ sessionId: session.id, text: 'hi' })).not.toThrow();
 
@@ -3319,6 +3325,7 @@ test('without an MCP endpoint, or when the harness could not use it, the session
   broken.claude.setup = (conversation) => void (conversation.mcpProblem = 'connection refused');
   const opened = await broken.sessions.open({ agent: 'claude', folder: work });
   expect(noticesOf(broken, opened.session.id)).toEqual([expect.stringContaining('connection refused')]);
+  expect(noticeCodes(broken, opened.session.id)).toEqual([{ code: 'session.notice.mcpNotUsed', params: { problem: 'connection refused' } }]);
   await broken.sessions.close({ sessionId: opened.session.id });
   await broken.sessions.resume({ sessionId: opened.session.id });
   expect(noticesOf(broken, opened.session.id)).toHaveLength(2);
@@ -3979,7 +3986,7 @@ test('a switch answers the session and the options of the new agent, and the nex
   expect(s.codex.opened[0]!.resume).toBeUndefined();
 
   // the notice says it, and carries the agents as the config names them
-  expect(s.notices(id)).toEqual([expect.objectContaining({ switched: { from: 'a', to: 'b', fromModel: 'haiku', toModel: 'gpt-5' }, text: expect.stringContaining('from a to b') })]);
+  expect(s.notices(id)).toEqual([expect.objectContaining({ switched: { from: 'a', to: 'b', fromModel: 'haiku', toModel: 'gpt-5' }, text: expect.stringContaining('from a to b'), code: 'session.notice.agentSwitched', params: { from: 'a', to: 'b' } })]);
   // the old conversation ended and its token is gone; the new one holds one
   expect(old.closed).toBe(true);
   expect(s.registry.lookup(tokenOfOld)).toBeUndefined();
@@ -4686,4 +4693,87 @@ test('a projects.json that does not match is told once for a session, however ma
   invalid();
   await s.sessions.resume({ sessionId: one.id });
   expect(noticesOf(s, one.id)).toHaveLength(2);
+});
+
+// The code and parameters of each text beside its words ([ADR 0055](../../docs/adr/0055-a-refusal-carries-a-code-and-its-parameters-and-its-english-words-are-the-fallback.md)).
+const stepCodesOf = (s: ReturnType<typeof setup>, id: string) =>
+  (s.sessions.events({ sessionId: id, limit: 200 }).events as any[]).filter((e) => e.kind === 'step' && e.status === 'failed').map(({ step, detail, code, params }) => ({ step, detail, code, params }));
+const noticeCodes = (s: ReturnType<typeof setup>, id: string) => (s.sessions.events({ sessionId: id, limit: 200 }).events as any[]).filter((e) => e.kind === 'notice').map(({ code, params }) => ({ code, params }));
+
+test('a step that failed on a refusal keeps that refusal\'s code and parameters, and one that failed on anything else has the code of its own words', async () => {
+  const refused = setup();
+  refused.claude.refuseWith = 'claude is not logged in';
+  const first = await refused.sessions.openPlan({ plan: planFor() });
+  await vi.waitFor(() => expect(stepCodesOf(refused, first.session.id)).toHaveLength(1));
+  expect(stepCodesOf(refused, first.session.id)).toEqual([{ step: 'agent', detail: 'claude is not logged in', code: 'fake.refused', params: {} }]);
+
+  const erred = setup();
+  erred.claude.setup = (conversation) => void (conversation.reply = () => conversation.emit({ kind: 'error', text: 'rate limited' }, { kind: 'turn_end', outcome: 'error' }));
+  const second = await erred.sessions.openPlan({ plan: planFor() });
+  await vi.waitFor(() => expect(stepCodesOf(erred, second.session.id)).toHaveLength(1));
+  expect(stepCodesOf(erred, second.session.id)).toEqual([{ step: 'message', detail: 'The agent ended with an error before it answered', code: 'session.step.agentErrored', params: {} }]);
+
+  const undelivered = setup();
+  undelivered.claude.setup = (conversation) => void (conversation.reply = () => { throw new Error('pipe closed'); });
+  const third = await undelivered.sessions.openPlan({ plan: planFor() });
+  await vi.waitFor(() => expect(stepCodesOf(undelivered, third.session.id)).toHaveLength(1));
+  expect(stepCodesOf(undelivered, third.session.id)).toEqual([{ step: 'message', detail: 'The message could not be delivered to the agent', code: 'session.step.messageNotDelivered', params: {} }]);
+
+  const crashed = setup();
+  crashed.claude.open = async () => { throw new Error('boom'); };
+  const fourth = await crashed.sessions.openPlan({ plan: planFor({ branch: undefined }) });
+  await vi.waitFor(() => expect(stepCodesOf(crashed, fourth.session.id)).toHaveLength(1));
+  // the host turns what an adapter throws into a refusal of its own, and the step keeps that one's code
+  expect(stepCodesOf(crashed, fourth.session.id)).toEqual([{ step: 'agent', detail: 'claude could not be started', code: 'agent.startFailed', params: { agent: 'claude' } }]);
+});
+
+test('what is stored keeps its code when read back from a scratch database, and a row from before the codes reads back with its words and none', async () => {
+  const first = setup();
+  first.claude.open = () => new Promise(() => {}); // the agent step never ends: the host stops here
+  const { session } = await first.sessions.openPlan({ plan: planFor() });
+  first.db.$client.close();
+  const db = openChatDatabase(join(dir, 'chat.db'));
+  // a step and a notice written by a host that predates the codes: words only
+  db.insert(chatEvents).values([
+    { sessionId: session.id, at: 1, kind: 'step', data: { step: 'worktree', status: 'failed', detail: 'A branch called old already exists' } },
+    { sessionId: session.id, at: 2, kind: 'notice', data: { text: 'An old notice' } },
+  ]).run();
+  const next = createSessions({ db, agents: [{ name: 'claude', account: 'claude' }], clock: new FakeClock(), runners: { claude: new FakeChatRunner() }, env: {}, git: new FakeGit(), projects: fakeProjects(new FakeGit()), binaryFound: () => true, ages: () => ({ idleMs: IDLE_CLOSE_MS, followUpMs: FOLLOW_UP_MS }) } as any);
+  const events = next.events({ sessionId: session.id, limit: 200 }).events as any[];
+  expect(events.filter((e) => e.kind === 'step' && e.status === 'failed').map(({ step, detail, code, params }) => ({ step, detail, code, params }))).toEqual([
+    { step: 'worktree', detail: 'A branch called old already exists', code: undefined, params: undefined },
+  ]);
+  const old = events.find((e) => e.kind === 'notice');
+  expect(old).toMatchObject({ text: 'An old notice' });
+  expect('code' in old || 'params' in old).toBe(false);
+});
+
+test('an action set to warn that fails says so in a notice with its code and parameters', async () => {
+  const s = repoSetup();
+  withActions(realpathSync(work), [{ name: 'Install', command: 'pnpm install' }]);
+  s.shell.results.set('pnpm install', { ok: false, code: 1, output: 'it broke' });
+  const { session } = await s.sessions.openPlan({ plan: planFor({ branch: 'feat', worktree: { name: 'my-fix' } }) });
+  await vi.waitFor(() => expect(actionStepsOf(s, session.id).at(-1)).toBe('message:running'));
+  expect(noticeCodes(s, session.id)).toEqual([{ code: 'session.notice.actionWentOn', params: { reason: 'Install failed with exit code 1: it broke', reasonCode: 'session.action.failedWithCode' } }]);
+});
+
+test.each([
+  ['with an exit code', { ok: false as const, code: 2, output: 'cp: no such file' }, { detail: 'Env failed with exit code 2: cp: no such file', code: 'session.action.failedWithCode', params: { action: 'Env', exitCode: 2, output: 'cp: no such file' } }],
+  ['with no exit code', { ok: false as const, code: null, output: '' }, { detail: 'Env failed', code: 'session.action.failed', params: { action: 'Env', output: '' } }],
+])('an action set to stop that fails %s fails its step with that code and those parameters', async (_, result, expected) => {
+  const s = repoSetup();
+  withActions(realpathSync(work), [{ name: 'Env', command: 'cp .env .', onFail: 'stop' }]);
+  s.shell.results.set('cp .env .', result);
+  const { session } = await s.sessions.openPlan({ plan: planFor({ branch: 'feat', worktree: { name: 'my-fix' } }) });
+  await vi.waitFor(() => expect(s.sessions.list({}).sessions[0]).toMatchObject({ preparation: 'failed' }));
+  expect(stepCodesOf(s, session.id).filter((step) => step.step === 'action')).toEqual([{ step: 'action', ...expected }]);
+});
+
+test('a projects.json that does not match tells in a notice with its code, the key and the problem', async () => {
+  const s = repoSetup();
+  mkdirSync(join(dir, 'home'), { recursive: true });
+  writeFileSync(join(dir, projectsFile), JSON.stringify({ projects: [{ path: realpathSync(work), origin: 'added', actions: [{ name: 'Install', command: ' ', when: 'newWorktree' }] }] }));
+  const { session } = await s.sessions.openPlan({ plan: planFor({ branch: 'feat', worktree: { name: 'my-fix' } }) });
+  await vi.waitFor(() => expect(actionStepsOf(s, session.id).at(-1)).toBe('message:running'));
+  expect(noticeCodes(s, session.id)).toEqual([{ code: 'session.notice.actionsNotRun', params: { path: 'projects.0.actions.0.command', problem: 'must not be blank' } }]);
 });

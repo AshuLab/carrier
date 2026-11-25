@@ -1,0 +1,175 @@
+import Foundation
+import Testing
+@testable import CarrierCore
+
+private let complete = SetupSettings(node: "/n/bin/node", path: "/usr/bin:/n/bin:/bin")
+private let homebrew = "/opt/homebrew/bin/carrier"
+
+@Test func aBinaryIsRunAsItselfWithNoArguments() throws {
+    let command = try #require(startCommand(settings: complete, carrier: homebrew, environment: ["HOME": "/h", "PATH": "/usr/bin"], home: "/h"))
+    #expect(command.program == homebrew)
+    #expect(command.arguments.isEmpty)
+}
+
+@Test func aScriptIsRunUnderNode() throws {
+    let command = try #require(startCommand(settings: complete, carrier: "/work/main.ts", environment: [:], home: "/h"))
+    #expect(command.program == "/n/bin/node")
+    #expect(command.arguments == ["/work/main.ts"])
+}
+
+@Test func theEnvironmentCarriesTheCarrierFolder() throws {
+    let home = try #require(startCommand(settings: complete, carrier: homebrew, environment: [:], home: "/h"))
+    #expect(home.environment["CARRIER_HOME"] == "/h/.carrier")
+    let scratch = try #require(startCommand(settings: complete, carrier: homebrew, environment: ["CARRIER_HOME": "/scratch"], home: "/h"))
+    #expect(scratch.environment["CARRIER_HOME"] == "/scratch")
+    #expect(scratch.logPath == "/scratch/engine/logs/app-start.log")
+    #expect(scratch.socketPath == "/scratch/engine/state/control.sock")
+}
+
+@Test func theEnvironmentGetsTheEnginePathAndKeepsTheRest() throws {
+    let command = try #require(startCommand(settings: complete, carrier: homebrew, environment: ["HOME": "/h", "PATH": "/usr/bin"], home: "/h"))
+    // node's directory first, then the rest of the detected one without repeating it, and Homebrew's at the end
+    #expect(command.environment["PATH"] == "/n/bin:/usr/bin:/bin:/opt/homebrew/bin")
+    #expect(command.environment["HOME"] == "/h")
+}
+
+@Test func theLogAndTheSocketLiveUnderTheEnginesFolder() throws {
+    let command = try #require(startCommand(settings: complete, carrier: homebrew, environment: [:], home: "/h"))
+    #expect(command.processDir == "/h/.carrier/engine")
+    #expect(command.logsDir == "/h/.carrier/engine/logs")
+    #expect(command.logPath == "/h/.carrier/engine/logs/app-start.log")
+    #expect(command.socketPath == "/h/.carrier/engine/state/control.sock")
+}
+
+@Test func withoutCarrierThereIsNoCommandAndItIsNamed() {
+    #expect(startMissing(complete, carrier: nil) == ["carrier"])
+    #expect(startCommand(settings: complete, carrier: nil, environment: [:], home: "/h") == nil)
+    #expect(startMissing(complete, carrier: homebrew).isEmpty)
+}
+
+@Test func theEngineStartNeedsNodeOnlyForAScript() {
+    let noNode = SetupSettings(path: "/usr/bin")
+    #expect(startMissing(noNode, carrier: "/work/main.ts") == ["node"])
+    #expect(startCommand(settings: noNode, carrier: "/work/main.ts", environment: [:], home: "/h") == nil)
+    #expect(startMissing(noNode, carrier: homebrew).isEmpty)
+}
+
+@Test func theSocketAnsweringMeansRunning() {
+    #expect(startOutcome(exitCode: nil, socketAnswered: true, elapsed: 2) == .running)
+}
+
+@Test func theSocketAnsweringWhileTheProcessIsStillRunningIsRunningNotAWaitForTheTimeout() {
+    #expect(startOutcome(exitCode: nil, socketAnswered: true, elapsed: 14.9) == .running)
+}
+
+@Test func theSocketAnsweringAfterTheProcessExitedIsRunningBecauseAnotherCarrierCameUp() {
+    // started elsewhere in the meantime: ours quit because the folder was taken, the one that holds it answers
+    #expect(startOutcome(exitCode: 1, socketAnswered: true, elapsed: 1) == .running)
+}
+
+@Test func anExitBeforeTheSocketFailsWithItsCode() {
+    #expect(startOutcome(exitCode: 1, socketAnswered: false, elapsed: 0.3) == .failed(.exited(1)))
+    #expect(startOutcome(exitCode: 137, socketAnswered: false, elapsed: 9) == .failed(.exited(137)))
+}
+
+@Test func anExitWithCodeZeroBeforeTheSocketStillFails() {
+    #expect(startOutcome(exitCode: 0, socketAnswered: false, elapsed: 0.3) == .failed(.exited(0)))
+}
+
+@Test func fifteenSecondsWithoutTheSocketFailsWhileTheProcessRuns() {
+    #expect(startOutcome(exitCode: nil, socketAnswered: false, elapsed: 15) == .failed(.noSocket))
+    #expect(startOutcome(exitCode: nil, socketAnswered: false, elapsed: 40) == .failed(.noSocket))
+}
+
+@Test func beforeFifteenSecondsAProcessWithoutTheSocketKeepsWaiting() {
+    #expect(startOutcome(exitCode: nil, socketAnswered: false, elapsed: 0) == nil)
+    #expect(startOutcome(exitCode: nil, socketAnswered: false, elapsed: 14.9) == nil)
+}
+
+@Test func theFailureTextsSayWhatHappened() {
+    #expect(startFailureText(.exited(0), bundle: english.bundle, locale: english.locale).contains("code 0"))
+    #expect(startFailureText(.noSocket, bundle: english.bundle, locale: english.locale).contains("15 seconds"))
+}
+
+@Test func theFailureTextsSayWhatHappenedInSpanish() {
+    #expect(startFailureText(.exited(2), bundle: spanish.bundle, locale: spanish.locale) == "Carrier salió con el código 2 antes de abrir su socket de control.")
+    #expect(startFailureText(.noSocket, name: "El host de chat", bundle: spanish.bundle, locale: spanish.locale) == "El host de chat no abrió su socket de control en 15 segundos. Puede que siga en marcha.")
+}
+
+@Test func theTailOfTheLogIsItsLastLinesAndAnErrorCarrierPrintedIsInIt() {
+    let log = (1...50).map { "line \($0)" }.joined(separator: "\n") + "\nconfig invalid: github.token is required\n\n"
+    #expect(logTail(Data(log.utf8), lines: 3, bundle: english.bundle, locale: english.locale) == "line 49\nline 50\nconfig invalid: github.token is required")
+}
+
+@Test func anEmptyLogSaysSo() {
+    #expect(logTail(Data(), bundle: english.bundle, locale: english.locale) == "(the start log is empty)")
+    #expect(logTail(Data(), bundle: spanish.bundle, locale: spanish.locale) == "(el registro de arranque está vacío)")
+}
+
+@Test func theMenuItemIsEnabledOnlyWhenStoppedAndConfiguredAndCompleteAndNotStarting() {
+    func item(_ state: ConnectionState = .stopped, starting: Bool = false, missing: [String] = [], configExists: Bool = true) -> (title: String, enabled: Bool) {
+        startMenuState(state: state, starting: starting, missing: missing, configExists: configExists, bundle: english.bundle, locale: english.locale)
+    }
+    #expect(item() == ("Start Carrier", true))
+    #expect(item(starting: true).enabled == false)
+    #expect(item(.incompatible(update: nil)).enabled == false)
+    #expect(item(missing: ["carrier"]) == ("Start Carrier (missing: carrier)", false))
+    #expect(item(configExists: false) == ("Start Carrier (engine not configured)", false))
+    #expect(item(missing: ["node"], configExists: false).enabled == false)
+    #expect(item(starting: true).title == "Starting Carrier…")
+}
+
+@Test func theMenuItemSaysItsStateInSpanish() {
+    func item(starting: Bool = false, missing: [String] = [], configExists: Bool = true) -> String {
+        startMenuState(state: .stopped, starting: starting, missing: missing, configExists: configExists, bundle: spanish.bundle, locale: spanish.locale).title
+    }
+    #expect(item() == "Iniciar Carrier")
+    #expect(item(starting: true) == "Iniciando Carrier…")
+    #expect(item(configExists: false) == "Iniciar Carrier (motor sin configurar)")
+    #expect(item(missing: ["node", "PATH"]) == "Iniciar Carrier (falta: node, PATH)")
+}
+
+@Test func noConfigMeansANoticeWithNoActionAndItsAbsenceMeansNone() throws {
+    let notice = try #require(engineNotConfiguredNotice(configExists: false, bundle: english.bundle, locale: english.locale))
+    #expect(notice == "The engine is not configured: there is no engine.json in the Carrier folder.")
+    #expect(engineNotConfiguredNotice(configExists: false, bundle: spanish.bundle, locale: spanish.locale) == "El motor no está configurado: no hay engine.json en la carpeta de Carrier.")
+    #expect(engineNotConfiguredNotice(configExists: true, bundle: english.bundle, locale: english.locale) == nil)
+}
+
+@Test func openingTheAppStartsCarrierOnlyWhenEveryConditionHolds() throws {
+    let running = ConnectionState.running(try decodeSnapshot(Data(contentsOf: testPaths().fixtures.appendingPathComponent("snapshot.json"))))
+    func decide(enabled: Bool = true, first: ConnectionState = .stopped, ready: Bool = true, fixture: Bool = false, tried: Bool = false) -> Bool {
+        shouldStartOnOpen(enabled: enabled, firstState: first, startReady: ready, fixture: fixture, alreadyTried: tried)
+    }
+    #expect(decide())
+    #expect(decide(enabled: false) == false)
+    #expect(decide(first: running) == false)
+    #expect(decide(first: .incompatible(update: nil)) == false)
+    #expect(decide(ready: false) == false)
+    #expect(decide(fixture: true) == false)
+    #expect(decide(tried: true) == false)
+}
+
+@Test func aToolNodeCouldNotSpawnIsNamedFromTheLog() {
+    #expect(missingTool(in: "carrier failed to start: gh failed: spawn agent-forge ENOENT") == "agent-forge")
+    #expect(missingTool(in: "Error: spawn gh ENOENT\n    at ChildProcess._handle.onexit") == "gh")
+    #expect(missingTool(in: "config invalid: github.token is required") == nil)
+    #expect(missingTool(in: "spawn /a/b ENOENT") == nil)
+    #expect(missingTool(in: "") == nil)
+}
+
+@Test func theShellsNewAnswerReplacesWhatItFoundAndNeverRemovesWhatItDidNot() {
+    let ran = SetupSettings(node: "/n/node", path: "/usr/bin")
+    #expect(redetected(ran, with: Detection(node: "/n/node", path: "/usr/bin:/p/bin")) == SetupSettings(node: "/n/node", path: "/usr/bin:/p/bin"))
+    #expect(redetected(ran, with: Detection(node: "/m/node", path: "/x")) == SetupSettings(node: "/m/node", path: "/x"))
+    // a partial answer keeps the value that worked
+    #expect(redetected(ran, with: Detection(node: nil, path: "/x")) == SetupSettings(node: "/n/node", path: "/x"))
+    #expect(redetected(ran, with: Detection()) == ran)
+}
+
+@Test func theAlertSaysWhetherTheShellWasReadAgain() {
+    #expect(toolNotFoundText("agent-forge", bundle: english.bundle, locale: english.locale) == "agent-forge is not on the PATH of your shell either, which was read again just now. Install it, or add its folder to the PATH of your shell, and start again.")
+    #expect(toolNotFoundText("gh", shellAnswered: false, bundle: english.bundle, locale: english.locale) == "gh was not found, and the shell gave no answer when asked for its PATH again. Press Detect in Settings to try once more.")
+    #expect(toolNotFoundText("agent-forge", bundle: spanish.bundle, locale: spanish.locale) == "agent-forge tampoco está en el PATH de tu shell, que se acaba de leer de nuevo. Instálalo, o añade su carpeta al PATH de tu shell, y vuelve a iniciar.")
+    #expect(toolNotFoundText("gh", shellAnswered: false, bundle: spanish.bundle, locale: spanish.locale) == "No se encontró gh, y el shell no respondió cuando se le pidió de nuevo su PATH. Pulsa Detectar en Ajustes para intentarlo otra vez.")
+}

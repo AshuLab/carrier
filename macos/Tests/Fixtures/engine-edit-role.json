@@ -1,0 +1,43 @@
+{
+  "request": {
+    "cmd": "editRole",
+    "role": "reviewer",
+    "changes": {
+      "identity": {
+        "kind": "forge",
+        "agent": "nova"
+      },
+      "provider": "codex",
+      "model": "gpt-5",
+      "effort": null
+    }
+  },
+  "reply": {
+    "ok": true,
+    "data": {
+      "saved": {
+        "agents": {
+          "reviewer": {
+            "profile": "nova",
+            "provider": "codex",
+            "model": "gpt-5"
+          }
+        },
+        "profiles": {
+          "author-bot": {
+            "kind": "forge",
+            "agent": "artanis-agent"
+          },
+          "reviewer-bot": {
+            "kind": "gh"
+          },
+          "nova": {
+            "kind": "forge",
+            "agent": "nova"
+          }
+        }
+      },
+      "engine": "applied"
+    }
+  }
+}

@@ -4,7 +4,8 @@ import { createScopedLogger } from '@ashulab/universal-logger';
 import { z } from 'zod';
 import { chatSocketIn } from '../config/places.ts';
 import { repoNamePattern } from '../config/schema.ts';
-import { socketPathFits, version, type Hello, type Reply } from '../control/server.ts';
+import { harnessNames } from '../harnesses/names.ts';
+import { refused, socketPathFits, version, type Hello, type Reply } from '../control/server.ts';
 import { plan } from './plan.ts';
 import { projectNamePattern } from './projects.ts';
 import { ChatRefused } from './runner.ts';
@@ -15,8 +16,8 @@ const log = createScopedLogger('chat');
 const MAX_LINE_BYTES = 1024 * 1024;
 
 /** The requests a chat host answers; each slice that adds one adds its name here. */
-export type ChatCapability = 'agents' | 'list' | 'open' | 'resume' | 'send' | 'answer' | 'interrupt' | 'setOption' | 'agentOptions' | 'events' | 'close' | 'archive' | 'delete' | 'workspace' | 'fetch' | 'suggestName' | 'checkName' | 'deletePreview' | 'cloneRepo' | 'createProject' | 'githubRepos' | 'repoBranches' | 'health' | 'providers' | 'plan' | 'stop' | 'reasoning' | 'rename' | 'usage' | 'usageOverride' | 'accountIdentity' | 'accountPalette' | 'switchAgent' | 'stopTask' | 'worktreeStart' | 'fetchIfStale' | 'listsRev' | 'projects' | 'textGenerators' | 'regenerateTitle' | 'regenerateTitles';
-export const capabilities: ChatCapability[] = ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'agentOptions', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'createProject', 'githubRepos', 'repoBranches', 'health', 'providers', 'plan', 'stop', 'reasoning', 'rename', 'usage', 'usageOverride', 'accountIdentity', 'accountPalette', 'switchAgent', 'stopTask', 'worktreeStart', 'fetchIfStale', 'listsRev', 'projects', 'textGenerators', 'regenerateTitle', 'regenerateTitles'];
+export type ChatCapability = 'agents' | 'list' | 'open' | 'resume' | 'send' | 'answer' | 'interrupt' | 'setOption' | 'agentOptions' | 'events' | 'close' | 'archive' | 'delete' | 'workspace' | 'fetch' | 'suggestName' | 'checkName' | 'deletePreview' | 'cloneRepo' | 'createProject' | 'githubRepos' | 'repoBranches' | 'health' | 'providers' | 'plan' | 'stop' | 'reasoning' | 'rename' | 'usage' | 'usageOverride' | 'accountIdentity' | 'accountPalette' | 'switchAgent' | 'stopTask' | 'worktreeStart' | 'fetchIfStale' | 'listsRev' | 'projects' | 'textGenerators' | 'regenerateTitle' | 'regenerateTitles' | 'config';
+export const capabilities: ChatCapability[] = ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'agentOptions', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'createProject', 'githubRepos', 'repoBranches', 'health', 'providers', 'plan', 'stop', 'reasoning', 'rename', 'usage', 'usageOverride', 'accountIdentity', 'accountPalette', 'switchAgent', 'stopTask', 'worktreeStart', 'fetchIfStale', 'listsRev', 'projects', 'textGenerators', 'regenerateTitle', 'regenerateTitles', 'config'];
 
 const id = z.number().int().positive();
 const sessionId = z.uuid();
@@ -26,6 +27,56 @@ const rate = z.number().finite().nonnegative().max(10_000);
 export const usageOverrideRequest = z
   .strictObject({ id, cmd: z.literal('usageOverride'), model, action: z.enum(['local', 'alias', 'custom', 'clear']), aliasTo: model.optional(), inputPerMillionUsd: rate.optional(), cachedInputPerMillionUsd: rate.optional(), cacheWritePerMillionUsd: rate.optional(), outputPerMillionUsd: rate.optional() })
   .refine((r) => (r.action === 'alias' ? r.aliasTo !== undefined : r.action === 'custom' ? r.inputPerMillionUsd !== undefined && r.outputPerMillionUsd !== undefined : true));
+// The `config` capability: the requests that change a file of the Carrier folder through the chat host (ADR 0053). A value the file's schema refuses is refused there, with its key path and kind.
+const settingValue = z.union([z.string().max(100), z.number().finite(), z.boolean(), z.null()]);
+export const editChatSettingsRequest = z.strictObject({
+  id,
+  cmd: z.literal('editChatSettings'),
+  changes: z.strictObject({ archiveAfterDays: settingValue.optional(), deleteAfterDays: settingValue.optional(), worktreeStart: settingValue.optional(), idleCloseMinutes: settingValue.optional() }),
+});
+const accountName = z.string().min(1).max(100);
+const accountText = z.string().max(4096).nullable().optional();
+export const setAccountsRequest = z.strictObject({ id, cmd: z.literal('setAccounts'), accounts: z.array(z.strictObject({ name: accountName, harness: z.enum(harnessNames) })).min(1).max(20) });
+export const addAccountRequest = z.strictObject({ id, cmd: z.literal('addAccount'), account: z.strictObject({ name: accountName, harness: z.enum(harnessNames), configDir: z.string().max(4096).optional() }) });
+export const editAccountRequest = z.strictObject({
+  id,
+  cmd: z.literal('editAccount'),
+  name: accountName,
+  changes: z.strictObject({
+    displayName: accountText,
+    label: accountText,
+    icon: accountText,
+    color: accountText,
+    command: accountText,
+    configDir: accountText,
+    autoCompact: z.union([z.string().max(20), z.int()]).nullable().optional(),
+    launchArgs: z.array(z.string().max(4096)).max(100).nullable().optional(),
+    idleCompaction: z.boolean().nullable().optional(),
+  }),
+});
+export const removeAccountRequest = z.strictObject({ id, cmd: z.literal('removeAccount'), name: accountName });
+export const setTextGeneratorRequest = z.strictObject({ id, cmd: z.literal('setTextGenerator'), choice: z.strictObject({ server: z.string().max(40), model: z.string().max(200) }).nullable() });
+// `projects.json` and `projectsFolder` of `chat.json` (the same capability). The file's schema refuses a wrong value with its key path and kind; these only bound what a client may send.
+const folderPath = z.string().min(1).max(4096);
+const projectText = z.string().max(4096).nullable();
+const projectAction = z.strictObject({ name: z.string().max(4096), command: z.string().max(65_536), when: z.string().max(100), on: z.boolean().optional(), onFail: z.string().max(100).optional() });
+const tagList = z.array(z.string().max(200)).max(200);
+export const projectRequests = [
+  z.strictObject({ id, cmd: z.literal('addProject'), folder: folderPath }),
+  z.strictObject({ id, cmd: z.literal('removeProject'), path: folderPath }),
+  z.strictObject({ id, cmd: z.literal('editProject'), path: folderPath, key: z.enum(['name', 'pinned', 'hidden']), value: z.union([z.string().max(4096), z.boolean(), z.null()]) }),
+  z.strictObject({ id, cmd: z.literal('moveProject'), path: folderPath, folder: folderPath }),
+  z.strictObject({ id, cmd: z.literal('editProjectIcon'), path: folderPath, changes: z.strictObject({ color: projectText.optional(), mark: projectText.optional(), image: projectText.optional() }) }),
+  z.strictObject({
+    id,
+    cmd: z.literal('editProjectDefaults'),
+    path: folderPath,
+    changes: z.strictObject({ agent: projectText.optional(), model: projectText.optional(), effort: projectText.optional(), access: z.record(z.string().max(200), z.string().max(200)).nullable().optional(), workIn: projectText.optional(), baseBranch: projectText.optional() }),
+  }),
+  z.strictObject({ id, cmd: z.literal('editProjectTags'), path: folderPath, add: tagList, remove: tagList }),
+  z.strictObject({ id, cmd: z.literal('setProjectActions'), path: folderPath, actions: z.array(projectAction).max(100) }),
+  z.strictObject({ id, cmd: z.literal('setProjectsFolder'), folder: folderPath }),
+] as const;
 export const usageRequest = z.strictObject({
   id,
   cmd: z.literal('usage'),
@@ -82,6 +133,13 @@ export const chatRequest = z.union([
   z.strictObject({ id, cmd: z.literal('providers') }),
   usageRequest,
   usageOverrideRequest,
+  editChatSettingsRequest,
+  setAccountsRequest,
+  addAccountRequest,
+  editAccountRequest,
+  removeAccountRequest,
+  setTextGeneratorRequest,
+  ...projectRequests,
   z.strictObject({ id, cmd: z.literal('stop') }),
 ]);
 type Request = z.infer<typeof chatRequest>;
@@ -153,6 +211,24 @@ export type ChatControls = {
   usage(args: Args<'usage'>): Promise<unknown>;
   /** Sets or clears the price of a model; refused in words for a price that cannot be saved. */
   usageOverride(args: Args<'usageOverride'>): unknown;
+  /** Changes keys of `chat.json` and answers `{ saved }`; refused with `config.problem` for a file or a result the file's schema refuses. */
+  editChatSettings(args: Args<'editChatSettings'>): unknown;
+  /** Each changes `providers.json` and answers `{ saved, engine }`: the part of the file it changed, and what the running engine did with the file; refused with a code for a file or a result the file's schema refuses. */
+  setAccounts(args: Args<'setAccounts'>): Promise<unknown>;
+  addAccount(args: Args<'addAccount'>): Promise<unknown>;
+  editAccount(args: Args<'editAccount'>): Promise<unknown>;
+  removeAccount(args: Args<'removeAccount'>): Promise<unknown>;
+  setTextGenerator(args: Args<'setTextGenerator'>): Promise<unknown>;
+  /** The changes to `projects.json` and `projectsFolder` (`projectEdits`, `project-edits.ts`): each answers the saved part of the file and is refused with `config.problem` or `project.missing`, the file left as it was. */
+  addProject(args: Args<'addProject'>): unknown;
+  removeProject(args: Args<'removeProject'>): unknown;
+  editProject(args: Args<'editProject'>): unknown;
+  moveProject(args: Args<'moveProject'>): unknown;
+  editProjectIcon(args: Args<'editProjectIcon'>): unknown;
+  editProjectDefaults(args: Args<'editProjectDefaults'>): unknown;
+  editProjectTags(args: Args<'editProjectTags'>): unknown;
+  setProjectActions(args: Args<'setProjectActions'>): unknown;
+  setProjectsFolder(args: Args<'setProjectsFolder'>): unknown;
 };
 
 async function run(request: Exclude<Request, { cmd: 'stop' }>, controls: ChatControls, gone: AbortSignal): Promise<unknown> {
@@ -239,6 +315,36 @@ async function run(request: Exclude<Request, { cmd: 'stop' }>, controls: ChatCon
       return controls.usage({ refresh: request.refresh, days: request.days, provider: request.provider, source: request.source, search: request.search, account: request.account });
     case 'usageOverride':
       return controls.usageOverride({ model: request.model, action: request.action, aliasTo: request.aliasTo, inputPerMillionUsd: request.inputPerMillionUsd, cachedInputPerMillionUsd: request.cachedInputPerMillionUsd, cacheWritePerMillionUsd: request.cacheWritePerMillionUsd, outputPerMillionUsd: request.outputPerMillionUsd });
+    case 'editChatSettings':
+      return controls.editChatSettings({ changes: request.changes });
+    case 'setAccounts':
+      return controls.setAccounts({ accounts: request.accounts });
+    case 'addAccount':
+      return controls.addAccount({ account: request.account });
+    case 'editAccount':
+      return controls.editAccount({ name: request.name, changes: request.changes });
+    case 'removeAccount':
+      return controls.removeAccount({ name: request.name });
+    case 'setTextGenerator':
+      return controls.setTextGenerator({ choice: request.choice });
+    case 'addProject':
+      return controls.addProject({ folder: request.folder });
+    case 'removeProject':
+      return controls.removeProject({ path: request.path });
+    case 'editProject':
+      return controls.editProject({ path: request.path, key: request.key, value: request.value });
+    case 'moveProject':
+      return controls.moveProject({ path: request.path, folder: request.folder });
+    case 'editProjectIcon':
+      return controls.editProjectIcon({ path: request.path, changes: request.changes });
+    case 'editProjectDefaults':
+      return controls.editProjectDefaults({ path: request.path, changes: request.changes });
+    case 'editProjectTags':
+      return controls.editProjectTags({ path: request.path, add: request.add, remove: request.remove });
+    case 'setProjectActions':
+      return controls.setProjectActions({ path: request.path, actions: request.actions });
+    case 'setProjectsFolder':
+      return controls.setProjectsFolder({ folder: request.folder });
   }
 }
 
@@ -247,13 +353,13 @@ async function answer(line: string, controls: ChatControls, gone: AbortSignal, s
   try {
     value = JSON.parse(line);
   } catch {
-    return { id: null, ok: false, error: 'invalid JSON' };
+    return refused(null, 'request.invalidJson', 'invalid JSON');
   }
   const parsed = chatRequest.safeParse(value);
   if (parsed.success === false) {
     // the id is echoed only when it is a valid one, so the client can match the error
     const given = typeof value === 'object' && value !== null ? id.safeParse((value as { id?: unknown }).id) : null;
-    return { id: given?.success ? given.data : null, ok: false, error: 'invalid request' };
+    return refused(given?.success ? given.data : null, 'request.invalid', 'invalid request');
   }
   if (parsed.data.cmd === 'stop') {
     stopAfterReply();
@@ -262,9 +368,9 @@ async function answer(line: string, controls: ChatControls, gone: AbortSignal, s
   try {
     return { id: parsed.data.id, ok: true, data: await run(parsed.data, controls, gone) };
   } catch (error) {
-    if (error instanceof ChatRefused) return { id: parsed.data.id, ok: false, error: error.message };
+    if (error instanceof ChatRefused) return refused(parsed.data.id, error.code, error.message, error.params);
     log.error(`${parsed.data.cmd} failed`, error);
-    return { id: parsed.data.id, ok: false, error: 'internal error' };
+    return refused(parsed.data.id, 'request.internal', 'internal error');
   }
 }
 
@@ -315,7 +421,7 @@ export async function startChatServer({ stateDir, startedAt, controls, stop, cli
   });
   const tooLong = (socket: Socket) => {
     socket.removeAllListeners('data'); // nothing more is read from this client
-    socket.end(`${JSON.stringify({ id: null, ok: false, error: 'line too long' })}\n`);
+    socket.end(`${JSON.stringify(refused(null, 'request.tooLong', 'line too long'))}\n`);
   };
   server.on('error', (error) => log.error('chat socket error', error));
 

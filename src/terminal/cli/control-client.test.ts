@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, expect, test } from 'vitest';
 import type { EpicReply, EventsReply, FilesReply } from '../../control/replies.ts';
 import { startControlServer } from '../../control/server.ts';
-import { connectControl, ControlUnreachable } from './control-client.ts';
+import { connectControl, ControlRefused, ControlUnreachable } from './control-client.ts';
 
 let dir: string;
 let closers: (() => void)[];
@@ -31,7 +31,7 @@ const controls = {
   epic: (): EpicReply | null => null,
   files: (): FilesReply | null => null,
   fileDiff: () => null,
-  availableRepos: () => Promise.resolve({ repos: [], hasMore: false }), resumeEpic: () => Promise.resolve(), recoverEpic: () => Promise.resolve(), reload: () => {},
+  availableRepos: () => Promise.resolve({ repos: [], hasMore: false }), resumeEpic: () => Promise.resolve(), recoverEpic: () => Promise.resolve(), reload: () => {}, setWatchedRepos: () => ({ saved: {}, engine: 'applied' as const }), editBehavior: () => ({ saved: {}, engine: 'applied' as const }), editEngineFile: () => ({ saved: {}, engine: 'applied' as const }),
 };
 
 async function realServer() {
@@ -57,11 +57,13 @@ async function reason(promise: Promise<unknown>) {
   return (error as ControlUnreachable).reason;
 }
 
+const refusal = async (promise: Promise<unknown>) => (await promise.then(() => null, (caught) => caught)) as ControlRefused;
+
 test('connect returns the hello and a request resolves with the data of its reply', async () => {
   await realServer();
   const client = await connectControl(path());
   closers.push(client.close);
-  expect(client.hello).toMatchObject({ event: 'hello', protocol: 1, pid: process.pid, capabilities: ['sessions', 'events', 'epic', 'files', 'fileDiff', 'availableRepos', 'availableReposPaged', 'resumeEpic', 'resumeFromStage', 'resumeReviewerOptions', 'recoverEpic', 'reload'] });
+  expect(client.hello).toMatchObject({ event: 'hello', protocol: 1, pid: process.pid, capabilities: ['sessions', 'events', 'epic', 'files', 'fileDiff', 'availableRepos', 'availableReposPaged', 'resumeEpic', 'resumeFromStage', 'resumeReviewerOptions', 'recoverEpic', 'reload', 'config'] });
   expect(typeof client.hello.version).toBe('string');
   expect(await client.request('snapshot')).toEqual(snapshotData);
   expect(await client.request('pause')).toBeUndefined();
@@ -147,12 +149,46 @@ test('something that is not a hello is incompatible', async () => {
   expect(await reason(connectControl(path()))).toBe('incompatible');
 });
 
-test('an ok:false reply rejects with its error text', async () => {
+test('an ok:false reply rejects with its words, its code and its params', async () => {
   await realServer();
   const client = await connectControl(path());
   closers.push(client.close);
-  await expect(client.request('epic', { repo: 'AshuLab/a', issue: 5 })).rejects.toThrow('unknown epic');
-  await expect(client.request('nonsense')).rejects.toThrow('invalid request');
+  const unknown = await refusal(client.request('epic', { repo: 'AshuLab/a', issue: 5 }));
+  expect(unknown).toBeInstanceOf(ControlRefused);
+  expect([unknown.message, unknown.code, unknown.params]).toEqual(['unknown epic', 'epic.unknown', {}]);
+  const invalid = await refusal(client.request('nonsense'));
+  expect([invalid.message, invalid.code]).toEqual(['invalid request', 'request.invalid']);
+});
+
+test('a reply with a code and params hands both over, whatever its words', async () => {
+  await fakeServer((socket) => {
+    socket.setEncoding('utf8');
+    socket.write(hello(1));
+    socket.on('data', (chunk: string) => {
+      const { id } = JSON.parse(chunk.split('\n')[0]!);
+      socket.write(`${JSON.stringify({ id, ok: false, error: 'other words', code: 'agent.notFound', params: { agent: 'x' } })}\n`);
+    });
+  });
+  const client = await connectControl(path());
+  closers.push(client.close);
+  const error = await refusal(client.request('anything'));
+  expect([error.message, error.code, error.params]).toEqual(['other words', 'agent.notFound', { agent: 'x' }]);
+});
+
+test('a reply without a code (an engine that predates the codes) rejects with its words and no code', async () => {
+  await fakeServer((socket) => {
+    socket.setEncoding('utf8');
+    socket.write(hello(1));
+    socket.on('data', (chunk: string) => {
+      const { id } = JSON.parse(chunk.split('\n')[0]!);
+      socket.write(`${JSON.stringify({ id, ok: false, error: 'unknown epic' })}\n`);
+    });
+  });
+  const client = await connectControl(path());
+  closers.push(client.close);
+  const error = await refusal(client.request('anything'));
+  expect(error).toBeInstanceOf(ControlRefused);
+  expect([error.message, error.code, error.params]).toEqual(['unknown epic', undefined, {}]);
 });
 
 test('close ends the connection, and a request after it is no-answer', async () => {

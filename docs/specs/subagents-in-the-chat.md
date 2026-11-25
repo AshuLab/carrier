@@ -139,7 +139,7 @@ The slow threshold is 30 seconds (`ToolCall` knows when it started and the live 
   `src/chat/sessions.test.ts` drives the state rule (working until the last task ends, sweep and archive refusals), and `src/chat/server.test.ts` the new request and its capability.
 - Stories 7, 8, 10 and 12: `chatFeed` through `ChatConversationTests` with the new `chat-events-*.json` fixtures (`FixtureServer`), including a page that starts inside a subagent and a feed with no link events; the view and its header have goldens in `CarrierTests`, as `SessionHeaderTests` has for the epic's.
 - Story 13: `LanesTests`, `SliceCardTests` and `EpicTranscriptAdapterTests` for the join and the last step; the engine's parser in `src/harnesses/claude.test.ts` against `claude-subagents.fixture.jsonl`, with a `task_progress` line added.
-- The docs ship with the change: `docs/macos-ui.md` (cards in the feed), `docs/macos/sessions.md` and `CHANGELOG.md`, as the `macos-ui-change` skill asks.
+- The docs ship with the change: `docs/ui.md` (cards in the feed), `docs/macos/sessions.md` and `CHANGELOG.md`, as the `macos-ui-change` skill asks.
 
 ## Out of scope
 

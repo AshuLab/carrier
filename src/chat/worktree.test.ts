@@ -36,7 +36,7 @@ test('a worktree the person cancels is refused as cancelled and not logged as a 
     const making = createWorktree(git, folder, { from: 'main', name: 'my-fix' }, abort.signal);
     await vi.waitFor(() => expect(git.calls.some((call) => call.args[0] === 'worktree' && call.args[1] === 'add')).toBe(true));
     abort.abort();
-    await expect(making).rejects.toThrow(new ChatRefused('Creating the worktree was cancelled'));
+    await expect(making).rejects.toThrow(new ChatRefused('worktree.createCancelled', 'Creating the worktree was cancelled'));
     expect(errors.mock.calls.flat().join('\n')).not.toContain('git worktree add failed');
   } finally {
     errors.mockRestore();
@@ -86,7 +86,7 @@ test.each([
 test('a local start of a branch the repository has only on origin is refused as an unlisted branch', async () => {
   const { folder, git } = startRepo();
   try {
-    await expect(createWorktree(git, folder, { from: 'dev', name: 'my-fix', startFrom: 'local' })).rejects.toThrow(new ChatRefused('The branch to start from is not one this repository lists'));
+    await expect(createWorktree(git, folder, { from: 'dev', name: 'my-fix', startFrom: 'local' })).rejects.toThrow(new ChatRefused('worktree.startNotListed', 'The branch to start from is not one this repository lists'));
     expect(git.calls.some((call) => call.args[1] === 'add')).toBe(false);
   } finally {
     rmSync(folder, { recursive: true, force: true });

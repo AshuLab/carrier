@@ -1,0 +1,155 @@
+import AppKit
+import CarrierCore
+
+/// The menu's controls: pause or resume intake, check GitHub now, stop Carrier. All on the main thread, except the
+/// sending, which blocks on the socket and so runs on a queue of its own.
+/// The symbol beside a menu item, in `color` when it has one. macOS 27 hides menu item images unless each item asks to show its own.
+func showIcon(_ symbol: String, on item: NSMenuItem, color: NSColor? = nil) {
+    let image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
+    item.image = color.map { image?.withSymbolConfiguration(.init(paletteColors: [$0])) } ?? image
+    // `preferredImageVisibility` (.visible is 1) is in the macOS 27 SDK only, and the release is built with Xcode 26.6: set it by key, so the
+    // app built with either SDK keeps its icons on macOS 27, and an older macOS, which has no such property, is left alone.
+    if item.responds(to: NSSelectorFromString("setPreferredImageVisibility:")) { item.setValue(1, forKey: "preferredImageVisibility") }
+}
+
+final class MenuControls: NSObject, NSMenuItemValidation {
+    static let shared = MenuControls()
+
+    /// What sends a command to the engine, the confirmation before stopping and the preference that asks for it: the tests put their own.
+    var deliver: (Command) -> Void = { command in
+        let path = controlSocketPath()
+        DispatchQueue.global().async {
+            do { try send(command, socketPath: path) } catch {
+                FileHandle.standardError.write(Data("carrier: \(command.rawValue) failed: \(error)\n".utf8))
+            }
+        }
+    }
+    var confirm: (Int) -> Bool = MenuControls.confirmStop
+    var preferences = AppPreferences()
+    private var socketPath: String { controlSocketPath() }
+    convenience override init() { self.init(bundle: nil, locale: .current) }
+
+    init(bundle: Bundle?, locale: Locale) {
+        (self.bundle, self.locale) = (bundle, locale)
+        pauseItem = NSMenuItem(title: Copy.epicsToolbarPauseIntake(bundle: bundle, locale: locale), action: #selector(pauseOrResume), keyEquivalent: "")
+        checkItem = NSMenuItem(title: Copy.epicsToolbarCheckGithub(bundle: bundle, locale: locale), action: #selector(checkNow), keyEquivalent: "")
+        stopItem = NSMenuItem(title: Copy.epicsToolbarStopCarrier(bundle: bundle, locale: locale), action: #selector(stopCarrier), keyEquivalent: "")
+        startMenuItem = NSMenuItem(title: Copy.lifecycleStart(bundle: bundle, locale: locale), action: #selector(startCarrier), keyEquivalent: "")
+        super.init()
+    }
+    /// The language of the items' words: the app's, and a test's own.
+    private let bundle: Bundle?
+    private let locale: Locale
+    private let pauseItem: NSMenuItem
+    private let checkItem: NSMenuItem
+    private let stopItem: NSMenuItem
+    private let startMenuItem: NSMenuItem
+    private var state = ConnectionState.stopped
+    private var wasPausedAtSelfTest = false
+    private var reviewTabCheck = CheckThrottle()
+
+    /// Adds the four items at the end of `menu`; `react` shows the ones that make sense.
+    func install(in menu: NSMenu) {
+        for (item, symbol) in [(startMenuItem, "play.fill"), (pauseItem, "pause.fill"), (checkItem, "arrow.clockwise"), (stopItem, "stop.fill")] {
+            item.target = self
+            showIcon(symbol, on: item)
+            menu.addItem(item)
+        }
+        react(to: state)
+    }
+
+    /// The latest state of Carrier: Start shows while it is not running, the other three while it is, and the pause item says
+    /// what clicking it would do.
+    func react(to state: ConnectionState) {
+        self.state = state
+        let running = isRunning
+        startMenuItem.isHidden = running
+        for item in [pauseItem, checkItem, stopItem] { item.isHidden = running == false }
+        pauseItem.title = paused ? Copy.epicsToolbarResumeIntake(bundle: bundle, locale: locale) : Copy.epicsToolbarPauseIntake(bundle: bundle, locale: locale)
+        showIcon(paused ? "play.fill" : "pause.fill", on: pauseItem)
+    }
+
+    /// Enabled only while Carrier is running and compatible; a stopped or incompatible one has nothing to listen.
+    func validateMenuItem(_ item: NSMenuItem) -> Bool {
+        if item === startMenuItem {
+            // the settings can change while the menu is closed, so the title is worked out each time it opens
+            let start = startState
+            item.title = start.title
+            return start.enabled
+        }
+        // the main menu's start or stop item: Stop while Carrier runs, Start when it can be started
+        if item.action == #selector(startOrStop), isRunning == false { return startState.enabled }
+        if case .running = state { return true }
+        return false
+    }
+
+    private var startState: (title: String, enabled: Bool) {
+        startMenuState(state: state, starting: StartController.shared.starting, missing: StartController.shared.missing,
+            configExists: StartController.shared.refreshConfig(), bundle: bundle, locale: locale)
+    }
+
+    private var isRunning: Bool {
+        if case .running = state { return true }
+        return false
+    }
+
+    private var paused: Bool {
+        if case .running(let snapshot) = state { return snapshot.paused }
+        return false
+    }
+
+    @objc private func startCarrier() { StartController.shared.start() }
+
+    @objc func startOrStop() { isRunning ? stopCarrier() : startCarrier() }
+
+    @objc func pauseOrResume() { deliver(paused ? .resume : .pause) }
+
+    @objc func checkNow() { deliver(.checkNow) }
+
+    /// The Review tab opened: its threads are as old as the last poll, so GitHub is checked now (at most every thirty seconds).
+    func reviewTabOpened() {
+        guard case .running = state, reviewTabCheck.take() else { return }
+        checkNow()
+    }
+
+    @objc func stopCarrier() {
+        guard case .running(let snapshot) = state else { return }
+        if asksBeforeStopping(snapshot, switchOn: preferences.confirmStop) {
+            guard confirm(snapshot.runningEpics) else { return }
+        }
+        NotificationWatcher.app.expectStop()
+        deliver(.stop)
+    }
+
+    private static func confirmStop(interrupting running: Int) -> Bool {
+        let text = stopCarrierAlert(interrupting: running)
+        let alert = NSAlert()
+        alert.messageText = text.title
+        alert.informativeText = text.message ?? ""
+        for button in text.buttons { alert.addButton(withTitle: button) }
+        // an accessory app is not frontmost, and its alert would open behind the other windows
+        NSApp.activate(ignoringOtherApps: true)
+        return alert.runModal() == .alertFirstButtonReturn
+    }
+
+    /// What the self-test logs for one action. Pause and resume are sent, resume putting back what was there before the
+    /// test; check now is sent; stop is only checked, like Quit: sent, it would end the Carrier under test.
+    func selfTest(_ command: Command) -> String {
+        // the start is only checked, like stop: pressing it would start the real Carrier
+        let start = command == .stop ? "; " + StartController.shared.selfTest(state: state) : ""
+        guard case .running(let snapshot) = state else { return "disabled, Carrier is not running" + start }
+        var command = command
+        switch command {
+        case .pause: wasPausedAtSelfTest = snapshot.paused
+        case .resume: command = wasPausedAtSelfTest ? .pause : .resume
+        case .stop: return "enabled, would ask first: \(snapshot.stopNeedsConfirmation), epics running: \(snapshot.runningEpics)" + start
+        case .checkNow: break
+        }
+        do {
+            try send(command, socketPath: socketPath)
+            return "sent \(command.rawValue)"
+        } catch {
+            return "\(command.rawValue) failed: \(error)"
+        }
+    }
+}

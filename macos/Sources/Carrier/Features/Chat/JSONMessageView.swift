@@ -1,0 +1,123 @@
+import CarrierCore
+import CarrierUI
+import SwiftUI
+
+/// An agent's JSON message as a report: a slice report as a card (outcome, pull request, branch, the definition of done, the
+/// note), any other object as a labelled list.
+struct JSONMessageView: View {
+    let message: JSONMessage
+
+    var body: some View {
+        Group {
+            switch message {
+            case .slice(let report): SliceReportView(report: report)
+            case .fields(let fields): FieldsView(fields: fields)
+            }
+        }
+        .scaledFont(13)
+    }
+}
+
+private struct SliceReportView: View {
+    let report: SliceReport
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Tokens.Space.s6) {
+            HStack(spacing: Tokens.Space.s8) {
+                if let title = report.title { Text(title).scaledFont(14, weight: .semibold) }
+                pill
+                Spacer(minLength: 8)
+                if let pull = report.pull {
+                    Link(destination: pull.url) {
+                        Label(pull.label, icon: .gitPullRequest).scaledFont(10, weight: .semibold)
+                    }
+                    .buttonStyle(.plain).foregroundStyle(.blue)
+                }
+            }
+            if let branch = report.branch {
+                Label(branch, icon: .gitBranch)
+                    .codeFont(11.5).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+                    .padding(.horizontal, Tokens.Space.s8).padding(.vertical, Tokens.Space.s3).background(Capsule().fill(Color.secondary.opacity(0.14)))
+            }
+            let done = report.checks.filter(\.passed).count
+            Text(Copy.chatReportDefinitionOfDone(done: done, total: report.checks.count))
+                .scaledFont(11, weight: .semibold).tracking(0.4).foregroundStyle(.tertiary).padding(.top, Tokens.Space.s6)
+            ChecklistView(checks: report.checks)
+            if let note = report.note { MarkdownView(text: note).foregroundStyle(.secondary).padding(.top, Tokens.Space.s6) }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var pill: some View {
+        HStack(spacing: Tokens.Space.s5) {
+            Glyph(icon, size: 10)
+            Text(report.outcome)
+        }
+        .scaledFont(10, weight: .semibold).foregroundStyle(tint)
+        .padding(.horizontal, Tokens.Space.s10).padding(.vertical, Tokens.Space.s3).background(Capsule().fill(tint.opacity(0.18)))
+    }
+
+    private var icon: AppIcon {
+        switch report.tone {
+        case .good: .checkCircle
+        case .warning: .warning
+        case .stop: .user
+        }
+    }
+
+    private var tint: Color {
+        switch report.tone {
+        case .good: .green
+        case .warning: .orange
+        case .stop: .red
+        }
+    }
+}
+
+private struct ChecklistView: View {
+    let checks: [ReportCheck]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Tokens.Space.s4) {
+            ForEach(Array(checks.enumerated()), id: \.offset) { _, check in
+                HStack(alignment: .firstTextBaseline, spacing: Tokens.Space.s8) {
+                    Glyph(check.passed ? .checkCircle : .closeCircle)
+                        .foregroundStyle(check.passed ? Color.green : Color.red)
+                    Text(check.name).foregroundStyle(check.passed ? .secondary : .primary)
+                }
+            }
+        }
+    }
+}
+
+private struct FieldsView: View {
+    let fields: [JSONField]
+
+    var body: some View {
+        Grid(alignment: .topLeading, horizontalSpacing: 16, verticalSpacing: 7) {
+            ForEach(Array(fields.enumerated()), id: \.offset) { _, field in
+                GridRow {
+                    Text(field.label).scaledFont(10).foregroundStyle(.tertiary).gridColumnAlignment(.leading)
+                    value(field.value).frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder private func value(_ value: JSONField.Value) -> some View {
+        switch value {
+        case .flag(let on):
+            Label(on ? Copy.chatYes() : Copy.chatNo(), icon: on ? .checkCircle : .closeCircle)
+                .scaledFont(10, weight: .semibold).foregroundStyle(on ? Color.green : Color.red)
+        case .number(let text): Text(text).fontWeight(.semibold)
+        case .text(let text): Text(text).foregroundStyle(.secondary).textSelection(.enabled)
+        case .code(let text):
+            Text(text).codeFont(11.5).foregroundStyle(.secondary).textSelection(.enabled)
+        case .link(let link): Link(link.label, destination: link.url).foregroundStyle(.blue)
+        case .list(let items):
+            VStack(alignment: .leading, spacing: Tokens.Space.s2) { ForEach(Array(items.enumerated()), id: \.offset) { _, item in Text("· \(item)") } }
+        case .checks(let checks): ChecklistView(checks: checks)
+        }
+    }
+}

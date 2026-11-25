@@ -1,0 +1,348 @@
+import CarrierCore
+import CarrierUI
+import SwiftUI
+import UniformTypeIdentifiers
+
+/// The message box of the draft and of an open session: a roomy text area with a hint and the send button, which is Stop while the
+/// agent answers, and beside it at the left the button of what the session runs with. The key chosen in Settings sends (Return or ⌘Return), the other
+/// and Shift+Return add a line.
+struct MessageBox<Selects: View>: View {
+    @Environment(\.pieceTheme) private var theme
+    @Environment(\.colorScheme) private var scheme
+    @Environment(\.textScale) private var textScale
+    @Binding var text: String
+    var placeholder: String
+    var minLines = 3
+    var canSend: Bool
+    /// Whether the session would take a message if it had a text: a long text pasted into the box is a message without one. Nil when it cannot say.
+    var canSendWithText: Bool?
+    var sendHelp = Copy.chatSend()
+    /// Whether the agent is answering: the button is Stop, and Enter still sends (the session holds the message until the turn ends).
+    var busy = false
+    /// Set to true to put the caret in the text.
+    var focus: Binding<Bool>
+    /// What the person can invoke by typing a slash and its name (skills and the provider's own commands); empty when there is none to list.
+    var commands: [ChatCommand] = []
+    /// Which box this is to the dictation, so only the one that dictates draws its state: the new-session view or an open session.
+    var dictationOwner = "message-box"
+    var dictation = DictationController.shared
+    /// Counts the times the global shortcut asked this box to dictate: each change focuses the box and starts the dictation or stops the one that listens.
+    var dictateRequest = 0
+    /// What goes beside the microphone: the ring of the context and the limits in an open session; nothing in the draft, which has neither yet.
+    var meter: AnyView?
+    var send: () -> Void
+    var stop: () -> Void = {}
+    @ViewBuilder var selects: () -> Selects
+    /// Counts the sends, so the arrow bounces up each time one goes.
+    @State private var sent = 0
+    /// The row of the list of commands that Enter or Tab would take.
+    @State var highlighted = 0
+    /// The word for which the list was closed with Escape: it opens again as soon as the word is another.
+    @State private var closedFor: CommandToken?
+    /// Where the caret is in the text.
+    @State private var cursor = 0
+    /// The files dropped on the box, which go with the next message as paths under it.
+    @State private var attachments: [AttachedFile] = []
+    /// The attachment being looked at in the preview.
+    @State private var previewing: AttachedFile?
+    /// The long texts pasted into the box, which go with the next message in fenced blocks under what is typed.
+    @State private var pastes: [PastedEntry] = []
+    /// Whether files are being dragged over the box.
+    @State private var dropping = false
+    /// Where the text a dictation is still hearing is; it is drawn in a colour with a touch of the accent and with a dotted underline.
+    @State private var tentative: Range<Int>?
+    /// The text the dictation last wrote, so the text view knows a change of the text is the dictation's and keeps its caret.
+    @State private var dictated: String?
+    /// Whether the popover of a blocked microphone is open.
+    @State private var microphoneBlocked = false
+    @AppStorage(Preference.chatSendKey) private var sendKey
+    @AppStorage(Preference.chatWritingTools) private var writingTools
+    @AppStorage(Preference.chatCheckSpelling) private var checksSpelling
+    @AppStorage(Preference.chatCorrectSpelling) private var correctsSpelling
+
+    /// The message `fire` wrote into the box to send it, so that the box does not take its pasted blocks for a message that came back and turn
+    /// them into cards again before the send has read it (the card stayed and nothing was sent).
+    @State private var fired: String?
+
+    /// Whether there is something to send: a text, or a pasted text when the session would take one.
+    private var ready: Bool { canSend || (pastes.contains { $0.text.allSatisfy(\.isWhitespace) == false } && canSendWithText == true) }
+
+    private var dictationPresentation: DictationPresentation? { dictation.presentation(for: dictationOwner) }
+
+    /// Whether Send may send: not while a dictation listens.
+    private var sendAllowed: Bool { dictationPresentation?.sendEnabled ?? true }
+
+    /// The word under the caret, while it is a slash and what is typed of a name.
+    var token: CommandToken? { commands.isEmpty ? nil : commandToken(in: text, cursor: cursor) }
+
+    /// The commands that word leads to.
+    var matches: [ChatCommand] {
+        guard let token, closedFor != token else { return [] }
+        return commandMatches(commands, query: token.query)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Tokens.Space.s10) {
+            VStack(alignment: .leading, spacing: Tokens.Space.s10) {
+                if matches.isEmpty == false {
+                    commandList
+                    Divider()
+                }
+                if pastes.isEmpty == false {
+                    VStack(alignment: .leading, spacing: Tokens.Space.s6) {
+                        ForEach(pastes) { pasted in
+                            PastedTextCard(
+                                text: pasted.text, summary: pasted.summary,
+                                edit: { edited in if let at = pastes.firstIndex(where: { $0.id == pasted.id }) { pastes[at].text = edited } },
+                                remove: { withAnimation(.smooth(duration: 0.2)) { pastes.removeAll { $0.id == pasted.id } } }
+                            )
+                                .transition(.scale(scale: 0.95, anchor: .top).combined(with: .opacity))
+                        }
+                    }
+                    .animation(.smooth(duration: 0.2), value: pastes)
+                }
+                if attachments.isEmpty == false {
+                    FlowLayout(spacing: Tokens.Space.s8) {
+                        ForEach(attachments) { file in
+                            AttachmentChip(file: file, remove: { discard(file) }, open: file.canPreview ? { previewing = file } : nil)
+                                .transition(.scale(scale: 0.9).combined(with: .opacity))
+                        }
+                    }
+                    .animation(.smooth(duration: 0.2), value: attachments)
+                    .attachmentPreview(of: attachments, showing: $previewing)
+                }
+                CommandTextView(
+                    text: $text, cursor: $cursor, tentative: tentative, dictated: dictated, focus: focus, placeholder: placeholder, minLines: minLines, commands: commands, onKey: handle, onTyped: { dictation.stop(ownedBy: dictationOwner) }, onFiles: attach, onFileDrag: { dropping = $0 }, onLargePaste: keep,
+                    sendKey: sendKey, writingTools: writingTools, checksSpelling: checksSpelling, correctsSpelling: correctsSpelling,
+                    textSize: textScale.percent
+                )
+                .onChange(of: text) { _, now in
+                    highlighted = 0
+                    // the message this box just put together to send is not one that came back: it goes, and its blocks stay blocks
+                    if now == fired {
+                        fired = nil
+                        return
+                    }
+                    // a message that came back (a refused send, a queued one taken back to edit) has its pasted texts in blocks: they are cards again
+                    guard now.contains("```pasted") else { return }
+                    let split = splitPastes(now)
+                    guard split.pastes.isEmpty == false else { return }
+                    withAnimation(.smooth(duration: 0.2)) { pastes += split.pastes.map { PastedEntry(text: $0) } }
+                    text = split.text
+                }
+                HStack(spacing: Tokens.Space.s8) {
+                    selects()
+                    Spacer(minLength: 0)
+                    if let caption = dictationPresentation?.caption {
+                        // the caption goes first when the row is tight
+                        ViewThatFits(in: .horizontal) {
+                            Text(caption).scaledFont(12).foregroundStyle(.secondary).lineLimit(1).fixedSize()
+                            Color.clear.frame(width: 0, height: 0)
+                        }
+                        .layoutPriority(-1)
+                    }
+                    if let meter { meter }
+                    if let presentation = dictationPresentation {
+                        DictationButton(presentation: presentation, level: dictation.level, action: dictate)
+                            // Escape from the microphone, which holds the focus when a keyboard user came to it, cancels what it listens to
+                            .onExitCommand { _ = dictation.cancel(ownedBy: dictationOwner) }
+                            .popover(isPresented: $microphoneBlocked, arrowEdge: .top) { blockedPopover }
+                    }
+                    button
+                }
+            }
+            .padding(.horizontal, Tokens.Space.s16).padding(.top, Tokens.Space.s14).padding(.bottom, Tokens.Space.s12)
+            // while it listens: the line with its arc that follows the voice, outside the box and under the text; a drop's veil makes it wait
+            .background {
+                if dictationEdgeShown(dictationPresentation, dropping: dropping) {
+                    DictationIndicator(levels: dictation.voice).transition(.opacity)
+                }
+            }
+            .animation(.smooth(duration: 0.2), value: dictationEdgeShown(dictationPresentation, dropping: dropping))
+            // glass: the conversation that scrolls under the box is blurred, not seen through it
+            // flat: a notch darker than the window (a lighter fill read as flat against it), so the box is where the eye goes
+            .chatSurface(flat: scheme == .dark ? Color.black.opacity(0.22) : Color.primary.opacity(0.07), in: RoundedRectangle(cornerRadius: Tokens.Radius.panel))
+            .overlay { if dropping { dropVeil } }
+            .offset(y: dropping ? -3 : 0)
+            .animation(.smooth(duration: 0.2), value: dropping)
+            .onDrop(of: [.fileURL, .image], isTargeted: $dropping) { drop($0) }
+            if let failure = dictation.session.failure(for: dictationOwner) {
+                ProblemNotice(title: Copy.chatDictationFailed(), detail: failure.cause, failed: true)
+            }
+        }
+        // switching session: the box of the one left stops listening and keeps what it heard
+        .onDisappear { dictation.stop(ownedBy: dictationOwner) }
+        .onChange(of: dictateRequest) {
+            focus.wrappedValue = true
+            dictate()
+        }
+    }
+
+    /// The click on the microphone: starts a dictation at the caret, or stops the one that listens.
+    private func dictate() {
+        let click = dictation.toggle(into: DictationField(
+            owner: dictationOwner, text: { text }, caret: { cursor },
+            put: { written, caret, range in
+                dictated = written
+                text = written
+                cursor = caret
+                tentative = range
+            }
+        ))
+        microphoneBlocked = click == .explainBlock
+    }
+
+    /// What a blocked microphone offers: the way to the Microphone pane of System Settings.
+    private var blockedPopover: some View {
+        VStack(alignment: .leading, spacing: Tokens.Space.s8) {
+            Text(MicrophoneBlockedPopover.title()).scaledFont(13, weight: .semibold)
+            Text(MicrophoneBlockedPopover.message()).scaledFont(12).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            Button(MicrophoneBlockedPopover.button()) {
+                MicrophoneAccess.openSystemSettings()
+                microphoneBlocked = false
+            }
+        }
+        .padding(Tokens.Space.s14).frame(width: 260, alignment: .leading)
+    }
+
+    /// What the box says while files are over it.
+    private var dropVeil: some View {
+        VStack(spacing: Tokens.Space.s3) {
+            Text(Copy.chatDropToAttach()).scaledFont(14, weight: .semibold)
+            Text(Copy.chatDropDetail()).scaledFont(12).foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(RoundedRectangle(cornerRadius: Tokens.Radius.panel).fill(.tint.opacity(0.16)))
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: Tokens.Radius.panel))
+        .overlay(RoundedRectangle(cornerRadius: Tokens.Radius.panel).strokeBorder(.tint, style: StrokeStyle(lineWidth: 1.5, dash: [6, 4])))
+        .allowsHitTesting(false)
+        .transition(.opacity)
+    }
+
+    /// A long pasted text waits beside the box as a card instead of filling it.
+    private func keep(_ pasted: String) -> Bool {
+        withAnimation(.smooth(duration: 0.2)) { pastes.append(PastedEntry(text: pasted)) }
+        focus.wrappedValue = true
+        return true
+    }
+
+    private var carrier: String { carrierFolder(environment: ProcessInfo.processInfo.environment, home: NSHomeDirectory()) }
+
+    /// What was dragged onto the box: files go as they are; a picture that comes only as data (a screenshot's thumbnail) is written to a file first.
+    private func drop(_ providers: [NSItemProvider]) -> Bool {
+        var taken = false
+        for provider in providers {
+            // a file of the Mac; a picture dragged from a web page also carries a web address, and goes by the other branch
+            if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
+                taken = true
+                _ = provider.loadObject(ofClass: URL.self) { url, _ in
+                    guard let url else { return }
+                    Task { @MainActor in _ = attach([url]) }
+                }
+            } else if let type = provider.registeredTypeIdentifiers.compactMap({ UTType($0) }).first(where: { $0.conforms(to: .image) }) {
+                taken = true
+                provider.loadDataRepresentation(forTypeIdentifier: type.identifier) { data, error in
+                    guard let data, let file = droppedImageFile(data, ext: type.preferredFilenameExtension ?? "png") else {
+                        NSLog("Carrier: a dropped picture could not be read: %@", String(describing: error))
+                        return
+                    }
+                    Task { @MainActor in
+                        _ = attach([file])
+                        try? FileManager.default.removeItem(at: file.deletingLastPathComponent())
+                    }
+                }
+            }
+        }
+        return taken
+    }
+
+    /// Dropped files become chips, the ones already there kept once. Only what is a file of the Mac counts, and each is copied into Carrier's own
+    /// folder at once, so the message keeps its file when the original is moved or deleted.
+    private func attach(_ urls: [URL]) -> Bool {
+        let fresh = urls.filter(\.isFileURL).filter { url in attachments.contains { $0.source == url.standardizedFileURL.path } == false }.map { attachedCopy(of: $0, carrierFolder: carrier) }
+        guard fresh.isEmpty == false else { return false }
+        withAnimation(.smooth(duration: 0.2)) { attachments += fresh }
+        focus.wrappedValue = true
+        return true
+    }
+
+    private func discard(_ file: AttachedFile) {
+        withAnimation(.smooth(duration: 0.2)) { attachments.removeAll { $0.id == file.id } }
+        discardAttachment(file, carrierFolder: carrier)
+    }
+
+    /// The keys of the text that mean something to the list while it is open; Enter takes the marked row, or sends.
+    private func handle(_ key: CommandTextView.Key) -> Bool {
+        let marked = matches.isEmpty ? nil : matches[min(highlighted, matches.count - 1)]
+        switch key {
+        case .send:
+            // Enter ends a dictation and does not send; the next one sends
+            if dictationPresentation?.sendEnabled == false { dictation.stop(ownedBy: dictationOwner) } else if let marked { take(marked) } else { fire() }
+        case .tab:
+            guard let marked else { return false }
+            take(marked)
+        case .up:
+            guard marked != nil else { return false }
+            highlighted = max(0, highlighted - 1)
+        case .down:
+            guard marked != nil else { return false }
+            highlighted = min(matches.count - 1, highlighted + 1)
+        case .escape:
+            // Escape first cancels a dictation, keeping the text that is there; with none, it closes the list of commands
+            if dictation.cancel(ownedBy: dictationOwner) { return true }
+            guard marked != nil else { return false }
+            closedFor = token
+        }
+        return true
+    }
+
+    /// A chosen command goes into the text in place of the word being typed, ready for what follows it.
+    func take(_ command: ChatCommand) {
+        guard let token else { return }
+        let taken = inserting(command, over: token, in: text)
+        text = taken.text
+        cursor = taken.cursor
+        focus.wrappedValue = true
+    }
+
+    /// Enter and the button: sends, and makes the arrow bounce when there is something to send.
+    private func fire() {
+        guard sendAllowed || busy else { return }
+        // a copy the host swept after a day is made again first; the chips take the new ones, and a file that cannot be had any more stops the send so its chip says so
+        if ready, attachments.isEmpty == false {
+            let fresh = refreshedCopies(attachments, carrierFolder: carrier)
+            let lost = lostInRefresh(attachments, fresh)
+            attachments = fresh
+            if lost { return }
+        }
+        if ready || busy { sent += 1 }
+        // the long texts go in blocks under what is typed, then the files as paths; both are taken out of the box once the message is on its way
+        if ready {
+            var message = messageWithPastes(text.trimmingCharacters(in: .whitespacesAndNewlines), pastes: pastes.map(\.text).filter { $0.allSatisfy(\.isWhitespace) == false })
+            if attachments.isEmpty == false { message = messageWithAttachments(message, files: attachments) }
+            if message != text {
+                fired = message
+                text = message
+            }
+            pastes = []
+            attachments = []
+        }
+        send()
+    }
+
+    /// A round glass button, tinted like the New session pill when there is something to send and plain when there is not; it gives under the
+    /// finger and springs back. The arrow becomes the Stop square while the agent answers and bounces up on a send.
+    @ViewBuilder private var button: some View {
+        let active = (ready && sendAllowed) || busy
+        let label = Glyph(busy ? .stopFilled : .arrowUp, size: busy ? 12 : 14, bold: true).foregroundStyle(active ? .white : .secondary)
+            .glyphKick(sent)
+            .frame(width: 32, height: 32)
+            .contentShape(Circle())
+        Button(action: busy ? stop : fire) { label }
+            .buttonStyle(.plain)
+            .chatSurface(active ? .regular.tint(theme.accentGlass).interactive() : .regular, flat: active ? theme.accentGlass : Color.primary.opacity(0.08), in: Circle())
+            .disabled(active == false)
+            .animation(.smooth(duration: 0.25), value: active)
+        .help(busy ? Copy.chatStop() : Copy.chatSendHelp(send: sendHelp, key: sendKey == .return ? "↩" : "⌘↩", newLine: sendKey == .return ? "⇧↩" : "↩")).accessibilityLabel(busy ? Copy.chatStop() : Copy.chatSend())
+    }
+}

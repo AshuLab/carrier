@@ -41,6 +41,8 @@ export const epics = sqliteTable(
     observationsPassAt: integer(), // ms since epoch, when the observations pass started (once per epic); null until then
     needsHumanReason: text(),
     needsHumanKind: text({ enum: needsHumanKinds }), // what kind of stop the reason is; set together with it
+    needsHumanCode: text(), // the text code of the reason and its parameters, set together with it; null on a stop from before the codes, which has its words only
+    needsHumanParams: text({ mode: 'json' }).$type<Record<string, string | number>>(),
     title: text(), // the issue's title and labels as the poll last read them
     labels: text({ mode: 'json' }).$type<string[]>(),
     branch: text(), // the final PR's branch, set when ship is validated

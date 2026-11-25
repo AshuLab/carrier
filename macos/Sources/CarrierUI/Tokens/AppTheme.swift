@@ -1,0 +1,103 @@
+import AppKit
+import CarrierCore
+import Observation
+import SwiftUI
+
+/// The theme in force, for the views to read while they draw (as `TextSize` does): the theme, the accent, the tint and the translucent
+/// windows of Settings, the color scheme that is showing and the system's Reduce transparency, all turned into `themeSurfaces`.
+@Observable public final class AppTheme {
+    public static let shared = AppTheme()
+
+    private(set) var surfaces = AppTheme.current()
+    @ObservationIgnored private var appearance: NSKeyValueObservation?
+
+    private init() {
+        let refresh = { [self] in
+            let now = Self.current()
+            if now != surfaces { surfaces = now }
+        }
+        // any change of the defaults: what Settings writes, and what Reset removes
+        NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification, object: nil, queue: .main) { _ in refresh() }
+        NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification, object: nil, queue: .main) { _ in refresh() }
+        // the Mac switching between light and dark while the color scheme is System
+        appearance = NSApplication.shared.observe(\.effectiveAppearance) { _, _ in DispatchQueue.main.async { refresh() } }
+    }
+
+    private static func current() -> ThemeSurfaces {
+        let preferences = AppPreferences()
+        let dark = switch preferences.colorScheme {
+        case .light: false
+        case .dark: true
+        case .system: NSApplication.shared.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+        }
+        return themeSurfaces(
+            preferences.theme, scheme: dark ? .dark : .light, accent: preferences.accent, tint: preferences.tint,
+            translucent: preferences.translucent(systemReducesTransparency: NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency)
+        )
+    }
+
+    /// The accent of the app's own views: the theme's, or the Mac's while the theme has none.
+    public var accent: Color { surfaces.accent.map(Color.init) ?? .accentColor }
+}
+
+extension Color {
+    public init(_ color: RGBA) { self.init(.sRGB, red: color.red, green: color.green, blue: color.blue, opacity: color.alpha) }
+
+    /// A semantic color of `design/tokens.json`: its light or its dark version, whichever the appearance in force is.
+    public init(_ pair: SchemePair<UInt32>) {
+        self.init(nsColor: NSColor(name: nil) { appearance in
+            let color = RGBA(hex: appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? pair.dark : pair.light)
+            return NSColor(srgbRed: color.red, green: color.green, blue: color.blue, alpha: color.alpha)
+        })
+    }
+
+    /// A color by hue, saturation and brightness: the dictation's, derived from the accent the person picked.
+    public init(_ hsb: HSB) { self.init(hue: hsb.hue, saturation: hsb.saturation, brightness: hsb.brightness) }
+
+    /// The color of the window under a view that has to blend into it (the halo behind the message box's selects): the theme's, or the
+    /// system's while the theme has none of its own (Carrier's translucent windows).
+    public static var themeWindow: Color {
+        let window = AppTheme.shared.surfaces.window
+        return window.alpha > 0 ? Color(window) : Color(nsColor: .windowBackgroundColor)
+    }
+}
+
+/// The disc behind the mark on the corner of an avatar (a role's, a session's): opaque, lighter than the dark windows and white in the light ones, with a
+/// ring that shows over a picture too. The window's color is not it: that one is translucent in some themes and the mark, the account's own icon or
+/// color, was lost against the picture.
+private struct AvatarCornerDisc: ViewModifier {
+    @Environment(\.colorScheme) private var scheme
+
+    func body(content: Content) -> some View {
+        content
+            .background(Circle().fill(scheme == .dark ? Color(white: 0.22) : Color.white))
+            .overlay(Circle().strokeBorder(Color.primary.opacity(0.3), lineWidth: 1))
+    }
+}
+
+/// `themed()` reads the theme in its own body, while the view draws, and not when it is applied: the Settings window is built once, and a color picked
+/// after that has to reach its switches and sliders (the system's controls take the `tint`, not a static color).
+private struct Themed: ViewModifier {
+    func body(content: Content) -> some View {
+        let surfaces = AppTheme.shared.surfaces
+        content
+            .modifier(PieceEnvironment())
+            .tint(surfaces.accent.map(Color.init))
+            .presentationBackground(surfaces.window.alpha > 0 ? AnyShapeStyle(Color(surfaces.window)) : AnyShapeStyle(.background))
+    }
+}
+
+extension View {
+    public func avatarCornerDisc() -> some View { modifier(AvatarCornerDisc()) }
+
+    /// The theme's accent and window color, with the text size and the `PieceTheme` the pieces read, on the root of a window or a sheet. A sheet is another window: it takes neither the accent nor
+    /// the color of the window it opens over. Carrier's translucent windows have no color of their own, so the sheet keeps the system's.
+    public func themed() -> some View { modifier(Themed()) }
+
+    /// The color the theme gives the windows, under the content and under the title bar, where a page that has the toolbar's band hidden
+    /// would otherwise show the system's grey.
+    public func themedWindowBackground() -> some View { background(Color(AppTheme.shared.surfaces.window), ignoresSafeAreaEdges: .all) }
+
+    /// The color the theme gives the sidebar, under the content.
+    public func themedSidebarBackground() -> some View { background(Color(AppTheme.shared.surfaces.sidebar)) }
+}

@@ -1,0 +1,1201 @@
+{
+  "account.harnessTakesOne": {
+    "params": {
+      "harness": "example"
+    }
+  },
+  "account.inUse": {
+    "params": {
+      "name": "example",
+      "uses": "example"
+    }
+  },
+  "account.missing": {
+    "params": {
+      "name": "example"
+    }
+  },
+  "account.taken": {
+    "params": {
+      "name": "example"
+    }
+  },
+  "agent.approval.answersNeeded": {
+    "params": {}
+  },
+  "agent.approval.choiceUnknown": {
+    "params": {}
+  },
+  "agent.approval.notPending": {
+    "params": {}
+  },
+  "agent.commandNotRunnable": {
+    "params": {
+      "agent": "example",
+      "command": "example"
+    }
+  },
+  "agent.effort.turning": {
+    "params": {}
+  },
+  "agent.launchArg.notFlag": {
+    "params": {
+      "entry": "example"
+    }
+  },
+  "agent.modelUnknown": {
+    "params": {
+      "agent": "example",
+      "model": "example",
+      "offers": "example"
+    }
+  },
+  "agent.modelsUnlisted": {
+    "params": {
+      "agent": "example",
+      "model": "example"
+    }
+  },
+  "agent.noRunner": {
+    "params": {
+      "harness": "example"
+    }
+  },
+  "agent.notFound": {
+    "params": {
+      "agent": "example"
+    }
+  },
+  "agent.notInstalled": {
+    "params": {
+      "agent": "Claude"
+    }
+  },
+  "agent.notLoggedIn": {
+    "params": {
+      "agent": "Claude"
+    }
+  },
+  "agent.option.unknown": {
+    "params": {
+      "option": "example"
+    }
+  },
+  "agent.option.valueUnknown": {
+    "params": {
+      "option": "example",
+      "value": "example"
+    }
+  },
+  "agent.resumeFailed": {
+    "params": {
+      "agent": "example"
+    }
+  },
+  "agent.signedOut": {
+    "params": {
+      "agent": "example"
+    }
+  },
+  "agent.startFailed": {
+    "params": {
+      "agent": "example"
+    }
+  },
+  "agent.unknown": {
+    "params": {
+      "agent": "example"
+    }
+  },
+  "config.invalid": {
+    "params": {}
+  },
+  "config.problem": {
+    "params": {
+      "path": "example",
+      "problem": "notJson"
+    }
+  },
+  "doctor.agyLoginUnknown": {
+    "params": {}
+  },
+  "doctor.agyNotRunnable": {
+    "params": {}
+  },
+  "doctor.commandNotRunnable": {
+    "params": {
+      "command": "example"
+    }
+  },
+  "doctor.fix.agentNotFound": {
+    "params": {}
+  },
+  "doctor.fix.command": {
+    "params": {
+      "provider": "example"
+    }
+  },
+  "doctor.fix.credentialsRejected": {
+    "params": {}
+  },
+  "doctor.fix.ghLogin": {
+    "params": {}
+  },
+  "doctor.fix.install": {
+    "params": {
+      "tool": "git"
+    }
+  },
+  "doctor.fix.installApp": {
+    "params": {
+      "owner": "example"
+    }
+  },
+  "doctor.fix.login": {
+    "params": {
+      "harness": "claude"
+    }
+  },
+  "doctor.fix.loginAgy": {
+    "params": {}
+  },
+  "doctor.fix.loginAt": {
+    "params": {
+      "configDir": "example",
+      "harness": "claude",
+      "variable": "example"
+    }
+  },
+  "doctor.fix.mintOther": {
+    "params": {
+      "agent": "example"
+    }
+  },
+  "doctor.fix.modelMissing": {
+    "params": {
+      "model": "example"
+    }
+  },
+  "doctor.fix.ownLabels": {
+    "params": {
+      "count": 2,
+      "epic": "example",
+      "labels": "example",
+      "ready": "example"
+    }
+  },
+  "doctor.fix.privateKey": {
+    "params": {}
+  },
+  "doctor.fix.repoNotVisible": {
+    "params": {
+      "owner": "example",
+      "repo": "example"
+    }
+  },
+  "doctor.fix.serverDown": {
+    "params": {}
+  },
+  "doctor.fix.skill": {
+    "params": {
+      "skill": "example"
+    }
+  },
+  "doctor.fix.skillUnread": {
+    "params": {}
+  },
+  "doctor.fix.socketPath": {
+    "params": {
+      "max": 2
+    }
+  },
+  "doctor.fix.solveSetup": {
+    "params": {}
+  },
+  "doctor.labelsMissing": {
+    "params": {
+      "count": "example",
+      "labels": "example"
+    }
+  },
+  "doctor.loginCheckFailedAt": {
+    "params": {
+      "configDir": "example",
+      "harness": "example"
+    }
+  },
+  "doctor.loginCheckFailedInEnvironment": {
+    "params": {
+      "harness": "example"
+    }
+  },
+  "doctor.loginMissing": {
+    "params": {}
+  },
+  "doctor.loginMissingAt": {
+    "params": {
+      "configDir": "example"
+    }
+  },
+  "doctor.loginMissingInEnvironment": {
+    "params": {}
+  },
+  "doctor.mintFailed": {
+    "params": {
+      "error": "example"
+    }
+  },
+  "doctor.modelNotDownloaded": {
+    "params": {
+      "have": "example"
+    }
+  },
+  "doctor.notOnPath": {
+    "params": {}
+  },
+  "doctor.readFailed": {
+    "params": {
+      "error": "example"
+    }
+  },
+  "doctor.serverNotAnswering": {
+    "params": {
+      "server": "example",
+      "url": "example"
+    }
+  },
+  "doctor.skillNotFound": {
+    "params": {
+      "harness": "example",
+      "role": "example"
+    }
+  },
+  "doctor.skillNotFoundDefault": {
+    "params": {
+      "harness": "example",
+      "role": "example"
+    }
+  },
+  "doctor.skillUnreadable": {
+    "params": {
+      "harness": "example"
+    }
+  },
+  "doctor.socketPathTooLong": {
+    "params": {
+      "bytes": 2,
+      "max": 2,
+      "path": "example"
+    }
+  },
+  "epic.stop.agentNeedsHuman": {
+    "params": {
+      "reason": "example"
+    }
+  },
+  "epic.stop.auth": {
+    "params": {
+      "detail": "example",
+      "profile": "example"
+    }
+  },
+  "epic.stop.authProfileRemoved": {
+    "params": {
+      "profile": "example"
+    }
+  },
+  "epic.stop.engineError": {
+    "params": {
+      "detail": "example"
+    }
+  },
+  "epic.stop.headChangedRepeatedly": {
+    "params": {
+      "pr": "example",
+      "times": 2
+    }
+  },
+  "epic.stop.leadCannotConclude": {
+    "params": {
+      "reason": "example"
+    }
+  },
+  "epic.stop.leadLimit": {
+    "params": {
+      "blockers": "example",
+      "limit": 2
+    }
+  },
+  "epic.stop.pullRequestHeadMismatch": {
+    "params": {
+      "found": "example",
+      "pr": "example",
+      "reported": "example"
+    }
+  },
+  "epic.stop.pullRequestMissing": {
+    "params": {
+      "pr": "example"
+    }
+  },
+  "epic.stop.pullRequestNotLinked": {
+    "params": {
+      "issue": "example",
+      "pr": "example"
+    }
+  },
+  "epic.stop.pullRequestNotOpen": {
+    "params": {
+      "pr": "example"
+    }
+  },
+  "epic.stop.retriesExhausted": {
+    "params": {
+      "attempts": 2,
+      "failure": "example",
+      "idle": 1,
+      "stage": "example"
+    }
+  },
+  "epic.stop.reviewLimit": {
+    "params": {
+      "cap": "example",
+      "round": "example"
+    }
+  },
+  "epic.stop.reviewersFailed": {
+    "params": {
+      "detail": "example",
+      "round": "example"
+    }
+  },
+  "epic.stop.reviewersNotAgreed": {
+    "params": {
+      "detail": "example",
+      "round": "example"
+    }
+  },
+  "epic.stop.skillMissing": {
+    "params": {}
+  },
+  "epic.stop.timeout": {
+    "params": {
+      "limit": "example",
+      "stage": "example"
+    }
+  },
+  "epic.stop.usageLimit": {
+    "params": {}
+  },
+  "epic.stop.usageLimitWakeRefused": {
+    "params": {
+      "cause": "serverError",
+      "detail": "example",
+      "issue": "example",
+      "option": "example",
+      "ranOut": "example",
+      "repo": "example",
+      "role": "example",
+      "runs": 2,
+      "stage": "example",
+      "why": "example"
+    }
+  },
+  "epic.stop.workspacePrepare": {
+    "params": {
+      "error": "example"
+    }
+  },
+  "epic.stop.worktreeListFailed": {
+    "params": {
+      "attempts": 2,
+      "error": "example",
+      "repo": "example"
+    }
+  },
+  "epic.stop.worktreeNotFound": {
+    "params": {
+      "branch": "example",
+      "repo": "example"
+    }
+  },
+  "epic.unknown": {
+    "params": {}
+  },
+  "execution.unknown": {
+    "params": {}
+  },
+  "fake.refused": {
+    "params": {}
+  },
+  "file.unknown": {
+    "params": {}
+  },
+  "folder.insideCarrier": {
+    "params": {
+      "folder": "example"
+    }
+  },
+  "folder.linkedWorktree": {
+    "params": {}
+  },
+  "folder.missing": {
+    "params": {}
+  },
+  "folder.notAbsolute": {
+    "params": {}
+  },
+  "folder.notDirectory": {
+    "params": {}
+  },
+  "folder.projectInsideCarrier": {
+    "params": {
+      "folder": "example"
+    }
+  },
+  "folder.projectsNotAbsolute": {
+    "params": {}
+  },
+  "folder.unreadable": {
+    "params": {}
+  },
+  "github.cliNotInstalled": {
+    "params": {}
+  },
+  "github.cliTimedOut": {
+    "params": {}
+  },
+  "github.noAnswer": {
+    "params": {}
+  },
+  "github.notSignedIn": {
+    "params": {}
+  },
+  "github.repoNotFound": {
+    "params": {
+      "repo": "example"
+    }
+  },
+  "github.timedOut": {
+    "params": {}
+  },
+  "github.unavailable": {
+    "params": {}
+  },
+  "github.unreachable": {
+    "params": {}
+  },
+  "history.noItem": {
+    "params": {}
+  },
+  "history.noSession": {
+    "params": {}
+  },
+  "project.cancelled": {
+    "params": {
+      "step": "clone"
+    }
+  },
+  "project.chatConfigInvalid": {
+    "params": {
+      "path": "example",
+      "problem": "example"
+    }
+  },
+  "project.clone.fileInvalid": {
+    "params": {
+      "folder": "example",
+      "path": "example",
+      "problem": "example",
+      "repo": "example"
+    }
+  },
+  "project.clone.folderFailed": {
+    "params": {
+      "repo": "example"
+    }
+  },
+  "project.clone.folderTaken": {
+    "params": {
+      "folder": "example",
+      "repo": "example"
+    }
+  },
+  "project.fileInvalid": {
+    "params": {
+      "path": "example",
+      "problem": "example"
+    }
+  },
+  "project.fileNotWritten": {
+    "params": {}
+  },
+  "project.gitFailed": {
+    "params": {
+      "repo": "example",
+      "step": "clone"
+    }
+  },
+  "project.initFailed": {
+    "params": {
+      "name": "example"
+    }
+  },
+  "project.missing": {
+    "params": {
+      "path": "example"
+    }
+  },
+  "project.nameInvalid": {
+    "params": {
+      "name": "example"
+    }
+  },
+  "project.nameTaken": {
+    "params": {
+      "name": "example"
+    }
+  },
+  "project.repoInvalid": {
+    "params": {
+      "repo": "example"
+    }
+  },
+  "project.repoTaken": {
+    "params": {
+      "repo": "example"
+    }
+  },
+  "project.timedOut": {
+    "params": {
+      "step": "clone"
+    }
+  },
+  "providers.accountMissing": {
+    "params": {
+      "account": "example",
+      "agent": "example"
+    }
+  },
+  "providers.accountNotOffered": {
+    "params": {
+      "account": "example",
+      "agent": "example"
+    }
+  },
+  "providers.engineNoAnswer": {
+    "params": {}
+  },
+  "providers.invalid": {
+    "params": {
+      "path": "example"
+    }
+  },
+  "providers.keyInvalid": {
+    "params": {
+      "path": "example"
+    }
+  },
+  "recover.agentAlive": {
+    "params": {}
+  },
+  "recover.engineUnavailable": {
+    "params": {}
+  },
+  "recover.notRunning": {
+    "params": {}
+  },
+  "recover.notStarted": {
+    "params": {}
+  },
+  "recover.nothingToRecover": {
+    "params": {}
+  },
+  "request.extraRounds": {
+    "params": {}
+  },
+  "request.internal": {
+    "params": {}
+  },
+  "request.invalid": {
+    "params": {}
+  },
+  "request.invalidJson": {
+    "params": {}
+  },
+  "request.tooLong": {
+    "params": {}
+  },
+  "resume.didNotRestart": {
+    "params": {}
+  },
+  "resume.extraRoundsNeedReviewLimit": {
+    "params": {}
+  },
+  "resume.extraRoundsNeedStage": {
+    "params": {}
+  },
+  "resume.noPullRequest": {
+    "params": {}
+  },
+  "resume.notStopped": {
+    "params": {}
+  },
+  "resume.optionUnknown": {
+    "params": {}
+  },
+  "resume.pullRequestHeadChanged": {
+    "params": {}
+  },
+  "resume.pullRequestNotOpen": {
+    "params": {}
+  },
+  "resume.roleUnknown": {
+    "params": {}
+  },
+  "session.action.failed": {
+    "params": {
+      "action": "example",
+      "output": "example"
+    }
+  },
+  "session.action.failedWithCode": {
+    "params": {
+      "action": "example",
+      "exitCode": "example",
+      "output": "example"
+    }
+  },
+  "session.agentRemoved": {
+    "params": {
+      "agent": "example"
+    }
+  },
+  "session.answering": {
+    "params": {}
+  },
+  "session.approval.choiceUnknown": {
+    "params": {
+      "choice": "example",
+      "offers": "example"
+    }
+  },
+  "session.approval.deliveryFailed": {
+    "params": {}
+  },
+  "session.approval.needsAnswers": {
+    "params": {}
+  },
+  "session.approval.noQuestions": {
+    "params": {}
+  },
+  "session.approval.notPending": {
+    "params": {}
+  },
+  "session.approval.questionUnknown": {
+    "params": {
+      "question": "example"
+    }
+  },
+  "session.busy": {
+    "params": {
+      "action": "example",
+      "state": "working"
+    }
+  },
+  "session.cancel.notPreparing": {
+    "params": {}
+  },
+  "session.child.cannotDelegate": {
+    "params": {}
+  },
+  "session.child.owned": {
+    "params": {
+      "action": "switchAgent"
+    }
+  },
+  "session.childBusy": {
+    "params": {
+      "action": "example",
+      "state": "working"
+    }
+  },
+  "session.childStarting": {
+    "params": {
+      "action": "archive"
+    }
+  },
+  "session.childTasksRunning": {
+    "params": {
+      "action": "archive",
+      "count": 2
+    }
+  },
+  "session.childrenLimit": {
+    "params": {
+      "limit": 2
+    }
+  },
+  "session.closed": {
+    "params": {}
+  },
+  "session.command.unknown": {
+    "params": {}
+  },
+  "session.delegation.offScale": {
+    "params": {}
+  },
+  "session.delegation.refused": {
+    "params": {}
+  },
+  "session.deleting": {
+    "params": {}
+  },
+  "session.deliveryFailed": {
+    "params": {}
+  },
+  "session.fetch.failed": {
+    "params": {}
+  },
+  "session.fetch.remoteGone": {
+    "params": {
+      "remote": "example"
+    }
+  },
+  "session.gone": {
+    "params": {}
+  },
+  "session.message.tooLong": {
+    "params": {
+      "length": 2,
+      "max": 2
+    }
+  },
+  "session.notice.actionWentOn": {
+    "params": {
+      "reason": "example",
+      "reasonCode": "example"
+    }
+  },
+  "session.notice.actionsNotRun": {
+    "params": {
+      "path": "example",
+      "problem": "example"
+    }
+  },
+  "session.notice.agentSwitched": {
+    "params": {
+      "from": "example",
+      "to": "example"
+    }
+  },
+  "session.notice.conversationLost": {
+    "params": {}
+  },
+  "session.notice.mcpNotStarted": {
+    "params": {}
+  },
+  "session.notice.mcpNotUsed": {
+    "params": {
+      "problem": "example"
+    }
+  },
+  "session.notice.projectNotAdded": {
+    "params": {
+      "folder": "example",
+      "reason": "example",
+      "reasonCode": "example"
+    }
+  },
+  "session.notice.startedFromFetched": {
+    "params": {
+      "reason": "example",
+      "reasonCode": "example",
+      "remote": "example"
+    }
+  },
+  "session.notice.startedFromLocal": {
+    "params": {
+      "behind": 2,
+      "branch": "example",
+      "reason": "example",
+      "reasonCode": "example",
+      "remote": "example"
+    }
+  },
+  "session.option.changeFailed": {
+    "params": {
+      "option": "example"
+    }
+  },
+  "session.option.unknown": {
+    "params": {
+      "offers": "example",
+      "option": "example"
+    }
+  },
+  "session.option.valueUnknown": {
+    "params": {
+      "offers": "example",
+      "option": "example",
+      "value": "example"
+    }
+  },
+  "session.parentGone": {
+    "params": {}
+  },
+  "session.preparationUnfinished": {
+    "params": {}
+  },
+  "session.preparing": {
+    "params": {
+      "action": "archive"
+    }
+  },
+  "session.restoreActionFailed": {
+    "params": {}
+  },
+  "session.restoreCancelled": {
+    "params": {}
+  },
+  "session.resumedMeanwhile": {
+    "params": {}
+  },
+  "session.retry.notFailed": {
+    "params": {}
+  },
+  "session.retry.preparing": {
+    "params": {}
+  },
+  "session.step.agentErrored": {
+    "params": {}
+  },
+  "session.step.agentNotStarted": {
+    "params": {}
+  },
+  "session.step.couldNotBeDone": {
+    "params": {
+      "step": "clone"
+    }
+  },
+  "session.step.interrupted": {
+    "params": {}
+  },
+  "session.step.messageNotDelivered": {
+    "params": {}
+  },
+  "session.step.projectNotMade": {
+    "params": {}
+  },
+  "session.step.worktreeNotBack": {
+    "params": {}
+  },
+  "session.switchAgent.archived": {
+    "params": {}
+  },
+  "session.switchAgent.archivedMeanwhile": {
+    "params": {}
+  },
+  "session.switchAgent.busy": {
+    "params": {
+      "state": "working"
+    }
+  },
+  "session.switchAgent.noTools": {
+    "params": {
+      "agent": "example",
+      "current": "example"
+    }
+  },
+  "session.switchAgent.preparing": {
+    "params": {}
+  },
+  "session.switchAgent.same": {
+    "params": {
+      "agent": "example"
+    }
+  },
+  "session.switching": {
+    "params": {}
+  },
+  "session.task.notRunning": {
+    "params": {}
+  },
+  "session.task.stopFailed": {
+    "params": {}
+  },
+  "session.task.stopUnsupported": {
+    "params": {}
+  },
+  "session.tasksRunning": {
+    "params": {
+      "action": "archive",
+      "count": 2
+    }
+  },
+  "session.unknown": {
+    "params": {}
+  },
+  "title.empty": {
+    "params": {}
+  },
+  "title.noGenerator": {
+    "params": {}
+  },
+  "title.noMessage": {
+    "params": {}
+  },
+  "title.writeAllFailed": {
+    "params": {}
+  },
+  "title.writeFailed": {
+    "params": {}
+  },
+  "usage.price.aliasEmpty": {
+    "params": {}
+  },
+  "usage.price.modelEmpty": {
+    "params": {}
+  },
+  "usage.price.ratesInvalid": {
+    "params": {}
+  },
+  "usage.probe.agyAnswerNotUnderstood": {
+    "params": {}
+  },
+  "usage.probe.agyNoJson": {
+    "params": {}
+  },
+  "usage.probe.agyNotFound": {
+    "params": {}
+  },
+  "usage.probe.agyNotRun": {
+    "params": {}
+  },
+  "usage.probe.agySignedOut": {
+    "params": {}
+  },
+  "usage.probe.claudeAnswerNotUnderstood": {
+    "params": {}
+  },
+  "usage.probe.claudeCredentialsEmpty": {
+    "params": {}
+  },
+  "usage.probe.claudeCredentialsUnreadable": {
+    "params": {}
+  },
+  "usage.probe.claudeKeychainDenied": {
+    "params": {}
+  },
+  "usage.probe.claudeLoginExpired": {
+    "params": {}
+  },
+  "usage.probe.claudeLoginExpiredRenews": {
+    "params": {}
+  },
+  "usage.probe.claudeLoginMissing": {
+    "params": {}
+  },
+  "usage.probe.codexEnded": {
+    "params": {}
+  },
+  "usage.probe.codexLimitsNotUnderstood": {
+    "params": {}
+  },
+  "usage.probe.codexNotFound": {
+    "params": {}
+  },
+  "usage.probe.codexRateLimited": {
+    "params": {}
+  },
+  "usage.probe.codexRefused": {
+    "params": {}
+  },
+  "usage.probe.codexSignedOut": {
+    "params": {}
+  },
+  "usage.probe.failed": {
+    "params": {}
+  },
+  "usage.probe.loginRefused": {
+    "params": {}
+  },
+  "usage.probe.noLocalServer": {
+    "params": {}
+  },
+  "usage.probe.providerError": {
+    "params": {
+      "status": "example"
+    }
+  },
+  "usage.probe.providerRateLimited": {
+    "params": {}
+  },
+  "usage.probe.providerUnavailable": {
+    "params": {
+      "status": "example"
+    }
+  },
+  "usage.probe.timedOut": {
+    "params": {}
+  },
+  "usage.probe.unreachable": {
+    "params": {}
+  },
+  "workspace.branchNotListed": {
+    "params": {}
+  },
+  "workspace.checkoutFailed": {
+    "params": {
+      "branch": "example"
+    }
+  },
+  "workspace.dirty": {
+    "params": {
+      "branch": "example",
+      "count": 2
+    }
+  },
+  "workspace.fetchFailed": {
+    "params": {}
+  },
+  "workspace.fetchStopped": {
+    "params": {}
+  },
+  "workspace.fetchTimedOut": {
+    "params": {}
+  },
+  "workspace.noOrigin": {
+    "params": {}
+  },
+  "workspace.noWorkingFolder": {
+    "params": {}
+  },
+  "workspace.notGit": {
+    "params": {}
+  },
+  "workspace.unreadable": {
+    "params": {}
+  },
+  "worktree.bare": {
+    "params": {}
+  },
+  "worktree.baseGone": {
+    "params": {}
+  },
+  "worktree.branchGone": {
+    "params": {
+      "branch": "example"
+    }
+  },
+  "worktree.branchMissing": {
+    "params": {}
+  },
+  "worktree.branchesUnreadable": {
+    "params": {}
+  },
+  "worktree.cleanedUp": {
+    "params": {}
+  },
+  "worktree.clearFailed": {
+    "params": {}
+  },
+  "worktree.createCancelled": {
+    "params": {}
+  },
+  "worktree.createFailed": {
+    "params": {}
+  },
+  "worktree.createTimedOut": {
+    "params": {}
+  },
+  "worktree.deleteBranchFailed": {
+    "params": {}
+  },
+  "worktree.folderNotRemoved": {
+    "params": {}
+  },
+  "worktree.folderShared": {
+    "params": {
+      "directory": "example",
+      "project": "example"
+    }
+  },
+  "worktree.listFailed": {
+    "params": {}
+  },
+  "worktree.name.badCharacters": {
+    "params": {}
+  },
+  "worktree.name.badStart": {
+    "params": {}
+  },
+  "worktree.name.branchExists": {
+    "params": {
+      "branch": "example"
+    }
+  },
+  "worktree.name.doubleDot": {
+    "params": {}
+  },
+  "worktree.name.empty": {
+    "params": {}
+  },
+  "worktree.name.endsWithDot": {
+    "params": {}
+  },
+  "worktree.name.endsWithLock": {
+    "params": {}
+  },
+  "worktree.name.folderExists": {
+    "params": {}
+  },
+  "worktree.name.remoteBranchExists": {
+    "params": {
+      "branch": "example"
+    }
+  },
+  "worktree.name.tooLong": {
+    "params": {
+      "max": 2
+    }
+  },
+  "worktree.namesTaken": {
+    "params": {
+      "tried": 2
+    }
+  },
+  "worktree.notGit": {
+    "params": {}
+  },
+  "worktree.notMade": {
+    "params": {}
+  },
+  "worktree.outsideFolder": {
+    "params": {}
+  },
+  "worktree.projectUnreadable": {
+    "params": {}
+  },
+  "worktree.removeFailed": {
+    "params": {}
+  },
+  "worktree.restoreFailed": {
+    "params": {}
+  },
+  "worktree.sessionOpen": {
+    "params": {}
+  },
+  "worktree.startNotListed": {
+    "params": {}
+  },
+  "worktree.uncommitted": {
+    "params": {}
+  },
+  "worktree.unknown": {
+    "params": {}
+  },
+  "worktree.unreadable": {
+    "params": {}
+  }
+}

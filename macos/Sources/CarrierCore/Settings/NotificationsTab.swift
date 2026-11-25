@@ -1,0 +1,132 @@
+import Foundation
+
+// The Notifications tab of Settings as plain values: the system permission as macOS says it (allowed with the style and the
+// sound it set, denied, not asked, or no bundle), the three kinds of notification and the one thing about how they show that is
+// the app's (not while its window is in front). Sound and banner style are macOS's, per app, in System Settings. The system's
+// notification centre is read through a protocol.
+
+extension AppPreferences {
+    /// The switches: needs attention and ready for test are on until the person turns them off, a problem is off until turned on; in Chat, needs attention is on and done is off. The
+    /// defaults are not registered here: an unset key reads as its default.
+    public var notificationKinds: NotificationKinds {
+        NotificationKinds(
+            needsYou: value(Preference.notifyNeedsYou),
+            readyForTest: value(Preference.notifyReadyForTest),
+            problem: value(Preference.notifyProblem),
+            chatNeedsAttention: value(Preference.notifyChatNeedsAttention),
+            chatDone: value(Preference.notifyChatDone)
+        )
+    }
+
+    /// No banner while the app's window is in front; on until turned off.
+    public var notifiesOnlyWhenAway: Bool { value(Preference.notifyOnlyWhenAway) }
+
+    /// The Dock icon shows the count of what needs a person; on until turned off.
+    public var showsDockBadge: Bool { value(Preference.notifyDockBadge) }
+
+    /// A banner plays a sound; on until turned off.
+    public var notifiesWithSound: Bool { value(Preference.notifySound) }
+
+    /// How long before a Needs attention that still stands notifies again; never until the person picks one, and a saved value that is not a choice reads as never.
+    public var reminderInterval: ReminderInterval { ReminderInterval(rawValue: value(Preference.notifyReminder)) ?? .never }
+
+    /// Quiet hours: off until turned on, from 22:00 to 08:00 until the person picks others.
+    public var quietHours: QuietHours {
+        QuietHours(enabled: value(Preference.notifyQuiet), start: value(Preference.notifyQuietStart), end: value(Preference.notifyQuietEnd))
+    }
+}
+
+/// The hours in which a notification is kept and not shown: `start` and `end` are minutes after midnight. The window may cross
+/// midnight (22:00 to 08:00); with equal start and end it is never quiet.
+public struct QuietHours: Equatable {
+    public static let defaultStart = 22 * 60
+    public static let defaultEnd = 8 * 60
+
+    public var enabled: Bool
+    public var start: Int
+    public var end: Int
+
+    public init(enabled: Bool = false, start: Int = defaultStart, end: Int = defaultEnd) {
+        self.enabled = enabled
+        self.start = start
+        self.end = end
+    }
+
+    /// Whether `date` is inside the hours, read on the clock of `calendar`. The start is in and the end is out.
+    public func contains(_ date: Date, calendar: Calendar = .current) -> Bool {
+        guard enabled, start != end else { return false }
+        let parts = calendar.dateComponents([.hour, .minute], from: date)
+        let minute = (parts.hour ?? 0) * 60 + (parts.minute ?? 0)
+        return start < end ? (start <= minute && minute < end) : (minute >= start || minute < end)
+    }
+}
+
+/// Whether a banner shows: always the test and the notices marked `always`, and anything else unless the person asked for none while the app
+/// is in front and it is.
+public func shouldPresent(onlyWhenAway: Bool, appIsActive: Bool, isTest: Bool, always: Bool = false) -> Bool {
+    isTest || always || (onlyWhenAway && appIsActive) == false
+}
+
+/// How macOS shows this app's notifications, and whether it plays the sound.
+public struct NotificationDelivery: Equatable {
+    public enum Style: Equatable { case banners, alerts, none }
+
+    public var style: Style
+    public var soundOn: Bool
+
+    public init(style: Style, soundOn: Bool) {
+        self.style = style
+        self.soundOn = soundOn
+    }
+}
+
+/// What the system says about this app's notifications.
+public enum SystemNotificationAnswer: Equatable {
+    case allowed(NotificationDelivery), denied, notAsked
+}
+
+/// What the tab shows. `noBundle` is the app run outside `Carrier.app` (`swift run`), where the centre must not be touched.
+public enum NotificationPermission: Equatable {
+    case allowed(NotificationDelivery), denied, notAsked, noBundle
+
+    public func text(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch self {
+        case .allowed(let delivery):
+            Copy.notificationsAllowed(state: Self.allowedState(delivery), bundle: bundle, locale: locale)
+        case .denied: Copy.notificationsDenied(bundle: bundle, locale: locale)
+        case .notAsked: Copy.notificationsNotAsked(bundle: bundle, locale: locale)
+        case .noBundle: Copy.notificationsNoBundle(bundle: bundle, locale: locale)
+        }
+    }
+
+    private static func allowedState(_ delivery: NotificationDelivery) -> Copy.NotificationsAllowed {
+        switch (delivery.style, delivery.soundOn) {
+        case (.none, _): .none
+        case (.banners, true): .bannersOn
+        case (.banners, false): .bannersOff
+        case (.alerts, true): .alertsOn
+        case (.alerts, false): .alertsOff
+        }
+    }
+
+    /// Why "Send a test" would show nothing; nil when it will, or when pressing it is what asks.
+    public func testAdvice(bundle: Bundle? = nil, locale: Locale = .current) -> String? {
+        switch self {
+        case .denied: Copy.notificationsAdviceDenied(bundle: bundle, locale: locale)
+        case .allowed(let delivery) where delivery.style == .none: Copy.notificationsAdviceNone(bundle: bundle, locale: locale)
+        default: nil
+        }
+    }
+}
+
+/// The permission to show: without a bundle identifier the reader is never asked.
+public func readPermission(bundleIdentifier: String?, reader: NotificationPermissionReader, done: @escaping (NotificationPermission) -> Void) {
+    guard bundleIdentifier != nil else { return done(.noBundle) }
+    reader.read { answer in
+        switch answer {
+        case .allowed(let delivery): done(.allowed(delivery))
+        case .denied: done(.denied)
+        case .notAsked: done(.notAsked)
+        }
+    }
+}

@@ -117,6 +117,32 @@ private func decodedSession(_ extra: String, state: String = "idle", live: Bool 
     #expect(back[0].orderedAt == base.addingTimeInterval(900))
 }
 
+@Test func theClockOfASessionCountsItsCurrentTurnAlone() {
+    let base = Date(timeIntervalSince1970: 1_000_000)
+    func row(_ state: SessionState, at seconds: Double, background: [BackgroundTask] = []) -> SessionRow {
+        SessionRow(id: "a", title: "a", workspace: "w", agent: "a", state: state, updatedAt: base.addingTimeInterval(seconds), background: background)
+    }
+    var keeper = WorkingOrder()
+    func since(_ state: SessionState, at seconds: Double, background: [BackgroundTask] = []) -> Date? {
+        var rows = [row(state, at: seconds, background: background)]
+        keeper.apply(to: &rows)
+        return rows[0].workingSince
+    }
+    #expect(since(.working, at: 0) == base)
+    #expect(since(.working, at: 30) == base)
+    // it waits for the person and goes on: the same turn
+    #expect(since(.waiting, at: 40) == nil)
+    #expect(since(.working, at: 50) == base)
+    // the turn ended while it waits for what it started, and a new turn begins: the clock starts again
+    let task = [BackgroundTask(id: "t", kind: "local_bash", description: "pnpm build")]
+    #expect(since(.idle, at: 100, background: task) == base)
+    #expect(since(.working, at: 500, background: task) == base.addingTimeInterval(500))
+    #expect(since(.working, at: 520, background: task) == base.addingTimeInterval(500))
+    // it stopped while its row was not drawn, and works again: not the old start
+    #expect(since(.idle, at: 600) == nil)
+    #expect(since(.working, at: 900) == base.addingTimeInterval(900))
+}
+
 @Test func theListsOrderAndBucketASessionByItsPlaceWhileItWorks() {
     let calendar = Calendar(identifier: .gregorian)
     let now = Date(timeIntervalSince1970: 1_800_000_000)
@@ -200,7 +226,7 @@ private func decodedSession(_ extra: String, state: String = "idle", live: Bool 
     let rows = sessionRows([try session("turn", state: "working"), try session("subagents", state: "working")], bundle: english.bundle, locale: english.locale)
     #expect(rows.map(\.state) == [.working, .working])
     let row = rows[1]
-    #expect(WorkingClock().since(row) == row.updatedAt)
+    #expect(row.workingSince == row.updatedAt)
     #expect(archiveBlock(row, bundle: english.bundle, locale: english.locale) == "Stop the session to archive it")
     let menu = sessionMenu(row, bundle: english.bundle, locale: english.locale).flatMap { $0 }
     #expect(menu.first { $0.title == "Archive" }?.disabledReason == "Stop the session to archive it")

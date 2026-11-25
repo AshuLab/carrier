@@ -32,7 +32,7 @@ struct ToolbarPillButton: View {
                 if badge > 0 {
                     Text("\(badge)").scaledFont(10, weight: .semibold).monospacedDigit().foregroundStyle(.white)
                         .padding(.horizontal, Tokens.Space.s6).padding(.vertical, Tokens.Space.s1).background(Capsule().fill(.tint))
-                        .accessibilityLabel("\(badge) filters applied")
+                        .accessibilityLabel(Copy.pieceFiltersApplied(count: badge))
                 }
             }
             .padding(.horizontal, Tokens.Space.s12).frame(height: Self.height)
@@ -127,13 +127,13 @@ struct ToolbarSearchField: View {
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
-                .help("Close search (Esc)")
-                .accessibilityLabel("Close search")
+                .help(Copy.pieceCloseSearchHelp())
+                .accessibilityLabel(Copy.pieceCloseSearch())
             }
             .padding(.horizontal, Tokens.Space.s12)
             .frame(width: 220, height: ToolbarPillButton.height)
         } else {
-            ToolbarPillButton(title: "Search", icon: .search) {
+            ToolbarPillButton(title: Copy.pieceSearch(), icon: .search) {
                 query = ""
                 focused.wrappedValue = true
             }

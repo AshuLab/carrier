@@ -187,7 +187,7 @@ Use for: an action inside a `NoticeCard`, in the card's own colour. Not for: a b
 
 ### CheckButton
 Kind: Buttons · File: `macos/Sources/Carrier/UI/Buttons/CheckButton.swift` · Web: `<CheckButton>`
-Takes: `skin` (toolbar, capsule or text), `title`, `phase` (idle, checking, done, failed), `action`.
+Takes: `skin` (toolbar, capsule or text), `title` (nil says the piece's own "Check again"; a screen passes its own), `phase` (idle, checking, done, failed), `action`. The words of the three other faces are copy keys of the piece (`pieceChecking`, `pieceUpToDate`, `pieceCheckFailed`).
 States: idle; checking (the arrows turn); done; failed; the text skin.
 Use for: the button that asks again, wherever the app has one (Check again, Check now). Not for: a button that does anything else.
 

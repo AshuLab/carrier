@@ -39,7 +39,7 @@ final class SystemNotificationCentre: NSObject, NotificationCentre, Notification
     func sendTest() {
         denied = false
         let quiet = AppPreferences().quietHours.contains(Date())
-        post([EpicNotification(title: "Carrier test", body: "Notifications work", isTest: true, sound: AppPreferences().notifiesWithSound && quiet == false, quiet: quiet)])
+        post([testNotification(sound: AppPreferences().notifiesWithSound && quiet == false, quiet: quiet)])
     }
 
     /// Takes the clicks on notifications, also those of ones shown before the app was last started. Needs a bundle.

@@ -49,12 +49,48 @@ public struct NotificationKinds: Equatable {
     }
 }
 
-private func needsAttention(_ epic: PanelEpic) -> EpicNotification {
-    EpicNotification(title: "\(epic.repo) #\(epic.issue) needs attention", body: epic.shownNeedsHumanReason() ?? "It stopped and waits for a person", epic: EpicRef(repo: epic.repo, issue: epic.issue))
+private func needsAttention(_ epic: PanelEpic, bundle: Bundle?, locale: Locale) -> EpicNotification {
+    let title = Copy.notificationEpicNeedsAttentionTitle(repo: epic.repo, issue: String(epic.issue), bundle: bundle, locale: locale)
+    let body = epic.shownNeedsHumanReason(bundle: bundle, locale: locale) ?? Copy.notificationEpicNeedsAttentionBody(bundle: bundle, locale: locale)
+    return EpicNotification(title: title, body: body, epic: EpicRef(repo: epic.repo, issue: epic.issue))
 }
 
-private func needsAttention(_ row: SessionRow) -> EpicNotification {
-    EpicNotification(title: "\(row.title) needs attention", body: "It waits for an approval", session: row.id)
+private func needsAttention(_ row: SessionRow, bundle: Bundle?, locale: Locale) -> EpicNotification {
+    let title = Copy.notificationSessionNeedsAttentionTitle(title: row.title, bundle: bundle, locale: locale)
+    return EpicNotification(title: title, body: Copy.notificationSessionNeedsAttentionBody(bundle: bundle, locale: locale), session: row.id)
+}
+
+/// The one Settings sends from "Send a test": it shows even while the window is in front.
+public func testNotification(sound: Bool, quiet: Bool, bundle: Bundle? = nil, locale: Locale = .current) -> EpicNotification {
+    EpicNotification(
+        title: Copy.notificationTestTitle(bundle: bundle, locale: locale), body: Copy.notificationTestBody(bundle: bundle, locale: locale),
+        isTest: true, sound: sound, quiet: quiet
+    )
+}
+
+private func stoppedNotification(bundle: Bundle?, locale: Locale) -> EpicNotification {
+    EpicNotification(title: Copy.notificationStoppedTitle(bundle: bundle, locale: locale), body: Copy.notificationStoppedBody(bundle: bundle, locale: locale))
+}
+
+private func doneNotification(_ row: SessionRow, bundle: Bundle?, locale: Locale) -> EpicNotification {
+    EpicNotification(
+        title: Copy.notificationChatDoneTitle(title: row.title, bundle: bundle, locale: locale), body: Copy.notificationChatDoneBody(bundle: bundle, locale: locale),
+        session: row.id
+    )
+}
+
+private func readyNotification(_ epic: PanelSnapshot.DoneEpic, bundle: Bundle?, locale: Locale) -> EpicNotification {
+    let title = Copy.notificationReadyTitle(repo: epic.repo, issue: String(epic.issue), bundle: bundle, locale: locale)
+    let body = epic.prNumber.map { Copy.notificationReadyBodyPullRequest(number: String($0), bundle: bundle, locale: locale) }
+        ?? Copy.notificationReadyBodyDone(bundle: bundle, locale: locale)
+    return EpicNotification(title: title, body: body, epic: EpicRef(repo: epic.repo, issue: epic.issue))
+}
+
+private func refusedNotification(_ watched: PanelSnapshot.Watched, bundle: Bundle?, locale: Locale) -> EpicNotification {
+    EpicNotification(
+        title: Copy.notificationRefusedTitle(repo: watched.repo, bundle: bundle, locale: locale),
+        body: watched.error ?? Copy.notificationRefusedBody(bundle: bundle, locale: locale)
+    )
 }
 
 /// How long a Needs attention waits before it notifies again; the person's choice in Settings.
@@ -81,14 +117,16 @@ public func remindersDue(needing: Set<String>, lastNotified: [String: Date], eve
 /// The notifications that `new` earns against `previous`, the chat sessions listed before and now: a live session that was working
 /// and now waits for an approval (Needs attention) or is idle (Done). A session `previous` did not list, an archived one and any
 /// other change say nothing; with no `previous` it only seeds. A kind whose switch is off in `kinds` is not notified.
-public func chatNotifications(from previous: [SessionRow]?, to new: [SessionRow], kinds: NotificationKinds = NotificationKinds()) -> [EpicNotification] {
+public func chatNotifications(
+    from previous: [SessionRow]?, to new: [SessionRow], kinds: NotificationKinds = NotificationKinds(), bundle: Bundle? = nil, locale: Locale = .current
+) -> [EpicNotification] {
     guard let previous else { return [] }
     let before = Dictionary(previous.map { ($0.id, $0.state) }, uniquingKeysWith: { first, _ in first })
     return new.compactMap { row in
         guard row.archived == false, before[row.id] == .working else { return nil }
         switch row.state {
-        case .waiting where kinds.chatNeedsAttention: return needsAttention(row)
-        case .idle where kinds.chatDone: return EpicNotification(title: "\(row.title) is done", body: "The agent finished its turn", session: row.id)
+        case .waiting where kinds.chatNeedsAttention: return needsAttention(row, bundle: bundle, locale: locale)
+        case .idle where kinds.chatDone: return doneNotification(row, bundle: bundle, locale: locale)
         default: return nil
         }
     }
@@ -105,25 +143,27 @@ public func dockBadgeCount(snapshot: PanelSnapshot?, sessions: [SessionRow]) -> 
 /// A problem is the snapshot's own text when it appears or changes, and a watched repo that GitHub refuses now and did not
 /// before; both compare with `previous`, so each is said once, until it goes away and comes back. A kind whose switch is off in
 /// `kinds` is not notified.
-public func notifications(from previous: PanelSnapshot?, to new: PanelSnapshot, kinds: NotificationKinds = NotificationKinds()) -> [EpicNotification] {
+public func notifications(
+    from previous: PanelSnapshot?, to new: PanelSnapshot, kinds: NotificationKinds = NotificationKinds(), bundle: Bundle? = nil, locale: Locale = .current
+) -> [EpicNotification] {
     guard let previous else { return [] }
     let neededAPerson = Set(previous.epics.filter { $0.status == .needsHuman }.map { EpicKey(repo: $0.repo, issue: $0.issue) })
     let wasReady = Set(previous.done.map { EpicKey(repo: $0.repo, issue: $0.issue) })
 
     let needsAPerson = new.epics
         .filter { $0.status == .needsHuman && neededAPerson.contains(EpicKey(repo: $0.repo, issue: $0.issue)) == false }
-        .map(needsAttention)
+        .map { needsAttention($0, bundle: bundle, locale: locale) }
     let ready = new.done
         .filter { wasReady.contains(EpicKey(repo: $0.repo, issue: $0.issue)) == false }
-        .map { EpicNotification(title: "\($0.repo) #\($0.issue) is ready for test", body: $0.prNumber.map { "Pull request #\($0)" } ?? "Its work is done", epic: EpicRef(repo: $0.repo, issue: $0.issue)) }
+        .map { readyNotification($0, bundle: bundle, locale: locale) }
 
     var problems: [EpicNotification] = []
     if let text = new.problem, text != previous.problem {
-        problems.append(EpicNotification(title: "Carrier has a problem", body: text))
+        problems.append(EpicNotification(title: Copy.notificationProblemTitle(bundle: bundle, locale: locale), body: text))
     }
     let refused = Set((previous.watched ?? []).filter { $0.ok == false }.map(\.repo))
     for watched in new.watched ?? [] where watched.ok == false && refused.contains(watched.repo) == false {
-        problems.append(EpicNotification(title: "\(watched.repo) was refused by GitHub", body: watched.error ?? "GitHub refused it"))
+        problems.append(refusedNotification(watched, bundle: bundle, locale: locale))
     }
     return (kinds.needsYou ? needsAPerson : []) + (kinds.readyForTest ? ready : []) + (kinds.problem ? problems : [])
 }
@@ -148,6 +188,8 @@ public final class NotificationWatcher {
     private let showsBadge: () -> Bool
     private let setBadge: (Int) -> Void
     private let reminder: () -> ReminderInterval
+    private let bundle: Bundle?
+    private let locale: Locale
     private var previous: PanelSnapshot?
     private var previousSessions: [SessionRow]?
     /// When each item that needs attention (by key) last notified, or was first seen needing it.
@@ -157,7 +199,7 @@ public final class NotificationWatcher {
         centre: NotificationCentre, kinds: @escaping () -> NotificationKinds = { NotificationKinds() },
         sound: @escaping () -> Bool = { true }, quietHours: @escaping () -> QuietHours = { QuietHours() },
         showsBadge: @escaping () -> Bool = { true }, setBadge: @escaping (Int) -> Void = { _ in },
-        reminder: @escaping () -> ReminderInterval = { .never }, now: @escaping () -> Date = Date.init
+        reminder: @escaping () -> ReminderInterval = { .never }, now: @escaping () -> Date = Date.init, bundle: Bundle? = nil, locale: Locale = .current
     ) {
         self.centre = centre
         self.kinds = kinds
@@ -167,6 +209,8 @@ public final class NotificationWatcher {
         self.setBadge = setBadge
         self.reminder = reminder
         self.now = now
+        self.bundle = bundle
+        self.locale = locale
     }
 
     /// Every banner plays a sound, or none does, as the switch says when it is posted; inside the quiet hours all are quiet and
@@ -190,7 +234,7 @@ public final class NotificationWatcher {
 
     /// The chat sessions the host lists now, whether or not the window is open. The first list only seeds.
     public func react(toSessions sessions: [SessionRow]) {
-        let due = chatNotifications(from: previousSessions, to: sessions, kinds: kinds())
+        let due = chatNotifications(from: previousSessions, to: sessions, kinds: kinds(), bundle: bundle, locale: locale)
         previousSessions = sessions
         refreshBadge()
         if due.isEmpty == false { post(due) }
@@ -202,10 +246,10 @@ public final class NotificationWatcher {
         let kinds = kinds()
         var found: [String: EpicNotification] = [:]
         if kinds.needsYou {
-            for epic in previous?.epics ?? [] where epic.status == .needsHuman { found["epic \(epic.repo)#\(epic.issue)"] = needsAttention(epic) }
+            for epic in previous?.epics ?? [] where epic.status == .needsHuman { found["epic \(epic.repo)#\(epic.issue)"] = needsAttention(epic, bundle: bundle, locale: locale) }
         }
         if kinds.chatNeedsAttention {
-            for row in previousSessions ?? [] where row.state == .waiting && row.archived == false { found["session \(row.id)"] = needsAttention(row) }
+            for row in previousSessions ?? [] where row.state == .waiting && row.archived == false { found["session \(row.id)"] = needsAttention(row, bundle: bundle, locale: locale) }
         }
         return found
     }
@@ -234,7 +278,7 @@ public final class NotificationWatcher {
                 let asked = expectedStopUntil.map { now() < $0 } ?? false
                 expectedStopUntil = nil
                 if asked == false, kinds().problem {
-                    post([EpicNotification(title: "Carrier stopped", body: "It stopped without being asked. Open the app to start it again.")])
+                    post([stoppedNotification(bundle: bundle, locale: locale)])
                 }
             }
             previous = nil
@@ -242,7 +286,7 @@ public final class NotificationWatcher {
             track()
             return
         }
-        let due = notifications(from: previous, to: snapshot, kinds: kinds())
+        let due = notifications(from: previous, to: snapshot, kinds: kinds(), bundle: bundle, locale: locale)
         previous = snapshot
         refreshBadge()
         if due.isEmpty == false { post(due) }

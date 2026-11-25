@@ -12064,4 +12064,196 @@ public enum Copy {
     public static func noticesGallerySampleEpicFailedSheet(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         String(localized: "noticesGallerySampleEpicFailedSheet", bundle: bundle ?? carrierResources, locale: locale)
     }
+
+    public static func pieceCheckAgain(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "pieceCheckAgain", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func pieceChecking(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "pieceChecking", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func pieceUpToDate(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "pieceUpToDate", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func pieceCheckFailed(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "pieceCheckFailed", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func pieceFiltersApplied(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "pieceFiltersApplied \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func pieceSearch(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "pieceSearch", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func pieceCloseSearch(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "pieceCloseSearch", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func pieceCloseSearchHelp(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "pieceCloseSearchHelp", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func pieceCopyCode(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "pieceCopyCode", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func pieceFoldShowLess(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "pieceFoldShowLess", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func pieceFoldShowMore(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "pieceFoldShowMore \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func pieceChosen(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "pieceChosen", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func piecePullRequest(number: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "piecePullRequest \(number)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func pieceCopyDetails(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "pieceCopyDetails", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func pieceCopied(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "pieceCopied", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func pieceTryAgain(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "pieceTryAgain", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func pieceClear(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "pieceClear", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func pieceClearSearch(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "pieceClearSearch", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func pieceBrandDevelopment(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "pieceBrandDevelopment", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func pieceDevMode(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "pieceDevMode", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func piecePreview(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "piecePreview", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func pieceProgress(done: Int, total: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "pieceProgress \(done) \(total)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func pieceNumberLess(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "pieceNumberLess", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func pieceNumberMore(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "pieceNumberMore", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func pieceTitleWriting(title: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "pieceTitleWriting \(title)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func jsonMessageSlice(slice: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "jsonMessageSlice \(slice)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func jsonMessageSliceNumber(number: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "jsonMessageSliceNumber \(number)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func jsonMessagePullRequestNumber(number: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "jsonMessagePullRequestNumber \(number)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func jsonMessagePullRequest(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "jsonMessagePullRequest", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func fixtureSampleUserMessage(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "fixtureSampleUserMessage", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func fixtureSampleAgentMessage(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "fixtureSampleAgentMessage", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func dictationFailFixtureNoMicrophone(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "dictationFailFixtureNoMicrophone", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func notificationEpicNeedsAttentionTitle(repo: String, issue: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "notificationEpicNeedsAttentionTitle \(repo) \(issue)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func notificationEpicNeedsAttentionBody(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "notificationEpicNeedsAttentionBody", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func notificationSessionNeedsAttentionTitle(title: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "notificationSessionNeedsAttentionTitle \(title)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func notificationSessionNeedsAttentionBody(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "notificationSessionNeedsAttentionBody", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func notificationChatDoneTitle(title: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "notificationChatDoneTitle \(title)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func notificationChatDoneBody(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "notificationChatDoneBody", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func notificationReadyTitle(repo: String, issue: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "notificationReadyTitle \(repo) \(issue)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func notificationReadyBodyPullRequest(number: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "notificationReadyBodyPullRequest \(number)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func notificationReadyBodyDone(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "notificationReadyBodyDone", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func notificationProblemTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "notificationProblemTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func notificationRefusedTitle(repo: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "notificationRefusedTitle \(repo)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func notificationRefusedBody(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "notificationRefusedBody", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func notificationStoppedTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "notificationStoppedTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func notificationStoppedBody(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "notificationStoppedBody", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func notificationTestTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "notificationTestTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func notificationTestBody(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "notificationTestBody", bundle: bundle ?? carrierResources, locale: locale)
+    }
 }

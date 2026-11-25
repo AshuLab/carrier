@@ -95,6 +95,7 @@ public struct DictationFailure: Error, Equatable, Sendable {
         case appleStopped(String)
         case appleCouldNotConvert
         case cannotDownload(String)
+        case fixtureNoMicrophone
 
         public func words(bundle: Bundle? = nil, locale: Locale = .current) -> String {
             switch self {
@@ -116,6 +117,7 @@ public struct DictationFailure: Error, Equatable, Sendable {
             case .appleStopped(let detail): Copy.dictationFailAppleStopped(detail: detail, bundle: bundle, locale: locale)
             case .appleCouldNotConvert: Copy.dictationFailAppleCouldNotConvert(bundle: bundle, locale: locale)
             case .cannotDownload(let model): Copy.dictationFailCannotDownload(model: model, bundle: bundle, locale: locale)
+            case .fixtureNoMicrophone: Copy.dictationFailFixtureNoMicrophone(bundle: bundle, locale: locale)
             }
         }
     }

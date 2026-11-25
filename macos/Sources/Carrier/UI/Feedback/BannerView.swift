@@ -26,10 +26,10 @@ struct BannerView: View {
                         try? await Task.sleep(for: .seconds(1.3))
                         copied = false
                     }
-                } label: { Label(copied ? "Copied" : "Copy details", icon: copied ? .check : .copy) }
+                } label: { Label(copied ? Copy.pieceCopied() : Copy.pieceCopyDetails(), icon: copied ? .check : .copy) }
                     .buttonStyle(NoticeActionStyle(quiet: true))
             }
-            if let retry { Button(action: retry) { Label("Try again", icon: .refresh) }.buttonStyle(NoticeActionStyle()) }
+            if let retry { Button(action: retry) { Label(Copy.pieceTryAgain(), icon: .refresh) }.buttonStyle(NoticeActionStyle()) }
         }
     }
 }

@@ -19,6 +19,6 @@ struct RollingTitle: View {
         .modifier(Shimmer(active: waiting && reduceMotion == false))
         .animation(.smooth(duration: 0.45), value: text)
         .animation(.easeOut(duration: 0.25), value: waiting)
-        .accessibilityLabel(waiting ? "\(text), writing a new title" : text)
+        .accessibilityLabel(waiting ? Copy.pieceTitleWriting(title: text) : text)
     }
 }

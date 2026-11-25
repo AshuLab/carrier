@@ -97,6 +97,10 @@ private func count(daysAgo: Int, words: Int, dictations: Int = 1, seconds: Doubl
         (.appleCouldNotConvert, "Apple's speech recognition could not convert the audio of the microphone.", "El reconocimiento de voz de Apple no pudo convertir el audio del micrófono."),
         (.cannotDownload("Apple"), "This build cannot download Apple.", "Esta compilación no puede descargar Apple."),
         (
+            .fixtureNoMicrophone, "No microphone is available: the fixture is set to fail.",
+            "No hay ningún micrófono disponible: el reconocedor de prueba está configurado para fallar."
+        ),
+        (
             .microphoneBlocked, "macOS has the microphone blocked for Carrier. Allow it in System Settings, then dictate again.",
             "macOS tiene el micrófono bloqueado para Carrier. Permítelo en Ajustes del Sistema y vuelve a dictar."
         ),

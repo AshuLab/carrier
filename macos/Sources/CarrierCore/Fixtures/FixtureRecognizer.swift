@@ -35,7 +35,7 @@ public struct FixtureRecognizer: Recognizer {
 
     public func prepare(_ model: SpeechModel) async throws {
         try await sleep(.seconds(1.2))
-        if mode == .failsToStart { throw DictationFailure("No microphone is available: the fixture is set to fail.") }
+        if mode == .failsToStart { throw DictationFailure(.fixtureNoMicrophone) }
     }
 
     public func release() async {}

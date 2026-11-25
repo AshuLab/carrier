@@ -117,13 +117,13 @@ rm -f /tmp/check-structure-gallery.$$
 #   Sources/Carrier/Features/Usage, Sources/CarrierCore/Usage  the Usage area: the page, the consumption view and the context button
 #   Sources/Carrier/Features/Settings, Sources/CarrierCore/Settings  the Settings area: its window, sidebar, search and every page, in the views and in the core, and the two fixture galleries
 #   Sources/CarrierCore/Fixtures/PiecesGalleryData.swift  the data of the pieces gallery
-# Left for the steps that finish them (COPY_LATER, matched by path; each leaves this list when its step makes the file's texts keys):
-#   Sources/CarrierCore/Settings/Notifications.swift  the titles and bodies of the notifications Carrier posts, done with the pieces and the support
-COPY_AREAS=(Sources/Carrier/Features/Dictation Sources/CarrierCore/Dictation Sources/Carrier/Platform/AppleRecognizer.swift Sources/Carrier/Platform/FluidAudioRecognizer.swift
-  Sources/Carrier/Platform/WhisperKitRecognizer.swift Sources/Carrier/Platform/MicrophoneCapture.swift Sources/Carrier/Features/Usage Sources/CarrierCore/Usage
-  Sources/Carrier/Features/Settings Sources/CarrierCore/Settings Sources/CarrierCore/Fixtures/PiecesGalleryData.swift)
-COPY_LATER=(Sources/CarrierCore/Settings/Notifications.swift)
-find "${COPY_AREAS[@]}" -name '*.swift' | sort | grep -vxF "$(printf '%s\n' "${COPY_LATER[@]}")" |
+#   Sources/Carrier/UI, Sources/Carrier/Platform  the pieces and the platform's one text, the test notification (the recognizers' sentences are `DictationFailure` reasons)
+#   Sources/CarrierCore/Support  the words the support builds (`JSONMessage`'s labels; `TimeText`'s and the formatters' are done with the app shell)
+#   Sources/CarrierCore/Fixtures/ConversationSample.swift, FixtureRecognizer.swift  the three sentences the app itself says under --fixture
+COPY_AREAS=(Sources/Carrier/Features/Dictation Sources/CarrierCore/Dictation Sources/Carrier/Features/Usage Sources/CarrierCore/Usage
+  Sources/Carrier/Features/Settings Sources/CarrierCore/Settings Sources/CarrierCore/Fixtures/PiecesGalleryData.swift Sources/Carrier/UI Sources/Carrier/Platform
+  Sources/CarrierCore/Support Sources/CarrierCore/Fixtures/ConversationSample.swift Sources/CarrierCore/Fixtures/FixtureRecognizer.swift)
+find "${COPY_AREAS[@]}" -name '*.swift' | sort |
   while IFS= read -r file; do
     perl -0777 -ne '
       my $inner = qr/(?:[^()]|\((?:[^()]|\((?:[^()]|\([^()]*\))*\))*\))*/;

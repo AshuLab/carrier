@@ -17,6 +17,6 @@ struct SegmentedProgress: View {
             }
         }
         .accessibilityElement()
-        .accessibilityLabel("\(done) of \(total)")
+        .accessibilityLabel(Copy.pieceProgress(done: done, total: total))
     }
 }

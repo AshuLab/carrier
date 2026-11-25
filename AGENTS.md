@@ -20,7 +20,7 @@ pnpm only (never npm or yarn). Node 26 runs the TypeScript directly.
 
 A Carrier is usually working on this machine while you change this one: the installed engine, the chat host and the app may be live.
 
-- Never `pkill -f`, `pgrep | kill` or `kill` a PID found by matching a name or a path: the installed Carrier's processes have the same names (`carrier`, `carrier chat-host`).
+- Never `pkill -f`, `pgrep | kill` or `kill` a PID found by matching a name or a path: the installed Carrier's processes have the same names (`carrier-engine`, `carrier-chat-host`).
   Kill only a PID you captured when you started it.
 - `chat` and `usage` leave a chat host running in the background when the command ends, and `start` leaves an engine.
   Stop what you started, by its PID, before you finish.

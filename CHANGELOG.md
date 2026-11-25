@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- The engine and the chat host have their own process names, `carrier-engine` and `carrier-chat-host`, in `ps` and Activity Monitor instead of `node`, so they can be told from any other node process.
+  `pgrep -fl carrier` still finds both; `ps` no longer shows their arguments, such as `--config`.
 - `carrier config` changes a setting of the Carrier folder from a script or the Mac app: it reads one request as a line of JSON on standard input (`{"cmd":"editChatSettings","changes":{"idleCloseMinutes":30}}`), hands it to the chat host when one answers and otherwise writes `chat.json` itself with the same code, and prints the reply as one line of JSON.
   It exits 0 when it saved, 1 when it refused (the value is left as it was) and 2 when standard input is not a request.
   The Sessions page of Settings saves the two ages, "Start from" and "Sleep after" through it.

@@ -102,7 +102,7 @@ cp .build/checkouts/argmax-oss-swift/LICENSE .build/checkouts/argmax-oss-swift/N
 cp .build/checkouts/libghostty-spm/LICENSE "$LICENSES/libghostty-spm/LICENSE"
 cp .build/checkouts/DisplayLink/LICENSE "$LICENSES/DisplayLink/LICENSE"
 cp ../THIRD-PARTY-NOTICES.md "$LICENSES/THIRD-PARTY-NOTICES.md"
-# CFBundleLocalizations lists `en` alone: declaring `es` turns macOS's own texts Spanish at once, so it waits until every copy key has its Spanish words
+# CFBundleLocalizations declares en and es: the app follows the language macOS gives it (no language setting of its own), and macOS's own texts turn Spanish with it
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -122,7 +122,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 <key>NSHighResolutionCapable</key><true/>
 <key>NSPrincipalClass</key><string>NSApplication</string>
 <key>NSMicrophoneUsageDescription</key><string>$MIC_USAGE</string>
-<key>CFBundleLocalizations</key><array><string>en</string></array>
+<key>CFBundleLocalizations</key><array><string>en</string><string>es</string></array>
 <key>NSHumanReadableCopyright</key><string>Copyright © 2026 AshuLab</string>
 $UPDATER
 </dict></plist>

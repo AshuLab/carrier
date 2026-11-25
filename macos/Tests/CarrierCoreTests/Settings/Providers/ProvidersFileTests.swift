@@ -233,6 +233,11 @@ private let base = Data(#"{"future":1,"providers":{"claude":{"harness":"claude",
     #expect(accountUses(config: config, chat: chat)["claude"] == [.role(.author), .chatAgent("x")])
 }
 
+@Test func aNewAccountNameIsALowercaseWordOfAtMostFortyCharacters() {
+    for name in ["a", "claude-work", "a1-b2", String(repeating: "a", count: 40)] { #expect(nameProblem(name) == nil, "\(name)") }
+    for name in ["", "Work", "1work", "a_b", "a b", "-a", String(repeating: "a", count: 41), "é"] { #expect(nameProblem(name)?.hasPrefix("Name must be") == true, "\(name)") }
+}
+
 @Test func aConfigFolderThatIsNotAbsoluteIsTakenFromTheHomeFolderAndTheOthersStayAsTheyAre() {
     #expect(normalizedConfigDir("work") == "~/work" && normalizedConfigDir("./work") == "~/work" && normalizedConfigDir("  .claude-work ") == "~/.claude-work")
     #expect(normalizedConfigDir("/srv/claude") == "/srv/claude" && normalizedConfigDir("~/x") == "~/x" && normalizedConfigDir("~") == "~" && normalizedConfigDir("") == "")

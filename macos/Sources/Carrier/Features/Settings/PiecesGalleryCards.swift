@@ -8,7 +8,7 @@ struct PiecesGalleryCards: View {
     private let wide: CGFloat = 520
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 22) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s22) {
             GalleryEntry("NoticeCard") {
                 GalleryState(.info) { notice(.blue, .info, detail: true).frame(width: wide) }
                 GalleryState(.warning) { notice(.orange, .exclamation, detail: true).frame(width: wide) }
@@ -30,14 +30,14 @@ struct PiecesGalleryCards: View {
             }
             GalleryEntry("OverviewCard", "OverviewTitle") {
                 GalleryState(.normal) {
-                    VStack(alignment: .leading, spacing: 6) {
+                    VStack(alignment: .leading, spacing: Tokens.Space.s6) {
                         OverviewTitle(title: sample(.group))
                         overview(wide: false)
                     }
                     .frame(width: 320)
                 }
                 GalleryState(.withDetail) {
-                    VStack(alignment: .leading, spacing: 6) {
+                    VStack(alignment: .leading, spacing: Tokens.Space.s6) {
                         OverviewTitle(title: sample(.group), detail: sample(.tag))
                         overview(wide: true)
                     }
@@ -78,10 +78,10 @@ struct PiecesGalleryCards: View {
                 GalleryState(.folded) { CodeBlockView(language: "swift", code: PiecesGalleryData.longCode).frame(width: 520) }
             }
             GalleryEntry("HoverCard") {
-                GalleryState(.normal) { Text(sample(.row)).padding(8).background(Color.primary.opacity(0.07), in: Capsule()).hoverCard { Text(sample(.detail)).padding(12).frame(width: 240) } }
+                GalleryState(.normal) { Text(sample(.row)).padding(Tokens.Space.s8).background(Color.primary.opacity(0.07), in: Capsule()).hoverCard { Text(sample(.detail)).padding(Tokens.Space.s12).frame(width: 240) } }
             }
             GalleryEntry("WorkCard") {
-                GalleryState(.normal) { Text(sample(.detail)).padding(12).frame(width: 320, alignment: .leading).workCard() }
+                GalleryState(.normal) { Text(sample(.detail)).padding(Tokens.Space.s12).frame(width: 320, alignment: .leading).workCard() }
             }
         }
     }

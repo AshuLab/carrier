@@ -16,14 +16,14 @@ struct AboutTabView: View {
 
     /// The app's mark, its name and version, and the links of the About panel under them.
     private var identity: some View {
-        HStack(alignment: .center, spacing: 16) {
+        HStack(alignment: .center, spacing: Tokens.Space.s16) {
             Image(nsImage: NSApp.applicationIconImage).resizable().frame(width: 64, height: 64).accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 8) {
-                VStack(alignment: .leading, spacing: 1) {
+            VStack(alignment: .leading, spacing: Tokens.Space.s8) {
+                VStack(alignment: .leading, spacing: Tokens.Space.s1) {
                     Text("Carrier").font(.scaled(17, weight: .semibold))
                     Text("Version \(version)").font(.scaled(12)).foregroundStyle(.secondary).textSelection(.enabled)
                 }
-                HStack(spacing: 8) {
+                HStack(spacing: Tokens.Space.s8) {
                     ForEach(aboutLinks, id: \.title) { link in
                         Button { NSWorkspace.shared.open(link.url) } label: { Label(link.title, icon: .arrowUpRight) }
                             .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
@@ -32,7 +32,7 @@ struct AboutTabView: View {
             }
             Spacer(minLength: 0)
         }
-        .padding(.vertical, 16).frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, Tokens.Space.s16).frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var thisCarrierDetail: String {
@@ -42,7 +42,7 @@ struct AboutTabView: View {
 
     @ViewBuilder private var thisCarrierAction: some View {
         if let action = updater.flow.phase.settingsAction {
-            HStack(spacing: 10) {
+            HStack(spacing: Tokens.Space.s10) {
                 if action.working { ProgressView().controlSize(.mini).frame(width: 16, height: 16).accessibilityLabel("Updating") }
                 Button { updater.press() } label: { Label(action.title, icon: action.symbol) }
                     .buttonStyle(PrimaryCapsuleButtonStyle()).disabled(action.working)
@@ -82,7 +82,7 @@ struct AboutTabView: View {
             }
             SettingsGroup(id: "engine", title: "Engine") {
                 SettingsTabRow(id: "engine-and-chat-host", title: "Engine and chat host", detail: engine.line, first: true) {
-                    HStack(spacing: 10) {
+                    HStack(spacing: Tokens.Space.s10) {
                         switch engine {
                         case .running: ProgressView().controlSize(.mini).frame(width: 16, height: 16).accessibilityLabel("Updating")
                         case .upToDate, .updated: StatusMark(symbol: .check, color: .green, label: "Up to date")
@@ -98,7 +98,7 @@ struct AboutTabView: View {
                 if let notice = engine.notice {
                     Text(notice.line).font(.system(.callout, design: .monospaced)).foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading).textSelection(.enabled).copyOnHover(notice.line)
-                        .padding(.vertical, 10)
+                        .padding(.vertical, Tokens.Space.s10)
                 }
             }
         }

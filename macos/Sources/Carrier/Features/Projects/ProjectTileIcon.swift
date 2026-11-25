@@ -6,14 +6,14 @@ extension ProjectColor {
     /// Muted hues chosen to match `ProjectIcon.palette` so white initials and marks keep readable contrast in both light and dark appearances.
     var color: Color {
         switch self {
-        case .red: Color(hue: 0.98, saturation: 0.56, brightness: 0.64)
-        case .orange: Color(hue: 0.06, saturation: 0.60, brightness: 0.62)
-        case .yellow: Color(hue: 0.125, saturation: 0.56, brightness: 0.52)
-        case .green: Color(hue: 0.375, saturation: 0.54, brightness: 0.51)
-        case .teal: Color(hue: 0.47, saturation: 0.54, brightness: 0.52)
-        case .blue: Color(hue: 0.61, saturation: 0.56, brightness: 0.64)
-        case .purple: Color(hue: 0.76, saturation: 0.52, brightness: 0.64)
-        case .pink: Color(hue: 0.90, saturation: 0.52, brightness: 0.64)
+        case .red: Color(Tokens.ProjectColor.red)
+        case .orange: Color(Tokens.ProjectColor.orange)
+        case .yellow: Color(Tokens.ProjectColor.yellow)
+        case .green: Color(Tokens.ProjectColor.green)
+        case .teal: Color(Tokens.ProjectColor.teal)
+        case .blue: Color(Tokens.ProjectColor.blue)
+        case .purple: Color(Tokens.ProjectColor.purple)
+        case .pink: Color(Tokens.ProjectColor.pink)
         }
     }
 }

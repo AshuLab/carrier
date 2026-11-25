@@ -8,7 +8,7 @@ struct SettingsNoteView: View {
     let ask: () -> Void
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: Tokens.Space.s10) {
             Group {
                 switch note.tone {
                 case .problem: Label(note.text, icon: .warningFilled).foregroundStyle(.orange)

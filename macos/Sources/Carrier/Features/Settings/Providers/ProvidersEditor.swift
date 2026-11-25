@@ -94,8 +94,8 @@ struct AccountEditor: View {
                         }
                         field("Launch arguments", "launchArgs", "One per line, added to the ones Carrier passes") {
                             TextEditor(text: $draft.launchArgs).font(.scaled(11.5, design: .monospaced))
-                                .scrollContentBackground(.hidden).padding(4)
-                                .background(RoundedRectangle(cornerRadius: 6).fill(Color.secondary.opacity(0.12)))
+                                .scrollContentBackground(.hidden).padding(Tokens.Space.s4)
+                                .background(RoundedRectangle(cornerRadius: Tokens.Radius.small).fill(Color.secondary.opacity(0.12)))
                                 // the size goes last, around the padding, so the row grows with the box and the box does not spill over its neighbours
                                 .frame(width: Self.controlWidth, height: 70)
                         }
@@ -151,10 +151,10 @@ struct AccountEditor: View {
 
     /// The icon or the color as it is now and a button that opens its choices in a popover, so the form is not three screens tall.
     private func pickerButton(_ kind: Picking) -> some View {
-        HStack(spacing: 10) {
+        HStack(spacing: Tokens.Space.s10) {
             if kind == .icon {
                 iconGlyph(draft.icon).foregroundStyle(draft.color?.color ?? Color.primary).frame(width: 28, height: 28)
-                    .background(RoundedRectangle(cornerRadius: 8).fill(Color.secondary.opacity(0.12)))
+                    .background(RoundedRectangle(cornerRadius: Tokens.Radius.control).fill(Color.secondary.opacity(0.12)))
             } else if let color = draft.color {
                 Circle().fill(color.color).frame(width: 18, height: 18)
             } else {
@@ -164,7 +164,7 @@ struct AccountEditor: View {
                 .accessibilityLabel(kind == .icon ? "Change the icon" : "Change the color")
                 .accessibilityValue(kind == .icon ? iconName(draft.icon) : draft.color?.rawValue.capitalized ?? "None")
                 .popover(isPresented: Binding(get: { picking == kind }, set: { if $0 == false { picking = nil } }), arrowEdge: .bottom) {
-                    Group { if kind == .icon { iconPicker } else { colorPicker } }.padding(14)
+                    Group { if kind == .icon { iconPicker } else { colorPicker } }.padding(Tokens.Space.s14)
                 }
         }
     }
@@ -180,8 +180,8 @@ struct AccountEditor: View {
                 let on = draft.icon == choice
                 Button { draft.icon = choice } label: {
                     iconGlyph(choice).foregroundStyle(tint).frame(width: Self.tile, height: Self.tile)
-                        .background(RoundedRectangle(cornerRadius: 8).fill(Color.secondary.opacity(0.12)))
-                        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.accentColor, lineWidth: on ? 2 : 0))
+                        .background(RoundedRectangle(cornerRadius: Tokens.Radius.control).fill(Color.secondary.opacity(0.12)))
+                        .overlay(RoundedRectangle(cornerRadius: Tokens.Radius.control).strokeBorder(Color.themeAccent, lineWidth: on ? 2 : 0))
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain).help(iconName(choice)).accessibilityLabel(iconName(choice)).accessibilityAddTraits(on ? .isSelected : [])
@@ -233,7 +233,7 @@ struct AccountEditor: View {
                     Circle().strokeBorder(Color.secondary, lineWidth: 1.5).overlay(Glyph(.ban, size: 9).foregroundStyle(.secondary))
                 }
             }
-            .frame(width: 20, height: 20).padding(5)
+            .frame(width: 20, height: 20).padding(Tokens.Space.s5)
             .overlay(Circle().strokeBorder(Color.primary, lineWidth: 2).opacity(on ? 1 : 0))
             .frame(width: Self.tile, height: Self.tile)
         }

@@ -6,25 +6,25 @@ struct ThemeGallery: View {
     @Binding var theme: Theme
 
     var body: some View {
-        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3), spacing: 10) {
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: Tokens.Space.s10), count: 3), spacing: Tokens.Space.s10) {
             ForEach(Theme.allCases, id: \.self) { option in
                 Button { theme = option } label: {
-                    VStack(spacing: 8) {
-                        HStack(spacing: 6) {
+                    VStack(spacing: Tokens.Space.s8) {
+                        HStack(spacing: Tokens.Space.s6) {
                             ThemePreview(theme: option, scheme: .light)
                             ThemePreview(theme: option, scheme: .dark)
                         }
                         Text(option.title).font(.scaled(12))
                     }
-                    .padding(8).frame(maxWidth: .infinity)
-                    .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(option == theme ? Color.themeAccent : Color.secondary.opacity(0.2), lineWidth: option == theme ? 2 : 1))
-                    .contentShape(RoundedRectangle(cornerRadius: 12))
+                    .padding(Tokens.Space.s8).frame(maxWidth: .infinity)
+                    .overlay(RoundedRectangle(cornerRadius: Tokens.Radius.card).strokeBorder(option == theme ? Color.themeAccent : Color.secondary.opacity(0.2), lineWidth: option == theme ? 2 : 1))
+                    .contentShape(RoundedRectangle(cornerRadius: Tokens.Radius.card))
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(option.title).accessibilityAddTraits(option == theme ? .isSelected : [])
             }
         }
-        .padding(.vertical, 12)
+        .padding(.vertical, Tokens.Space.s12)
     }
 }
 
@@ -38,33 +38,33 @@ private struct ThemePreview: View {
         let surfaces = themeSurfaces(theme, scheme: scheme, translucent: false)
         let accent = surfaces.accent.map(Color.init) ?? .accentColor
         let ink = scheme == .dark ? Color.white : Color.black
-        HStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 5) {
+        HStack(spacing: Tokens.Space.none) {
+            VStack(alignment: .leading, spacing: Tokens.Space.s5) {
                 Capsule().fill(ink.opacity(0.25)).frame(width: 14, height: 3)
-                RoundedRectangle(cornerRadius: 2).fill(accent.opacity(0.35)).frame(height: 8)
+                RoundedRectangle(cornerRadius: Tokens.Radius.tiny).fill(accent.opacity(0.35)).frame(height: 8)
                 Capsule().fill(ink.opacity(0.2)).frame(width: 18, height: 3)
                 Capsule().fill(ink.opacity(0.2)).frame(width: 14, height: 3)
                 Spacer(minLength: 0)
             }
-            .padding(6).frame(width: 34).background(Color(surfaces.sidebar))
-            VStack(alignment: .leading, spacing: 6) {
+            .padding(Tokens.Space.s6).frame(width: 34).background(Color(surfaces.sidebar))
+            VStack(alignment: .leading, spacing: Tokens.Space.s6) {
                 Capsule().fill(ink.opacity(0.4)).frame(width: 28, height: 4)
-                VStack(alignment: .leading, spacing: 3) {
+                VStack(alignment: .leading, spacing: Tokens.Space.s3) {
                     Capsule().fill(ink.opacity(0.22)).frame(height: 3)
                     Capsule().fill(ink.opacity(0.22)).frame(width: 34, height: 3)
                 }
-                .padding(5).frame(maxWidth: .infinity, alignment: .leading)
-                .background(RoundedRectangle(cornerRadius: 4).fill(ink.opacity(0.07)))
+                .padding(Tokens.Space.s5).frame(maxWidth: .infinity, alignment: .leading)
+                .background(RoundedRectangle(cornerRadius: Tokens.Radius.tiny).fill(ink.opacity(0.07)))
                 Spacer(minLength: 0)
-                HStack(spacing: 4) {
+                HStack(spacing: Tokens.Space.s4) {
                     Capsule().fill(ink.opacity(0.12)).frame(height: 8)
                     Capsule().fill(accent).frame(width: 14, height: 8)
                 }
             }
-            .padding(6).frame(maxWidth: .infinity).background(Color(surfaces.window))
+            .padding(Tokens.Space.s6).frame(maxWidth: .infinity).background(Color(surfaces.window))
         }
-        .frame(height: 84).clipShape(RoundedRectangle(cornerRadius: 8))
-        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.secondary.opacity(0.3), lineWidth: 0.5))
+        .frame(height: 84).clipShape(RoundedRectangle(cornerRadius: Tokens.Radius.control))
+        .overlay(RoundedRectangle(cornerRadius: Tokens.Radius.control).strokeBorder(Color.secondary.opacity(0.3), lineWidth: 0.5))
         .accessibilityHidden(true)
     }
 }

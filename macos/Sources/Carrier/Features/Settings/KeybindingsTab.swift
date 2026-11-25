@@ -32,7 +32,7 @@ struct KeybindingsTabView: View {
         let clash = combo.flatMap { table.clash(of: $0, for: command) }
         let text = recording == command ? "Press the keys…" : combo?.text ?? "None"
         return SettingsTabRow(id: command.rawValue, title: command.title, detail: "Default: \(command.defaultCombo?.text ?? "none")", first: first) {
-            HStack(spacing: 8) {
+            HStack(spacing: Tokens.Space.s8) {
                 if let refused, refused.command == command {
                     Label("\(refused.combo.text) is the system's", icon: .warningFilled).font(.scaled(11)).foregroundStyle(.orange)
                 } else if let clash {
@@ -102,11 +102,11 @@ private struct KeyCapButtonStyle: ButtonStyle {
         @State private var hovered = false
 
         var body: some View {
-            let shape = RoundedRectangle(cornerRadius: 8, style: .continuous)
+            let shape = RoundedRectangle(cornerRadius: Tokens.Radius.control, style: .continuous)
             configuration.label
                 .font(.scaled(12, weight: .semibold, design: .monospaced))
                 .foregroundStyle(recording ? Color.themeAccent : empty ? Color.secondary : Color.primary)
-                .frame(minWidth: 96).padding(.horizontal, 10).padding(.vertical, 5)
+                .frame(minWidth: 96).padding(.horizontal, Tokens.Space.s10).padding(.vertical, Tokens.Space.s5)
                 .background(shape.fill(Color.primary.opacity(configuration.isPressed ? 0.16 : hovered || recording ? 0.12 : 0.08)))
                 .overlay { if recording { shape.strokeBorder(Color.themeAccent, lineWidth: 1.5) } }
                 .contentShape(shape)

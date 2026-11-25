@@ -52,7 +52,7 @@ struct ProjectTagChip: View {
     let remove: () -> Void
 
     var body: some View {
-        HStack(spacing: 5) {
+        HStack(spacing: Tokens.Space.s5) {
             Text(tag).font(.scaled(12, weight: .medium)).lineLimit(1).truncationMode(.tail)
             Button(action: remove) {
                 Glyph(.close, size: 9, bold: true).foregroundStyle(.secondary)
@@ -60,7 +60,7 @@ struct ProjectTagChip: View {
             }
             .buttonStyle(.plain).help("Remove \(tag)").accessibilityLabel("Remove tag \(tag)")
         }
-        .padding(.leading, 10).padding(.trailing, 5).padding(.vertical, 3)
+        .padding(.leading, Tokens.Space.s10).padding(.trailing, Tokens.Space.s5).padding(.vertical, Tokens.Space.s3)
         .background(Capsule().fill(Color.primary.opacity(0.07)))
     }
 }
@@ -80,8 +80,8 @@ struct ProjectIconPopover: View {
     private var grid: [GridItem] { Array(repeating: GridItem(.fixed(Self.tile), spacing: Self.gap), count: Self.columns) }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s12) {
+            VStack(alignment: .leading, spacing: Tokens.Space.s6) {
                 HStack {
                     Text("Color").sectionLabel()
                     Spacer(minLength: 8)
@@ -95,7 +95,7 @@ struct ProjectIconPopover: View {
                         let name = choice.rawValue.capitalized
                         Button { setColor(on ? nil : choice) } label: {
                             Circle().fill(choice.color)
-                                .frame(width: 20, height: 20).padding(5)
+                                .frame(width: 20, height: 20).padding(Tokens.Space.s5)
                                 .overlay(Circle().strokeBorder(Color.primary, lineWidth: 2).opacity(on ? 1 : 0))
                                 .frame(width: Self.tile, height: Self.tile)
                                 .contentShape(Rectangle())
@@ -104,7 +104,7 @@ struct ProjectIconPopover: View {
                     }
                 }
             }
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: Tokens.Space.s6) {
                 Text("Mark").sectionLabel()
                 let tint = (hasImage ? nil : selectedColor)?.color ?? Color.primary
                 LazyVGrid(columns: grid, alignment: .leading, spacing: Self.gap) {
@@ -114,8 +114,8 @@ struct ProjectIconPopover: View {
                         Button { setMark(on ? nil : choice) } label: {
                             Glyph(choice, size: 15).foregroundStyle(tint)
                                 .frame(width: Self.tile, height: Self.tile)
-                                .background(RoundedRectangle(cornerRadius: 8).fill(Color.secondary.opacity(0.12)))
-                                .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.accentColor, lineWidth: on ? 2 : 0))
+                                .background(RoundedRectangle(cornerRadius: Tokens.Radius.control).fill(Color.secondary.opacity(0.12)))
+                                .overlay(RoundedRectangle(cornerRadius: Tokens.Radius.control).strokeBorder(Color.themeAccent, lineWidth: on ? 2 : 0))
                                 .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain).help(name).accessibilityLabel(name).accessibilityAddTraits(on ? .isSelected : [])

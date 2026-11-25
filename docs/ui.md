@@ -29,6 +29,42 @@ They hold for every front-end; the sections after the catalog say how the Mac ap
 - **Under the pointer a piece answers**: a faint fill in 0.12 s, a stronger one while pressed, dimmed and no fill when disabled.
 - **Motion stops when nobody looks**: a motion runs only while the window can be seen and Reduce Motion is off.
 
+## The scales
+
+A radius, a padding, a `spacing:` and a colour that is not a theme's are tokens of `design/tokens.json` (`Tokens.Radius`, `Tokens.Space`, and the semantic groups), never a number or a `Color(red:)` in a view; frame sizes and opacities of one view stay literals.
+The scales were taken from the literals the views had, so a token is exact or one point from what a view drew; a token is added only when a literal's nearest token would show the difference, with its reason here.
+A space token is named by its value (`s8` is 8) so that two areas that add the same step add the same name.
+
+**Radius**
+
+- `tiny` (3): the bars of a skeleton and the small blocks of a preview; the 2 and the 4 that were there are this one.
+- `small` (6): chips and the smallest controls.
+- `control` (8): buttons, fields, tiles in a grid and the rows that answer the pointer; the most used radius.
+- `tile` (10): the square marks of a provider and an agent, a hovered Agents row, and a box on the General page.
+- `card` (12): a card and the group of a sheet.
+- `panel` (16): the cards of the starting and running windows, and the icon tiles of the stopped window and the Engine page.
+
+**Space** (padding and `spacing:`)
+
+- `none` (0): a stack whose children touch.
+- `s1` (1) and `s2` (2): the gap between a title and its caption, and the nudge that lines a glyph up with its text.
+- `s3` (3), `s4` (4) and `s5` (5): inside a chip and between the lines of a block.
+- `s6` (6): between an icon and its words, and the vertical padding of a chip.
+- `s8` (8): the standard gap between two controls; the 7 and the 9 that were there are this one.
+- `s10` (10): between the lines of a row, and a row's own padding.
+- `s12` (12): inside a card, and between a tile and its text; the 11 that was there is this one.
+- `s14` (14) and `s16` (16): between blocks and a page's side margin.
+- `s18` (18), `s20` (20), `s22` (22) and `s24` (24): between the groups of a page and the sections of a sheet.
+- `s28` (28) and `s30` (30): the margin of the stopped window and the gap between the sections of the Pieces gallery.
+- `s40` (40): the side margin of the gallery pages.
+- `s90` (90): the inset that makes the second skeleton bar of the cleanup shorter than the first.
+
+**Semantic colours**
+
+- `tile.terminal` (`#404040`): the dark grey tile of the Terminal page in Settings' sidebar, the same in light and dark.
+- `projectColor.*` (red, orange, yellow, green, teal, blue, purple, pink): the eight muted hues of a project's tile, the same in light and dark; `ThemeTests` pins each to the hue it was drawn from.
+  White initials stay readable over every one of them.
+
 ## The nine rules of a piece
 
 A piece is a reusable building block of the look, named here and drawn once.

@@ -20,22 +20,22 @@ struct HealthTabView: View {
             hostReportsHealth: probe.hostReportsHealth,
             configExists: start.configExists, engineRunning: { if case .running? = state { true } else { false } }()
         )
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s12) {
             HStack {
                 Text("Is everything Carrier needs ready?").font(.scaled(12)).foregroundStyle(.secondary)
                 Spacer(minLength: 8)
                 CheckAgainButton(checking: checking, failed: doctor.state.failedToAnswer) { Task { await checkAgain() } }
             }
-            .padding(.horizontal, 14)
+            .padding(.horizontal, Tokens.Space.s14)
             ForEach(healthSections(host: store.latest, facts: facts, doctor: doctor.state), id: \.title) { section in
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(section.title).sectionLabel().padding(.leading, 14).padding(.top, 8)
+                VStack(alignment: .leading, spacing: Tokens.Space.s6) {
+                    Text(section.title).sectionLabel().padding(.leading, Tokens.Space.s14).padding(.top, Tokens.Space.s8)
                     if let note = section.note {
-                        Text(note).font(.scaled(12)).foregroundStyle(.secondary).padding(14).frame(maxWidth: .infinity, alignment: .leading)
+                        Text(note).font(.scaled(12)).foregroundStyle(.secondary).padding(Tokens.Space.s14).frame(maxWidth: .infinity, alignment: .leading)
                             .settingsCard()
                     }
                     // cards side by side: as many as fit, so the tab stays short
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 170), spacing: 10, alignment: .top)], alignment: .leading, spacing: 10) {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 170), spacing: Tokens.Space.s10, alignment: .top)], alignment: .leading, spacing: Tokens.Space.s10) {
                         ForEach(Array(section.rows.enumerated()), id: \.offset) { _, row in HealthCardView(row: row).settingsAnchored(row.id, group: section.id) }
                     }
                 }
@@ -75,8 +75,8 @@ private struct HealthCardView: View {
     let row: HealthRow
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s6) {
+            HStack(spacing: Tokens.Space.s8) {
                 mark
                 Text(row.title).fontWeight(.medium).lineLimit(2)
             }
@@ -88,8 +88,8 @@ private struct HealthCardView: View {
             }
             if let tool = row.tool { HealthFixButton(tool: tool, state: row.state) }
         }
-        .padding(12).frame(maxWidth: .infinity, alignment: .topLeading)
-        .background(RoundedRectangle(cornerRadius: 12).fill(Color.secondary.opacity(0.07)))
+        .padding(Tokens.Space.s12).frame(maxWidth: .infinity, alignment: .topLeading)
+        .background(RoundedRectangle(cornerRadius: Tokens.Radius.card).fill(Color.secondary.opacity(0.07)))
         .accessibilityElement(children: .combine)
     }
 

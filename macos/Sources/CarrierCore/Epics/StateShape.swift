@@ -1,6 +1,6 @@
 /// The four states a color can tell apart: an epic's, a session's and a call's. "Tell the states apart by shape" puts the symbol of
 /// each beside its color, so that color is not the only clue.
-public enum StateShape: CaseIterable {
+public enum StateShape: CaseIterable, Sendable {
     case working, needsAttention, ready, problem
 }
 

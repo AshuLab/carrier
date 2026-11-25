@@ -64,3 +64,21 @@ private let file = Data(#"""
     let identity = providerIdentities(providersJSON: Data(#"{"providers":{"a":{"harness":"claude","icon":"flame","color":"indigo"}}}"#.utf8))
     #expect(identity["a"] == ProviderIdentity(icon: .flame, color: .indigo))
 }
+
+@Test func anAccountIsNamedShortByItsLabelElseItsDisplayNameElseItsOwnName() {
+    let identities = ["claude-pro": ProviderIdentity(label: "Pro"), "codex-work": ProviderIdentity(icon: .bolt)]
+    let names = ["claude-pro": "Claude Pro account", "codex-work": "Codex at work"]
+    #expect(providerShortName(of: "claude-pro", identities: identities, displayNames: names) == "Pro")
+    #expect(providerShortName(of: "codex-work", identities: identities, displayNames: names) == "Codex at work")
+    #expect(providerShortName(of: "gemini", identities: identities, displayNames: names) == "gemini")
+}
+
+@Test func theMarkOfAnAccountIsItsGlyphItsLetterOrItsToolsMarkInItsColor() {
+    let glyph = accountMarkLook(of: "claude-pro", identity: ProviderIdentity(icon: .bolt, color: .orange, label: "Pro"))
+    #expect(glyph == AccountMarkLook(symbol: "bolt", initials: "", tool: AgentAccounts.harness(of: "claude-pro"), color: .orange))
+    let letter = accountMarkLook(of: "teams", identity: ProviderIdentity(icon: .letter, color: .blue))
+    #expect(letter.symbol == nil && letter.initials == "T" && letter.color == .blue)
+    // an account with no icon wears its tool's mark: the one asked for when given, else the agent's harness
+    let none = accountMarkLook(of: "acct", identity: .none, icon: "codex")
+    #expect(none == AccountMarkLook(symbol: nil, initials: "", tool: "codex", color: nil))
+}

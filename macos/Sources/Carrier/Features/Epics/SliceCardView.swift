@@ -22,39 +22,9 @@ func flipCard(_ change: () -> Void) {
     withAnimation(NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? nil : .smooth(duration: 0.3), change)
 }
 
-/// The chevron at the right of a card's line or row: right when folded, down when open.
-struct CardChevron: View {
-    let open: Bool
-    var width: CGFloat = 16
-
-    var body: some View {
-        Glyph(.chevronRight, size: 9).foregroundStyle(.tertiary)
-            .rotationEffect(.degrees(open ? 90 : 0)).frame(width: width).accessibilityHidden(true)
-    }
-}
-
-/// "PR #736" with a dot for its state and an arrow when it opens GitHub; a link when it has a url.
-struct PullRequestChip: View {
-    let number: Int
-    let dot: Color?
-    let url: String?
-
-    var body: some View {
-        if let link = url.flatMap(browserURL) {
-            Link(destination: link) { label }.buttonStyle(.plain).help(link.absoluteString)
-        } else {
-            label
-        }
-    }
-
-    private var label: some View {
-        HStack(spacing: 5) {
-            if let dot { Circle().fill(dot).frame(width: 7, height: 7) }
-            Text("PR #\(number)").monospacedDigit()
-            if url != nil { Glyph(.arrowUpRight, size: 9).foregroundStyle(.tertiary) }
-        }
-        .font(.scaled(12)).foregroundStyle(.secondary).lineLimit(1).fixedSize()
-    }
+extension PullRequestChip {
+    /// The chip of a pull request that may open `url` on GitHub: a link when it is one the browser may open (`browserURL`), else a label.
+    init(number: Int, dot: Color?, url: String?) { self.init(number: number, dot: dot, link: url.flatMap(browserURL)) }
 }
 
 extension SlicePRState {

@@ -423,7 +423,7 @@ struct PanelView: View {
             }
             if shell.selection == .usage {
                 ToolbarItem(placement: .primaryAction) {
-                    CheckButton(skin: .toolbar, checking: AppUsage.store.isRefreshing, failed: AppUsage.store.error != nil) { AppUsage.refresher.checkAgain() }
+                    CheckAgainButton(skin: .toolbar, checking: AppUsage.store.isRefreshing, failed: AppUsage.store.error != nil) { AppUsage.refresher.checkAgain() }
                         .glassEffect(.regular, in: .capsule)
                         .padding(.trailing, 10)
                         .help("Asks every provider again, skipping the minute the chat host keeps its answer")
@@ -435,7 +435,7 @@ struct PanelView: View {
                 ToolbarItem(placement: .primaryAction) {
                     // the engine polls on its own after the answer: the button says so until the next check is scheduled again
                     let checking = isChecking(snapshot, asked: checkAsked, now: Date())
-                    CheckButton(skin: .toolbar, title: "Check now", checking: checking) {
+                    CheckAgainButton(skin: .toolbar, title: "Check now", checking: checking) {
                         checkAsked = CheckAsked(at: Date(), nextCheckAt: snapshot.nextCheckAt)
                         MenuControls.shared.checkNow()
                     }

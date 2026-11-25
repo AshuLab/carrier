@@ -120,18 +120,6 @@ struct DictationTabView: View {
     }
 }
 
-/// A capsule with a word in it: its color at 16% under the same color, so the state is never the color alone.
-struct StatusChip: View {
-    let text: String
-    let tint: Color
-
-    var body: some View {
-        Text(text).font(.scaled(11).weight(.medium)).foregroundStyle(tint)
-            .padding(.horizontal, 8).padding(.vertical, 1)
-            .background(Capsule().fill(tint.opacity(0.16)))
-    }
-}
-
 extension View {
     /// A row the switch can dim: at 40% and with no clicks, for keyboard and VoiceOver too, while Dictation is off.
     func live(_ row: DictationRow, enabled: Bool) -> some View {

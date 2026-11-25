@@ -10,6 +10,8 @@ struct PieceTheme: Equatable, Sendable {
     var surfaces: ThemeSurfaces
     var iconWeight: Double
     var iconSet: IconSet
+    /// Whether a state is told apart by its shape and not by its color alone (Settings > Appearance): the state pieces draw its symbol.
+    var statesByShape = false
 
     /// What a view outside any window of the app (a preview) reads: the default theme, in light.
     static let standard = PieceTheme(
@@ -27,13 +29,15 @@ extension EnvironmentValues {
     @Entry var pieceTheme = PieceTheme.standard
 }
 
-/// The icon set and the weight of the outline icons the person chose, for the roots of the windows to read while they draw: moving the slider or choosing
-/// another set in Appearance redraws every icon at once (the same way `TextSize` does for the text). Non-view code that draws an icon reads it here too.
+/// The icon set and the weight of the outline icons the person chose, and whether states are told apart by shape, for the roots of the windows to read while
+/// they draw: moving the slider or choosing another set in Appearance redraws every icon at once (the same way `TextSize` does for the text). Non-view code
+/// that draws an icon reads it here too.
 @Observable final class IconAppearance {
     static let shared = IconAppearance()
 
     private(set) var set = IconSet.stored()
     private(set) var weight = IconWeight.stored()
+    private(set) var statesByShape = AppPreferences().statesByShape
 
     private init() {
         NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification, object: nil, queue: .main) { [self] _ in
@@ -41,6 +45,8 @@ extension EnvironmentValues {
             if stored != set { set = stored }
             let storedWeight = IconWeight.stored()
             if storedWeight != weight { weight = storedWeight }
+            let storedByShape = AppPreferences().statesByShape
+            if storedByShape != statesByShape { statesByShape = storedByShape }
         }
     }
 }
@@ -52,7 +58,7 @@ struct PieceEnvironment: ViewModifier {
         let icons = IconAppearance.shared
         content
             .environment(\.textScale, TextSize.shared.scale)
-            .environment(\.pieceTheme, PieceTheme(surfaces: AppTheme.shared.surfaces, iconWeight: icons.weight, iconSet: icons.set))
+            .environment(\.pieceTheme, PieceTheme(surfaces: AppTheme.shared.surfaces, iconWeight: icons.weight, iconSet: icons.set, statesByShape: icons.statesByShape))
     }
 }
 

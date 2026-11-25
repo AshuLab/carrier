@@ -1,81 +1,30 @@
 import CarrierCore
 import SwiftUI
 
-/// The glyph of an epic's state, 20 points square as in the mockup: a turning ring while it runs, a filled orange disc with a
-/// mark when it needs you (red when `attention` says it failed), a hollow grey circle while it waits and a filled blue disc with a
-/// tick when it is ready.
+/// The glyph of an epic's state, 20 points square as in the mockup: a turning ring while it runs, a filled disc with a mark (or the symbol of its
+/// shape) for a state that needs you or is done, and a hollow grey circle while it waits. The area says which, in which color, with which mark and
+/// words (`StateGlyph(state:attention:)`); the piece only draws them.
 struct StateGlyph: View {
-    let state: EpicMenuState
-    var attention: Attention?
+    enum Look {
+        case ring
+        /// `symbol` is what the disc wears instead of `mark` when the person asked for states to be told apart by shape.
+        case disc(color: Color, mark: String, symbol: AppIcon?)
+        case hollow
+    }
+
+    let look: Look
+    /// What a screen reader says for it.
+    let label: String
 
     var body: some View {
-        glyph.frame(width: 20, height: 20).accessibilityElement(children: .ignore).accessibilityLabel(state.label)
+        glyph.frame(width: 20, height: 20).accessibilityElement(children: .ignore).accessibilityLabel(label)
     }
 
     @ViewBuilder private var glyph: some View {
-        switch state {
-        case .running: SpinningRing()
-        case .needsYou: Disc(color: (attention ?? .input).color, mark: "!", shape: state.shape(attention: attention))
-        case .waiting: Circle().strokeBorder(Color.gray, lineWidth: 2).frame(width: 14, height: 14)
-        case .ready: Disc(color: .blue, mark: "✓", shape: .ready)
-        case .done: Disc(color: .green, mark: "✓")
-        case .cancelled: Disc(color: .gray, mark: "✕")
-        }
-    }
-}
-
-extension Attention {
-    /// Red when something failed, orange when a person's input is needed (and for an epic whose kind is not known).
-    var color: Color { self == .error ? .red : .orange }
-}
-
-/// A state's disc: a filled circle with its mark in white. With "Tell states apart by shape" on, the state's own silhouette in its colour
-/// instead (a triangle, a seal, an octagon, the mark cut out of it): the outline is what tells it apart, and one symbol centred in its box
-/// replaces a disc with a symbol inside it.
-struct Disc: View {
-    let color: Color
-    let mark: String
-    var shape: StateShape?
-    var size: CGFloat = 18
-    @AppStorage(Preference.appearanceStatesByShape) private var byShape
-
-    var body: some View {
-        if byShape, let shape {
-            Glyph(stateSymbol(shape), size: size).foregroundStyle(color)
-        } else {
-            Circle().fill(color).frame(width: size, height: size)
-                .overlay { Text(mark).scaledFont(size * 0.55, weight: .heavy).foregroundStyle(.white) }
-        }
-    }
-}
-
-/// What a state wears inside its glyph: its text, or, with "Tell states apart by shape" on, the symbol of its shape. A state with
-/// no shape, or no text with the setting off, draws nothing.
-struct StateMark: View {
-    var text = ""
-    let shape: StateShape?
-    let size: CGFloat
-    var weight = Font.Weight.heavy
-    @AppStorage(Preference.appearanceStatesByShape) private var byShape
-
-    @ViewBuilder var body: some View {
-        if byShape, let shape {
-            Glyph(stateSymbol(shape), size: size, bold: true)
-        } else if text.isEmpty == false {
-            Text(text).scaledFont(size, weight: weight)
-        }
-    }
-}
-
-extension EpicMenuState {
-    var label: String {
-        switch self {
-        case .needsYou: "Needs attention"
-        case .running: "Running"
-        case .waiting: "Up next"
-        case .ready: "Ready for test"
-        case .done: "Done"
-        case .cancelled: "Cancelled"
+        switch look {
+        case .ring: SpinningRing()
+        case .disc(let color, let mark, let symbol): Disc(color: color, mark: mark, symbol: symbol)
+        case .hollow: Circle().strokeBorder(Color.gray, lineWidth: 2).frame(width: 14, height: 14)
         }
     }
 }

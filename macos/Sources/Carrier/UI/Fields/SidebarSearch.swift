@@ -55,18 +55,16 @@ struct SidebarEmptyBlock<Action: View>: View {
     }
 }
 
-extension SidebarEmptyBlock where Action == EmptyView {
-    init(state: EmptyState) { self.init(icon: state.icon, title: state.title, line: state.line) { EmptyView() } }
-}
-
 /// What a section's list says when a search matches nothing: the struck magnifier, `No results`, what was typed and a button that
-/// empties the field.
+/// empties the field. The area says the words (`SidebarNoResults(query:clear:)`).
 struct SidebarNoResults: View {
-    let query: String
+    let icon: AppIcon
+    let title: String
+    let line: String
     let clear: () -> Void
 
     var body: some View {
-        SidebarEmptyBlock(icon: EmptyState.noResults.icon, title: EmptyState.noResults.title, line: EmptyState.noResultsLine(for: query)) {
+        SidebarEmptyBlock(icon: icon, title: title, line: line) {
             Button("Clear search", action: clear)
         }
     }

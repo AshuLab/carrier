@@ -104,3 +104,27 @@ public func providerIdentities(providersJSON: Data?) -> [String: ProviderIdentit
         if identity != .none { identities[entry.key] = identity }
     }
 }
+
+/// The short name of an account where there is little room: its label, else its display name, else the name it has always had. `agent` is an
+/// account or a chat agent that runs on one.
+public func providerShortName(of agent: String, identities: [String: ProviderIdentity], displayNames: [String: String]) -> String {
+    let account = AgentAccounts.account(of: agent)
+    return (identities[account] ?? .none).label ?? displayNames[account] ?? agent
+}
+
+/// What an account's mark is drawn from: the SF Symbol of its glyph, or the letter it was given (`initials`, the first of the name it is shown
+/// under), else the tool whose mark stands for it; and its color, which is none when the account has none.
+public struct AccountMarkLook: Equatable {
+    public var symbol: String?
+    public var initials: String
+    public var tool: String
+    public var color: AccountColor?
+}
+
+/// The look of the mark of `account` (an account or a chat agent that runs on one) given its identity. `icon` is what the tool's mark is looked up
+/// by when the account has no icon of its own; the harness of the agent when not given.
+public func accountMarkLook(of account: String, identity: ProviderIdentity, icon: String? = nil) -> AccountMarkLook {
+    let tool = icon ?? AgentAccounts.harness(of: account)
+    let initials = identity.icon == .letter ? String(account.prefix(1)).uppercased() : ""
+    return AccountMarkLook(symbol: identity.icon?.symbol, initials: initials, tool: tool, color: identity.color)
+}

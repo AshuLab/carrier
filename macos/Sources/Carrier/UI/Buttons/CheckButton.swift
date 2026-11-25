@@ -1,24 +1,22 @@
 import CarrierCore
 import SwiftUI
 
-/// The button that asks again (Check again, Check now) wherever the app has one, so that they all behave alike: at rest it says what it does;
+/// The button that asks again (Check again, Check now) wherever the app has one, so that they all look alike: at rest it says what it does;
 /// while it checks it keeps its size and turns the arrows ("Checking…"); a check the person asked for ends in a green mark and "Up to date", or a
-/// red one and "Check failed", for `CheckPhase.resultSeconds`, and then rests. A check the page ran by itself (when it opens) only ends at rest.
-/// The faces share one cell, so the button is as wide as the widest and nothing beside it moves. Its skin is the place's: the window's toolbar
-/// (`.toolbar`, the item adds the glass), a row of a form (`.capsule`) or a page's header (`.text`).
+/// red one and "Check failed". The faces share one cell, so the button is as wide as the widest and nothing beside it moves. Its skin is the place's:
+/// the window's toolbar (`.toolbar`, the item adds the glass), a row of a form (`.capsule`) or a page's header (`.text`). Which face it wears is `phase`,
+/// which the area moves (`CheckAgainButton` does, from a check that runs and ends); a click always runs `action`.
 struct CheckButton: View {
     enum Skin { case toolbar, capsule, text }
 
+    /// Resting, running, or showing how the last check ended.
+    enum Phase: Equatable { case idle, checking, done, failed }
+
     var skin = Skin.capsule
     var title = "Check again"
-    /// A check is running, whoever asked for it.
-    let checking: Bool
-    /// How the check ended; read when `checking` turns false.
-    var failed = false
+    let phase: Phase
     let action: () -> Void
 
-    @State private var phase = CheckPhase.idle
-    @State private var asked = false
     @State private var hovered = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -35,11 +33,11 @@ struct CheckButton: View {
         Group {
             switch skin {
             case .capsule:
-                Button(action: press) { faces }.buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).fixedSize()
+                Button(action: action) { faces }.buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).fixedSize()
             case .text:
-                Button(action: press) { faces }.buttonStyle(HoverTextButtonStyle(tint: nil))
+                Button(action: action) { faces }.buttonStyle(HoverTextButtonStyle(tint: nil))
             case .toolbar:
-                Button(action: press) {
+                Button(action: action) {
                     faces.padding(.horizontal, 11).frame(height: ToolbarPillButton.height)
                         .background(Capsule().fill(Color.primary.opacity(hovered ? 0.1 : 0)))
                         .contentShape(Capsule())
@@ -47,26 +45,9 @@ struct CheckButton: View {
                 .buttonStyle(.plain).onHover { hovered = $0 }.animation(.easeOut(duration: 0.12), value: hovered)
             }
         }
-        .onAppear { phase = phase.moving(checking: checking, failed: failed, asked: asked) }
-        .onChange(of: checking) {
-            phase = phase.moving(checking: checking, failed: failed, asked: asked)
-            if checking == false { asked = false }
-        }
         .onChange(of: phase) {
             if phase == .done || phase == .failed { AccessibilityNotification.Announcement(words).post() }
         }
-        // the result rests after its time; a new phase cancels the wait
-        .task(id: phase) {
-            guard phase == .done || phase == .failed else { return }
-            try? await Task.sleep(for: .seconds(CheckPhase.resultSeconds))
-            if Task.isCancelled == false { phase = .idle }
-        }
-    }
-
-    private func press() {
-        guard phase.accepts else { return }
-        asked = true
-        action()
     }
 
     private var faces: some View {
@@ -80,7 +61,7 @@ struct CheckButton: View {
         .accessibilityElement(children: .ignore).accessibilityLabel(words)
     }
 
-    private func face<Content: View>(_ own: CheckPhase, @ViewBuilder _ content: () -> Content) -> some View {
+    private func face<Content: View>(_ own: Phase, @ViewBuilder _ content: () -> Content) -> some View {
         let here = phase == own
         return HStack(spacing: 5, content: content)
             .opacity(here ? 1 : 0).offset(y: here || reduceMotion ? 0 : 4).blur(radius: here || reduceMotion ? 0 : 3)

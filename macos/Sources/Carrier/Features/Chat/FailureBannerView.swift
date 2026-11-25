@@ -19,7 +19,7 @@ struct FailureBannerView: View {
 
     var body: some View {
         BannerView(
-            title: banner.title, detail: banner.detail, hint: banner.hint, tint: banner.warns ? .orange : .red, account: markedAccount,
+            title: banner.title, detail: banner.detail, hint: banner.hint, tint: banner.warns ? .orange : .red, account: markedAccount.map { AccountMark(account: $0, size: 13) },
             copyDetails: copyDetails ? copy : nil, retry: retry
         )
     }

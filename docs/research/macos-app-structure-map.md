@@ -65,7 +65,7 @@ macos/Sources/
   CarrierCore/
     Connection/   the clients of the two sockets and how often they ask: EngineLink, ControlClient, ControlMonitor, ChatHost, ChatLink, Snapshot, PollPace, IdleClose
     Lifecycle/    starting, replacing and upgrading the engine and the host: StartCarrier, StartChatHost, EngineReplacement, HostReplacement, EngineIdentity, CarrierUpgrade, StartingSteps
-    Shell/        the window, the menus and the icon as values: WindowShell, MenuSessions, IconState, AppIcon, Shortcuts
+    Shell/        the window, the menus and the icon as values: WindowShell, MenuSessions, IconState, AppIcon, Shortcuts, Viewing
     Sessions/     the sidebar, the sessions home, the archive, a new session: Sidebar, Sessions, SessionSections, NewSession, SessionAges, ...
     Chat/         a conversation and what it shows: ChatConversation, TranscriptItems, ChatToolGroups, Replies, Attachments, ...
     Epics/        an epic, its slices, its review: EpicPoller, EpicView, SliceCard, FindingsCard, Lanes, ReviewTab, InspectorTabs, ...
@@ -83,32 +83,32 @@ macos/Sources/
     Support/      helpers with no domain: TimeText, JSONMessage, CarrierPlaces, InlinePath, ShellQuote, Signposts, StepLog, ResourceBundle
     Fixtures/     what `--fixture` runs: FixtureServer, FixtureRecognizer, ScriptedDictation, ConversationSample
   CarrierUI/    (starts as Carrier/UI/, becomes this target in the last step; see 0052)
-    Tokens/       Color, Font and spacing from the tokens: AppTheme, ScaledFont, CommandStyle, SidebarMetrics, WorkColors
-    Buttons/      PrimaryCapsuleButtonStyle, SecondaryCapsuleButtonStyle, ToolbarPillButton, IconButton, HoverFillButtonStyle, CheckButton, ...
+    Tokens/       Color, Font and spacing from the tokens: AppTheme, ScaledFont, PieceTheme, SidebarMetrics, WorkColors
+    Buttons/      PrimaryCapsuleButtonStyle, SecondaryCapsuleButtonStyle, ToolbarPillButton, IconButton, HoverFillButtonStyle, HoverTextButtonStyle, NoticeActionStyle, CheckButton, ...
     Fields/       NumberField, the settings field modifier, ToolbarSearchField, SidebarSearchField
     Selects/      SelectMenu, SelectChevron, SelectButtonStyle, SegmentedChoice, ChoicePopUp
     Rows/         SettingsTabRow, SettingsStackedRow, NavigationRow, HoverRow, SidebarSectionRow, MonoLines
-    Cards/        NoticeCard, SettingsTabCard, SettingsGroup, OverviewCard, WorkCard, HoverCard, CardFactsGrid, CodeBlockView
+    Cards/        NoticeCard, SettingsTabCard, SettingsGroup, OverviewTitle, OverviewCard, OverviewLinkRow, WorkCard, HoverCard, CardFactsGrid, CodeBlockView
     Chips/        StatusChip, PullRequestChip, Badge, ChosenMark
-    Meters/       QuotaBar, QuotaMeter, QuotaPercent, SegmentedProgress, Ring, WorkingRing, SpinningRing
+    Meters/       QuotaBar, QuotaPercent, SegmentedProgress, Ring, WorkingRing, SpinningRing
     Feedback/     EmptyStateView, LoadingStateView, ProblemLine, BannerView, Shimmer, GlowEdge
     Layout/       FlowLayout, EqualWidthRow, UnderlineTabs, SettingsPageBody
     Modifiers/    MiddleClickModifier, the anchored and preference keys of Settings, WindowSheetSize, RowState
-    Icons/        Glyph, IconImages, StateGlyph, StateMark, StatusMark, AccountMark, ProviderMark, BrandLogo, ProjectIcon
+    Icons/        Glyph, IconImages, StateGlyph, Disc, StateMark, StatusMark, AccountMark, ProviderMark, BrandLogo, ProjectIcon, CardChevron
   Carrier/
-    App/          main, AppDelegate, WindowController, MainMenu, MenuControls, StatusMenuGroups, StatusHeaderView, SessionMenu, EpicMenuSection, KeepAwakeMenu, LaunchPhases, EngineIdentityStore, AppHealth
+    App/          main, AppDelegate, WindowController, MainMenu, MenuControls, StatusMenuGroups, StatusHeaderView, StatusHeaderState, SessionMenu, EpicMenuSection, KeepAwakeMenu, LaunchPhases, EngineIdentityStore, AppHealth, TimeFormatChanges
     Features/
       Lifecycle/  StartController, StartingView, RunningView, StoppedView, ChatHostStarter
       Sessions/   SidebarView, SidebarTab, SessionRowView, SessionSectionsView, SessionsHomeView, NewSessionView, WhereItWorksSheet, ArchiveView, ...
-      Chat/       ConversationView, ChatTab, TranscriptView, ChatToolGroupView, MessageBox, ComposerMenuButton, ModelPicker, ...
+      Chat/       ConversationView, ChatTab, TranscriptView, ChatToolGroupView, MessageBox, ComposerMenuButton, ModelPicker, CommandStyle, CodeBlockRuns, ...
       Epics/      PanelView, EpicView, ReviewTabView, SlicesTabView, SliceCardView, FindingsCardView, InspectorTabsView, ...
       Projects/   ProjectsTab, ProjectDetailView, AddProjectSheet, BranchSheet, CleanupGroup, CleanupController, ...
       Terminal/   TerminalWorkspaceView, TerminalTabView, TerminalTabBarView, TerminalsHomeView, ...
       Dictation/  DictationWidget, DictationController, GlobalDictationController, DictationTab and its groups (History, Statistics, Recognition, Sounds, Storage, SpeechModels), ...
-      Usage/      UsageView, UsageConsumptionView, ContextUsageButton
+      Usage/      UsageView, UsageConsumptionView, ContextUsageButton, QuotaMeter
       KeepAwake/  KeepAwakeTab
       Updates/    UpdatePill
-      Health/     HealthTab, HealthFixButton, SetupController
+      Health/     HealthTab, HealthFixButton, SetupController, CheckAgainButton
       Settings/   SettingsWindow, SettingsSidebar, SettingsPages, General, Appearance, Notifications, Keybindings, About, NoticesGalleryView; Agents/, Watching/, Behavior/, Providers/, Engine/
     Platform/     TerminalHost, CarrierTerminalView, TerminalAppearance, TerminalProcessInspector, CommandTextView, AppleRecognizer, FluidAudioRecognizer, WhisperKitRecognizer, MicrophoneCapture, CaptureConverter, DictationSoundPlayer, KeepAwakeController, GlobalHotKey, FocusedField, ClipboardPaste, SystemNotificationCentre, AppUpdater, IconController, MetricsSink, ProcessRun, BrewRunner, ShellDetector, ProgramVersions
 macos/Tests/
@@ -152,9 +152,9 @@ Under `CarrierUI`, the files hold whole pieces today; the pieces hidden in scree
 - `CarrierUI` [27]: CodeBlockView (234), Icons (229), SpinningRing (208), ScaledFont (158), ToolbarPillButton (156), NoticeCard (147), HoverCard (146), CheckButton (134), MiddleClickModifier (125), EmptyStateView (113), SheetParts (96), AppTheme (95), StateGlyph (82), OverviewParts (80), AccountMark (79), SidebarSearch (74), CardFactsGrid (56), BrandLogo (51), UnderlineTabs (50), LookingTimeline (46), FlowLayout (44), MonoLines (41), RowParts (31), RollingTitle (25), WorkCard (20), CommandStyle (14), TimeFormatChanges (13). The parts files (`SheetParts`, `OverviewParts`, `RowParts`) are split into one file per piece (`SheetParts` and `RowParts` are, in the pieces' slice of the Sessions and Chat screens).
 - `CarrierCore/Connection` [9]: ChatHost (969), ChatLink (296), ControlClient (254), Snapshot (221), EngineLink (137), ControlMonitor (126), PollPace (125), ControlRequests (76), IdleClose (36).
 - `CarrierCore/Lifecycle` [8]: StartCarrier (124), CarrierBox (77), CarrierUpgrade (73), EngineReplacement (71), HostReplacement (69), StartChatHost (48), EngineIdentity (47), StartingSteps (37).
-- `CarrierCore/Shell` [5]: WindowShell (231), Shortcuts (177), AppIcon (152), IconState (86), MenuSessions (10).
+- `CarrierCore/Shell` [6]: WindowShell (231), Shortcuts (177), AppIcon (152), IconState (86), Viewing (68), MenuSessions (10).
 - `CarrierCore/Sessions` [9]: NewSession (863), SessionSections (607), Sidebar (345), Sessions (330), SessionAges (95), SessionsHome (95), EmptyStates (75), SessionSeen (44), SelectionHistory (38).
-- `CarrierCore/Chat` [19]: ChatConversation (1,414), ChatToolGroups (479), ChatArchive (397), Replies (274), CodeHighlight (252), TranscriptItems (251), ChatOptions (208), Attachments (176), ModelPicker (144), SubagentView (144), ChatCommands (119), ChatSessions (106), Viewing (68), Commands (66), ComposerMenu (63), SessionPeek (60), TitleRegeneration (50), TurnTimeline (46), PasteDecision (42).
+- `CarrierCore/Chat` [18]: ChatConversation (1,414), ChatToolGroups (479), ChatArchive (397), Replies (274), CodeHighlight (252), TranscriptItems (251), ChatOptions (208), Attachments (176), ModelPicker (144), SubagentView (144), ChatCommands (119), ChatSessions (106), Commands (66), ComposerMenu (63), SessionPeek (60), TitleRegeneration (50), TurnTimeline (46), PasteDecision (42).
 - `CarrierCore/Epics` [24]: ReviewTab (345), EpicPoller (302), EpicView (195), FilesChanged (186), DetailsTab (169), SlicesTab (165), Lanes (136), FindingsCard (122), RunningCards (113), PreparationSteps (112), LeadReviewerSwitch (108), EpicMenu (102), Resume (100), SliceCard (91), EpicCard (87), PanelFormat (74), EpicStore (69), YourTurn (64), StateShape (59), InspectorTabs (55), QueuedPlan (54), WorkingClock (36), CardFact (30), UpNext (20).
 - `CarrierCore/Projects` [16]: ProjectsList (832), ProjectSheet (464), ProjectsFile (351), WorktreeChoice (262), WorkspaceSources (222), ProjectWorktrees (171), ProjectIconStore (144), ProjectActions (139), ProjectDeletion (122), ProjectIcon (109), ProjectDisk (77), ProjectWatch (62), AvailableRepos (45), WorktreeStart (37), RepoStatus (33), WorktreeNames (26).
 - `CarrierCore/Terminal` [8]: TerminalCore (944), TerminalSettings (484), TerminalPersistence (284), TerminalSplitTree (258), TerminalZshBottomPromptShim (223), ContinueInTerminal (132), ProviderTerminal (75), ForgeTerminal (26).
@@ -198,6 +198,12 @@ Corrected when `SettingsTabs.swift` and `BehaviorTab.swift` were cut: a piece us
 Corrected when the pieces of the Sessions and Chat screens were cut (same rule, 0052 rule 9): `ChoiceMenu`, `SessionTimeLabel`, `ProviderMarks`, `RowTag`, `RowIconButton`, `ControlSurface` (`controlHeight`, `controlSurface`) and `ProjectIconImageCache` are used only by Sessions or Projects and stay in `Features/Sessions/` and `Features/Projects/`; so do `RevealLayout`, `KindChipView`, `MessageTimeLabel`, `ScaleRow` and `SwitchRow` in `Features/Chat/`, and `RowHint` in `Features/Projects/`.
 `ProjectIcon`, `BannerView` and `ProviderMark` take values: the tile's color, mark, initials and image come from `ProjectIcon(tile:)` in `Features/Projects/ProjectTileIcon.swift`, and a banner's words, tint and account from `FailureBannerView` (`FailureBanner.warns` in `CarrierCore`), so neither names an area's type.
 `done`, `backgroundWork` and `thought` (the ring's colors) are `Color` tokens in `UI/Tokens/WorkColors.swift`.
+
+Corrected when the pieces of the remaining screens were cut (same rule, 0052 rule 9): `QuotaMeter` is used only by the Usage page and stays in `Features/Usage/` (`QuotaBar` and `QuotaPercent`, which Usage and the Providers page both draw, are `UI/Meters/`); `SegmentedProgress` is `UI/Meters/`, `CardChevron` `UI/Icons/`, `HoverTextButtonStyle` and `NoticeActionStyle` `UI/Buttons/`, `StatusChip` and `PullRequestChip` `UI/Chips/`, and `OverviewTitle`, `OverviewCard` and `OverviewLinkRow` `UI/Cards/`, one file each.
+`Disc` is its own file next to `StateGlyph` and `StateMark`; the three take values (`StateGlyph.Look`, a symbol and a color) and read only whether states are told apart by shape, from `PieceTheme`; the area builds them (`StateGlyph(state:attention:)` in `Features/Epics/StateGlyphs.swift` from `EpicMenuState.glyphLook`, `StateGlyphLook` in `CarrierCore/Epics`).
+`AccountMark` takes `initials`, `tint` and the symbol or tool mark; `ProviderIdentityStore` and `AccountColor.color` are `Features/Settings/Providers/` and `AccountMark(account:)` there asks the store (`accountMarkLook` in `CarrierCore`).
+`CardFactsGrid` takes its own `Fact`, `EmptyStateView`, `SidebarEmptyBlock` and `SidebarNoResults` take words (`Features/Sessions/EmptyStateViews.swift` builds them from `EmptyState`), `CodeBlockView` and `MonoLines` take the monospace settings and `CodeBlockView` the language name, the pieces of code and the lines of a diff (`Features/Chat/CodeBlockRuns.swift`), `NoticeCard` and `BannerView` take an `AccountMark`, and `CheckButton` takes a phase while `CheckAgainButton` in `Features/Health/` moves it (`CheckPhase`).
+`CommandStyle` (how a skill or command looks, an extension of `ChatCommand.Kind`) is a file of `Features/Chat/`, not a token; `TimeFormatChanges` (it reads the Time format preferences) is a file of `Carrier/App/`, not a piece; `StatusHeaderView` takes its words and the dot's color (`StatusHeaderState.swift` maps `ConnectionState.MenuTone`); `Viewing`, which the window tells and `TickingTimeline` reads, is `CarrierCore/Shell/`, not Chat.
 
 ## Files over 400 lines
 

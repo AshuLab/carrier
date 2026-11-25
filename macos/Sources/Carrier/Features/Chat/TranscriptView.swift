@@ -21,7 +21,7 @@ struct TranscriptRows: View {
         case .items(let items):
             ForEach(visibleFlow(items, mode: mode, showsReasoning: showsReasoning)) { FlowItemView(flow: $0, flipped: $flipped).sessionRow() }
         case .tail(let lines):
-            MonoLines(lines: lines.isEmpty ? ["No output yet"] : lines)
+            MonoLines(lines: lines.isEmpty ? ["No output yet"] : lines, monospace: MonospaceStyle.shared.settings)
                 .codeFont(12).foregroundStyle(.secondary)
                 .textSelection(.enabled).padding(12).sessionRow()
         }

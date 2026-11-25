@@ -16,7 +16,7 @@ struct NoticeCard<Actions: View, Below: View>: View {
     var detailLines: Int?
     var edge = false
     /// The account the notice is about: its mark (icon and color, as the footer of an answer wears them) stands before the title.
-    var account: String?
+    var account: AccountMark?
     /// When set, the text is a button (the queued message puts itself back in the box).
     var onTap: (() -> Void)?
     @ViewBuilder var actions: () -> Actions
@@ -24,7 +24,7 @@ struct NoticeCard<Actions: View, Below: View>: View {
     @ViewBuilder var below: () -> Below
     init(
         symbol: AppIcon, tint: Color, title: String, detail: String? = nil, hint: String? = nil, tag: String? = nil, detailLines: Int? = nil,
-        edge: Bool = false, account: String? = nil, onTap: (() -> Void)? = nil, @ViewBuilder actions: @escaping () -> Actions,
+        edge: Bool = false, account: AccountMark? = nil, onTap: (() -> Void)? = nil, @ViewBuilder actions: @escaping () -> Actions,
         @ViewBuilder below: @escaping () -> Below
     ) {
         (self.symbol, self.tint, self.title, self.detail, self.hint, self.tag) = (symbol, tint, title, detail, hint, tag)
@@ -51,7 +51,7 @@ struct NoticeCard<Actions: View, Below: View>: View {
     private var text: some View {
         VStack(alignment: .leading, spacing: 3) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
-                if let account { AccountMark(account: account, size: 13).alignmentGuide(.firstTextBaseline) { $0[.bottom] - 2 } }
+                if let account { account.alignmentGuide(.firstTextBaseline) { $0[.bottom] - 2 } }
                 Text(title).scaledFont(13.5, weight: .semibold).multilineTextAlignment(.leading).fixedSize(horizontal: false, vertical: true)
             }
             if tag != nil || detail != nil {
@@ -78,7 +78,7 @@ struct NoticeCard<Actions: View, Below: View>: View {
 extension NoticeCard where Below == EmptyView {
     init(
         symbol: AppIcon, tint: Color, title: String, detail: String? = nil, hint: String? = nil, tag: String? = nil, detailLines: Int? = nil,
-        edge: Bool = false, account: String? = nil, onTap: (() -> Void)? = nil, @ViewBuilder actions: @escaping () -> Actions
+        edge: Bool = false, account: AccountMark? = nil, onTap: (() -> Void)? = nil, @ViewBuilder actions: @escaping () -> Actions
     ) {
         self.init(
             symbol: symbol, tint: tint, title: title, detail: detail, hint: hint, tag: tag, detailLines: detailLines, edge: edge, account: account,
@@ -90,57 +90,4 @@ extension NoticeCard where Below == EmptyView {
 extension EnvironmentValues {
     /// The colour of the `NoticeCard` the view is in, for its actions (`NoticeActionStyle`).
     @Entry var noticeTint = Color.gray
-}
-
-/// An action of a `NoticeCard`, in the card's own colour so it reads on the glass the card is filled with and does not depend on the accent
-/// the person chose: the card's colour, lighter on dark and deeper on light, on a pill of that colour. `quiet` is the secondary action (Copy
-/// details, the cross that drops a message): near-primary words and a pill only under the pointer.
-struct NoticeActionStyle: ButtonStyle {
-    var quiet = false
-
-    func makeBody(configuration: Configuration) -> some View { Face(configuration: configuration, quiet: quiet) }
-
-    private struct Face: View {
-        let configuration: ButtonStyleConfiguration
-        let quiet: Bool
-        @Environment(\.noticeTint) private var tint
-        @Environment(\.colorScheme) private var scheme
-        @Environment(\.isEnabled) private var enabled
-        @State private var hovered = false
-
-        var body: some View {
-            let words = quiet ? Color.primary.opacity(0.78) : tint.mix(with: scheme == .dark ? .white : .black, by: scheme == .dark ? 0.4 : 0.45)
-            let pill = quiet ? Color.primary.opacity(configuration.isPressed ? 0.2 : hovered ? 0.14 : 0) : tint.opacity(configuration.isPressed ? 0.46 : hovered ? 0.38 : 0.24)
-            configuration.label
-                .scaledFont(12, weight: .medium).foregroundStyle(words)
-                .padding(.horizontal, 10).frame(minWidth: 26, minHeight: 26)
-                .background(Capsule().fill(pill))
-                .opacity(enabled ? 1 : 0.4)
-                .contentShape(Capsule())
-                .onHover { hovered = $0 }
-                .animation(.easeOut(duration: 0.12), value: hovered)
-        }
-    }
-}
-
-/// A button that is only its text (or icon) until the pointer is over it, when a pill lights behind it: light enough to sit beside a
-/// message without weighing as much as it.
-struct HoverTextButtonStyle: ButtonStyle {
-    let tint: Color?
-    /// Turns red under the pointer, as a choice that does not allow does.
-    var danger = false
-    @State private var hovered = false
-    @Environment(\.isEnabled) private var enabled
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaledFont(12, weight: .medium)
-            .foregroundStyle(danger && hovered ? Color.red : tint ?? (hovered ? Color.primary : Color.secondary))
-            .padding(.horizontal, 10).frame(minWidth: 26, minHeight: 26)
-            .background(Capsule().fill(danger && hovered ? Color.red.opacity(0.14) : Color.primary.opacity(configuration.isPressed ? 0.16 : hovered ? 0.09 : 0)))
-            .opacity(enabled ? 1 : 0.4)
-            .contentShape(Capsule())
-            .onHover { hovered = $0 }
-            .animation(.easeOut(duration: 0.12), value: hovered)
-    }
 }

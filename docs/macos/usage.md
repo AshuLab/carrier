@@ -4,7 +4,7 @@ The Usage page: the live quotas of each provider and the history of what was use
 
 ## Quotas
 
-The Usage row (below Settings in the foot) selects `Selection.usage`: `Carrier/UsageView.swift` shows what `UsageStore` (`CarrierCore/UsageStore.swift`) got from the chat host's `usage` request.
+The Usage row (below Settings in the foot) selects `Selection.usage`: `Carrier/Features/Usage/UsageView.swift` shows what `UsageStore` (`CarrierCore/UsageStore.swift`) got from the chat host's `usage` request.
 The live quotas are one `SettingsTabCard` list with a row each for Claude, Codex, Antigravity and Local Servers (a provider with no quota has none): `usageProviders` (`CarrierCore/UsagePage.swift`) decides every row from the quotas and a clock, and the view only draws it.
 A row has the 16 pt `StatusMark`, the provider's status words, the pooled `5h` and `Weekly` meters (4 px track, clamped to [0, 1]; the use that the earliest reset gives back is drawn hatched after the solid part, `meterShape`), a `Stale` badge when the numbers are the last known ones behind a rate limit, the earliest reset still ahead (`Resets in 2h 14m`, kept current by a one-minute timeline) and a chevron.
 The chevron opens the drawer with every account: Claude's `5h`/`Weekly`, model-scoped windows, extra usage spend and limit, `Sign in` (the Providers page's Terminal script) for a signed-out account (the probe never refreshes a token: an expired login is `signed_out`) and `Check again`; Codex's limits (every `rateLimitsByLimitId` entry), plan, credits and reset credits; Antigravity's three pools with their own resets and `AI credits: Unavailable via native CLI`; Local Servers' LM Studio and Ollama readiness, loaded models and `$0 local compute`.

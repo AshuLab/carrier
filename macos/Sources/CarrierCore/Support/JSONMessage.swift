@@ -53,7 +53,7 @@ private let sliceKeys: Set = ["slice", "outcome", "branch", "pr", "definitionOfD
 
 /// The message as a JSON object, bare or in a code fence; nil when it is anything else, which stays text. The slice report
 /// needs exactly its keys, so a report with an extra one shows every key as a field instead of dropping it.
-public func jsonMessage(_ text: String) -> JSONMessage? {
+public func jsonMessage(_ text: String, bundle: Bundle? = nil, locale: Locale = .current) -> JSONMessage? {
     var body = text.trimmingCharacters(in: .whitespacesAndNewlines)
     if body.hasPrefix("```") {
         let lines = body.split(separator: "\n", omittingEmptySubsequences: false)
@@ -77,9 +77,10 @@ public func jsonMessage(_ text: String) -> JSONMessage? {
         return all.count == dict.count ? all.filter { $0.passed == false } + all.filter(\.passed) : nil
     }
     if object.keys.allSatisfy(sliceKeys.contains), let outcome = object["outcome"] as? String, let done = object["definitionOfDone"].flatMap(checks) {
-        let pull = (object["pr"] as? String).flatMap(browserURL).map { ReportLink(label: pullLabel($0), url: $0) }
+        let pull = (object["pr"] as? String).flatMap(browserURL).map { ReportLink(label: pullLabel($0, bundle: bundle, locale: locale), url: $0) }
+        let title = sliceTitle(object["slice"], bundle: bundle, locale: locale)
         return .slice(SliceReport(
-            title: (object["slice"] as? String).map { "Slice \($0)" } ?? (object["slice"] as? NSNumber).map { "Slice #\($0)" }, outcome: sentence(outcome),
+            title: title, outcome: sentence(outcome),
             tone: outcome.contains("ready") ? .good : outcome.contains("human") ? .stop : .warning,
             pull: pull, branch: object["branch"] as? String, checks: done, note: object["note"] as? String
         ))
@@ -112,9 +113,19 @@ private func fieldValue(_ value: Any, checks: (Any) -> [ReportCheck]?) -> JSONFi
         : nil
 }
 
+/// "Slice #285" for the report's `slice`, a string that says its own "#" or a bare number; nil when it is neither.
+private func sliceTitle(_ slice: Any?, bundle: Bundle?, locale: Locale) -> String? {
+    if let text = slice as? String { return Copy.jsonMessageSlice(slice: text, bundle: bundle, locale: locale) }
+    if let number = slice as? NSNumber { return Copy.jsonMessageSliceNumber(number: number.stringValue, bundle: bundle, locale: locale) }
+    return nil
+}
+
 /// "PR #289" for a pull request's address, "Pull request" for any other.
-private func pullLabel(_ url: URL) -> String {
-    url.pathComponents.dropLast().last == "pull" ? "PR #\(url.lastPathComponent)" : "Pull request"
+private func pullLabel(_ url: URL, bundle: Bundle?, locale: Locale) -> String {
+    if url.pathComponents.dropLast().last == "pull" {
+        return Copy.jsonMessagePullRequestNumber(number: url.lastPathComponent, bundle: bundle, locale: locale)
+    }
+    return Copy.jsonMessagePullRequest(bundle: bundle, locale: locale)
 }
 
 /// "ready-to-merge", "definitionOfDone" or "pr_url" as "Ready to merge", "Definition of done", "Pr url".

@@ -2,6 +2,9 @@ import Foundation
 import Testing
 @testable import CarrierCore
 
+/// The labels the tests assert are English, whatever language the machine is in.
+private func englishMessage(_ text: String) -> JSONMessage? { jsonMessage(text, bundle: english.bundle, locale: english.locale) }
+
 private let slice = """
 {
   "slice": "#285",
@@ -18,7 +21,7 @@ private let slice = """
 """
 
 @Test func aSliceReportBecomesACardWithTheUnfinishedChecksFirst() {
-    guard case .slice(let report)? = jsonMessage(slice) else {
+    guard case .slice(let report)? = englishMessage(slice) else {
         Issue.record("a slice report is not a slice card")
         return
     }
@@ -33,7 +36,7 @@ private let slice = """
 
 // The `ship` skill's template has bare keys and agents copy it: the same report, as JSON5.
 @Test func aReportWithBareKeysAndANumberedSliceIsTheSameCard() {
-    guard case .slice(let report)? = jsonMessage("""
+    guard case .slice(let report)? = englishMessage("""
     {slice:351, outcome:"ready-to-merge", branch:"feat/x/351-y", pr:"https://github.com/AshuLab/carrier/pull/356",
     definitionOfDone:{loadConfigRules:true, typecheck:false}, note:"Small."}
     """) else {
@@ -46,11 +49,11 @@ private let slice = """
 }
 
 @Test func theReportInACodeFenceIsTheSameReport() {
-    #expect(jsonMessage("```json\n\(slice)\n```") == jsonMessage(slice))
+    #expect(englishMessage("```json\n\(slice)\n```") == englishMessage(slice))
 }
 
 @Test func anyOtherObjectIsALabelledListInTheOrderItWasWritten() {
-    let message = jsonMessage("""
+    let message = englishMessage("""
     {"repo": "AshuLab/carrier", "filesTouched": 7, "approved": false, "gone": null,
      "link": "https://github.com/AshuLab/carrier/pull/291", "checks": {"unit": true, "integration": false},
      "followUps": ["rename settle", "add a test"], "where": "src/engine.ts", "slice": "#1", "extra": 1}
@@ -70,7 +73,7 @@ private let slice = """
 }
 
 @Test func aSliceReportWithAnExtraKeyKeepsEveryKey() {
-    guard case .fields(let fields)? = jsonMessage(#"{"outcome": "ready", "definitionOfDone": {"a": true}, "risk": "low"}"#) else {
+    guard case .fields(let fields)? = englishMessage(#"{"outcome": "ready", "definitionOfDone": {"a": true}, "risk": "low"}"#) else {
         Issue.record("a report with a key the card does not know is not a list of fields")
         return
     }
@@ -78,9 +81,9 @@ private let slice = """
 }
 
 @Test func whatIsNotAJSONObjectStaysText() {
-    #expect(jsonMessage("Done. {\"a\": 1}") == nil)
-    #expect(jsonMessage("{not json}") == nil)
-    #expect(jsonMessage("{}") == nil)
-    #expect(jsonMessage("[1, 2]") == nil)
-    #expect(jsonMessage("```json\n{\"a\": 1}\n") == nil)
+    #expect(englishMessage("Done. {\"a\": 1}") == nil)
+    #expect(englishMessage("{not json}") == nil)
+    #expect(englishMessage("{}") == nil)
+    #expect(englishMessage("[1, 2]") == nil)
+    #expect(englishMessage("```json\n{\"a\": 1}\n") == nil)
 }

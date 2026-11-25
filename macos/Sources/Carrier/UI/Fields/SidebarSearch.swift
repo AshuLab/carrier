@@ -28,8 +28,8 @@ struct SidebarSearchField: View {
                     }
                     .buttonStyle(.plain)
                     .onHover { clearHovered = $0 }
-                    .help("Clear")
-                    .accessibilityLabel("Clear")
+                    .help(Copy.pieceClear())
+                    .accessibilityLabel(Copy.pieceClear())
                 }
             }
     }
@@ -65,7 +65,7 @@ struct SidebarNoResults: View {
 
     var body: some View {
         SidebarEmptyBlock(icon: icon, title: title, line: line) {
-            Button("Clear search", action: clear)
+            Button(Copy.pieceClearSearch(), action: clear)
         }
     }
 }

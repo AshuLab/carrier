@@ -8,7 +8,7 @@ struct SettingsPreview<Content: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Tokens.Space.s8) {
-            Text("Preview").sectionLabel()
+            Text(Copy.piecePreview()).sectionLabel()
             content.frame(maxWidth: .infinity)
         }
         .padding(.vertical, Tokens.Space.s12)

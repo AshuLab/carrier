@@ -173,7 +173,7 @@ struct CodeBlockView: View {
 
     private var foldButton: some View {
         Button { withAnimation(.smooth(duration: 0.2)) { expanded.toggle() } } label: {
-            Text(expanded ? "Show less" : "Show \(lines.count - foldAfter) more \(lines.count - foldAfter == 1 ? "line" : "lines")")
+            Text(expanded ? Copy.pieceFoldShowLess() : Copy.pieceFoldShowMore(count: lines.count - foldAfter))
                 .scaledFont(11.5).foregroundStyle(.secondary).frame(maxWidth: .infinity).padding(.vertical, Tokens.Space.s8).contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -244,7 +244,7 @@ private struct CodeCopyButton: View {
                 .frame(width: 26, height: 22).contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .help("Copy the code").accessibilityLabel("Copy the code")
+        .help(Copy.pieceCopyCode()).accessibilityLabel(Copy.pieceCopyCode())
         .opacity(visible || copied ? 1 : 0)
     }
 }

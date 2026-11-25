@@ -13,21 +13,25 @@ struct CheckButton: View {
     enum Phase: Equatable { case idle, checking, done, failed }
 
     var skin = Skin.capsule
-    var title = "Check again"
+    /// What the button says at rest; a screen passes its own, and without one it says "Check again".
+    var title: String?
     let phase: Phase
     let action: () -> Void
 
     @State private var hovered = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private var words: String {
+    /// The words of a face: the screen's `title` at rest (the piece's own "Check again" without one) and the piece's for the three others.
+    static func words(for phase: Phase, title: String?, bundle: Bundle? = nil, locale: Locale = .current) -> String {
         switch phase {
-        case .idle: title
-        case .checking: "Checking…"
-        case .done: "Up to date"
-        case .failed: "Check failed"
+        case .idle: title ?? Copy.pieceCheckAgain(bundle: bundle, locale: locale)
+        case .checking: Copy.pieceChecking(bundle: bundle, locale: locale)
+        case .done: Copy.pieceUpToDate(bundle: bundle, locale: locale)
+        case .failed: Copy.pieceCheckFailed(bundle: bundle, locale: locale)
         }
     }
+
+    private var words: String { Self.words(for: phase, title: title) }
 
     var body: some View {
         Group {
@@ -52,10 +56,10 @@ struct CheckButton: View {
 
     private var faces: some View {
         ZStack {
-            face(.idle) { Glyph(.refresh, size: 12); Text(title) }
-            face(.checking) { Glyph(.refresh, size: 12).glyphSpinning(phase == .checking); Text("Checking…") }
-            face(.done) { ResultMark(kind: .check, tint: ResultMark.green, shown: phase == .done); Text("Up to date") }
-            face(.failed) { ResultMark(kind: .cross, tint: ResultMark.red, shown: phase == .failed); Text("Check failed") }
+            face(.idle) { Glyph(.refresh, size: 12); Text(Self.words(for: .idle, title: title)) }
+            face(.checking) { Glyph(.refresh, size: 12).glyphSpinning(phase == .checking); Text(Self.words(for: .checking, title: title)) }
+            face(.done) { ResultMark(kind: .check, tint: ResultMark.green, shown: phase == .done); Text(Self.words(for: .done, title: title)) }
+            face(.failed) { ResultMark(kind: .cross, tint: ResultMark.red, shown: phase == .failed); Text(Self.words(for: .failed, title: title)) }
         }
         .scaledFont(12, weight: .medium)
         .accessibilityElement(children: .ignore).accessibilityLabel(words)

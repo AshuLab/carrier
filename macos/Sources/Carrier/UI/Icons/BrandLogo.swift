@@ -33,11 +33,11 @@ struct BrandLogo: View {
             }
         }
         .frame(maxWidth: .infinity).frame(height: Self.barHeight)
-        .accessibilityElement(children: .ignore).accessibilityLabel(isDevBuild ? "Carrier, development build" : "Carrier")
+        .accessibilityElement(children: .ignore).accessibilityLabel(isDevBuild ? Copy.pieceBrandDevelopment() : Copy.appName())
     }
 
     private var badge: some View {
-        Text("DEV MODE").scaledFont(10, weight: .bold).tracking(0.8).foregroundStyle(Self.devPink).lineLimit(1)
+        Text(Copy.pieceDevMode()).scaledFont(10, weight: .bold).tracking(0.8).foregroundStyle(Self.devPink).lineLimit(1)
             .padding(.horizontal, Tokens.Space.s8).padding(.vertical, Tokens.Space.s1)
             .background(Capsule().fill(Self.devPink.opacity(0.14)))
             .overlay(Capsule().strokeBorder(Self.devPink.opacity(0.4), lineWidth: 1))

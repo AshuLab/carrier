@@ -49,6 +49,6 @@ struct NumberField<Value: Equatable>: View {
         } label: {
             Glyph(symbol, size: 12).foregroundStyle(.secondary).frame(width: 24, height: 24).contentShape(Rectangle())
         }
-        .buttonStyle(.plain).accessibilityLabel(direction < 0 ? "Less" : "More")
+        .buttonStyle(.plain).accessibilityLabel(direction < 0 ? Copy.pieceNumberLess() : Copy.pieceNumberMore())
     }
 }

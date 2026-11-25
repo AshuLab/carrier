@@ -35,7 +35,7 @@ struct AgentsTabView: View {
                 } else {
                     first(page)
                 }
-                ReloadNote()
+                ReloadNote(ReloadStatus.shared)
             } else {
                 Label("The engine is not configured: engine.json in the Carrier folder is missing or is not a JSON object.", icon: .warningFilled)
                     .font(.scaled(12)).foregroundStyle(.orange)

@@ -71,7 +71,7 @@ struct WatchingTabView: View {
             }
             // the list is written as it changes and says nothing about it, unless it could not, the engine would refuse it or it did not apply it
             if let words = [unreadable ? nil : problem, failure].compactMap({ $0 }).first { SettingsGroup(title: "") { ProblemLine(text: words) } }
-            if case .refused? = reloaded.outcome {} else { ReloadNote() }
+            if case .refused? = reloaded.outcome {} else { ReloadNote(reloaded) }
         }
         .buttonStyle(SecondaryCapsuleButtonStyle())
         // nothing to edit until the file reads; it is read again when it appears or goes (`StartController` checks every 3 seconds)

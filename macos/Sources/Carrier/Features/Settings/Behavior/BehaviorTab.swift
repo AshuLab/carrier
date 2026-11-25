@@ -55,7 +55,7 @@ struct BehaviorTabView: View {
         // nothing to edit until the file reads; it is read again when it appears or goes (`StartController` checks every 3 seconds)
         .disabled(unreadable)
         .preference(key: SettingsHeaderNoteKey.self, value: headerNote)
-        .announcesReloadProblems()
+        .announcesReloadProblems(answers: engine.answers, isProblem: engine.isProblem, words: engine.words)
         .onAppear(perform: load)
         // the send that waits for a pause is made when the person leaves, not lost
         .onDisappear { flush() }
@@ -172,110 +172,5 @@ struct BehaviorTabView: View {
         guard unreadable == false, draft != saved, problems.isEmpty else { return }
         waiting = draft
         sendAfterPause()
-    }
-}
-
-/// A text field that hands its number to `value` as it is typed, so Save is on at once; text that is not a number yet is
-/// reported through `unparsable` and the value keeps its last good number.
-struct NumberField<Value: Equatable>: View {
-    let key: String
-    @Binding var value: Value
-    @Binding var unparsable: Set<String>
-    @Environment(\.settingsInvalid) private var invalid
-    let parse: (String) -> Value?
-    let format: (Value) -> String
-    /// The value one click of − (-1) or + (1) moves to; nil when it would go below the least the engine takes.
-    let step: (Value, Int) -> Value?
-    @State private var text = ""
-    @FocusState private var focused: Bool
-
-    var body: some View {
-        HStack(spacing: 0) {
-            stepButton(.minus, -1)
-            TextField("", text: $text).textFieldStyle(.plain).multilineTextAlignment(.center).frame(width: 42).focused($focused)
-            stepButton(.plus, 1)
-        }
-        .padding(2)
-        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.primary.opacity(focused ? 0.09 : 0.07)))
-        .overlay { if invalid { RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(Color.orange, lineWidth: 1.5) } else if focused { RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(Color.themeAccent, lineWidth: 1.5) } }
-            .onAppear { text = format(value) }
-            .onChange(of: text) {
-                if let parsed = parse(text) {
-                    unparsable.remove(key)
-                    if parsed != value { value = parsed }
-                } else {
-                    unparsable.insert(key)
-                }
-            }
-            // Revert, or a reload: show the value the draft now has, unless the text already means it
-            .onChange(of: value) { if parse(text) != value { text = format(value) } }
-            // Revert clears the mark: text that is still not a number goes back to the value
-            .onChange(of: unparsable) { if unparsable.contains(key) == false, parse(text) == nil { text = format(value) } }
-            .accessibilityLabel(key)
-    }
-
-    private func stepButton(_ symbol: AppIcon, _ direction: Int) -> some View {
-        Button {
-            guard let next = step(parse(text) ?? value, direction) else { return }
-            unparsable.remove(key)
-            value = next
-            text = format(next)
-        } label: {
-            Glyph(symbol, size: 12).foregroundStyle(.secondary).frame(width: 24, height: 24).contentShape(Rectangle())
-        }
-        .buttonStyle(.plain).accessibilityLabel(direction < 0 ? "Less" : "More")
-    }
-}
-
-/// Every other button of Settings: a quiet capsule in the neutral, so the one in the accent (`PrimaryCapsuleButtonStyle`: Done, Save) is
-/// the only one that reads as the screen's main action. Smaller under `.controlSize(.small)`, for the buttons that sit in a row.
-struct SecondaryCapsuleButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View { Face(configuration: configuration) }
-
-    private struct Face: View {
-        let configuration: ButtonStyleConfiguration
-        @Environment(\.isEnabled) private var enabled
-        @Environment(\.controlSize) private var size
-        @State private var hovered = false
-
-        var body: some View {
-            let small = size == .small || size == .mini
-            configuration.label.font(small ? .scaled(12).weight(.medium) : .scaled(13).weight(.medium))
-                .foregroundStyle(enabled ? Color.primary : Color.secondary)
-                .padding(.horizontal, small ? 11 : 16).padding(.vertical, small ? 3 : 6)
-                .background(Capsule().fill(Color.primary.opacity(configuration.isPressed ? 0.2 : hovered ? 0.15 : 0.09)))
-                .overlay(Capsule().strokeBorder(Color.primary.opacity(0.1), lineWidth: 0.5))
-                .opacity(enabled ? 1 : 0.5)
-                .contentShape(Capsule())
-                .onHover { hovered = $0 }
-                .animation(.easeOut(duration: 0.12), value: hovered)
-        }
-    }
-}
-
-/// The main button of a tab's footer: a flat accent capsule, grey when it cannot be pressed.
-struct PrimaryCapsuleButtonStyle: ButtonStyle {
-    /// The one button a screen is about (Start Carrier), bigger than a footer's.
-    var large = false
-
-    func makeBody(configuration: Configuration) -> some View { Face(configuration: configuration, large: large) }
-
-    private struct Face: View {
-        let configuration: ButtonStyleConfiguration
-        let large: Bool
-        @Environment(\.isEnabled) private var enabled
-        @Environment(\.controlSize) private var size
-
-        var body: some View {
-            let small = !large && (size == .small || size == .mini)
-            configuration.label.fontWeight(.semibold).font(large ? .scaled(15).weight(.semibold) : (small ? .scaled(12).weight(.semibold) : .scaled(13).weight(.semibold)))
-                .foregroundStyle(enabled ? Color.white : Color.secondary)
-                .padding(.horizontal, large ? 24 : (small ? 11 : 16)).padding(.vertical, large ? 9 : (small ? 3 : 6))
-                // the accent is a light pastel on the dark themes: darkened for the fill so the white label reads over any theme
-                .background(Capsule().fill(enabled ? Color.themeAccent.mix(with: .black, by: 0.4) : Color.secondary.opacity(0.18)))
-                .contentShape(Capsule())
-                .shadow(color: .black.opacity(enabled ? 0.3 : 0), radius: 1, y: 1)
-                .opacity(configuration.isPressed ? 0.8 : 1)
-        }
     }
 }

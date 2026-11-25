@@ -86,15 +86,15 @@ macos/Sources/
     Tokens/       Color, Font and spacing from the tokens: AppTheme, ScaledFont, CommandStyle
     Buttons/      PrimaryCapsuleButtonStyle, SecondaryCapsuleButtonStyle, ToolbarPillButton, IconButton, HoverFillButtonStyle, CheckButton, ...
     Fields/       NumberField, the settings field modifier, ToolbarSearchField, SidebarSearchField
-    Selects/      SelectMenu, SelectChevron, SelectButtonStyle, SegmentedChoice, ChoicePopUp, ChoiceMenu, FilterChip
+    Selects/      SelectMenu, SelectChevron, SelectButtonStyle, SegmentedChoice, ChoicePopUp, ChoiceMenu
     Rows/         SettingsTabRow, SettingsStackedRow, NavigationRow, HoverRow, RowHint, ScaleRow, SwitchRow, MonoLines, RowParts
     Cards/        NoticeCard, SettingsTabCard, SettingsGroup, OverviewCard, WorkCard, HoverCard, CardFactsGrid, CodeBlockView
     Chips/        StatusChip, KindChipView, PullRequestChip, Badge, ChosenMark
     Meters/       QuotaBar, QuotaMeter, QuotaPercent, SegmentedProgress, Ring, WorkingRing, SpinningRing
-    Feedback/     EmptyStateView, LoadingStateView, ProblemLine, ReloadNote, BannerView, Shimmer, GlowEdge
+    Feedback/     EmptyStateView, LoadingStateView, ProblemLine, BannerView, Shimmer, GlowEdge
     Layout/       FlowLayout, EqualWidthRow, RevealLayout, UnderlineTabs, SettingsPageBody
-    Modifiers/    MiddleClickModifier, CopyOnHover, the anchored and preference keys of Settings
-    Icons/        Glyph, IconImages, StateGlyph, StateMark, AccountMark, ProviderMark, BrandLogo, ProjectIcon
+    Modifiers/    MiddleClickModifier, the anchored and preference keys of Settings
+    Icons/        Glyph, IconImages, StateGlyph, StateMark, StatusMark, AccountMark, ProviderMark, BrandLogo, ProjectIcon
   Carrier/
     App/          main, AppDelegate, WindowController, MainMenu, MenuControls, StatusMenuGroups, StatusHeaderView, SessionMenu, EpicMenuSection, KeepAwakeMenu, LaunchPhases, EngineIdentityStore, AppHealth
     Features/
@@ -180,7 +180,7 @@ The count is how many other files of `Carrier/` name one of the file's types.
 
 | Lives in today | Pieces | Used by |
 | --- | --- | --- |
-| `SettingsTabs.swift` | SettingsTabRow, SettingsHeaderButton, SettingsDivider, FilterChip, SegmentedChoice, EqualWidthRow, SettingsStackedRow, SelectMenu, SelectChevron, SelectButtonStyle, CopyOnHover, SettingsTabCard, StatusMark, RoleTile, SettingsGroup, SettingsNoteView, ProblemLine, ReloadNote, AskAgainButton, ChoicePopUp, SettingsPageBody, SettingsPreview, NavigationRow | 40 files |
+| `SettingsTabs.swift` | SettingsTabRow, SettingsDivider, SegmentedChoice, EqualWidthRow, SettingsStackedRow, SelectMenu, SelectChevron, SelectButtonStyle, SettingsTabCard, StatusMark, SettingsGroup, ProblemLine, ChoicePopUp, SettingsPageBody, SettingsPreview, NavigationRow | 40 files |
 | `BehaviorTab.swift` | NumberField, PrimaryCapsuleButtonStyle, SecondaryCapsuleButtonStyle | 33 |
 | `SidebarView.swift` | SidebarMetrics, HoverFillButtonStyle, IconButton, ChoiceMenu, SidebarSectionRow | 17 |
 | `SessionRowView.swift` | SessionTimeLabel, ProjectIconImageCache, ProjectIcon, ProviderMarks, WorkingRing | 16 |
@@ -191,6 +191,9 @@ The count is how many other files of `Carrier/` name one of the file's types.
 | `ComposerMenuButton.swift` | ProviderMark, ScaleRow, SwitchRow | 8 |
 | `UsageView.swift` | QuotaBar, QuotaPercent, QuotaMeter | 4 |
 | `SliceCardView.swift` | CardChevron, PullRequestChip | 4 |
+
+Corrected when `SettingsTabs.swift` and `BehaviorTab.swift` were cut: a piece used by one area only stays in that area (0052, rule 9).
+`FilterChip` is used only by Projects and lives in `Features/Projects/`; `SettingsHeaderButton`, `SettingsNoteView`, `AskAgainButton`, `ReloadNote` and `CopyOnHover` are used only by Settings and are files of `Features/Settings/` (`ReloadNote` and `AskAgainButton` take the engine's words and state as values); `RoleTile` and `roleSummary` had no caller and are deleted.
 
 ## Files over 400 lines
 

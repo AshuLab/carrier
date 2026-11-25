@@ -47,7 +47,7 @@ Interface icons: `AppIcon` in three sets (`IconSets.swift`, `IconsTests`), drawn
 
 ## Settings
 
-The window is `Carrier/SettingsWindow.swift`, a page's shared pieces `SettingsTabs.swift` ([settings](../docs/macos/settings.md)); `SettingsIndexDriftTests` keeps the search's `settingsIndex` in step with them.
+The window is `Carrier/SettingsWindow.swift`, a page's pieces `Carrier/UI/` ([settings](../docs/macos/settings.md)); `SettingsIndexDriftTests` keeps the search's `settingsIndex` in step with them.
 
 ### Preferences
 

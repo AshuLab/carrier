@@ -5,6 +5,7 @@ import SwiftUI
 
 /// What a piece reads from the app beyond `.tint` and the text size, set at the root of each window (`themed()`): the surfaces of the theme, and the set and
 /// weight of the outline icons. It grows only with what the pieces really read.
+/// `accent` is the same color `.tint` carries, for a piece that has to mix it with black or white, which a `ShapeStyle` cannot do.
 struct PieceTheme: Equatable, Sendable {
     var surfaces: ThemeSurfaces
     var iconWeight: Double
@@ -13,6 +14,11 @@ struct PieceTheme: Equatable, Sendable {
     /// What a view outside any window of the app (a preview) reads: the default theme, in light.
     static let standard = PieceTheme(
         surfaces: themeSurfaces(.carrier, scheme: .light, translucent: false), iconWeight: IconWeight.defaultWeight, iconSet: IconSet.defaultSet)
+
+    var accent: Color { surfaces.accent.map(Color.init) ?? .accentColor }
+
+    /// The accent as text on its own tinted piece (the chosen filter, the chosen segment): a little lifted in the dark and deepened in the light, so it keeps its contrast.
+    func accentInk(_ scheme: ColorScheme) -> Color { accent.mix(with: scheme == .dark ? .white : .black, by: scheme == .dark ? 0.3 : 0.2) }
 }
 
 extension EnvironmentValues {

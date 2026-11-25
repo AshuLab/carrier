@@ -129,7 +129,7 @@ struct SettingsRoot: View {
                         Button(action: navigator.forward) { Label("Forward", systemImage: "chevron.forward") }
                             .disabled(navigator.history.canGoForward == false).keyboardShortcut("]", modifiers: .command).help("Forward")
                     }
-                    if let headerNote { ToolbarItem(placement: .primaryAction) { SettingsNoteView(note: headerNote) } }
+                    if let headerNote { ToolbarItem(placement: .primaryAction) { SettingsNoteView(note: headerNote, pending: ReloadStatus.shared.pending, ask: { ReloadStatus.shared.ask() }) } }
                     if let actionTitle = headerAction.title {
                         ToolbarItem(placement: .primaryAction) {
                             ToolbarPillButton(
@@ -495,7 +495,7 @@ struct SettingsPages: View {
                 }
             }
         }
-        ReloadNote().padding(.horizontal, 4)
+        ReloadNote(ReloadStatus.shared).padding(.horizontal, 4)
     }
 
     /// The default first, then the profiles of the file; an undeclared one the file names is on the list too (`EngineIdentity.choices`).

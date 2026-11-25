@@ -10,26 +10,26 @@ struct RefusalBannerView: View {
     private let reloaded = ReloadStatus.shared
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Glyph(.warningFilled, size: 16).foregroundStyle(.orange).padding(.top, 1).accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 6) {
+        HStack(alignment: .top, spacing: Tokens.Space.s12) {
+            Glyph(.warningFilled, size: 16).foregroundStyle(.orange).padding(.top, Tokens.Space.s1).accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: Tokens.Space.s6) {
                 Text(banner.title).font(.scaled(13).weight(.semibold))
                 Text([banner.detail, RefusalBanner.consequence].compactMap { $0 }.joined(separator: " ")).font(.scaled(12)).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 DisclosureGroup("What Carrier said", isExpanded: $showingRaw) {
                     Text(banner.raw).font(.scaled(11, design: .monospaced)).foregroundStyle(.secondary).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity, alignment: .leading).padding(.top, 4)
+                        .frame(maxWidth: .infinity, alignment: .leading).padding(.top, Tokens.Space.s4)
                 }
                 .font(.scaled(11.5)).foregroundStyle(.secondary)
-                HStack(spacing: 8) {
+                HStack(spacing: Tokens.Space.s8) {
                     if let page = banner.fix, let title = banner.fixTitle { Button(title) { fix(page) }.controlSize(.small) }
                     AskAgainButton(pending: reloaded.pending) { reloaded.ask() }
                 }
-                .padding(.top, 2)
+                .padding(.top, Tokens.Space.s2)
             }
             Spacer(minLength: 0)
         }
-        .padding(.vertical, 4).frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, Tokens.Space.s4).frame(maxWidth: .infinity, alignment: .leading)
         .announcesReloadProblems(answers: reloaded.answers, isProblem: reloaded.isProblem, words: reloaded.words)
         .accessibilityElement(children: .contain)
     }

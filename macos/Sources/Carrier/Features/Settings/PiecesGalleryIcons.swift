@@ -6,17 +6,17 @@ struct PiecesGalleryIcons: View {
     @Environment(\.pieceTheme) private var theme
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 22) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s22) {
             GalleryEntry("Glyph", "IconImages") {
-                GalleryState(.normal) { HStack(spacing: 10) { ForEach(PiecesGalleryData.icons, id: \.self) { Glyph($0) } } }
-                GalleryState(.large) { HStack(spacing: 10) { ForEach(PiecesGalleryData.icons, id: \.self) { Glyph($0, size: 26) } } }
-                GalleryState(.bold) { HStack(spacing: 10) { ForEach(PiecesGalleryData.icons, id: \.self) { Glyph($0, size: 26, bold: true) } } }
+                GalleryState(.normal) { HStack(spacing: Tokens.Space.s10) { ForEach(PiecesGalleryData.icons, id: \.self) { Glyph($0) } } }
+                GalleryState(.large) { HStack(spacing: Tokens.Space.s10) { ForEach(PiecesGalleryData.icons, id: \.self) { Glyph($0, size: 26) } } }
+                GalleryState(.bold) { HStack(spacing: Tokens.Space.s10) { ForEach(PiecesGalleryData.icons, id: \.self) { Glyph($0, size: 26, bold: true) } } }
                 GalleryState(.working) { Glyph(.refresh, size: 20).glyphSpinning(true) }
                 GalleryState(.sets) {
                     // the same icon in each set, as the images the AppKit that draws an icon itself asks for
-                    HStack(spacing: 14) {
+                    HStack(spacing: Tokens.Space.s14) {
                         ForEach(IconSet.allCases, id: \.self) { set in
-                            VStack(spacing: 3) {
+                            VStack(spacing: Tokens.Space.s3) {
                                 Image(nsImage: IconImages.image(.search, set: set, weight: theme.iconWeight, bold: false, pointSize: 26)).renderingMode(.template).resizable().scaledToFit().frame(width: 26, height: 26)
                                 Text(set.title).scaledFont(10).foregroundStyle(.tertiary)
                             }
@@ -49,7 +49,7 @@ struct PiecesGalleryIcons: View {
                 GalleryState(.finished) { ProjectIcon(initials: PiecesGalleryData.initials, color: ProjectIcon.palette[12], finished: true) }
             }
             GalleryEntry("ProviderMark") {
-                GalleryState(.normal) { HStack(spacing: 10) { ForEach(PiecesGalleryData.tools, id: \.self) { ProviderMark(name: $0, size: 22) } } }
+                GalleryState(.normal) { HStack(spacing: Tokens.Space.s10) { ForEach(PiecesGalleryData.tools, id: \.self) { ProviderMark(name: $0, size: 22) } } }
                 GalleryState(.empty) { ProviderMark(name: PiecesGalleryData.unknownTool, size: 22) }
             }
             GalleryEntry("StateGlyph") {

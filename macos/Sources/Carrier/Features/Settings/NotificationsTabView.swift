@@ -84,7 +84,7 @@ struct NotificationsTabView: View {
                 }
             }
             if let testAdvice {
-                Label(testAdvice, icon: .warningFilled).font(.scaled(12)).foregroundStyle(.orange).padding(.horizontal, 14)
+                Label(testAdvice, icon: .warningFilled).font(.scaled(12)).foregroundStyle(.orange).padding(.horizontal, Tokens.Space.s14)
             }
         }
         .buttonStyle(SecondaryCapsuleButtonStyle())

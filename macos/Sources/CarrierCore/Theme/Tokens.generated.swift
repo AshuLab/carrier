@@ -44,6 +44,38 @@ public enum Tokens {
         ("graphite", 0x8e8e93),
     ]
 
+    public enum Radius {
+        public static let tiny: Double = 3
+        public static let small: Double = 6
+        public static let control: Double = 8
+        public static let tile: Double = 10
+        public static let card: Double = 12
+        public static let panel: Double = 16
+    }
+
+    public enum Space {
+        public static let none: Double = 0
+        public static let s1: Double = 1
+        public static let s2: Double = 2
+        public static let s3: Double = 3
+        public static let s4: Double = 4
+        public static let s5: Double = 5
+        public static let s6: Double = 6
+        public static let s8: Double = 8
+        public static let s10: Double = 10
+        public static let s12: Double = 12
+        public static let s14: Double = 14
+        public static let s16: Double = 16
+        public static let s18: Double = 18
+        public static let s20: Double = 20
+        public static let s22: Double = 22
+        public static let s24: Double = 24
+        public static let s28: Double = 28
+        public static let s30: Double = 30
+        public static let s40: Double = 40
+        public static let s90: Double = 90
+    }
+
     public enum Status {
         public static let working = SchemePair<UInt32>(light: 0x6b38b8, dark: 0xc9a1ff)
         public static let background = SchemePair<UInt32>(light: 0x007ab3, dark: 0x59c7fa)
@@ -62,6 +94,21 @@ public enum Tokens {
 
     public enum Attention {
         public static let approval = SchemePair<UInt32>(light: 0xc78d63, dark: 0xc78d63)
+    }
+
+    public enum Tile {
+        public static let terminal = SchemePair<UInt32>(light: 0x404040, dark: 0x404040)
+    }
+
+    public enum ProjectColor {
+        public static let red = SchemePair<UInt32>(light: 0xa34853, dark: 0xa34853)
+        public static let orange = SchemePair<UInt32>(light: 0x9e613f, dark: 0x9e613f)
+        public static let yellow = SchemePair<UInt32>(light: 0x85723a, dark: 0x85723a)
+        public static let green = SchemePair<UInt32>(light: 0x3c824d, dark: 0x3c824d)
+        public static let teal = SchemePair<UInt32>(light: 0x3d8578, dark: 0x3d8578)
+        public static let blue = SchemePair<UInt32>(light: 0x4867a3, dark: 0x4867a3)
+        public static let purple = SchemePair<UInt32>(light: 0x7e4ea3, dark: 0x7e4ea3)
+        public static let pink = SchemePair<UInt32>(light: 0xa34e81, dark: 0xa34e81)
     }
 
     public enum Accent {

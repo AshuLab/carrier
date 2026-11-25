@@ -18,17 +18,17 @@ extension AddProjectSheet {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 14) {
+                LazyVStack(alignment: .leading, spacing: Tokens.Space.s14) {
                     ForEach(current.sections) { section in
-                        VStack(alignment: .leading, spacing: 4) {
+                        VStack(alignment: .leading, spacing: Tokens.Space.s4) {
                             if let title = section.title {
                                 Text(title)
                                     .sectionLabel()
-                                    .padding(.horizontal, 10)
-                                    .padding(.bottom, 2)
+                                    .padding(.horizontal, Tokens.Space.s10)
+                                    .padding(.bottom, Tokens.Space.s2)
                             }
                             ForEach(section.items) { item in
-                                VStack(alignment: .leading, spacing: 2) {
+                                VStack(alignment: .leading, spacing: Tokens.Space.s2) {
                                     resultRow(item, highlighted: highlightedId == item.id)
                                     if item.destination != nil, highlightedId == item.id || section.id == "path" { destinationLine(item) }
                                 }
@@ -37,8 +37,8 @@ extension AddProjectSheet {
                         }
                     }
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 14)
+                .padding(.horizontal, Tokens.Space.s16)
+                .padding(.vertical, Tokens.Space.s14)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
@@ -49,10 +49,10 @@ extension AddProjectSheet {
             action: { activate(item) },
             fill: highlighted ? Color.themeAccent.opacity(0.16) : nil
         ) { hovering in
-            HStack(spacing: 12) {
+            HStack(spacing: Tokens.Space.s12) {
                 ProjectIcon(tile: item.tile)
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 6) {
+                VStack(alignment: .leading, spacing: Tokens.Space.s2) {
+                    HStack(spacing: Tokens.Space.s6) {
                         Text(item.title)
                             .font(.scaled(13, weight: .medium))
                             .lineLimit(1)
@@ -71,8 +71,8 @@ extension AddProjectSheet {
                 }
                 actionBadge(item.actionTitle, active: (hovering || highlighted) && item.isEnabled)
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 7)
+            .padding(.horizontal, Tokens.Space.s10)
+            .padding(.vertical, Tokens.Space.s8)
         }
         .disabled(item.isEnabled == false)
         .accessibilityLabel(item.problem.map { "\(item.title), \($0)" } ?? "\(item.title), \(item.detail)")
@@ -82,10 +82,10 @@ extension AddProjectSheet {
     /// Where a clone goes, with Choose… to change it for this clone only; a repository the login cannot see says so in orange instead.
     @ViewBuilder private func destinationLine(_ item: ProjectSheetResult) -> some View {
         if let problem = item.problem {
-            ProblemLine(text: problem).padding(.horizontal, 10).padding(.bottom, 4)
+            ProblemLine(text: problem).padding(.horizontal, Tokens.Space.s10).padding(.bottom, Tokens.Space.s4)
         } else if let destination = item.destination, case .cloneRepo(let repo, _) = item.kind {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: Tokens.Space.s6) {
+                HStack(spacing: Tokens.Space.s8) {
                     Text(destination.line)
                         .font(.scaled(11, design: .monospaced))
                         .foregroundStyle(.secondary)
@@ -101,14 +101,14 @@ extension AddProjectSheet {
                 }
                 if let watch = item.watch, let newSession { watchChoice(watch, newSession) }
             }
-            .padding(.horizontal, 10).padding(.bottom, 4)
+            .padding(.horizontal, Tokens.Space.s10).padding(.bottom, Tokens.Space.s4)
         }
     }
 
     /// "Let Carrier watch this repo": on by default, a choice of the plan acted on once the first message was prepared; off, with the reason, when it cannot be on.
     private func watchChoice(_ watch: ProjectSheetWatch, _ newSession: NewSessionModel) -> some View {
         let on = watch.problem == nil && newSession.watch
-        return HStack(spacing: 8) {
+        return HStack(spacing: Tokens.Space.s8) {
             Toggle("Let Carrier watch this repo", isOn: Binding(get: { on }, set: { newSession.watch = $0 }))
                 .toggleStyle(.switch).controlSize(.small).font(.scaled(11))
                 .disabled(watch.problem != nil)
@@ -121,24 +121,24 @@ extension AddProjectSheet {
         Text(title)
             .font(.scaled(11, weight: .semibold))
             .foregroundStyle(active ? .white : .secondary)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 3)
+            .padding(.horizontal, Tokens.Space.s10)
+            .padding(.vertical, Tokens.Space.s3)
             .background(Capsule().fill(active ? Color.accentGlass : Color.primary.opacity(0.08)))
     }
 
     // MARK: Drop Veil
 
     var dropVeil: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: Tokens.Space.s4) {
             Glyph(.folderPlus, size: 22).foregroundStyle(Color.themeAccent)
             Text(mode.actsAtOnce ? "Drop folders to add" : "Drop a folder to work in").font(.scaled(14, weight: .semibold))
             Text(mode.actsAtOnce ? "Folders are added to your projects; files are refused" : "The folder fills the plan; nothing is written").font(.scaled(12)).foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(RoundedRectangle(cornerRadius: 12).fill(Color.themeAccent.opacity(0.14)))
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
-        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Color.themeAccent, style: StrokeStyle(lineWidth: 1.5, dash: [6, 4])))
-        .padding(8)
+        .background(RoundedRectangle(cornerRadius: Tokens.Radius.card).fill(Color.themeAccent.opacity(0.14)))
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: Tokens.Radius.card))
+        .overlay(RoundedRectangle(cornerRadius: Tokens.Radius.card).strokeBorder(Color.themeAccent, style: StrokeStyle(lineWidth: 1.5, dash: [6, 4])))
+        .padding(Tokens.Space.s8)
         .allowsHitTesting(false)
         .transition(.opacity)
     }

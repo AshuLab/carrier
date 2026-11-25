@@ -10,7 +10,7 @@ private struct CopyOnHover: ViewModifier {
     @State private var copied = false
 
     func body(content: Content) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 4) {
+        HStack(alignment: .firstTextBaseline, spacing: Tokens.Space.s4) {
             content
             Button(action: copy) {
                 Glyph(copied ? .check : .copy, size: 11)

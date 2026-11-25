@@ -15,12 +15,12 @@ struct FilterChip: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 5) {
+            HStack(spacing: Tokens.Space.s5) {
                 if let icon { Glyph(icon, size: 11) }
                 Text(title).scaledFont(12, weight: .medium)
             }
             .foregroundStyle(on ? theme.accentInk(scheme) : hovered ? Color.primary : Color.secondary)
-            .padding(.horizontal, 11).padding(.vertical, 4)
+            .padding(.horizontal, Tokens.Space.s12).padding(.vertical, Tokens.Space.s4)
             .background(Capsule().fill(on ? theme.accent.opacity(0.24) : Color.primary.opacity(hovered ? 0.1 : 0.06)))
             .overlay(Capsule().strokeBorder(on ? theme.accent.opacity(0.45) : Color.primary.opacity(0.06), lineWidth: 1))
             .contentShape(Capsule())

@@ -101,12 +101,12 @@ struct ProjectsTabView: View {
                     .frame(minHeight: 260)
                 }
             } else {
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack(spacing: 10) {
+                VStack(alignment: .leading, spacing: Tokens.Space.s10) {
+                    HStack(spacing: Tokens.Space.s10) {
                         TextField("", text: $query, prompt: Text("Search projects"))
                             .accessibilityLabel("Search projects")
                             .settingsField(icon: .search)
-                        HStack(spacing: 6) {
+                        HStack(spacing: Tokens.Space.s6) {
                             Text("Group").font(.scaled(12)).foregroundStyle(.secondary)
                             ChoicePopUp(
                                 label: "Group",
@@ -117,7 +117,7 @@ struct ProjectsTabView: View {
                         Button { adding = true } label: { Label("Add project", icon: .folderPlus).labelStyle(.titleAndIcon) }
                             .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
                     }
-                    FlowLayout(spacing: 6) {
+                    FlowLayout(spacing: Tokens.Space.s6) {
                         FilterChip(title: "All", on: filter == .all) { filter = .all }
                         ForEach(tags, id: \.self) { tag in
                             FilterChip(title: tag, on: filter == .tag(tag)) {
@@ -159,7 +159,7 @@ struct ProjectsTabView: View {
                                     }
                                     Color.clear.frame(width: ProjectColumns.trailing, height: 1)
                                 }
-                                .sectionLabel().padding(.vertical, 10)
+                                .sectionLabel().padding(.vertical, Tokens.Space.s10)
                             }
                             ForEach(Array(group.rows.enumerated()), id: \.element.id) { index, row in
                                 projectRow(row, now: now, divider: groupIndex == 0 || index > 0)
@@ -179,7 +179,7 @@ struct ProjectsTabView: View {
     private func sortTitle(_ title: String, key: ProjectSortKey) -> some View {
         let sorted = order.key == key
         return Button { order = order.clicked(key) } label: {
-            HStack(spacing: 3) {
+            HStack(spacing: Tokens.Space.s3) {
                 Text(title)
                 if sorted { Glyph(order.ascending ? .chevronUp : .chevronDown, size: 8, bold: true).accessibilityHidden(true) }
             }
@@ -193,13 +193,13 @@ struct ProjectsTabView: View {
     /// A clone that is running or failed: it is not a project yet, so the row has no chevron and cannot be opened. It shows git's progress line, or the
     /// reason the clone failed in orange with a way to dismiss it.
     private func cloneRow(_ row: ProjectRow, _ clone: ProjectClone, divider: Bool) -> some View {
-        HStack(spacing: 12) {
+        HStack(spacing: Tokens.Space.s12) {
             ProjectIcon(tile: row.tile)
-            VStack(alignment: .leading, spacing: 1) {
-                HStack(spacing: 6) {
+            VStack(alignment: .leading, spacing: Tokens.Space.s1) {
+                HStack(spacing: Tokens.Space.s6) {
                     Text(row.name).fontWeight(.medium).lineLimit(1).truncationMode(.tail)
                     switch clone.state {
-                    case .cloning: StatusChip(text: "Cloning", tint: .accentColor)
+                    case .cloning: StatusChip(text: "Cloning", tint: .themeAccent)
                     case .failed: StatusChip(text: "Failed", tint: .orange)
                     }
                 }
@@ -214,7 +214,7 @@ struct ProjectsTabView: View {
                     .accessibilityLabel("Dismiss the failed clone of \(clone.repo)")
             }
         }
-        .padding(.vertical, 10).frame(minHeight: 46)
+        .padding(.vertical, Tokens.Space.s10).frame(minHeight: 46)
         .overlay(alignment: .top) { if divider { SettingsDivider() } }
     }
 
@@ -229,9 +229,9 @@ struct ProjectsTabView: View {
     private func openableRow(_ row: ProjectRow, now: Date, divider: Bool) -> some View {
         Button { open(row.path) } label: {
             HStack(spacing: ProjectColumns.gap) {
-                HStack(spacing: 12) {
+                HStack(spacing: Tokens.Space.s12) {
                     ProjectIcon(tile: row.tile, imageFolder: model.carrierFolder)
-                    VStack(alignment: .leading, spacing: 1) {
+                    VStack(alignment: .leading, spacing: Tokens.Space.s1) {
                         Text(row.name).fontWeight(.medium).lineLimit(1).truncationMode(.tail)
                         if let status = row.status.text {
                             Label(status, icon: .warningFilled, size: 11).font(.scaled(11)).foregroundStyle(.orange).lineLimit(1)
@@ -251,7 +251,7 @@ struct ProjectsTabView: View {
                         if row.tags.isEmpty {
                             Color.clear.frame(height: 1)
                         } else {
-                            FlowLayout(spacing: 4) {
+                            FlowLayout(spacing: Tokens.Space.s4) {
                                 ForEach(row.tags, id: \.self) { tag in
                                     StatusChip(text: tag, tint: .secondary)
                                 }
@@ -275,14 +275,14 @@ struct ProjectsTabView: View {
                         .frame(width: ProjectColumns.carrier, alignment: .leading)
                 }
 
-                HStack(spacing: 10) {
+                HStack(spacing: Tokens.Space.s10) {
                     Spacer(minLength: 0)
                     if row.pinned { Glyph(.pinFilled, size: 11, label: "Pinned").foregroundStyle(.secondary) }
                     Glyph(.chevronRight, size: 13, bold: true).foregroundStyle(.tertiary).accessibilityHidden(true)
                 }
                 .frame(width: ProjectColumns.trailing, alignment: .trailing)
             }
-            .padding(.vertical, 10).frame(minHeight: 46)
+            .padding(.vertical, Tokens.Space.s10).frame(minHeight: 46)
             .contentShape(Rectangle())
             .overlay(alignment: .top) { if divider { SettingsDivider() } }
         }
@@ -290,8 +290,8 @@ struct ProjectsTabView: View {
     }
 
     private var cloneDestinationLine: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 6) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s6) {
+            HStack(spacing: Tokens.Space.s6) {
                 Text("New clones go to ")
                     .font(.scaled(12))
                     .foregroundStyle(.secondary)
@@ -313,8 +313,8 @@ struct ProjectsTabView: View {
                 ProblemLine(text: problem)
             }
         }
-        .padding(.horizontal, 4)
-        .padding(.top, 2)
+        .padding(.horizontal, Tokens.Space.s4)
+        .padding(.top, Tokens.Space.s2)
     }
 
     /// The system's folder panel for changing where new clones and new projects go (`projectsFolder` in `chat.json`).
@@ -349,10 +349,10 @@ struct ProjectsTabView: View {
 
     private var problems: some View {
         SettingsGroup(title: "", footer: "Fix the file and the page follows. Nothing is written to it while it is wrong.") {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: Tokens.Space.s8) {
                 ForEach(Array(model.problems.enumerated()), id: \.offset) { _, problem in ProblemLine(text: problem.text) }
             }
-            .padding(.vertical, 10).frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, Tokens.Space.s10).frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 }

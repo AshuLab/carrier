@@ -10,7 +10,7 @@ struct DiskBar: View {
     var body: some View {
         GeometryReader { geometry in
             let room = geometry.size.width - CGFloat(shares.count - 1)
-            HStack(spacing: 1) {
+            HStack(spacing: Tokens.Space.s1) {
                 ForEach(shares) { share in color(share.id).frame(width: max(2, room * share.fraction)) }
             }
             .frame(width: geometry.size.width, alignment: .leading)

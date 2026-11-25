@@ -16,15 +16,15 @@ struct AccountRow: View {
 
     var body: some View {
         ViewThatFits(in: .horizontal) {
-            HStack(spacing: 12) {
+            HStack(spacing: Tokens.Space.s12) {
                 AccountTile(account: account.name, icon: tool.icon)
                 text.frame(maxWidth: 300, alignment: .leading)
                 Spacer(minLength: 8)
                 trailing
                 chevron
             }
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: Tokens.Space.s8) {
+                HStack(spacing: Tokens.Space.s12) {
                     AccountTile(account: account.name, icon: tool.icon)
                     text
                     Spacer(minLength: 8)
@@ -33,7 +33,7 @@ struct AccountRow: View {
                 trailing
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, Tokens.Space.s4)
         .contentShape(Rectangle()).onTapGesture(perform: edit)
     }
 
@@ -43,8 +43,8 @@ struct AccountRow: View {
     }
 
     private var text: some View {
-        VStack(alignment: .leading, spacing: 1) {
-            HStack(spacing: 6) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s1) {
+            HStack(spacing: Tokens.Space.s6) {
                 // the state is told to VoiceOver here too: with cached quotas the row shows their bars and not the state's words
                 Circle().fill(account.state.color).frame(width: 7, height: 7).accessibilityLabel(account.state.words)
                 Text(account.title).fontWeight(.medium)
@@ -61,7 +61,7 @@ struct AccountRow: View {
 
     @ViewBuilder private var trailing: some View {
         if account.state == .signedOut {
-            HStack(spacing: 10) {
+            HStack(spacing: Tokens.Space.s10) {
                 AccountStateLabel(state: account.state)
                 Button("Sign in", action: signIn).buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).fixedSize().help("Opens Terminal and signs this account in")
             }
@@ -78,12 +78,12 @@ struct AccountUsageMeters: View {
     let usage: AccountUsage
 
     var body: some View {
-        VStack(alignment: .trailing, spacing: 4) {
+        VStack(alignment: .trailing, spacing: Tokens.Space.s4) {
             if let five = usage.five { UsageMeterLine(label: "5h", shape: five) }
             if let weekly = usage.weekly { UsageMeterLine(label: "Weekly", shape: weekly) }
             if let monthly = usage.monthly { UsageMeterLine(label: "Monthly", shape: monthly) }
             if usage.stale || usage.reset != nil {
-                HStack(spacing: 6) {
+                HStack(spacing: Tokens.Space.s6) {
                     if usage.stale { StatusChip(text: "Stale", tint: .orange) }
                     if let reset = usage.reset { Text(reset).lineLimit(1) }
                 }
@@ -102,7 +102,7 @@ struct UsageMeterLine: View {
     let shape: MeterShape
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: Tokens.Space.s8) {
             Text(label).font(.scaled(11)).foregroundStyle(.secondary).lineLimit(1).fixedSize().frame(minWidth: 46, alignment: .leading)
             QuotaBar(shape: shape, height: 5).frame(minWidth: 60, maxWidth: .infinity)
             QuotaPercent(shape: shape).lineLimit(1).fixedSize().frame(minWidth: 36, alignment: .trailing)
@@ -116,7 +116,7 @@ struct StateWords: View {
     let mark: DirectoryProvider.Mark
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: Tokens.Space.s6) {
             Circle().fill(color).frame(width: 7, height: 7).accessibilityHidden(true)
             Text(text).font(.scaled(12)).foregroundStyle(mark == .attention ? SessionRowView.attention : Color.secondary).lineLimit(1)
         }
@@ -142,7 +142,7 @@ struct ProviderTile: View {
         Group {
             if let icon { ProviderMark(name: icon, size: 20) } else { Glyph(symbol ?? .help, size: 18).foregroundStyle(.secondary) }
         }
-        .frame(width: 38, height: 38).background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.primary.opacity(0.07)))
+        .frame(width: 38, height: 38).background(RoundedRectangle(cornerRadius: Tokens.Radius.tile, style: .continuous).fill(Color.primary.opacity(0.07)))
         .accessibilityHidden(true)
     }
 }
@@ -154,7 +154,7 @@ struct AccountTile: View {
 
     var body: some View {
         AccountMark(account: account, icon: icon, size: 22)
-            .frame(width: 38, height: 38).background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.primary.opacity(0.07)))
+            .frame(width: 38, height: 38).background(RoundedRectangle(cornerRadius: Tokens.Radius.tile, style: .continuous).fill(Color.primary.opacity(0.07)))
             .accessibilityHidden(true)
     }
 }

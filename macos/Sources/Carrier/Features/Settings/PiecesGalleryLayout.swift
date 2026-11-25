@@ -4,10 +4,10 @@ import SwiftUI
 /// The Layout pieces of `Carrier/UI/` in the states their catalog entries list.
 struct PiecesGalleryLayout: View {
     var body: some View {
-        VStack(alignment: .leading, spacing: 22) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s22) {
             GalleryEntry("FlowLayout") {
                 GalleryState(.normal) {
-                    FlowLayout(spacing: 6) { ForEach(PiecesGalleryData.chips, id: \.self) { StatusChip(text: $0, tint: .blue) } }.frame(width: 220, alignment: .leading)
+                    FlowLayout(spacing: Tokens.Space.s6) { ForEach(PiecesGalleryData.chips, id: \.self) { StatusChip(text: $0, tint: .blue) } }.frame(width: 220, alignment: .leading)
                 }
             }
             GalleryEntry("EqualWidthRow") {
@@ -20,7 +20,7 @@ struct PiecesGalleryLayout: View {
             }
             GalleryEntry("TickingTimeline", "MovingTimeline", "LookingSchedule") {
                 GalleryState(.working) {
-                    HStack(spacing: 24) {
+                    HStack(spacing: Tokens.Space.s24) {
                         TickingTimeline(every: 1) { context in Text(context.date, format: .dateTime.hour().minute().second()).monospacedDigit() }
                         MovingTimeline { context in
                             Circle().fill(.tint).frame(width: 10, height: 10).offset(x: 30 * sin(context.date.timeIntervalSinceReferenceDate * 2)).frame(width: 80)

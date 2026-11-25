@@ -21,12 +21,12 @@ struct UpdatePill: View {
         ZStack {
             if phase != .none {
                 Button { updater.press() } label: {
-                    HStack(spacing: 5) {
+                    HStack(spacing: Tokens.Space.s5) {
                         icon
                         // the words that leave roll out of the pill, not over the title bar
                         ZStack { label }.clipped()
                     }
-                    .padding(.horizontal, 11).frame(height: ToolbarPillButton.height)
+                    .padding(.horizontal, Tokens.Space.s12).frame(height: ToolbarPillButton.height)
                     .contentShape(Capsule())
                 }
                 .buttonStyle(.plain)

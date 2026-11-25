@@ -45,7 +45,7 @@ struct CleanupGroup: View {
 
     private var serverRow: some View {
         SettingsTabRow(id: "server", title: "Server", detail: "Runs on this Mac; nothing leaves it") {
-            HStack(spacing: 8) {
+            HStack(spacing: Tokens.Space.s8) {
                 switch cleanup.serverState {
                 case .running: StatusChip(text: "Running", tint: .green)
                 case .notRunning: StatusChip(text: "Not running", tint: .orange)
@@ -86,7 +86,7 @@ struct CleanupGroup: View {
     /// The test: the sample the model gets, then what it gives back, each under its own label, so it is plain which text is cleaned and what came out.
     private var tryRow: some View {
         SettingsStackedRow(id: "try-it", title: "Try it", detail: "Runs the prompt above on this sample dictation, as the model will get it") {
-            VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: Tokens.Space.s20) {
                 testPanel("Dictated", text: cleanupSample, tint: .secondary)
                 HStack {
                     Spacer()
@@ -101,7 +101,7 @@ struct CleanupGroup: View {
 
     /// A labelled box of text: a sample or an answer.
     private func testPanel(_ label: String, text: String, tint: Color, seconds: TimeInterval? = nil) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s6) {
             HStack {
                 Text(label).sectionLabel()
                 Spacer()
@@ -110,8 +110,8 @@ struct CleanupGroup: View {
             Text(text).font(.scaled(13)).foregroundStyle(tint).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(12)
-        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.primary.opacity(0.05)))
+        .padding(Tokens.Space.s12)
+        .background(RoundedRectangle(cornerRadius: Tokens.Radius.control, style: .continuous).fill(Color.primary.opacity(0.05)))
     }
 
     @ViewBuilder private var testOutput: some View {
@@ -127,42 +127,42 @@ struct CleanupGroup: View {
 
     /// The box of the answer while the model works: a spinner and two lines that shimmer where the text will be.
     private var testWorking: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 6) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s10) {
+            HStack(spacing: Tokens.Space.s6) {
                 Text("Cleaned").sectionLabel()
                 Spacer()
                 ProgressView().controlSize(.mini)
                 Text("Cleaning…").font(.scaled(11)).foregroundStyle(.secondary)
             }
-            VStack(alignment: .leading, spacing: 7) {
-                RoundedRectangle(cornerRadius: 3).fill(Color.primary.opacity(0.14)).frame(height: 9)
-                RoundedRectangle(cornerRadius: 3).fill(Color.primary.opacity(0.14)).frame(height: 9).padding(.trailing, 90)
+            VStack(alignment: .leading, spacing: Tokens.Space.s8) {
+                RoundedRectangle(cornerRadius: Tokens.Radius.tiny).fill(Color.primary.opacity(0.14)).frame(height: 9)
+                RoundedRectangle(cornerRadius: Tokens.Radius.tiny).fill(Color.primary.opacity(0.14)).frame(height: 9).padding(.trailing, Tokens.Space.s90)
             }
             .modifier(Shimmer(active: reduceMotion == false))
             .accessibilityHidden(true)
         }
-        .padding(12)
-        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.primary.opacity(0.05)))
+        .padding(Tokens.Space.s12)
+        .background(RoundedRectangle(cornerRadius: Tokens.Radius.control, style: .continuous).fill(Color.primary.opacity(0.05)))
         .accessibilityElement(children: .combine)
     }
 
     /// The box of the answer when the model gave none: the same box in orange, with the cause as a sentence.
     private func testFailure(_ message: String) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s6) {
             Label("Could not clean", icon: .warningFilled).sectionLabel().foregroundStyle(.orange)
             Text(message).font(.scaled(13)).foregroundStyle(.primary).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
         }
-        .frame(maxWidth: .infinity, alignment: .leading).padding(12)
-        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.orange.opacity(0.12)))
-        .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(Color.orange.opacity(0.4), lineWidth: 1))
+        .frame(maxWidth: .infinity, alignment: .leading).padding(Tokens.Space.s12)
+        .background(RoundedRectangle(cornerRadius: Tokens.Radius.control, style: .continuous).fill(Color.orange.opacity(0.12)))
+        .overlay(RoundedRectangle(cornerRadius: Tokens.Radius.control, style: .continuous).strokeBorder(Color.orange.opacity(0.4), lineWidth: 1))
     }
 
     private func testPlaceholder(_ label: String, _ text: String) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s6) {
             Text(label).sectionLabel()
             Text(text).font(.scaled(12)).foregroundStyle(.tertiary).fixedSize(horizontal: false, vertical: true)
         }
-        .frame(maxWidth: .infinity, alignment: .leading).padding(12)
-        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(Color.primary.opacity(0.1), style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
+        .frame(maxWidth: .infinity, alignment: .leading).padding(Tokens.Space.s12)
+        .background(RoundedRectangle(cornerRadius: Tokens.Radius.control, style: .continuous).strokeBorder(Color.primary.opacity(0.1), style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
     }
 }

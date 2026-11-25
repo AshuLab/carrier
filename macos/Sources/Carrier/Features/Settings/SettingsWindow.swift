@@ -146,7 +146,7 @@ struct SettingsRoot: View {
                     // the actions of a screen that has several (Watching): one glass capsule with a pill for each
                     if headerButtons.buttons.isEmpty == false {
                         ToolbarItem(placement: .primaryAction) {
-                            HStack(spacing: 0) {
+                            HStack(spacing: Tokens.Space.none) {
                                 ForEach(headerButtons.buttons, id: \.title) { button in
                                     ToolbarPillButton(title: button.title, icon: button.icon, spinning: button.spinning) { headerButtons.run(button.title) }
                                         .disabled(button.enabled == false).help(button.help.isEmpty ? button.title : button.help)

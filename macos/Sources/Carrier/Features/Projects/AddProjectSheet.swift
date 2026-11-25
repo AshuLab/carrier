@@ -49,8 +49,8 @@ struct AddProjectSheet: View {
     private var chooser: some View {
         let current = state
         return ScrollViewReader { proxy in
-            VStack(spacing: 0) {
-                VStack(alignment: .leading, spacing: 14) {
+            VStack(spacing: Tokens.Space.none) {
+                VStack(alignment: .leading, spacing: Tokens.Space.s14) {
                     header
                     TextField("", text: $query, prompt: Text(mode.fieldPlaceholder))
                         .settingsField(icon: .search, focused: $fieldFocused)
@@ -82,9 +82,9 @@ struct AddProjectSheet: View {
                         .buttonStyle(.link).font(.scaled(12))
                     }
                 }
-                .padding(.horizontal, 24)
-                .padding(.top, 22)
-                .padding(.bottom, 16)
+                .padding(.horizontal, Tokens.Space.s24)
+                .padding(.top, Tokens.Space.s22)
+                .padding(.bottom, Tokens.Space.s16)
 
                 SettingsDivider()
 
@@ -138,12 +138,12 @@ struct AddProjectSheet: View {
     // MARK: Header & Footer
 
     private var header: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: Tokens.Space.s12) {
             Glyph(.folderPlus, size: 16).foregroundStyle(Color.themeAccent)
                 .frame(width: 36, height: 36)
-                .background(RoundedRectangle(cornerRadius: 8).fill(Color.themeAccent.opacity(0.16)))
+                .background(RoundedRectangle(cornerRadius: Tokens.Radius.control).fill(Color.themeAccent.opacity(0.16)))
                 .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: Tokens.Space.s2) {
                 Text(mode.title).font(.scaled(16, weight: .semibold))
                 Text(mode.subtitle).font(.scaled(12)).foregroundStyle(.secondary)
             }
@@ -151,7 +151,7 @@ struct AddProjectSheet: View {
     }
 
     private var footer: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: Tokens.Space.s12) {
             Button(action: openFolderPanel) {
                 Label("Open a folder…", icon: .folderPlus).labelStyle(.titleAndIcon)
             }
@@ -172,8 +172,8 @@ struct AddProjectSheet: View {
                 .buttonStyle(SecondaryCapsuleButtonStyle())
                 .keyboardShortcut(.cancelAction)
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 12)
+        .padding(.horizontal, Tokens.Space.s20)
+        .padding(.vertical, Tokens.Space.s12)
     }
 
     // MARK: Actions & Keyboard

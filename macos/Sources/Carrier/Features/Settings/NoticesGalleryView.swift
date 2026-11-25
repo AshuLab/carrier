@@ -12,7 +12,7 @@ struct NoticesGalleryView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 22) {
+            VStack(alignment: .leading, spacing: Tokens.Space.s22) {
                 group("Over the message box") {
                     item("A message held while the agent answers") {
                         QueuedMessageCard(text: "Estaba pensando, es posible que dejemos el sistema de tal manera para que de un select se pueda elegir el theme de iconos? Podriamos de esa manera incluir lucide por ejemplo y algunos mas a futuro, como lo ves?", interrupts: false, edit: {}, sendNow: {}, cancel: {})
@@ -104,21 +104,21 @@ struct NoticesGalleryView: View {
                     }
                 }
             }
-            .padding(.horizontal, 40).padding(.vertical, 16)
+            .padding(.horizontal, Tokens.Space.s40).padding(.vertical, Tokens.Space.s16)
             .frame(maxWidth: messageWidth.points, alignment: .leading).frame(maxWidth: .infinity)
         }
         .font(.scaled(13))
     }
 
     private func group<Content: View>(_ title: String, @ViewBuilder _ content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s18) {
             Text(title.uppercased()).font(.scaled(11, weight: .semibold)).foregroundStyle(.secondary).tracking(0.6)
             content()
         }
     }
 
     private func item<Content: View>(_ caption: String, @ViewBuilder _ content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s6) {
             Text(caption).font(.scaled(11)).foregroundStyle(.tertiary)
             content()
         }

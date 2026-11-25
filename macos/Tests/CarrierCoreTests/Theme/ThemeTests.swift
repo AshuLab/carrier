@@ -147,5 +147,14 @@ import Testing
         #expect(Tokens.Accent.glass.light == AccentShade(darken: 0.4, alpha: 1) && Tokens.Accent.glass.dark == AccentShade(darken: 0.4, alpha: 1))
         #expect(Tokens.Accent.selectedRow.light == AccentShade(darken: 0, alpha: 0.45))
         #expect(Tokens.Accent.selectedRow.dark == AccentShade(darken: 0.5, alpha: 0.85))
+        // SettingsSidebar: the terminal page's tile, `Color(white: 0.25)`; ProjectTileIcon: the eight muted hues of a project's tile, the same in both versions
+        #expect(matches(Tokens.Tile.terminal.light, 0.25, 0.25, 0.25) && Tokens.Tile.terminal.light == Tokens.Tile.terminal.dark)
+        let projectColors: [(SchemePair<UInt32>, (Double, Double, Double))] = [
+            (Tokens.ProjectColor.red, hsb(0.98, 0.56, 0.64)), (Tokens.ProjectColor.orange, hsb(0.06, 0.60, 0.62)),
+            (Tokens.ProjectColor.yellow, hsb(0.125, 0.56, 0.52)), (Tokens.ProjectColor.green, hsb(0.375, 0.54, 0.51)),
+            (Tokens.ProjectColor.teal, hsb(0.47, 0.54, 0.52)), (Tokens.ProjectColor.blue, hsb(0.61, 0.56, 0.64)),
+            (Tokens.ProjectColor.purple, hsb(0.76, 0.52, 0.64)), (Tokens.ProjectColor.pink, hsb(0.90, 0.52, 0.64)),
+        ]
+        for (pair, rgb) in projectColors { #expect(matches(pair.light, rgb.0, rgb.1, rgb.2) && pair.light == pair.dark) }
     }
 }

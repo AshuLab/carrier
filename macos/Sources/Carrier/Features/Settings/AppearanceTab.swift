@@ -42,7 +42,7 @@ struct AppearanceTabView: View {
     private var iconsPreview: some View {
         SettingsPreview {
             // wraps when the text size and the window leave less than the ten icons need in a row
-            FlowLayout(spacing: 22) {
+            FlowLayout(spacing: Tokens.Space.s22) {
                 ForEach([AppIcon.search, .settings, .folder, .copy, .bell, .trash, .refresh, .lock, .microphone, .terminal], id: \.self) { Glyph($0, size: 22) }
             }
             .foregroundStyle(.primary).frame(maxWidth: .infinity)
@@ -54,7 +54,7 @@ struct AppearanceTabView: View {
     private var statesPreview: some View {
         SettingsPreview {
             // together in the middle, not one to a quarter of the width
-            HStack(alignment: .top, spacing: 0) {
+            HStack(alignment: .top, spacing: Tokens.Space.none) {
                 state("Working") { StateGlyph(state: .running) }
                 state("Needs attention") { StateGlyph(state: .needsYou, attention: .input) }
                 state("Ready for test") { StateGlyph(state: .ready) }
@@ -65,7 +65,7 @@ struct AppearanceTabView: View {
     }
 
     private func state(_ title: String, @ViewBuilder glyph: () -> some View) -> some View {
-        VStack(spacing: 8) {
+        VStack(spacing: Tokens.Space.s8) {
             // at its own size: scaling the 20-point glyph up scaled its pixels, and the ring (a layer) showed them
             glyph().frame(width: 28, height: 28)
             Text(title).font(.scaled(12)).foregroundStyle(.secondary)

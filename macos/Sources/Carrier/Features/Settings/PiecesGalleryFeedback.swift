@@ -4,7 +4,7 @@ import SwiftUI
 /// The Feedback pieces of `Carrier/UI/` in the states their catalog entries list.
 struct PiecesGalleryFeedback: View {
     var body: some View {
-        VStack(alignment: .leading, spacing: 22) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s22) {
             GalleryEntry("BannerView") {
                 GalleryState(.error) { banner(.red, copy: true, retry: true) }
                 GalleryState(.warning) { banner(.orange, copy: false, retry: true) }
@@ -49,6 +49,6 @@ struct PiecesGalleryFeedback: View {
     }
 
     private func glow(waiting: Bool, moves: Bool) -> some View {
-        GlowEdge(color: .accentColor, waiting: waiting, moves: moves).frame(width: 150, height: 54)
+        GlowEdge(color: .themeAccent, waiting: waiting, moves: moves).frame(width: 150, height: 54)
     }
 }

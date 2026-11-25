@@ -50,7 +50,7 @@ struct SettingsSidebar: View {
                                 navigator.open(entry)
                                 query = ""
                             } label: {
-                                VStack(alignment: .leading, spacing: 1) {
+                                VStack(alignment: .leading, spacing: Tokens.Space.s1) {
                                     Text(marked(entry.title, words: words))
                                     Text(marked(entry.isPage ? entry.detail : [entry.group, entry.detail].filter { !$0.isEmpty }.joined(separator: " · "), words: words))
                                         .font(.scaled(11)).foregroundStyle(.secondary).lineLimit(1)
@@ -101,7 +101,7 @@ struct SettingsTile: View {
         // the system's colors are made for a light window: on a dark one they glow, so they are mixed with black there
         Glyph(page.icon, size: 13, bold: true).foregroundStyle(.white.opacity(scheme == .dark ? 0.88 : 1))
             .frame(width: 22, height: 22)
-            .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(page.tint.mix(with: .black, by: scheme == .dark ? 0.4 : 0.05)))
+            .background(RoundedRectangle(cornerRadius: Tokens.Radius.small, style: .continuous).fill(page.tint.mix(with: .black, by: scheme == .dark ? 0.4 : 0.05)))
             .accessibilityHidden(true)
     }
 }
@@ -120,7 +120,7 @@ extension SettingsPage {
         case .sessions: .indigo
         case .projects: .mint
         case .sidebar: .cyan
-        case .terminal: Color(white: 0.25)
+        case .terminal: Color(Tokens.Tile.terminal)
         case .agents: .orange
         case .watching, .health: .green
         case .behavior: .brown

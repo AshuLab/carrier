@@ -40,9 +40,9 @@ private struct WatchingRowView: View {
 
     var body: some View {
         Button(action: open) {
-            HStack(spacing: 12) {
+            HStack(spacing: Tokens.Space.s12) {
                 tile
-                VStack(alignment: .leading, spacing: 1) {
+                VStack(alignment: .leading, spacing: Tokens.Space.s1) {
                     Text(title).lineLimit(1).truncationMode(.middle)
                     detail.font(.scaled(11)).lineLimit(1).truncationMode(.tail)
                 }
@@ -50,7 +50,7 @@ private struct WatchingRowView: View {
                 chips
                 Glyph(.chevronRight, size: 13, bold: true).foregroundStyle(.tertiary).accessibilityHidden(true)
             }
-            .padding(.vertical, 10).frame(minHeight: 46)
+            .padding(.vertical, Tokens.Space.s10).frame(minHeight: 46)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -66,7 +66,7 @@ private struct WatchingRowView: View {
     /// What the repo has in flight, as chips; none when nothing is or nobody knows (Carrier is stopped).
     @ViewBuilder private var chips: some View {
         if let epics = row.epics, epics.isNone == false {
-            HStack(spacing: 4) {
+            HStack(spacing: Tokens.Space.s4) {
                 if epics.needsYou > 0 { StatusChip(text: "\(epics.needsYou) needs you", tint: .orange) }
                 if epics.running > 0 { StatusChip(text: "\(epics.running) running", tint: .green) }
                 if epics.queued > 0 { StatusChip(text: "\(epics.queued) queued", tint: .blue) }
@@ -128,41 +128,41 @@ struct WatchPicker: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s8) {
             TextField("", text: $query, prompt: Text("Search your projects")).accessibilityLabel("Search your projects").settingsField(icon: .search)
             if shown.isEmpty {
                 Text(choices.isEmpty ? "Every project with a GitHub origin is watched." : "No project matches.").font(.scaled(12)).foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .center).padding(.vertical, 18)
+                    .frame(maxWidth: .infinity, alignment: .center).padding(.vertical, Tokens.Space.s18)
             } else {
                 ScrollView {
-                    VStack(spacing: 0) {
+                    VStack(spacing: Tokens.Space.none) {
                         ForEach(shown) { choice in row(choice) }
                     }
                 }
                 .frame(maxHeight: 280)
             }
             Divider()
-            HStack(spacing: 8) {
+            HStack(spacing: Tokens.Space.s8) {
                 Button(action: addProject) { Label("Add project…", icon: .folderPlus) }.buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
                 Text("Clone one from GitHub or open a folder").font(.scaled(11)).foregroundStyle(.secondary)
             }
         }
-        .padding(12).frame(width: 360)
+        .padding(Tokens.Space.s12).frame(width: 360)
     }
 
     private func row(_ choice: WatchChoice) -> some View {
         Button {
             if let repo = choice.project.repo, choice.canWatch { watch(repo) }
         } label: {
-            HStack(spacing: 10) {
+            HStack(spacing: Tokens.Space.s10) {
                 ProjectIcon(tile: choice.project.tile, imageFolder: carrierFolder)
-                VStack(alignment: .leading, spacing: 1) {
+                VStack(alignment: .leading, spacing: Tokens.Space.s1) {
                     Text(choice.project.name).lineLimit(1)
                     Text(choice.reason ?? choice.project.repo ?? "").font(.scaled(11)).foregroundStyle(.secondary).lineLimit(2).fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: 4)
             }
-            .padding(.vertical, 6).padding(.horizontal, 6).frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
+            .padding(.vertical, Tokens.Space.s6).padding(.horizontal, Tokens.Space.s6).frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
             .opacity(choice.canWatch ? 1 : 0.5)
         }
         .buttonStyle(.plain).disabled(choice.canWatch == false)

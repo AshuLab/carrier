@@ -17,14 +17,14 @@ struct BranchSheet: View {
 
     var body: some View {
         let picker = model.picker(query: query)
-        VStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 16) {
+        VStack(spacing: Tokens.Space.none) {
+            VStack(alignment: .leading, spacing: Tokens.Space.s16) {
                 header
                 TextField("Search branches", text: $query)
                     .textFieldStyle(.roundedBorder).controlSize(.large).autocorrectionDisabled().focused($searching)
             }
-            .padding(.horizontal, 24).padding(.top, 24).padding(.bottom, 16)
-            if tabbed { tabs(picker).padding(.bottom, 12) }
+            .padding(.horizontal, Tokens.Space.s24).padding(.top, Tokens.Space.s24).padding(.bottom, Tokens.Space.s16)
+            if tabbed { tabs(picker).padding(.bottom, Tokens.Space.s12) }
             Divider()
             list(picker)
             summary
@@ -47,12 +47,12 @@ struct BranchSheet: View {
     }
 
     private var header: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: Tokens.Space.s12) {
             Glyph(.gitBranch, size: 16).foregroundStyle(Color.themeAccent)
                 .frame(width: 36, height: 36)
-                .background(RoundedRectangle(cornerRadius: 8).fill(Color.themeAccent.opacity(0.16)))
+                .background(RoundedRectangle(cornerRadius: Tokens.Radius.control).fill(Color.themeAccent.opacity(0.16)))
                 .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: Tokens.Space.s2) {
                 Text(browsing ? "Branches in \(model.folder.map { URL(fileURLWithPath: $0).lastPathComponent } ?? "this folder")" : "Start from a branch").font(.title3.weight(.semibold))
                 Text(browsing ? "The folder is switched to the branch you pick when the message is sent." : "The new worktree is cut from the branch you pick.").font(.callout).foregroundStyle(.secondary)
             }
@@ -65,7 +65,7 @@ struct BranchSheet: View {
         if tabbed {
             tabList(picker?.rows(model.startTab) ?? [], tab: model.startTab, otherHas: (picker?.rows(model.startTab == .remote ? .local : .remote) ?? []).isEmpty == false)
         } else if local.isEmpty && remote.isEmpty {
-            VStack(spacing: 8) {
+            VStack(spacing: Tokens.Space.s8) {
                 Glyph(query.isEmpty ? .gitBranch : .search, size: 32).foregroundStyle(.secondary).accessibilityHidden(true)
                 Text(query.isEmpty ? "No branches" : "No branch matches “\(query)”").font(.headline)
                 Text(query.isEmpty ? "This repository has no branch to start from yet." : "Search looks at the local and the remote branches. Fetch to see new ones.")
@@ -74,11 +74,11 @@ struct BranchSheet: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 24) {
+                LazyVStack(alignment: .leading, spacing: Tokens.Space.s24) {
                     section("Local", .harddrive, local, empty: "No local branches.")
                     section("Remote", .cloud, remote, empty: "No remote branches yet. Fetch to look for them.")
                 }
-                .padding(.horizontal, 16).padding(.vertical, 16)
+                .padding(.horizontal, Tokens.Space.s16).padding(.vertical, Tokens.Space.s16)
             }
         }
     }
@@ -87,7 +87,7 @@ struct BranchSheet: View {
     @ViewBuilder private func tabList(_ rows: [BranchRow], tab: WorktreeStart, otherHas: Bool) -> some View {
         if rows.isEmpty {
             let other = tab == .remote ? WorktreeStart.local : .remote
-            VStack(spacing: 8) {
+            VStack(spacing: Tokens.Space.s8) {
                 Glyph(query.isEmpty ? tab.icon : .search, size: 32).foregroundStyle(.secondary).accessibilityHidden(true)
                 Text(query.isEmpty ? "No \(tab.tabTitle.lowercased()) branches" : "No \(tab.tabTitle.lowercased()) branch matches “\(query)”").font(.headline)
                 Text(
@@ -99,10 +99,10 @@ struct BranchSheet: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 4) {
+                LazyVStack(alignment: .leading, spacing: Tokens.Space.s4) {
                     ForEach(rows, id: \.name) { row in branchRow(row, on: tab) }
                 }
-                .padding(.horizontal, 16).padding(.vertical, 16)
+                .padding(.horizontal, Tokens.Space.s16).padding(.vertical, Tokens.Space.s16)
             }
         }
     }
@@ -111,16 +111,16 @@ struct BranchSheet: View {
     /// one it says it is empty.
     @ViewBuilder private func section(_ title: String, _ icon: AppIcon, _ rows: [BranchRow], empty: String) -> some View {
         if rows.isEmpty == false || query.isEmpty {
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: Tokens.Space.s4) {
+                HStack(spacing: Tokens.Space.s8) {
                     Label(title, icon: icon).font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
                     Text("\(rows.count)").font(.caption.weight(.medium)).foregroundStyle(.secondary)
-                        .padding(.horizontal, 6).padding(.vertical, 1).background(Capsule().fill(Color.secondary.opacity(0.15)))
+                        .padding(.horizontal, Tokens.Space.s6).padding(.vertical, Tokens.Space.s1).background(Capsule().fill(Color.secondary.opacity(0.15)))
                     Spacer(minLength: 0)
                 }
-                .padding(.horizontal, 10).padding(.bottom, 4)
+                .padding(.horizontal, Tokens.Space.s10).padding(.bottom, Tokens.Space.s4)
                 if rows.isEmpty {
-                    Text(empty).font(.callout).foregroundStyle(.secondary).padding(.horizontal, 10).padding(.vertical, 8)
+                    Text(empty).font(.callout).foregroundStyle(.secondary).padding(.horizontal, Tokens.Space.s10).padding(.vertical, Tokens.Space.s8)
                 }
                 ForEach(rows, id: \.name) { row in branchRow(row, on: nil) }
             }
@@ -145,7 +145,7 @@ struct BranchSheet: View {
     /// `counted` is the Local tab: only there is a branch compared with its copy on `origin`.
     private func rowContent(_ row: BranchRow, chosen: Bool, hovering: Bool, notOnOrigin: Bool = false, counted: Bool = false) -> some View {
         let cut = row.name.lastIndex(of: "/").map { row.name.index(after: $0) } ?? row.name.startIndex
-        return HStack(spacing: 10) {
+        return HStack(spacing: Tokens.Space.s10) {
             Glyph(.gitBranch).foregroundStyle(chosen ? Color.themeAccent : .secondary).frame(width: 18).accessibilityHidden(true)
             Text("\(Text(row.name[..<cut]).foregroundStyle(.secondary))\(Text(row.name[cut...]).fontWeight(chosen ? .semibold : .medium))")
                 .lineLimit(1).truncationMode(.middle)
@@ -158,37 +158,37 @@ struct BranchSheet: View {
             if chosen { Glyph(.check, label: "Chosen").foregroundStyle(Color.themeAccent) }
             else { RowHint(text: "Select", shown: hovering) }
         }
-        .frame(minHeight: 20).padding(.horizontal, 10).padding(.vertical, 8)
+        .frame(minHeight: 20).padding(.horizontal, Tokens.Space.s10).padding(.vertical, Tokens.Space.s8)
     }
 
     /// What the choice does: the new branch and the one it is cut from, or the branch the folder will be switched to.
     @ViewBuilder private var summary: some View {
         if browsing {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: Tokens.Space.s8) {
                 Glyph(.info).foregroundStyle(.secondary).accessibilityHidden(true)
                 Text("Picking another branch switches this folder to it when the message is sent, unless it has uncommitted changes. To keep the folder as it is, start a new worktree from it.")
                     .font(.subheadline).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 0)
             }
-            .padding(12).background(RoundedRectangle(cornerRadius: 8).fill(Color.secondary.opacity(0.08)))
-            .padding(.horizontal, 16).padding(.bottom, 16)
+            .padding(Tokens.Space.s12).background(RoundedRectangle(cornerRadius: Tokens.Radius.control).fill(Color.secondary.opacity(0.08)))
+            .padding(.horizontal, Tokens.Space.s16).padding(.bottom, Tokens.Space.s16)
         } else {
             newBranch
         }
     }
 
     private var newBranch: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s8) {
             newBranchLine
             if let warning = model.startWarning { ProblemLine(text: warning, font: .subheadline) }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12).background(RoundedRectangle(cornerRadius: 8).fill(Color.secondary.opacity(0.08)))
-        .padding(.horizontal, 16).padding(.bottom, 16)
+        .padding(Tokens.Space.s12).background(RoundedRectangle(cornerRadius: Tokens.Radius.control).fill(Color.secondary.opacity(0.08)))
+        .padding(.horizontal, Tokens.Space.s16).padding(.bottom, Tokens.Space.s16)
     }
 
     private var newBranchLine: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: Tokens.Space.s8) {
             Glyph(.circlePlus).foregroundStyle(.secondary).accessibilityHidden(true)
             Text("New branch").font(.subheadline).foregroundStyle(.secondary)
             Text(model.worktreeName.isEmpty ? "\(worktreeBranchPrefix)<generated when sent>" : "\(worktreeBranchPrefix)\(model.worktreeName)").font(.subheadline.monospaced()).lineLimit(1).truncationMode(.middle)
@@ -201,13 +201,13 @@ struct BranchSheet: View {
 
     @ViewBuilder private func footer(_ picker: BranchPicker?) -> some View {
         if model.toClone {
-            HStack(spacing: 10) {
+            HStack(spacing: Tokens.Space.s10) {
                 Glyph(.cloud).foregroundStyle(.secondary).accessibilityHidden(true)
                 Text("Branches as GitHub lists them now. The repository is cloned when the message is sent.").font(.subheadline)
                 Spacer(minLength: 16)
                 Button("Cancel") { dismiss() }.buttonStyle(SecondaryCapsuleButtonStyle()).keyboardShortcut(.cancelAction)
             }
-            .padding(.horizontal, 20).padding(.vertical, 12)
+            .padding(.horizontal, Tokens.Space.s20).padding(.vertical, Tokens.Space.s12)
         } else {
             fetchFooter(picker)
         }
@@ -216,11 +216,11 @@ struct BranchSheet: View {
     private func fetchFooter(_ picker: BranchPicker?) -> some View {
         let at = model.workspace?.fetchedAt
         let stale = at.map { Date().timeIntervalSince1970 - Double($0) / 1000 > staleAfter } ?? true
-        return VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 10) {
+        return VStack(alignment: .leading, spacing: Tokens.Space.s8) {
+            HStack(spacing: Tokens.Space.s10) {
                 Glyph(stale || picker?.unreachable != nil ? .warningFilled : .history)
                     .foregroundStyle(stale || picker?.unreachable != nil ? Color.orange : .secondary).accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 1) {
+                VStack(alignment: .leading, spacing: Tokens.Space.s1) {
                     Text(picker?.fetched ?? "").font(.subheadline)
                     // the fetch that choosing the project started could not reach origin: said here and nowhere else
                     if let unreachable = picker?.unreachable {
@@ -239,15 +239,15 @@ struct BranchSheet: View {
                 Button("Cancel") { dismiss() }.buttonStyle(SecondaryCapsuleButtonStyle()).keyboardShortcut(.cancelAction)
             }
             if let problem = model.fetchProblem {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                HStack(alignment: .firstTextBaseline, spacing: Tokens.Space.s8) {
                     Glyph(.warningFilled).foregroundStyle(.red).accessibilityHidden(true)
                     Text(problem).fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
                     Spacer(minLength: 0)
                 }
-                .font(.subheadline).padding(10).background(RoundedRectangle(cornerRadius: 8).fill(Color.red.opacity(0.12)))
+                .font(.subheadline).padding(Tokens.Space.s10).background(RoundedRectangle(cornerRadius: Tokens.Radius.control).fill(Color.red.opacity(0.12)))
             }
         }
-        .padding(.horizontal, 20).padding(.vertical, 12)
+        .padding(.horizontal, Tokens.Space.s20).padding(.vertical, Tokens.Space.s12)
     }
 }
 

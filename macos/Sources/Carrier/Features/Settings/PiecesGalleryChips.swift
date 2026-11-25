@@ -4,7 +4,7 @@ import SwiftUI
 /// The Chips of `Carrier/UI/` in the states their catalog entries list.
 struct PiecesGalleryChips: View {
     var body: some View {
-        VStack(alignment: .leading, spacing: 22) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s22) {
             GalleryEntry("Badge") {
                 GalleryState(.normal) { Badge(text: sample(.label), icon: .check, tint: .green) }
                 GalleryState(.warning) { Badge(text: sample(.label), icon: .exclamation, tint: .orange) }

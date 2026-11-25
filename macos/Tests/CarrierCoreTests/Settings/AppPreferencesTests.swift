@@ -309,8 +309,8 @@ private let idle = PanelSnapshot(
     #expect(MessageWidth.narrow.points == 640)
     #expect(MessageWidth.medium.points == 760)
     #expect(MessageWidth.wide.points == 880)
-    #expect(MessageWidth.ultraWide.points == 1040 && MessageWidth.ultraWide.title == "Ultra wide")
-    #expect(MessageWidth.widest.points == 1280 && MessageWidth.widest.title == "Widest")
+    #expect(MessageWidth.ultraWide.points == 1040 && MessageWidth.ultraWide.title(bundle: english.bundle, locale: english.locale) == "Ultra wide")
+    #expect(MessageWidth.widest.points == 1280 && MessageWidth.widest.title(bundle: english.bundle, locale: english.locale) == "Widest")
     #expect(MessageWidth.allCases.last == .widest)  // the preview's track is the last, the widest
     #expect(AppPreferences.defaultMessageWidth == .medium)
 }

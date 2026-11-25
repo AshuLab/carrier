@@ -73,7 +73,7 @@ import SwiftUI
         host.sceneBridgingOptions = .all
         host.sizingOptions = []
         let window = NSWindow(contentViewController: host)
-        window.title = "Settings"
+        window.title = Copy.settingsWindowTitle()
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
         window.isReleasedWhenClosed = false
         window.contentMinSize = NSSize(width: 760, height: 480)
@@ -115,20 +115,20 @@ struct SettingsRoot: View {
         @Bindable var navigator = navigator
         NavigationSplitView {
             SettingsSidebar(navigator: navigator, query: $query)
-                .searchable(text: $query, placement: .sidebar, prompt: "Search settings")
+                .searchable(text: $query, placement: .sidebar, prompt: Copy.settingsSearchPrompt())
                 .navigationSplitViewColumnWidth(min: 200, ideal: 240, max: 300)
         } detail: {
             SettingsPages(
                 state: model.state, canReload: model.epics.canReload, sessions: model.sessions.rows, navigator: navigator, target: $navigator.target, headerNote: $headerNote, title: $title
             )
-                .navigationTitle(title?.text ?? navigator.page.title)
-                .navigationSubtitle(title?.subtitle ?? navigator.page.detail)
+                .navigationTitle(title?.text ?? navigator.page.title())
+                .navigationSubtitle(title?.subtitle ?? navigator.page.detail())
                 .toolbar {
                     ToolbarItemGroup(placement: .navigation) {
-                        Button(action: navigator.back) { Label("Back", systemImage: "chevron.backward") }
-                            .disabled(navigator.history.canGoBack == false).keyboardShortcut("[", modifiers: .command).help("Back")
-                        Button(action: navigator.forward) { Label("Forward", systemImage: "chevron.forward") }
-                            .disabled(navigator.history.canGoForward == false).keyboardShortcut("]", modifiers: .command).help("Forward")
+                        Button(action: navigator.back) { Label(Copy.settingsBack(), systemImage: "chevron.backward") }
+                            .disabled(navigator.history.canGoBack == false).keyboardShortcut("[", modifiers: .command).help(Copy.settingsBack())
+                        Button(action: navigator.forward) { Label(Copy.settingsForward(), systemImage: "chevron.forward") }
+                            .disabled(navigator.history.canGoForward == false).keyboardShortcut("]", modifiers: .command).help(Copy.settingsForward())
                     }
                     if let headerNote { ToolbarItem(placement: .primaryAction) { SettingsNoteView(note: headerNote, pending: ReloadStatus.shared.pending, ask: { ReloadStatus.shared.ask() }) } }
                     if let actionTitle = headerAction.title {
@@ -168,11 +168,11 @@ struct SettingsRoot: View {
                     if resetter.action != nil {
                         ToolbarItem(placement: .primaryAction) {
                             Menu {
-                                Button { confirmingReset = true } label: { Label("Reset this page…", systemImage: "arrow.counterclockwise") }
+                                Button { confirmingReset = true } label: { Label(Copy.settingsResetMenu(), systemImage: "arrow.counterclockwise") }
                             } label: {
                                 Image(systemName: "ellipsis")
                             }
-                            .menuIndicator(.hidden).help("Page actions")
+                            .menuIndicator(.hidden).help(Copy.settingsPageActions())
                         }
                     }
                 }
@@ -183,11 +183,11 @@ struct SettingsRoot: View {
         .environment(\.settingsHeaderButtons, headerButtons)
         // the session rows of the Sidebar page's preview read what the main window gives its own
         .environment(model.actions)
-        .alert("Reset \(navigator.page.title)?", isPresented: $confirmingReset) {
-            Button("Cancel", role: .cancel) {}
-            Button("Reset", role: .destructive) { resetter.action?() }
+        .alert(Copy.settingsResetTitle(page: navigator.page.title()), isPresented: $confirmingReset) {
+            Button(Copy.settingsResetCancel(), role: .cancel) {}
+            Button(Copy.settingsResetConfirm(), role: .destructive) { resetter.action?() }
         } message: {
-            Text("Every setting on this page goes back to how it came. This can’t be undone.")
+            Text(Copy.settingsResetMessage())
         }
         // the size of a Text with no font of its own, so it follows the text size too
         .scaledFont(13)

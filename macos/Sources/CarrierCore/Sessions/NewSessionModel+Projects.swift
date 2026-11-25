@@ -129,7 +129,7 @@ extension NewSessionModel {
             let reply = try await send(.watchedRepos(names + [repo]))
             watched = names + [repo]
             status.record(reply.outcome)
-            let note = addedRepoNote(repo, outcome: reply.outcome)
+            let note = addedRepoNote(repo, outcome: reply.outcome, bundle: bundle, locale: locale)
             watchNotes[id] = WatchNote(text: note.text, failed: note.failed)
         } catch ControlError.remote(let refusal) {
             failed(refusal.shown(bundle: bundle, locale: locale))

@@ -17,7 +17,7 @@ private struct CopyOnHover: ViewModifier {
                     .foregroundStyle(copied ? Color.green : Color.secondary).frame(width: 20, height: 20)
                     .background(Circle().fill(Color.primary.opacity(0.1))).contentShape(Circle())
             }
-            .buttonStyle(.plain).help("Copy").accessibilityLabel("Copy")
+            .buttonStyle(.plain).help(Copy.settingsCopy()).accessibilityLabel(Copy.settingsCopy())
             .opacity(hovered || copied ? 1 : 0).allowsHitTesting(hovered || copied)
             .animation(.easeOut(duration: 0.15), value: hovered)
         }

@@ -340,19 +340,19 @@ private let banners = NotificationDelivery(style: .banners, soundOn: true)
 }
 
 @Test func thePermissionSaysWhatMacOSReallyDoes() {
-    #expect(NotificationPermission.allowed(banners).text == "Allowed · banners · sound on")
-    #expect(NotificationPermission.allowed(.init(style: .alerts, soundOn: false)).text == "Allowed · alerts · sound off")
-    #expect(NotificationPermission.allowed(.init(style: .none, soundOn: true)).text == "Allowed · notifications set to None")
-    #expect(NotificationPermission.denied.text == "Denied in System Settings")
-    #expect(NotificationPermission.notAsked.text == "Not asked yet · the first notification asks")
-    #expect(NotificationPermission.noBundle.text == "Only available from Carrier.app")
+    #expect(NotificationPermission.allowed(banners).text(bundle: english.bundle, locale: english.locale) == "Allowed · banners · sound on")
+    #expect(NotificationPermission.allowed(.init(style: .alerts, soundOn: false)).text(bundle: english.bundle, locale: english.locale) == "Allowed · alerts · sound off")
+    #expect(NotificationPermission.allowed(.init(style: .none, soundOn: true)).text(bundle: english.bundle, locale: english.locale) == "Allowed · notifications set to None")
+    #expect(NotificationPermission.denied.text(bundle: english.bundle, locale: english.locale) == "Denied in System Settings")
+    #expect(NotificationPermission.notAsked.text(bundle: english.bundle, locale: english.locale) == "Not asked yet · the first notification asks")
+    #expect(NotificationPermission.noBundle.text(bundle: english.bundle, locale: english.locale) == "Only available from Carrier.app")
 }
 
 @Test func aTestThatMacOSWouldSwallowSaysWhy() {
-    #expect(NotificationPermission.denied.testAdvice == "Notifications are off for Carrier in System Settings.")
-    #expect(NotificationPermission.allowed(.init(style: .none, soundOn: false)).testAdvice != nil)
-    #expect(NotificationPermission.allowed(banners).testAdvice == nil)
-    #expect(NotificationPermission.notAsked.testAdvice == nil)
+    #expect(NotificationPermission.denied.testAdvice(bundle: english.bundle, locale: english.locale) == "Notifications are off for Carrier in System Settings.")
+    #expect(NotificationPermission.allowed(.init(style: .none, soundOn: false)).testAdvice(bundle: english.bundle, locale: english.locale) != nil)
+    #expect(NotificationPermission.allowed(banners).testAdvice(bundle: english.bundle, locale: english.locale) == nil)
+    #expect(NotificationPermission.notAsked.testAdvice(bundle: english.bundle, locale: english.locale) == nil)
 }
 
 // the chat sessions

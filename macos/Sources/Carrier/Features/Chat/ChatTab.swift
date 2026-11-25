@@ -73,19 +73,19 @@ struct ChatTabView: View {
                     Toggle(Copy.chatSettingsFollowOutput(), isOn: $followsOutput).labelsHidden().toggleStyle(.switch)
                 }
                 SettingsTabRow(id: "message-times", title: Copy.chatSettingsMessageTimes(), detail: Copy.chatSettingsMessageTimesDetail()) {
-                    ChoicePopUp(label: Copy.chatSettingsMessageTimes(), options: MessageTimes.allCases.map { (value: $0, title: $0.title) }, selection: $messageTimes)
+                    ChoicePopUp(label: Copy.chatSettingsMessageTimes(), options: MessageTimes.allCases.map { (value: $0, title: $0.title()) }, selection: $messageTimes)
                 }
                 SettingsTabRow(id: "tool-output", title: Copy.chatSettingsToolOutput(), detail: Copy.chatSettingsToolOutputDetail()) {
-                    ChoicePopUp(label: Copy.chatSettingsToolOutput(), options: ToolOutputMode.allCases.map { (value: $0, title: $0.title) }, selection: $toolOutput)
+                    ChoicePopUp(label: Copy.chatSettingsToolOutput(), options: ToolOutputMode.allCases.map { (value: $0, title: $0.title()) }, selection: $toolOutput)
                 }
                 SettingsTabRow(id: "open-the-calls-that-failed", title: Copy.chatSettingsOpenFailed(), detail: Copy.chatSettingsOpenFailedDetail()) {
                     Toggle(Copy.chatSettingsOpenFailed(), isOn: $opensFailedCalls).labelsHidden().toggleStyle(.switch)
                 }
                 SettingsTabRow(id: "diff-style", title: Copy.chatSettingsDiffStyle(), detail: Copy.chatSettingsDiffStyleDetail()) {
-                    ChoicePopUp(label: Copy.chatSettingsDiffStyle(), options: DiffStyle.allCases.map { (value: $0, title: $0.title) }, selection: $diffStyle)
+                    ChoicePopUp(label: Copy.chatSettingsDiffStyle(), options: DiffStyle.allCases.map { (value: $0, title: $0.title()) }, selection: $diffStyle)
                 }
                 SettingsTabRow(id: "output-length", title: Copy.chatSettingsOutputLength(), detail: Copy.chatSettingsOutputLengthDetail()) {
-                    ChoicePopUp(label: Copy.chatSettingsOutputLength(), options: OutputLength.allCases.map { (value: $0, title: $0.title) }, selection: Binding(get: { OutputLength(rawValue: outputLines) ?? AppPreferences.defaultOutputLength }, set: { outputLines = $0.rawValue }))
+                    ChoicePopUp(label: Copy.chatSettingsOutputLength(), options: OutputLength.allCases.map { (value: $0, title: $0.title()) }, selection: Binding(get: { OutputLength(rawValue: outputLines) ?? AppPreferences.defaultOutputLength }, set: { outputLines = $0.rawValue }))
                 }
                 SettingsTabRow(id: "show-reasoning", title: Copy.chatSettingsShowReasoning(), detail: Copy.chatSettingsShowReasoningDetail()) {
                     Toggle(Copy.chatSettingsShowReasoning(), isOn: $showsReasoning).labelsHidden().toggleStyle(.switch)
@@ -95,19 +95,19 @@ struct ChatTabView: View {
                         .labelsHidden().frame(width: settingsSliderWidth).accessibilityLabel(Copy.chatSettingsTextSize()).accessibilityValue(Copy.chatSettingsTextSizeValue(size: Int(textSize)))
                 }
                 SettingsTabRow(id: "line-spacing", title: Copy.chatSettingsLineSpacing(), detail: Copy.chatSettingsLineSpacingDetail()) {
-                    ChoicePopUp(label: Copy.chatSettingsLineSpacing(), options: ChatLineSpacing.allCases.map { (value: $0, title: $0.title) }, selection: $lineSpacing)
+                    ChoicePopUp(label: Copy.chatSettingsLineSpacing(), options: ChatLineSpacing.allCases.map { (value: $0, title: $0.title()) }, selection: $lineSpacing)
                 }
                 SettingsTabRow(id: "message-spacing", title: Copy.chatSettingsMessageSpacing(), detail: Copy.chatSettingsMessageSpacingDetail()) {
-                    ChoicePopUp(label: Copy.chatSettingsMessageSpacing(), options: MessageSpacing.allCases.map { (value: $0, title: $0.title) }, selection: $messageSpacing)
+                    ChoicePopUp(label: Copy.chatSettingsMessageSpacing(), options: MessageSpacing.allCases.map { (value: $0, title: $0.title()) }, selection: $messageSpacing)
                 }
                 SettingsTabRow(id: "message-width", title: Copy.chatSettingsMessageWidth(), detail: Copy.chatSettingsMessageWidthDetail()) {
                     ChoicePopUp(
-                        label: Copy.chatSettingsMessageWidth(), options: MessageWidth.allCases.map { (value: $0, title: Copy.chatSettingsWidthOption(title: $0.title, points: Int($0.points))) },
+                        label: Copy.chatSettingsMessageWidth(), options: MessageWidth.allCases.map { (value: $0, title: Copy.chatSettingsWidthOption(title: $0.title(), points: Int($0.points))) },
                         selection: $messageWidth
                     )
                 }
                 SettingsTabRow(id: "surfaces", title: Copy.chatSettingsSurfaces(), detail: Copy.chatSettingsSurfacesDetail()) {
-                    SegmentedChoice(options: ChatSurface.allCases.map { (value: $0, title: $0.title, icon: nil) }, selection: $chatSurface)
+                    SegmentedChoice(options: ChatSurface.allCases.map { (value: $0, title: $0.title(), icon: nil) }, selection: $chatSurface)
                 }
                 messagePreview
             }

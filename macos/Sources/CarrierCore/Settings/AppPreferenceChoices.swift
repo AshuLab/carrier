@@ -4,20 +4,36 @@ import Foundation
 public enum WorkIn: String, CaseIterable, Sendable {
     case baseFolder, newWorktree
 
-    public var title: String { self == .baseFolder ? "The base folder" : "A new worktree" }
+    public func title(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch self {
+        case .baseFolder: Copy.choiceWorkInBase(bundle: bundle, locale: locale)
+        case .newWorktree: Copy.choiceWorkInWorktree(bundle: bundle, locale: locale)
+        }
+    }
 }
 
 public enum ColorSchemeChoice: String, CaseIterable {
     case system, light, dark
 
-    public var title: String { rawValue.capitalized }
+    public func title(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch self {
+        case .system: Copy.choiceSchemeSystem(bundle: bundle, locale: locale)
+        case .light: Copy.choiceSchemeLight(bundle: bundle, locale: locale)
+        case .dark: Copy.choiceSchemeDark(bundle: bundle, locale: locale)
+        }
+    }
 }
 
 /// How tight the app packs its rows: the vertical padding of a sidebar row and the space between the messages of a conversation.
 public enum Density: String, CaseIterable {
     case compact, comfortable
 
-    public var title: String { rawValue.capitalized }
+    public func title(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch self {
+        case .compact: Copy.choiceDensityCompact(bundle: bundle, locale: locale)
+        case .comfortable: Copy.choiceDensityComfortable(bundle: bundle, locale: locale)
+        }
+    }
     public var rowPadding: CGFloat { self == .compact ? 4 : 7 }
     /// A session's row in the sidebar has room around its lines: it can have three of them.
     public var sessionRowPadding: CGFloat { self == .compact ? 7 : 12 }
@@ -39,7 +55,13 @@ public enum ChatText {
 public enum ChatLineSpacing: String, CaseIterable {
     case tight, normal, loose
 
-    public var title: String { rawValue.capitalized }
+    public func title(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch self {
+        case .tight: Copy.choiceLineTight(bundle: bundle, locale: locale)
+        case .normal: Copy.choiceLineNormal(bundle: bundle, locale: locale)
+        case .loose: Copy.choiceLineLoose(bundle: bundle, locale: locale)
+        }
+    }
 
     /// A share of the font's size: normal is the 4 points a 13-point message has always had.
     public func extra(forSize size: CGFloat) -> CGFloat {
@@ -58,7 +80,13 @@ public enum ChatLineSpacing: String, CaseIterable {
 public enum MessageSpacing: String, CaseIterable {
     case compact, comfortable, spacious
 
-    public var title: String { rawValue.capitalized }
+    public func title(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch self {
+        case .compact: Copy.choiceSpacingCompact(bundle: bundle, locale: locale)
+        case .comfortable: Copy.choiceSpacingComfortable(bundle: bundle, locale: locale)
+        case .spacious: Copy.choiceSpacingSpacious(bundle: bundle, locale: locale)
+        }
+    }
     public var gap: CGFloat {
         switch self {
         case .compact: 8
@@ -72,10 +100,13 @@ public enum MessageSpacing: String, CaseIterable {
 public enum MessageWidth: String, CaseIterable {
     case narrow, medium, wide, ultraWide, widest
 
-    public var title: String {
+    public func title(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         switch self {
-        case .ultraWide: "Ultra wide"
-        default: rawValue.capitalized
+        case .narrow: Copy.choiceWidthNarrow(bundle: bundle, locale: locale)
+        case .medium: Copy.choiceWidthMedium(bundle: bundle, locale: locale)
+        case .wide: Copy.choiceWidthWide(bundle: bundle, locale: locale)
+        case .ultraWide: Copy.choiceWidthUltraWide(bundle: bundle, locale: locale)
+        case .widest: Copy.choiceWidthWidest(bundle: bundle, locale: locale)
         }
     }
 
@@ -94,14 +125,25 @@ public enum MessageWidth: String, CaseIterable {
 public enum ChatSurface: String, CaseIterable {
     case glass, flat
 
-    public var title: String { rawValue.capitalized }
+    public func title(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch self {
+        case .glass: Copy.choiceSurfaceGlass(bundle: bundle, locale: locale)
+        case .flat: Copy.choiceSurfaceFlat(bundle: bundle, locale: locale)
+        }
+    }
 }
 
 /// When a message shows the time it was written.
 public enum MessageTimes: String, CaseIterable {
     case never, hover, always
 
-    public var title: String { rawValue == "hover" ? "On hover" : rawValue.capitalized }
+    public func title(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch self {
+        case .never: Copy.choiceTimesNever(bundle: bundle, locale: locale)
+        case .hover: Copy.choiceTimesHover(bundle: bundle, locale: locale)
+        case .always: Copy.choiceTimesAlways(bundle: bundle, locale: locale)
+        }
+    }
 
     /// Whether the time shows, given whether the pointer is over the message.
     public func shows(hovering: Bool) -> Bool { self == .always || (self == .hover && hovering) }
@@ -127,7 +169,13 @@ public enum WhileWorking: String, CaseIterable {
 public enum ToolOutputMode: String, CaseIterable {
     case hidden, collapsed, expanded
 
-    public var title: String { rawValue.capitalized }
+    public func title(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch self {
+        case .hidden: Copy.choiceToolsHidden(bundle: bundle, locale: locale)
+        case .collapsed: Copy.choiceToolsCollapsed(bundle: bundle, locale: locale)
+        case .expanded: Copy.choiceToolsExpanded(bundle: bundle, locale: locale)
+        }
+    }
 
     /// Whether a run or a call opens by itself: every one when expanded, and the ones that failed while the person wants that; never hidden.
     public func opens(failed: Bool, opensFailed: Bool) -> Bool {
@@ -143,14 +191,19 @@ public enum ToolOutputMode: String, CaseIterable {
 public enum DiffStyle: String, CaseIterable {
     case unified, split
 
-    public var title: String { rawValue.capitalized }
+    public func title(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch self {
+        case .unified: Copy.choiceDiffUnified(bundle: bundle, locale: locale)
+        case .split: Copy.choiceDiffSplit(bundle: bundle, locale: locale)
+        }
+    }
 }
 
 /// How many lines of an output show before Show more.
 public enum OutputLength: Int, CaseIterable {
     case short = 20, medium = 50, long = 100
 
-    public var title: String { "\(rawValue) lines" }
+    public func title(bundle: Bundle? = nil, locale: Locale = .current) -> String { Copy.choiceOutputLines(lines: rawValue, bundle: bundle, locale: locale) }
 
     /// The first lines of an output and how many are left out; all of it once expanded.
     public func visible(_ lines: [String], expanded: Bool) -> (lines: [String], hidden: Int) {

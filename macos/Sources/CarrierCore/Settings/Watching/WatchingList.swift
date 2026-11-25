@@ -68,5 +68,5 @@ public func refusalBanner(_ reason: Refusal, bundle: Bundle? = nil, locale: Loca
 private func refusalBanner(detail: String?, raw: String, fix: SettingsPage?, bundle: Bundle?, locale: Locale) -> RefusalBanner {
     RefusalBanner(
         title: Copy.watchingRefusalTitle(bundle: bundle, locale: locale), detail: detail, raw: raw, fix: fix,
-        consequence: Copy.watchingRefusalConsequence(bundle: bundle, locale: locale), fixTitle: fix.map { Copy.watchingOpenPage(page: $0.title, bundle: bundle, locale: locale) })
+        consequence: Copy.watchingRefusalConsequence(bundle: bundle, locale: locale), fixTitle: fix.map { Copy.watchingOpenPage(page: $0.title(bundle: bundle, locale: locale), bundle: bundle, locale: locale) })
 }

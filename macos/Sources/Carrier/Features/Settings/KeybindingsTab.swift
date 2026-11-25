@@ -30,23 +30,21 @@ struct KeybindingsTabView: View {
     private func row(_ command: ShortcutCommand, table: ShortcutTable, first: Bool) -> some View {
         let combo = table.combo(for: command)
         let clash = combo.flatMap { table.clash(of: $0, for: command) }
-        let text = recording == command ? "Press the keys…" : combo?.text ?? "None"
-        return SettingsTabRow(id: command.rawValue, title: command.title, detail: "Default: \(command.defaultCombo?.text ?? "none")", first: first) {
+        let text = shortcutRowText(command: command, combo: combo, clash: clash, refused: refused?.command == command ? refused?.combo : nil, recording: recording == command)
+        return SettingsTabRow(id: command.rawValue, title: command.title, detail: text.detail, first: first) {
             HStack(spacing: Tokens.Space.s8) {
-                if let refused, refused.command == command {
-                    Label("\(refused.combo.text) is the system's", icon: .warningFilled).scaledFont(11).foregroundStyle(.orange)
-                } else if let clash {
-                    Label("Also \(clash.title)", icon: .warningFilled).scaledFont(11).foregroundStyle(.orange)
+                if let warning = text.warning {
+                    Label(warning, icon: .warningFilled).scaledFont(11).foregroundStyle(.orange)
                 }
                 if table.isDefault(command) == false {
                     Button { table.set(command.defaultCombo, for: command); revision += 1 } label: {
-                        Label("Default", icon: .rotate).labelStyle(.titleAndIcon)
+                        Label(text.defaultButton, icon: .rotate).labelStyle(.titleAndIcon)
                     }
-                    .buttonStyle(HoverTextButtonStyle(tint: nil)).accessibilityLabel("Back to the default for \(command.title)")
+                    .buttonStyle(HoverTextButtonStyle(tint: nil)).accessibilityLabel(text.backToDefault)
                 }
-                Button(text) { startRecording(command) }
+                Button(text.keys) { startRecording(command) }
                     .buttonStyle(KeyCapButtonStyle(recording: recording == command, empty: combo == nil))
-                    .accessibilityLabel("Shortcut for \(command.title)").accessibilityValue(combo?.text ?? "None")
+                    .accessibilityLabel(text.label).accessibilityValue(text.value)
             }
         }
     }

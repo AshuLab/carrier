@@ -116,7 +116,7 @@ extension AppDelegate {
         // every page of Settings is drawn, a second each: a page that cannot be drawn (a missing environment object) ends the process here
         if let opened = steps.firstIndex(where: { $0.0 == "open settings" }) {
             let pages: [(String, () -> String)] = SettingsPage.allCases.map { page in
-                ("settings page \(page.title)", { WindowController.shared.showSettings(page); return WindowController.shared.settingsStatus })
+                ("settings page \(page.title())", { WindowController.shared.showSettings(page); return WindowController.shared.settingsStatus })
             }
             // and every screen of the Dictation page, which is a place of its own
             let screens: [(String, () -> String)] = DictationScreen.allCases.map { screen in

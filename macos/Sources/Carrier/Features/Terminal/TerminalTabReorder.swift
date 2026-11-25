@@ -11,8 +11,8 @@ struct TabReorderAccessibilityActions: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .modifier(ConditionalAccessibilityAction(enabled: canMoveLeft, name: "Move Tab Left", action: moveLeft))
-            .modifier(ConditionalAccessibilityAction(enabled: canMoveRight, name: "Move Tab Right", action: moveRight))
+            .modifier(ConditionalAccessibilityAction(enabled: canMoveLeft, name: Copy.terminalMoveTabLeft(), action: moveLeft))
+            .modifier(ConditionalAccessibilityAction(enabled: canMoveRight, name: Copy.terminalMoveTabRight(), action: moveRight))
     }
 }
 

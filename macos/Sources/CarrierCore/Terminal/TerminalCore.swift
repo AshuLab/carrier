@@ -88,9 +88,12 @@ public struct TerminalPane: Identifiable, Equatable, Codable, Sendable {
     public var command: String?
     public var waitAfterCommand: Bool
 
+    /// The name a pane is stored under until its shell names it. State, not words: what a person reads for it is `displayTitle`, which says the folder's name or `Copy.terminalDefaultTitle`.
+    public static let untitled = "Terminal"
+
     public init(
         id: UUID = UUID(),
-        title: String = "Terminal",
+        title: String = TerminalPane.untitled,
         customTitle: String? = nil,
         workingDirectory: String,
         envVars: [String: String] = [:],
@@ -107,12 +110,12 @@ public struct TerminalPane: Identifiable, Equatable, Codable, Sendable {
     }
 
     /// Preferred label for chrome: explicit rename first, then live shell/OSC title, then folder basename.
-    public var displayTitle: String {
+    public func displayTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         if let customTitle = Self.cleanCustomTitle(customTitle) { return customTitle }
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty == false && trimmed != "Terminal" { return trimmed }
+        if trimmed.isEmpty == false && trimmed != Self.untitled { return trimmed }
         let folder = URL(fileURLWithPath: workingDirectory).lastPathComponent
-        return folder.isEmpty == false ? folder : (trimmed.isEmpty ? "Terminal" : trimmed)
+        return folder.isEmpty == false ? folder : Copy.terminalDefaultTitle(bundle: bundle, locale: locale)
     }
 
     static func cleanCustomTitle(_ raw: String?) -> String? {
@@ -161,7 +164,7 @@ public struct TerminalTab: Identifiable, Equatable, Codable, Sendable {
     ) {
         let pane = TerminalPane(
             id: paneId,
-            title: title ?? spec.title ?? "Terminal",
+            title: title ?? spec.title ?? TerminalPane.untitled,
             customTitle: spec.customTitle,
             workingDirectory: spec.workingDirectory,
             envVars: spec.envVars,
@@ -193,9 +196,9 @@ public struct TerminalTab: Identifiable, Equatable, Codable, Sendable {
         activePane?.workingDirectory ?? orderedPanes.first?.workingDirectory ?? ""
     }
 
-    public var title: String {
+    public func title(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         if let customTitle = TerminalPane.cleanCustomTitle(customTitle) { return customTitle }
-        return activePane?.displayTitle ?? "Terminal"
+        return activePane?.displayTitle(bundle: bundle, locale: locale) ?? Copy.terminalDefaultTitle(bundle: bundle, locale: locale)
     }
 
     mutating func normalize() {

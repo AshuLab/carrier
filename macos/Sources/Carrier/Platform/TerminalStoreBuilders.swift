@@ -62,7 +62,7 @@ extension CarrierTerminalStore {
                 let question = await self.pendingConfirmation(for: target) ?? terminalConfirmationQuestion(
                     for: target,
                     running: [],
-                    targetTitle: self.registry.pane(id: paneId)?.displayTitle
+                    targetTitle: self.registry.pane(id: paneId)?.displayTitle()
                 )
                 guard self.isTornDown == false, self.registry.pane(id: paneId) != nil else { return }
                 let approved = self.onCloseConfirmationNeeded?(target, question) ?? false

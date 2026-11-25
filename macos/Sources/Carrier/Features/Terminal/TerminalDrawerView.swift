@@ -10,7 +10,7 @@ struct TerminalDrawerView: View {
     let defaultDirectory: String
     var openDefaultTabIfEmpty: Bool = true
     var dismissIcon: AppIcon = .chevronDown
-    var dismissLabel: String = "Hide terminal"
+    var dismissLabel: String = Copy.terminalHide()
     @Binding var height: CGFloat
     let maxHeight: CGFloat
     let dismissDrawer: () -> Void
@@ -33,7 +33,7 @@ struct TerminalDrawerView: View {
                 store: store,
                 tabs: tabs,
                 activeTabId: activeTab?.id,
-                addTabLabel: "New terminal tab",
+                addTabLabel: Copy.terminalNewTabInDrawer(),
                 onSelectTab: { store.selectTab($0, for: owner) },
                 onAddTab: {
                     _ = store.openTab(for: owner, workingDirectory: activeTab?.workingDirectory ?? defaultDirectory)
@@ -95,8 +95,8 @@ struct TerminalDrawerView: View {
         return TerminalResizeDivider(
             horizontal: false,
             isDragging: dragStartHeight != nil,
-            accessibilityLabel: "Terminal drawer resize handle",
-            accessibilityValue: "\(Int(min(max(dragHeight ?? height, Self.minHeight), ceiling).rounded())) points",
+            accessibilityLabel: Copy.terminalDrawerHandle(),
+            accessibilityValue: Copy.terminalPointsValue(count: Int(min(max(dragHeight ?? height, Self.minHeight), ceiling).rounded())),
             onDragChanged: { deltaY in
                 let base = dragStartHeight ?? height
                 if dragStartHeight == nil { dragStartHeight = base }

@@ -41,7 +41,7 @@ struct TerminalRows: View {
 
     @ViewBuilder private var header: some View {
         SidebarSectionRow(
-            title: "Terminal",
+            title: Copy.terminalSection(),
             icon: .terminal,
             selected: selected,
             keepActions: query != nil,
@@ -54,24 +54,24 @@ struct TerminalRows: View {
                         .padding(.horizontal, Tokens.Space.s6)
                         .padding(.vertical, Tokens.Space.s1)
                         .background(Capsule().fill(Color.secondary.opacity(0.15)))
-                        .accessibilityLabel(terminals.count == 1 ? "1 terminal" : "\(terminals.count) terminals")
+                        .accessibilityLabel(Copy.terminalCount(count: terminals.count))
                 }
             },
             hoverActions: {
                 IconButton(
                     icon: .search,
-                    name: "Search terminals",
+                    name: Copy.terminalSearch(),
                     enabled: terminals.isEmpty == false,
-                    why: "No terminals to search",
+                    why: Copy.terminalSearchNone(),
                     shortcut: "⌘F",
                     pressed: query != nil
                 ) {
                     if query == nil { openSearch() } else { query = nil }
                 }
-                IconButton(icon: .plus, name: "New terminal", action: newTerminal)
+                IconButton(icon: .plus, name: Copy.terminalNewHelp(), action: newTerminal)
             }
         )
-        .help("Terminal")
+        .help(Copy.terminalSection())
         .onChange(of: open) { if open == false { query = nil } }
         .onChange(of: searchRequest) { if searchRequest?.section == .terminal { openSearch() } }
     }
@@ -82,7 +82,7 @@ struct TerminalRows: View {
             LazyVStack(alignment: .leading, spacing: SidebarMetrics.rowGap) {
                 if query != nil {
                     SidebarSearchField(
-                        placeholder: "Search terminals",
+                        placeholder: Copy.terminalSearch(),
                         text: Binding(get: { query ?? "" }, set: { query = $0 }),
                         focus: $searching,
                         close: { query = nil }
@@ -93,8 +93,8 @@ struct TerminalRows: View {
                     let empty = EmptyState.noTerminals
                     SidebarEmptyBlock(icon: empty.icon, title: empty.title(), line: empty.line()) {
                         // the pill of the title bar's New Terminal
-                        AccentGlassPillButton(title: "New Terminal", icon: .plus, action: newTerminal)
-                            .help("New terminal session")
+                        AccentGlassPillButton(title: Copy.terminalNewButton(), icon: .plus, action: newTerminal)
+                            .help(Copy.terminalNewSessionHelp())
                     }
                 case .noMatch(let typed):
                     SidebarNoResults(query: typed, clear: { query = "" })
@@ -115,19 +115,19 @@ struct TerminalRows: View {
                         Button {
                             selection = .terminal(id: summary.id)
                         } label: {
-                            Label("Open", systemIcon: .terminal).labelStyle(.titleAndIcon)
+                            Label(Copy.terminalOpen(), systemIcon: .terminal).labelStyle(.titleAndIcon)
                         }
                         Button {
                             _ = store.openTab(for: .terminal(summary.id), workingDirectory: summary.workingDirectory)
                             selection = .terminal(id: summary.id)
                         } label: {
-                            Label("New Tab", systemIcon: .copyPlus).labelStyle(.titleAndIcon)
+                            Label(Copy.terminalNewTab(), systemIcon: .copyPlus).labelStyle(.titleAndIcon)
                         }
                         Divider()
                         Button(role: .destructive) {
                             closeTerminal(summary.id)
                         } label: {
-                            Label("Close", systemIcon: .close).labelStyle(.titleAndIcon)
+                            Label(Copy.terminalClose(), systemIcon: .close).labelStyle(.titleAndIcon)
                         }
                     }
                 }
@@ -156,7 +156,7 @@ private struct TerminalSidebarRowView: View {
                     .foregroundStyle(.secondary)
             }
             VStack(alignment: .leading, spacing: SidebarMetrics.lineGap) {
-                Text(summary.title)
+                Text(summary.title())
                     .sidebarFont(.item)
                     .lineLimit(1)
                     .truncationMode(.tail)
@@ -170,16 +170,16 @@ private struct TerminalSidebarRowView: View {
             }
             Spacer(minLength: 4)
             if hovered || rowActive {
-                IconButton(icon: .close, name: "Close terminal", action: close)
+                IconButton(icon: .close, name: Copy.terminalCloseTerminalName(), action: close)
                     .opacity(hovered ? 1 : 0)
             }
         }
         .padding(.horizontal, density.rowPadding)
         .padding(.vertical, density.rowPadding)
         .onHover { hovered = $0 }
-        .help("\(summary.title)\n\(summary.workingDirectory)")
+        .help(Copy.terminalRowHelp(title: summary.title(), folder: summary.workingDirectory))
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(summary.title), \(summary.subtitle())")
-        .accessibilityAction(named: "Close", close)
+        .accessibilityLabel(Copy.terminalRowLabel(title: summary.title(), subtitle: summary.subtitle()))
+        .accessibilityAction(named: Copy.terminalClose(), close)
     }
 }

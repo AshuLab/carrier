@@ -86,9 +86,12 @@ private func resumeSteps(_ resume: ValidResume) -> (cd: String, run: String) {
 /// The shell script `cd`s explicitly with inline scoped config variables so inaccessible folders fail closed
 /// and user shell startup files cannot override `CLAUDE_CONFIG_DIR` or `CODEX_HOME`, while holding
 /// non-zero failures open until the user presses Return so errors stay visible.
-public func embeddedResumeLaunch(_ resume: ValidResume) -> EmbeddedResumeLaunch {
+/// The two sentences it prints are `printf` formats in the language of `bundle` and `locale`: the status stands in as `%s`, which the shell fills with `$code`.
+public func embeddedResumeLaunch(_ resume: ValidResume, bundle: Bundle? = nil, locale: Locale = .current) -> EmbeddedResumeLaunch {
     let steps = resumeSteps(resume)
-    let shellBody = "(\(steps.cd) && \(steps.run)) || { code=$?; builtin printf '\\nContinue in Terminal exited with status %s.' \"$code\"; if [[ -t 0 ]]; then builtin printf ' Press Return to close...'; IFS= read -r _; fi; exit $code; }"
+    let exited = shellQuote("\\n" + Copy.terminalContinueExited(status: "%s", bundle: bundle, locale: locale))
+    let pressReturn = shellQuote(Copy.terminalContinuePressReturn(bundle: bundle, locale: locale))
+    let shellBody = "(\(steps.cd) && \(steps.run)) || { code=$?; builtin printf \(exited) \"$code\"; if [[ -t 0 ]]; then builtin printf \(pressReturn); IFS= read -r _; fi; exit $code; }"
     return EmbeddedResumeLaunch(
         workingDirectory: resume.cwd,
         command: "/bin/zsh -il -c \(shellQuote(shellBody))"

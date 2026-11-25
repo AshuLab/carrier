@@ -27,7 +27,7 @@ struct TerminalsHomeView: View {
         if terminals.isEmpty {
             EmptyStateView(
                 state: .noTerminals,
-                action: ("New Terminal Session", newTerminal),
+                action: (Copy.terminalNewSession(), newTerminal),
                 actionIcon: .plus,
                 actionStyle: .accentGlass
             )
@@ -35,7 +35,7 @@ struct TerminalsHomeView: View {
         } else if shown.isEmpty {
             EmptyStateView(
                 state: .noResults,
-                action: ("Clear search", { query = nil })
+                action: (Copy.terminalClearSearch(), { query = nil })
             )
             .inPageScroll()
         } else {
@@ -102,15 +102,15 @@ struct TerminalsHomeView: View {
             ToolbarSpacer(.fixed, placement: .primaryAction)
         }
         ToolbarItem(placement: .primaryAction) {
-            AccentGlassPillButton(title: "New Terminal", icon: .plus, action: newTerminal)
+            AccentGlassPillButton(title: Copy.terminalNewButton(), icon: .plus, action: newTerminal)
                 .padding(.trailing, Tokens.Space.s10)
-                .help("New terminal")
+                .help(Copy.terminalNewHelp())
         }
         .sharedBackgroundVisibility(.hidden)
     }
 
     @ViewBuilder private var searchItem: some View {
-        ToolbarSearchField(query: $query, placeholder: "Search terminals", focused: $searching) {
+        ToolbarSearchField(query: $query, placeholder: Copy.terminalSearch(), focused: $searching) {
             listFocused = true
         }
     }
@@ -135,7 +135,7 @@ private struct TerminalHomeRow: View {
                     .foregroundStyle(.secondary)
             }
             VStack(alignment: .leading, spacing: Tokens.Space.s3) {
-                Text(summary.title)
+                Text(summary.title())
                     .scaledFont(13, weight: .medium)
                     .lineLimit(1)
                     .truncationMode(.tail)
@@ -144,7 +144,7 @@ private struct TerminalHomeRow: View {
                         .labelStyle(.titleAndIcon)
                         .lineLimit(1)
                         .truncationMode(.middle)
-                    if let counts = summary.countsSummary {
+                    if let counts = summary.countsSummary() {
                         Text("·")
                         Text(counts)
                     }
@@ -155,7 +155,7 @@ private struct TerminalHomeRow: View {
             }
             Spacer(minLength: 8)
             if active {
-                IconButton(icon: .close, name: "Close \(summary.title)", action: close)
+                IconButton(icon: .close, name: Copy.terminalCloseNamed(title: summary.title()), action: close)
             }
         }
         .padding(.horizontal, Tokens.Space.s10)
@@ -167,21 +167,21 @@ private struct TerminalHomeRow: View {
         .onHover { hovered = $0 }
         .contextMenu {
             Button(action: open) {
-                Label("Open", systemIcon: .terminal).labelStyle(.titleAndIcon)
+                Label(Copy.terminalOpen(), systemIcon: .terminal).labelStyle(.titleAndIcon)
             }
             Button(action: newTab) {
-                Label("New Tab", systemIcon: .copyPlus).labelStyle(.titleAndIcon)
+                Label(Copy.terminalNewTab(), systemIcon: .copyPlus).labelStyle(.titleAndIcon)
             }
             Divider()
             Button(role: .destructive, action: close) {
-                Label("Close", systemIcon: .close).labelStyle(.titleAndIcon)
+                Label(Copy.terminalClose(), systemIcon: .close).labelStyle(.titleAndIcon)
             }
         }
-        .help("\(summary.title)\n\(summary.workingDirectory)")
+        .help(Copy.terminalRowHelp(title: summary.title(), folder: summary.workingDirectory))
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
-        .accessibilityAction(named: "Open", open)
-        .accessibilityAction(named: "New Tab", newTab)
-        .accessibilityAction(named: "Close", close)
+        .accessibilityAction(named: Copy.terminalOpen(), open)
+        .accessibilityAction(named: Copy.terminalNewTab(), newTab)
+        .accessibilityAction(named: Copy.terminalClose(), close)
     }
 }

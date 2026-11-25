@@ -1715,7 +1715,7 @@
   "projectsWorktreesTitle": "Worktrees and disk",
   "projectsWorktreesFooter": "The worktrees Carrier made for sessions of this project, and what each folder takes on disk.",
   "projectsTotal": "Total",
-  "projectsRemoveWorktreeHelp": "Removes this worktree's folder; its branch and its session stay",
+  "projectsRemoveWorktreeHelp": "Remove this worktree's folder",
   "projectsRemoveWorktreeLabel": "Remove the worktree {branch}",
   "projectsCleanUpDetail": "Merged worktrees nothing blocks: {words}",
   "projectsLastCleanUp": "Last clean up",

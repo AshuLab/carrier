@@ -73,11 +73,11 @@ struct AccountEditor: View {
                 }
                 SettingsGroup(title: Copy.providersGroupRuns()) {
                     field(Copy.providersBinaryPath(), "command", Copy.providersBinaryDetail(harness: harness), first: true) {
-                        TextField("", text: $draft.command, prompt: Text(verbatim: "/opt/homebrew/bin/\(harness)")).accessibilityLabel(Copy.providersBinaryPath()).settingsField(width: Self.controlWidth)
+                        TextField("", text: $draft.command, prompt: Text(Copy.providersBinaryPlaceholder(harness: harness))).accessibilityLabel(Copy.providersBinaryPath()).settingsField(width: Self.controlWidth)
                     }
                     if harness != "agy" {
                         field(Copy.providersConfigFolder(), "configDir", Copy.providersConfigFolderDetail(variable: harness == "claude" ? "CLAUDE_CONFIG_DIR" : "CODEX_HOME"), hint: Copy.providersConfigFolderHint()) {
-                            TextField("", text: $draft.configDir, prompt: Text(verbatim: "~/.\(harness)-work")).accessibilityLabel(Copy.providersConfigFolder()).settingsField(width: Self.controlWidth)
+                            TextField("", text: $draft.configDir, prompt: Text(Copy.providersConfigFolderPlaceholder(harness: harness))).accessibilityLabel(Copy.providersConfigFolder()).settingsField(width: Self.controlWidth)
                         }
                     }
                 }
@@ -269,13 +269,13 @@ struct AddAccountForm: View {
         Group {
             SettingsGroup(title: Copy.providersAddAccount()) {
                 SettingsTabRow(title: Copy.providersAddName(), detail: Copy.providersAddNameDetail(), first: true) {
-                    TextField("", text: $name, prompt: Text(verbatim: "\(harness)-work")).accessibilityLabel(Copy.providersAddName()).settingsField(width: AccountEditor.controlWidth)
+                    TextField("", text: $name, prompt: Text(Copy.providersAddNamePlaceholder(harness: harness))).accessibilityLabel(Copy.providersAddName()).settingsField(width: AccountEditor.controlWidth)
                 }
                 SettingsTabRow(
                     title: Copy.providersConfigFolder(),
                     detail: Copy.providersAddFolderDetail(variable: harness == "claude" ? "CLAUDE_CONFIG_DIR" : "CODEX_HOME")
                 ) {
-                    TextField("", text: $folder, prompt: Text(verbatim: "~/.\(harness)-work")).accessibilityLabel(Copy.providersConfigFolder()).settingsField(width: AccountEditor.controlWidth)
+                    TextField("", text: $folder, prompt: Text(Copy.providersConfigFolderPlaceholder(harness: harness))).accessibilityLabel(Copy.providersConfigFolder()).settingsField(width: AccountEditor.controlWidth)
                 }
             }
             if let message = problem ?? store.editProblem { SettingsGroup(title: "") { ProblemLine(text: message) } }

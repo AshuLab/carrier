@@ -44667,6 +44667,23 @@
         }
       }
     },
+    "providersAddNamePlaceholder %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@-work"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@-work"
+          }
+        }
+      }
+    },
     "providersAllSignedIn": {
       "extractionState": "manual",
       "localizations": {
@@ -44765,6 +44782,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ruta del binario"
+          }
+        }
+      }
+    },
+    "providersBinaryPlaceholder %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "/opt/homebrew/bin/%1$@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "/opt/homebrew/bin/%1$@"
           }
         }
       }
@@ -45275,6 +45309,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Cualquier ruta; una que no empiece por / o ~/ se toma desde tu carpeta personal"
+          }
+        }
+      }
+    },
+    "providersConfigFolderPlaceholder %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "~/.%1$@-work"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "~/.%1$@-work"
           }
         }
       }

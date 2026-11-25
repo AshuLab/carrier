@@ -10455,6 +10455,10 @@ public enum Copy {
         String(localized: "providersBinaryDetail \(harness)", bundle: bundle ?? carrierResources, locale: locale)
     }
 
+    public static func providersBinaryPlaceholder(harness: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "providersBinaryPlaceholder \(harness)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
     public static func providersConfigFolder(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         String(localized: "providersConfigFolder", bundle: bundle ?? carrierResources, locale: locale)
     }
@@ -10598,6 +10602,14 @@ public enum Copy {
 
     public static func providersAddName(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         String(localized: "providersAddName", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func providersAddNamePlaceholder(harness: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "providersAddNamePlaceholder \(harness)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func providersConfigFolderPlaceholder(harness: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "providersConfigFolderPlaceholder \(harness)", bundle: bundle ?? carrierResources, locale: locale)
     }
 
     public static func providersAddNameDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {

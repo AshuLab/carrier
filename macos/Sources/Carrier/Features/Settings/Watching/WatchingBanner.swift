@@ -7,6 +7,7 @@ struct RefusalBannerView: View {
     let banner: RefusalBanner
     let fix: (SettingsPage) -> Void
     @State private var showingRaw = false
+    private let reloaded = ReloadStatus.shared
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -22,14 +23,14 @@ struct RefusalBannerView: View {
                 .font(.scaled(11.5)).foregroundStyle(.secondary)
                 HStack(spacing: 8) {
                     if let page = banner.fix, let title = banner.fixTitle { Button(title) { fix(page) }.controlSize(.small) }
-                    AskAgainButton()
+                    AskAgainButton(pending: reloaded.pending) { reloaded.ask() }
                 }
                 .padding(.top, 2)
             }
             Spacer(minLength: 0)
         }
         .padding(.vertical, 4).frame(maxWidth: .infinity, alignment: .leading)
-        .announcesReloadProblems()
+        .announcesReloadProblems(answers: reloaded.answers, isProblem: reloaded.isProblem, words: reloaded.words)
         .accessibilityElement(children: .contain)
     }
 }

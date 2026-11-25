@@ -3,8 +3,8 @@ import CarrierCore
 import SwiftUI
 
 private let providerColors: [String: Color] = [
-    "Claude": Color(Tokens.Provider.claude), "Codex": Color(Tokens.Provider.codex),
-    "Antigravity": Color(Tokens.Provider.antigravity), "Local": Color.gray,
+    "claude": Color(Tokens.Provider.claude), "codex": Color(Tokens.Provider.codex),
+    "agy": Color(Tokens.Provider.antigravity), "local": Color.gray,
 ]
 
 /// The days as stacked bars, one colour a provider. Hovering a day shows its breakdown and a click keeps it (a second click lets go).
@@ -19,13 +19,13 @@ struct DailyChart: View {
     // Its own function, with the plotted values typed, so the compiler has one small expression to solve.
     @ChartContentBuilder
     private func segmentMark(_ bar: UsageBar, _ segment: UsageSegment, _ valueName: String) -> some ChartContent {
-        let day: PlottableValue<String> = .value("Day", bar.label)
+        let day: PlottableValue<String> = .value(Copy.usageChartDay(), bar.label)
         let amount: PlottableValue<Double> = .value(valueName, segment.value)
-        let provider: PlottableValue<String> = .value("Provider", usageProviderTitle(segment.provider))
+        let provider: PlottableValue<String> = .value(Copy.usageFilterProvider(), usageProviderTitle(segment.provider))
         let dimmed: Bool = shown != nil && shown?.id != bar.id
         let opacity: Double = dimmed ? 0.45 : 1
         // VoiceOver reads each segment, so a day's numbers do not depend on the pointer
-        let spoken: String = "\(bar.label), \(usageProviderTitle(segment.provider))"
+        let spoken: String = Copy.usageChartSegment(day: bar.label, provider: usageProviderTitle(segment.provider))
         let worth: String = usageFormat(segment.value, metric)
         BarMark(x: day, y: amount)
             .foregroundStyle(by: provider)
@@ -37,16 +37,16 @@ struct DailyChart: View {
     /// A day with nothing used: a low grey stub, so it reads as "no use" and not as a missing day.
     @ChartContentBuilder
     private func quietMark(_ bar: UsageBar, floor: Double) -> some ChartContent {
-        let day: PlottableValue<String> = .value("Day", bar.label)
-        let level: PlottableValue<Double> = .value("No use", floor)
-        BarMark(x: day, y: level).foregroundStyle(Color.primary.opacity(0.16)).accessibilityLabel("\(bar.label), no use")
+        let day: PlottableValue<String> = .value(Copy.usageChartDay(), bar.label)
+        let level: PlottableValue<Double> = .value(Copy.usageChartNoUse(), floor)
+        BarMark(x: day, y: level).foregroundStyle(Color.primary.opacity(0.16)).accessibilityLabel(Copy.usageChartDayNoUse(day: bar.label))
     }
 
     var body: some View {
         // one label in a few, so thirty days do not run into each other
         let step = max(1, Int((Double(bars.count) / 7).rounded(.up)))
-        let titles = usageChartProviders.map(usageProviderTitle)
-        let valueName: String = metric == .cost ? "Cost" : "Tokens"
+        let titles = usageChartProviders.map { usageProviderTitle($0) }
+        let valueName: String = Copy.usageMetricName(metric: metric == .cost ? .cost : .tokens)
         let floor: Double = (bars.map(\.total).max() ?? 0) * 0.012
         Chart {
             ForEach(bars) { bar in
@@ -56,12 +56,12 @@ struct DailyChart: View {
                 if bar.total == 0 { quietMark(bar, floor: floor) }
             }
             if let shown {
-                RuleMark(x: .value("Day", shown.label)).foregroundStyle(Color.secondary.opacity(0.25))
+                RuleMark(x: .value(Copy.usageChartDay(), shown.label)).foregroundStyle(Color.secondary.opacity(0.25))
             }
         }
         // every day has its column, with or without marks: the axis only knows the days that have one
         .chartXScale(domain: bars.map(\.label))
-        .chartForegroundStyleScale(domain: titles, range: titles.map { providerColors[$0] ?? .gray })
+        .chartForegroundStyleScale(domain: titles, range: usageChartProviders.map { providerColors[$0] ?? .gray })
         .chartXAxis { AxisMarks(values: bars.enumerated().filter { $0.offset % step == 0 }.map(\.element.label)) { _ in AxisValueLabel() } }
         .chartYAxis {
             AxisMarks { value in
@@ -87,7 +87,7 @@ struct DailyChart: View {
             }
         }
         .frame(height: 220)
-        .accessibilityLabel("Daily \(metric == .cost ? "cost" : "tokens") by provider")
+        .accessibilityLabel(Copy.usageChartLabel(metric: metric == .cost ? .cost : .tokens))
     }
 
     /// The tooltip beside the hovered day, on the side with more room. It is a view of the overlay and not a chart annotation: an annotation
@@ -137,11 +137,11 @@ private struct Tooltip: View {
                 Text(tooltip.title).scaledFont(12, weight: .semibold)
                 Text(tooltip.weekday).scaledFont(11).foregroundStyle(.secondary)
             }
-            if tooltip.lines.isEmpty { Text("No use").scaledFont(11).foregroundStyle(.secondary) }
+            if tooltip.lines.isEmpty { Text(Copy.usageChartNoUse()).scaledFont(11).foregroundStyle(.secondary) }
             VStack(spacing: Tokens.Space.s5) {
                 ForEach(tooltip.lines, id: \.provider) { line in
                     HStack(spacing: Tokens.Space.s8) {
-                        Circle().fill(providerColors[line.provider] ?? .gray).frame(width: 7, height: 7)
+                        Circle().fill(providerColors[line.providerId] ?? .gray).frame(width: 7, height: 7)
                         UsageProviderMark(title: line.provider, size: 12).frame(width: 14)
                         Text(line.provider).scaledFont(11)
                         Spacer(minLength: 14)
@@ -151,7 +151,7 @@ private struct Tooltip: View {
             }
             if tooltip.lines.count > 1 {
                 SettingsDivider()
-                HStack { Text("Total").scaledFont(11, weight: .semibold); Spacer(minLength: 14); Text(tooltip.total).scaledFont(11, weight: .semibold).monospacedDigit() }
+                HStack { Text(Copy.usageTooltipTotal()).scaledFont(11, weight: .semibold); Spacer(minLength: 14); Text(tooltip.total).scaledFont(11, weight: .semibold).monospacedDigit() }
             }
         }
         .frame(width: 200).padding(Tokens.Space.s12)

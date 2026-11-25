@@ -6,29 +6,47 @@ import Foundation
 
 public func usageTokenTotal(_ tokens: UsageTokens) -> Int { tokens.input + tokens.cachedInput + tokens.cacheWrite + tokens.output }
 
-/// `1.8M`, `702K`, `85`: a count of tokens short enough for a card or a table cell.
-public func usageCount(_ count: Int) -> String {
-    let units: [(Double, String)] = [(1e9, "B"), (1e6, "M"), (1e3, "K")]
-    guard let (size, suffix) = units.first(where: { Double(count) >= $0.0 }) else { return String(count) }
-    return String(format: "%.1f", Double(count) / size).replacingOccurrences(of: ".0", with: "") + suffix
+/// `1.8M`, `702K`, `85`: a count of tokens short enough for a card or a table cell, with the decimal mark of the locale.
+public func usageCount(_ count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+    let units: [(Double, Copy.UsageCountUnit)] = [(1e9, .billion), (1e6, .million), (1e3, .thousand)]
+    guard let (size, unit) = units.first(where: { Double(count) >= $0.0 }) else { return String(count) }
+    var number = String(format: "%.1f", locale: locale, Double(count) / size)
+    let whole = (locale.decimalSeparator ?? ".") + "0"
+    if number.hasSuffix(whole) { number.removeLast(whole.count) }
+    return number + Copy.usageCountUnit(which: unit, bundle: bundle, locale: locale)
 }
 
-private let english = Locale(identifier: "en_US")
+/// A whole number with the thousands separators of the locale: `1,234`.
+public func usageGrouped(_ count: Int, locale: Locale = .current) -> String { count.formatted(.number.locale(locale)) }
 
-/// A whole number with thousands separators: `1,234`.
-public func usageGrouped(_ count: Int) -> String { count.formatted(.number.locale(english)) }
-
-public func usageMoney(_ amount: Double) -> String {
-    amount > 0 && amount < 0.005 ? "<$0.01" : "$" + amount.formatted(.number.precision(.fractionLength(2)).locale(english))
+/// `$31.20`, `$1,234.50`, `<$0.01` for what is more than nothing and less than a cent.
+public func usageMoney(_ amount: Double, locale: Locale = .current) -> String {
+    func dollars(_ amount: Double) -> String { "$" + amount.formatted(.number.precision(.fractionLength(2)).locale(locale)) }
+    return amount > 0 && amount < 0.005 ? "<" + dollars(0.01) : dollars(amount)
 }
 
 public let usageChartProviders = ["claude", "codex", "agy", "local"]
 
-public func usageProviderTitle(_ id: String) -> String {
-    ["claude": "Claude", "codex": "Codex", "agy": "Antigravity", "local": "Local"][id] ?? id
+/// A provider's name: the brands are the same in every language, `Local` is told in the app's. An id this app does not know is its own name.
+public func usageProviderTitle(_ id: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+    switch id {
+    case "claude": Copy.usageProviderName(which: .claude, bundle: bundle, locale: locale)
+    case "codex": Copy.usageProviderName(which: .codex, bundle: bundle, locale: locale)
+    case "agy": Copy.usageProviderName(which: .agy, bundle: bundle, locale: locale)
+    case "local": Copy.usageProviderName(which: .local, bundle: bundle, locale: locale)
+    default: id
+    }
 }
 
-private func usageSourceTitle(_ source: String) -> String { source.prefix(1).uppercased() + source.dropFirst() }
+/// `Epic`, `Chat` or `External` in the app's language; a source this app does not know is its own name, capitalized.
+private func usageSourceTitle(_ source: String, bundle: Bundle?, locale: Locale) -> String {
+    switch source {
+    case "epic": Copy.usageSourceName(which: .epic, bundle: bundle, locale: locale)
+    case "chat": Copy.usageSourceName(which: .chat, bundle: bundle, locale: locale)
+    case "external": Copy.usageSourceName(which: .external, bundle: bundle, locale: locale)
+    default: source.prefix(1).uppercased() + source.dropFirst()
+    }
+}
 
 // MARK: KPIs
 
@@ -36,23 +54,34 @@ public struct UsageKpi: Equatable {
     public var title: String
     public var value: String
     public var footnote: String?
+    /// The footnote says that the number is missing something (the unpriced models of the cost): it is drawn in orange.
+    public var warns = false
 }
 
 /// Est. API Cost (with a footnote while models are unpriced: their cost is missing, not zero), Total Tokens, Local Compute and the repos and
 /// folders that had epic or chat work (`—` with none).
-public func usageKpis(_ snapshot: UsageSnapshot) -> [UsageKpi] {
+public func usageKpis(_ snapshot: UsageSnapshot, bundle: Bundle? = nil, locale: Locale = .current) -> [UsageKpi] {
     let unpriced = snapshot.byModel.filter { $0.costStatus == .unpriced }.count
     let localTurns = snapshot.byModel.filter(\.isLocal).map(\.row.turns).reduce(0, +)
     let epics = snapshot.byWorkspace.filter { $0.source == "epic" }.count
     let chats = snapshot.byWorkspace.filter { $0.source == "chat" }.count
     return [
         UsageKpi(
-            title: "Est. API Cost", value: usageMoney(snapshot.summary.costUsd),
-            footnote: unpriced > 0 ? "\(unpriced) unpriced \(unpriced == 1 ? "model is" : "models are") not counted" : nil
+            title: Copy.usageKpiCost(bundle: bundle, locale: locale), value: usageMoney(snapshot.summary.costUsd, locale: locale),
+            footnote: unpriced > 0 ? Copy.usageKpiUnpriced(count: unpriced, bundle: bundle, locale: locale) : nil, warns: unpriced > 0
         ),
-        UsageKpi(title: "Total Tokens", value: usageCount(usageTokenTotal(snapshot.summary.tokens)), footnote: "\(usageGrouped(snapshot.summary.turns)) turns"),
-        UsageKpi(title: "Local Compute", value: "$0.00", footnote: localTurns > 0 ? "\(usageGrouped(localTurns)) local turns" : "No local models used"),
-        UsageKpi(title: "Active Epics / Chats", value: epics + chats == 0 ? "—" : "\(epics) / \(chats)", footnote: "Repos and folders with work"),
+        UsageKpi(
+            title: Copy.usageKpiTokens(bundle: bundle, locale: locale), value: usageCount(usageTokenTotal(snapshot.summary.tokens), bundle: bundle, locale: locale),
+            footnote: Copy.usageTurns(count: snapshot.summary.turns, bundle: bundle, locale: locale)
+        ),
+        UsageKpi(
+            title: Copy.usageKpiLocal(bundle: bundle, locale: locale), value: usageMoney(0, locale: locale),
+            footnote: localTurns > 0 ? Copy.usageLocalTurns(count: localTurns, bundle: bundle, locale: locale) : Copy.usageNoLocalModels(bundle: bundle, locale: locale)
+        ),
+        UsageKpi(
+            title: Copy.usageKpiActive(bundle: bundle, locale: locale), value: epics + chats == 0 ? "—" : "\(epics) / \(chats)",
+            footnote: Copy.usageKpiWork(bundle: bundle, locale: locale)
+        ),
     ]
 }
 
@@ -94,7 +123,9 @@ public func usageValue(_ row: UsageRow, _ metric: UsageMetric) -> Double {
     metric == .cost ? row.costUsd : Double(usageTokenTotal(row.tokens))
 }
 
-public func usageFormat(_ value: Double, _ metric: UsageMetric) -> String { metric == .cost ? usageMoney(value) : usageCount(Int(value.rounded())) }
+public func usageFormat(_ value: Double, _ metric: UsageMetric, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+    metric == .cost ? usageMoney(value, locale: locale) : usageCount(Int(value.rounded()), bundle: bundle, locale: locale)
+}
 
 private func dayLabel(_ date: String) -> String {
     let parts = date.split(separator: "-")
@@ -114,7 +145,10 @@ public func usageBars(_ snapshot: UsageSnapshot, metric: UsageMetric) -> [UsageB
 }
 
 public struct UsageTooltipLine: Equatable {
+    /// The provider's name in the app's language.
     public var provider: String
+    /// The host's own name of the provider (`claude`, `codex`, `agy`, `local`), which is what the view draws its color by.
+    public var providerId: String
     public var value: String
 }
 
@@ -127,11 +161,13 @@ public struct UsageTooltip: Equatable {
 }
 
 /// What the tooltip of a day says: its providers and their share in the metric, and the total; a day with no work says so in `lines`.
-public func usageTooltip(_ bar: UsageBar, metric: UsageMetric) -> UsageTooltip {
+public func usageTooltip(_ bar: UsageBar, metric: UsageMetric, bundle: Bundle? = nil, locale: Locale = .current) -> UsageTooltip {
     UsageTooltip(
         title: bar.label, weekday: weekday(bar.date).map { ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][$0 - 1] } ?? "",
-        lines: bar.segments.map { UsageTooltipLine(provider: usageProviderTitle($0.provider), value: usageFormat($0.value, metric)) },
-        total: usageFormat(bar.total, metric)
+        lines: bar.segments.map {
+            UsageTooltipLine(provider: usageProviderTitle($0.provider, bundle: bundle, locale: locale), providerId: $0.provider, value: usageFormat($0.value, metric, bundle: bundle, locale: locale))
+        },
+        total: usageFormat(bar.total, metric, bundle: bundle, locale: locale)
     )
 }
 
@@ -152,16 +188,23 @@ public struct UsageModelRow: Equatable, Identifiable {
     public var overridden: Bool
 }
 
-private func tokenDetail(_ tokens: UsageTokens) -> String {
-    "\(usageCount(tokens.input)) in · \(usageCount(tokens.cachedInput + tokens.cacheWrite)) cache · \(usageCount(tokens.output)) out"
+private func tokenDetail(_ tokens: UsageTokens, bundle: Bundle?, locale: Locale) -> String {
+    Copy.usageTokenDetail(
+        input: usageCount(tokens.input, bundle: bundle, locale: locale), cache: usageCount(tokens.cachedInput + tokens.cacheWrite, bundle: bundle, locale: locale),
+        output: usageCount(tokens.output, bundle: bundle, locale: locale), bundle: bundle, locale: locale)
 }
 
-public func usageModelRows(_ snapshot: UsageSnapshot) -> [UsageModelRow] {
+public func usageModelRows(_ snapshot: UsageSnapshot, bundle: Bundle? = nil, locale: Locale = .current) -> [UsageModelRow] {
     snapshot.byModel.map { model in
-        UsageModelRow(
-            id: "\(model.provider)/\(model.model)", model: model.model, provider: usageProviderTitle(model.provider), detail: tokenDetail(model.row.tokens),
-            cost: model.costStatus == .unpriced ? nil : model.costStatus == .local ? "$0.00 · Local" : usageMoney(model.row.costUsd),
-            unpriced: model.costStatus == .unpriced, overridden: model.overridden
+        let cost: String?
+        switch model.costStatus {
+        case .unpriced: cost = nil
+        case .local: cost = Copy.usageCostLocal(cost: usageMoney(0, locale: locale), bundle: bundle, locale: locale)
+        case .priced: cost = usageMoney(model.row.costUsd, locale: locale)
+        }
+        return UsageModelRow(
+            id: "\(model.provider)/\(model.model)", model: model.model, provider: usageProviderTitle(model.provider, bundle: bundle, locale: locale),
+            detail: tokenDetail(model.row.tokens, bundle: bundle, locale: locale), cost: cost, unpriced: model.costStatus == .unpriced, overridden: model.overridden
         )
     }
 }
@@ -171,8 +214,10 @@ public struct UsageWorkspaceRow: Equatable, Identifiable {
     /// A repository as `owner/repo`, a folder as its last two parts.
     public var name: String
     public var path: String
-    /// `Epic`, `Chat` or `External`.
+    /// `Epic`, `Chat` or `External`, in the app's language.
     public var source: String
+    /// The host's own name of the source (`epic`, `chat`, `external`), which is what the view draws its symbol by.
+    public var sourceKind: String
     public var detail: String
     public var cost: String
 }
@@ -180,35 +225,42 @@ public struct UsageWorkspaceRow: Equatable, Identifiable {
 /// How many workspaces the table lists: the ones that spent the most tokens.
 public let usageWorkspaceLimit = 10
 
-public func usageWorkspaceRows(_ snapshot: UsageSnapshot, limit: Int = usageWorkspaceLimit) -> [UsageWorkspaceRow] {
+public func usageWorkspaceRows(_ snapshot: UsageSnapshot, limit: Int = usageWorkspaceLimit, bundle: Bundle? = nil, locale: Locale = .current) -> [UsageWorkspaceRow] {
     snapshot.byWorkspace.sorted { (usageTokenTotal($0.row.tokens), $0.row.costUsd) > (usageTokenTotal($1.row.tokens), $1.row.costUsd) }.prefix(limit).map { workspace in
         let parts = workspace.workspace.split(separator: "/", omittingEmptySubsequences: true)
         let name = workspace.workspace.hasPrefix("/") ? parts.suffix(2).joined(separator: "/") : workspace.workspace
         return UsageWorkspaceRow(
-            id: "\(workspace.source)/\(workspace.workspace)", name: name.isEmpty ? "Unknown" : name, path: workspace.workspace, source: usageSourceTitle(workspace.source),
-            detail: "\(usageCount(usageTokenTotal(workspace.row.tokens))) tokens · \(usageGrouped(workspace.row.turns)) turns", cost: usageMoney(workspace.row.costUsd)
+            id: "\(workspace.source)/\(workspace.workspace)", name: name.isEmpty ? Copy.usageUnknown(bundle: bundle, locale: locale) : name, path: workspace.workspace,
+            source: usageSourceTitle(workspace.source, bundle: bundle, locale: locale), sourceKind: workspace.source,
+            detail: Copy.usageTokensTurns(
+                tokens: usageCount(usageTokenTotal(workspace.row.tokens), bundle: bundle, locale: locale), turns: workspace.row.turns, bundle: bundle, locale: locale),
+            cost: usageMoney(workspace.row.costUsd, locale: locale)
         )
     }
 }
 
 /// The foot of the model table: the whole range's tokens and cost, and what the cost leaves out.
-public func usageModelTotal(_ snapshot: UsageSnapshot) -> UsageModelRow {
+public func usageModelTotal(_ snapshot: UsageSnapshot, bundle: Bundle? = nil, locale: Locale = .current) -> UsageModelRow {
     let count = snapshot.byModel.count
     let unpriced = snapshot.byModel.filter { $0.costStatus == .unpriced }.count
-    let title = "Total · \(count) \(count == 1 ? "model" : "models")" + (unpriced > 0 ? ", \(unpriced) unpriced not counted" : "")
+    let title = unpriced > 0
+        ? Copy.usageTotalModelsUnpriced(count: count, unpriced: unpriced, bundle: bundle, locale: locale) : Copy.usageTotalModels(count: count, bundle: bundle, locale: locale)
     return UsageModelRow(
-        id: "total", model: title, provider: "", detail: tokenDetail(snapshot.summary.tokens), cost: usageMoney(snapshot.summary.costUsd), unpriced: false, overridden: false
+        id: "total", model: title, provider: "", detail: tokenDetail(snapshot.summary.tokens, bundle: bundle, locale: locale),
+        cost: usageMoney(snapshot.summary.costUsd, locale: locale), unpriced: false, overridden: false
     )
 }
 
 /// The foot of the workspace table: the whole range's numbers, not only the rows listed, and how many workspaces there were.
-public func usageWorkspaceTotal(_ snapshot: UsageSnapshot, limit: Int = usageWorkspaceLimit) -> UsageWorkspaceRow {
+public func usageWorkspaceTotal(_ snapshot: UsageSnapshot, limit: Int = usageWorkspaceLimit, bundle: Bundle? = nil, locale: Locale = .current) -> UsageWorkspaceRow {
     let count = snapshot.byWorkspace.count
-    let noun = count == 1 ? "workspace" : "workspaces"
-    let title = count > limit ? "Total · \(count) workspaces, top \(limit) by tokens" : "Total · \(count) \(noun)"
+    let title = count > limit
+        ? Copy.usageTotalWorkspacesTop(count: count, limit: limit, bundle: bundle, locale: locale) : Copy.usageTotalWorkspaces(count: count, bundle: bundle, locale: locale)
     return UsageWorkspaceRow(
-        id: "total", name: title, path: "", source: "",
-        detail: "\(usageCount(usageTokenTotal(snapshot.summary.tokens))) tokens · \(usageGrouped(snapshot.summary.turns)) turns", cost: usageMoney(snapshot.summary.costUsd)
+        id: "total", name: title, path: "", source: "", sourceKind: "",
+        detail: Copy.usageTokensTurns(
+            tokens: usageCount(usageTokenTotal(snapshot.summary.tokens), bundle: bundle, locale: locale), turns: snapshot.summary.turns, bundle: bundle, locale: locale),
+        cost: usageMoney(snapshot.summary.costUsd, locale: locale)
     )
 }
 
@@ -232,18 +284,18 @@ public struct UsageOverrideDraft: Equatable {
 
     public init(mode: Mode = .local) { self.mode = mode }
 
-    /// The override to send, or why each field cannot be.
-    public func check(model: String, catalog: [String]) -> UsageOverrideCheck {
+    /// The override to send, or why each field cannot be, in the words of `bundle` and `locale`.
+    public func check(model: String, catalog: [String], bundle: Bundle? = nil, locale: Locale = .current) -> UsageOverrideCheck {
         var errors: [Field: String] = [:]
         func rate(_ text: String, _ field: Field, required: Bool) -> Double? {
             let text = text.trimmingCharacters(in: .whitespaces)
             if text.isEmpty {
-                if required { errors[field] = "Required" }
+                if required { errors[field] = Copy.usageErrorRequired(bundle: bundle, locale: locale) }
                 return nil
             }
-            guard let value = Double(text), value.isFinite else { errors[field] = "Enter a number, like 1.25"; return nil }
-            guard value >= 0 else { errors[field] = "Cannot be negative"; return nil }
-            guard value <= Self.maxRate else { errors[field] = "At most 10,000"; return nil }
+            guard let value = Double(text), value.isFinite else { errors[field] = Copy.usageErrorNumber(bundle: bundle, locale: locale); return nil }
+            guard value >= 0 else { errors[field] = Copy.usageErrorNegative(bundle: bundle, locale: locale); return nil }
+            guard value <= Self.maxRate else { errors[field] = Copy.usageErrorMax(max: Int(Self.maxRate), bundle: bundle, locale: locale); return nil }
             return value
         }
         let action: UsageOverride.Action?
@@ -253,7 +305,7 @@ public struct UsageOverrideDraft: Equatable {
         case .alias:
             let name = alias.trimmingCharacters(in: .whitespaces)
             if catalog.contains(name) { action = .alias(name) } else {
-                errors[.alias] = name.isEmpty ? "Choose a model" : "Not a model of the price table"
+                errors[.alias] = name.isEmpty ? Copy.usageErrorChoose(bundle: bundle, locale: locale) : Copy.usageErrorNotCatalog(bundle: bundle, locale: locale)
                 action = nil
             }
         case .custom:

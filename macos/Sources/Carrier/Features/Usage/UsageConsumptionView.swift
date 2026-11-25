@@ -46,21 +46,30 @@ struct ConsumptionSection: View {
         HStack(spacing: Tokens.Space.s18) {
             HStack(spacing: Tokens.Space.s8) {
                 SegmentedChoice(
-                    options: [(UsageMetric.cost, "Cost", AppIcon.coin), (.tokens, "Tokens", .hash)], selection: $store.metric
+                    options: [(UsageMetric.cost, Copy.usageMetricName(metric: .cost), AppIcon.coin), (.tokens, Copy.usageMetricName(metric: .tokens), .hash)],
+                    selection: $store.metric
                 )
-                .accessibilityLabel("Metric")
-                SegmentedChoice(options: [7, 14, 30, 90].map { ($0, "\($0)d", nil) }, selection: $store.days).accessibilityLabel("Range")
+                .accessibilityLabel(Copy.usageFilterMetric())
+                SegmentedChoice(options: [7, 14, 30, 90].map { ($0, Copy.usageRangeDays(days: $0), nil) }, selection: $store.days).accessibilityLabel(Copy.usageFilterRange())
             }
             ChoicePopUp(
-                label: "Provider",
-                options: [(.all, "All providers"), (.claude, "Claude"), (.codex, "Codex"), (.agy, "Antigravity"), (.local, "Local")],
+                label: Copy.usageFilterProvider(),
+                options: [
+                    (.all, Copy.usageAllProviders()), (.claude, usageProviderTitle("claude")), (.codex, usageProviderTitle("codex")), (.agy, usageProviderTitle("agy")),
+                    (.local, usageProviderTitle("local")),
+                ],
                 selection: $store.providerFilter
             )
             ChoicePopUp(
-                label: "Source", options: [(.all, "All sources"), (.epic, "Epic"), (.chat, "Chat"), (.external, "External")], selection: $store.sourceFilter
+                label: Copy.usageFilterSource(),
+                options: [
+                    (.all, Copy.usageAllSources()), (.epic, Copy.usageSourceName(which: .epic)), (.chat, Copy.usageSourceName(which: .chat)),
+                    (.external, Copy.usageSourceName(which: .external)),
+                ],
+                selection: $store.sourceFilter
             )
             Spacer(minLength: 8)
-            TextField("Search model or workspace", text: $store.searchText).settingsField(width: 300, icon: .search)
+            TextField(Copy.usageSearch(), text: $store.searchText).settingsField(width: 300, icon: .search)
         }
     }
 
@@ -75,7 +84,7 @@ struct ConsumptionSection: View {
                         Text(kpi.title).sectionLabel()
                         Text(kpi.value).scaledFont(20, weight: .semibold).monospacedDigit().lineLimit(1).minimumScaleFactor(0.7)
                         // the footnote of the cost is the one that matters: an unpriced model is missing from the number
-                        Text(kpi.footnote ?? " ").scaledFont(11).foregroundStyle(kpi.title == "Est. API Cost" && kpi.footnote != nil ? .orange : .secondary)
+                        Text(kpi.footnote ?? " ").scaledFont(11).foregroundStyle(kpi.warns ? .orange : .secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, Tokens.Space.s12).padding(.leading, index > 0 ? Tokens.Space.s14 : Tokens.Space.none)
@@ -93,16 +102,16 @@ struct ConsumptionSection: View {
         let bars = usageBars(snapshot, metric: store.metric)
         return SettingsTabCard {
             VStack(alignment: .leading, spacing: Tokens.Space.s8) {
-                Text("Daily \(store.metric == .cost ? "estimated API cost" : "tokens")").sectionLabel()
+                Text(Copy.usageChartTitle(metric: store.metric == .cost ? .cost : .tokens)).sectionLabel()
                 if usageIsEmpty(snapshot) {
                     if store.hasActiveFilters {
                         EmptyStateView(
-                            icon: .chartBar, title: "Nothing matches these filters", line: "Clear them to see all of the last \(store.days) days.",
-                            action: ("Clear filters", { store.clearFilters(); reload() }), actionIcon: .close
+                            icon: .chartBar, title: Copy.usageNoMatchTitle(), line: Copy.usageNoMatchLine(days: store.days),
+                            action: (Copy.usageClearFilters(), { store.clearFilters(); reload() }), actionIcon: .close
                         )
                         .frame(minHeight: 220)
                     } else {
-                        EmptyStateView(icon: .chartBar, title: "No usage in the last \(store.days) days", line: "Epics, chats and terminal sessions show here once they run.")
+                        EmptyStateView(icon: .chartBar, title: Copy.usageNoUsageTitle(days: store.days), line: Copy.usageNoUsageLine())
                             .frame(minHeight: 220)
                     }
                 } else if bars.contains(where: { $0.total > 0 }) {
@@ -110,9 +119,8 @@ struct ConsumptionSection: View {
                 } else {
                     // every bar is zero (all the models are unpriced): a chart of zeros draws nothing and looks broken
                     EmptyStateView(
-                        icon: .chartBar, title: "No cost to chart",
-                        line: "The models used have no price yet, so no cost is counted. Map them below, or look at the tokens.",
-                        action: ("Show tokens", { store.metric = .tokens }), actionIcon: .hash
+                        icon: .chartBar, title: Copy.usageNoCostTitle(), line: Copy.usageNoCostLine(),
+                        action: (Copy.usageShowTokens(), { store.metric = .tokens }), actionIcon: .hash
                     )
                     .frame(minHeight: 220)
                 }
@@ -126,9 +134,9 @@ struct ConsumptionSection: View {
     private func modelTable(_ snapshot: UsageSnapshot) -> some View {
         let rows = usageModelRows(snapshot)
         return VStack(alignment: .leading, spacing: Tokens.Space.s6) {
-            Text("By model").sectionLabel().padding(.leading, Tokens.Space.s14)
+            Text(Copy.usageByModel()).sectionLabel().padding(.leading, Tokens.Space.s14)
             SettingsTabCard {
-                if rows.isEmpty { emptyRow("No models used") }
+                if rows.isEmpty { emptyRow(Copy.usageNoModels()) }
                 ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
                     if index > 0 { SettingsDivider() }
                     HStack(spacing: Tokens.Space.s12) {
@@ -155,13 +163,13 @@ struct ConsumptionSection: View {
         HStack(spacing: Tokens.Space.s6) {
             if let cost = row.cost { Text(cost).scaledFont(12, weight: .medium).monospacedDigit() }
             if row.unpriced {
-                Button { mapping = row } label: { Badge(text: "Unpriced · Map", icon: .warningFilled, tint: .orange) }
-                    .buttonStyle(.plain).accessibilityLabel("Unpriced. Map \(row.model) to a price")
-                    .help("This model is not in the price table: its cost is missing, not zero. Map it to a price.")
+                Button { mapping = row } label: { Badge(text: Copy.usageUnpricedMap(), icon: .warningFilled, tint: .orange) }
+                    .buttonStyle(.plain).accessibilityLabel(Copy.usageUnpricedLabel(model: row.model))
+                    .help(Copy.usageUnpricedHelp())
             } else if row.overridden {
-                Button { mapping = row } label: { Badge(text: "Custom", icon: .pencil, tint: .secondary) }
-                    .buttonStyle(.plain).accessibilityLabel("Custom price. Edit the price of \(row.model)")
-                    .help("You set this model's price. Edit or clear it.")
+                Button { mapping = row } label: { Badge(text: Copy.usageCustom(), icon: .pencil, tint: .secondary) }
+                    .buttonStyle(.plain).accessibilityLabel(Copy.usageCustomLabel(model: row.model))
+                    .help(Copy.usageCustomHelp())
             }
         }
     }
@@ -169,13 +177,13 @@ struct ConsumptionSection: View {
     private func workspaceTable(_ snapshot: UsageSnapshot) -> some View {
         let rows = usageWorkspaceRows(snapshot)
         return VStack(alignment: .leading, spacing: Tokens.Space.s6) {
-            Text("By workspace & source").sectionLabel().padding(.leading, Tokens.Space.s14)
+            Text(Copy.usageByWorkspace()).sectionLabel().padding(.leading, Tokens.Space.s14)
             SettingsTabCard {
-                if rows.isEmpty { emptyRow("No workspaces used") }
+                if rows.isEmpty { emptyRow(Copy.usageNoWorkspaces()) }
                 ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
                     if index > 0 { SettingsDivider() }
                     HStack(spacing: Tokens.Space.s12) {
-                        Glyph(sourceSymbol(row.source), size: 13).foregroundStyle(.secondary).frame(width: 20).accessibilityHidden(true)
+                        Glyph(sourceSymbol(row.sourceKind), size: 13).foregroundStyle(.secondary).frame(width: 20).accessibilityHidden(true)
                         VStack(alignment: .leading, spacing: Tokens.Space.s1) {
                             Text(row.name).scaledFont(12, weight: .medium).lineLimit(1).truncationMode(.middle).help(row.path)
                             Text(row.source).scaledFont(11).foregroundStyle(.secondary)
@@ -197,8 +205,8 @@ struct ConsumptionSection: View {
     /// The sidebar's own symbols: Carrier's epics, the chat's bubbles, a terminal for what ran outside both.
     private func sourceSymbol(_ source: String) -> AppIcon {
         switch source {
-        case "Epic": .send
-        case "Chat": .messages
+        case "epic": .send
+        case "chat": .messages
         default: .terminal
         }
     }

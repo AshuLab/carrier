@@ -105,12 +105,12 @@ import Observation
     }
 
     /// Prices a model by the person's rule and asks again, so the cost on the page follows. Returns why it did not, in words; nil when it did.
-    public func override(_ override: UsageOverride) async -> String? {
+    public func override(_ override: UsageOverride, bundle: Bundle? = nil, locale: Locale = .current) async -> String? {
         do {
-            guard try await host.capabilities().contains(.usageOverride) else { return usageNeedsNewerHost }
+            guard try await host.capabilities().contains(.usageOverride) else { return Refusal.usageNeedsNewerHost.shown(bundle: bundle, locale: locale) }
             try await host.usageOverride(override)
         } catch {
-            return ConversationModel.words(error)
+            return ConversationModel.refusal(error).shown(bundle: bundle, locale: locale)
         }
         await load()
         return nil

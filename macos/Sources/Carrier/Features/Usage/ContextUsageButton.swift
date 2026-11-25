@@ -21,7 +21,7 @@ struct ContextUsageButton: View {
         Button { open.toggle() } label: { EmptyView() }
             .buttonStyle(ContextRingStyle(context: context?.share, limit: usage?.ringWindow?.shape.used, stale: usage?.stale == true))
             .help(words)
-            .accessibilityLabel("Context and usage limits")
+            .accessibilityLabel(Copy.usageRingNone())
             .accessibilityValue(words)
             .popover(isPresented: $open, arrowEdge: .top) { ContextUsageDetail(context: context, account: account, store: store, usage: usage, close: { open = false }) }
             // asked when it appears, when a turn ends and when the popover opens, and never more than once a minute (the host's own)
@@ -95,12 +95,12 @@ private struct ContextUsageDetail: View {
         VStack(alignment: .leading, spacing: Tokens.Space.s12) {
             if let context {
                 VStack(alignment: .leading, spacing: Tokens.Space.s3) {
-                    if let share = context.share { UsageMeterLine(label: "Context", shape: MeterShape(solid: share)) }
+                    if let share = context.share { UsageMeterLine(label: Copy.usageContext(), shape: MeterShape(solid: share)) }
                     Text(context.share == nil ? Copy.chatContextTokens(count: context.text()) : context.text()).scaledFont(10.5).foregroundStyle(.secondary)
                         .padding(.leading, context.share == nil ? Tokens.Space.none : Tokens.Space.s54)
                 }
             } else {
-                Text("The context is known after the first answer.").scaledFont(11).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                Text(Copy.usageContextUnknown()).scaledFont(11).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
             SettingsDivider()
             if let usage {
@@ -111,19 +111,14 @@ private struct ContextUsageDetail: View {
             SettingsDivider()
             HStack {
                 Spacer(minLength: 0)
-                Button("Open Usage") { close(); WindowController.shared.showUsage() }.buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
+                Button(Copy.usageOpen()) { close(); WindowController.shared.showUsage() }.buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
             }
         }
         .padding(Tokens.Space.s14).frame(width: 290)
     }
 
-    /// Why there are no meters: the account is signed out, the check is still on its way, or the account has no limits to tell (a local server).
+    /// Why there are no meters (`contextLimitsWords` decides).
     private var limitsWords: String {
-        // an ask that failed (a host too old for `usage`, one that did not answer) is not "still checking": Usage says why
-        if let quota = store.quotas.first(where: { $0.account == account }) {
-            return quota.status == .signedOut ? "\(quota.displayName ?? account) is signed out." : "No limits to show for this account."
-        }
-        if store.error != nil { return "The limits could not be read. Open Usage to see why." }
-        return store.isLoading || store.snapshot == nil ? "Checking the limits…" : "No limits to show for this account."
+        contextLimitsWords(account: account, quotas: store.quotas, failed: store.error != nil, checking: store.isLoading || store.snapshot == nil)
     }
 }

@@ -22,15 +22,15 @@ struct UsageView: View {
                 // an older host is a normal state after an update: told quietly, as an engine too old to reload is
                 let tooOld = store.error?.code == Refusal.usageNeedsNewerHost.code
                 if tooOld {
-                    Text(usageNeedsNewerHost).scaledFont(12).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    Text(Refusal.usageNeedsNewerHost.shown()).scaledFont(12).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
                 if let problem = (tooOld ? nil : store.error?.shown()) ?? failure { ProblemLine(text: problem) }
                 if store.quotas.isEmpty, store.error == nil {
                     SettingsTabCard {
                         if store.isLoading {
-                            LoadingStateView(title: "Loading usage", line: "Checking your limits and what you have spent.").frame(minHeight: 240)
+                            LoadingStateView(title: Copy.usageLoadingTitle(), line: Copy.usageLoadingLine()).frame(minHeight: 240)
                         } else {
-                            EmptyStateView(icon: .chartBar, title: "No accounts to show", line: "Limits show here once a provider is set up.").frame(minHeight: 240)
+                            EmptyStateView(icon: .chartBar, title: Copy.usageNoAccountsTitle(), line: Copy.usageNoAccountsLine()).frame(minHeight: 240)
                         }
                     }
                 } else {
@@ -72,7 +72,7 @@ struct UsageView: View {
             failure = nil
         } catch {
             NSLog("Carrier: sign in to \(account) failed: %@", String(describing: error))
-            failure = "Could not open Terminal to sign \(account) in."
+            failure = Copy.usageSignInFailed(account: account)
         }
     }
 }
@@ -96,12 +96,12 @@ private struct ProviderBlock: View {
                     }
                     .frame(width: 150, alignment: .leading)
                     ForEach(Array(provider.meters.enumerated()), id: \.offset) { _, meter in
-                        QuotaMeter(label: meter.kind.rawValue, shape: meter.shape).frame(width: 130)
+                        QuotaMeter(label: meter.kind.title(), shape: meter.shape).frame(width: 130)
                     }
                     Spacer(minLength: 0)
                     if provider.stale {
-                        StatusChip(text: "Stale", tint: .orange)
-                            .help("The provider is rate limiting the check: these are the last known numbers")
+                        StatusChip(text: Copy.usageStale(), tint: .orange)
+                            .help(Copy.usageStaleHelp())
                     }
                     if let reset = provider.earliestReset {
                         Text(reset).scaledFont(11).foregroundStyle(.secondary).lineLimit(1)
@@ -114,7 +114,7 @@ private struct ProviderBlock: View {
                 .padding(.vertical, Tokens.Space.s12).frame(minHeight: 46).contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityHint(open ? "Hides the details" : "Shows the details")
+            .accessibilityHint(open ? Copy.usageHideDetails() : Copy.usageShowDetails())
             if open {
                 VStack(alignment: .leading, spacing: Tokens.Space.s2) {
                     ForEach(provider.accounts) { account in
@@ -130,9 +130,9 @@ private struct ProviderBlock: View {
 
 private func usageMark(_ mark: UsageMark, _ label: String) -> StatusMark {
     switch mark {
-    case .ok: StatusMark(symbol: .check, color: .green, label: "\(label) is ready")
-    case .warning: StatusMark(symbol: .exclamation, color: .yellow, label: "\(label) needs a look")
-    case .failure: StatusMark(symbol: .close, color: .orange, label: "\(label) failed")
+    case .ok: StatusMark(symbol: .check, color: .green, label: Copy.usageMark(which: .ok, provider: label))
+    case .warning: StatusMark(symbol: .exclamation, color: .yellow, label: Copy.usageMark(which: .warning, provider: label))
+    case .failure: StatusMark(symbol: .close, color: .orange, label: Copy.usageMark(which: .failure, provider: label))
     }
 }
 
@@ -156,10 +156,10 @@ private struct AccountBlock: View {
                     if harness != "local" { AccountMark(account: account.id, icon: harness, size: 14).help(account.title).accessibilityHidden(true) }
                     Text(account.title).scaledFont(12, weight: .semibold)
                     Text(account.status).scaledFont(11).foregroundStyle(.secondary)
-                    if account.stale { StatusChip(text: "Stale", tint: .orange) }
+                    if account.stale { StatusChip(text: Copy.usageStale(), tint: .orange) }
                     Spacer()
-                    if account.canSignIn { Button("Sign in", action: signIn).buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).help("Opens Terminal and signs this account in") }
-                    if account.mark != .ok { Button("Check again", action: checkAgain).buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small) }
+                    if account.canSignIn { Button(Copy.usageSignIn(), action: signIn).buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).help(Copy.usageSignInHelp()) }
+                    if account.mark != .ok { Button(Copy.usageCheckAgain(), action: checkAgain).buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small) }
                 }
             }
             if let note = account.note { Text(note).scaledFont(11).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
@@ -218,7 +218,7 @@ private struct LineRow: View {
                     Text(detail).scaledFont(11).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: 8)
-                if let value = line.value { ServerState(text: value) }
+                if let value = line.value { ServerState(text: value, ready: line.ready) }
             }
         } else {
             HStack(spacing: Tokens.Space.s10) {
@@ -233,10 +233,11 @@ private struct LineRow: View {
 /// A server's state as the host words it: a dot, green while it is ready and grey otherwise, and the words (never the colour alone).
 private struct ServerState: View {
     let text: String
+    let ready: Bool
 
     var body: some View {
         HStack(spacing: Tokens.Space.s6) {
-            Circle().fill(text == "Ready" ? Color.green : Color.secondary.opacity(0.6)).frame(width: 7, height: 7)
+            Circle().fill(ready ? Color.green : Color.secondary.opacity(0.6)).frame(width: 7, height: 7)
             Text(text).scaledFont(11).foregroundStyle(.secondary)
         }
     }

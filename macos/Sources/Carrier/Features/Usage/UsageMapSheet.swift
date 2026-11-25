@@ -25,14 +25,14 @@ struct MapSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Tokens.Space.s14) {
             VStack(alignment: .leading, spacing: Tokens.Space.s2) {
-                Text("Price for \(row.model)").scaledFont(15, weight: .semibold).lineLimit(1).truncationMode(.middle)
-                Text("The cost on this page follows what you set here. Nothing is guessed.").scaledFont(12).foregroundStyle(.secondary)
+                Text(Copy.usageMapTitle(model: row.model)).scaledFont(15, weight: .semibold).lineLimit(1).truncationMode(.middle)
+                Text(Copy.usageMapLine()).scaledFont(12).foregroundStyle(.secondary)
             }
-            Picker("Price", selection: $draft.mode) {
-                Text("$0.00 local").tag(UsageOverrideDraft.Mode.local)
-                Text("Catalog model").tag(UsageOverrideDraft.Mode.alias)
-                Text("Custom rates").tag(UsageOverrideDraft.Mode.custom)
-                if row.overridden { Text("Clear").tag(UsageOverrideDraft.Mode.clear) }
+            Picker(Copy.usageMapPrice(), selection: $draft.mode) {
+                Text(Copy.usageMapLocal()).tag(UsageOverrideDraft.Mode.local)
+                Text(Copy.usageMapCatalog()).tag(UsageOverrideDraft.Mode.alias)
+                Text(Copy.usageMapCustom()).tag(UsageOverrideDraft.Mode.custom)
+                if row.overridden { Text(Copy.usageMapClear()).tag(UsageOverrideDraft.Mode.clear) }
             }
             .pickerStyle(.segmented).labelsHidden()
             fields
@@ -40,8 +40,8 @@ struct MapSheet: View {
             HStack {
                 Spacer()
                 if saving { ProgressView().controlSize(.small) }
-                Button("Cancel") { dismiss() }.buttonStyle(SecondaryCapsuleButtonStyle()).keyboardShortcut(.cancelAction).disabled(saving)
-                Button("Save") { Task { await save() } }.buttonStyle(PrimaryCapsuleButtonStyle()).keyboardShortcut(.defaultAction).disabled(saving)
+                Button(Copy.usageMapCancel()) { dismiss() }.buttonStyle(SecondaryCapsuleButtonStyle()).keyboardShortcut(.cancelAction).disabled(saving)
+                Button(Copy.usageMapSave()) { Task { await save() } }.buttonStyle(PrimaryCapsuleButtonStyle()).keyboardShortcut(.defaultAction).disabled(saving)
             }
         }
         .padding(Tokens.Space.s20).frame(width: 480)
@@ -51,22 +51,22 @@ struct MapSheet: View {
     @ViewBuilder private var fields: some View {
         switch draft.mode {
         case .local:
-            Text("Counts every token of this model as free, like a model running on your Mac.").scaledFont(12).foregroundStyle(.secondary)
+            Text(Copy.usageMapLocalDetail()).scaledFont(12).foregroundStyle(.secondary)
         case .clear:
-            Text("Goes back to the price table. If the model is not in it, it shows as unpriced again.").scaledFont(12).foregroundStyle(.secondary)
+            Text(Copy.usageMapClearDetail()).scaledFont(12).foregroundStyle(.secondary)
         case .alias:
             VStack(alignment: .leading, spacing: Tokens.Space.s4) {
-                Text("Uses the rates of").scaledFont(12).foregroundStyle(.secondary)
-                ChoicePopUp(label: "Catalog model", options: [("", "Choose a model")] + catalog.map { ($0, $0) }, selection: $draft.alias)
+                Text(Copy.usageMapAliasLead()).scaledFont(12).foregroundStyle(.secondary)
+                ChoicePopUp(label: Copy.usageMapCatalog(), options: [("", Copy.usageErrorChoose())] + catalog.map { ($0, $0) }, selection: $draft.alias)
                 problem(errors[.alias])
             }
         case .custom:
             VStack(alignment: .leading, spacing: Tokens.Space.s8) {
-                Text("US dollars per million tokens").scaledFont(12).foregroundStyle(.secondary)
-                rate("Input", "required", $draft.input, .input)
-                rate("Cached read", "optional", $draft.cachedInput, .cachedInput)
-                rate("Cache write", "optional", $draft.cacheWrite, .cacheWrite)
-                rate("Output", "required", $draft.output, .output)
+                Text(Copy.usageMapPerMillion()).scaledFont(12).foregroundStyle(.secondary)
+                rate(Copy.usageMapInput(), Copy.usageMapRequired(), $draft.input, .input)
+                rate(Copy.usageMapCachedRead(), Copy.usageMapOptional(), $draft.cachedInput, .cachedInput)
+                rate(Copy.usageMapCacheWrite(), Copy.usageMapOptional(), $draft.cacheWrite, .cacheWrite)
+                rate(Copy.usageMapOutput(), Copy.usageMapRequired(), $draft.output, .output)
             }
         }
     }
@@ -76,7 +76,7 @@ struct MapSheet: View {
             HStack {
                 Text(title).frame(width: 110, alignment: .leading)
                 TextField(hint, text: text).settingsField(width: 120).environment(\.settingsInvalid, errors[field] != nil)
-                    .accessibilityLabel("\(title) dollars per million tokens")
+                    .accessibilityLabel(Copy.usageMapRateLabel(rate: title))
             }
             problem(errors[field]).padding(.leading, Tokens.Space.s110)
         }

@@ -3,7 +3,18 @@ import Foundation
 // The live quota list of the Usage page (docs/specs/usage-and-limits.md): the host's quotas pooled by provider, each with its meters, its
 // earliest reset and the rows of its drawer. Everything the view draws is decided here, from the quotas and a clock, so it can be tested.
 
-public enum QuotaKind: String, Equatable { case fiveHour = "5h", weekly = "Weekly", monthly = "Monthly" }
+public enum QuotaKind: String, Equatable {
+    case fiveHour = "5h", weekly = "Weekly", monthly = "Monthly"
+
+    /// The window's name as the person reads it (`5h`, `Weekly`, `Monthly`); the raw value is what it is told apart by.
+    public func title(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch self {
+        case .fiveHour: Copy.usageWindowName(which: .fiveHour, bundle: bundle, locale: locale)
+        case .weekly: Copy.usageWindowName(which: .weekly, bundle: bundle, locale: locale)
+        case .monthly: Copy.usageWindowName(which: .monthly, bundle: bundle, locale: locale)
+        }
+    }
+}
 
 /// Which of the rolling windows a window is. The providers name them differently (`5h` and `7d`, `Five Hour Limit Remaining`); a window of
 /// none (Claude's `7d Opus`) is nil. The monthly one is Codex's free plan, whose only window is 30 days.
@@ -48,6 +59,8 @@ public struct UsageLine: Equatable {
     public var shape: MeterShape?
     public var reset: String?
     public var heading = false
+    /// A local server that is running: its state is drawn with a green dot.
+    public var ready = false
 }
 
 /// The rows of a drawer between two headings: the heading's title (none for rows before the first one) and what is under it.
@@ -100,12 +113,18 @@ public struct UsageProviderRow: Equatable, Identifiable {
     public var accounts: [UsageAccountRow]
 }
 
-private let providerTitles = [("claude", "Claude"), ("codex", "Codex"), ("agy", "Antigravity"), ("local", "Local Servers")]
+private let providerIds = ["claude", "codex", "agy", "local"]
+// a local server's name and address are what it calls itself, not words
 private let serverTitles = ["lmstudio": ("LM Studio", "localhost:1234"), "ollama": ("Ollama", "localhost:11434")]
 
+/// The provider's name in the list: the brands are the same in every language, the local servers are told in the app's.
+private func providerTitle(_ id: String, bundle: Bundle?, locale: Locale) -> String {
+    id == "local" ? Copy.usageLocalServers(bundle: bundle, locale: locale) : usageProviderTitle(id, bundle: bundle, locale: locale)
+}
+
 /// `Resets in 2h 14m`, the provider's own words when it gave no time, nil when the time has passed or there is none.
-public func resetText(resetsAt: Int?, label: String?, now: Int) -> String? {
-    if let resetsAt { return resetsAt > now ? "Resets in \(formatDuration(resetsAt - now))" : nil }
+public func resetText(resetsAt: Int?, label: String?, now: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String? {
+    if let resetsAt { return resetsAt > now ? Copy.usageResetsIn(duration: formatDuration(resetsAt - now), bundle: bundle, locale: locale) : nil }
     return label
 }
 
@@ -117,34 +136,37 @@ private func mark(_ quota: UsageQuota) -> UsageMark {
     }
 }
 
-private func statusWords(_ quota: UsageQuota) -> String {
+private func statusWords(_ quota: UsageQuota, bundle: Bundle?, locale: Locale) -> String {
     switch quota.status {
-    case .ok: quota.planType.map { "\($0.prefix(1).uppercased() + $0.dropFirst()) plan" } ?? (quota.stale ? "Last known numbers" : "Ready")
-    case .signedOut: "Signed out"
-    case .missing: "Not set up"
-    case .unavailable: "Unavailable"
-    case .rateLimited: "Rate limited"
-    case .error: "Check failed"
+    case .ok:
+        if let plan = quota.planType { return Copy.usageStatusPlan(plan: plan.prefix(1).uppercased() + plan.dropFirst(), bundle: bundle, locale: locale) }
+        return Copy.usageStatus(which: quota.stale ? .lastKnown : .ready, bundle: bundle, locale: locale)
+    case .signedOut: return Copy.usageStatus(which: .signedOut, bundle: bundle, locale: locale)
+    case .missing: return Copy.usageStatus(which: .missing, bundle: bundle, locale: locale)
+    case .unavailable: return Copy.usageStatus(which: .unavailable, bundle: bundle, locale: locale)
+    case .rateLimited: return Copy.usageStatus(which: .rateLimited, bundle: bundle, locale: locale)
+    case .error: return Copy.usageStatus(which: .error, bundle: bundle, locale: locale)
     }
 }
 
-private func dollars(_ amount: Double) -> String { String(format: "$%.2f", amount) }
+/// `$12.40`: dollars with two decimals and no grouping, the decimal mark of the locale.
+private func dollars(_ amount: Double, locale: Locale) -> String { "$" + amount.formatted(.number.precision(.fractionLength(2)).grouping(.never).locale(locale)) }
 
-private func meterLine(_ title: String, _ windows: [UsageWindow], now: Int) -> UsageLine {
+private func meterLine(_ title: String, _ windows: [UsageWindow], now: Int, bundle: Bundle?, locale: Locale) -> UsageLine {
     let shape = meterShape(windows)
     let percent = min(max(windows.map(\.usedPercent).reduce(0, +) / Double(max(windows.count, 1)), 0), 100)
     let first = windows.compactMap(\.resetsAt).min()
     return UsageLine(
-        title: title, value: "\(Int(percent.rounded()))%", shape: shape,
-        reset: resetText(resetsAt: first, label: first == nil ? windows.compactMap(\.resetLabel).first : nil, now: now)
+        title: title, value: Copy.usageMeterPercent(percent: Int(percent.rounded()), bundle: bundle, locale: locale), shape: shape,
+        reset: resetText(resetsAt: first, label: first == nil ? windows.compactMap(\.resetLabel).first : nil, now: now, bundle: bundle, locale: locale)
     )
 }
 
-private func lines(_ quota: UsageQuota, now: Int) -> [UsageLine] {
+private func lines(_ quota: UsageQuota, now: Int, bundle: Bundle?, locale: Locale) -> [UsageLine] {
     var rows: [UsageLine] = []
-    func titled(_ window: UsageWindow) -> String { quotaKind(window)?.rawValue ?? window.label }
+    func titled(_ window: UsageWindow) -> String { quotaKind(window)?.title(bundle: bundle, locale: locale) ?? window.label }
     func add(_ windows: [UsageWindow], title: (UsageWindow) -> String) {
-        windows.forEach { rows.append(meterLine(title($0), [$0], now: now)) }
+        windows.forEach { rows.append(meterLine(title($0), [$0], now: now, bundle: bundle, locale: locale)) }
     }
     switch quota.provider {
     case "claude", "codex":
@@ -153,48 +175,66 @@ private func lines(_ quota: UsageQuota, now: Int) -> [UsageLine] {
         add(main, title: titled)
         // Claude's model-scoped windows, Codex's `rateLimitsByLimitId`: each under its own name, never in the main meters
         if rest.isEmpty == false {
-            rows.append(UsageLine(title: quota.provider == "claude" ? "By model" : "Other limits", heading: true))
+            rows.append(UsageLine(title: quota.provider == "claude" ? Copy.usageByModel(bundle: bundle, locale: locale) : Copy.usageOtherLimits(bundle: bundle, locale: locale), heading: true))
             add(rest) { $0.label }
         }
         if let extra = quota.extraUsage {
-            let spend = extra.isEnabled
-                ? [extra.usedCreditsUsd.map(dollars), extra.monthlyLimitUsd.map { "of \(dollars($0)) a month" }].compactMap { $0 }.joined(separator: " ")
-                : "Off"
-            rows.append(UsageLine(title: "Extra usage", value: spend.isEmpty ? "On" : spend))
+            let used: String? = extra.usedCreditsUsd.map { dollars($0, locale: locale) }
+            let limit: String? = extra.monthlyLimitUsd.map { Copy.usageExtraLimit(amount: dollars($0, locale: locale), bundle: bundle, locale: locale) }
+            let spend = extra.isEnabled ? [used, limit].compactMap { $0 }.joined(separator: " ") : Copy.usageExtraOff(bundle: bundle, locale: locale)
+            rows.append(UsageLine(title: Copy.usageExtraUsage(bundle: bundle, locale: locale), value: spend.isEmpty ? Copy.usageExtraOn(bundle: bundle, locale: locale) : spend))
         }
         if let credits = quota.credits {
-            rows.append(UsageLine(title: "Credits", value: credits.unlimited ? "Unlimited" : credits.balance ?? (credits.hasCredits ? "Available" : "None")))
+            let value: String
+            if credits.unlimited {
+                value = Copy.usageCreditsValue(which: .unlimited, bundle: bundle, locale: locale)
+            } else if let balance = credits.balance {
+                value = balance
+            } else {
+                value = Copy.usageCreditsValue(which: credits.hasCredits ? .available : .none, bundle: bundle, locale: locale)
+            }
+            rows.append(UsageLine(title: Copy.usageCredits(bundle: bundle, locale: locale), value: value))
         }
-        if let reset = quota.rateLimitResetCredits { rows.append(UsageLine(title: "Reset credits", value: "\(reset.availableCount) available")) }
+        if let reset = quota.rateLimitResetCredits {
+            rows.append(
+                UsageLine(
+                    title: Copy.usageResetCredits(bundle: bundle, locale: locale),
+                    value: Copy.usageResetCreditsValue(count: reset.availableCount, bundle: bundle, locale: locale)))
+        }
     case "agy":
         var groups: [String] = []
         for window in quota.windows where groups.contains(window.group ?? "") == false { groups.append(window.group ?? "") }
         for group in groups {
             if group.isEmpty == false { rows.append(UsageLine(title: group, heading: true)) }
-            add(quota.windows.filter { ($0.group ?? "") == group }) { quotaKind($0)?.rawValue ?? $0.label.replacingOccurrences(of: "\(group) · ", with: "") }
+            add(quota.windows.filter { ($0.group ?? "") == group }) { quotaKind($0)?.title(bundle: bundle, locale: locale) ?? $0.label.replacingOccurrences(of: "\(group) · ", with: "") }
         }
         if let notice = quota.aiCreditsNotice { rows.append(UsageLine(title: notice)) }
     default:
         for server in quota.servers {
             let (title, address) = serverTitles[server.kind] ?? (server.kind, "")
-            let models = server.models.isEmpty ? "No model loaded" : "Loaded: " + server.models.joined(separator: ", ")
-            rows.append(UsageLine(title: title, value: server.running ? "Ready" : "Not running", detail: server.running ? "\(address) · \(models)" : address))
+            let models = server.models.isEmpty
+                ? Copy.usageNoModelLoaded(bundle: bundle, locale: locale) : Copy.usageLoaded(models: server.models.joined(separator: ", "), bundle: bundle, locale: locale)
+            rows.append(
+                UsageLine(
+                    title: title, value: Copy.usageServerState(which: server.running ? .ready : .stopped, bundle: bundle, locale: locale),
+                    detail: server.running ? "\(address) · \(models)" : address, ready: server.running))
         }
-        rows.append(UsageLine(title: "$0 local compute"))
+        rows.append(UsageLine(title: Copy.usageLocalCompute(bundle: bundle, locale: locale)))
     }
     return rows
 }
 
 /// The providers of the list, in the order Claude, Codex, Antigravity, Local Servers; one with no quota is not in it.
-public func usageProviders(_ quotas: [UsageQuota], now: Int) -> [UsageProviderRow] {
-    providerTitles.compactMap { id, title in
+public func usageProviders(_ quotas: [UsageQuota], now: Int, bundle: Bundle? = nil, locale: Locale = .current) -> [UsageProviderRow] {
+    providerIds.compactMap { id in
         let own = quotas.filter { $0.provider == id }
         guard own.isEmpty == false else { return nil }
         let accounts = own.map { quota in
             UsageAccountRow(
-                id: quota.account, title: quota.displayName ?? (id == "local" ? "Local servers" : quota.account), status: statusWords(quota), mark: mark(quota),
-                stale: quota.stale, note: quota.status == .ok && quota.stale == false ? nil : quota.shownMessage(),
-                canSignIn: quota.status == .signedOut && id != "local", lines: lines(quota, now: now)
+                id: quota.account, title: quota.displayName ?? (id == "local" ? Copy.usageLocalServersAccount(bundle: bundle, locale: locale) : quota.account),
+                status: statusWords(quota, bundle: bundle, locale: locale), mark: mark(quota),
+                stale: quota.stale, note: quota.status == .ok && quota.stale == false ? nil : quota.shownMessage(bundle: bundle, locale: locale),
+                canSignIn: quota.status == .signedOut && id != "local", lines: lines(quota, now: now, bundle: bundle, locale: locale)
             )
         }
         // the 5h and Weekly of every account (every pool, for Antigravity) pooled; a window of a model or a limit id has its own row below
@@ -206,11 +246,19 @@ public func usageProviders(_ quotas: [UsageQuota], now: Int) -> [UsageProviderRo
         let next = own.flatMap(\.windows).compactMap(\.resetsAt).filter { $0 > now }.min()
         let running = own.flatMap(\.servers).filter(\.running).count
         let problem = accounts.first { $0.mark != .ok }
-        let subtitle = id == "local" ? "\(running) of \(own.flatMap(\.servers).count) running"
-            : accounts.count == 1 ? accounts[0].status : "\(accounts.count) accounts" + (problem.map { " · \($0.status.lowercased())" } ?? "")
+        let subtitle: String
+        if id == "local" {
+            subtitle = Copy.usageServersRunning(running: running, total: own.flatMap(\.servers).count, bundle: bundle, locale: locale)
+        } else if accounts.count == 1 {
+            subtitle = accounts[0].status
+        } else if let problem {
+            subtitle = Copy.usageAccountsProblem(count: accounts.count, status: problem.status.lowercased(with: locale), bundle: bundle, locale: locale)
+        } else {
+            subtitle = Copy.usageAccounts(count: accounts.count, bundle: bundle, locale: locale)
+        }
         return UsageProviderRow(
-            id: id, title: title, subtitle: subtitle, mark: accounts.contains { $0.mark == .failure } ? .failure : problem == nil ? .ok : .warning,
-            stale: accounts.contains(where: \.stale), meters: meters, earliestReset: resetText(resetsAt: next, label: nil, now: now), accounts: accounts
+            id: id, title: providerTitle(id, bundle: bundle, locale: locale), subtitle: subtitle, mark: accounts.contains { $0.mark == .failure } ? .failure : problem == nil ? .ok : .warning,
+            stale: accounts.contains(where: \.stale), meters: meters, earliestReset: resetText(resetsAt: next, label: nil, now: now, bundle: bundle, locale: locale), accounts: accounts
         )
     }
 }

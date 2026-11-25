@@ -1,5 +1,6 @@
 import AppKit
 import Carbon.HIToolbox
+import CarrierCore
 
 /// Everything on a pasteboard, kept to be put back: every item with the bytes of each of its types. Saving only the text would lose an image, the
 /// files of a Finder copy and the markers that tell a clipboard manager to skip an item (docs/research/global-dictation-input.md).
@@ -29,8 +30,8 @@ extension NSPasteboard.PasteboardType {
 
 /// Pastes a text into the field that has the cursor of another app: the text goes on the clipboard, a ⌘V is sent, and the clipboard is put back as
 /// the person had it, unless they copied something in the meantime. Sending the key needs the Accessibility permission, which the caller checks.
-@MainActor struct ClipboardPaste {
-    let board: NSPasteboard
+@MainActor struct SystemClipboard: Clipboard {
+    var board = NSPasteboard.general
     /// How long the other app has to read the clipboard before it is put back.
     /// ponytail: a guess to calibrate on the sweep of the spike's list (restoring too soon pastes the old clipboard); a wait for the change count if apps differ a lot.
     var restoreDelay = Duration.milliseconds(200)
@@ -38,7 +39,7 @@ extension NSPasteboard.PasteboardType {
     var modifiersDown = {
         CGEventSource.flagsState(.combinedSessionState).isDisjoint(with: [.maskAlternate, .maskShift, .maskControl, .maskCommand]) == false
     }
-    var sendPasteKey: () -> Void = ClipboardPaste.sendCommandV
+    var sendPasteKey: () -> Void = SystemClipboard.sendCommandV
     var sleep: (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
 
     func paste(_ text: String) async {
@@ -54,6 +55,11 @@ extension NSPasteboard.PasteboardType {
         // another count is the person copying during the wait: their copy stays; and a clipboard that macOS did not let us read cannot be put back
         guard board.changeCount == written, board.accessBehavior != .alwaysDeny else { return }
         saved.restore(to: board)
+    }
+
+    func copy(_ text: String) {
+        board.clearContents()
+        board.setString(text, forType: .string)
     }
 
     /// A ⌘V from a source of its own, which does not take the keys that are physically down.

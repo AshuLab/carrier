@@ -1,7 +1,7 @@
 import Foundation
 
 // Keep awake (docs/macos/keep-awake.md): the rules that say whether the Mac is kept from sleeping and the words that say why. Pure
-// values, so each rule is tested; the power assertion, the timer, the battery and the menu are in `Carrier/KeepAwakeController.swift`.
+// values, so each rule is tested; the timer and the menu are in `Carrier/Platform/KeepAwakeController.swift`, the power assertion and the battery behind `KeepAwakeAssertion`.
 
 /// The lengths a manual keep awake can have, in minutes; 0 is until the person turns it off.
 public enum AwakeLength {

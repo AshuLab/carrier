@@ -212,7 +212,7 @@ struct PanelView: View {
                 .overlay(alignment: .top) { BrandLogo().ignoresSafeArea(edges: .top).allowsHitTesting(false) }
                 .toolbar {
                     ToolbarSpacer(.flexible, placement: .automatic)
-                    UpdatePill.item
+                    UpdatePill.item(AppUpdater.shared)
                 }
         } detail: {
             // the right panel is ours, not `.inspector`: that one, inside a NavigationSplitView, loops AppKit's layout while the window

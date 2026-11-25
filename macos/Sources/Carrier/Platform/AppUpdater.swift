@@ -5,21 +5,43 @@ import Sparkle
 /// Sparkle's updater with a user driver of our own: no Sparkle window, the sidebar's pill is the whole interface (the version, the
 /// download's percent, Restart, Retry). Its preferences are Sparkle's own: with the plist's `SUEnableAutomaticChecks` it checks by itself.
 /// A check the person asked for (Settings, the menu item) that finds nothing or fails says so in an alert.
-@MainActor
-enum AppUpdater {
-    private static var driver: UpdateDriver?
+/// The checks and installs by itself and the last check are read from Sparkle's own preferences (they are KVO-compliant) and written back to them.
+@MainActor @Observable
+final class AppUpdater: Updater {
+    static let shared = AppUpdater()
+
+    @ObservationIgnored private var driver: UpdateDriver?
     /// Sparkle holds its delegate weakly.
-    private static var delay: UpdateDelay?
-    private(set) static var updater: SPUUpdater?
-    /// What the pill draws and what its click does.
-    static let model = UpdateModel()
+    @ObservationIgnored private var delay: UpdateDelay?
+    @ObservationIgnored private var watching: [NSKeyValueObservation] = []
+    private var sparkle: SPUUpdater?
+    private let model = UpdateModel()
+    private var checks = false
+    private var installs = false
+    private(set) var canCheck = false
+    private(set) var lastCheck: Date?
+
     /// The menu item's target; nil while the updater is not started.
-    static var menuTarget: AnyObject? { driver }
+    static var menuTarget: AnyObject? { shared.driver }
+
+    var isRunning: Bool { sparkle != nil }
+    /// What the pill draws and what its click does.
+    var flow: UpdateFlow { model.flow }
+    func press() { model.press() }
+    var checksAutomatically: Bool {
+        get { checks }
+        set { sparkle?.automaticallyChecksForUpdates = newValue }
+    }
+    var installsAutomatically: Bool {
+        get { installs }
+        set { sparkle?.automaticallyDownloadsUpdates = newValue }
+    }
+    func checkNow() { sparkle?.checkForUpdates() }
 
     /// Starts the updater and asks for a check in the background, because Sparkle alone checks at start only when the last check is
     /// older than its interval. Nothing starts under `--fixture` or `--selftest`, nor from a build whose bundle has no feed (`swift run`).
     /// `--fixture-update` plays the pill's whole course with a made-up version, so it can be looked at.
-    static func start(arguments: [String] = CommandLine.arguments, bundle: Bundle = .main) {
+    func start(arguments: [String] = CommandLine.arguments, bundle: Bundle = .main) {
         if arguments.contains("--fixture-update") { playFixture() }
         guard bundle.object(forInfoDictionaryKey: "SUFeedURL") != nil else { return }
         guard arguments.contains("--fixture") == false, arguments.contains("--selftest") == false else { return }
@@ -37,11 +59,27 @@ enum AppUpdater {
         updater.checkForUpdatesInBackground()
         self.driver = driver
         self.delay = delay
-        self.updater = updater
+        sparkle = updater
+        refresh()
+        watching = [
+            updater.observe(\.automaticallyChecksForUpdates) { [weak self] _, _ in Task { @MainActor in self?.refresh() } },
+            updater.observe(\.automaticallyDownloadsUpdates) { [weak self] _, _ in Task { @MainActor in self?.refresh() } },
+            updater.observe(\.canCheckForUpdates) { [weak self] _, _ in Task { @MainActor in self?.refresh() } },
+            updater.observe(\.lastUpdateCheckDate) { [weak self] _, _ in Task { @MainActor in self?.refresh() } },
+        ]
+    }
+
+    private func refresh() {
+        guard let sparkle else { return }
+        checks = sparkle.automaticallyChecksForUpdates
+        installs = sparkle.automaticallyDownloadsUpdates
+        canCheck = sparkle.canCheckForUpdates
+        lastCheck = sparkle.lastUpdateCheckDate
     }
 
     /// The fixture's course: available, a click downloads in a few seconds, a click restarts and the pill goes.
-    private static func playFixture() {
+    private func playFixture() {
+        let model = model
         model.flow.found(version: "9.9.9", downloaded: false)
         model.press = {
             switch model.flow.phase {

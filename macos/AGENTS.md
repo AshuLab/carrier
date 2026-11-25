@@ -119,6 +119,12 @@ A subagent's row is `Subagent` (`ChatToolGroups.swift`), built by `chatFeed` fro
 
 What the person sees: [usage](../docs/macos/usage.md).
 
+## Platform adapters
+
+Each thing only macOS can do is a protocol of `CarrierCore/Platform/` implemented in `Carrier/Platform/`, and `scripts/check-structure.sh` fails when a file outside `Carrier/Platform/` imports Ghostty, FluidAudio, WhisperKit, Speech, AVFoundation, IOKit, Carbon, ApplicationServices, UserNotifications, Sparkle, MetricKit or ServiceManagement, or calls a symbol with the prefix `AX`, `SPU`, `AVAudio`, `IOPM`, `UN`, `MX` or `CGEvent`.
+`KeepAwakeAssertion` (`SystemKeepAwakeAssertion`, IOKit), `GlobalShortcut` (`SystemGlobalShortcut`, Carbon), `Clipboard` (`SystemClipboard`), `Updater` (`AppUpdater`, Sparkle), `NotificationCentre` and `NotificationPermissionReader` (`SystemNotificationCentre`): the models over them take the protocol (`KeepAwakeControllerTests` and `GlobalDictationControllerTests` with a fake; one test of the real assertion, `SystemKeepAwakeAssertionTests`).
+The app's controllers are built where they are used: `KeepAwakeController.shared` in `KeepAwakeController+App.swift`, `GlobalDictationController.shared`, and the views take the protocol from `SettingsWindow` and `PanelView`.
+
 ## Dictation
 
 What the person sees: [dictation](../docs/macos/dictation.md).
@@ -132,7 +138,7 @@ The page is `Carrier/DictationTab.swift` (`reset(.dictation)` restores the keys 
 ### Global dictation
 
 See [dictation](../docs/macos/dictation.md#global-dictation). The machine is `CarrierCore/GlobalDictation.swift` (`GlobalDictationTests`, scripted recognizer; Hold is `.up`); shortcut `DictationShortcut.swift`; paste or copy `PasteDecision.swift`; box or widget `DictationRoute.swift` (box side `MessageBox.dictateRequest`).
-`Carrier/GlobalDictationController.swift` wires `GlobalHotKey`, `DictationWidget`, `ClipboardPaste`; views untested.
+`Carrier/Features/Dictation/GlobalDictationController.swift` wires a `GlobalShortcut`, `DictationWidget` and a `Clipboard` (fakes in `GlobalDictationControllerTests`; the real ones are `GlobalHotKey` and `SystemClipboard`, `SystemClipboardTests`); views untested.
 
 ### History, statistics and cleanup
 

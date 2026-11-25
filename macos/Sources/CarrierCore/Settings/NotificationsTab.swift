@@ -113,11 +113,6 @@ public enum NotificationPermission: Equatable {
     }
 }
 
-/// The system's notification centre, as far as the tab needs it.
-public protocol NotificationPermissionReader {
-    func read(_ done: @escaping (SystemNotificationAnswer) -> Void)
-}
-
 /// The permission to show: without a bundle identifier the reader is never asked.
 public func readPermission(bundleIdentifier: String?, reader: NotificationPermissionReader, done: @escaping (NotificationPermission) -> Void) {
     guard bundleIdentifier != nil else { return done(.noBundle) }

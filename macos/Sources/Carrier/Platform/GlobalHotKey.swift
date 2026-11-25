@@ -7,15 +7,6 @@ import Foundation
 /// It stops being registered when the object goes. The status of the registration says nothing of a collision: another app may hold the same
 /// combination, and the system tells neither, which is why the default is one no installed app was found to use (docs/research/global-dictation-input.md).
 final class GlobalHotKey {
-    struct Shortcut: Equatable {
-        let keyCode: Int
-        /// Carbon's modifiers (`optionKey`, `shiftKey`, ...).
-        let modifiers: Int
-        let text: String
-
-        static let escape = Shortcut(keyCode: kVK_Escape, modifiers: 0, text: "Esc")
-    }
-
     private static var lastID: UInt32 = 0
     private let id: UInt32
     private let pressed: () -> Void
@@ -24,7 +15,7 @@ final class GlobalHotKey {
     private var handler: EventHandlerRef?
 
     /// nil when the system refuses it (the same combination already registered by this app, say), with the status on stderr.
-    init?(_ shortcut: Shortcut, pressed: @escaping () -> Void, released: @escaping () -> Void = {}) {
+    init?(_ shortcut: DictationShortcut, pressed: @escaping () -> Void, released: @escaping () -> Void = {}) {
         Self.lastID += 1
         id = Self.lastID
         self.pressed = pressed
@@ -46,8 +37,10 @@ final class GlobalHotKey {
                 DispatchQueue.main.async { withExtendedLifetime(hotKey) {} }
                 return noErr
             }, kinds.count, &kinds, Unmanaged.passUnretained(self).toOpaque(), &handler)
+        let carbon = [(ShortcutModifiers.command, cmdKey), (.shift, shiftKey), (.option, optionKey), (.control, controlKey)]
+        let modifiers = carbon.filter { shortcut.modifiers.contains($0.0) }.reduce(0) { $0 | $1.1 }
         let registered = RegisterEventHotKey(
-            UInt32(shortcut.keyCode), UInt32(shortcut.modifiers), EventHotKeyID(signature: OSType(0x4352_4448), id: id), GetApplicationEventTarget(), 0, &key)
+            UInt32(shortcut.keyCode), UInt32(modifiers), EventHotKeyID(signature: OSType(0x4352_4448), id: id), GetApplicationEventTarget(), 0, &key)
         guard installed == noErr, registered == noErr else {
             FileHandle.standardError.write(Data("carrier: the shortcut \(shortcut.text) could not be registered (\(installed), \(registered))\n".utf8))
             unregister()
@@ -65,10 +58,9 @@ final class GlobalHotKey {
     }
 }
 
-extension GlobalHotKey.Shortcut {
-    /// What the person recorded, in Carbon's modifiers.
-    init(_ shortcut: DictationShortcut) {
-        let carbon = [(ShortcutModifiers.command, cmdKey), (.shift, shiftKey), (.option, optionKey), (.control, controlKey)]
-        self.init(keyCode: shortcut.keyCode, modifiers: carbon.filter { shortcut.modifiers.contains($0.0) }.reduce(0) { $0 | $1.1 }, text: shortcut.text)
+/// The app's `GlobalShortcut`.
+struct SystemGlobalShortcut: GlobalShortcut {
+    func register(_ shortcut: DictationShortcut, pressed: @escaping () -> Void, released: @escaping () -> Void) -> AnyObject? {
+        GlobalHotKey(shortcut, pressed: pressed, released: released)
     }
 }

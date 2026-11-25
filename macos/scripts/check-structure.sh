@@ -46,4 +46,24 @@ if [ -s /tmp/check-structure-defaults.$$ ]; then
 fi
 rm -f /tmp/check-structure-defaults.$$
 
+# Rule: a framework of the platform is touched only under Carrier/Platform/.
+# Flags an import of Ghostty (GhosttyTerminal, GhosttyKit), FluidAudio, WhisperKit, Speech, AVFoundation, IOKit, Carbon, ApplicationServices, UserNotifications,
+# Sparkle, MetricKit or ServiceManagement (a submodule, `Carbon.HIToolbox`, counts), and a call of a symbol with the prefix AX, SPU, AVAudio, IOPM, UN, MX or
+# CGEvent: AppKit brings ApplicationServices in without an import, so the symbols are looked for too. Looks in every file of Sources/ outside Sources/Carrier/Platform/.
+# Ignores: comments (from `//` to the end of the line) and string literals (`"AXTextField"` is a role's name, not a call), which are stripped before the lines are read.
+# The prefixes UN and MX need a capital and a lower-case letter after them, so a constant such as `UNKNOWN` is not a symbol of UserNotifications.
+FRAMEWORKS='Ghostty[A-Za-z]*|FluidAudio|WhisperKit|Speech|AVFoundation|IOKit|Carbon|ApplicationServices|UserNotifications|Sparkle|MetricKit|ServiceManagement'
+SYMBOLS='AX[A-Z]|SPU[A-Z]|AVAudio|IOPM[A-Z]|UN[A-Z][a-z]|MX[A-Z][a-z]|CGEvent'
+find Sources -name '*.swift' -not -path 'Sources/Carrier/Platform/*' | sort |
+  while IFS= read -r file; do
+    sed -E 's/"([^"\\]|\\.)*"//g; s|//.*$||' "$file" |
+      grep -nE "^[[:space:]]*(@[A-Za-z_]+[[:space:]]+)*import[[:space:]]+($FRAMEWORKS)([^A-Za-z0-9_]|$)|(^|[^A-Za-z0-9_])($SYMBOLS)" |
+      sed -E "s|^([0-9]+):.*|$file:\\1: a framework of the platform is used outside Carrier/Platform/: put it behind a protocol of CarrierCore/Platform/|"
+  done > /tmp/check-structure-frameworks.$$
+if [ -s /tmp/check-structure-frameworks.$$ ]; then
+  cat /tmp/check-structure-frameworks.$$
+  FAILED=1
+fi
+rm -f /tmp/check-structure-frameworks.$$
+
 exit $FAILED

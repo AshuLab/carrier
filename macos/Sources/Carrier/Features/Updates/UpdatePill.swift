@@ -6,21 +6,21 @@ import SwiftUI
 /// version rolls to the percent and the chat's thinking glow runs round its edge; done, a tick bounces and it rolls to Restart, whose words
 /// shimmer. A failed download leaves Retry. Absent while there is nothing new.
 struct UpdatePill: View {
-    let model = AppUpdater.model
+    let updater: any Updater
     /// The tick and "Ready" between the download and Restart.
     @State private var justDownloaded = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    @ToolbarContentBuilder static var item: some ToolbarContent {
-        ToolbarItem(placement: .automatic) { UpdatePill() }.sharedBackgroundVisibility(.hidden)
+    @ToolbarContentBuilder static func item(_ updater: any Updater) -> some ToolbarContent {
+        ToolbarItem(placement: .automatic) { UpdatePill(updater: updater) }.sharedBackgroundVisibility(.hidden)
     }
 
-    private var phase: UpdatePhase { model.flow.phase }
+    private var phase: UpdatePhase { updater.flow.phase }
 
     var body: some View {
         ZStack {
             if phase != .none {
-                Button { model.press() } label: {
+                Button { updater.press() } label: {
                     HStack(spacing: 5) {
                         icon
                         // the words that leave roll out of the pill, not over the title bar

@@ -3,12 +3,12 @@ import Testing
 @testable import Carrier
 
 /// The paste goes through a pasteboard of its own, never the person's general one, and sends no key: a recording stands for the ⌘V.
-@MainActor @Suite struct ClipboardPasteTests {
+@MainActor @Suite struct SystemClipboardTests {
     private func board() -> NSPasteboard { NSPasteboard(name: NSPasteboard.Name("carrier-test-\(UUID().uuidString)")) }
 
     private func paste(_ text: String, on board: NSPasteboard, whileWaiting: @escaping () -> Void = {}) async -> (onTheClipboardAtThePaste: String?, marked: Bool) {
         var seen: (String?, Bool) = (nil, false)
-        var clipboard = ClipboardPaste(board: board)
+        var clipboard = SystemClipboard(board: board)
         clipboard.modifiersDown = { false }
         clipboard.sendPasteKey = { seen = (board.string(forType: .string), board.types?.contains(.transient) == true) }
         clipboard.sleep = { _ in whileWaiting() }
@@ -66,7 +66,7 @@ import Testing
         var down = 3
         var sent = false
         var waits = 0
-        var clipboard = ClipboardPaste(board: board)
+        var clipboard = SystemClipboard(board: board)
         clipboard.modifiersDown = {
             defer { down -= 1 }
             return down > 0

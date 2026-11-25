@@ -22,7 +22,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         CFRunLoopAddObserver(CFRunLoopGetMain(), firstCommit, .commonModes)
         // before the menu, whose "Check for Updates…" item is the updater controller's
         let updating = Signposts.launch.beginInterval("updater")
-        AppUpdater.start()
+        AppUpdater.shared.start()
         Signposts.launch.endInterval("updater", updating)
         installMainMenu()
         followColorScheme()

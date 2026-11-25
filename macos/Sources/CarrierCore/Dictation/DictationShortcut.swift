@@ -14,6 +14,9 @@ public struct DictationShortcut: Equatable {
     /// ⌥⇧ Space: ⌥ Space is held by ChatGPT and Handy (docs/research/global-dictation-input.md).
     public static let standard = DictationShortcut(keyCode: spaceKeyCode, modifiers: [.option, .shift], key: "Space")
 
+    /// Esc on its own, which the widget holds while it is open; the recorder never takes it.
+    public static let escape = DictationShortcut(keyCode: 53, modifiers: [], key: "Esc")
+
     /// As the menus write it: ⌃⌥⇧⌘ and the key.
     public var text: String {
         let symbols = [(ShortcutModifiers.control, "⌃"), (.option, "⌥"), (.shift, "⇧"), (.command, "⌘")]

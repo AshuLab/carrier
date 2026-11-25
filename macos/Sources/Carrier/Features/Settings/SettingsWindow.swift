@@ -423,7 +423,7 @@ struct SettingsPages: View {
         case .dictation: DictationTabView(place: navigator.place, go: navigator.go)
         case .keybindings: KeybindingsTabView()
         case .keepAwake: KeepAwakeTabView()
-        case .about: AboutTabView()
+        case .about: AboutTabView(updater: AppUpdater.shared)
         case .providers: ProvidersTabView(place: navigator.place, go: navigator.go, back: navigator.back, openAgents: { navigator.go(.agents) })
         case .engine:
             // one container, so the versions are read once and not once per group
@@ -437,7 +437,7 @@ struct SettingsPages: View {
         case .agents: AgentsTabView(place: navigator.place, go: navigator.go)
         case .sessions: SessionsTabView()
         case .projects: ProjectsTabView(place: navigator.place, go: navigator.go, sessions: sessions, state: state, canReload: canReload)
-        case .notifications: NotificationsTabView()
+        case .notifications: NotificationsTabView(centre: SystemNotificationCentre.shared, reader: SystemNotificationCentre.shared)
         case .health: HealthTabView(state: state)
         }
     }

@@ -1,7 +1,7 @@
 name: Carrier Engine
 
 # The TypeScript side (engine, chat host, terminal CLI): one job per question, in parallel, on Linux.
-# Reusable: ci.yml (a pull request) and release.yml (a tag) call it, so what a release checks is what a pull request checked.
+# Reusable: engine.yml (a pull request, a push to main) and release.yml (a tag) call it, so what a release checks is what a pull request checked.
 on:
   workflow_call:
 

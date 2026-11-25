@@ -210,7 +210,7 @@ The session and its branch stay, and the next message brings a fresh folder back
 ## Start-up errors
 
 - **`Invalid config <file>:` + fields.** Fix each listed field. `carrier schema` shows what is allowed.
-- **`Another carrier instance is already running on <folder>/engine/state`.** One instance per Carrier folder. Stop the other one (`carrier stop`, or Ctrl+C where it runs). If none is running the lock is released by the OS when a process dies, so this message is real: look for the process (`pgrep -fl carrier`).
+- **`Another carrier instance is already running on <folder>/engine/state`.** One instance per Carrier folder. Stop the other one (`carrier stop`, or Ctrl+C where it runs). If none is running the lock is released by the OS when a process dies, so this message is real: look for the process (`pgrep -fl carrier`: the engine is `carrier-engine` and the chat host `carrier-chat-host`).
 - **`carrier start` says `Carrier exited before it was ready` or `did not answer within 15 seconds`.** It prints the end of `start.log`: that is the start-up error, so read it against this list. `carrier status` says whether something runs after all.
 - **`carrier status`, `watch`, `stop`... say Carrier is not running (exit 1) but it is.** They look for the control socket in `<folder>/engine/state/` of the Carrier folder they run with: run them with the same `CARRIER_HOME` the Carrier was started with (`--config` only chooses the config file, never the folder). Exit 2 means the socket speaks another protocol (a Carrier of another version).
 - **`carrier failed to start: GitHub answered HTTP 404`.** The orchestrator's identity cannot see a repo in `repos`: wrong name, or the bot is not installed on that owner. `carrier doctor` names the repo.

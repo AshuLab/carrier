@@ -229,24 +229,30 @@ public struct SessionRow: Equatable {
 /// Holds still the place of the sessions that work. The host moves a session's last activity with every event of its agent, so two that work
 /// at once would swap places over and over in lists that put the newest first. While a session works (or waits for the person, or for what
 /// it started) its place is the time its turn began, as the app first saw it; when it stops it has its last activity again and takes its place
-/// once. The same start as `WorkingClock`'s.
+/// once. A new turn (the agent works again after it was idle or only waited for what it started) begins again, so the row's clock counts
+/// that turn alone (`SessionRow.workingSince`).
 public struct WorkingOrder: Equatable {
     private var began: [String: Date] = [:]
+    private var working: Set<String> = []
 
     public init() {}
 
     /// Sets `orderedAt` of the rows that work and forgets the sessions that stopped or went.
     public mutating func apply(to rows: inout [SessionRow]) {
         var next: [String: Date] = [:]
+        var nextWorking: Set<String> = []
         for index in rows.indices where rows[index].archived == false {
             let id = rows[index].id
             // a session that waits for the person keeps the place it had, and one that was never seen working has none to keep
             guard rows[index].isWorking || (rows[index].state == .waiting && began[id] != nil) else { continue }
-            let start = began[id] ?? rows[index].updatedAt
+            let turn = rows[index].state == .working
+            // the agent works where it did not (it was between turns, held by what it started): a new turn, not the one before
+            let start = turn && working.contains(id) == false ? rows[index].updatedAt : began[id] ?? rows[index].updatedAt
             next[id] = start
+            if turn || (working.contains(id) && rows[index].state == .waiting) { nextWorking.insert(id) }
             rows[index].orderedAt = start
         }
-        began = next
+        (began, working) = (next, nextWorking)
     }
 }
 

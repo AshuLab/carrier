@@ -22,6 +22,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   The line that resizes the split panes and the drawer is drawn only under the pointer.
   The terminal's surface is glass with every theme when Translucent windows is on (it was only with Carrier), and opaque when it is off or macOS reduces transparency.
 
+### Fixed
+
+- The time a session shows while it works counts the turn that runs now, not the ones before it: it used to carry on from an earlier turn when the session's row was not on screen as that turn ended, or when the agent was still waiting for something it had started in the background and a new message began a new turn.
+
 ## [0.19.0] - 2026-11-24
 
 Several reviewers and a lead reviewer, the skill of each stage named in `engine.json`, `carrier recover` and `carrier restart --from`, automatic resume after a usage limit, a Watching page for the repos Carrier takes epics from, and the Mac app for Intel Macs.

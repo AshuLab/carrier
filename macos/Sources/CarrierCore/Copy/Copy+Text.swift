@@ -53,6 +53,15 @@ extension Copy {
     }
 }
 
+extension Copy {
+    /// The words of the copy key `key` that takes no argument, read by its name in the language of `bundle` (what a table of keys needs, like the
+    /// search index of Settings); nil when the catalog has no such key.
+    public static func word(_ key: String, bundle: Bundle? = nil) -> String? {
+        let words = (bundle ?? carrierResources).localizedString(forKey: key, value: missing, table: nil)
+        return words == missing ? nil : words
+    }
+}
+
 private let missing = "\u{1}"
 
 /// What a person reads for a text Node or the app sent with a code: the copy of a known code, and `words` (English) for an unknown code, no code,

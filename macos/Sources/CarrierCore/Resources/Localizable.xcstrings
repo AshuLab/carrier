@@ -33336,6 +33336,924 @@
         }
       }
     },
+    "noticesGalleryCaptionApproval": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A permission the agent asks for"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un permiso que pide el agente"
+          }
+        }
+      }
+    },
+    "noticesGalleryCaptionArchived": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "An archived session"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Una sesión archivada"
+          }
+        }
+      }
+    },
+    "noticesGalleryCaptionAsleep": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A session that is asleep"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Una sesión dormida"
+          }
+        }
+      }
+    },
+    "noticesGalleryCaptionAsleepChosen": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Asleep, with something chosen that waits for the wake"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dormida, con algo elegido que espera al despertar"
+          }
+        }
+      }
+    },
+    "noticesGalleryCaptionBackground": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Work the agent waits for in the background"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trabajo que el agente espera en segundo plano"
+          }
+        }
+      }
+    },
+    "noticesGalleryCaptionDictationFailed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A dictation that failed, under the box"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Una dictación que falló, bajo la caja"
+          }
+        }
+      }
+    },
+    "noticesGalleryCaptionEpicFailed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A stopped epic that failed"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un epic detenido que falló"
+          }
+        }
+      }
+    },
+    "noticesGalleryCaptionEpicStopped": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A stopped epic that needs a person"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un epic detenido que necesita a una persona"
+          }
+        }
+      }
+    },
+    "noticesGalleryCaptionFolderUnusable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The folder cannot be used"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La carpeta no se puede usar"
+          }
+        }
+      }
+    },
+    "noticesGalleryCaptionNameUnusable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The worktree's name cannot be used"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El nombre del worktree no se puede usar"
+          }
+        }
+      }
+    },
+    "noticesGalleryCaptionNoProvider": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No provider can start a session"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ningún proveedor puede iniciar una sesión"
+          }
+        }
+      }
+    },
+    "noticesGalleryCaptionNotSignedIn": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The send was refused: not signed in"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se rechazó el envío: sin sesión iniciada"
+          }
+        }
+      }
+    },
+    "noticesGalleryCaptionOlderHost": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The chat host is older than the app"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El host de chat es más antiguo que la app"
+          }
+        }
+      }
+    },
+    "noticesGalleryCaptionQuestion": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A question the agent asks"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Una pregunta que hace el agente"
+          }
+        }
+      }
+    },
+    "noticesGalleryCaptionQueued": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A message held while the agent answers"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un mensaje retenido mientras el agente responde"
+          }
+        }
+      }
+    },
+    "noticesGalleryCaptionQueuedInterrupts": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The same, when sending already stops the turn"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lo mismo, cuando enviar ya detiene el turno"
+          }
+        }
+      }
+    },
+    "noticesGalleryCaptionRefusalWords": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A refusal in words (the host said no)"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un rechazo con palabras (el host dijo que no)"
+          }
+        }
+      }
+    },
+    "noticesGalleryCaptionRestartHost": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The chat host should be restarted (home of Sessions)"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hay que reiniciar el host de chat (inicio de Sesiones)"
+          }
+        }
+      }
+    },
+    "noticesGalleryCaptionSendRefused": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A send the provider refuses: not signed in"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un envío que el proveedor rechaza: sin sesión iniciada"
+          }
+        }
+      }
+    },
+    "noticesGalleryCaptionTurnFailedLast": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A turn that failed (the last one: it can be tried again)"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un turno que falló (el último: se puede reintentar)"
+          }
+        }
+      }
+    },
+    "noticesGalleryCaptionTurnFailedRecord": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A turn that failed, no longer the last: a record"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un turno que falló, ya no el último: un registro"
+          }
+        }
+      }
+    },
+    "noticesGalleryCaptionUncommitted": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A new session: uncommitted files"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Una sesión nueva: archivos sin confirmar"
+          }
+        }
+      }
+    },
+    "noticesGalleryCaptionUnreadable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A session that could not be read"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Una sesión que no se pudo leer"
+          }
+        }
+      }
+    },
+    "noticesGalleryGroupBox": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Over the message box"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sobre la caja de mensajes"
+          }
+        }
+      }
+    },
+    "noticesGalleryGroupConversation": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In the conversation and under the box"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En la conversación y bajo la caja"
+          }
+        }
+      }
+    },
+    "noticesGalleryGroupEpic": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On an epic's page"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En la página de un epic"
+          }
+        }
+      }
+    },
+    "noticesGalleryGroupNewSession": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A new session, and the home of Sessions"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Una sesión nueva, y el inicio de Sesiones"
+          }
+        }
+      }
+    },
+    "noticesGallerySampleApprovalQuestion": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Allow Bash?"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "¿Permitir Bash?"
+          }
+        }
+      }
+    },
+    "noticesGallerySampleChoiceAlways": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yes, and do not ask again for pnpm commands"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sí, y no volver a preguntar por los comandos de pnpm"
+          }
+        }
+      }
+    },
+    "noticesGallerySampleChoiceNo": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No, tell the agent what to do differently"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No, dile al agente qué hacer de otra manera"
+          }
+        }
+      }
+    },
+    "noticesGallerySampleChoiceYes": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yes"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sí"
+          }
+        }
+      }
+    },
+    "noticesGallerySampleDictationDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The microphone is in use by another app."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El micrófono lo está usando otra app."
+          }
+        }
+      }
+    },
+    "noticesGallerySampleEpicFailedSheet": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "It runs again."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se ejecuta de nuevo."
+          }
+        }
+      }
+    },
+    "noticesGallerySampleEpicFailedTitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Retries exhausted"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reintentos agotados"
+          }
+        }
+      }
+    },
+    "noticesGallerySampleEpicFailedWords": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resuming starts the execution again from where it stopped."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reanudar empieza la ejecución de nuevo desde donde se detuvo."
+          }
+        }
+      }
+    },
+    "noticesGallerySampleEpicStoppedSheet": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "It runs again from the review stage."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se ejecuta de nuevo desde la etapa de revisión."
+          }
+        }
+      }
+    },
+    "noticesGallerySampleEpicStoppedTitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Review limit reached"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se alcanzó el límite de revisión"
+          }
+        }
+      }
+    },
+    "noticesGallerySampleEpicStoppedWords": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resuming gives it another round of review."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reanudar le da otra ronda de revisión."
+          }
+        }
+      }
+    },
+    "noticesGallerySampleFolderUnusableDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "It is not a git repository, so it has no worktrees."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No es un repositorio git, así que no tiene worktrees."
+          }
+        }
+      }
+    },
+    "noticesGallerySampleNameUnusableDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A branch named feat/login already exists."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ya existe una rama llamada feat/login."
+          }
+        }
+      }
+    },
+    "noticesGallerySampleNoProvider": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No provider can start a session: claude is signed out, codex is not installed."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ningún proveedor puede iniciar una sesión: claude no tiene la sesión iniciada, codex no está instalado."
+          }
+        }
+      }
+    },
+    "noticesGallerySampleOptionNode": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A restart of one node"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El reinicio de un nodo"
+          }
+        }
+      }
+    },
+    "noticesGallerySampleOptionNodeDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The data lives on the others and comes back."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los datos viven en los otros y vuelven."
+          }
+        }
+      }
+    },
+    "noticesGallerySampleOptionNothing": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nothing, it is only a speed-up"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nada, es solo una aceleración"
+          }
+        }
+      }
+    },
+    "noticesGallerySampleOptionNothingDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A restart empties it and that is fine."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un reinicio la vacía y no pasa nada."
+          }
+        }
+      }
+    },
+    "noticesGallerySampleQuestion": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "What does the cache have to survive?"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "¿Qué tiene que sobrevivir la caché?"
+          }
+        }
+      }
+    },
+    "noticesGallerySampleQuestionHeader": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Durability"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Durabilidad"
+          }
+        }
+      }
+    },
+    "noticesGallerySampleQueuedLong": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Estaba pensando, es posible que dejemos el sistema de tal manera para que de un select se pueda elegir el theme de iconos? Podriamos de esa manera incluir lucide por ejemplo y algunos mas a futuro, como lo ves?"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Estaba pensando, ¿es posible que dejemos el sistema de tal manera que desde un select se pueda elegir el theme de iconos? Podríamos así incluir lucide, por ejemplo, y algunos más a futuro, ¿cómo lo ves?"
+          }
+        }
+      }
+    },
+    "noticesGallerySampleQueuedShort": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Run the tests again."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ejecuta los tests de nuevo."
+          }
+        }
+      }
+    },
+    "noticesGallerySampleRefusalWords": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This session is waiting for an approval; interrupt it or wait, then switch its agent"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta sesión espera una aprobación; interrúmpela o espera, y luego cambia su agente"
+          }
+        }
+      }
+    },
+    "noticesGallerySampleTaskDeploy": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Watching the deploy of the staging branch"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vigilando el despliegue de la rama de staging"
+          }
+        }
+      }
+    },
+    "noticesGallerySampleTurnFailed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The provider closed the connection before the answer was complete."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El proveedor cerró la conexión antes de que la respuesta estuviera completa."
+          }
+        }
+      }
+    },
+    "noticesGallerySampleUncommittedDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A worktree keeps them out of the agent's way."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un worktree los deja fuera del camino del agente."
+          }
+        }
+      }
+    },
+    "noticesGallerySampleUncommittedTitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "3 files have uncommitted changes"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "3 archivos tienen cambios sin confirmar"
+          }
+        }
+      }
+    },
     "notificationsAdviceDenied": {
       "extractionState": "manual",
       "localizations": {
@@ -47705,6 +48623,1604 @@
           "stringUnit": {
             "state": "translated",
             "value": "Espacio de trabajo"
+          }
+        }
+      }
+    },
+    "settingsIndexAboutEngineAndChatHostDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The engine's own update"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La propia actualización del motor"
+          }
+        }
+      }
+    },
+    "settingsIndexAboutUpdateDelayDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waits this long after a release before offering it"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Espera este tiempo tras una versión antes de ofrecerla"
+          }
+        }
+      }
+    },
+    "settingsIndexAgentStage %@ %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@. Runs the skill %2$@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@. Ejecuta la skill %2$@"
+          }
+        }
+      }
+    },
+    "settingsIndexAgentsCreateABotDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opens Terminal on agent-forge add, to make a GitHub identity for a role"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abre Terminal con agent-forge add, para crear una identidad de GitHub para un rol"
+          }
+        }
+      }
+    },
+    "settingsIndexAgentsIdentityDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The GitHub identity an agent acts as"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La identidad de GitHub con la que actúa un agente"
+          }
+        }
+      }
+    },
+    "settingsIndexAgentsModelDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The model and reasoning of the role"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El modelo y el razonamiento del rol"
+          }
+        }
+      }
+    },
+    "settingsIndexAgentsNotUsedByTheEngineYetDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The Lead reviewer has no stage, so no skill"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El revisor principal no tiene etapa, así que no tiene skill"
+          }
+        }
+      }
+    },
+    "settingsIndexAgentsUseALeadReviewerDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A second reviewer checks the first"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un segundo revisor comprueba al primero"
+          }
+        }
+      }
+    },
+    "settingsIndexAppearanceIconSetDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SF Symbols, Tabler or Lucide for the icons of the app"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SF Symbols, Tabler o Lucide para los iconos de la app"
+          }
+        }
+      }
+    },
+    "settingsIndexAppearanceIconWeightDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "How thick the strokes of the icons are"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Qué tan gruesos son los trazos de los iconos"
+          }
+        }
+      }
+    },
+    "settingsIndexAppearanceTextSizeDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The size of the text of the interface; the messages have their own in Chat"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El tamaño del texto de la interfaz; los mensajes tienen el suyo en Chat"
+          }
+        }
+      }
+    },
+    "settingsIndexAppearanceThemeDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nine themes, each in light and dark"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nueve temas, cada uno en claro y oscuro"
+          }
+        }
+      }
+    },
+    "settingsIndexChatLineSpacingDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The room between the lines of a message (line height)"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El espacio entre las líneas de un mensaje (interlineado)"
+          }
+        }
+      }
+    },
+    "settingsIndexChatMessageTextSizeDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The size of the font of the messages, apart from the app's text size"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El tamaño de la fuente de los mensajes, aparte del tamaño del texto de la app"
+          }
+        }
+      }
+    },
+    "settingsIndexChatMessageTimesDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "When a message shows the time it was written"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cuándo un mensaje muestra la hora a la que se escribió"
+          }
+        }
+      }
+    },
+    "settingsIndexChatOpenTheCallsThatFailedDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A call that failed opens by itself"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Una llamada que falló se abre sola"
+          }
+        }
+      }
+    },
+    "settingsIndexChatShowReasoningDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The agent's reasoning, folded under its message"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El razonamiento del agente, plegado bajo su mensaje"
+          }
+        }
+      }
+    },
+    "settingsIndexDictationAccessibilityDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "What lets Carrier paste into another app"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lo que permite a Carrier pegar en otra app"
+          }
+        }
+      }
+    },
+    "settingsIndexDictationActivationDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toggle, or hold the keys while you speak"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alternar, o mantener las teclas mientras hablas"
+          }
+        }
+      }
+    },
+    "settingsIndexDictationAudioOnDiskDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "How much space the audio takes"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cuánto espacio ocupa el audio"
+          }
+        }
+      }
+    },
+    "settingsIndexDictationByHourOfTheDayDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "When you dictate most"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cuándo dictas más"
+          }
+        }
+      }
+    },
+    "settingsIndexDictationDictateInAnyAppDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opens a widget in any app, and pastes what you say"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abre un widget en cualquier app y pega lo que dices"
+          }
+        }
+      }
+    },
+    "settingsIndexDictationDownloadedModelsDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "How much space the models take"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cuánto espacio ocupan los modelos"
+          }
+        }
+      }
+    },
+    "settingsIndexDictationEndSoundDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plays when it stops listening"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Suena cuando deja de escuchar"
+          }
+        }
+      }
+    },
+    "settingsIndexDictationKeepTheAudioDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Each recorded dictation has its audio to play back"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cada dictado grabado tiene su audio para reproducirlo"
+          }
+        }
+      }
+    },
+    "settingsIndexDictationKeepTheSpeechModelReadyDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loads it when Carrier opens, so the first dictation does not wait"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lo carga al abrir Carrier, para que el primer dictado no espere"
+          }
+        }
+      }
+    },
+    "settingsIndexDictationKeepTheTextOfMyDictationsDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A list with search, copy and delete, on this Mac"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Una lista con búsqueda, copia y borrado, en este Mac"
+          }
+        }
+      }
+    },
+    "settingsIndexDictationLanguageDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "What you speak"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lo que hablas"
+          }
+        }
+      }
+    },
+    "settingsIndexDictationLiveTextDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show the words as you say them, or only the time and the keys"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Muestra las palabras mientras las dices, o solo el tiempo y las teclas"
+          }
+        }
+      }
+    },
+    "settingsIndexDictationMicrophoneDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Whether Carrier may listen, in the card at the top"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Si Carrier puede escuchar, en la tarjeta de arriba"
+          }
+        }
+      }
+    },
+    "settingsIndexDictationModelDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The model that cleans the text"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El modelo que limpia el texto"
+          }
+        }
+      }
+    },
+    "settingsIndexDictationOverviewDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dictations, words, speaking time and time saved, by range"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dictados, palabras, tiempo hablado y tiempo ahorrado, por rango"
+          }
+        }
+      }
+    },
+    "settingsIndexDictationPositionDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Top or bottom centre, or where you dragged the widget"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Arriba o abajo en el centro, o donde arrastraste el widget"
+          }
+        }
+      }
+    },
+    "settingsIndexDictationPromptDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "What you ask the model to do with every dictation"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lo que le pides al modelo que haga con cada dictado"
+          }
+        }
+      }
+    },
+    "settingsIndexDictationRecordsDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your best day, your longest dictation and your longest streak"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tu mejor día, tu dictado más largo y tu racha más larga"
+          }
+        }
+      }
+    },
+    "settingsIndexDictationReleaseTheModelAfterDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Without dictating, to give its memory back"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sin dictar, para devolver su memoria"
+          }
+        }
+      }
+    },
+    "settingsIndexDictationResetStatisticsDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deletes the counters; the history stays"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Borra los contadores; el historial se queda"
+          }
+        }
+      }
+    },
+    "settingsIndexDictationServerDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Where the local model runs"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dónde corre el modelo local"
+          }
+        }
+      }
+    },
+    "settingsIndexDictationShortcutDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "With Carrier in front on a session it dictates into the message box"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Con Carrier al frente en una sesión, dicta en la caja de mensajes"
+          }
+        }
+      }
+    },
+    "settingsIndexDictationSpeechModelsDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The models you can download, choose and delete"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los modelos que puedes descargar, elegir y borrar"
+          }
+        }
+      }
+    },
+    "settingsIndexDictationThisWeekDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The last 7 days against the 7 before"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los últimos 7 días frente a los 7 anteriores"
+          }
+        }
+      }
+    },
+    "settingsIndexDictationTryItDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Runs the prompt on a sample"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ejecuta el prompt con una muestra"
+          }
+        }
+      }
+    },
+    "settingsIndexDictationTypingSpeedDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Used for the time saved"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se usa para el tiempo ahorrado"
+          }
+        }
+      }
+    },
+    "settingsIndexDictationVolumeDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "For both sounds, in the global dictation only"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Para los dos sonidos, solo en el dictado global"
+          }
+        }
+      }
+    },
+    "settingsIndexDictationWidgetStyleDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pill, Small, Medium or Large"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Píldora, Pequeño, Mediano o Grande"
+          }
+        }
+      }
+    },
+    "settingsIndexDictationWidgetThemeDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Default, Black, Dark glass, Clear glass or Theme glow"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Predeterminado, Negro, Vidrio oscuro, Vidrio claro o Brillo del tema"
+          }
+        }
+      }
+    },
+    "settingsIndexEngineCarrierDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The program the app runs"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El programa que ejecuta la app"
+          }
+        }
+      }
+    },
+    "settingsIndexEngineCarrierTitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "carrier"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "carrier"
+          }
+        }
+      }
+    },
+    "settingsIndexEngineLookAgainDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Looks for carrier and node again"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vuelve a buscar carrier y node"
+          }
+        }
+      }
+    },
+    "settingsIndexEngineNodeDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "What runs it"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lo que lo ejecuta"
+          }
+        }
+      }
+    },
+    "settingsIndexEngineNodeTitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "node"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "node"
+          }
+        }
+      }
+    },
+    "settingsIndexEngineOrchestratorProfileDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reads issues and PRs and changes labels"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lee issues y PRs y cambia labels"
+          }
+        }
+      }
+    },
+    "settingsIndexEnginePathDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Where the app looks for tools"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dónde busca herramientas la app"
+          }
+        }
+      }
+    },
+    "settingsIndexEnginePathTitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PATH"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PATH"
+          }
+        }
+      }
+    },
+    "settingsIndexGeneralAnimateTheIconDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A segment moves over the bar while epics run"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un segmento recorre la barra mientras corren epics"
+          }
+        }
+      }
+    },
+    "settingsIndexHealthChatHostDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Whether the chat host runs"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Si el host de chat está corriendo"
+          }
+        }
+      }
+    },
+    "settingsIndexHealthEngineDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Whether the engine runs"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Si el motor está corriendo"
+          }
+        }
+      }
+    },
+    "settingsIndexHealthEngineSetupDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "What carrier doctor says about the setup of the engine"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lo que carrier doctor dice de la configuración del motor"
+          }
+        }
+      }
+    },
+    "settingsIndexHealthThisMacDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The tools the chat needs: git, gh and your AI providers"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las herramientas que necesita el chat: git, gh y tus proveedores de IA"
+          }
+        }
+      }
+    },
+    "settingsIndexKeepAwakeKeepAwakeWhileAgentsWorkDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "While an epic runs or a session works"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mientras corre un epic o trabaja una sesión"
+          }
+        }
+      }
+    },
+    "settingsIndexKeepAwakeKeepTheScreenOnDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Off lets the screen sleep while the Mac stays awake"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apagado deja que la pantalla se duerma mientras el Mac sigue despierto"
+          }
+        }
+      }
+    },
+    "settingsIndexKeepAwakeNowDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Whether the Mac is being kept awake, and the button that turns it on or off"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Si el Mac se mantiene despierto, y el botón que lo activa o desactiva"
+          }
+        }
+      }
+    },
+    "settingsIndexKeepAwakeOnBatteryDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "What it does when the Mac runs on battery"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lo que hace cuando el Mac funciona con batería"
+          }
+        }
+      }
+    },
+    "settingsIndexKeepAwakeShortcutDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turns keep awake on or off from any app"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Activa o desactiva mantener despierto desde cualquier app"
+          }
+        }
+      }
+    },
+    "settingsIndexKeepAwakeTellMeWhenItStopsByItselfDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A notification when the time runs out or the battery ends it"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Una notificación cuando se acaba el tiempo o la batería lo termina"
+          }
+        }
+      }
+    },
+    "settingsIndexNotificationsDockBadgeDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The Dock icon counts what needs a person"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El icono del Dock cuenta lo que necesita a una persona"
+          }
+        }
+      }
+    },
+    "settingsIndexNotificationsQuietHoursDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notifications wait in the Notification Center"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las notificaciones esperan en el Centro de notificaciones"
+          }
+        }
+      }
+    },
+    "settingsIndexNotificationsRemindMeAgainDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "While something still needs attention"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mientras algo siga requiriendo atención"
+          }
+        }
+      }
+    },
+    "settingsIndexNotificationsSystemPermissionDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Whether macOS lets Carrier send notifications"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Si macOS deja que Carrier envíe notificaciones"
+          }
+        }
+      }
+    },
+    "settingsIndexNotificationsUntilDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "When it ends"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cuándo termina"
+          }
+        }
+      }
+    },
+    "settingsIndexProvidersAccountsThatNeedAttentionDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Signed out, or near the limit of the 5h window"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sin sesión, o cerca del límite de la ventana de 5 h"
+          }
+        }
+      }
+    },
+    "settingsIndexProvidersAiProvidersDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The tools of this Mac, each with its accounts"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las herramientas de este Mac, cada una con sus cuentas"
+          }
+        }
+      }
+    },
+    "settingsIndexProvidersLocalServersDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LM Studio and Ollama, and the models they have loaded"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LM Studio y Ollama, y los modelos que tienen cargados"
+          }
+        }
+      }
+    },
+    "settingsIndexProvidersTextGeneratorsDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The local model that writes text for Carrier, chosen from LM Studio or Ollama"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El modelo local que escribe texto para Carrier, elegido entre LM Studio u Ollama"
+          }
+        }
+      }
+    },
+    "settingsIndexSessionsSleepAfterDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "How long an idle session nobody opens keeps its agent running before it closes and falls asleep, freeing its memory: 10 minutes, 30 minutes or 1 hour"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cuánto tiempo mantiene a su agente en marcha una sesión inactiva que nadie abre antes de cerrarlo y dormirla, liberando su memoria: 10 minutos, 30 minutos o 1 hora"
+          }
+        }
+      }
+    },
+    "settingsIndexSessionsSleepAfterKeywords": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "the timeout of an inactive session, or inactivity timeout"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "el tiempo de espera de una sesión inactiva, o tiempo de inactividad"
+          }
+        }
+      }
+    },
+    "settingsIndexSessionsStartFromDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Where a new worktree is cut: the remote branch (latest) or the local branch"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "De dónde se corta un worktree nuevo: la rama remota (la última) o la rama local"
+          }
+        }
+      }
+    },
+    "settingsIndexSessionsWithTheseAgesDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "What the ages do to a session left alone from today"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lo que las edades le hacen a una sesión que se deja sola desde hoy"
+          }
+        }
+      }
+    },
+    "settingsIndexShortcutDefault %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Default: %1$@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Predeterminado: %1$@"
+          }
+        }
+      }
+    },
+    "settingsIndexShortcutNone": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Default: none"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Predeterminado: ninguno"
+          }
+        }
+      }
+    },
+    "settingsIndexSidebarAgeDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "How long ago the session was last active"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hace cuánto estuvo activa la sesión por última vez"
+          }
+        }
+      }
+    },
+    "settingsIndexSidebarLinesChangedDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "How many lines the session added and removed"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cuántas líneas agregó y quitó la sesión"
+          }
+        }
+      }
+    },
+    "settingsIndexSidebarPullRequestDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The pull request of the session's branch, with its state and checks"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El pull request de la rama de la sesión, con su estado y sus checks"
+          }
+        }
+      }
+    },
+    "settingsIndexTerminalHorizontalPaddingDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Left and right margin inside each pane"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Margen izquierdo y derecho dentro de cada panel"
+          }
+        }
+      }
+    },
+    "settingsIndexTerminalMinimumContrastDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Raises low-contrast ANSI text"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sube el contraste del texto ANSI de bajo contraste"
+          }
+        }
+      }
+    },
+    "settingsIndexTerminalVerticalPaddingDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Top and bottom margin inside each pane"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Margen superior e inferior dentro de cada panel"
+          }
+        }
+      }
+    },
+    "settingsIndexWatchingCloneDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Where Carrier keeps its own clone of the repository"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dónde guarda Carrier su propio clon del repositorio"
+          }
+        }
+      }
+    },
+    "settingsIndexWatchingEpicsDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "What the repository has in flight"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lo que el repositorio tiene en marcha"
+          }
+        }
+      }
+    },
+    "settingsIndexWatchingLastCheckDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "When Carrier last looked at the repository, or why GitHub refused it"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cuándo miró Carrier el repositorio por última vez, o por qué lo rechazó GitHub"
+          }
+        }
+      }
+    },
+    "settingsIndexWatchingOnGithubDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The repository's address"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La dirección del repositorio"
+          }
+        }
+      }
+    },
+    "settingsIndexWatchingProjectDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The project that has this repository as its origin"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El proyecto que tiene este repositorio como origen"
+          }
+        }
+      }
+    },
+    "settingsIndexWatchingReadyForCarrierDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Whether Carrier can read the repository, sign for it and has the Solve labels"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Si Carrier puede leer el repositorio, firmar por él y tiene las labels de Solve"
+          }
+        }
+      }
+    },
+    "settingsIndexWatchingStopWatchingDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Its epics stop where they are; nothing is deleted"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sus epics se detienen donde están; no se borra nada"
+          }
+        }
+      }
+    },
+    "settingsIndexWatchingWhoWorksHereDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Each role of the repository, and what it sets of its own"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cada rol del repositorio, y lo que fija por su cuenta"
           }
         }
       }

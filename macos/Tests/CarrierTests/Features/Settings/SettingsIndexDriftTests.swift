@@ -86,6 +86,31 @@ import Testing
         #expect(Self.drawnWithNoEntry(["icon-style", "menu-bar"], entries: [renamed]).isEmpty && Self.entriesNoViewDraws(["icon-style"], entries: [renamed]).isEmpty)
     }
 
+    /// The keys of a language's file of design/copy/.
+    private static func copyKeys(_ language: String) throws -> Set<String> {
+        let data = try Data(contentsOf: testPaths().root.appendingPathComponent("design/copy/\(language).json"))
+        return Set(try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any]).keys)
+    }
+
+    @Test func everyKeyAnEntryUsesIsAKeyOfTheEnglishAndTheSpanishCatalog() throws {
+        let entries = buildSettingsIndex(bundle: Copy.bundle("en"), locale: Locale(identifier: "en_US")) + buildSettingsIndex(bundle: Copy.bundle("es"), locale: Locale(identifier: "es_AR"))
+        let used = Set(entries.flatMap(\.copyKeys))
+        #expect(used.count > 100, "the entries name the keys they read their words from")
+        for language in ["en", "es"] {
+            let missing = used.subtracting(try Self.copyKeys(language)).sorted()
+            #expect(missing.isEmpty, "used by an entry of settingsIndex and not in design/copy/\(language).json: \(missing)")
+        }
+    }
+
+    @Test func noEntryHoldsATitleOrADetailThatIsALiteralOfTheFile() throws {
+        // the words of the index are copy keys: the file has no quoted sentence, only identifiers and keys
+        let file = try String(contentsOf: Self.sources.appendingPathComponent("CarrierCore/Settings/SettingsIndex.swift"), encoding: .utf8)
+        let code = file.split(separator: "\n").filter { $0.contains("//") == false }.joined(separator: "\n")
+        let literals = try Self.matches(#""((?:[^"\\\n]|\\.)*)""#, in: code)
+        let sentences = literals.filter { $0.range(of: #"[A-Za-z]+ [A-Za-z]"#, options: .regularExpression) != nil }
+        #expect(sentences.isEmpty, "a quoted sentence in SettingsIndex.swift (give it a copy key): \(sentences)")
+    }
+
     @Test func readingAnEmptyFolderFails() throws {
         let scratch = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: scratch, withIntermediateDirectories: true)

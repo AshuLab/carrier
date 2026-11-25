@@ -274,6 +274,7 @@ struct ScaleRow: View {
 struct SwitchRow: View {
     let scale: OptionScale
     let commit: (Int) -> Void
+    @Environment(\.pieceTheme) private var theme
     @State private var pending: Int?
 
     var body: some View {
@@ -285,6 +286,8 @@ struct SwitchRow: View {
             }
             Spacer(minLength: 8)
             Toggle("", isOn: Binding(get: { on }, set: { pending = $0 ? 1 : 0; commit($0 ? 1 : 0) })).labelsHidden().toggleStyle(.switch)
+                // in a popover, which does not take the window's tint
+                .tint(theme.accent)
                 .accessibilityLabel(scale.steps[1].label)
         }
         .padding(.horizontal, panelMargin).padding(.vertical, Tokens.Space.s14)

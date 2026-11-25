@@ -59,6 +59,7 @@ Ephemeral `TerminalOwner.epic` tabs are excluded from both persistence export an
 
 ## Where it lives in the code
 
+What the person sees: [terminal](terminal.md).
 Pure rules (`Terminal{Core,SplitTree,Persistence,Settings,ZshBottomPromptShim}.swift`) are in `CarrierCore` (`TerminalCoreTests`, `TerminalZshBottomPromptShimTests`); Continue in Terminal's launch is `ContinueInTerminal.swift` (`embeddedResumeLaunch`).
 The AppKit runtime (`Carrier/Platform/Terminal{Host,Store*,Appearance,ProcessInspector}.swift`, `CarrierTerminalView.swift`, `Features/Terminal/TerminalConfirmationCopy.swift`) owns the `paneId`-keyed `GhosttyKit` surface cache, live settings reload, `ZDOTDIR` bottom-prompt preparation, `⌘K` scrollback clear and close confirmation; the views are the `Terminal*View.swift` files, `MainMenu.swift`, `PanelView.swift` and friends.
 Window selection and drawer state: `CarrierCore/WindowShell.swift` (`WindowShellTests`).

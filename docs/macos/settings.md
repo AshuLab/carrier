@@ -152,6 +152,7 @@ The code map of the pages above, with what is tested; the sources are under `mac
 
 ### Providers
 
+What the person sees: [settings-app](settings-app.md#providers).
 The rows are `providersPage(_:config:chat:)` and `providersDirectory` (`ProvidersPage.swift`, `ProvidersDirectory.swift`; `Providers{Page,Directory}Tests`); views untested; what the page asks of `providers.json` (`ProvidersRequests.swift`, the five requests) is in `ProvidersFileTests`, `ProvidersRequestsTests` and `FixtureServerTests`.
 
 ### The projects file
@@ -162,6 +163,7 @@ The app writes no config file: `ContractTests` lists the requests of both socket
 
 ### Projects
 
+What the person sees: [settings](settings.md#projects-page).
 The pure rules live in `CarrierCore` (`ProjectsList`, `ProjectSheet`, `ProjectIcon`, `ProjectIconStore`, `ProjectActions`, `ProjectDeletion`, `ProjectWatch`, `ProjectWorktrees`, `ProjectDisk`, `WorkspaceSources`, `ProjectsFile`), each with a `*Tests` of its name; `ProjectsModel` follows the file (another process's write, a file that does not match, refused folders) and `ProjectsModel.shared` is the app's one reading of it.
 Gotchas:
 - An edit changes only its own key: `setDefault` writes `defaults` (the `editProjectDefaults` request, read by `NewSessionModel.projectDefaults`), `setHidden` `hidden`, `locate` only `path`, `remove` only the entry and its image copy.
@@ -175,12 +177,15 @@ Gotchas:
 
 ### Agents
 
+What the person sees: [settings-carrier](settings-carrier.md#agents).
 `agentsPage`, `agentsReadiness`, `AgentRole.stages` (`CarrierCore/AgentsPage.swift`, `AgentsReadiness.swift`; `AgentsPageTests`, `AgentsReadinessTests`); Antigravity's models are `AgyModels` (`AgyModelsTests`); views untested.
 
 ### Sessions
 
+What the person sees: [settings](settings.md#sessions-page).
 Tested: `SessionAgesTests`, `IdleCloseTests`; the view not.
 
 ### Health
 
+What the person sees: [settings-health](settings-health.md#health-tab).
 The rows are `healthSections(host:facts:)` (`HealthRows.swift`, `HealthRowsTests`); the socket and the installed version are read by `HostProbe` (`HostProbeTests`); view untested. Decoding and outcomes: `DoctorChecksTests`.

@@ -13,7 +13,7 @@ expect_lprojs() {
   done
 }
 
-# CARRIER_ARCH=x86_64 checks the Intel app: its binary and its own feed
+# CARRIER_ARCH=x86_64 checks the Intel app: its binary and its own feed; no CARRIER_ARCH is the Apple Silicon app, whose binary is arm64 only
 case "${CARRIER_ARCH:-}" in
   x86_64) FEED=appcast-intel.xml ;;
   *) FEED=appcast.xml ;;
@@ -23,7 +23,7 @@ esac
 # the one compile: the builds below only change the plist, so they bundle this binary
 export CARRIER_REUSE_BUILD=1
 expect SUFeedURL "$(plist SUFeedURL)" "https://github.com/AshuLab/carrier/releases/latest/download/$FEED"
-[ -z "${CARRIER_ARCH:-}" ] || expect "architecture of the binary" "$(lipo -archs Carrier.app/Contents/MacOS/Carrier)" "$CARRIER_ARCH"
+expect "architecture of the binary" "$(lipo -archs Carrier.app/Contents/MacOS/Carrier)" "${CARRIER_ARCH:-arm64}"
 expect SUPublicEDKey "$(plist SUPublicEDKey)" "$(cat update-key.pub)"
 expect SUEnableAutomaticChecks "$(plist SUEnableAutomaticChecks)" true
 expect SUScheduledCheckInterval "$(plist SUScheduledCheckInterval)" 3600

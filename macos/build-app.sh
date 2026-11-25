@@ -4,7 +4,7 @@
 # CARRIER_REUSE_BUILD=1 skips `swift build` and bundles the release binary that is already there (check-app.sh and the release build many bundles from one compile).
 # No version means a dev build: its own name, bundle id and settings, and no updater, so it never gets mixed up with the installed Carrier.
 # CARRIER_ARCH=x86_64 builds the Intel app: an x86_64-only binary (never a universal one, so the compile also works on an Apple Silicon runner) with its own update feed, appcast-intel.xml.
-# No CARRIER_ARCH is the Mac the script runs on (Apple Silicon), and the feed is appcast.xml.
+# No CARRIER_ARCH is Apple Silicon: an arm64-only binary too, and the feed is appcast.xml. Both pass --arch because a release build of Swift 6.3's swiftbuild is universal without it, and the arm64 zip must hold one architecture.
 # The build number (CFBundleVersion) is what Sparkle compares: X.Y.Z -> X*10000 + Y*100 + Z, and 1 when no version is given.
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -12,7 +12,7 @@ VERSION=0.1.0
 BUILD=1
 # an allowlist: the value reaches `swift build` and the feed's URL
 case "${CARRIER_ARCH:-}" in
-  "") ARCH_FLAGS=(); FEED=appcast.xml ;;
+  "") ARCH_FLAGS=(--arch arm64); FEED=appcast.xml ;;
   x86_64) ARCH_FLAGS=(--arch x86_64); FEED=appcast-intel.xml ;;
   *) echo "error: CARRIER_ARCH '${CARRIER_ARCH}' is not x86_64 (or empty, for this Mac's own architecture)" >&2; exit 1 ;;
 esac
@@ -63,10 +63,9 @@ else
   # --build-system swiftbuild: Swift 6.3's default (native) build system copies Localizable.xcstrings instead of compiling it into en.lproj and es.lproj; 6.4 defaults to swiftbuild
   swift build --build-system swiftbuild -c release ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"}
 fi
-# the Intel app must hold an x86_64 binary and nothing else, whatever the build directory was left holding
-if [ -n "${CARRIER_ARCH:-}" ]; then
-  [ "$(lipo -archs "$BIN/Carrier")" = "$CARRIER_ARCH" ] || { echo "error: $BIN/Carrier is '$(lipo -archs "$BIN/Carrier")', not $CARRIER_ARCH only" >&2; exit 1; }
-fi
+# each app must hold the binary of its own architecture and nothing else, whatever the build directory was left holding
+WANT_ARCH="${CARRIER_ARCH:-arm64}"
+[ "$(lipo -archs "$BIN/Carrier")" = "$WANT_ARCH" ] || { echo "error: $BIN/Carrier is '$(lipo -archs "$BIN/Carrier")', not $WANT_ARCH only" >&2; exit 1; }
 APP=Carrier.app
 rm -rf "$APP" Carrier.dSYM
 mkdir -p "$APP/Contents/MacOS"

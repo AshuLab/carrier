@@ -295,7 +295,7 @@ struct CarrierTerminalStoreTests {
             scheme: .dark
         )
 
-        // Default Carrier theme follows Translucent windows when turned on.
+        // Every theme follows Translucent windows: glass when it is on, an opaque surface when it is off.
         prefs.setTranslucent(true)
         store.syncAppearance(preferences: prefs, scheme: .dark)
         #expect(store.appearanceProfile.theme == .carrier)
@@ -309,8 +309,15 @@ struct CarrierTerminalStoreTests {
         #expect(store.appearanceProfile.theme == .ocean)
         #expect(store.appearanceProfile.accent == .orange)
         #expect(store.appearanceProfile.tint == .strong)
+        #expect(store.appearanceProfile.isSurfaceTranslucent == true)
+        #expect(store.controller.renderedConfig.contains("background-opacity = 0"))
+
+        prefs.setTranslucent(false)
+        store.syncAppearance(preferences: prefs, scheme: .dark)
         #expect(store.appearanceProfile.isSurfaceTranslucent == false)
         #expect(store.controller.renderedConfig.contains("background-opacity = 1"))
+        prefs.setTranslucent(true)
+        store.syncAppearance(preferences: prefs, scheme: .dark)
 
         var terminal = prefs.terminal
         terminal.themeOverride = .forest

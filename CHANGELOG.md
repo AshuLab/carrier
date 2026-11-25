@@ -16,6 +16,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   Dates, times and relative times follow the person's region.
   The app's code is now organized by area in three targets (`CarrierCore`, `CarrierUI` and `Carrier`), with its look, its words and its preferences generated from one neutral source (`pnpm design`), and a structure check in CI (`macos/scripts/check-structure.sh`).
 
+### Changed
+
+- The terminals are drawn as glass: each pane is a rounded card with a margin and a gap between panes, and the tabs are a flat group as wide as they are, which scrolls and fades at the end that has more, with only the selected tab in glass and the add and hide buttons beside it, bigger.
+  The line that resizes the split panes and the drawer is drawn only under the pointer.
+  The terminal's surface is glass with every theme when Translucent windows is on (it was only with Carrier), and opaque when it is off or macOS reduces transparency.
+
 ## [0.19.0] - 2026-11-24
 
 Several reviewers and a lead reviewer, the skill of each stage named in `engine.json`, `carrier recover` and `carrier restart --from`, automatic resume after a usage limit, a Watching page for the repos Carrier takes epics from, and the Mac app for Intel Macs.

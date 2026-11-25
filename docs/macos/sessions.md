@@ -1,10 +1,10 @@
 # Sessions
 
-The Sessions home, the Archive and a session's conversation; a new session is in [new session](new-session.md).
+The Sessions home and the Archive; a session's conversation is in [chat](chat.md) and a new session in [new session](new-session.md).
 
 ## Sessions home
 
-Selecting the Sessions row shows the Sessions home (`Carrier/SessionsHomeView.swift`; the values are `CarrierCore/SessionsHome.swift` and `sessionGroups`): the title with its count ("5 active · 1 waits for you", "1 of 5 · …" with a filter on, "N results" with a search), one glass group with Search and Filter, and New session, which follows the Sessions flag and does nothing yet.
+Selecting the Sessions row shows the Sessions home (`Carrier/Features/Sessions/SessionsHomeView.swift`; the values are `CarrierCore/Sessions/SessionsHome.swift` and `sessionGroups`): the title with its count ("5 active · 1 waits for you", "1 of 5 · …" with a filter on, "N results" with a search), one glass group with Search and Filter, and New session, which follows the Sessions flag and does nothing yet.
 The list is grouped by workspace (or by age or status), one row per session with the state glyph, title, agent, the branch of a worktree session and the age; a session that waits for the person is orange and a click selects it.
 Search is a field in the group (Escape or ✕ closes and clears it) that finds by title, workspace and agent across active and archived sessions, flat, with the workspace as a tag and archived matches dimmed and tagged.
 Filter is one popover with the sort (`sidebar.sessionSort`, the sidebar's own, so both agree) and what to show by status and by agent; the button shows how many are on, chips under the header remove one each and Clear filters removes them all.
@@ -13,7 +13,7 @@ Without sessions the page says "No sessions yet"; a search or filter that matche
 
 ## Archive
 
-Selecting the Archive row shows the Archive page (`Carrier/ArchiveView.swift`; the values are `CarrierCore/ChatArchive.swift`, `archivePage`): the title with its count ("5 sessions", "N results" with a search), the same glass group with Search and Filter, and, on the right, Clear sessions…, disabled when nothing is archived.
+Selecting the Archive row shows the Archive page (`Carrier/Features/Sessions/ArchiveView.swift`; the values are `CarrierCore/Chat/ChatArchive.swift`, `archivePage`): the title with its count ("5 sessions", "N results" with a search), the same glass group with Search and Filter, and, on the right, Clear sessions…, disabled when nothing is archived.
 Filter only sorts, by date archived (Last 30 days, Older) or by project, remembered in `SidebarStore.archiveSort` (the host does not say when a session was archived, so the date is the session's last activity).
 Search finds by title, workspace and agent.
 Nothing archived says "Nothing archived" ("Archived sessions are kept here."), a search with no result "No sessions match".
@@ -65,7 +65,7 @@ A row of the Sessions home says what the sidebar's row does (`SessionHomeRow`): 
 Under the title it says what the agent last wrote, or, while it waits for what it started, what for ("Waiting on pnpm build and 2 more", `waitingOnText`).
 The home shows the pull request and the lines whatever the Sidebar switches say: those are for the sidebar's rows.
 
-A session row's context menu (`sessionMenu` in `CarrierCore/ChatArchive.swift`, tested in `SessionMenuTests`) is in four groups: Stop (while it works), Pin (Unpin) and Mark as unread (Mark as read once it has the dot); Rename and Regenerate title; New session on its branch, Project settings…, Open in Terminal, Copy (path, branch name, session id) and, on the home, Filter; Archive (Restore for an archived one) and Delete….
+A session row's context menu (`sessionMenu` in `CarrierCore/Chat/ChatArchive.swift`, tested in `SessionMenuTests`) is in four groups: Stop (while it works), Pin (Unpin) and Mark as unread (Mark as read once it has the dot); Rename and Regenerate title; New session on its branch, Project settings…, Open in Terminal, Copy (path, branch name, session id) and, on the home, Filter; Archive (Restore for an archived one) and Delete….
 In the sidebar and on the home (`inWindow`) the menu also has Mark as unread, which forgets what the person saw of the session (`PanelModel.setUnread`), so it is unread again when it is idle and answered; it is off for the session that is open, since opening one marks it read. It is not in the Archive.
 New session on <branch> (or New session in this project for a session that works in the folder itself) opens the new session draft in the session's project with a worktree cut from that branch (`NewSessionModel.start(in:branch:)`: its local branch, else the remote one; a branch the folder no longer has leaves the draft as the project sets it). It sends nothing until the person writes a message. An archived session has none.
 Project settings… opens the project's page in Settings; it is only there when the session's folder is in Carrier's list of projects.
@@ -79,73 +79,11 @@ It keeps the changes in memory and refuses to archive or delete a working or wai
 
 ## Conversation
 
-Selecting a session (`.session(id:)`) shows its conversation (`Carrier/Features/Chat/ConversationView.swift`; the logic is in `CarrierCore/ChatConversation.swift` and `ConversationModel+*.swift`).
-While the view is on screen a task runs `ConversationModel.run()`, which asks the chat host for `events` by cursor every 250 ms while a turn runs and someone can see the window, every 2 s while the session is idle with the app in front, every 5 s idle with the window on screen behind another app, and about every 30 s while the window is hidden or the Mac asleep (`conversationWait`; a change of who is looking, or a send, cuts the wait short), in pages of at most 200 (a full page is followed at once by the next), and ends with the task when the person selects something else.
-These `events` are also what keeps that session's agent awake.
-The host closes an idle session that no request names for ten minutes by default (`idleCloseMinutes`, Settings › Sessions) (listing the sessions does not name it), so the one on screen stays and the others fall asleep, and sending to a sleeping one wakes it as before.
-The options and the commands are most of that reply and almost never change, so `SocketChatHost` keeps the ones of each session with the host's `listsRev` and sends it back; a host that lists `listsRev` leaves them out while they are the same, and the reply the model reads has the kept ones in them.
-The `session` summary of each reply says what the conversation needs of its session (its agent, whether it is in the archive, whether its agent process runs and what the agent waits for in the background), so a round asks for no list: `events` is the only request of a poll (`ConversationModel.round`).
-A host whose summary leaves out `live` (an older one) is still read from its lists, the active one and then the archive, as before.
-A summary that says `archived` is read as the archive list was: not live and with no background tasks, even when the host resumed the session and says `live`.
-The app opens no child session (the sessions it shows come from the list, which leaves children out), so a summary that always names its session loses nothing the list said.
-Two rounds never read at once: a poll asked for while another is under way (a send, an answer) makes that one go round again when it ends, and an event the cursor has passed is never added twice (`ConversationModel.poll`).
-`chatFeed` turns the events into rows: the person's messages (a bubble on the right), the agent's (markdown), a closing line per turn (model, how long, the context at the turn's end and the output tokens, each only when there: the context is the size of the turn's last model call that the host reports as `context_tokens`/`contextTokens`; for a turn with none it shows what the turn's calls read added up as `N in`, since that sum, which the tooltip breaks down, is many times the context: each call reads it all again; the host also sends `context_window`/`contextWindow`, the size of the model's window, which `contextUse` turns into the share the message box's ring draws), the agent's calls and thoughts in order as one work card per run (`ChatToolGroupView`: "Ran 3 commands", a node per call that opens to its output or its diff, "N failed"), an approval as one plain line completed by its answer, an error in red and, last, the `streaming` text as the message in progress.
-A `/clear` the person sent (a message that is only `/clear`) and the agent answered with nothing is drawn as a cut and not as an empty line of statistics (`chatFeed`'s `.cleared` row, `ContextCutDivider`, tested in `ChatConversationTests`): the person's own `/clear` bubble stays, and under it a fine line across with a glass capsule "Context cleared" and, when the turn before it said the context, "38.8k tokens freed" beside it, with a quiet line under it (`clearedDetail`): the messages above stay to read, but the agent no longer sees them. The host does not know of the clear, it only passes the command to the agent, so the app recognizes it by that text; a `/clear` that was answered, failed or stopped keeps its ordinary lines. After a clear the context in the message box's button is none until a turn tells it again (`contextUse`).
-A compaction is the same cut with its own words (`chatFeed`'s `.compacted` row from the host's `compact` event, `Compaction`, tested in `ChatConversationTests`): a capsule "Context compacted" with the context before and after ("142.3k → 18.4k tokens", `−87%`) and a quiet line that the agent goes on from a summary and the messages above stay to read. It is drawn for the person's `/compact` (under their bubble, instead of the empty line of statistics) and for the agent's own auto-compact, in the middle of its turn and with "auto" in the capsule; a failed one is the same cut in red, with "Compaction failed", and says the context is unchanged and why. The host takes it from the provider's own compact boundary, so the app does not read the command's text; a host that does not send it (or a Codex session) draws nothing. After one the message box's context is what it left, in the window of the turns before (`contextUse`).
-An event the host stored with a `parentCallId` was made inside a subagent: `chatFeed` does not draw it and no group counts it, and a `task` event is not drawn either.
-The launching `Agent` call is drawn as any other call until the subagent rows replace it, and a session stored before the change has no such events and looks as it did.
-While a run is live, its line starts with a **Kind chip** saying what the agent is waiting on (Thinking, Read, Search, Edit, Shell, the MCP server's name, or Needs you while an approval waits), and an MCP call reads as its server and tool name (with its arguments inside the opened step).
-The timer of a live line is the running call's own time, with the turn's beside it, quieter, while it is longer (the turn's alone while the agent thinks); a Shell or MCP call running for more than 30 seconds turns its timer amber until it ends.
-The Agent output tab's live line does the same, since it draws with the same view.
-Each subagent the agent launches is a **Subagent row** under the run that launched it: its type as a chip, its title (the description it was launched with), the step it is on, its steps and its timer, with a spinner while it runs, a tick when it finished, a red mark when it failed and a square when it was stopped.
-Several launched together each have a row, in the order they started, and the launching `Agent` call is not drawn as another tool.
-While any of a run's subagents runs, the run's line reads "N subagents · Waiting for them…", N being those running, and the finished run's summary counts "1 subagent" or "N subagents" apart from "other tools"; both keep following the subagents' events after the turn that launched them has ended, and a subagent that started and never ended shows as running while the session works and as stopped, in its row, in the parent's line and in its view, once it does not (the host restarted and lost it).
-A session stored before the host linked subagents to their calls shows no rows.
-Tapping a row opens its **Subagent view** over the conversation (it replaces the conversation: the conversation stays mounted but is not drawn, so none of it shows through and Back finds its feed as it was): `subagentWork` turns the stored events into its brief (the `prompt` of the launching call's input, as stored and cut), its calls, thoughts and messages as flow items, and the rows of the subagents it launched, which open one level deeper.
-The window's header then has a ‹ Back button next to the sidebar's, the subagent's description as the title, "<type> · Subagent of <session title>" under it, and its state (Running with a timer, Finished with its duration, Failed or Stopped) where the worktree pill is; the panel button stays.
-While the subagent runs, a Stop pill sits next to its state: it stops only that subagent and not the main agent, which reads that the subagent was interrupted and goes on.
-The pill asks the host (`stopTask`) and the view says Stopped, as the row does, when the host's `stopped` event arrives and not before; it is not offered once the subagent ended or by a host that does not list `stopTask`.
-The message box's Stop, which shows while the session works, interrupts the turn and then asks the host to stop each subagent still running (a host that does not list `stopTask` gets only the interrupt); the rows say Stopped as the events arrive.
-Back leaves one level, and so does choosing another session or page.
-Back from the last level puts the cursor in the message box again, as when the session opened.
-The place of the message box holds "Subagent work is read-only." and a ‹ Back to chat button, so nothing can be typed to it.
-While it runs, its live line is the conversation's, for it; once it ended or its session stopped working, a call that never ended shows stopped.
-Once the run finishes, its summary counts MCP calls apart from other tools.
-A poll that fails shows its reason under the feed and is logged once; polling goes on.
-
-The conversation's title bar is the window's: the title (`conversationTitle`, "New session" while the host has none), under it `conversationSubtitle` ("workspace · folder name" in a worktree, the workspace alone in a folder), on the right the place pill (`SessionPlacePill`: the branch checked out now for a worktree, "In the folder" otherwise) and the Open menu (`OpenMenu`, items from `openMenuItems`: Reveal in Finder, Copy path and, for a worktree, Copy branch name; a copy item says "Copied" for a moment).
-
-Markdown: SwiftUI's `AttributedString` parses what is inside a line (bold, italics, inline code, links) and covers what the agents write there; the blocks around it are `markdownBlocks` (`CarrierCore/SessionMarkdown.swift`), the line-by-line reader the epics' Agent output already used, which now also reads fenced code as a block of its own (language after the fence, an open fence runs to the end, as in a message being written).
-`CodeBlockView` draws it with the language and a Copy button (`CopyButton`, the one of the console blocks).
-Numbered lists and tables are not read as blocks: a numbered item shows as a line with its number.
-
-### Changing the agent
-
-The button at the left of the message box (`ComposerMenuButton`) opens a panel whose tabs are the host's agents, the session's own underlined. A tab only picks the agent (`ConversationModel.chooseAgent`: the pill shows it, picking the session's own again or another one costs nothing and the panel lists no options until it has taken over); the session changes to it with the next message (`deliver` asks the host's `switchAgent` first, [switch and delegate](../specs/switch-and-delegate-between-agents.md)), so the handoff goes out with the message it is for, and a refusal stops the message, says why and keeps the text in the box and the agent picked: the session keeps its transcript, folder and worktree, and the new agent goes on from a selection of the newest messages (up to 16,000 bytes, with the first one) and can read the rest through the chat MCP's `history`; its reasoning and tool state do not carry over. The transcript says it with a divider (`AgentSwitchDivider`, the feed's `.switched` row from the host's `switched` notice): a fine line across with a glass capsule on it holding the two agents, each with its mark, label and color as `providers.json` gives that account (`ProviderIdentityStore`) and the model it runs (the notice's `fromModel`, the old agent's own last turn, and `toModel`, the new conversation's own), and under it what the new one has of the conversation (`handoffDetail`). The tabs are off while the agent answers or a switch is under way, for an archived session and for a host that does not list `switchAgent`; an agent that is not installed or signed out is listed, off, with why. A refusal of the host (waiting for an approval, preparing, a model the harness does not list) is said in its words under the box. What was chosen for the old agent while the session was asleep is let go when another is picked.
-
-## The epic's Agent output
-
-The Agent output tab of an epic draws the agent's work with these same views.
-The engine's events (`ExecEvent`, from the harness parser) are turned into the chat's `ToolCall`s and `ToolGroup`s by `Transcript` and `flowItems` (`CarrierCore/TranscriptItems.swift`, `TranscriptFlow.swift`), so a run reads the same as in a session: one work card per run of calls, folded until opened (open already when Settings has Tool output on expanded), the agent's text as markdown, an error as the red banner.
-An edit with a diff shows as a call with its diff inside the card, as in a session.
-The newest run of a running session is live (shimmer, ring, glow), and a call that never ended in a session that is over shows as stopped.
-A thought is drawn if the events carry one (`reasoning`; today's parsers send none) and follows Settings, Show reasoning.
-What is only the epic's stays between the runs, in event order: notes (a change the agent published, "created 736 (main)", is a quiet line with the pull request as a link), skills as a row of their own, and a subagent's slice row, which opens its Subagent view.
-A harness with no parser shows its summarised `tail` lines instead.
-The calls are hidden when Tool output is hidden.
-
-## Context and limits beside the microphone
-
-Settings > Chat > Message box > Context and limits (`chat.showsContextUsage`, on by default) shows or hides it; off, the box has nothing beside the microphone.
-In an open session the message box has a ring left of the microphone (`ContextUsageButton`, [how it is drawn](../ui.md#the-ring-beside-the-microphone)): the outer ring is how full the context is, the inner one how much of the session's account has been used of its 5h limit.
-The context is the last turn that told it (`contextUse(rows)`: `context_tokens` over `context_window`, so a turn cut short leaves the one before); the limits are the account's, from the same quotas as the Usage page (`accountUsage(model.agent, …)`).
-The quotas are asked of the host when the ring appears, when a turn ends and when the popover opens, and never more than once a minute (`UsageStore.loadUnlessRecent`: the host keeps the quotas that long, and each ask also reads the history of what was used); the page's own minute timer is not on in a conversation.
-A session whose host does not send the window shows the tokens and no ring share; an account that is signed out says so instead of showing meters, and a host that did not answer says the limits could not be read.
-The tooltip and VoiceOver read the ring in words (`contextRingWords`): the window the inner ring follows by its name (5h, Weekly or Monthly), "near the limit" from 90 % and "limits last known" when stale, since the color and the dimming say that only to the eye.
+The conversation of a session, changing its agent and the context and limits beside the microphone are in [chat](chat.md); an epic's Agent output is in [epics](epics.md#the-epics-agent-output).
 
 ## How the app reads the chat host
 
-`ChatLink` (`CarrierCore/ChatLink.swift`) is the one reader of the chat host's socket, one per socket path (`ChatLink.link(for:)`), and `SocketChatHost` goes through it for what the app asks again and again: `list`, a conversation's `events`, the hello's capabilities (`capabilities()`) and the sessions' updates (`sessionUpdates()`).
+`ChatLink` (`CarrierCore/Connection/ChatLink.swift`) is the one reader of the chat host's socket, one per socket path (`ChatLink.link(for:)`), and `SocketChatHost` goes through it for what the app asks again and again: `list`, a conversation's `events`, the hello's capabilities (`capabilities()`) and the sessions' updates (`sessionUpdates()`).
 Everything else (`send`, `resume`, `usage`, a clone, `health`...) is an action and keeps one connection per request, as before.
 The host answers a connection one request at a time, so only requests that return at once go over the kept connection.
 Two costs are known and accepted.

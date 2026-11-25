@@ -4,7 +4,7 @@ The embedded Ghostty terminal in `Carrier.app`: standalone terminals in the side
 
 ## Standalone terminals
 
-The sidebar's `Terminal` section (`Carrier/TerminalSidebarView.swift`, `TerminalRows`) lists each standalone terminal instance (`TerminalOwner.terminal`), separate from chat sessions.
+The sidebar's `Terminal` section (`Carrier/Features/Terminal/TerminalSidebarView.swift`, `TerminalRows`) lists each standalone terminal instance (`TerminalOwner.terminal`), separate from chat sessions.
 Each standalone terminal keeps its own ordered list of tabs, active tab and split panes.
 Clicking `+` in the section header, "New Terminal Session" in the empty state (`EmptyState.noTerminals`) or "New Terminal" in the toolbar creates a new standalone terminal rooted at the home folder.
 When the `Terminal` section is unfolded and has at least one terminal, clicking its magnifier or pressing `⌘F` opens the sidebar's search field (`TerminalRows`).
@@ -61,6 +61,6 @@ Ephemeral `TerminalOwner.epic` tabs are excluded from both persistence export an
 
 What the person sees: [terminal](terminal.md).
 Pure rules (`Terminal{Core,SplitTree,Persistence,Settings,ZshBottomPromptShim}.swift`) are in `CarrierCore` (`TerminalCoreTests`, `TerminalZshBottomPromptShimTests`); Continue in Terminal's launch is `ContinueInTerminal.swift` (`embeddedResumeLaunch`).
-The AppKit runtime (`Carrier/Platform/Terminal{Host,Store*,Appearance,ProcessInspector}.swift`, `CarrierTerminalView.swift`, `Features/Terminal/TerminalConfirmationCopy.swift`) owns the `paneId`-keyed `GhosttyKit` surface cache, live settings reload, `ZDOTDIR` bottom-prompt preparation, `⌘K` scrollback clear and close confirmation; the views are the `Terminal*View.swift` files, `MainMenu.swift`, `PanelView.swift` and friends.
-Window selection and drawer state: `CarrierCore/WindowShell.swift` (`WindowShellTests`).
+The AppKit runtime (`Carrier/Platform/Terminal{Host,Store*,Appearance,ProcessInspector}.swift`, `CarrierTerminalView.swift`, `Carrier/Features/Terminal/TerminalConfirmationCopy.swift`) owns the `paneId`-keyed `GhosttyKit` surface cache, live settings reload, `ZDOTDIR` bottom-prompt preparation, `⌘K` scrollback clear and close confirmation; the views are the `Terminal…View` files of `Carrier/Features/Terminal`, `MainMenu.swift`, `PanelView.swift` and friends.
+Window selection and drawer state: `CarrierCore/Shell/WindowShell.swift` (`WindowShellTests`).
 `libghostty-spm` (`GhosttyTerminal`) is linked by `Carrier` only; `build-app.sh` and `scripts/check-app.sh` bundle and verify `GhosttyKit_GhosttyTerminal.bundle` and `THIRD-PARTY-NOTICES.md`.

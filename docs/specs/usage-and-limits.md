@@ -75,7 +75,7 @@ export const usageRequest = z.strictObject({
 });
 ```
 
-On the Swift side, navigation adds `Selection.usage` to [WindowShell.swift](../../macos/Sources/CarrierCore/WindowShell.swift) and pure pooling/filtering/formatting logic (`UsagePage.swift` / `UsageModels.swift`) lives in `CarrierCore` alongside `ChatHost.swift` decoders tolerant of omitted optional quota/override fields, while `UsageView.swift` under `macos/Sources/Carrier` remains a thin rendering layer reusing `SettingsPageHeader`, `SettingsTabCard`, `SettingsDivider`, `StatusMark`, `FilterChip`, and `ChoicePopUp` ([ui](../ui.md)).
+On the Swift side, navigation adds `Selection.usage` to [WindowShell.swift](../../macos/Sources/CarrierCore/Shell/WindowShell.swift) and pure pooling/filtering/formatting logic (`UsagePage.swift` / `UsageModels.swift`) lives in `CarrierCore` alongside `ChatHost.swift` decoders tolerant of omitted optional quota/override fields, while `UsageView.swift` under `macos/Sources/Carrier` remains a thin rendering layer reusing `SettingsPageHeader`, `SettingsTabCard`, `SettingsDivider`, `StatusMark`, `FilterChip`, and `ChoicePopUp` ([ui](../ui.md)).
 
 Testing seams, story by story:
 
@@ -84,7 +84,7 @@ Testing seams, story by story:
 - Story 3: Fixture tests on `src/usage/history.test.ts` and `src/usage/pricing.test.ts` over temp directories holding synthetic forked Claude JSONLs (`(message.id, requestId)` dedup), Codex duplicate `token_count` rollouts (`input - cached`), Antigravity SQLite/protobuf `.db` fixtures (`gen_metadata`/`steps`), temp `chat.db` + read-only `carrier.db` (`sessionId`/`nativeId` dedup and missing `carrier.db` fallback), and `lmstudio`/`ollama` `$0` tagging; plus a byte-offset append / guard-hash rewrite cache test.
 - Story 4: `src/chat/server.test.ts` and `src/chat/host.test.ts` covering schema validation (including invalid/negative `usageOverride` payloads), `hello.capabilities`, and end-to-end request/reply over `chat.sock`; `src/terminal/cli/args.test.ts`, `main.test.ts`, and `src/terminal/cli/commands/usage.test.ts` covering `carrier usage --json` and `--days/--provider/--source`.
 - Story 5: `CarrierCoreTests` (`SidebarTests` / `WindowShell` selection tests) pinning `Selection.usage` placement, non-regression on `OpenSection` (`sessions`, `carrier`, `archive`), and keyboard/selection state.
-- Stories 6 to 8: Pure model tests in `macos/Tests/CarrierCoreTests/UsagePageTests.swift` and `ChatHostUsageTests.swift` pinning provider pooling/sorting by earliest refill, hatched refill share calculation, `Unpriced` / override recalculation, account/source/provider/search filtering, and tolerant JSON decoding when an older `chat host` lacks `usage` capability.
+- Stories 6 to 8: Pure model tests in `macos/Tests/CarrierCoreTests/Usage/UsagePageTests.swift` and `UsageTests.swift` pinning provider pooling/sorting by earliest refill, hatched refill share calculation, `Unpriced` / override recalculation, account/source/provider/search filtering, and tolerant JSON decoding when an older `chat host` lacks `usage` capability.
 - Story 9: Refresh cadence / trigger controller test in `CarrierCoreTests` pinning cooldown (~60s cache respect vs `force`) and active-visibility gating; `UsageView.swift` itself has no UI test and is verified visually with `macos/build-app.sh --open` in dark and light themes.
 - Story 10: No tests; documentation / changelog check.
 

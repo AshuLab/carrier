@@ -13,93 +13,93 @@ struct NoticesGalleryView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Tokens.Space.s22) {
-                group("Over the message box") {
-                    item("A message held while the agent answers") {
-                        QueuedMessageCard(text: "Estaba pensando, es posible que dejemos el sistema de tal manera para que de un select se pueda elegir el theme de iconos? Podriamos de esa manera incluir lucide por ejemplo y algunos mas a futuro, como lo ves?", interrupts: false, edit: {}, sendNow: {}, cancel: {})
+                group(Copy.noticesGalleryGroupBox()) {
+                    item(Copy.noticesGalleryCaptionQueued()) {
+                        QueuedMessageCard(text: Copy.noticesGallerySampleQueuedLong(), interrupts: false, edit: {}, sendNow: {}, cancel: {})
                     }
-                    item("The same, when sending already stops the turn") {
-                        QueuedMessageCard(text: "Run the tests again.", interrupts: true, edit: {}, sendNow: {}, cancel: {})
+                    item(Copy.noticesGalleryCaptionQueuedInterrupts()) {
+                        QueuedMessageCard(text: Copy.noticesGallerySampleQueuedShort(), interrupts: true, edit: {}, sendNow: {}, cancel: {})
                     }
-                    item("A session that is asleep") { ClosedSessionNotice(chosen: false) }
-                    item("Asleep, with something chosen that waits for the wake") { ClosedSessionNotice(chosen: true) }
-                    item("An archived session") { ArchivedSessionNotice(resume: {}) }
-                    item("A question the agent asks") {
+                    item(Copy.noticesGalleryCaptionAsleep()) { ClosedSessionNotice(chosen: false) }
+                    item(Copy.noticesGalleryCaptionAsleepChosen()) { ClosedSessionNotice(chosen: true) }
+                    item(Copy.noticesGalleryCaptionArchived()) { ArchivedSessionNotice(resume: {}) }
+                    item(Copy.noticesGalleryCaptionQuestion()) {
                         QuestionCardView(
                             card: ApprovalCard(
                                 approvalId: "g-question", question: "AskUserQuestion", tool: "AskUserQuestion", choices: [],
                                 questions: [ChatQuestion(
-                                    question: "What does the cache have to survive?", header: "Durability",
+                                    question: Copy.noticesGallerySampleQuestion(), header: Copy.noticesGallerySampleQuestionHeader(),
                                     options: [
-                                        .init(label: "Nothing, it is only a speed-up", description: "A restart empties it and that is fine."),
-                                        .init(label: "A restart of one node", description: "The data lives on the others and comes back."),
+                                        .init(label: Copy.noticesGallerySampleOptionNothing(), description: Copy.noticesGallerySampleOptionNothingDetail()),
+                                        .init(label: Copy.noticesGallerySampleOptionNode(), description: Copy.noticesGallerySampleOptionNodeDetail()),
                                     ])]),
                             behind: 1, answer: { _, _, _ in })
                     }
-                    item("A permission the agent asks for") {
+                    item(Copy.noticesGalleryCaptionApproval()) {
                         ApprovalCardView(
                             card: ApprovalCard(
-                                approvalId: "g-approval", question: "Allow Bash?", tool: "Bash", arg: "pnpm install --frozen-lockfile",
+                                approvalId: "g-approval", question: Copy.noticesGallerySampleApprovalQuestion(), tool: "Bash", arg: "pnpm install --frozen-lockfile",
                                 choices: [
-                                    ChatChoice(id: "allow", label: "Yes", allow: true),
-                                    ChatChoice(id: "always", label: "Yes, and do not ask again for pnpm commands", allow: true),
-                                    ChatChoice(id: "deny", label: "No, tell the agent what to do differently", allow: false),
+                                    ChatChoice(id: "allow", label: Copy.noticesGallerySampleChoiceYes(), allow: true),
+                                    ChatChoice(id: "always", label: Copy.noticesGallerySampleChoiceAlways(), allow: true),
+                                    ChatChoice(id: "deny", label: Copy.noticesGallerySampleChoiceNo(), allow: false),
                                 ]),
                             behind: 0, answer: { _, _ in })
                     }
-                    item("Work the agent waits for in the background") {
+                    item(Copy.noticesGalleryCaptionBackground()) {
                         BackgroundWorkCard(
                             tasks: [
-                                BackgroundTask(id: "b1", kind: "monitor", description: "Watching the deploy of the staging branch", startedAt: Date().addingTimeInterval(-340)),
+                                BackgroundTask(id: "b1", kind: "monitor", description: Copy.noticesGallerySampleTaskDeploy(), startedAt: Date().addingTimeInterval(-340)),
                                 BackgroundTask(id: "b2", kind: "shell", description: "pnpm test --watch", startedAt: Date().addingTimeInterval(-95)),
                             ], stop: {}, stopTask: { _ in })
                     }
-                    item("A new session: uncommitted files") {
-                        UncommittedNotice(title: "3 files have uncommitted changes", detail: "A worktree keeps them out of the agent's way.", offersWorktree: true, useWorktree: {})
+                    item(Copy.noticesGalleryCaptionUncommitted()) {
+                        UncommittedNotice(title: Copy.noticesGallerySampleUncommittedTitle(), detail: Copy.noticesGallerySampleUncommittedDetail(), offersWorktree: true, useWorktree: {})
                     }
                 }
-                group("A new session, and the home of Sessions") {
-                    item("No provider can start a session") {
-                        ProblemNotice(sentences: "No provider can start a session: claude is signed out, codex is not installed.")
+                group(Copy.noticesGalleryGroupNewSession()) {
+                    item(Copy.noticesGalleryCaptionNoProvider()) {
+                        ProblemNotice(sentences: Copy.noticesGallerySampleNoProvider())
                     }
-                    item("The chat host is older than the app") { ProblemNotice(sentences: Copy.newSessionOlderHost()) }
-                    item("The send was refused: not signed in") {
-                        FailureBannerView(banner: refusalBanner(agent: "claude", reason: Refusal(code: "agent.notLoggedIn", params: ["agent": "Claude"], text: "Claude is not logged in; run `claude` once to log in")), agent: "claude", copyDetails: false, retry: nil)
+                    item(Copy.noticesGalleryCaptionOlderHost()) { ProblemNotice(sentences: Copy.newSessionOlderHost()) }
+                    item(Copy.noticesGalleryCaptionNotSignedIn()) {
+                        FailureBannerView(banner: refusalBanner(agent: "claude", reason: notLoggedIn), agent: "claude", copyDetails: false, retry: nil)
                     }
-                    item("The worktree's name cannot be used") { ProblemNotice(title: "That name cannot be used", detail: "A branch named feat/login already exists.") }
-                    item("The folder cannot be used") { ProblemNotice(title: "Couldn't use this folder", detail: "It is not a git repository, so it has no worktrees.", failed: true) }
-                    item("The chat host should be restarted (home of Sessions)") {
+                    item(Copy.noticesGalleryCaptionNameUnusable()) { ProblemNotice(title: Copy.newSessionNameCannotBeUsed(), detail: Copy.noticesGallerySampleNameUnusableDetail()) }
+                    item(Copy.noticesGalleryCaptionFolderUnusable()) { ProblemNotice(title: Copy.newSessionFolderFailed(), detail: Copy.noticesGallerySampleFolderUnusableDetail(), failed: true) }
+                    item(Copy.noticesGalleryCaptionRestartHost()) {
                         ProblemNotice(title: chatHostRestartNotice().title, detail: chatHostRestartNotice().line, symbol: .refresh)
                     }
                 }
-                group("In the conversation and under the box") {
-                    item("A turn that failed (the last one: it can be tried again)") {
+                group(Copy.noticesGalleryGroupConversation()) {
+                    item(Copy.noticesGalleryCaptionTurnFailedLast()) {
                         FailureBannerView(
-                            banner: failedTurnBanner(agent: "claude", error: "The provider closed the connection before the answer was complete."),
+                            banner: failedTurnBanner(agent: "claude", error: Copy.noticesGallerySampleTurnFailed()),
                             agent: "claude", copyDetails: true, retry: {})
                     }
-                    item("A turn that failed, no longer the last: a record") {
-                        FailureBannerView(banner: failedTurnBanner(agent: "claude", error: "The provider closed the connection before the answer was complete."), agent: "claude", copyDetails: true, retry: nil)
+                    item(Copy.noticesGalleryCaptionTurnFailedRecord()) {
+                        FailureBannerView(banner: failedTurnBanner(agent: "claude", error: Copy.noticesGallerySampleTurnFailed()), agent: "claude", copyDetails: true, retry: nil)
                     }
-                    item("A send the provider refuses: not signed in") {
+                    item(Copy.noticesGalleryCaptionSendRefused()) {
                         FailureBannerView(
-                            banner: refusalBanner(agent: "claude", reason: Refusal(code: "agent.notLoggedIn", params: ["agent": "Claude"], text: "Claude is not logged in; run `claude` once to log in")),
+                            banner: refusalBanner(agent: "claude", reason: notLoggedIn),
                             agent: "claude", copyDetails: false, retry: {})
                     }
-                    item("A refusal in words (the host said no)") {
-                        ProblemNotice(text: "This session is waiting for an approval; interrupt it or wait, then switch its agent")
+                    item(Copy.noticesGalleryCaptionRefusalWords()) {
+                        ProblemNotice(text: Copy.noticesGallerySampleRefusalWords())
                     }
-                    item("A session that could not be read") { ProblemNotice(text: "The chat host did not answer.", failed: true) }
-                    item("A dictation that failed, under the box") { ProblemNotice(title: "Dictation did not work", detail: "The microphone is in use by another app.", failed: true) }
+                    item(Copy.noticesGalleryCaptionUnreadable()) { ProblemNotice(text: Copy.projectsHostNoAnswer(), failed: true) }
+                    item(Copy.noticesGalleryCaptionDictationFailed()) { ProblemNotice(title: Copy.chatDictationFailed(), detail: Copy.noticesGallerySampleDictationDetail(), failed: true) }
                 }
-                group("On an epic's page") {
-                    item("A stopped epic that needs a person") {
+                group(Copy.noticesGalleryGroupEpic()) {
+                    item(Copy.noticesGalleryCaptionEpicStopped()) {
                         ResumeCardView(
-                            card: ResumeCard(title: "Review limit reached", words: "Resuming gives it another round of review.", attention: .input, sheet: ["It runs again from the review stage."], showsButton: true),
+                            card: ResumeCard(title: Copy.noticesGallerySampleEpicStoppedTitle(), words: Copy.noticesGallerySampleEpicStoppedWords(), attention: .input, sheet: [Copy.noticesGallerySampleEpicStoppedSheet()], showsButton: true),
                             store: EpicStore(), epic: EpicRef(repo: "AshuLab/carrier", issue: 12))
                     }
-                    item("A stopped epic that failed") {
+                    item(Copy.noticesGalleryCaptionEpicFailed()) {
                         ResumeCardView(
-                            card: ResumeCard(title: "Retries exhausted", words: "Resuming starts the execution again from where it stopped.", attention: .error, sheet: ["It runs again."], showsButton: true),
+                            card: ResumeCard(title: Copy.noticesGallerySampleEpicFailedTitle(), words: Copy.noticesGallerySampleEpicFailedWords(), attention: .error, sheet: [Copy.noticesGallerySampleEpicFailedSheet()], showsButton: true),
                             store: EpicStore(), epic: EpicRef(repo: "AshuLab/carrier", issue: 13))
                     }
                 }
@@ -108,6 +108,12 @@ struct NoticesGalleryView: View {
             .frame(maxWidth: messageWidth.points, alignment: .leading).frame(maxWidth: .infinity)
         }
         .scaledFont(13)
+    }
+
+    /// The refusal of a provider that is not signed in: the code the host gives, and its words in the language of the app.
+    private var notLoggedIn: Refusal {
+        let params: [String: TextParam] = ["agent": "Claude"]
+        return Refusal(code: "agent.notLoggedIn", params: params, text: Copy.text("agent.notLoggedIn", params) ?? "")
     }
 
     private func group<Content: View>(_ title: String, @ViewBuilder _ content: () -> Content) -> some View {

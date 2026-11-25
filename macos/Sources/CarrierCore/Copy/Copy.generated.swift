@@ -11472,4 +11472,596 @@ public enum Copy {
     public static func choiceOutputLines(lines: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
         String(localized: "choiceOutputLines \(lines)", bundle: bundle ?? carrierResources, locale: locale)
     }
+
+    public static func settingsIndexGeneralAnimateTheIconDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexGeneralAnimateTheIconDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexProvidersAccountsThatNeedAttentionDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexProvidersAccountsThatNeedAttentionDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexProvidersAiProvidersDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexProvidersAiProvidersDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexProvidersLocalServersDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexProvidersLocalServersDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexProvidersTextGeneratorsDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexProvidersTextGeneratorsDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexAppearanceThemeDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexAppearanceThemeDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexAppearanceTextSizeDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexAppearanceTextSizeDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexAppearanceIconSetDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexAppearanceIconSetDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexAppearanceIconWeightDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexAppearanceIconWeightDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexNotificationsDockBadgeDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexNotificationsDockBadgeDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexNotificationsRemindMeAgainDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexNotificationsRemindMeAgainDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexNotificationsQuietHoursDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexNotificationsQuietHoursDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexNotificationsUntilDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexNotificationsUntilDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexNotificationsSystemPermissionDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexNotificationsSystemPermissionDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexDictationMicrophoneDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexDictationMicrophoneDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexDictationSpeechModelsDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexDictationSpeechModelsDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexDictationLanguageDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexDictationLanguageDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexDictationKeepTheSpeechModelReadyDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexDictationKeepTheSpeechModelReadyDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexDictationReleaseTheModelAfterDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexDictationReleaseTheModelAfterDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexDictationDownloadedModelsDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexDictationDownloadedModelsDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexDictationDictateInAnyAppDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexDictationDictateInAnyAppDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexDictationAccessibilityDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexDictationAccessibilityDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexDictationShortcutDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexDictationShortcutDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexDictationActivationDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexDictationActivationDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexDictationWidgetStyleDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexDictationWidgetStyleDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexDictationWidgetThemeDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexDictationWidgetThemeDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexDictationLiveTextDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexDictationLiveTextDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexDictationPositionDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexDictationPositionDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexDictationServerDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexDictationServerDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexDictationModelDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexDictationModelDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexDictationPromptDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexDictationPromptDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexDictationTryItDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexDictationTryItDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexDictationEndSoundDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexDictationEndSoundDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexDictationVolumeDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexDictationVolumeDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexDictationKeepTheTextOfMyDictationsDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexDictationKeepTheTextOfMyDictationsDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexDictationKeepTheAudioDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexDictationKeepTheAudioDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexDictationAudioOnDiskDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexDictationAudioOnDiskDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexDictationOverviewDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexDictationOverviewDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexDictationByHourOfTheDayDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexDictationByHourOfTheDayDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexDictationThisWeekDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexDictationThisWeekDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexDictationRecordsDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexDictationRecordsDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexDictationTypingSpeedDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexDictationTypingSpeedDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexDictationResetStatisticsDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexDictationResetStatisticsDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexKeepAwakeNowDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexKeepAwakeNowDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexKeepAwakeKeepTheScreenOnDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexKeepAwakeKeepTheScreenOnDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexKeepAwakeShortcutDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexKeepAwakeShortcutDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexKeepAwakeKeepAwakeWhileAgentsWorkDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexKeepAwakeKeepAwakeWhileAgentsWorkDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexKeepAwakeOnBatteryDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexKeepAwakeOnBatteryDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexKeepAwakeTellMeWhenItStopsByItselfDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexKeepAwakeTellMeWhenItStopsByItselfDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexChatMessageTimesDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexChatMessageTimesDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexChatOpenTheCallsThatFailedDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexChatOpenTheCallsThatFailedDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexChatShowReasoningDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexChatShowReasoningDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexChatMessageTextSizeDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexChatMessageTextSizeDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexChatLineSpacingDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexChatLineSpacingDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexSessionsStartFromDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexSessionsStartFromDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexSessionsSleepAfterDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexSessionsSleepAfterDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexSessionsWithTheseAgesDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexSessionsWithTheseAgesDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexSidebarPullRequestDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexSidebarPullRequestDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexSidebarLinesChangedDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexSidebarLinesChangedDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexSidebarAgeDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexSidebarAgeDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexTerminalMinimumContrastDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexTerminalMinimumContrastDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexTerminalHorizontalPaddingDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexTerminalHorizontalPaddingDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexTerminalVerticalPaddingDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexTerminalVerticalPaddingDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexAgentsCreateABotDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexAgentsCreateABotDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexAgentsUseALeadReviewerDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexAgentsUseALeadReviewerDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexAgentsIdentityDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexAgentsIdentityDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexAgentsModelDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexAgentsModelDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexAgentsNotUsedByTheEngineYetDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexAgentsNotUsedByTheEngineYetDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexWatchingEpicsDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexWatchingEpicsDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexWatchingLastCheckDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexWatchingLastCheckDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexWatchingReadyForCarrierDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexWatchingReadyForCarrierDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexWatchingWhoWorksHereDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexWatchingWhoWorksHereDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexWatchingProjectDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexWatchingProjectDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexWatchingCloneDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexWatchingCloneDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexWatchingOnGithubDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexWatchingOnGithubDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexWatchingStopWatchingDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexWatchingStopWatchingDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexEngineCarrierTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexEngineCarrierTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexEngineCarrierDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexEngineCarrierDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexEngineNodeTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexEngineNodeTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexEngineNodeDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexEngineNodeDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexEnginePathTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexEnginePathTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexEnginePathDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexEnginePathDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexEngineLookAgainDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexEngineLookAgainDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexEngineOrchestratorProfileDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexEngineOrchestratorProfileDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexHealthThisMacDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexHealthThisMacDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexHealthChatHostDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexHealthChatHostDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexHealthEngineDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexHealthEngineDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexHealthEngineSetupDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexHealthEngineSetupDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexAboutUpdateDelayDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexAboutUpdateDelayDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexAboutEngineAndChatHostDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexAboutEngineAndChatHostDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexSessionsSleepAfterKeywords(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexSessionsSleepAfterKeywords", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexShortcutDefault(combo: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexShortcutDefault \(combo)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexShortcutNone(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexShortcutNone", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexAgentStage(detail: String, skill: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexAgentStage \(detail) \(skill)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func noticesGalleryGroupBox(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "noticesGalleryGroupBox", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func noticesGalleryGroupNewSession(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "noticesGalleryGroupNewSession", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func noticesGalleryGroupConversation(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "noticesGalleryGroupConversation", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func noticesGalleryGroupEpic(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "noticesGalleryGroupEpic", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func noticesGalleryCaptionQueued(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "noticesGalleryCaptionQueued", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func noticesGalleryCaptionQueuedInterrupts(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "noticesGalleryCaptionQueuedInterrupts", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func noticesGalleryCaptionAsleep(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "noticesGalleryCaptionAsleep", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func noticesGalleryCaptionAsleepChosen(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "noticesGalleryCaptionAsleepChosen", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func noticesGalleryCaptionArchived(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "noticesGalleryCaptionArchived", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func noticesGalleryCaptionQuestion(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "noticesGalleryCaptionQuestion", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func noticesGalleryCaptionApproval(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "noticesGalleryCaptionApproval", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func noticesGalleryCaptionBackground(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "noticesGalleryCaptionBackground", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func noticesGalleryCaptionUncommitted(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "noticesGalleryCaptionUncommitted", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func noticesGalleryCaptionNoProvider(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "noticesGalleryCaptionNoProvider", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func noticesGalleryCaptionOlderHost(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "noticesGalleryCaptionOlderHost", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func noticesGalleryCaptionNotSignedIn(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "noticesGalleryCaptionNotSignedIn", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func noticesGalleryCaptionNameUnusable(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "noticesGalleryCaptionNameUnusable", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func noticesGalleryCaptionFolderUnusable(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "noticesGalleryCaptionFolderUnusable", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func noticesGalleryCaptionRestartHost(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "noticesGalleryCaptionRestartHost", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func noticesGalleryCaptionTurnFailedLast(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "noticesGalleryCaptionTurnFailedLast", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func noticesGalleryCaptionTurnFailedRecord(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "noticesGalleryCaptionTurnFailedRecord", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func noticesGalleryCaptionSendRefused(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "noticesGalleryCaptionSendRefused", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func noticesGalleryCaptionRefusalWords(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "noticesGalleryCaptionRefusalWords", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func noticesGalleryCaptionUnreadable(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "noticesGalleryCaptionUnreadable", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func noticesGalleryCaptionDictationFailed(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "noticesGalleryCaptionDictationFailed", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func noticesGalleryCaptionEpicStopped(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "noticesGalleryCaptionEpicStopped", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func noticesGalleryCaptionEpicFailed(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "noticesGalleryCaptionEpicFailed", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func noticesGallerySampleQueuedLong(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "noticesGallerySampleQueuedLong", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func noticesGallerySampleQueuedShort(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "noticesGallerySampleQueuedShort", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func noticesGallerySampleQuestion(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "noticesGallerySampleQuestion", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func noticesGallerySampleQuestionHeader(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "noticesGallerySampleQuestionHeader", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func noticesGallerySampleOptionNothing(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "noticesGallerySampleOptionNothing", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func noticesGallerySampleOptionNothingDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "noticesGallerySampleOptionNothingDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func noticesGallerySampleOptionNode(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "noticesGallerySampleOptionNode", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func noticesGallerySampleOptionNodeDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "noticesGallerySampleOptionNodeDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func noticesGallerySampleApprovalQuestion(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "noticesGallerySampleApprovalQuestion", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func noticesGallerySampleChoiceYes(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "noticesGallerySampleChoiceYes", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func noticesGallerySampleChoiceAlways(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "noticesGallerySampleChoiceAlways", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func noticesGallerySampleChoiceNo(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "noticesGallerySampleChoiceNo", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func noticesGallerySampleTaskDeploy(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "noticesGallerySampleTaskDeploy", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func noticesGallerySampleUncommittedTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "noticesGallerySampleUncommittedTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func noticesGallerySampleUncommittedDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "noticesGallerySampleUncommittedDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func noticesGallerySampleNoProvider(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "noticesGallerySampleNoProvider", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func noticesGallerySampleNameUnusableDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "noticesGallerySampleNameUnusableDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func noticesGallerySampleFolderUnusableDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "noticesGallerySampleFolderUnusableDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func noticesGallerySampleTurnFailed(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "noticesGallerySampleTurnFailed", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func noticesGallerySampleRefusalWords(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "noticesGallerySampleRefusalWords", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func noticesGallerySampleDictationDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "noticesGallerySampleDictationDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func noticesGallerySampleEpicStoppedTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "noticesGallerySampleEpicStoppedTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func noticesGallerySampleEpicStoppedWords(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "noticesGallerySampleEpicStoppedWords", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func noticesGallerySampleEpicStoppedSheet(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "noticesGallerySampleEpicStoppedSheet", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func noticesGallerySampleEpicFailedTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "noticesGallerySampleEpicFailedTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func noticesGallerySampleEpicFailedWords(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "noticesGallerySampleEpicFailedWords", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func noticesGallerySampleEpicFailedSheet(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "noticesGallerySampleEpicFailedSheet", bundle: bundle ?? carrierResources, locale: locale)
+    }
 }

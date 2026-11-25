@@ -30,10 +30,10 @@ import Testing
 
     private static let rowViews = "SettingsTabRow|SettingsStackedRow|SettingsGroup|NavigationRow|ShortcutRecorderRow"
 
-    private static func matches(_ pattern: String, in text: String) throws -> [String] {
+    private static func matches(_ pattern: String, in text: String, group: Int = 1) throws -> [String] {
         let regex = try NSRegularExpression(pattern: pattern)
         return regex.matches(in: text, range: NSRange(text.startIndex..., in: text)).compactMap { match in
-            Range(match.range(at: 1), in: text).map { String(text[$0]) }
+            Range(match.range(at: group), in: text).map { String(text[$0]) }
         }
     }
 
@@ -84,6 +84,36 @@ import Testing
         // a title is not what pairs them: the same identifier with another title is the same row
         let renamed = SettingsEntry(page: .general, groupID: "menu-bar", group: "Barra", rowID: "icon-style", title: "Estilo")
         #expect(Self.drawnWithNoEntry(["icon-style", "menu-bar"], entries: [renamed]).isEmpty && Self.entriesNoViewDraws(["icon-style"], entries: [renamed]).isEmpty)
+    }
+
+    /// The keys of a language's file of design/copy/.
+    private static func copyKeys(_ language: String) throws -> Set<String> {
+        let data = try Data(contentsOf: testPaths().root.appendingPathComponent("design/copy/\(language).json"))
+        return Set(try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any]).keys)
+    }
+
+    @Test func everyKeyAnEntryUsesIsAKeyOfTheEnglishAndTheSpanishCatalog() throws {
+        let entries = buildSettingsIndex(bundle: Copy.bundle("en"), locale: Locale(identifier: "en_US")) + buildSettingsIndex(bundle: Copy.bundle("es"), locale: Locale(identifier: "es_AR"))
+        let used = Set(entries.flatMap(\.copyKeys))
+        #expect(used.count > 100, "the entries name the keys they read their words from")
+        for language in ["en", "es"] {
+            let missing = used.subtracting(try Self.copyKeys(language)).sorted()
+            #expect(missing.isEmpty, "used by an entry of settingsIndex and not in design/copy/\(language).json: \(missing)")
+        }
+    }
+
+    @Test func theGroupTheTitleAndTheDetailOfEveryRowAreKeysAndNeverWords() throws {
+        // the words of the index are copy keys: the group of a `page(...)` call and the title and detail of a row tuple are names of keys, of one word or of many
+        let file = try String(contentsOf: Self.sources.appendingPathComponent("CarrierCore/Settings/SettingsIndex.swift"), encoding: .utf8)
+        let code = file.split(separator: "\n").filter { $0.trimmingCharacters(in: .whitespaces).hasPrefix("//") == false }.joined(separator: "\n")
+        let literal = #""((?:[^"\\\n]|\\.)*)""#
+        let groups = try Self.matches(#"(?:page|screen)\(\.\w+,\s*\#(literal),\s*\#(literal)"#, in: code, group: 2)
+        let titles = try Self.matches(#"\(\s*\#(literal),\s*\#(literal),\s*\#(literal)\)"#, in: code, group: 2)
+        let details = try Self.matches(#"\(\s*\#(literal),\s*\#(literal),\s*\#(literal)\)"#, in: code, group: 3)
+        #expect(groups.count > 50 && titles.count > 100 && titles.count == details.count, "the calls and the rows of the index were read")
+        let keys = try Self.copyKeys("en")
+        let words = (groups + titles + details).filter { $0.isEmpty == false && keys.contains($0) == false }
+        #expect(words.isEmpty, "in SettingsIndex.swift a group, title or detail that is not a key of design/copy/en.json (give it one): \(words)")
     }
 
     @Test func readingAnEmptyFolderFails() throws {

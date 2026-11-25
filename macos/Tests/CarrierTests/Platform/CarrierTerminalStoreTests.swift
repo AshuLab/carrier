@@ -731,7 +731,8 @@ struct CarrierTerminalStoreTests {
         // Overlapping close triggers on the same pane while inspection is in flight must produce only one prompt.
         state.onClose?(true)
         state.onClose?(true)
-        #expect(await waitUntil { prompts.count == 1 })
+        // The first prompt comes after the inspection (60 ms here). The wait is wide because the real terminal can keep the main actor busy for seconds on a CI runner (this test took 9-28 s there), and a 1 s window failed on it.
+        #expect(await waitUntil(timeoutSeconds: 10) { prompts.count >= 1 })
         try? await Task.sleep(nanoseconds: 120_000_000)
         #expect(prompts.count == 1)
         #expect(store.pane(id: paneId) != nil)

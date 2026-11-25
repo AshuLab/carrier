@@ -1,3 +1,4 @@
+import CarrierCore
 import SwiftUI
 
 /// Every other button of Settings: a quiet capsule in the neutral, so the one in the accent (`PrimaryCapsuleButtonStyle`: Done, Save) is
@@ -17,7 +18,7 @@ public struct SecondaryCapsuleButtonStyle: ButtonStyle {
             let small = size == .small || size == .mini
             configuration.label.scaledFont(small ? 12 : 13, weight: .medium)
                 .foregroundStyle(enabled ? Color.primary : Color.secondary)
-                .padding(.horizontal, small ? 11 : 16).padding(.vertical, small ? 3 : 6)
+                .padding(.horizontal, small ? Tokens.Space.s11 : Tokens.Space.s16).padding(.vertical, small ? Tokens.Space.s3 : Tokens.Space.s6)
                 .background(Capsule().fill(Color.primary.opacity(configuration.isPressed ? 0.2 : hovered ? 0.15 : 0.09)))
                 .overlay(Capsule().strokeBorder(Color.primary.opacity(0.1), lineWidth: 0.5))
                 .opacity(enabled ? 1 : 0.5)

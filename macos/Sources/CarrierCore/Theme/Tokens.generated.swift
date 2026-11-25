@@ -65,7 +65,9 @@ public enum Tokens {
         public static let s5: Double = 5
         public static let s6: Double = 6
         public static let s8: Double = 8
+        public static let s9: Double = 9
         public static let s10: Double = 10
+        public static let s11: Double = 11
         public static let s12: Double = 12
         public static let s14: Double = 14
         public static let s16: Double = 16

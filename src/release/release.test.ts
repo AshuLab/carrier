@@ -105,12 +105,13 @@ describe('release.yml, the two architectures', () => {
   });
 });
 
-describe('_macos.yml, the pull request check of the bundle', () => {
-  const macos = readFileSync(join(import.meta.dirname, '../../.github/workflows/_macos.yml'), 'utf8');
+describe('macos-bundle.yml, the pull request check of the bundle', () => {
+  const bundle = readFileSync(join(import.meta.dirname, '../../.github/workflows/macos-bundle.yml'), 'utf8');
 
   it('checks the bundle of both architectures, so a change that breaks the Intel one fails before a release', () => {
-    expect(macos).toMatch(/matrix:\n\s+arch: \[arm64, x86_64\]/);
-    expect(macos).toContain("CARRIER_ARCH: ${{ matrix.arch == 'x86_64' && 'x86_64' || '' }}");
+    expect(bundle).toContain('name: Bundle (arm64)');
+    expect(bundle).toContain('name: Bundle (x86_64)');
+    expect(bundle).toContain('CARRIER_ARCH: x86_64');
   });
 });
 

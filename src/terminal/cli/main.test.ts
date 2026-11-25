@@ -10,7 +10,8 @@ import { connectControl } from './control-client.ts';
 import { pidAt } from './detached.ts';
 
 const main = join(import.meta.dirname, 'main.ts');
-const processName = (pid: number) => spawnSync('ps', ['-p', String(pid), '-o', 'comm='], { encoding: 'utf8' }).stdout.trim();
+// `args`, not `comm`: Linux cuts `comm` to 15 characters ("carrier-chat-ho")
+const processName = (pid: number) => spawnSync('ps', ['-p', String(pid), '-o', 'args='], { encoding: 'utf8' }).stdout.trim().split(/\s/)[0];
 const dir = mkdtempSync(join(tmpdir(), 'carrier-cli-'));
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
 

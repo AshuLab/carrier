@@ -37,9 +37,9 @@ The same steps serve the engine's `control.sock` and the chat host's `chat.sock`
    A new capability changes `macos/Tests/Fixtures/capabilities.json` (`capabilities-contract.test.ts`); `ContractTests.swift` then fails until Swift has its case.
 7. Swift, under `macos/`:
    the case on `ControlClient.Capability` in `Sources/CarrierCore/ControlClient.swift`, shared by engine and chat (unknown names are dropped silently, so a missing case means the feature never shows);
-   the request in `Sources/CarrierCore/ControlRequests.swift` (engine) or `ChatHost.swift` (chat);
-   the reply type in `Sources/CarrierCore/Replies.swift` (chat replies live in `ChatHost.swift`, `UsageModels.swift` and the like);
-   both hard-coded lists in `Sources/CarrierCore/FixtureServer.swift` (`chatHello` and the engine's `names`) plus its handler, and `Tests/CarrierCoreTests/FixtureServerTests.swift`;
+   the request in `Sources/CarrierCore/ControlRequests.swift` (engine) or `ChatHost.swift` and `SocketChatHost.swift` (chat);
+   the reply type in `Sources/CarrierCore/Replies.swift` (chat replies live in `ChatHostModels.swift`, `ChatHostReplies.swift`, `UsageModels.swift` and the like);
+   both hard-coded lists in `Sources/CarrierCore/FixtureServer.swift` (`chatHello` and the engine's `names`) plus its handlers (`FixtureServer+Chat.swift`, `FixtureServer+ChatRequests.swift`), and `Tests/CarrierCoreTests/FixtureServerTests.swift`;
    tests in `Tests/CarrierCoreTests/` (`ControlRequestsTests`, `ChatHostTests`, `RepliesTests`, `ControlClientTests`).
 8. Docs: the capability list above, the `--fixture` paragraph of `macos/README.md` when the fixture server answers it, the feature's spec and `CHANGELOG.md`.
 

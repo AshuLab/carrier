@@ -82,7 +82,7 @@ private func retry(_ kept: Kept, scratch: Scratch) -> StartRetry {
     let scratch = try Scratch()
     let log = (1...40).map { "line \($0)" }.joined(separator: "\n")
     let runner = FakeProcessRunner(spawns: [.init(exitCode: 3, log: log)])
-    let failure = try #require(await launcher(runner, FakeSocket(open: false)).launch(scratch.command()))
+    let failure = try #require(await launcher(runner, FakeSocket(open: false)).launch(scratch.command(), bundle: english.bundle, locale: english.locale))
     #expect(failure.reason == "Carrier exited with code 3 before it opened its control socket.")
     #expect(failure.tail.hasPrefix("line 11") && failure.tail.hasSuffix("line 40"))
     #expect(runner.shellAsked == 0)
@@ -102,7 +102,7 @@ private func retry(_ kept: Kept, scratch: Scratch) -> StartRetry {
         func detectShell() async -> Detection? { nil }
     }
     let scratch = try Scratch()
-    let failure = try #require(await CarrierLauncher(runner: Refusing(), socket: FakeSocket(open: false), poll: .milliseconds(1)).launch(scratch.command(), name: "The chat host"))
+    let failure = try #require(await CarrierLauncher(runner: Refusing(), socket: FakeSocket(open: false), poll: .milliseconds(1)).launch(scratch.command(), name: "The chat host", bundle: english.bundle, locale: english.locale))
     #expect(failure.reason.hasPrefix("The chat host could not be started:") && failure.tail == "(the start log is empty)")
 }
 
@@ -124,7 +124,7 @@ private func retry(_ kept: Kept, scratch: Scratch) -> StartRetry {
 @Test func aMissingToolIsNotTriedAgainWhenTheShellGivesTheSameCommand() async throws {
     let scratch = try Scratch()
     let runner = FakeProcessRunner(spawns: [.init(exitCode: 1, log: "spawn agent-forge ENOENT")], detection: Detection(node: nil, path: "/old"))
-    let failure = try #require(await launcher(runner, FakeSocket(open: false)).launch(scratch.command(path: "/old"), retry: retry(Kept(), scratch: scratch)))
+    let failure = try #require(await launcher(runner, FakeSocket(open: false)).launch(scratch.command(path: "/old"), retry: retry(Kept(), scratch: scratch), bundle: english.bundle, locale: english.locale))
     #expect(runner.spawned.count == 1 && runner.shellAsked == 1)
     #expect(failure.reason.hasSuffix("agent-forge is not on the PATH of your shell either, which was read again just now. Install it, or add its folder to the PATH of your shell, and start again."))
 }
@@ -132,13 +132,21 @@ private func retry(_ kept: Kept, scratch: Scratch) -> StartRetry {
 @Test func aMissingToolWithAShellThatDoesNotAnswerSaysSoAndStartsNothingMore() async throws {
     let scratch = try Scratch()
     let runner = FakeProcessRunner(spawns: [.init(exitCode: 1, log: "spawn agent-forge ENOENT")], detection: nil)
-    let failure = try #require(await launcher(runner, FakeSocket(open: false)).launch(scratch.command(), retry: retry(Kept(), scratch: scratch)))
-    #expect(runner.spawned.count == 1 && failure.reason.hasSuffix(toolNotFoundText("agent-forge", shellAnswered: false)))
+    let failure = try #require(await launcher(runner, FakeSocket(open: false)).launch(scratch.command(), retry: retry(Kept(), scratch: scratch), bundle: english.bundle, locale: english.locale))
+    #expect(runner.spawned.count == 1 && failure.reason.hasSuffix(toolNotFoundText("agent-forge", shellAnswered: false, bundle: english.bundle, locale: english.locale)))
 }
 
 @Test func aMissingToolIsNotRetriedWithoutAWayToBuildAnotherCommand() async throws {
     let scratch = try Scratch()
     let runner = FakeProcessRunner(spawns: [.init(exitCode: 1, log: "spawn agent-forge ENOENT")], detection: Detection(path: "/new"))
-    let failure = await launcher(runner, FakeSocket(open: false)).launch(scratch.command(), name: "The chat host")
+    let failure = await launcher(runner, FakeSocket(open: false)).launch(scratch.command(), name: "The chat host", bundle: english.bundle, locale: english.locale)
     #expect(failure?.reason == "The chat host exited with code 1 before it opened its control socket." && runner.shellAsked == 0 && runner.spawned.count == 1)
+}
+
+@Test func aFailedStartSaysItsReasonInSpanish() async throws {
+    let scratch = try Scratch()
+    let runner = FakeProcessRunner(spawns: [.init(exitCode: 3)])
+    let failure = try #require(await launcher(runner, FakeSocket(open: false)).launch(scratch.command(), name: "El host de chat", bundle: spanish.bundle, locale: spanish.locale))
+    #expect(failure.reason == "El host de chat salió con el código 3 antes de abrir su socket de control.")
+    #expect(failure.tail == "(el registro de arranque está vacío)")
 }

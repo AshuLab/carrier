@@ -69,5 +69,5 @@ private let homebrew = homebrewCarrier
 }
 
 @Test func theFailureTextNamesTheHost() {
-    #expect(startFailureText(.exited(1), name: "The chat host").hasPrefix("The chat host exited with code 1"))
+    #expect(startFailureText(.exited(1), name: "The chat host", bundle: english.bundle, locale: english.locale).hasPrefix("The chat host exited with code 1"))
 }

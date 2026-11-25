@@ -87,22 +87,28 @@ private let homebrew = "/opt/homebrew/bin/carrier"
 }
 
 @Test func theFailureTextsSayWhatHappened() {
-    #expect(startFailureText(.exited(0)).contains("code 0"))
-    #expect(startFailureText(.noSocket).contains("15 seconds"))
+    #expect(startFailureText(.exited(0), bundle: english.bundle, locale: english.locale).contains("code 0"))
+    #expect(startFailureText(.noSocket, bundle: english.bundle, locale: english.locale).contains("15 seconds"))
+}
+
+@Test func theFailureTextsSayWhatHappenedInSpanish() {
+    #expect(startFailureText(.exited(2), bundle: spanish.bundle, locale: spanish.locale) == "Carrier salió con el código 2 antes de abrir su socket de control.")
+    #expect(startFailureText(.noSocket, name: "El host de chat", bundle: spanish.bundle, locale: spanish.locale) == "El host de chat no abrió su socket de control en 15 segundos. Puede que siga en marcha.")
 }
 
 @Test func theTailOfTheLogIsItsLastLinesAndAnErrorCarrierPrintedIsInIt() {
     let log = (1...50).map { "line \($0)" }.joined(separator: "\n") + "\nconfig invalid: github.token is required\n\n"
-    #expect(logTail(Data(log.utf8), lines: 3) == "line 49\nline 50\nconfig invalid: github.token is required")
+    #expect(logTail(Data(log.utf8), lines: 3, bundle: english.bundle, locale: english.locale) == "line 49\nline 50\nconfig invalid: github.token is required")
 }
 
 @Test func anEmptyLogSaysSo() {
-    #expect(logTail(Data()) == "(the start log is empty)")
+    #expect(logTail(Data(), bundle: english.bundle, locale: english.locale) == "(the start log is empty)")
+    #expect(logTail(Data(), bundle: spanish.bundle, locale: spanish.locale) == "(el registro de arranque está vacío)")
 }
 
 @Test func theMenuItemIsEnabledOnlyWhenStoppedAndConfiguredAndCompleteAndNotStarting() {
     func item(_ state: ConnectionState = .stopped, starting: Bool = false, missing: [String] = [], configExists: Bool = true) -> (title: String, enabled: Bool) {
-        startMenuState(state: state, starting: starting, missing: missing, configExists: configExists)
+        startMenuState(state: state, starting: starting, missing: missing, configExists: configExists, bundle: english.bundle, locale: english.locale)
     }
     #expect(item() == ("Start Carrier", true))
     #expect(item(starting: true).enabled == false)
@@ -110,12 +116,24 @@ private let homebrew = "/opt/homebrew/bin/carrier"
     #expect(item(missing: ["carrier"]) == ("Start Carrier (missing: carrier)", false))
     #expect(item(configExists: false) == ("Start Carrier (engine not configured)", false))
     #expect(item(missing: ["node"], configExists: false).enabled == false)
+    #expect(item(starting: true).title == "Starting Carrier…")
+}
+
+@Test func theMenuItemSaysItsStateInSpanish() {
+    func item(starting: Bool = false, missing: [String] = [], configExists: Bool = true) -> String {
+        startMenuState(state: .stopped, starting: starting, missing: missing, configExists: configExists, bundle: spanish.bundle, locale: spanish.locale).title
+    }
+    #expect(item() == "Iniciar Carrier")
+    #expect(item(starting: true) == "Iniciando Carrier…")
+    #expect(item(configExists: false) == "Iniciar Carrier (motor sin configurar)")
+    #expect(item(missing: ["node", "PATH"]) == "Iniciar Carrier (falta: node, PATH)")
 }
 
 @Test func noConfigMeansANoticeWithNoActionAndItsAbsenceMeansNone() throws {
-    let notice = try #require(engineNotConfiguredNotice(configExists: false))
-    #expect(notice.contains("not configured"))
-    #expect(engineNotConfiguredNotice(configExists: true) == nil)
+    let notice = try #require(engineNotConfiguredNotice(configExists: false, bundle: english.bundle, locale: english.locale))
+    #expect(notice == "The engine is not configured: there is no engine.json in the Carrier folder.")
+    #expect(engineNotConfiguredNotice(configExists: false, bundle: spanish.bundle, locale: spanish.locale) == "El motor no está configurado: no hay engine.json en la carpeta de Carrier.")
+    #expect(engineNotConfiguredNotice(configExists: true, bundle: english.bundle, locale: english.locale) == nil)
 }
 
 @Test func openingTheAppStartsCarrierOnlyWhenEveryConditionHolds() throws {
@@ -150,6 +168,8 @@ private let homebrew = "/opt/homebrew/bin/carrier"
 }
 
 @Test func theAlertSaysWhetherTheShellWasReadAgain() {
-    #expect(toolNotFoundText("agent-forge") == "agent-forge is not on the PATH of your shell either, which was read again just now. Install it, or add its folder to the PATH of your shell, and start again.")
-    #expect(toolNotFoundText("gh", shellAnswered: false) == "gh was not found, and the shell gave no answer when asked for its PATH again. Press Detect in Settings to try once more.")
+    #expect(toolNotFoundText("agent-forge", bundle: english.bundle, locale: english.locale) == "agent-forge is not on the PATH of your shell either, which was read again just now. Install it, or add its folder to the PATH of your shell, and start again.")
+    #expect(toolNotFoundText("gh", shellAnswered: false, bundle: english.bundle, locale: english.locale) == "gh was not found, and the shell gave no answer when asked for its PATH again. Press Detect in Settings to try once more.")
+    #expect(toolNotFoundText("agent-forge", bundle: spanish.bundle, locale: spanish.locale) == "agent-forge tampoco está en el PATH de tu shell, que se acaba de leer de nuevo. Instálalo, o añade su carpeta al PATH de tu shell, y vuelve a iniciar.")
+    #expect(toolNotFoundText("gh", shellAnswered: false, bundle: spanish.bundle, locale: spanish.locale) == "No se encontró gh, y el shell no respondió cuando se le pidió de nuevo su PATH. Pulsa Detectar en Ajustes para intentarlo otra vez.")
 }

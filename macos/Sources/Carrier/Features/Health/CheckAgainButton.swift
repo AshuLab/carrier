@@ -6,7 +6,7 @@ import SwiftUI
 /// opens) only ends at rest. The phase is `CheckPhase`'s (`CheckPhaseTests`); `CheckButton` draws it.
 struct CheckAgainButton: View {
     var skin = CheckButton.Skin.capsule
-    var title = "Check again"
+    var title = Copy.healthCheckAgain()
     /// A check is running, whoever asked for it.
     let checking: Bool
     /// How the check ended; read when `checking` turns false.

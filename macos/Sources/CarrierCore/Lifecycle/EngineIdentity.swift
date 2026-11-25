@@ -5,7 +5,7 @@ import Foundation
 
 public struct EngineIdentity: Equatable {
     /// The title of the choice that removes the key
-    public static let defaultTitle = "Author's identity"
+    public static func defaultTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String { Copy.lifecycleIdentityDefault(bundle: bundle, locale: locale) }
 
     /// The names `profiles` declares, in order
     public let declared: [String]
@@ -26,7 +26,7 @@ public struct EngineIdentity: Equatable {
     public var choices: [String] { declared + (undeclared.map { [$0] } ?? []) }
 
     /// What the choice lists: the default (nil, which takes the key out) first, then `choices`. With no file to read it is the default alone.
-    public static func options(_ identity: EngineIdentity?) -> [(value: String?, title: String)] {
-        [(value: nil, title: defaultTitle)] + (identity?.choices ?? []).map { (value: $0, title: $0) }
+    public static func options(_ identity: EngineIdentity?, bundle: Bundle? = nil, locale: Locale = .current) -> [(value: String?, title: String)] {
+        [(value: nil, title: defaultTitle(bundle: bundle, locale: locale))] + (identity?.choices ?? []).map { (value: $0, title: $0) }
     }
 }

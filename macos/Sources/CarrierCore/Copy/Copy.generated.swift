@@ -143,4 +143,828 @@ public enum Copy {
         case .title: return String(localized: "pieceSample.title", bundle: bundle ?? carrierResources, locale: locale)
         }
     }
+
+    public static func appName(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "appName", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func lifecycleIntakePaused(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "lifecycleIntakePaused", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func lifecycleIntakeActive(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "lifecycleIntakeActive", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func lifecycleIntakeResume(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "lifecycleIntakeResume", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func lifecycleIntakePause(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "lifecycleIntakePause", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func lifecycleBoxTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "lifecycleBoxTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func lifecycleBoxNextCheck(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "lifecycleBoxNextCheck", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func lifecycleBoxRateLimit(profile: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "lifecycleBoxRateLimit \(profile)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func lifecycleBoxRateValue(remaining: Int, limit: Int, reset: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "lifecycleBoxRateValue \(remaining) \(limit) \(reset)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func lifecycleBoxRateReset(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "lifecycleBoxRateReset", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func lifecycleBoxRateResets(duration: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "lifecycleBoxRateResets \(duration)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func lifecycleBoxNotChecked(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "lifecycleBoxNotChecked", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func lifecycleBoxCheckFailed(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "lifecycleBoxCheckFailed", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func lifecycleStepQueued(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "lifecycleStepQueued", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func lifecycleStepWaited(duration: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "lifecycleStepWaited \(duration)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func lifecycleStepWorkspaceReady(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "lifecycleStepWorkspaceReady", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func lifecycleStepWorkspacePreparing(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "lifecycleStepWorkspacePreparing", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func lifecycleStepWorktree(branch: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "lifecycleStepWorktree \(branch)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func lifecycleStepBranch(branch: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "lifecycleStepBranch \(branch)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func lifecycleStepFirstAgent(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "lifecycleStepFirstAgent", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func lifecycleStepOutputHere(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "lifecycleStepOutputHere", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func lifecycleStepDone(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "lifecycleStepDone", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func lifecycleStepInProgress(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "lifecycleStepInProgress", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func lifecycleStepNotStarted(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "lifecycleStepNotStarted", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func lifecycleChatHostName(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "lifecycleChatHostName", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func lifecycleStartFailedExited(name: String, code: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "lifecycleStartFailedExited \(name) \(code)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func lifecycleStartFailedNoSocket(name: String, seconds: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "lifecycleStartFailedNoSocket \(name) \(seconds)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func lifecycleStartFailedSpawn(name: String, reason: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "lifecycleStartFailedSpawn \(name) \(reason)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func lifecycleToolNotOnPath(tool: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "lifecycleToolNotOnPath \(tool)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func lifecycleToolNotFound(tool: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "lifecycleToolNotFound \(tool)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func lifecycleLogEmpty(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "lifecycleLogEmpty", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func lifecycleEngineNotConfigured(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "lifecycleEngineNotConfigured", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func lifecycleStart(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "lifecycleStart", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func lifecycleStartStarting(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "lifecycleStartStarting", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func lifecycleStartNotConfigured(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "lifecycleStartNotConfigured", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func lifecycleStartMissing(missing: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "lifecycleStartMissing \(missing)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func lifecycleStarting(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "lifecycleStarting", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func lifecycleChatHostCannotStart(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "lifecycleChatHostCannotStart", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func lifecycleChatHostMissingCarrier(names: String, command: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "lifecycleChatHostMissingCarrier \(names) \(command)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func lifecycleChatHostMissingNode(names: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "lifecycleChatHostMissingNode \(names)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func lifecycleChatHostOlderTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "lifecycleChatHostOlderTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func lifecycleChatHostOlderLine(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "lifecycleChatHostOlderLine", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func lifecycleAlertCarrierTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "lifecycleAlertCarrierTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func lifecycleAlertChatHostTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "lifecycleAlertChatHostTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func lifecycleAlertLogTail(reason: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "lifecycleAlertLogTail \(reason)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func lifecycleUpgradeFailedTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "lifecycleUpgradeFailedTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func lifecycleUpgradeBrewMissing(path: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "lifecycleUpgradeBrewMissing \(path)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func lifecycleUpgradeBrewFailed(command: String, tail: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "lifecycleUpgradeBrewFailed \(command) \(tail)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func lifecycleUpgradeLogNotOpened(path: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "lifecycleUpgradeLogNotOpened \(path)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func lifecycleUpgradeBrewNotRun(reason: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "lifecycleUpgradeBrewNotRun \(reason)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func lifecycleEngineUpdateUnknown(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "lifecycleEngineUpdateUnknown", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func lifecycleEngineUpdateRunning(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "lifecycleEngineUpdateRunning", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func lifecycleEngineUpToDate(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "lifecycleEngineUpToDate", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func lifecycleEngineUpdated(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "lifecycleEngineUpdated", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func lifecycleEngineUpdateFailed(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "lifecycleEngineUpdateFailed", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func lifecycleIdentityDefault(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "lifecycleIdentityDefault", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func lifecycleRunning(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "lifecycleRunning", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func lifecycleProgressPercent(percent: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "lifecycleProgressPercent \(percent)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func lifecycleSlotsInUse(busy: Int, total: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "lifecycleSlotsInUse \(busy) \(total)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func lifecycleConnecting(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "lifecycleConnecting", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func lifecycleLooking(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "lifecycleLooking", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func lifecycleStoppedHint(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "lifecycleStoppedHint", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func lifecycleVersionsDiffer(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "lifecycleVersionsDiffer", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func lifecycleOpenSettings(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "lifecycleOpenSettings", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func healthReady(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "healthReady", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func healthNotInstalled(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "healthNotInstalled", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func healthSignedOut(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "healthSignedOut", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func healthCouldNotCheck(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "healthCouldNotCheck", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func healthThisMac(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "healthThisMac", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func healthEngineSetup(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "healthEngineSetup", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func healthHostNotRunning(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "healthHostNotRunning", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func healthHostTooOld(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "healthHostTooOld", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func healthMacNotChecked(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "healthMacNotChecked", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func healthCarrierFound(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "healthCarrierFound", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func healthCarrierFoundVersion(version: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "healthCarrierFoundVersion \(version)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func healthCarrierNotFound(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "healthCarrierNotFound", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func healthChatHost(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "healthChatHost", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func healthEngine(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "healthEngine", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func healthHostStopped(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "healthHostStopped", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func healthHostOlder(running: String, installed: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "healthHostOlder \(running) \(installed)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func healthRunning(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "healthRunning", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func healthRunningVersion(version: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "healthRunningVersion \(version)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func healthConfiguredStopped(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "healthConfiguredStopped", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func healthSetupNeedsConfig(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "healthSetupNeedsConfig", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func healthSetupNotChecked(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "healthSetupNotChecked", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func healthSetupRunning(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "healthSetupRunning", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func healthDoctorCouldNotCheck(reason: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "healthDoctorCouldNotCheck \(reason)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func healthDoctorRefused(reason: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "healthDoctorRefused \(reason)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func healthToolsInstalled(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "healthToolsInstalled", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func healthProviderLogins(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "healthProviderLogins", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func healthRepositoryAccess(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "healthRepositoryAccess", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func healthAccessCovers(repos: Int, identities: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "healthAccessCovers \(repos) \(identities)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func healthNotOk(bad: Int, total: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "healthNotOk \(bad) \(total)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func healthDoctorNotStarted(error: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "healthDoctorNotStarted \(error)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func healthDoctorTimedOut(seconds: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "healthDoctorTimedOut \(seconds)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func healthDoctorBadOutput(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "healthDoctorBadOutput", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func healthDoctorBadOutputExit(code: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "healthDoctorBadOutputExit \(code)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func healthDoctorNoChecks(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "healthDoctorNoChecks", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func healthDoctorNoChecksExit(code: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "healthDoctorNoChecksExit \(code)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func healthDoctorNoCarrier(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "healthDoctorNoCarrier", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func healthCheckAgain(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "healthCheckAgain", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func healthQuestion(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "healthQuestion", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func healthFix(fix: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "healthFix \(fix)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func healthMarkWarning(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "healthMarkWarning", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func healthMarkProblem(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "healthMarkProblem", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func healthMarkUnknown(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "healthMarkUnknown", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func healthFixHelp(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "healthFixHelp", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func healthInstallPage(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "healthInstallPage", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func healthTerminalFailed(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "healthTerminalFailed", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func healthShellNoAnswer(seconds: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "healthShellNoAnswer \(seconds)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func awakeLengthForever(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "awakeLengthForever", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func awakeLengthHours(hours: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "awakeLengthHours \(hours)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func awakeMinutes(minutes: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "awakeMinutes \(minutes)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func awakeBatteryNever(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "awakeBatteryNever", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func awakeBatteryBelow(percent: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "awakeBatteryBelow \(percent)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func awakeBatteryPluggedIn(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "awakeBatteryPluggedIn", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func awakeRemainingUnderMinute(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "awakeRemainingUnderMinute", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func awakeRemainingHours(hours: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "awakeRemainingHours \(hours)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func awakeRemainingHoursMinutes(hours: Int, minutes: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "awakeRemainingHoursMinutes \(hours) \(minutes)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func awakeStatusBatteryLow(percent: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "awakeStatusBatteryLow \(percent)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func awakeStatusOnBattery(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "awakeStatusOnBattery", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func awakeStatusManual(remaining: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "awakeStatusManual \(remaining)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func awakeStatusManualForever(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "awakeStatusManualForever", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func awakeStatusAgents(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "awakeStatusAgents", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func awakeStatusGrace(remaining: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "awakeStatusGrace \(remaining)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func awakeStatusOffAgents(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "awakeStatusOffAgents", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func awakeStatusOff(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "awakeStatusOff", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func awakeStop(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "awakeStop", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func awakeKeep(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "awakeKeep", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func awakeKeepFor(length: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "awakeKeepFor \(length)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func awakePausedTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "awakePausedTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func awakeEndedTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "awakeEndedTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func awakeWaitingTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "awakeWaitingTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func awakeEndedBatteryLow(percent: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "awakeEndedBatteryLow \(percent)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func awakeEndedOnBattery(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "awakeEndedOnBattery", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func awakeEndedBody(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "awakeEndedBody", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func awakeWaitingBatteryLow(percent: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "awakeWaitingBatteryLow \(percent)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func awakeWaitingOnBattery(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "awakeWaitingOnBattery", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func awakeIconAwake(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "awakeIconAwake", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func awakeIconTip(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "awakeIconTip", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func awakeShortcutTaken(keys: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "awakeShortcutTaken \(keys)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func awakeShortcutDictation(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "awakeShortcutDictation", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func awakeAssertionReason(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "awakeAssertionReason", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func awakeGroupNow(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "awakeGroupNow", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func awakeGroupByHand(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "awakeGroupByHand", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func awakeGroupAgents(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "awakeGroupAgents", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func awakeGroupBattery(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "awakeGroupBattery", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func awakeRowLength(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "awakeRowLength", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func awakeRowLengthDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "awakeRowLengthDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func awakeRowScreen(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "awakeRowScreen", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func awakeRowScreenDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "awakeRowScreenDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func awakeRowShortcut(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "awakeRowShortcut", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func awakeRowShortcutDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "awakeRowShortcutDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func awakeShortcutName(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "awakeShortcutName", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func awakeShortcutNone(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "awakeShortcutNone", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func awakeRowAgents(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "awakeRowAgents", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func awakeRowAgentsDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "awakeRowAgentsDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func awakeRowGrace(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "awakeRowGrace", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func awakeRowGraceDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "awakeRowGraceDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func awakeGraceNow(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "awakeGraceNow", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func awakeRowBattery(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "awakeRowBattery", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func awakeRowBatteryDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "awakeRowBatteryDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func awakeRowNotify(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "awakeRowNotify", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func awakeRowNotifyDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "awakeRowNotifyDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func awakeStatusDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "awakeStatusDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func updatesAvailable(version: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "updatesAvailable \(version)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func updatesDownloading(version: String, percent: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "updatesDownloading \(version) \(percent)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func updatesDownloaded(version: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "updatesDownloaded \(version)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func updatesRestarting(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "updatesRestarting", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func updatesFailed(version: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "updatesFailed \(version)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func updatesActionUpdate(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "updatesActionUpdate", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func updatesActionRestart(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "updatesActionRestart", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func updatesActionRetry(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "updatesActionRetry", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func updatesPillReady(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "updatesPillReady", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func updatesPillPercent(percent: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "updatesPillPercent \(percent)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func updatesHelpAvailable(version: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "updatesHelpAvailable \(version)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func updatesHelpDownloading(version: String, percent: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "updatesHelpDownloading \(version) \(percent)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func updatesHelpDownloaded(version: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "updatesHelpDownloaded \(version)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func updatesHelpRestart(version: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "updatesHelpRestart \(version)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func updatesHelpRestarting(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "updatesHelpRestarting", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func updatesHelpFailed(version: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "updatesHelpFailed \(version)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func updatesDelay(days: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "updatesDelay \(days)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func updatesUpdating(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "updatesUpdating", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func aboutVersion(version: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "aboutVersion \(version)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func aboutLastChecked(when: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "aboutLastChecked \(when)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func aboutNoUpdates(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "aboutNoUpdates", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func aboutCheckNow(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "aboutCheckNow", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func aboutGroupAbout(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "aboutGroupAbout", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func aboutGroupUpdates(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "aboutGroupUpdates", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func aboutGroupEngine(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "aboutGroupEngine", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func aboutStarTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "aboutStarTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func aboutStarDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "aboutStarDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func aboutStarButton(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "aboutStarButton", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func aboutRowCarrier(version: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "aboutRowCarrier \(version)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func aboutRowCheck(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "aboutRowCheck", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func aboutRowCheckDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "aboutRowCheckDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func aboutRowInstall(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "aboutRowInstall", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func aboutRowInstallDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "aboutRowInstallDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func aboutRowDelay(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "aboutRowDelay", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func aboutRowDelayDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "aboutRowDelayDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func aboutRowEngine(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "aboutRowEngine", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func aboutEngineFailed(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "aboutEngineFailed", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func aboutTryAgain(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "aboutTryAgain", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func aboutLinkReleaseNotes(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "aboutLinkReleaseNotes", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func aboutLinkDocumentation(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "aboutLinkDocumentation", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func aboutLinkGitHub(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "aboutLinkGitHub", bundle: bundle ?? carrierResources, locale: locale)
+    }
 }

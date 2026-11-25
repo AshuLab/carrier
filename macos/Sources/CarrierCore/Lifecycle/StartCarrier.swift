@@ -62,10 +62,10 @@ public func startOutcome(exitCode: Int32?, socketAnswered: Bool, elapsed: TimeIn
     return elapsed >= startTimeout ? .failed(.noSocket) : nil
 }
 
-public func startFailureText(_ failure: StartFailure, name: String = "Carrier") -> String {
+public func startFailureText(_ failure: StartFailure, name: String = "Carrier", bundle: Bundle? = nil, locale: Locale = .current) -> String {
     switch failure {
-    case .exited(let code): return "\(name) exited with code \(code) before it opened its control socket."
-    case .noSocket: return "\(name) did not open its control socket within \(Int(startTimeout)) seconds. It may still be running."
+    case .exited(let code): return Copy.lifecycleStartFailedExited(name: name, code: Int(code), bundle: bundle, locale: locale)
+    case .noSocket: return Copy.lifecycleStartFailedNoSocket(name: name, seconds: Int(startTimeout), bundle: bundle, locale: locale)
     }
 }
 
@@ -84,33 +84,31 @@ public func redetected(_ settings: SetupSettings, with detection: Detection) -> 
 
 /// What the alert adds when a start failed for a tool and the shell was asked for its PATH again: that it has no such tool either, or that
 /// it did not answer (`shellAnswered` false), so the person knows whether the PATH was read.
-public func toolNotFoundText(_ tool: String, shellAnswered: Bool = true) -> String {
-    shellAnswered
-        ? "\(tool) is not on the PATH of your shell either, which was read again just now. Install it, or add its folder to the PATH of your shell, and start again."
-        : "\(tool) was not found, and the shell gave no answer when asked for its PATH again. Press Detect in Settings to try once more."
+public func toolNotFoundText(_ tool: String, shellAnswered: Bool = true, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+    shellAnswered ? Copy.lifecycleToolNotOnPath(tool: tool, bundle: bundle, locale: locale) : Copy.lifecycleToolNotFound(tool: tool, bundle: bundle, locale: locale)
 }
 
 /// The last `lines` lines of the start log, for the alert.
-public func logTail(_ log: Data, lines: Int = 30) -> String {
+public func logTail(_ log: Data, lines: Int = 30, bundle: Bundle? = nil, locale: Locale = .current) -> String {
     let text = String(decoding: log, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
     let tail = text.split(separator: "\n", omittingEmptySubsequences: false).suffix(lines)
-    return text.isEmpty ? "(the start log is empty)" : tail.joined(separator: "\n")
+    return text.isEmpty ? Copy.lifecycleLogEmpty(bundle: bundle, locale: locale) : tail.joined(separator: "\n")
 }
 
 /// What the Carrier home and the Carrier section of the sidebar say while `<folder>/engine.json` does not exist; nil once it does.
 /// It has no action: the config is made by the native setup wizard, which is its own epic.
-public func engineNotConfiguredNotice(configExists: Bool) -> String? {
-    configExists ? nil : "The engine is not configured: there is no engine.json in the Carrier folder."
+public func engineNotConfiguredNotice(configExists: Bool, bundle: Bundle? = nil, locale: Locale = .current) -> String? {
+    configExists ? nil : Copy.lifecycleEngineNotConfigured(bundle: bundle, locale: locale)
 }
 
 /// The Start Carrier menu item: it can be pressed only while Carrier is stopped, the engine is configured, the settings are
 /// complete and no start is under way; otherwise the title says what is missing or that it is starting.
-public func startMenuState(state: ConnectionState, starting: Bool, missing: [String], configExists: Bool) -> (title: String, enabled: Bool) {
-    if starting { return ("Starting Carrier…", false) }
-    guard state == .stopped else { return ("Start Carrier", false) }
-    if configExists == false { return ("Start Carrier (engine not configured)", false) }
-    if missing.isEmpty { return ("Start Carrier", true) }
-    return ("Start Carrier (missing: \(missing.joined(separator: ", ")))", false)
+public func startMenuState(state: ConnectionState, starting: Bool, missing: [String], configExists: Bool, bundle: Bundle? = nil, locale: Locale = .current) -> (title: String, enabled: Bool) {
+    if starting { return (Copy.lifecycleStartStarting(bundle: bundle, locale: locale), false) }
+    guard state == .stopped else { return (Copy.lifecycleStart(bundle: bundle, locale: locale), false) }
+    if configExists == false { return (Copy.lifecycleStartNotConfigured(bundle: bundle, locale: locale), false) }
+    if missing.isEmpty { return (Copy.lifecycleStart(bundle: bundle, locale: locale), true) }
+    return (Copy.lifecycleStartMissing(missing: missing.joined(separator: ", "), bundle: bundle, locale: locale), false)
 }
 
 /// Whether opening the app starts Carrier: the person asked for it, the first state the monitor delivered is stopped, Start

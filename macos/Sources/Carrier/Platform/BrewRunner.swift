@@ -14,7 +14,7 @@ enum BrewRunner {
 
     static func run(_ command: BrewCommand) -> BrewOutcome {
         guard FileManager.default.isExecutableFile(atPath: brewPath) else { return .brewMissing }
-        guard let log = FileHandle(forWritingAtPath: logPath) else { return .failed("The log \(logPath) could not be opened.") }
+        guard let log = FileHandle(forWritingAtPath: logPath) else { return .failed(Copy.lifecycleUpgradeLogNotOpened(path: logPath)) }
         defer { try? log.close() }
         _ = try? log.seekToEnd()
         let process = Process()
@@ -28,7 +28,7 @@ enum BrewRunner {
             try process.run()
             process.waitUntilExit()
         } catch {
-            return .failed("`brew` could not run: \(error.localizedDescription)")
+            return .failed(Copy.lifecycleUpgradeBrewNotRun(reason: error.localizedDescription))
         }
         return process.terminationStatus == 0 ? .done : .failed(tail())
     }

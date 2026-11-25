@@ -24,7 +24,7 @@ struct SessionsHomeView: View {
         let searched = (query ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
         VStack(spacing: Tokens.Space.none) {
             if ChatHostStarter.shared.restartAdvised {
-                ProblemNotice(title: chatHostRestartNotice.title, detail: chatHostRestartNotice.line, symbol: .refresh)
+                ProblemNotice(title: chatHostRestartNotice().title, detail: chatHostRestartNotice().line, symbol: .refresh)
                     .padding(.horizontal, Tokens.Space.s20).padding(.vertical, Tokens.Space.s8)
             }
             sessionsContent(page: page, searched: searched)

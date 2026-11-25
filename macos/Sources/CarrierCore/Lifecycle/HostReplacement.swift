@@ -62,7 +62,6 @@ public func engineReplacement(running: String, installed: String, executionsInFl
 }
 
 /// What the Sessions section and the Sessions home say while an older host is left running because a session is working.
-public let chatHostRestartNotice = ChatHostNotice(
-    title: "The chat host is older than Carrier",
-    line: "A session is working, so the app left it running. Restart the chat host when it finishes to use the installed Carrier."
-)
+public func chatHostRestartNotice(bundle: Bundle? = nil, locale: Locale = .current) -> ChatHostNotice {
+    ChatHostNotice(title: Copy.lifecycleChatHostOlderTitle(bundle: bundle, locale: locale), line: Copy.lifecycleChatHostOlderLine(bundle: bundle, locale: locale))
+}

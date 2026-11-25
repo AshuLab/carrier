@@ -65,7 +65,7 @@ final class SetupController: ObservableObject {
                     self.settings.node = detection.node ?? ""
                     self.settings.path = detection.path ?? ""
                 } else {
-                    self.message = "The shell gave no answer within \(Int(ShellDetector.limit)) seconds. Try again."
+                    self.message = Copy.healthShellNoAnswer(seconds: Int(ShellDetector.limit))
                     self.store.save(self.settings)
                 }
                 self.detecting = false

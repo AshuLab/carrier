@@ -64,11 +64,11 @@ final class StartController: ObservableObject {
     }
 
     /// Alert with the reason and the end of the start log, readable and selectable.
-    static func showAlert(title: String = "Carrier did not start", reason: String, tail: String) {
+    static func showAlert(title: String = Copy.lifecycleAlertCarrierTitle(), reason: String, tail: String) {
         let alert = NSAlert()
         alert.alertStyle = .warning
         alert.messageText = title
-        alert.informativeText = tail.isEmpty ? reason : reason + " The end of app-start.log:"
+        alert.informativeText = tail.isEmpty ? reason : Copy.lifecycleAlertLogTail(reason: reason)
         let scroll = NSTextView.scrollableTextView()
         scroll.frame = NSRect(x: 0, y: 0, width: 520, height: 220)
         if let text = scroll.documentView as? NSTextView {
@@ -96,7 +96,7 @@ struct StartCarrierButton: View {
             HStack {
                 let blocked = missing.isEmpty == false || start.configExists == false || start.starting
                 Button { start.start() } label: {
-                    Label("Start Carrier", icon: .playFilled).labelStyle(.titleAndIcon).scaledFont(14, weight: .semibold)
+                    Label(Copy.lifecycleStart(), icon: .playFilled).labelStyle(.titleAndIcon).scaledFont(14, weight: .semibold)
                         .foregroundStyle(blocked ? Color.secondary : .white)
                         .padding(.horizontal, Tokens.Space.s22).padding(.vertical, Tokens.Space.s10).contentShape(Capsule())
                 }
@@ -106,7 +106,7 @@ struct StartCarrierButton: View {
                 .disabled(blocked)
                 if start.starting {
                     ProgressView().controlSize(.small)
-                    Text("Starting…").foregroundStyle(.secondary)
+                    Text(Copy.lifecycleStarting()).foregroundStyle(.secondary)
                 }
             }
         }

@@ -39,9 +39,12 @@ public struct ChatHostNotice: Equatable {
 }
 
 /// nil when nothing is missing.
-public func chatHostNotice(missing: [String]) -> ChatHostNotice? {
+public func chatHostNotice(missing: [String], bundle: Bundle? = nil, locale: Locale = .current) -> ChatHostNotice? {
     guard missing.isEmpty == false else { return nil }
-    let names = missing.joined(separator: " and ")
-    let how = missing.contains("carrier") ? "Run \(carrierInstallCommand.joined(separator: " ")) in Terminal." : "Install it."
-    return ChatHostNotice(title: "The chat host cannot start", line: "The app did not find \(names). \(how)")
+    // the names are the tools' own, joined with the word "and" of the language
+    let names = missing.formatted(.list(type: .and).locale(locale))
+    let line = missing.contains("carrier")
+        ? Copy.lifecycleChatHostMissingCarrier(names: names, command: carrierInstallCommand.joined(separator: " "), bundle: bundle, locale: locale)
+        : Copy.lifecycleChatHostMissingNode(names: names, bundle: bundle, locale: locale)
+    return ChatHostNotice(title: Copy.lifecycleChatHostCannotStart(bundle: bundle, locale: locale), line: line)
 }

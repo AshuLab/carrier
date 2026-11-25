@@ -162,7 +162,11 @@ private func programRows(_ programs: EnginePrograms) -> [EngineRow] { page(confi
 
 @Test func theIdentityChoiceListsTheDefaultFirstThenTheProfiles() throws {
     let identity = EngineIdentity(config: Data(#"{"profiles":{"zed":{},"bot":{}},"orchestratorProfile":"gone"}"#.utf8))
-    #expect(EngineIdentity.options(identity).map(\.title) == ["Author's identity", "bot", "zed", "gone"])
-    #expect(EngineIdentity.options(identity).map(\.value) == [nil, "bot", "zed", "gone"])
-    #expect(EngineIdentity.options(nil).map(\.title) == ["Author's identity"])
+    #expect(EngineIdentity.options(identity, bundle: english.bundle, locale: english.locale).map(\.title) == ["Author's identity", "bot", "zed", "gone"])
+    #expect(EngineIdentity.options(identity, bundle: english.bundle, locale: english.locale).map(\.value) == [nil, "bot", "zed", "gone"])
+    #expect(EngineIdentity.options(nil, bundle: english.bundle, locale: english.locale).map(\.title) == ["Author's identity"])
+}
+
+@Test func theDefaultIdentityReadsInSpanish() {
+    #expect(EngineIdentity.options(nil, bundle: spanish.bundle, locale: spanish.locale).map(\.title) == ["Identidad del autor"])
 }

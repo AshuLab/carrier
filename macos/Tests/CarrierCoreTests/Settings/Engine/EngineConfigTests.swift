@@ -64,6 +64,6 @@ private func object(_ data: Data?) -> [String: Any] {
 }
 
 @Test func theOrchestratorChoiceListsTheDefaultFirstAndAFileThatIsNotAnObjectHasNoIdentity() {
-    #expect(EngineIdentity.options(nil).map(\.title) == [EngineIdentity.defaultTitle])
+    #expect(EngineIdentity.options(nil, bundle: english.bundle, locale: english.locale).map(\.title) == ["Author's identity"])
     #expect(EngineIdentity(config: Data("[]".utf8)) == nil)
 }

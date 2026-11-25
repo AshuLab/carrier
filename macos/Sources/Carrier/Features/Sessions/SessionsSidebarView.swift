@@ -101,7 +101,7 @@ struct SessionsRows: View {
                     SidebarEmptyBlock(icon: .warning, title: notice.title, line: notice.line) { EmptyView() }
                 }
                 if ChatHostStarter.shared.restartAdvised {
-                    SidebarEmptyBlock(icon: .refresh, title: chatHostRestartNotice.title, line: chatHostRestartNotice.line) { EmptyView() }
+                    SidebarEmptyBlock(icon: .refresh, title: chatHostRestartNotice().title, line: chatHostRestartNotice().line) { EmptyView() }
                 }
                 switch SidebarListState(shown: groups.count, of: sessions.open, query: query ?? "") {
                 case .empty where ChatHostStarter.shared.missing.isEmpty:

@@ -40,7 +40,7 @@ _Avoid_: single login, same-account mode, bot-less mode.
 **Persona** - What a role (author or reviewer) is given besides its harness and model: a name the user chooses and an optional prompt that says who the agent is and how it behaves. Carrier adds it to the agent's prompt in either identity setup. It is not a GitHub profile: the profile says which account posts, the persona says who is speaking.
 _Avoid_: identity (it is ambiguous with the GitHub profile), system prompt, bot name.
 
-**Signature** - The closing line a role puts on everything it publishes under a shared identity: `🤖 <Role> [NAME] via Carrier`, with the persona's name in the brackets. It is mandatory, the user cannot turn it off, and it is what tells the agent's words from the user's own when both come from one account.
+**Signature** - The closing line a role puts on everything it publishes under a shared identity: `🤖 <Role> [NAME] via Carrier`, with the persona's name in the brackets, or, for an extra reviewer whose persona has no name, its own name. It is mandatory, the user cannot turn it off, and it is what tells the agent's words from the user's own when both come from one account.
 _Avoid_: watermark, marker, footer.
 
 **Agent option** - The older name of what a role runs on: a harness, its config folder and a model, declared once in the config and chosen for each epic. It is replaced by an account of the config (a harness and where its login lives) and the model set on the role or on a failover step; an epic no longer chooses ([0021](../adr/agents/0021-an-epic-starts-on-its-three-roles-and-a-roles-failover-chain-names-a-provider-and-a-model.md)).

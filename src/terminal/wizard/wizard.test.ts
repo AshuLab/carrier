@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { stripVTControlCharacters } from 'node:util';
 import { expect, test } from 'vitest';
 import { defaults, loadConfig } from '../../config/load.ts';
-import { Cancelled, type Ui } from '../prompts/types.ts';
+import { Back, Cancelled, type Ui } from '../prompts/types.ts';
 import { realDeps } from './deps.ts';
 import { asFiles, fakeDeps, fakeMachine, okCheck, providersWritten, quietUi, useTempDir } from './testing.ts';
 import { runInit } from './wizard.ts';
@@ -484,16 +484,121 @@ test('Enter says No to every optional extra and Yes to going on', async () => {
   expect(asked).not.toContain('Which agent CLI runs this account?'); // Enter on the first one added nothing
 });
 
-test('"Change an answer" at the recap asks again from the same answers, and the second recap is what is written', async () => {
+const changeMenu = 'Which part do you want to change?';
+
+/** The Ui with an Esc the first time each of these questions is asked (once each), and a record of the starting point every question was shown with. */
+function withEsc(base: Ui, escapeAt: string[]) {
+  const pending = [...escapeAt];
+  const starts: Record<string, unknown[]> = {};
+  const gate = (message: string, start: unknown) => {
+    (starts[message] ??= []).push(start);
+    const at = pending.indexOf(message);
+    if (at >= 0) {
+      pending.splice(at, 1);
+      throw new Back();
+    }
+  };
+  const ui: Ui = {
+    ...base,
+    select: async (o) => (gate(o.message, o.initialValue), base.select(o)),
+    confirm: async (m, i) => (gate(m, i), base.confirm(m, i)),
+    text: async (o) => (gate(o.message, o.defaultValue), base.text(o)),
+    multiselect: async (o) => (gate(o.message, o.initialValues), base.multiselect(o)),
+  };
+  return { ui, starts };
+}
+
+test('"Change an answer" at the recap is a menu of blocks: choosing one asks only its questions, from its answers, and the recap again', async () => {
   const { deps, written } = fakeDeps();
-  const base = quietUi({ 'Save it?': ['change', 'save'], 'Model and effort: sonnet at high, change them?': true, 'Model and effort: opus at high, change them?': true, 'Model for the author': ['opus', 'sonnet'], [notNow]: false });
-  const modelDefaults: (string | undefined)[] = [];
-  const spy: Ui = { ...base.ui, select: async (o) => (o.message === 'Model for the author' && modelDefaults.push(o.initialValue), base.ui.select(o)) };
+  const base = quietUi({ 'Save it?': ['change', 'save'], [changeMenu]: 'author', 'Model and effort: sonnet at high, change them?': true, 'Model for the author': ['opus', 'sonnet'], [notNow]: false });
+  const { ui, starts } = withEsc(base.ui, []);
   const out = join(dir, 'change.json');
-  await runInit({ repo: ['A/b'], out }, spy, deps);
-  expect(modelDefaults).toEqual(['sonnet', 'opus']); // the second time it starts from the first answer
+  await runInit({ repo: ['A/b'], out }, ui, deps);
+  const afterTheChoice = base.asked.slice(base.asked.indexOf(changeMenu) + 1);
+  expect(afterTheChoice.slice(0, afterTheChoice.indexOf('Save it?') + 1)).toEqual([
+    'GitHub profile for the author',
+    'Which account runs the author?',
+    'Model and effort: sonnet at high, change them?',
+    'Model for the author',
+    'Effort for the author',
+    "Customise the author's persona?",
+    'Turn failover on for the author? When it runs out of credits it moves to the steps you list, each an account and a model.',
+    'Save it?', // only the author's questions, then the recap again
+  ]);
+  expect(starts['Model for the author']![1]).toBe('opus'); // the second time it starts from the first answer
   expect(base.asked.filter((q) => q === 'Save it?')).toHaveLength(2);
   expect(JSON.parse(written[out]!).agents.author.model).toBe('sonnet');
+});
+
+test('Esc goes back one question and shows it with its answer, across the edge of a block, and the config written is the one from the final answers', async () => {
+  const { deps, written } = fakeDeps();
+  const base = quietUi({ 'Which account runs the author?': 'claude', 'Which account runs the reviewer?': 'codex', [notNow]: false });
+  // Esc at the first question of the reviewer's block goes to the last of the author's.
+  const { ui, starts } = withEsc(base.ui, ['GitHub profile for the reviewer']);
+  const out = join(dir, 'esc.json');
+  await runInit({ repo: ['A/b'], out }, ui, deps);
+  const author = base.asked.filter((q) => q.includes('author'));
+  const lastOfAuthor = "Turn failover on for the author? When it runs out of credits it moves to the steps you list, each an account and a model.";
+  expect(author.filter((q) => q === lastOfAuthor)).toHaveLength(2); // asked again, nothing else of the author was
+  expect(author.filter((q) => q === 'Which account runs the author?')).toHaveLength(1);
+  expect(starts[lastOfAuthor]).toEqual([false, false]); // the second time it starts from the answer it had
+  expect(JSON.parse(written[out]!).agents.reviewer.provider).toBe('codex');
+});
+
+test('Esc at the very first question leaves as Ctrl+C does, and nothing is written', async () => {
+  const { deps, written } = fakeDeps();
+  const { ui } = withEsc(quietUi().ui, ['Add another account?']);
+  await expect(runInit({ repo: ['A/b'], out: join(dir, 'first.json') }, ui, deps)).rejects.toBeInstanceOf(Cancelled);
+  expect(written).toEqual({});
+});
+
+test('Ctrl+C at any question before Save leaves with nothing written', async () => {
+  const { deps, written } = fakeDeps();
+  const { ui } = quietUi();
+  const spy: Ui = { ...ui, select: async (o) => (o.message === 'Which account runs the reviewer?' ? Promise.reject(new Cancelled()) : ui.select(o)) };
+  await expect(runInit({ repo: ['A/b'], out: join(dir, 'ctrlc.json') }, spy, deps)).rejects.toBeInstanceOf(Cancelled);
+  expect(written).toEqual({});
+});
+
+test('Esc at the recap goes back to the last question', async () => {
+  const { deps } = fakeDeps();
+  const { ui, starts } = withEsc(quietUi({ [notNow]: false }).ui, ['Save it?']);
+  await runInit({ repo: ['A/b'], out: join(dir, 'recap-esc.json') }, ui, deps);
+  expect(starts['Add a lead reviewer?']).toEqual([false, false]);
+});
+
+test('going back across the repo listing or an added bot calls them zero more times', async () => {
+  let listed = 0;
+  let added = 0;
+  const bots = [{ name: 'artanis-agent' }];
+  const { deps } = fakeDeps({
+    which: () => true,
+    listRepos: () => ((listed += 1), { names: ['AshuLab/carrier'], hasMore: false }),
+    forgeAgents: () => [...bots],
+    forgeAdd: () => ((added += 1), bots.push({ name: 'new-agent' }), true),
+  });
+  const base = quietUi({ 'GitHub profile for the author': ['\0add', 'forge:new-agent'], 'Repos to watch': 'AshuLab/carrier', [notNow]: false });
+  // Esc at the repos, then at the last question of the reviewer's block: both are before the listing and the bot
+  const { ui } = withEsc(base.ui, ['Repos to watch', 'Add a lead reviewer?']);
+  await runInit({ out: join(dir, 'zero.json') }, ui, deps);
+  expect([listed, added]).toEqual([1, 1]);
+});
+
+test('two Escs back to the account and a new account: what depended on it is asked again, not answered from the journal', async () => {
+  const { deps } = fakeDeps();
+  const base = quietUi({ 'Which account runs the author?': ['claude', 'codex'], 'Model and effort: sonnet at high, change them?': true, 'Model for the author': 'opus', [notNow]: false });
+  const { ui } = withEsc(base.ui, ['Model for the author', 'Model and effort: sonnet at high, change them?']);
+  await runInit({ repo: ['A/b'], out: join(dir, 'gone.json') }, ui, deps);
+  expect(base.asked.filter((q) => q === 'Which account runs the author?')).toHaveLength(2);
+  expect(base.asked).toContain('Model and effort: gpt-test at high, change them?'); // the codex account has its own question
+});
+
+test('Esc at "Start Carrier now?" after the save counts as no, like Ctrl+C', async () => {
+  const { deps } = fakeDeps();
+  const { ui } = quietUi();
+  const spy: Ui = { ...ui, confirm: async (m, i) => (m === notNow ? Promise.reject(new Back()) : ui.confirm(m, i)) };
+  const done = await runInit({ repo: ['A/b'], out: join(dir, 'late-esc.json') }, spy, deps);
+  expect(done.start).toBe(false);
 });
 
 test('an existing failover is kept only when the person says so; saying no asks for it again', async () => {

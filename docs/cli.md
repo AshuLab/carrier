@@ -50,10 +50,12 @@ Then it asks, in this order:
    "None for now" is an answer: the config is written with no repos, and Carrier watches nothing until you add one in the file or in the Mac app's Settings.
 5. **Where to save**: `~/.carrier/engine.json` (one global file per user), or another file with `--out`.
 
-Before saving it shows a recap with three choices: save, **change an answer** (it asks everything again, starting from the same answers) or cancel; nothing is written until you save.
+Before saving it shows a recap with three choices: save, **change an answer** or cancel; nothing is written until you save.
+"Change an answer" shows a menu of the AI accounts, the orchestrator, each role (author, reviewer, lead reviewer) and the repos: you pick one, `init` asks only that block's questions starting from its current answers, and every other block keeps its answers.
+In `init` **Esc goes back one question** (at the start of a block, to the last question of the one before) and shows it with the answer it had; every answer already given stays, and going back does not run the GitHub or CLI calls (listing repos, adding an Agent Forge bot) again. At the very first question Esc leaves, like Ctrl+C.
+**Ctrl+C leaves** from any question, with nothing written before Save. `restart`, which asks its options through the same prompts, leaves on Esc as well as on Ctrl+C.
 It then runs the checks of `carrier doctor`, printing only what fails (otherwise a single count), shows how many epics are waiting, and offers to start Carrier.
-Ctrl+C at that last question, once the config is saved and checked, counts as no: it prints the closing line with what to run (`carrier`, with `--config` when the file is not the global one), exits 0, and the saved files stay.
-Ctrl+C at any earlier question cancels with nothing written.
+Ctrl+C (or Esc) at that last question, once the config is saved and checked, counts as no: it prints the closing line with what to run (`carrier`, with `--config` when the file is not the global one), exits 0, and the saved files stay.
 While `init` runs, the log lines of the checks go to `engine/logs/orchestrator.log` in the Carrier folder and never to the screen.
 
 Run again on an existing config, it offers to edit it (its answers are the starting points), start over, save a new one in another file, or leave it. Editing keeps the accounts of `providers.json` and lets you add more (editing or removing one is done in the file), starts each role's model, effort, persona and lead reviewer from the file, and asks whether to keep the failover steps it has; `-` in a persona field clears it.

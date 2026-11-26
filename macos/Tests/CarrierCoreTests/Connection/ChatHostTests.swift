@@ -33,7 +33,7 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"", protocol vers
     #expect(active.map(\.live) == [true, true, false, false, true, true, true, true, true, true, true, true, false, true, true, true, true, false])
     let worktree = "/Users/dev/work/web"
     #expect(active.map { $0.workspace?.base } == [nil, nil, nil, worktree, nil, nil, nil, nil, nil, worktree, worktree, worktree, nil, nil, nil, nil, nil, nil])
-    #expect(active.map(\.background.count) == [0, 0, 0, 0, 3, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+    #expect(active.map(\.background.count) == [0, 0, 0, 0, 3, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
     #expect(active.compactMap(\.pullRequest).map(\.number) == [983, 979, 412, 88, 1051, 1060, 431, 398, 77] && active.compactMap(\.diff).count == 10)
     #expect(try await host.list(archived: true).map(\.archived) == [true, true])
     // the parent carries its children and none of the other sessions has a parent or children

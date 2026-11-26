@@ -238,13 +238,24 @@
           {
             "harness": "agy",
             "model": "gemini-3",
-            "provider": null
+            "provider": null,
+            "key": "seguridad-api",
+            "name": "Seguridad API",
+            "type": "security"
+          },
+          {
+            "harness": "claude",
+            "model": "claude-haiku-5",
+            "provider": null,
+            "key": "usabilidad",
+            "name": "Usabilidad",
+            "type": "ux"
           }
         ]
       },
       "reviewers": {
-        "given": 1,
-        "of": 2,
+        "given": 2,
+        "of": 3,
         "none": [
           {
             "slot": "seguridad-api",

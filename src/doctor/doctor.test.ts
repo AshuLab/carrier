@@ -581,8 +581,8 @@ test('a review that does not publish with another skill has no check for it', as
 
 // --- extra reviewers and the lead ---
 
-/** The extra reviewers as the map the config has: each entry named by its place, `one`, `two`, `three`. */
-const extrasMap = (entries: Record<string, unknown>[]) => Object.fromEntries(entries.map((entry, i) => [['seguridad-api', 'usabilidad', 'rendimiento'][i]!, { type: 'general', name: `Reviewer ${i + 1}`, ...entry }]));
+/** The extra reviewers as the map the config has: each entry under its key, with the name the person gave it. */
+const extrasMap = (entries: Record<string, unknown>[]) => Object.fromEntries(entries.map((entry, i) => [['seguridad-api', 'usabilidad', 'rendimiento'][i]!, { type: 'general', name: ['Seguridad API', 'Usabilidad', 'Rendimiento'][i]!, ...entry }]));
 
 const withExtras = (extra: Record<string, unknown>[], more: Record<string, unknown> = {}) => config({
   profiles: { ...base.profiles, c: { kind: 'forge', agent: 'rev-two' } },
@@ -646,7 +646,8 @@ test('a skill an extra reviewer or the lead named that is absent fails, and a de
   const byStatus = (status: string) => checks.filter((check) => check.status === status).map((check) => check.name);
   expect(byStatus('fail')).toEqual(['AshuLab/carrier seguridad-api can use the skill my-review', 'AshuLab/carrier lead can use the skill my-lead']);
   expect(byStatus('warn')).toEqual(['AshuLab/carrier reviewer can use the skill code-post', 'AshuLab/carrier seguridad-api can use the skill code-post', 'AshuLab/carrier lead can use the skill code-post']);
-  expect(checks.find((check) => check.status === 'fail')).toMatchObject({ detail: expect.stringContaining('does not find it for the account of the seguridad-api'), fix: expect.stringContaining('my-review') });
+  expect(checks.find((check) => check.status === 'fail')).toMatchObject({ detail: expect.stringContaining('does not find it for the account of the Seguridad API'), fix: expect.stringContaining('my-review') });
+  expect(checks.find((check) => check.status === 'fail')).toMatchObject({ name: 'AshuLab/carrier seguridad-api can use the skill my-review', detailParams: { role: 'Seguridad API' } }); // the check is labelled by the key, its words name the reviewer
 });
 
 // The code and parameters of each detail, beside its words ([ADR 0055](../../docs/adr/design/0055-a-refusal-carries-a-code-and-its-parameters-and-its-english-words-are-the-fallback.md)).

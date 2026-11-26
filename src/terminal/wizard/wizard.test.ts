@@ -9,7 +9,7 @@ import { asFiles, fakeDeps, fakeMachine, okCheck, providersWritten, quietUi, use
 import { runInit } from './wizard.ts';
 
 const dir = useTempDir();
-const notNow = 'Start Carrier now? (Ctrl+C stops it)'; // Enter would start it
+const notNow = 'Start Carrier now?'; // Enter would start it
 
 const withHome = async <T>(run: () => Promise<T>) => {
   process.env.CARRIER_HOME = join(dir, 'home');
@@ -144,6 +144,54 @@ test('--yes skips the recap and the start question', async () => {
   expect(asked.some((q) => q.startsWith('Start Carrier'))).toBe(false);
 });
 
+test('--yes prints the recap of what it chose, before the checks run', async () => {
+  const order: string[] = [];
+  const { deps } = fakeDeps({ doctor: async () => (order.push('checks'), [okCheck]) });
+  const { ui } = quietUi();
+  const out = join(dir, 'yes-recap.json');
+  await runInit({ repo: ['A/b'], out, yes: true }, { ...ui, note: (m, title) => void (title === 'This is what will be saved' && order.push(m)) }, deps);
+  expect(order).toHaveLength(2);
+  expect(order[1]).toBe('checks');
+  expect(order[0]).toMatch(/Repos {9}A\/b\nOrchestrator {2}artanis-agent\nAccounts {6}claude, codex\nAuthor {8}artanis-agent · claude \(Claude Code\) · sonnet\nReviewer {6}tassadar-agent · codex \(Codex\) · gpt-test\nConfig {8}.*yes-recap\.json\nAccounts file /);
+});
+
+test('Ctrl+C at "Start Carrier now?" after the save is a no: the files stay and the closing line says what to run', async () => {
+  const { deps, written } = fakeDeps();
+  const { ui, asked } = quietUi();
+  const out = join(dir, 'late-cancel.json');
+  const questions: string[] = [];
+  const spy: Ui = {
+    ...ui,
+    confirm: async (message, initialValue) => {
+      questions.push(message);
+      if (message === notNow) throw new Cancelled();
+      return ui.confirm(message, initialValue);
+    },
+  };
+  const result = await runInit({ repo: ['A/b'], out }, spy, deps);
+  expect(result.start).toBe(false);
+  expect(Object.keys(written)).toContain(out);
+  expect(asked.at(-1)).toContain(`outro:Ready. Start it with: carrier --config ${out}`);
+  expect(questions.at(-1)).toBe(notNow);
+  expect(notNow).not.toContain('Ctrl+C');
+});
+
+test('Ctrl+C at an earlier question still cancels with nothing written', async () => {
+  const { deps, written } = fakeDeps();
+  const { ui } = quietUi();
+  const spy: Ui = { ...ui, select: async (question) => (question.message === 'Save it?' ? Promise.reject(new Cancelled()) : ui.select(question)) };
+  await expect(runInit({ repo: ['A/b'], out: join(dir, 'early-cancel.json') }, spy, deps)).rejects.toBeInstanceOf(Cancelled);
+  expect(written).toEqual({});
+});
+
+test('without a terminal and without --yes, a file that is already there is refused with how to go on', async () => {
+  const { deps, written } = fakeDeps({ exists: () => true });
+  const { ui } = quietUi();
+  const flags = { repo: ['A/b'], out: join(dir, 'there.json') };
+  await expect(runInit(flags, { ...ui, interactive: false }, deps)).rejects.toThrow(/there\.json already exists: pass --yes to replace it, or --out to write another file/);
+  expect(written).toEqual({});
+});
+
 test('an existing config can be edited: its answers are the starting points and no question about the file is asked', async () => {
   const { deps, written } = fakeDeps({ exists: () => true, readConfig: asFiles(existing) });
   const { ui, asked } = quietUi();
@@ -178,7 +226,7 @@ test('"Leave it as it is" cancels, and an unreadable config is said so instead o
 test('after good checks it shows what is waiting and offers to start; with failed checks it does neither', async () => {
   const notes: Record<string, string> = {};
   const good = fakeDeps({ readyEpics: async () => ({ 'AshuLab/carrier': 2, 'AshuLab/x': undefined }) });
-  const { ui, asked: started } = quietUi({ 'Start Carrier now? (Ctrl+C stops it)': true });
+  const { ui, asked: started } = quietUi({ [notNow]: true });
   const result = await runInit({ repo: ['A/b'], out: join(dir, 'z.json') }, { ...ui, note: (m, t) => void (notes[t] = m) }, good.deps);
   expect(result.start).toBe(true);
   expect(started.some((m) => m.startsWith('outro:'))).toBe(false); // the frame stays open for the arrival line
@@ -420,7 +468,7 @@ test('Enter says No to every optional extra and Yes to going on', async () => {
   await runInit({ repo: ['A/b'], out: join(dir, 'enter.json') }, spy, deps);
   expect(initial['Add another account?']).toBe(false);
   expect(initial['Add a lead reviewer?']).toBe(false);
-  expect(initial['Start Carrier now? (Ctrl+C stops it)']).toBe(true);
+  expect(initial[notNow]).toBe(true);
   expect(asked).not.toContain('Which agent CLI runs this account?'); // Enter on the first one added nothing
 });
 

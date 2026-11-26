@@ -31,6 +31,9 @@ It opens by saying what it will ask, then looks at the machine (stopping with th
 6. **Where to save**: `~/.carrier/engine.json` (one global file per user), or another file with `--out`.
 
 Before saving it shows a recap with three choices: save, **change an answer** (it asks everything again, starting from the same answers) or cancel; nothing is written until you save. It then runs the checks of `carrier doctor`, printing only what fails (otherwise a single count), shows how many epics are waiting, and offers to start Carrier.
+Ctrl+C at that last question, once the config is saved and checked, counts as no: it prints the closing line with what to run (`carrier`, with `--config` when the file is not the global one), exits 0, and the saved files stay.
+Ctrl+C at any earlier question cancels with nothing written.
+While `init` runs, the log lines of the checks go to `engine/logs/orchestrator.log` in the Carrier folder and never to the screen.
 
 Run again on an existing config, it offers to edit it (its answers are the starting points), start over, save a new one in another file, or leave it. Editing keeps the accounts of `providers.json` and lets you add more (editing or removing one is done in the file), starts each role's effort, persona and lead reviewer from the file, and asks whether to keep the failover steps it has; `-` in a persona field clears it.
 Editing keeps the rest of the file: `engine.json` is written as it is, with only the keys the wizard asks replaced.
@@ -47,6 +50,9 @@ carrier init --yes --repo AshuLab/my-repo \
   --author-profile forge:<agent-1> --author claude:<model> \
   --reviewer-profile forge:<agent-2> --reviewer codex:<model>
 ```
+
+`--yes` asks nothing, so it prints, before the checks run, the same recap the wizard shows before saving: the orchestrator's profile, for each role its profile, account, model and effort, and where the files go.
+Without a terminal and without `--yes`, a config file that is already there is not replaced: `init` exits 1 and says to use `--yes` to replace it or `--out` to write another file.
 
 Without `--author` and `--reviewer`, `--yes` gives the author the first account found and the reviewer another one when there is one, each with the model the wizard would suggest; the flags above choose them.
 

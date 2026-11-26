@@ -8,6 +8,7 @@ import type { LocalProvider } from '../../harnesses/local.ts';
 import { harnessNames } from '../../harnesses/names.ts';
 import { journaled } from '../prompts/journal.ts';
 import { Back, Cancelled, type Ui } from '../prompts/types.ts';
+import { extraReviewerKey } from '../../config/extra-reviewer-key.ts';
 import { buildConfig, parseIdentity, type AIProvider, type Extra, type Role } from './build-config.ts';
 import { realDeps, type InitDeps } from './deps.ts';
 import type { InitFlags } from './flags.ts';
@@ -16,10 +17,11 @@ import { keepRest } from './keep-rest.ts';
 import { priorFrom, type Prior } from './prior.ts';
 import { askIdentity } from './questions/identity.ts';
 import { askProviders, declareFlaggedProvider, mergeAccounts } from './questions/options.ts';
+import { askExtraName, askExtraType } from './questions/extra.ts';
 import { askRole } from './questions/role.ts';
 import { askOut } from './questions/out.ts';
 import { askRepos } from './questions/repos.ts';
-import { extraSlots, roleKey, roleName, roleSlots, type RoleSlot } from './roles.ts';
+import { maxExtraReviewers, roleKey, roleName, roleSlots, type Block, type RoleSlot } from './roles.ts';
 import { failoverProblem, flagProblem, named } from './validate-flags.ts';
 import { foundLines, summary, tilde } from './summary.ts';
 
@@ -190,28 +192,33 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
 
       // 3. One closed block per role
       const context = { ui, deps, flags, interactive, unattended, providers, locals, forge, readForge, login, said };
-      const block = (slot: RoleSlot, after?: Role, held?: Extra) => {
-        const key = roleKey(slot) as 'author' | 'reviewer' | 'leadReviewer'; // an extra reviewer's start is `held`, the file's entry at its place in the list
+      const block = (slot: Block, at: string, after?: Role, held?: Extra, title?: string) => {
+        const key = roleKey(slot) as 'author' | 'reviewer' | 'leadReviewer'; // an extra reviewer's start is `held`, the file's entry under its key
         const fromRole = held?.role ?? from?.[key];
-        const steps = held === undefined ? from?.failover?.roles?.[key] : held.failover;
-        journal.at(slot);
-        return askRole(context, slot, { ...(after && { after }), ...(fromRole && { from: fromRole }), ...(steps && { steps }), ...(declared.roles[slot] && { flagged: declared.roles[slot] }) });
+        const steps = slot === 'extra-reviewer' ? held?.failover : from?.failover?.roles?.[key];
+        const flagged = slot === 'extra-reviewer' ? undefined : declared.roles[slot];
+        journal.at(at);
+        return askRole(context, slot, { ...(after && { after }), ...(fromRole && { from: fromRole }), ...(steps && { steps }), ...(flagged && { flagged }), ...(title && { title }) });
       };
-      const author = await block('author');
-      const reviewer = await block('reviewer', author.role);
-      // The extra reviewers, up to three: the ones a flag names are not asked, then "add another?" until the person says no (the file's answer to start on when editing).
+      const author = await block('author', 'author');
+      const reviewer = await block('reviewer', 'reviewer', author.role);
+      // The extra reviewers, up to three: "add another?" until the person says no (the file's reviewers, walked in the order of its map, to start on when editing), then each one's name, type and block.
       const extraReviewers: Extra[] = [];
-      for (const slot of extraSlots) {
+      for (let n = 1; n <= maxExtraReviewers; n++) {
         const held = from?.extraReviewers?.[extraReviewers.length];
-        journal.at(slot);
-        const add = named(flags, slot) || (interactive ? await ui.confirm(held ? `Add ${slot}?` : 'Add another reviewer?', held !== undefined) : held !== undefined);
+        const at = `extra-${n}`;
+        journal.at(at);
+        const add = interactive ? await ui.confirm(held ? `Keep ${held.name}?` : 'Add another reviewer?', held !== undefined) : held !== undefined;
         if (!add) break;
-        const extra = await block(slot, extraReviewers.at(-1)?.role ?? reviewer.role, held);
-        extraReviewers.push({ role: extra.role, ...(extra.failover && { failover: extra.failover }) });
+        const name = interactive ? await askExtraName(ui, extraReviewers.map((extra) => extra.name), held?.name) : held!.name;
+        const type = interactive ? await askExtraType(ui, held?.type) : held!.type;
+        const extraKey = held?.key ?? extraReviewerKey(name, extraReviewers.map((extra) => extra.key));
+        const extra = await block('extra-reviewer', at, extraReviewers.at(-1)?.role ?? reviewer.role, held, name);
+        extraReviewers.push({ key: extraKey, name, type, role: extra.role, ...(extra.failover && { failover: extra.failover }) });
       }
       journal.at('lead-reviewer');
       const wantLead = named(flags, 'lead-reviewer') || (interactive ? await ui.confirm('Add a lead reviewer?', from?.leadReviewer !== undefined) : from?.leadReviewer !== undefined);
-      const lead = wantLead ? await block('lead-reviewer', extraReviewers.at(-1)?.role ?? reviewer.role) : undefined;
+      const lead = wantLead ? await block('lead-reviewer', 'lead-reviewer', extraReviewers.at(-1)?.role ?? reviewer.role) : undefined;
 
       const chosen = { author: author.failover, reviewer: reviewer.failover, leadReviewer: lead?.failover };
       const roles = Object.fromEntries(Object.entries(chosen).filter(([, steps]) => steps !== undefined));
@@ -281,10 +288,17 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
             options: [
               { value: 'accounts', label: 'AI accounts' },
               { value: 'orchestrator', label: 'Orchestrator GitHub profile' },
-              // The roles there are, and the next extra reviewer to add while there is room.
-              ...roleSlots
-                .filter((slot) => extraSlots.indexOf(slot) <= extras)
-                .map((slot) => ({ value: slot as string, label: `${roleName(slot)[0]!.toUpperCase()}${roleName(slot).slice(1)}`, ...((slot === 'lead-reviewer' ? answers.leadReviewer === undefined : extraSlots.indexOf(slot) === extras) && { hint: 'none yet' }) })),
+              // The roles there are, each extra reviewer by its name, and the next one to add while there is room.
+              ...roleSlots.flatMap((slot) => {
+                const label = `${roleName(slot)[0]!.toUpperCase()}${roleName(slot).slice(1)}`;
+                if (slot === 'lead-reviewer') return [{ value: slot as string, label, ...(answers.leadReviewer === undefined && { hint: 'none yet' }) }];
+                if (slot === 'author') return [{ value: slot as string, label }];
+                return [
+                  { value: slot as string, label },
+                  ...(answers.extraReviewers ?? []).map((extra, i) => ({ value: `extra-${i + 1}`, label: extra.name })),
+                  ...(extras < maxExtraReviewers ? [{ value: `extra-${extras + 1}`, label: 'Extra reviewer', hint: 'none yet' }] : []),
+                ];
+              }),
               { value: 'repos', label: 'Repos to watch' },
             ],
           });

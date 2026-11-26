@@ -22,19 +22,10 @@ test.each([
   ['a persona prompt that is blank', { reviewerPersonaPrompt: '  ' }, '--reviewer-persona-prompt: '],
   ['an orchestrator profile that is neither forge:<agent> nor gh', { orchestratorProfile: 'me' }, '--orchestrator-profile: '],
   ['a repo that is not owner/name', { repo: ['A/b', 'ab'] }, '--repo "ab": must be owner/name'],
-  ['an extra reviewer with none before it', { reviewer3: 'codex:x' }, '--reviewer-3: there is no place for reviewer-3 without --reviewer-2'],
-  ['the last extra reviewer with the second missing', { reviewer2Profile: 'gh', reviewer4Effort: 'low' }, 'without --reviewer-3'],
-  ['an extra reviewer\'s failover with none before it', { reviewer3Failover: ['codex'] }, 'without --reviewer-2'],
-  ['an extra reviewer\'s own effort', { reviewer2: 'codex:x', reviewer2Effort: 'turbo' }, '--reviewer-2-effort "turbo"'],
   ['--yes with no repo', { yes: true }, '--repo'],
   ['--yes with an empty repo list', { yes: true, repo: [] }, '--repo'],
 ] as [string, InitFlags, string][])('%s is refused naming its flag', (_name, flags, expected) => {
   expect(flagProblem(flags)).toContain(expected);
-});
-
-test('extra reviewers named one after the other are fine, and none is fine', () => {
-  expect(flagProblem({ ...ok, reviewer2: 'codex:x', reviewer3Profile: 'gh' })).toBeUndefined();
-  expect(flagProblem({ ...ok, reviewer2Failover: ['claude'], reviewer3: 'claude:m', reviewer4Effort: 'high' })).toBeUndefined();
 });
 
 test('the first problem found is the one reported', () => {

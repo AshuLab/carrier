@@ -24,7 +24,9 @@ export function priorFrom(raw: unknown, rawProviders: unknown): Prior | { error:
     orchestrator: config.profiles[config.orchestratorProfile]!,
     author: role(config.agents.author),
     reviewer: role(config.agents.reviewer),
-    ...(config.agents.extraReviewers && { extraReviewers: config.agents.extraReviewers.map((extra) => ({ role: role(extra), ...(extra.failover && { failover: extra.failover }) })) }),
+    ...(config.agents.extraReviewers && {
+      extraReviewers: Object.entries(config.agents.extraReviewers).map(([key, extra]) => ({ key, name: extra.name, type: extra.type, role: role(extra), ...(extra.failover && { failover: extra.failover }) })),
+    }),
     ...(config.agents.leadReviewer ? { leadReviewer: role(config.agents.leadReviewer) } : {}),
   };
 }

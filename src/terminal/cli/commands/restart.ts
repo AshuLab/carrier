@@ -9,10 +9,11 @@ import { connectControl, ControlRefused, ControlUnreachable, type CarrierClient 
 // The engine waits up to 30 seconds for the epic to start again before it refuses.
 const RESTART_WAIT_MS = 40_000;
 
-// What the request names for each role: the extra reviewers are `reviewer2` to `reviewer4`, as the request spells them.
+// What the request names for each role: the extra reviewers are `reviewer2` to `reviewer4`, as the request spells them; only the three roles of `flagRoles` have a flag.
 const roleKeys = ['author', 'reviewer', 'reviewer2', 'reviewer3', 'reviewer4', 'lead'] as const;
+const flagRoles = ['author', 'reviewer', 'lead'] as const;
 type Chosen = Partial<Record<(typeof roleKeys)[number], string>>;
-type Flags = Chosen & { from?: 'ship' | 'review' | 'fix'; extraRounds?: number };
+type Flags = Partial<Record<(typeof flagRoles)[number], string>> & { from?: 'ship' | 'review' | 'fix'; extraRounds?: number };
 
 // What each refusal code means for the person, and what to do next.
 export const refusals: Record<string, (target: string) => string> = {
@@ -68,10 +69,10 @@ export async function restartCommand(folder: string, { repo, issue }: EpicTarget
   try {
     // an engine that does not list `resumeFromStage` would only answer "invalid request"
     if ((flags.from !== undefined || flags.extraRounds !== undefined) && client.hello.capabilities.includes('resumeFromStage') === false) throw new CliError(1, 'The running Carrier is too old to resume from a stage: restart it to get --from.');
-    const named = roleKeys.filter((role) => flags[role] !== undefined);
+    const named = flagRoles.filter((role) => flags[role] !== undefined);
     // an engine that does not list `resumeReviewerOptions` would only answer "invalid request"
     const reviewers = client.hello.capabilities.includes('resumeReviewerOptions');
-    if (reviewers === false && named.some((role) => role !== 'author' && role !== 'reviewer')) throw new CliError(1, 'The running Carrier is too old to restart the extra reviewers and the lead on an option: restart it to get --reviewer-2, --reviewer-3, --reviewer-4 and --lead.');
+    if (reviewers === false && named.includes('lead')) throw new CliError(1, 'The running Carrier is too old to restart the lead on an option: restart it to get --lead.');
     let chosen: Chosen = Object.fromEntries(named.map((role) => [role, flags[role]!]));
     if (named.length === 0 && process.stdin.isTTY && process.stdout.isTTY) {
       const { epics } = (await client.request('snapshot')) as ControlSnapshot;

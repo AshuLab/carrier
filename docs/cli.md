@@ -31,8 +31,9 @@ Then it asks, in this order:
 2. **The orchestrator's GitHub profile.** A short note explains what a profile is, then you pick a bot of Agent Forge or your own `gh` login for the orchestrator, which only reads issues and PRs and changes labels.
    If there is no bot it can run `agent-forge add` for you on the spot.
 3. **One block for each role**, closed before the next one starts: the author, the reviewer, any extra reviewers, and a lead reviewer if you say yes at "Add a lead reviewer?" (Enter says no).
-   After the reviewer it asks "Add another reviewer?" (Enter says no); each yes opens the same block for the next reviewer, `reviewer-2`, then `reviewer-3`, then `reviewer-4`, and after the third it is not asked again.
-   The extra reviewers are written to `agents.extraReviewers` in that order; one with no failover steps has no `failover` key and so uses the reviewer's.
+   After the reviewer it asks "Add another reviewer?" (Enter says no); each yes opens a block for an extra reviewer that starts with its **name**, which is required and has no suggestion (a blank answer, or a name another extra reviewer has, asks again), and its **type**, a slug that starts on `general` (`security`, `ux`, anything else you write), and goes on with the questions below; after the third it is not asked again.
+   The extra reviewers are written to `agents.extraReviewers` as a map in that order, each under a key `init` derives from its name (`Seguridad API` is `seguridad-api`; see [configuration](configuration.md#extra-reviewers-and-the-lead-reviewer)); one with no failover steps has no `failover` key and so uses the reviewer's.
+   Going back with Esc to an extra reviewer's block and changing its name keeps the answers to the block's other questions.
    The lead reviewer comes after all of them.
    Each block asks, in this order:
    - The GitHub profile the role acts as: a bot of Agent Forge or your own `gh` login.
@@ -68,15 +69,16 @@ Run again on an existing config, it offers to edit it (its answers are the start
 Editing keeps the accounts of `providers.json` and lets you add more (editing or removing one is done in the file), starts each role's model, effort, persona and lead reviewer from the file, and asks whether to keep the failover steps it has; `-` in a persona field clears it.
 Editing keeps the rest of the file: `engine.json` is written as it is, with only the keys the wizard asks replaced.
 Those are `repos` (a repo you keep keeps its entry and its per-repo overrides, a repo you leave out is dropped, a new one is `{ "name": "owner/name" }`), `profiles` (the ones you picked are set over the file's), `orchestratorProfile`, the failover of the author, the reviewer and the lead reviewer (`failover.triggers` stays), and each of those roles' `profile`, `provider`, `model`, `effort` and `persona`.
-`agents.extraReviewers` is owned too: each extra reviewer in the file is walked as a block starting from its values, "Add reviewer-N?" starts on Yes while the file has one more, and a No drops that reviewer and the ones after it.
-The list is replaced by the answers (an extra keeps the keys the wizard does not ask, such as its `skills`) and removed when there are none.
+`agents.extraReviewers` is owned too: each extra reviewer in the file's map is walked in the order of the map as a block starting from its name, its type and its other values, "Keep `<name>`?" starts on Yes while the file has one more, and a No drops that reviewer and the ones after it.
+The map is replaced by the answers: an extra keeps its key, even when you change its name, and the keys the wizard does not ask, such as its `skills` and the failover steps you keep; the key is removed when there are none.
 Everything else survives: `limits`, `labels`, `skills`, `logLevel`, `pollIntervalMinutes`, `finishedWindowDays` and a role's own `skills`; a lead reviewer you decline is removed.
 "Start over", a new file and `--out` to another file are written whole from the answers.
 A config that does not validate is not edited: the wizard prints its first error (path and message) and asks whether to start over, save a new one in another file or leave it, and writes nothing until you answer.
+A file whose `agents.extraReviewers` is still a list is one of them: the error names the map it needs.
 With `--yes` it replaces the file, as the flag says, and prints that first error.
 `--config` is not a flag of `init`: it exits 2 and writes nothing, because `init` writes where `--out` says.
 
-Every question has a flag (`carrier init --help`), and they all follow one pattern, with `<role>` one of `author`, `reviewer`, `reviewer-2`, `reviewer-3`, `reviewer-4` and `lead-reviewer`:
+Every question has a flag (`carrier init --help`), and they all follow one pattern, with `<role>` one of `author`, `reviewer` and `lead-reviewer`:
 
 | Flag | Answers |
 |---|---|
@@ -90,10 +92,7 @@ Every question has a flag (`carrier init --help`), and they all follow one patte
 | `--<role>-failover <account>[:<model>]` | One failover step; repeat it, in order, for up to two. |
 
 With `--author` and `--reviewer` both given, the extra-accounts question and every role's failover question are skipped, and the failover steps the file has stay (a `--<role>-failover` flag still sets its role's steps).
-`reviewer-2` to `reviewer-4` are the extra reviewers, and an extra exists when any flag names it.
-They are a list in order, so a flag for `reviewer-3` with none for `reviewer-2` is refused before anything is probed, naming the missing flag (`--reviewer-2`).
-A flagged extra is not asked again; "Add another reviewer?" is asked once after the last flagged one when there is room, and under `--yes` there is no extra unless a flag names it.
-(In `carrier restart`, `--reviewer-2` to `--reviewer-4` keep meaning an option of the config.)
+An extra reviewer has no flags: the ones that named it by its place (`--reviewer-2` to `--reviewer-4` and their companions) are gone, so `--yes` creates no extra reviewer, and flags that name one by its name are not there yet.
 
 The failover step is split at the first colon, so `--author-failover claude:llama3:8b` is the account `claude` with the model `llama3:8b`; a step with no model uses the account's, then the harness's.
 The account must be one found on this Mac or already in `providers.json` (or one a `--<role>` flag declares).
@@ -153,11 +152,11 @@ The panel is a dependency-free ANSI dashboard: uptime, repos watched and the nex
 
 ## Restart a stopped epic
 
-`carrier restart <owner/name>#<issue> [--author <option>] [--reviewer <option>] [--reviewer-2 <option>] [--reviewer-3 <option>] [--reviewer-4 <option>] [--lead <option>] [--from <ship|review|fix>] [--extra-rounds <K>]` resumes an epic in needs-human from the terminal (the `resumeEpic` request of the socket), on the agent option of each role you choose.
+`carrier restart <owner/name>#<issue> [--author <option>] [--reviewer <option>] [--lead <option>] [--from <ship|review|fix>] [--extra-rounds <K>]` resumes an epic in needs-human from the terminal (the `resumeEpic` request of the socket), on the agent option of each role you choose.
 In a terminal and without flags it asks for each role the epic has, extra reviewers and lead included, with the current option preselected and the role of the execution that failed marked; without a terminal it keeps the current options.
-`--reviewer-2` to `--reviewer-4` and `--lead` name an option for that extra reviewer or the lead; Carrier refuses, with the reason printed, an option the repo does not declare and a role the epic does not have.
+`--author`, `--reviewer` and `--lead` name an option for that role, and an extra reviewer has no flag (the terminal asks about it); Carrier refuses, with the reason printed, an option the repo does not declare and a role the epic does not have.
 A restart that changes the option of one role keeps every other role of the epic, the extra reviewers and the lead included, and the `resumed` event records the options chosen.
-A Carrier that does not list `resumeReviewerOptions` in its hello is not asked for those four, and the command says it is too old (restart it).
+A Carrier that does not list `resumeReviewerOptions` in its hello is not asked for the extra reviewers and the lead, and the command says it is too old (restart it).
 The same option continues the agent's session with `--resume`; another one starts a new session in the epic's worktree and pull request, rebuilt from SQLite and GitHub like a lost session.
 With `--from review` or `--from fix` the epic keeps its round, pull request, worktree and blockers and starts at that stage instead of ship; it still goes through the queue and takes a slot.
 Carrier refuses it, with the reason printed, when the epic has no pull request, when the pull request is not open, or, at `fix`, when its head is not the one Carrier saved, since the blockers it hands to the author belong to that head: restart it with `--from review` (which adopts the new head) or from ship then.

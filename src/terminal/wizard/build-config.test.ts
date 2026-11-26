@@ -57,18 +57,19 @@ test('buildConfig writes the orchestrator as its own profile when it is not the 
   expect(loadConfig(defaults, config, providers).ok).toBe(true);
 });
 
-test('buildConfig writes the extra reviewers as an ordered list with their own profiles and failover, and the file loads', () => {
+test('buildConfig writes the extra reviewers as a map under their keys, in order, with their name, type, own profiles and failover, and the file loads', () => {
   const config = buildConfig({
     ...answers,
     extraReviewers: [
-      { role: { identity: parseIdentity('forge:second'), provider: 'codex', model: 'gpt-5', effort: 'low', persona: { name: 'Rex' } }, failover: [{ provider: 'claude', model: 'opus' }] },
-      { role: { identity: parseIdentity('gh'), provider: 'claude', model: 'sonnet' } },
+      { key: 'seguridad-api', name: 'Seguridad API', type: 'security', role: { identity: parseIdentity('forge:second'), provider: 'codex', model: 'gpt-5', effort: 'low', persona: { name: 'Rex' } }, failover: [{ provider: 'claude', model: 'opus' }] },
+      { key: 'usabilidad', name: 'Usabilidad', type: 'ux', role: { identity: parseIdentity('gh'), provider: 'claude', model: 'sonnet' } },
     ],
   });
-  expect(config.agents.extraReviewers).toEqual([
-    { profile: 'second', provider: 'codex', model: 'gpt-5', effort: 'low', persona: { name: 'Rex' }, failover: [{ provider: 'claude', model: 'opus' }] },
-    { profile: 'gh', provider: 'claude', model: 'sonnet' }, // no steps, no failover key: the Reviewer's is used
-  ]);
+  expect(config.agents.extraReviewers).toEqual({
+    'seguridad-api': { type: 'security', name: 'Seguridad API', profile: 'second', provider: 'codex', model: 'gpt-5', effort: 'low', persona: { name: 'Rex' }, failover: [{ provider: 'claude', model: 'opus' }] },
+    usabilidad: { type: 'ux', name: 'Usabilidad', profile: 'gh', provider: 'claude', model: 'sonnet' }, // no steps, no failover key: the Reviewer's is used
+  });
+  expect(Object.keys(config.agents.extraReviewers!)).toEqual(['seguridad-api', 'usabilidad']);
   expect(config.profiles).toMatchObject({ second: { kind: 'forge', agent: 'second' }, gh: { kind: 'gh' } });
   expect(loadConfig(defaults, config, providers).ok).toBe(true);
 });

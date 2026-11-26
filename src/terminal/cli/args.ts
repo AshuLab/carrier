@@ -17,7 +17,7 @@ export const usage = () => `Usage: carrier --config <path>          run the orch
        carrier watch                     the live panel of the running Carrier; q leaves it running (exit 1: not running)
        carrier stop|pause|resume|check   stop Carrier, pause or resume intake, look at GitHub now
        carrier reload                    make the running Carrier read engine.json and providers.json again (exit 1: not running, or a file is wrong)
-       carrier restart <owner/name>#<issue> [--author <option>] [--reviewer <option>] [--reviewer-2 <option>] [--reviewer-3 <option>] [--reviewer-4 <option>] [--lead <option>] [--from <ship|review|fix>] [--extra-rounds <K>]   resume a stopped epic on the options you choose
+       carrier restart <owner/name>#<issue> [--author <option>] [--reviewer <option>] [--lead <option>] [--from <ship|review|fix>] [--extra-rounds <K>]   resume a stopped epic on the options you choose
        carrier recover <owner/name>#<issue>   continue a running epic whose agent is not alive, from where it really is
        carrier chat --workspace <folder> [--agent <name>]   talk to an agent in a folder (starts the chat host if needed)
        carrier chat --resume <id>        go on with a closed chat session, after the end of its transcript
@@ -31,7 +31,7 @@ export const usage = () => `Usage: carrier --config <path>          run the orch
 
 --config defaults to ${engineConfigPathOf()} (where init writes it) when that file exists.
 
-restart: with no option flag it asks for each role in a terminal and keeps the current options without one. --author, --reviewer, --reviewer-2 to --reviewer-4 and --lead name an option
+restart: with no option flag it asks for each role in a terminal and keeps the current options without one. --author, --reviewer and --lead name an option
 of the config here, not the <harness>:<model> of init.
 restart --from review or fix keeps the epic's round, pull request and worktree and starts at that stage; ship (the default) starts over with the rounds reset.
 restart --extra-rounds K, with --from review or fix, sets how many review rounds an epic that stopped on the review limit gets from its current one (default: limits.maxReviews).
@@ -46,11 +46,11 @@ init flags (each one skips its question; --yes never asks):
       --<role>-effort <level>                 level: ${efforts.join(', ')}
       --<role>-persona-name <text>   --<role>-persona-prompt <text>
       --<role>-failover <account>[:<model>]   repeat for up to two steps, in order; the account is one of this Mac or providers.json
-      reviewer-2 to reviewer-4 are the extra reviewers, in order: --reviewer-3 needs --reviewer-2
+      the extra reviewers have no flags yet: init asks each one's name and type
   --out <path>                   default is the --config default above
   --yes                          no questions (needs --repo); overwrite the output file; the author and the reviewer take the first of each agent found (claude for the author and codex for the reviewer when both exist)`;
 
-/** What `--<role>`, `--<role>-profile` and the rest of a role's flags are, from the table of slots. `--reviewer-2` to `--reviewer-4` come from it too: strings in `restart`, where they name an option of the config. */
+/** What `--<role>`, `--<role>-profile` and the rest of a role's flags are, from the table of slots. */
 const roleOptions = Object.fromEntries(
   roleSlots.flatMap((slot) => [...roleFlagSuffixes.map((suffix) => [`${slot}${suffix}`, { type: 'string' }]), [`${slot}-failover`, { type: 'string', multiple: true }]]),
 ) as { [Name in `${RoleSlot}${(typeof roleFlagSuffixes)[number]}`]: { readonly type: 'string' } } & { [Name in `${RoleSlot}-failover`]: { readonly type: 'string'; readonly multiple: true } };

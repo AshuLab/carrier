@@ -2,14 +2,14 @@ import { isObject } from '../../config/engine-edit.ts';
 
 // What the wizard asks of a role; the rest of the role (its `skills`) stays as the file has it.
 const askedOfRole = ['profile', 'provider', 'model', 'effort', 'persona'];
-const askedOfExtra = [...askedOfRole, 'failover'];
+const askedOfExtra = [...askedOfRole, 'type', 'name', 'failover'];
 const failoverRoles = ['author', 'reviewer', 'leadReviewer'];
 
 const keepRole = (old: unknown, next: Record<string, unknown>, asked = askedOfRole) => ({ ...next, ...Object.fromEntries(Object.entries(isObject(old) ? old : {}).filter(([key]) => !asked.includes(key))) });
 
 /**
  * The config an edit writes: `file` as it is, with only the keys the wizard owns replaced by `built` (what `buildConfig` makes from the answers).
- * Owned: `repos` (a repo that stays keeps its entry), `profiles` (set over the file's), `orchestratorProfile`, the failover of the author, the reviewer and the lead reviewer, and those three roles' profile, provider, model, effort and persona. `agents.extraReviewers` is owned too: replaced by the answers (each extra keeping the keys the wizard does not ask, such as its `skills`) and removed when there are none.
+ * Owned: `repos` (a repo that stays keeps its entry), `profiles` (set over the file's), `orchestratorProfile`, the failover of the author, the reviewer and the lead reviewer, and those three roles' profile, provider, model, effort and persona. `agents.extraReviewers` is owned too: replaced by the answers (each extra, found by its key, keeping the keys the wizard does not ask, such as its `skills`) and removed when there are none.
  */
 export function keepRest(file: Record<string, unknown>, built: Record<string, unknown>): Record<string, unknown> {
   const kept = Array.isArray(file.repos) ? file.repos.filter(isObject) : [];
@@ -32,7 +32,7 @@ export function keepRest(file: Record<string, unknown>, built: Record<string, un
       ...otherAgents,
       author: keepRole(oldAgents.author, agents.author!),
       reviewer: keepRole(oldAgents.reviewer, agents.reviewer!),
-      ...(agents.extraReviewers && { extraReviewers: (agents.extraReviewers as unknown as Record<string, unknown>[]).map((extra, i) => keepRole(Array.isArray(oldExtras) ? oldExtras[i] : undefined, extra, askedOfExtra)) }),
+      ...(agents.extraReviewers && { extraReviewers: Object.fromEntries(Object.entries(agents.extraReviewers as Record<string, Record<string, unknown>>).map(([key, extra]) => [key, keepRole(isObject(oldExtras) ? oldExtras[key] : undefined, extra, askedOfExtra)])) }),
       ...(agents.leadReviewer && { leadReviewer: keepRole(oldAgents.leadReviewer, agents.leadReviewer) }),
     },
   };

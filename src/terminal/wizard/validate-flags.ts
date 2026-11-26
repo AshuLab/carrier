@@ -4,16 +4,16 @@ import { parseHarnessModel, parseIdentity, parseProvider, type Role } from './bu
 import type { InitFlags } from './flags.ts';
 import { effortProblem } from './questions/effort.ts';
 import { personaProblem } from './questions/persona.ts';
-import { camel, extraSlots, roleFlagSuffixes, roleName, roleSlots, type RoleSlot } from './roles.ts';
+import { camel, roleFlagSuffixes, roleName, roleSlots, type Block, type RoleSlot } from './roles.ts';
 
 /** A step of a role's failover chain; a step with no model uses the account's, then the harness's. */
 export type FailoverStep = { provider: string; model?: string };
 
-const text = (flags: InitFlags, slot: RoleSlot, suffix: string) => (flags as Record<string, unknown>)[camel(`${slot}${suffix}`)] as string | undefined;
-const stepTexts = (flags: InitFlags, slot: RoleSlot) => ((flags as Record<string, unknown>)[camel(`${slot}-failover`)] ?? []) as string[];
+const text = (flags: InitFlags, slot: Block, suffix: string) => (flags as Record<string, unknown>)[camel(`${slot}${suffix}`)] as string | undefined;
+const stepTexts = (flags: InitFlags, slot: Block) => ((flags as Record<string, unknown>)[camel(`${slot}-failover`)] ?? []) as string[];
 
-/** An extra reviewer exists when any flag names its slot. */
-export const named = (flags: InitFlags, slot: RoleSlot) => roleFlagSuffixes.some((suffix) => text(flags, slot, suffix) !== undefined) || stepTexts(flags, slot).length > 0;
+/** A role is asked for when any flag names its slot. */
+export const named = (flags: InitFlags, slot: Block) => roleFlagSuffixes.some((suffix) => text(flags, slot, suffix) !== undefined) || stepTexts(flags, slot).length > 0;
 
 /** The wizard offers two failover steps. */
 const maxSteps = 2;
@@ -38,13 +38,13 @@ function parseStep(flag: string, step: string): { step: FailoverStep } | { probl
 }
 
 /** The steps a role's failover flags name, in the order given; nothing for a role with none. Flags that do not parse are `flagProblem`'s, which runs first. */
-export function failoverSteps(flags: InitFlags, slot: RoleSlot): FailoverStep[] | undefined {
+export function failoverSteps(flags: InitFlags, slot: Block): FailoverStep[] | undefined {
   const parsed = stepTexts(flags, slot).map((step) => parseStep(`--${slot}-failover`, step));
   const steps = parsed.flatMap((one) => ('step' in one ? [one.step] : []));
   return steps.length > 0 ? steps : undefined;
 }
 
-/** The first thing wrong in the flags that needs no look at the machine, naming its flag; undefined when there is nothing. A value that does not parse, a level that is not one of the five, an orchestrator profile that is neither `forge:<agent>` nor `gh`, a repo that is not `owner/name`, a failover step that is malformed, a third or a repeated one, an extra reviewer's flag with none for the one before it, and `--yes` with no `--repo`. */
+/** The first thing wrong in the flags that needs no look at the machine, naming its flag; undefined when there is nothing. A value that does not parse, a level that is not one of the five, an orchestrator profile that is neither `forge:<agent>` nor `gh`, a repo that is not `owner/name`, a failover step that is malformed, a third or a repeated one, and `--yes` with no `--repo`. */
 export function flagProblem(flags: InitFlags): string | undefined {
   for (const slot of roleSlots) {
     const [agent, profile, provider, effort, personaName, personaPrompt] = roleFlagSuffixes.map((suffix) => text(flags, slot, suffix));
@@ -67,10 +67,6 @@ export function flagProblem(flags: InitFlags): string | undefined {
       if (steps.some((earlier) => earlier.provider === parsed.step.provider && earlier.model === parsed.step.model)) return `${flag} "${step}": it repeats an earlier step, so it would move nowhere`;
       steps.push(parsed.step);
     }
-  }
-  // The extra reviewers are a list: a flag for one with none for the one before it has no place to go.
-  for (const [i, slot] of extraSlots.entries()) {
-    if (i > 0 && named(flags, slot) && !named(flags, extraSlots[i - 1]!)) return `--${slot}: there is no place for ${slot} without --${extraSlots[i - 1]}, since the extra reviewers are a list in order`;
   }
   const orchestrator = flags.orchestratorProfile === undefined ? undefined : problemOf('--orchestrator-profile', () => parseIdentity(flags.orchestratorProfile!));
   if (orchestrator !== undefined) return orchestrator;

@@ -15,12 +15,12 @@ private func session(_ id: String, folder: String, base: String? = nil, state: S
     return try JSONDecoder().decode(ChatSession.self, from: Data(json.utf8))
 }
 
-private func reply(main: ProjectWorktree.State? = .clean, _ worktrees: [ProjectWorktree] = []) -> ProjectWorktrees {
+private func reply(main: ProjectWorktrees.Main.State? = .clean, _ worktrees: [ProjectWorktree] = []) -> ProjectWorktrees {
     ProjectWorktrees(main: .init(path: "/p/app", branch: "main", state: main), worktrees: worktrees)
 }
 
-private func worktree(_ name: String, _ state: ProjectWorktree.State, session id: String? = nil) -> ProjectWorktree {
-    ProjectWorktree(path: "/w/\(name)", branch: "carrier/\(name)", session: id.map { .init(id: $0) }, lastActiveAt: 0, state: state)
+private func worktree(_ name: String, _ integration: ProjectWorktree.Integration = .pushed, activity: ProjectWorktree.Activity? = nil, session id: String? = nil) -> ProjectWorktree {
+    ProjectWorktree(path: "/w/\(name)", branch: "carrier/\(name)", session: id.map { .init(id: $0) }, lastActiveAt: 0, activity: activity, integration: integration)
 }
 
 @Test func onlyWhatCarrierMadeOffersDeletingFromDisk() {
@@ -38,7 +38,7 @@ private func worktree(_ name: String, _ state: ProjectWorktree.State, session id
 
 @Test func aCleanProjectWithIdleSessionsGoesOnWithNothingToConfirm() throws {
     let check = projectDeletionCheck(
-        path: "/p/app", reply: reply([worktree("a", .clean, session: "1"), worktree("b", .merged)]),
+        path: "/p/app", reply: reply([worktree("a", .inMain, session: "1"), worktree("b", .merged)]),
         sessions: [try session("1", folder: "/w/a", base: "/p/app"), try session("2", folder: "/p/app"), try session("3", folder: "/elsewhere", state: "working", live: true)],
         bundle: english.bundle, locale: english.locale
     )
@@ -63,15 +63,22 @@ private func worktree(_ name: String, _ state: ProjectWorktree.State, session id
 }
 
 @Test func aWorktreeSessionTheListDidNotNameStillRefusesFromTheHostsAnswer() throws {
-    let check = projectDeletionCheck(path: "/p/app", reply: reply([worktree("a", .sessionOpen, session: "9"), worktree("b", .sessionOpen, session: "1")]), sessions: [try session("1", folder: "/w/b", base: "/p/app", live: true)], bundle: english.bundle, locale: english.locale)
+    let check = projectDeletionCheck(path: "/p/app", reply: reply([worktree("a", activity: .sessionOpen, session: "9"), worktree("b", activity: .sessionOpen, session: "1")]), sessions: [try session("1", folder: "/w/b", base: "/p/app", live: true)], bundle: english.bundle, locale: english.locale)
     #expect(check.refusals == ["“Fix sync” is open", "A session of carrier/a is open"])
 }
 
 @Test func uncommittedChangesAndBranchesNotPushedAreListedForTheConfirmation() {
-    let check = projectDeletionCheck(path: "/p/app", reply: reply(main: .uncommitted, [worktree("a", .uncommitted), worktree("b", .notPushed), worktree("c", .clean), worktree("d", .merged)]), sessions: [], bundle: english.bundle, locale: english.locale)
+    let check = projectDeletionCheck(path: "/p/app", reply: reply(main: .uncommitted, [worktree("a", .inMain, activity: .uncommitted), worktree("b", .notPushed), worktree("c", .pushed), worktree("d", .merged), worktree("e", .prOpen), worktree("f", .prClosed), worktree("g", .inMain)]), sessions: [], bundle: english.bundle, locale: english.locale)
     #expect(check.unsaved == ["app has uncommitted changes", "carrier/a has uncommitted changes", "carrier/b has commits that are not pushed"])
     #expect(check.canGoOn && check.needsConfirmation)
     #expect(projectDeletionCheck(path: "/p/app", reply: reply(main: .notPushed), sessions: [], bundle: english.bundle, locale: english.locale).unsaved == ["app has commits that are not pushed"])
+}
+
+@Test func aWorktreeWithUncommittedChangesAndUnpushedCommitsListsBothAndAnOpenSessionStillRefuses() throws {
+    let check = projectDeletionCheck(path: "/p/app", reply: reply([worktree("a", .notPushed, activity: .uncommitted, session: "1"), worktree("b", .notPushed, activity: .sessionOpen, session: "2")]), sessions: [], bundle: english.bundle, locale: english.locale)
+    #expect(check.unsaved == ["carrier/a has uncommitted changes", "carrier/a has commits that are not pushed", "carrier/b has commits that are not pushed"])
+    #expect(check.refusals == ["A session of carrier/b is open"])
+    #expect(check.canGoOn == false)
 }
 
 @Test func aHostThatDoesNotSayWhatTheMainCloneHoldsRefusesInsteadOfGuessing() {

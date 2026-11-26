@@ -81,7 +81,7 @@ const controls = (): ChatControls => ({
   projectClones: () => ({ clones: [{ repo: 'acme/app', folder: '/projects/acme/app', state: 'cloning', progress: 'Receiving objects: 45%' }] }),
   projectWorktrees: async ({ folder }) => {
     if (folder === '/gone') throw new ChatRefused('folder.notFound', 'That folder does not exist');
-    return { main: { path: folder, branch: 'main', state: 'clean' }, worktrees: [{ path: '/home/chat/worktrees/acme/app/kerrigan', branch: 'carrier/kerrigan', session: null, lastActiveAt: 1000, state: 'clean' }] };
+    return { main: { path: folder, branch: 'main', state: 'clean' }, worktrees: [{ path: '/home/chat/worktrees/acme/app/kerrigan', branch: 'carrier/kerrigan', session: null, lastActiveAt: 1000, activity: null, integration: 'pushed', pullRequest: null }] };
   },
   projectDisk: ({ folders, refresh }) => ({ projects: folders.map((folder) => ({ folder, bytes: 2048, measuredAt: 5, parts: { [folder]: 2048 } })), measuring: refresh === 'now' ? folders : [] }),
   removeProjectWorktree: async ({ path }) => {
@@ -154,7 +154,7 @@ test('the socket is 0600, and a client gets a hello and the empty list', async (
   await open();
   expect(statSync(join(dir, 'chat.sock')).mode & 0o777).toBe(0o600);
   const c = await client();
-  expect(c.hello).toMatchObject({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, capabilities: ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'agentOptions', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'createProject', 'githubRepos', 'repoBranches', 'health', 'providers', 'plan', 'stop', 'reasoning', 'rename', 'usage', 'usageOverride', 'accountIdentity', 'accountPalette', 'switchAgent', 'stopTask', 'worktreeStart', 'fetchIfStale', 'listsRev', 'projects', 'textGenerators', 'regenerateTitle', 'regenerateTitles', 'config'] });
+  expect(c.hello).toMatchObject({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, capabilities: ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'agentOptions', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'createProject', 'githubRepos', 'repoBranches', 'health', 'providers', 'plan', 'stop', 'reasoning', 'rename', 'usage', 'usageOverride', 'accountIdentity', 'accountPalette', 'switchAgent', 'stopTask', 'worktreeStart', 'fetchIfStale', 'listsRev', 'projects', 'worktreeIntegration', 'textGenerators', 'regenerateTitle', 'regenerateTitles', 'config'] });
   expect(typeof c.hello.version).toBe('string');
   expect(await c.ask('{"id":1,"cmd":"list"}')).toEqual({ id: 1, ok: true, data: { sessions: [] } });
 });
@@ -420,7 +420,7 @@ test('the projects requests: a clone starts and answers at once, the clones in f
 test('projectWorktrees takes a folder and nothing else, and answers the main clone and the worktrees', async () => {
   await open();
   const c = await client();
-  expect(await c.ask('{"id":1,"cmd":"projectWorktrees","folder":"/work/app"}')).toEqual({ id: 1, ok: true, data: { main: { path: '/work/app', branch: 'main', state: 'clean' }, worktrees: [{ path: '/home/chat/worktrees/acme/app/kerrigan', branch: 'carrier/kerrigan', session: null, lastActiveAt: 1000, state: 'clean' }] } });
+  expect(await c.ask('{"id":1,"cmd":"projectWorktrees","folder":"/work/app"}')).toEqual({ id: 1, ok: true, data: { main: { path: '/work/app', branch: 'main', state: 'clean' }, worktrees: [{ path: '/home/chat/worktrees/acme/app/kerrigan', branch: 'carrier/kerrigan', session: null, lastActiveAt: 1000, activity: null, integration: 'pushed', pullRequest: null }] } });
   expect(await c.ask('{"id":2,"cmd":"projectWorktrees","folder":"/gone"}')).toEqual({ id: 2, ok: false, error: 'That folder does not exist', code: 'folder.notFound', params: {} });
   const bad = ['{"id":10,"cmd":"projectWorktrees"}', '{"id":11,"cmd":"projectWorktrees","folder":""}', '{"id":12,"cmd":"projectWorktrees","folder":"/a","force":true}', `{"id":13,"cmd":"projectWorktrees","folder":"/${'a'.repeat(4096)}"}`];
   for (const line of bad) expect(await c.ask(line)).toMatchObject({ ok: false, error: 'invalid request', code: 'request.invalid', params: {} });

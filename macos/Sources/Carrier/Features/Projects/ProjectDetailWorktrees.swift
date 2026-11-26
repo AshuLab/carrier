@@ -29,13 +29,22 @@ extension ProjectDetailView {
                 ForEach(items) { item in
                     SettingsTabRow(title: item.branch, detail: item.detail(), mono: true, problem: removeProblems[item.id]) {
                         HStack(spacing: Tokens.Space.s10) {
-                            if let state = item.state, let kind = item.kind { StatusChip(text: state, tint: worktreeTint(kind)) }
+                            // the activity above the integration: both chips and the link keep their width, so the row's words are what gives way at the narrowest window
+                            VStack(alignment: .trailing, spacing: Tokens.Space.s4) {
+                                if let activity = item.activity, let kind = item.activityKind { StatusChip(text: activity, tint: activityTint(kind)).fixedSize() }
+                                HStack(spacing: Tokens.Space.s6) {
+                                    if let integration = item.integration, let kind = item.integrationKind { StatusChip(text: integration, tint: integrationTint(kind)).fixedSize() }
+                                    if let pullRequest = item.pullRequest { PullRequestChip(number: pullRequest.number, dot: nil, url: pullRequest.url) }
+                                }
+                            }
                             if item.hasRemove {
-                                Button { Task { await removeWorktree(item.id) } } label: { Label(Copy.projectsRemove(), icon: .trash) }
-                                    .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
+                                // the trash alone: the tooltip and the label say what the icon does, so no word sits in the row
+                                Button { Task { await removeWorktree(item.id) } } label: { Glyph(.trash, size: 14).frame(width: 24, height: 24).contentShape(Rectangle()) }
+                                    .buttonStyle(HoverFillButtonStyle()).foregroundStyle(.secondary)
                                     .disabled(item.removeBlockedBy() != nil || removing.contains(item.id))
                                     .help(item.removeBlockedBy() ?? Copy.projectsRemoveWorktreeHelp())
                                     .accessibilityLabel(Copy.projectsRemoveWorktreeLabel(branch: item.branch))
+                                    .accessibilityHint(item.removeBlockedBy() ?? "")
                             }
                             HStack(spacing: Tokens.Space.s6) {
                                 Circle().fill(diskColor(item.id, in: items)).frame(width: 7, height: 7).accessibilityHidden(true)
@@ -46,7 +55,7 @@ extension ProjectDetailView {
                     }
                 }
                 if let cleanup, let words = cleanUpWords(cleanup) {
-                    SettingsTabRow(title: Copy.projectsCleanUp(), detail: Copy.projectsCleanUpDetail(words: words)) {
+                    SettingsTabRow(title: Copy.projectsCleanUpTitle(), detail: Copy.projectsCleanUpDetail(words: words)) {
                         Button { confirmingCleanup = true } label: { Label(Copy.projectsCleanUp(), icon: .trash) }
                             .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
                             .disabled(removing.isEmpty == false)
@@ -72,12 +81,21 @@ extension ProjectDetailView {
     /// What the alert of Clean up says it takes and leaves.
     var cleanUpQuestionWords: String { Copy.projectsCleanUpQuestionWords() }
 
-    private func worktreeTint(_ state: ProjectWorktree.State) -> Color {
-        switch state {
+    private func activityTint(_ activity: ProjectWorktree.Activity) -> Color {
+        switch activity {
         case .sessionOpen: theme.accent
-        case .merged: .green
-        case .uncommitted, .notPushed: .orange
-        case .clean: .secondary
+        case .uncommitted: .orange
+        }
+    }
+
+    /// Purple for a merged pull request as everywhere, green for what main already holds, orange for work held nowhere else, blue for a pull request still open, grey for the rest.
+    private func integrationTint(_ integration: ProjectWorktree.Integration) -> Color {
+        switch integration {
+        case .merged: Color(Tokens.PullRequest.merged)
+        case .inMain: .green
+        case .notPushed: .orange
+        case .prOpen: .blue
+        case .prClosed, .pushed: .secondary
         }
     }
 
@@ -117,8 +135,8 @@ extension ProjectDetailView {
             let listed = try await model.worktrees(of: row.path)
             worktrees = listed
             worktreesProblem = nil
-            // measuring what Clean up takes walks the folders, so only a project with a merged worktree asks
-            cleanup = listed.worktrees.contains { $0.state == .merged } ? try? await model.cleanUpWorktrees(of: row.path, run: false) : nil
+            // measuring what Clean up takes walks the folders, so only a project with a finished worktree asks
+            cleanup = listed.worktrees.hasFinished ? try? await model.cleanUpWorktrees(of: row.path, run: false) : nil
         } catch ControlError.remote(let refusal) {
             worktreesProblem = refusal.shown()
         } catch {

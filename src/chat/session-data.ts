@@ -174,6 +174,9 @@ export function createSessionData({ db, git, pulls, clock }: { db: ChatDb; git: 
       pr: found.prNumber === null || found.prRepo === null || found.prUrl === null || found.prState === null ? null : { repo: found.prRepo, number: found.prNumber, url: found.prUrl, state: found.prState, checks: found.prChecks },
     }),
 
+    /** The state of the open or draft pull requests of these sessions, archived ones included, in one request and whatever their age: a page that is opening asks. Throws when GitHub cannot answer. */
+    refresh: (rows: Found[]) => refreshStates(rows),
+
     /** A list was asked for: the sweep that fills the rows in starts, unless one ran a moment ago or is running. */
     kick(rows: Found[]) {
       const now = clock.now();

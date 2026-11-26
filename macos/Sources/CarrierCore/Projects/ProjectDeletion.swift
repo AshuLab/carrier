@@ -38,7 +38,7 @@ public func projectDeletionCheck(path: String, reply: ProjectWorktrees, sessions
         }
     }
     // the host's own view of a worktree whose session the list did not name
-    for worktree in reply.worktrees where worktree.state == .sessionOpen && covered.contains(worktree.session?.id ?? "") == false {
+    for worktree in reply.worktrees where worktree.activity == .sessionOpen && covered.contains(worktree.session?.id ?? "") == false {
         refusals.append(Copy.projectsDeleteWorktreeSessionOpen(branch: worktree.branch ?? Copy.projectsDeleteAWorktree(bundle: bundle, locale: locale), bundle: bundle, locale: locale))
     }
     var unsaved: [String] = []
@@ -50,11 +50,8 @@ public func projectDeletionCheck(path: String, reply: ProjectWorktrees, sessions
     }
     for worktree in reply.worktrees {
         let name = worktree.branch ?? (worktree.path as NSString).lastPathComponent
-        switch worktree.state {
-        case .uncommitted: unsaved.append(Copy.projectsDeleteUncommitted(name: name, bundle: bundle, locale: locale))
-        case .notPushed: unsaved.append(Copy.projectsDeleteNotPushed(name: name, bundle: bundle, locale: locale))
-        default: break
-        }
+        if worktree.activity == .uncommitted { unsaved.append(Copy.projectsDeleteUncommitted(name: name, bundle: bundle, locale: locale)) }
+        if worktree.integration == .notPushed { unsaved.append(Copy.projectsDeleteNotPushed(name: name, bundle: bundle, locale: locale)) }
     }
     return ProjectDeletionCheck(refusals: refusals, unsaved: unsaved)
 }

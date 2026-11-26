@@ -6,6 +6,7 @@ import type { ChatCapability } from '../chat/server.ts';
 import type { AvailableRepo } from '../integrations/available-repos.ts';
 import { controlSocketIn } from '../config/places.ts';
 import { ConfigRefused } from '../config/engine-edit.ts';
+import { slugPattern } from '../config/extra-reviewer-key.ts';
 import { optionNamePattern } from '../config/providers.ts';
 import type { TextParams } from '../orchestration/text-params.ts';
 import { RecoverRefused } from '../orchestration/recover-refused.ts';
@@ -34,6 +35,8 @@ const repo = z
 const issue = z.number().int().positive();
 const optionName = z.string().regex(optionNamePattern);
 const extraRounds = z.int().min(1);
+// The option of each extra reviewer the epic has, by its key; an extra reviewer is at most three (the engine refuses a key the epic does not have).
+const extraReviewerOptions = z.record(z.string().regex(slugPattern), optionName).refine((options) => Object.keys(options).length <= 3);
 // The `config` capability: the requests that change `engine.json` (ADR 0053). A value the file's schema refuses is refused with its key path and kind.
 const whole = z.number().finite();
 export const setWatchedReposRequest = z.strictObject({ id, cmd: z.literal('setWatchedRepos'), repos: z.array(z.string().max(200)).max(500) });
@@ -81,7 +84,7 @@ export const request = z.union([
   z.strictObject({ id, cmd: z.literal('fileDiff'), repo, issue, section: z.string().min(1).max(100), path: z.string().min(1).max(500) }),
   z.strictObject({ id, cmd: z.literal('availableRepos'), page: z.int().min(1).max(100).optional() }),
   z.strictObject({ id, cmd: z.literal('reload') }),
-  z.strictObject({ id, cmd: z.literal('resumeEpic'), repo, issue, author: optionName.optional(), reviewer: optionName.optional(), reviewer2: optionName.optional(), reviewer3: optionName.optional(), reviewer4: optionName.optional(), lead: optionName.optional(), from: z.enum(['ship', 'review', 'fix']).optional(), extraRounds: extraRounds.optional() }),
+  z.strictObject({ id, cmd: z.literal('resumeEpic'), repo, issue, author: optionName.optional(), reviewer: optionName.optional(), extraReviewers: extraReviewerOptions.optional(), lead: optionName.optional(), from: z.enum(['ship', 'review', 'fix']).optional(), extraRounds: extraRounds.optional() }),
   z.strictObject({ id, cmd: z.literal('recoverEpic'), repo, issue }),
   setWatchedReposRequest,
   editBehaviorRequest,
@@ -119,7 +122,7 @@ export type Controls = {
   /** One page of the repos the gh login can push to, and whether there is a next one; rejects when GitHub cannot be read. */
   availableRepos(page: number): Promise<{ repos: AvailableRepo[]; hasMore: boolean }>;
   /** Puts a stopped epic back in motion and resolves once it started; rejects with ResumeRefused when it could not. */
-  resumeEpic(repo: string, issue: number, chosen: { author?: string; reviewer?: string; reviewer2?: string; reviewer3?: string; reviewer4?: string; lead?: string; from?: 'ship' | 'review' | 'fix'; extraRounds?: number }): Promise<void>;
+  resumeEpic(repo: string, issue: number, chosen: { author?: string; reviewer?: string; extraReviewers?: Record<string, string>; lead?: string; from?: 'ship' | 'review' | 'fix'; extraRounds?: number }): Promise<void>;
   /** Continues one running epic whose agent is not alive and resolves once it was; rejects with RecoverRefused when it could not. It takes no state: the engine reads the epic's own. */
   recoverEpic(repo: string, issue: number): Promise<void>;
   /** Reads the settings again and runs on them; throws ReloadRefused, with the settings as they were, when they are not valid. */
@@ -236,9 +239,9 @@ function answer(line: string, snapshot: () => unknown, controls: Controls, stopA
       );
   }
   if (parsed.data.cmd === 'resumeEpic') {
-    const { id: replyId, repo, issue, author, reviewer, reviewer2, reviewer3, reviewer4, lead, from, extraRounds } = parsed.data;
+    const { id: replyId, repo, issue, author, reviewer, extraReviewers, lead, from, extraRounds } = parsed.data;
     return Promise.resolve()
-      .then(() => controls.resumeEpic(repo, issue, { author, reviewer, reviewer2, reviewer3, reviewer4, lead, from, extraRounds }))
+      .then(() => controls.resumeEpic(repo, issue, { author, reviewer, extraReviewers, lead, from, extraRounds }))
       .then(
         (): Reply => ({ id: replyId, ok: true }),
         (error): Reply => {

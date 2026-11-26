@@ -582,7 +582,7 @@ test('a review that does not publish with another skill has no check for it', as
 // --- extra reviewers and the lead ---
 
 /** The extra reviewers as the map the config has: each entry named by its place, `one`, `two`, `three`. */
-const extrasMap = (entries: Record<string, unknown>[]) => Object.fromEntries(entries.map((entry, i) => [['one', 'two', 'three'][i]!, { type: 'general', name: `Reviewer ${i + 1}`, ...entry }]));
+const extrasMap = (entries: Record<string, unknown>[]) => Object.fromEntries(entries.map((entry, i) => [['seguridad-api', 'usabilidad', 'rendimiento'][i]!, { type: 'general', name: `Reviewer ${i + 1}`, ...entry }]));
 
 const withExtras = (extra: Record<string, unknown>[], more: Record<string, unknown> = {}) => config({
   profiles: { ...base.profiles, c: { kind: 'forge', agent: 'rev-two' } },
@@ -624,9 +624,9 @@ test('the skills each extra reviewer and the lead invoke are asked of their own 
     ['AshuLab/carrier author can use the skill code-resolve', 'ok'],
     ['AshuLab/carrier reviewer can use the skill code-review', 'ok'],
     ['AshuLab/carrier reviewer can use the skill g-post', 'ok'],
-    ['AshuLab/carrier reviewer-2 can use the skill my-review', 'ok'],
-    ['AshuLab/carrier reviewer-3 can use the skill code-review', 'ok'],
-    ['AshuLab/carrier reviewer-3 can use the skill g-post', 'ok'],
+    ['AshuLab/carrier seguridad-api can use the skill my-review', 'ok'],
+    ['AshuLab/carrier usabilidad can use the skill code-review', 'ok'],
+    ['AshuLab/carrier usabilidad can use the skill g-post', 'ok'],
     ['AshuLab/carrier lead can use the skill my-lead', 'ok'],
   ]);
   expect(skills.asked.map((asked) => [asked.harness, asked.configDir, asked.name]).slice(4)).toEqual([
@@ -644,9 +644,9 @@ test('a skill an extra reviewer or the lead named that is absent fails, and a de
   });
   const checks = skillChecks(await doctor(cfg, deps({ skills })));
   const byStatus = (status: string) => checks.filter((check) => check.status === status).map((check) => check.name);
-  expect(byStatus('fail')).toEqual(['AshuLab/carrier reviewer-2 can use the skill my-review', 'AshuLab/carrier lead can use the skill my-lead']);
-  expect(byStatus('warn')).toEqual(['AshuLab/carrier reviewer can use the skill code-post', 'AshuLab/carrier reviewer-2 can use the skill code-post', 'AshuLab/carrier lead can use the skill code-post']);
-  expect(checks.find((check) => check.status === 'fail')).toMatchObject({ detail: expect.stringContaining('does not find it for the account of the reviewer-2'), fix: expect.stringContaining('my-review') });
+  expect(byStatus('fail')).toEqual(['AshuLab/carrier seguridad-api can use the skill my-review', 'AshuLab/carrier lead can use the skill my-lead']);
+  expect(byStatus('warn')).toEqual(['AshuLab/carrier reviewer can use the skill code-post', 'AshuLab/carrier seguridad-api can use the skill code-post', 'AshuLab/carrier lead can use the skill code-post']);
+  expect(checks.find((check) => check.status === 'fail')).toMatchObject({ detail: expect.stringContaining('does not find it for the account of the seguridad-api'), fix: expect.stringContaining('my-review') });
 });
 
 // The code and parameters of each detail, beside its words ([ADR 0055](../../docs/adr/design/0055-a-refusal-carries-a-code-and-its-parameters-and-its-english-words-are-the-fallback.md)).

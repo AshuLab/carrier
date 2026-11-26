@@ -9,7 +9,8 @@ export interface AgentTask extends AccountRuntime {
   repo: string; // "owner/name"
   epic: number;
   stage: 'ship' | 'review' | 'fix' | 'lead';
-  reviewer?: Slot; // a review's slot; absent for ship and fix
+  reviewer?: Slot; // a review's slot (an extra reviewer's key); absent for ship and fix
+  reviewerName?: string; // an extra reviewer's name, which the prompt calls it by; absent for the others
   profile: string; // GitHub profile of the effective config
   harness: HarnessName;
   model: string;

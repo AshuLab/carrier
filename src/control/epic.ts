@@ -10,7 +10,7 @@ import { callerResults, supersededOutcome } from '../storage/caller-results.ts';
 import { epicReviewThreads } from '../storage/epic-review-threads.ts';
 import { epicSlices } from '../storage/epic-slices.ts';
 import { executionEvents } from '../storage/events.ts';
-import { executions, reviewerSlots, slotOf, type Slot } from '../storage/executions.ts';
+import { executions, slotOf, type Slot } from '../storage/executions.ts';
 import { epics } from '../storage/schema.ts';
 import type { Blocker, EpicReply } from './replies.ts';
 import { optionsOf } from '../status/snapshot.ts';
@@ -225,6 +225,8 @@ export async function epicOf(db: Db, repo: string, issue: number): Promise<EpicR
     if (entry) entry.reviews.push(review);
     else entries.push({ key, attempt, reviews: [review], fixed: false, fixMs: null, fixedSha: null });
   }
+  const order = roundSlots(epic.config); // the reviewers in the order of the epic's saved configuration; a slot it lacks goes last
+  const rankOf = (slot: Slot) => (order.includes(slot) ? order.indexOf(slot) : order.length);
   const toFound = ({ id, title, url }: { id?: string; title: string; url?: string }): Found => ({ id: id ?? null, title: title.slice(0, MAX_TEXT), url: url !== undefined && url.length <= MAX_URL ? url : null });
   const found: { round: Round; attempt: number; fixed: boolean }[] = [];
   let open = new Map<Slot, Found[]>(); // each reviewer's open blockers of the round before, in this attempt; none before the first round
@@ -234,7 +236,7 @@ export async function epicOf(db: Db, repo: string, issue: number): Promise<EpicR
       openOf = entry.attempt;
       open = new Map();
     }
-    const reviews = entry.reviews.toSorted((x, y) => reviewerSlots.indexOf(x.slot) - reviewerSlots.indexOf(y.slot));
+    const reviews = entry.reviews.toSorted((x, y) => rankOf(x.slot) - rankOf(y.slot));
     const shown = reviews.map(({ run, parsed, slot }) => {
       const blockers: Found[] = parsed.outcome === 'changes_requested' ? parsed.blockers.map(toFound) : [];
       const observations: Found[] = parsed.outcome === 'completed' ? (parsed.observations ?? []).slice(0, MAX_OBSERVATIONS).map(toFound) : [];

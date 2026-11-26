@@ -33,7 +33,7 @@ import { queueOrder, queuePosition, reserve } from './reserve.ts';
 import { startRetention, type SessionDirs } from './retention.ts';
 import { earliestRetryDue, failingBesides, failureStreak, isOfAttempt, lastBySlot, retryWait } from './retry.ts';
 import { agreedSummaries, decideRound, recordNoVerdict, roundNones, roundTally, roundVerdicts, type NoVerdict, type RoundDecision } from './round.ts';
-import { agentOfSlot, failoverStepsOfSlot, roundSlots, skillsOfSlot, withAgentOfSlot } from './slots.ts';
+import { agentOfSlot, failoverStepsOfSlot, isExtraSlot, roundSlots, skillsOfSlot, withAgentOfSlot } from './slots.ts';
 import type { QuotaReader } from './quota.ts';
 import { isBack, resumeAtOf } from './resume-at.ts';
 import type { CodedText } from './text-params.ts';
@@ -333,7 +333,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
 
   // The options a person picked when restarting a stopped epic, by epic id, until the poll that requeues it reserves it again.
   // ponytail: in memory, an engine restart in between falls back to the roles as saved; persist it if that bites.
-  type Chosen = Partial<Record<'author' | Slot, string>>;
+  type Chosen = Record<string, string>; // by role: `author`, `reviewer`, `lead`, or an extra reviewer's key
   const restarts = new Map<number, Chosen>();
   const declaredOnly = ({ id, config }: Epic, chosen: Chosen) =>
     Object.fromEntries(
@@ -792,14 +792,15 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     const found = agentOfSlot(epic.config!, slot);
     if (!found) throw new Error(`the epic's saved configuration has no agent for ${slot}`);
     // What an extra reviewer keeps besides an agent (its review skills, its failover steps, whether it shares the author's account) is not part of the task's agent.
-    const { skills: _skills, failover: _failover, sharedIdentity: ownIdentity, ...agent } = found as Agent & Partial<ExtraReviewer>;
-    const ownIdentityRole = slot?.startsWith('reviewer-') === true || leading;
+    const { skills: _skills, failover: _failover, sharedIdentity: ownIdentity, key: _key, name: reviewerName, type: _type, ...agent } = found as Agent & Partial<ExtraReviewer>;
+    const ownIdentityRole = isExtraSlot(slot) || leading;
     const task: AgentTask = {
       executionId,
       repo: epic.repo,
       epic: epic.issue,
       stage,
       ...(slot !== null && { reviewer: slot }),
+      ...(isExtraSlot(slot) && reviewerName !== undefined && { reviewerName }),
       ...agent,
       sharedIdentity: ownIdentityRole ? ownIdentity === true : epic.config!.sharedIdentity === true, // an extra reviewer's and the lead's own: whether their profile is the author's
       skills: skillsOfSlot(epic.config!, slot),
@@ -810,7 +811,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       ...(resumeSession && { resumeSession }),
       context: {
         previousSummaries: leading ? [] : reviewing || rebuild ? previousSummaries(epic.id) : [], // the lead is given what the reviewers said, by reviewer
-        ...(leading && { reviewerSummaries: agreedSummaries(db, epic) }),
+        ...(leading && { reviewerSummaries: agreedSummaries(db, epic, roundSlots(epic.config)) }),
         ...(observations ? { observations } : leadBlockers.length > 0 ? { blockers: leadBlockers } : (stage === 'fix' || (reviewing && (epic.round ?? 0) > 1)) && { blockers: latestBlockers(db, epic, reviewing ? { slot: slot! } : { tagged: several }) }),
         ...(reviewing && several && { severalReviewers: true as const }),
         ...(retryOf && { verifyStateFirst: true }),
@@ -1533,7 +1534,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       if (!result) return false;
       // With several reviewers, a slot whose result stands in the round the epic is at has nothing to launch: the round goes on with the slots that have none.
       // With one, the import moves the stage (or supersedes the result), so that state is not reached; if it were, it relaunches the stage as it always did.
-      const several = epic.config !== null && agentOfSlot(epic.config, 'reviewer-2') !== undefined;
+      const several = roundSlots(epic.config).length > 1;
       if (several && last.stage === epic.stage && last.round === epic.round && result.outcome !== supersededOutcome) return false;
       await launch(epic, epic.stage); // imported, but the next stage was never launched
     } else return false;
@@ -1940,7 +1941,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
      * One that stopped on the review limit then gets `extraRounds` more rounds from the current one, `maxReviews` when none is named.
      * Rejects with ResumeRefused: nothing was changed unless it is `did not restart`, which leaves the label for the next check.
      */
-    async resumeEpic(repo: string, issue: number, chosen: { author?: string; reviewer?: string; reviewer2?: string; reviewer3?: string; reviewer4?: string; lead?: string; from?: 'ship' | 'review' | 'fix'; extraRounds?: number } = {}) {
+    async resumeEpic(repo: string, issue: number, chosen: { author?: string; reviewer?: string; extraReviewers?: Record<string, string>; lead?: string; from?: 'ship' | 'review' | 'fix'; extraRounds?: number } = {}) {
       // The socket answers while the start recovers, and the recovery is not the epic's wait: it is waited for on its own, up to the same 30 seconds, and
       // refused before anything is touched when it takes longer (the label is not put, the chosen options are not kept), so the client has not given up first.
       if (recovering) {
@@ -1955,14 +1956,17 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       const epic = db.select().from(epics).where(and(eq(epics.repo, repo), eq(epics.issue, issue))).get();
       if (!epic) throw new ResumeRefused('epic.unknown', 'unknown epic');
       if (epic.status !== 'needs_human') throw new ResumeRefused('resume.notStopped', 'not stopped');
+      // Nothing migrates an epic saved before the reviewers had keys: it cannot be told which reviewer is which, so it is started again. The other epics go on.
+      if (epic.config?.agents.extraReviewers?.some((extra) => typeof extra.key !== 'string')) throw new ResumeRefused('resume.reviewersWithoutKey', 'reviewers without a key');
       // The requeue freezes the epic's options again from the configuration the engine runs with, so that is what the names are checked against.
       const repoConfig = repos().find((r) => r.name === repo);
       const declared = (repoConfig?.providers ?? repoConfig?.options) ?? {};
-      const picked = Object.entries({ author: chosen.author, reviewer: chosen.reviewer, 'reviewer-2': chosen.reviewer2, 'reviewer-3': chosen.reviewer3, 'reviewer-4': chosen.reviewer4, lead: chosen.lead }).filter((pick): pick is [string, string] => pick[1] !== undefined);
+      const picked = Object.entries({ author: chosen.author, reviewer: chosen.reviewer, ...chosen.extraReviewers, lead: chosen.lead }).filter((pick): pick is [string, string] => pick[1] !== undefined);
       if (picked.some(([, name]) => !Object.hasOwn(declared, name))) throw new ResumeRefused('resume.optionUnknown', 'unknown option');
       // The roles the epic will run with are the ones the requeue freezes again, from the configuration the engine runs with.
-      const slots = roundSlots(repoConfig ?? null);
-      if (picked.some(([role]) => role === 'lead' ? !repoConfig?.agents.leadReviewer : role.startsWith('reviewer-') && !slots.includes(role as Slot))) throw new ResumeRefused('resume.roleUnknown', 'no such role');
+      if (chosen.lead !== undefined && !repoConfig?.agents.leadReviewer) throw new ResumeRefused('resume.roleUnknown', 'no such role');
+      const missing = Object.keys(chosen.extraReviewers ?? {}).find((key) => !repoConfig?.agents.extraReviewers?.some((extra) => extra.key === key));
+      if (missing !== undefined) throw new ResumeRefused('resume.extraReviewerUnknown', 'no such extra reviewer', { key: missing });
       const keeping = chosen.from === 'review' || chosen.from === 'fix' ? chosen.from : null;
       if (chosen.extraRounds !== undefined && !keeping) throw new ResumeRefused('resume.extraRoundsNeedStage', 'extra rounds need a stage');
       if (chosen.extraRounds !== undefined && epic.needsHumanKind !== 'review_limit') throw new ResumeRefused('resume.extraRoundsNeedReviewLimit', 'extra rounds need a review limit');

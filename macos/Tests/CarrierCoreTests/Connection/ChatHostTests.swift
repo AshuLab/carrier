@@ -71,7 +71,7 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"", protocol vers
     // and the three tasks of the build session started minutes before
     #expect(active[0].lastActiveAt + 5_000 >= beforeMs && active[0].lastActiveAt + 5_000 <= afterMs)
     #expect(active[4].background.allSatisfy { ($0.startedAt.map { Date().timeIntervalSince($0) } ?? 0) > 90 })
-    #expect(server.unreadSessionIds == ["a1000000-0000-4000-8000-000000000001"] && server.pinnedSessionIds == ["a1000000-0000-4000-8000-000000000004"])
+    #expect(server.unreadSessionIds == ["a1000000-0000-4000-8000-000000000001", "a1000000-0000-4000-8000-000000000002"] && server.pinnedSessionIds == ["a1000000-0000-4000-8000-000000000004"])
 }
 
 @Test func theFixtureHostCutsAPlansWorktreeFromTheRemoteBranchWhenTheStartIsRemote() async throws {

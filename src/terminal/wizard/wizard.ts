@@ -11,6 +11,7 @@ import { buildConfig, type AIProvider, type Role } from './build-config.ts';
 import { realDeps, type InitDeps } from './deps.ts';
 import type { InitFlags } from './flags.ts';
 import type { ForgeAgent } from './forge-registry.ts';
+import { keepRest } from './keep-rest.ts';
 import { priorFrom, type Prior } from './prior.ts';
 import { askIdentity } from './questions/identity.ts';
 import { askProviders, declareFlaggedProvider, mergeAccounts } from './questions/options.ts';
@@ -70,8 +71,19 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
   let out = flags.out === undefined ? undefined : resolve(flags.out);
   let settled = false; // the question below settled where the config goes, and that it may be replaced
   let prior: Prior | undefined;
+  let base: Record<string, unknown> | undefined; // the file being edited, as it is: an edit keeps what the wizard does not ask
+  // What a file there says: its answers, or its first error. A file that cannot be read is an error too.
+  const readPrior = (path: string) => {
+    try {
+      const raw = deps.readConfig(path);
+      const found = priorFrom(raw, deps.exists(providersPath) ? deps.readConfig(providersPath) : {});
+      return 'error' in found ? found : { prior: found, raw: raw as Record<string, unknown> };
+    } catch (error) {
+      return { error: `cannot read it: ${error instanceof Error ? error.message : String(error)}` };
+    }
+  };
   if (flags.out === undefined && interactive && deps.exists(fallback)) {
-    const choice = await ui.select({
+    let choice = await ui.select({
       message: `A config already exists at ${tilde(fallback)}`,
       options: [
         { value: 'edit', label: 'Edit it', hint: 'its answers are the starting points' },
@@ -81,19 +93,31 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
       ],
       initialValue: 'edit',
     });
+    if (choice === 'edit') {
+      const found = readPrior(fallback);
+      if ('error' in found) {
+        // Nothing is touched until the person answers.
+        ui.warn(`${tilde(fallback)} does not validate, first error: ${found.error}`);
+        choice = await ui.select({
+          message: 'What do you want to do with it?',
+          options: [
+            { value: 'fresh', label: 'Start over', hint: 'replaces it' },
+            { value: 'elsewhere', label: 'Save a new one in another file' },
+            { value: 'cancel', label: 'Leave it as it is' },
+          ],
+          initialValue: 'cancel',
+        });
+      } else ({ prior, raw: base } = found);
+    }
     if (choice === 'cancel') throw new Cancelled();
     if (choice === 'edit' || choice === 'fresh') {
       out = fallback;
       settled = true;
     }
-    if (choice === 'edit') {
-      try {
-        prior = priorFrom(deps.readConfig(fallback), deps.exists(providersPath) ? deps.readConfig(providersPath) : {});
-      } catch {
-        // unreadable: handled as no prior below
-      }
-      if (prior === undefined) ui.warn(`${tilde(fallback)} (with ${tilde(providersPath)}) is not a valid config, so there is nothing to start from.`);
-    }
+  } else if (flags.yes && deps.exists(out ?? fallback)) {
+    // --yes replaces the file as the flag says, and still says why a file that does not validate goes.
+    const found = readPrior(out ?? fallback);
+    if ('error' in found) ui.warn(`${tilde(out ?? fallback)} does not validate and is replaced, first error: ${found.error}`);
   }
 
   // The accounts already in providers.json are the base of every path; what was found is added, never replacing.
@@ -155,7 +179,8 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
   };
 
   const make = (answers: Prior) => {
-    const user = buildConfig(answers);
+    const built = buildConfig(answers);
+    const user = base === undefined ? built : keepRest(base, built);
     const loaded = loadConfig(defaults, user, answers.providers);
     if (!loaded.ok) throw new Error(`the answers do not make a valid config:\n${loaded.errors.map((e) => `  ${e.path}: ${e.message}`).join('\n')}`);
     return { user, config: loaded.config };
@@ -164,10 +189,16 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
   let made = make(answers);
 
   out ??= resolve(await askOut(ui, fallback));
-  if (!settled && deps.exists(out) && !flags.yes && !(await ui.confirm(`${out} exists. Overwrite it?`, false))) throw new Error(`${out} already exists`);
+  if (!settled && deps.exists(out) && !flags.yes) {
+    if (!ui.interactive) throw new Error(`${out} already exists: pass --yes to replace it, or --out to write another file`);
+    if (!(await ui.confirm(`${out} exists. Overwrite it?`, false))) throw new Error(`${out} already exists`);
+  }
+  const file = out;
+  const recap = () => ui.note(summary(answers.repos, answers.author, answers.reviewer, answers.providers, answers.failover, file, providersPath, answers.leadReviewer, answers.orchestrator), 'This is what will be saved');
+  if (!interactive) recap(); // --yes asked nothing, so the recap is the only place the choices show
   // The recap is the way back: changing an answer asks everything again, starting from these answers.
   while (interactive) {
-    ui.note(summary(answers.repos, answers.author, answers.reviewer, answers.providers, answers.failover, out, providersPath, answers.leadReviewer, answers.orchestrator), 'This is what will be saved');
+    recap();
     const next = await ui.select({
       message: 'Save it?',
       options: [
@@ -197,7 +228,14 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
   const ready = await ui.busy('Asking GitHub which epics are ready…', () => deps.readyEpics(made.config, folder));
   const waiting = Object.entries(ready).map(([repo, count]) => `${repo}: ${count === undefined ? 'could not read' : `${count} epic${count === 1 ? '' : 's'} marked ready`}`);
   if (waiting.length > 0) ui.note(waiting.join('\n'), 'Waiting for Carrier');
-  const start = interactive && (await ui.confirm('Start Carrier now? (Ctrl+C stops it)', true));
+  let start = false;
+  if (interactive) {
+    try {
+      start = await ui.confirm('Start Carrier now?', true);
+    } catch (error) {
+      if (!(error instanceof Cancelled)) throw error; // the config is saved and checked: Ctrl+C here is a no
+    }
+  }
   if (!start) ui.outro(`Ready. Start it with: carrier${use}\n${answers.repos.length > 0 ? `Then add the label solve:epic:ready to an epic in ${answers.repos.join(' or ')} and Carrier picks it up.` : 'No repos yet: add one to "repos" in the config, or in the app\'s Settings, Repos.'}`); // otherwise the caller carries on in the same frame
   return { path: out, checks, config: made.config, start };
 }

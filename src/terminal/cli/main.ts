@@ -30,6 +30,8 @@ else if (cli.flags.help) {
         (await import('./commands/schema.ts')).schemaCommand();
         break;
       case 'init':
+        // `--config` chooses the file a running command reads; init makes the file, and `--out` says where
+        if (cli.flags.config !== undefined) throw new CliError(2, 'carrier init takes no --config: it writes the config with --out <path> (default: the global file, see carrier --help)');
         exit = await (await import('./commands/init.ts')).initCommand(cli.flags, folder);
         break;
       case 'doctor':

@@ -1,3 +1,7 @@
+import { join } from 'node:path';
+import { LogLevel } from '@ashulab/universal-logger';
+import { enginePlacesOf } from '../../../config/places.ts';
+import { installFileLogging } from '../../../logging/logger.ts';
 import { runInit } from '../../wizard/wizard.ts';
 import { cancelled, makeClackUi, noPromptUi } from '../../prompts/clack.ts';
 import { Cancelled } from '../../prompts/types.ts';
@@ -9,6 +13,7 @@ import { runCommand } from './run.ts';
 /** The guided setup. Returns the exit code, or undefined when "Start Carrier now?" was answered yes and it is running. */
 export async function initCommand(flags: Flags, folder: string): Promise<number | undefined> {
   const ui = flags.yes || !process.stdin.isTTY ? noPromptUi : makeClackUi({ compact: true });
+  installFileLogging(join(enginePlacesOf(folder).logs, 'orchestrator.log'), LogLevel.INFO); // the doctor's checks log through console: to the Carrier folder's log, not over the wizard
   let started;
   try {
     started = await runInit(

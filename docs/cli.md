@@ -52,8 +52,17 @@ Then it asks, in this order:
 
 Before saving it shows a recap with three choices: save, **change an answer** (it asks everything again, starting from the same answers) or cancel; nothing is written until you save.
 It then runs the checks of `carrier doctor`, printing only what fails (otherwise a single count), shows how many epics are waiting, and offers to start Carrier.
+Ctrl+C at that last question, once the config is saved and checked, counts as no: it prints the closing line with what to run (`carrier`, with `--config` when the file is not the global one), exits 0, and the saved files stay.
+Ctrl+C at any earlier question cancels with nothing written.
+While `init` runs, the log lines of the checks go to `engine/logs/orchestrator.log` in the Carrier folder and never to the screen.
 
 Run again on an existing config, it offers to edit it (its answers are the starting points), start over, save a new one in another file, or leave it. Editing keeps the accounts of `providers.json` and lets you add more (editing or removing one is done in the file), starts each role's model, effort, persona and lead reviewer from the file, and asks whether to keep the failover steps it has; `-` in a persona field clears it.
+Editing keeps the rest of the file: `engine.json` is written as it is, with only the keys the wizard asks replaced.
+Those are `repos` (a repo you keep keeps its entry and its per-repo overrides, a repo you leave out is dropped, a new one is `{ "name": "owner/name" }`), `profiles` (the ones you picked are set over the file's), `orchestratorProfile`, the failover of the author, the reviewer and the lead reviewer (`failover.triggers` stays), and each of those roles' `profile`, `provider`, `model`, `effort` and `persona`.
+Everything else survives: `limits`, `labels`, `skills`, `logLevel`, `pollIntervalMinutes`, `finishedWindowDays`, a role's own `skills` and `agents.extraReviewers`; a lead reviewer you decline is removed.
+"Start over", a new file and `--out` to another file are written whole from the answers.
+A config that does not validate is not edited: the wizard prints its first error (path and message) and asks whether to start over, save a new one in another file or leave it, and writes nothing until you answer. With `--yes` it replaces the file, as the flag says, and prints that first error.
+`--config` is not a flag of `init`: it exits 2 and writes nothing, because `init` writes where `--out` says.
 
 Every question has a flag (`carrier init --help`). `--author` and `--reviewer` (`<harness>:<model>`, with `--author-provider` and `--reviewer-provider`) each add an account named after its harness to `providers.json` (the one found, when it matches) and, when both are given, skip the extra-accounts and failover questions. `--author-profile` and `--reviewer-profile` answer the profiles, `--author-persona-name`, `--author-persona-prompt`, `--reviewer-persona-name` and `--reviewer-persona-prompt` the personas, and `--author-effort`, `--reviewer-effort` and `--lead-reviewer-effort` the efforts. `--yes` never asks, so an agent can run it too (`--author-profile gh --reviewer-profile gh` makes both roles your `gh` login):
 
@@ -62,6 +71,9 @@ carrier init --yes --repo AshuLab/my-repo \
   --author-profile forge:<agent-1> --author claude:<model> \
   --reviewer-profile forge:<agent-2> --reviewer codex:<model>
 ```
+
+`--yes` asks nothing, so it prints, before the checks run, the same recap the wizard shows before saving: the orchestrator's profile, for each role its profile, account, model and effort, and where the files go.
+Without a terminal and without `--yes`, a config file that is already there is not replaced: `init` exits 1 and says to use `--yes` to replace it or `--out` to write another file.
 
 Without `--author` and `--reviewer`, `--yes` gives the author the first account found and the reviewer another one when there is one, each with the model the wizard would suggest; the flags above choose them.
 

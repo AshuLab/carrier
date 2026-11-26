@@ -118,6 +118,18 @@ test.each([
   expect(read(JSON.parse(readFileSync(engineFile(), 'utf8')))).toEqual(expected);
 });
 
+test.each([
+  [{ cmd: 'editRole', role: { extraReviewer: 'sec' }, changes: { name: 'Security', type: 'appsec', model: 'm2' } }, (entry: any) => entry, { type: 'appsec', name: 'Security', profile: 'reviewer-bot', provider: 'claude', model: 'm2' }],
+  [{ cmd: 'editPersona', role: { extraReviewer: 'sec' }, name: 'Ada', prompt: null }, (entry: any) => entry.persona, { name: 'Ada' }],
+  [{ cmd: 'editFailover', role: { extraReviewer: 'sec' }, first: { provider: 'codex' }, second: null }, (entry: any) => entry.failover, [{ provider: 'codex' }]],
+])('with no engine, %o writes the entry of the extra reviewer', async (request, read, expected) => {
+  const sec = { type: 'security', name: 'Sec', profile: 'reviewer-bot', provider: 'claude', model: 'opus' };
+  writeFileSync(engineFile(), JSON.stringify({ ...validEngineFile, agents: { ...validEngineFile.agents, extraReviewers: { sec } } }));
+  expect(await run(JSON.stringify(request))).toBe(0);
+  expect(printed()).toMatchObject({ ok: true, data: { engine: 'notRunning' } });
+  expect(read(JSON.parse(readFileSync(engineFile(), 'utf8')).agents.extraReviewers.sec)).toEqual(expected);
+});
+
 test('a refused role change prints the refusal with its code and params and leaves the file as it was', async () => {
   const text = JSON.stringify(validEngineFile);
   writeFileSync(engineFile(), text);

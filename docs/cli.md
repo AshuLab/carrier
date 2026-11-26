@@ -21,20 +21,84 @@ From a clone, run `pnpm build` and then `node dist/terminal/cli/main.js`, or `no
 
 ## `carrier init`
 
-It opens by saying what it will ask, then looks at the machine (stopping with the fix if `git`, `gh` or every agent CLI is missing) and shows what it found: each agent CLI with its path, version and login, and the local servers that answer. While it waits for the machine or for GitHub it shows a spinner. Then it asks, in this order:
+It opens by saying what it will ask, then looks at the machine (stopping with the fix if `git`, `gh` or every agent CLI is missing) and shows what it found: each agent CLI with its path, version and login, and the local servers that answer.
+While it waits for the machine or for GitHub it shows a spinner.
+Then it asks, in this order:
 
-1. **Repos to watch**, picked from the repos your `gh` login can push to (grouped by owner, with "Load more…" for the next page) or typed. "None for now" is an answer: the config is written with no repos, and Carrier watches nothing until you add one in the file or in the Mac app's Settings.
-2. **Accounts.** One account per agent CLI found is added for you, with the login that CLI already has, and written to `~/.carrier/providers.json` (even when `--out` moves the config). You are asked only for **extra** accounts, one at a time, and Enter says no: the CLI, the local server when one is running, and for Claude and Codex the config folder (the `~/.claude`, `~/.claude-*` and `~/.codex` it finds with their login state, the environment, or a typed path; Antigravity has none), then a name that must be a lowercase word and unique.
-3. **GitHub identities.** A short note explains what they are, then each role picks a bot of Agent Forge or your own `gh` login. Picking the same one twice is accepted, and the recap then says the signature will show it. If there is no bot it can run `agent-forge add` for you on the spot.
-4. **Each role** (author, reviewer, and a lead reviewer if you say yes; Enter says no): the account that runs it, its model, its effort (`low`, `medium`, `high`, `xhigh` or `max`, or the CLI's own, which writes nothing) and an optional persona (a name and a prompt, each skippable).
-5. **Failover**, with two or more accounts: for each role, whether to turn it on (Enter says no) and up to two steps, each an account and a model (the `failover` block).
-6. **Where to save**: `~/.carrier/engine.json` (one global file per user), or another file with `--out`.
+1. **Accounts.** One account per agent CLI found is added for you, with the login that CLI already has, and written to `~/.carrier/providers.json` (even when `--out` moves the config).
+   The accounts that file already holds are kept as they are: what is found is added to them and nothing is replaced or removed.
+   You are asked only for **extra** accounts, one at a time, and Enter says no: the CLI, the local server when one is running, and for Claude and Codex the config folder (the `~/.claude`, `~/.claude-*` and `~/.codex` it finds with their login state, the environment, or a typed path; Antigravity has none), then a name that must be a lowercase word and unique.
+2. **The orchestrator's GitHub profile.** A short note explains what a profile is, then you pick a bot of Agent Forge or your own `gh` login for the orchestrator, which only reads issues and PRs and changes labels.
+   If there is no bot it can run `agent-forge add` for you on the spot.
+3. **One block for each role**, closed before the next one starts: the author, the reviewer, any extra reviewers, and a lead reviewer if you say yes at "Add a lead reviewer?" (Enter says no).
+   After the reviewer it asks "Add another reviewer?" (Enter says no); each yes opens the same block for the next reviewer, `reviewer-2`, then `reviewer-3`, then `reviewer-4`, and after the third it is not asked again.
+   The extra reviewers are written to `agents.extraReviewers` in that order; one with no failover steps has no `failover` key and so uses the reviewer's.
+   The lead reviewer comes after all of them.
+   Each block asks, in this order:
+   - The GitHub profile the role acts as: a bot of Agent Forge or your own `gh` login.
+     Picking the same one for two roles is accepted, and the recap then says the signature will show it.
+   - The account that runs it (not asked when there is only one).
+   - "Model and effort: `<model>` at `<effort>`, change them?", with Enter meaning no.
+     A yes opens the model and then the effort (`low`, `medium`, `high`, `xhigh` or `max`, or the CLI's own, which writes nothing).
+   - "Customise the persona?", with Enter meaning no.
+     A yes asks a name and a prompt, each skippable.
+   - The failover, only with two or more accounts: whether to turn it on (Enter says no) and up to two steps, each an account and a model (the `failover` block).
+     With one account the block prints one line saying that failover needs a second account and asks nothing.
 
-Before saving it shows a recap with three choices: save, **change an answer** (it asks everything again, starting from the same answers) or cancel; nothing is written until you save. It then runs the checks of `carrier doctor`, printing only what fails (otherwise a single count), shows how many epics are waiting, and offers to start Carrier.
+   With every default accepted a role costs its profile, its account and Enter for the rest.
+   Claude starts on `sonnet` at `high`.
+   Codex starts on the model in its own `config.toml`, or the first model it lists, at `high`.
+   Antigravity starts on `gemini-4-hydrogen-high`, or the first model `agy models` lists, with no effort because the effort is in the id.
+4. **Repos to watch**, last because nothing about a role needs them: picked from the repos your `gh` login can push to (grouped by owner and shown as `owner/name`, with "Load more…" for the next page) or typed.
+   "None for now" is an answer: the config is written with no repos, and Carrier watches nothing until you add one in the file or in the Mac app's Settings.
+5. **Where to save**: `~/.carrier/engine.json` (one global file per user), or another file with `--out`.
 
-Run again on an existing config, it offers to edit it (its answers are the starting points), start over, save a new one in another file, or leave it. Editing keeps the accounts of `providers.json` and lets you add more (editing or removing one is done in the file), starts each role's effort, persona and lead reviewer from the file, and asks whether to keep the failover steps it has; `-` in a persona field clears it.
+Before saving it shows a recap with three choices: save, **change an answer** or cancel; nothing is written until you save.
+"Change an answer" shows a menu of the AI accounts, the orchestrator, each role (author, reviewer, the extra reviewers there are and the next one to add, lead reviewer) and the repos: you pick one, `init` asks only that block's questions starting from its current answers, and every other block keeps its answers.
+In `init` **Esc goes back one question** (at the start of a block, to the last question of the one before) and shows it with the answer it had; every answer already given stays, and going back does not run the GitHub or CLI calls (listing repos, adding an Agent Forge bot) again.
+At the very first question Esc leaves, like Ctrl+C.
+At the recap, Esc at "Which part do you want to change?" goes back to "Save it?", and Esc at the first question of a block you jumped to goes back to the recap with that block as it was.
+**Ctrl+C leaves** from any question, with nothing written before Save.
+`restart`, which asks its options through the same prompts, leaves on Esc as well as on Ctrl+C.
+It then runs the checks of `carrier doctor`, printing only what fails (otherwise a single count), shows how many epics are waiting, and offers to start Carrier.
+Ctrl+C (or Esc) at that last question, once the config is saved and checked, counts as no: it prints the closing line with what to run (`carrier`, with `--config` when the file is not the global one), exits 0, and the saved files stay.
+While `init` runs, the log lines of the checks go to `engine/logs/orchestrator.log` in the Carrier folder and never to the screen.
 
-Every question has a flag (`carrier init --help`). `--author` and `--reviewer` (`<harness>:<model>`, with `--author-provider` and `--reviewer-provider`) each add an account named after its harness to `providers.json` (the one found, when it matches) and, when both are given, skip the extra-accounts and failover questions. `--author-profile` and `--reviewer-profile` answer the identities, `--author-persona-name`, `--author-persona-prompt`, `--reviewer-persona-name` and `--reviewer-persona-prompt` the personas, and `--author-effort`, `--reviewer-effort` and `--lead-reviewer-effort` the efforts. `--yes` never asks, so an agent can run it too (`--author-profile gh --reviewer-profile gh` makes both roles your `gh` login):
+Run again on an existing config, it offers to edit it (its answers are the starting points), start over, save a new one in another file, or leave it.
+Editing keeps the accounts of `providers.json` and lets you add more (editing or removing one is done in the file), starts each role's model, effort, persona and lead reviewer from the file, and asks whether to keep the failover steps it has; `-` in a persona field clears it.
+Editing keeps the rest of the file: `engine.json` is written as it is, with only the keys the wizard asks replaced.
+Those are `repos` (a repo you keep keeps its entry and its per-repo overrides, a repo you leave out is dropped, a new one is `{ "name": "owner/name" }`), `profiles` (the ones you picked are set over the file's), `orchestratorProfile`, the failover of the author, the reviewer and the lead reviewer (`failover.triggers` stays), and each of those roles' `profile`, `provider`, `model`, `effort` and `persona`.
+`agents.extraReviewers` is owned too: each extra reviewer in the file is walked as a block starting from its values, "Add reviewer-N?" starts on Yes while the file has one more, and a No drops that reviewer and the ones after it.
+The list is replaced by the answers (an extra keeps the keys the wizard does not ask, such as its `skills`) and removed when there are none.
+Everything else survives: `limits`, `labels`, `skills`, `logLevel`, `pollIntervalMinutes`, `finishedWindowDays` and a role's own `skills`; a lead reviewer you decline is removed.
+"Start over", a new file and `--out` to another file are written whole from the answers.
+A config that does not validate is not edited: the wizard prints its first error (path and message) and asks whether to start over, save a new one in another file or leave it, and writes nothing until you answer.
+With `--yes` it replaces the file, as the flag says, and prints that first error.
+`--config` is not a flag of `init`: it exits 2 and writes nothing, because `init` writes where `--out` says.
+
+Every question has a flag (`carrier init --help`), and they all follow one pattern, with `<role>` one of `author`, `reviewer`, `reviewer-2`, `reviewer-3`, `reviewer-4` and `lead-reviewer`:
+
+| Flag | Answers |
+|---|---|
+| `--repo <owner/name>` | The repos to watch; repeat it for several. |
+| `--orchestrator-profile <forge:<agent>\|gh>` | The orchestrator's GitHub profile; without it, and when both `--author-profile` and `--reviewer-profile` are given or `--yes` is, no question asks it: it is the file's own when editing, else the author's. |
+| `--<role> <harness>:<model>` | The role's account and model; it adds an account named after its harness to `providers.json` (the one found, when it matches). |
+| `--<role>-profile <forge:<agent>\|gh>` | The GitHub profile the role acts as. |
+| `--<role>-provider <lmstudio\|ollama>` | The local server that runs the role's model. |
+| `--<role>-effort <level>` | `low`, `medium`, `high`, `xhigh` or `max`. |
+| `--<role>-persona-name <text>`, `--<role>-persona-prompt <text>` | The persona, within the schema's limits. |
+| `--<role>-failover <account>[:<model>]` | One failover step; repeat it, in order, for up to two. |
+
+With `--author` and `--reviewer` both given, the extra-accounts question and every role's failover question are skipped, and the failover steps the file has stay (a `--<role>-failover` flag still sets its role's steps).
+`reviewer-2` to `reviewer-4` are the extra reviewers, and an extra exists when any flag names it.
+They are a list in order, so a flag for `reviewer-3` with none for `reviewer-2` is refused before anything is probed, naming the missing flag (`--reviewer-2`).
+A flagged extra is not asked again; "Add another reviewer?" is asked once after the last flagged one when there is room, and under `--yes` there is no extra unless a flag names it.
+(In `carrier restart`, `--reviewer-2` to `--reviewer-4` keep meaning an option of the config.)
+
+The failover step is split at the first colon, so `--author-failover claude:llama3:8b` is the account `claude` with the model `llama3:8b`; a step with no model uses the account's, then the harness's.
+The account must be one found on this Mac or already in `providers.json` (or one a `--<role>` flag declares).
+A role given failover flags is not asked its failover, and the steps replace the ones the file had.
+`--yes` never asks and needs at least one `--repo`, so an agent can run it too (`--author-profile gh --reviewer-profile gh` makes both roles your `gh` login):
 
 ```bash
 carrier init --yes --repo AshuLab/my-repo \
@@ -42,11 +106,16 @@ carrier init --yes --repo AshuLab/my-repo \
   --reviewer-profile forge:<agent-2> --reviewer codex:<model>
 ```
 
+`--yes` asks nothing, so it prints, before the checks run, the same recap the wizard shows before saving: the orchestrator's profile, for each role its profile, account, model and effort, and where the files go.
+Without a terminal and without `--yes`, a config file that is already there is not replaced: `init` exits 1 and says to use `--yes` to replace it or `--out` to write another file.
+
 Without `--author` and `--reviewer`, `--yes` gives the author the first account found and the reviewer another one when there is one, each with the model the wizard would suggest; the flags above choose them.
 
 ## `carrier doctor` and `carrier schema`
 
-`carrier doctor` verifies the tools are installed, that each identity can get a token for each repo, that the orchestrator can read it, and that each repo it could read has the labels Carrier reads (`labels.epic` and `labels.ready`, by default `solve:epic` and `solve:epic:ready`; the fix is to run `solve:setup` in the repo). It checks a config of yours or a hand-written one at any time. `carrier schema` prints the JSON Schema of the config for your editor.
+`carrier doctor` verifies the tools are installed, that each profile can get a token for each repo, that the orchestrator can read it, and that each repo it could read has the labels Carrier reads (`labels.epic` and `labels.ready`, by default `solve:epic` and `solve:epic:ready`; the fix is to run `solve:setup` in the repo).
+It checks a config of yours or a hand-written one at any time.
+`carrier schema` prints the JSON Schema of the config for your editor.
 
 For each role of each repo it also asks whether each skill the role invokes exists for the account the role runs on: the author's `ship` and `fix`, the reviewer's `review` and `publish` (none when `publish` is `null`), as `skills` in the config names them.
 Each skill gets one check with one of three answers.

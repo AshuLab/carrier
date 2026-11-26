@@ -3,6 +3,9 @@ import type { Check } from '../../doctor/doctor.ts';
 /** The user said no (Ctrl+C, Esc, or declined the final question): not an error, the caller exits quietly. */
 export class Cancelled extends Error {}
 
+/** Esc: the person wants the previous question. Ctrl+C is `Cancelled`. */
+export class Back extends Error {}
+
 export type Option<T extends string> = { value: T; label: string; hint?: string; disabled?: boolean };
 
 /** What the commands need from the terminal. The real one is clack (src/ui/clack.ts); tests script it. */

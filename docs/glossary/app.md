@@ -16,6 +16,18 @@ _Avoid_: subagent card (that is the slice card of the epic), task, child.
 It is read only: a subagent cannot be written to from the host.
 _Avoid_: subagent tab, subagent panel, subagent session (it has none of its own).
 
+**Subagents button** - The round glass button at the right of the window's header that stands for the subagents of the open session: two figures and a count, with a thin arc turning around it while a launch runs. It exists from the first subagent the session launches, and when nothing runs it is one quiet button with the session's total and a small red dot if any failed. It opens the Subagents list, and it stays in the header while a subagent view is open.
+_Avoid_: subagent cluster, subagent dock, agents button, roster.
+
+**Subagents list** - What the Subagents button opens: every subagent of the session as the rows of a call group's line (type chip, title, step, steps, timer), a finished one dimmed and with no mark, a failed one with a red dot, and one launched by another subagent nested under its launcher. The launch that runs comes first and the finished ones below, each under a time bar. It replaces the subagent row in a conversation, and tapping a row opens the subagent view.
+_Avoid_: subagent popover, subagent panel, subagent menu.
+
+**Launch** - The subagents an agent asks for at one moment, however many. The Subagents list groups its finished ones by launch, and the header shows only the launch that runs; the screen gives a launch no name, only its time and its count.
+_Avoid_: round, batch (that is slices started together), wave.
+
+**Brief card** - The glass card at the top of the subagent view with what the subagent was given ("Encargo" in Spanish): it stays at the top while the subagent's work scrolls under it, shows two lines until opened and wears the person's Surfaces setting like every card of the conversation. The slice card's subagent view wears it too.
+_Avoid_: brief bubble, prompt.
+
 **Kind chip** - The small label at the start of a live line that says what the agent is waiting on: Thinking, Read, Search, Edit, Shell, the server of an MCP call, "N subagents" or "Needs you".
 The timer beside it is the running call's.
 _Avoid_: badge, tag, status.

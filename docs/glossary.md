@@ -21,6 +21,6 @@ Read this index, then open only the topic that holds the term.
 
 **release** ([glossary/release.md](glossary/release.md)): Homebrew tap, Release, Appcast, Update key, Free to replace
 
-**app** ([glossary/app.md](glossary/app.md)): Call group, Slice card, Subagent row, Subagent view, Kind chip, Your turn, Running epic card, Sidebar group, Home, Carrier home, Sessions home, Archive page, Carrier section, Sidebar section, Attention colours, Settings group, Legacy group, Terminal owner, Terminal tab, Terminal pane, Keep awake
+**app** ([glossary/app.md](glossary/app.md)): Call group, Slice card, Subagent row, Subagent view, Subagents button, Subagents list, Launch, Brief card, Kind chip, Your turn, Running epic card, Sidebar group, Home, Carrier home, Sessions home, Archive page, Carrier section, Sidebar section, Attention colours, Settings group, Legacy group, Terminal owner, Terminal tab, Terminal pane, Keep awake
 
 **design** ([glossary/design.md](glossary/design.md)): Front-end, App area, Piece, Platform adapter, Design token, Copy key, Text code

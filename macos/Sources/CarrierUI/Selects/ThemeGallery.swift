@@ -21,6 +21,8 @@ public struct ThemeGallery: View {
     @State private var position = ScrollPosition()
     @State private var scroll = Scroll(offset: 0, content: 0, width: 0)
     @State private var viewport: CGFloat = 0
+    // a click on a cell puts the keyboard in the gallery, so the arrows work right after picking one with the mouse
+    @FocusState private var focused: Bool
 
     private static let rows = 3
     private static let gap = Tokens.Space.s10
@@ -40,7 +42,10 @@ public struct ThemeGallery: View {
         ScrollView(.horizontal, showsIndicators: false) {
             LazyHGrid(rows: Array(repeating: GridItem(.flexible(), spacing: Self.gap), count: Self.rows), spacing: Self.gap) {
                 ForEach(cells) { cell in
-                    ThemeCellButton(cell: cell, chosen: cell.id == chosen) { action(cell.id) }
+                    ThemeCellButton(cell: cell, chosen: cell.id == chosen) {
+                        focused = true
+                        action(cell.id)
+                    }
                         // three columns and half of the next one fill the width, so there is always something cut at the edge while there is more
                         .frame(width: Self.column(in: viewport))
                         .id(cell.id)
@@ -56,7 +61,7 @@ public struct ThemeGallery: View {
         } action: { _, new in scroll = new }
         .overlay(alignment: .leading) { arrow(.chevronLeft, name: Copy.pieceThemesEarlier(), visible: scroll.canGoBack, by: -1) }
         .overlay(alignment: .trailing) { arrow(.chevronRight, name: Copy.pieceThemesMore(), visible: scroll.canGoForward, by: 1) }
-        .focusable().focusEffectDisabled()
+        .focusable().focusEffectDisabled().focused($focused)
         .onKeyPress(keys: [.upArrow, .downArrow, .leftArrow, .rightArrow]) { press in
             guard let index = cells.firstIndex(where: { $0.id == chosen }) else { return .ignored }
             let key: ThemeGalleryKey = switch press.key {

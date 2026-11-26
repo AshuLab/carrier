@@ -95,7 +95,8 @@ carrier/
     ├── specs/          # the specs the features were built from
     ├── adr/            # architecture decision records
     ├── research/       # spike findings
-    └── glossary.md     # domain vocabulary
+    ├── glossary.md     # domain vocabulary: the index, one line per topic
+    └── glossary/       # the terms, one file per topic
 ```
 
 [`AGENTS.md`](AGENTS.md) has the detail of each folder.

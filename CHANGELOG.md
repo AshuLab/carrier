@@ -6,15 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- The engine adds, changes and removes an extra reviewer and sets a repo's own list of them (`addExtraReviewer`, `removeExtraReviewer`, `setRepoExtraReviewers`, and `editRole`, `editPersona` and `editFailover` with `{ "extraReviewer": "<key>" }`), announced with the capability `extraReviewers`, so the app can edit them without touching the file by hand.
+  `carrier config` accepts the same requests.
+- `carrier init` takes extra reviewers by flags that name them: `--extra-reviewer "<name>=<harness>:<model>"`, repeatable, and `--extra-reviewer-profile`, `-provider`, `-effort`, `-type`, `-persona-name`, `-persona-prompt` and `-failover`, each as `"<name>=<value>"`.
+- `carrier restart` takes `--extra-reviewer-option "<key>=<option>"`, repeatable, to choose the option of an extra reviewer by its key.
+
 ### Changed
 
 - `carrier init` asks the AI accounts first, then the orchestrator's GitHub profile, then one closed block for each role (the Author, the Reviewer, each extra reviewer and the Lead reviewer), and the repos last.
   A role block asks its profile and account, shows the model and effort it would use and asks only whether to change them, asks one "customise the persona?" and then its failover, which is asked only with two or more accounts.
-  After the Reviewer it offers up to three extra reviewers (`reviewer-2` to `reviewer-4`), written to `agents.extraReviewers`.
+  After the Reviewer it offers up to three extra reviewers, each with a name and a type, written to `agents.extraReviewers`.
 - Esc goes back one question in `init` and keeps the earlier answers, Ctrl+C leaves, and the recap's "Change an answer" is a menu that jumps to one block instead of asking everything again.
   Ctrl+C at "Start Carrier now?" counts as no and prints what to run.
 - Every `init` question has a flag, built from the same table of roles (`--<role>`, `--<role>-profile`, `--<role>-provider`, `--<role>-effort`, `--<role>-persona-name`, `--<role>-persona-prompt`, repeatable `--<role>-failover`, plus `--orchestrator-profile`), and a mistake in a flag is reported naming it before the wizard looks at the machine or GitHub.
   `--yes` prints what it chose and now always needs `--repo`.
+- `agents.extraReviewers` is a map from a key to a reviewer with a `name` and a `type`, at most three, in the order of the file, global or a repo's, and a file that still has a list is refused when it loads with a message that names the map.
+  The key is derived from the name and is the identity of the reviewer everywhere: its stored executions, rounds, blockers, checkout folder, the epic's status, the doctor's checks and `carrier restart`.
+  `reviewer-2` to `reviewer-4` do not exist any more, nothing migrates, and an epic saved with extra reviewers before the names cannot be resumed.
+  A reviewer with no persona signs with its name, and the `resumeEpic` request takes `extraReviewers`, a map from a key to the option.
 
 ### Fixed
 

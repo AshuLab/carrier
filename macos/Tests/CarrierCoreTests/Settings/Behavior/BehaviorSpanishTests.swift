@@ -14,11 +14,12 @@ private let l = spanish.locale
     #expect(groups.map(\.title) == ["Ritmo", "Cuando algo sale mal", "Mantenimiento"])
     let rows = groups.flatMap(\.rows)
     #expect(rows.map(\.title) == [
-        "Buscar epics listos cada", "Epics a la vez", "Rondas de revisión antes de consultarte", "Reintentos tras un fallo técnico",
+        "Buscar epics listos cada", "Epics a la vez", "Rondas de revisión antes de consultarte", "Rondas del revisor líder antes de consultarte", "Reintentos tras un fallo técnico",
         "Tiempo por ejecución del agente", "Mostrar los epics terminados durante", "Tiempo límite de las llamadas a GitHub", "Nivel de registro",
     ])
-    #expect(rows[0].detail == "En minutos" && rows[2].detail == "Después el epic espera a una persona (needs-human)" && rows[5].detail == "De 1 a 30 días")
-    #expect(rows.map(\.unit) == ["min", nil, nil, nil, "h", "días", "s", nil])
+    #expect(rows[0].detail == "En minutos" && rows[2].detail == "Una ronda cuenta una vez, tenga los revisores que tenga. Después el epic espera a una persona (needs-human)" && rows[6].detail == "De 1 a 30 días")
+    #expect(rows[3].detail == "El revisor líder y el autor, un intercambio cada vez. Después el epic espera a una persona (needs-human)")
+    #expect(rows.map(\.unit) == ["min", nil, nil, nil, nil, "h", "días", "s", nil])
 }
 
 @Test func theKeysOfTheRowsAndTheAnchorsOfTheGroupsDoNotChangeWithTheLanguage() {
@@ -31,6 +32,7 @@ private let l = spanish.locale
     config.pollIntervalMinutes = 0
     config.logLevel = "loud"
     config.maxConcurrentEpics = 0
+    config.maxLeadRounds = 0
     config.maxExecutionRetries = -1
     config.maxExecutionHours = 0
     config.githubCallTimeoutSeconds = 0
@@ -39,6 +41,7 @@ private let l = spanish.locale
     #expect(problems["pollIntervalMinutes"] == "Debe ser mayor que 0")
     #expect(problems["logLevel"] == "Debe ser uno de debug, info, warn, error")
     #expect(problems["maxConcurrentEpics"] == "Debe ser 1 o más")
+    #expect(problems["maxLeadRounds"] == "Debe ser 1 o más")
     #expect(problems["maxExecutionRetries"] == "Debe ser 0 o más")
     #expect(problems["maxExecutionHours"] == "Debe ser 1 o más, o sin límite")
     #expect(problems["githubCallTimeoutSeconds"] == "Debe ser 1 o más")

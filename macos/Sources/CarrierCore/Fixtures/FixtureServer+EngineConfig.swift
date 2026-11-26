@@ -36,6 +36,7 @@ extension FixtureServer {
             config.finishedWindowDays = (changes["finishedWindowDays"] as? Int) ?? config.finishedWindowDays
             config.maxConcurrentEpics = (limits["maxConcurrentEpics"] as? Int) ?? config.maxConcurrentEpics
             config.maxReviews = (limits["maxReviews"] as? Int) ?? config.maxReviews
+            config.maxLeadRounds = (limits["maxLeadRounds"] as? Int) ?? config.maxLeadRounds
             config.maxExecutionRetries = (limits["maxExecutionRetries"] as? Int) ?? config.maxExecutionRetries
             config.githubCallTimeoutSeconds = (limits["githubCallTimeoutSeconds"] as? Int) ?? config.githubCallTimeoutSeconds
             if limits["maxExecutionHours"] as? String == "unlimited" { config.maxExecutionHours = nil } else if let hours = limits["maxExecutionHours"] as? Int { config.maxExecutionHours = hours }
@@ -54,6 +55,7 @@ extension FixtureServer {
             var own = file["limits"] as? [String: Any] ?? [:]
             put("maxConcurrentEpics", config.maxConcurrentEpics, differs: config.maxConcurrentEpics != base.maxConcurrentEpics, in: &own)
             put("maxReviews", config.maxReviews, differs: config.maxReviews != base.maxReviews, in: &own)
+            put("maxLeadRounds", config.maxLeadRounds, differs: config.maxLeadRounds != base.maxLeadRounds, in: &own)
             put("maxExecutionRetries", config.maxExecutionRetries, differs: config.maxExecutionRetries != base.maxExecutionRetries, in: &own)
             put("maxExecutionHours", config.maxExecutionHours ?? "unlimited", differs: config.maxExecutionHours != base.maxExecutionHours, in: &own)
             put("githubCallTimeoutSeconds", config.githubCallTimeoutSeconds, differs: config.githubCallTimeoutSeconds != base.githubCallTimeoutSeconds, in: &own)

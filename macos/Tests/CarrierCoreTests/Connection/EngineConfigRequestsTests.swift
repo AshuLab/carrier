@@ -18,12 +18,13 @@ private func hello(_ capabilities: String) -> String {
 
 private func object(_ data: Data) throws -> NSDictionary { try #require(JSONSerialization.jsonObject(with: data) as? NSDictionary) }
 
-/// What the Behavior page builds for the golden: a poll every 2.5 minutes, debug logs, the default window and limits except 8 reviews and no limit on the run time.
+/// What the Behavior page builds for the golden: a poll every 2.5 minutes, debug logs, the default window and limits except 8 reviews, 4 lead rounds and no limit on the run time.
 func goldenBehavior() -> EngineConfig {
     var config = EngineConfig()
     config.pollIntervalMinutes = 2.5
     config.logLevel = "debug"
     config.maxReviews = 8
+    config.maxLeadRounds = 4
     config.maxExecutionHours = nil
     return config
 }
@@ -97,7 +98,7 @@ private func launcher(_ runner: FakeRunner) -> CarrierConfigLauncher { CarrierCo
 
 @Test func theBehaviorValuesAreAllSentAndNodeTakesOutTheDefaults() throws {
     let changes = try #require(try object(EngineConfigChange.behavior(EngineConfig()).request)["changes"] as? NSDictionary)
-    #expect(changes == ["pollIntervalMinutes": 5, "logLevel": "info", "finishedWindowDays": 15, "limits": ["maxConcurrentEpics": 3, "maxReviews": 5, "maxExecutionRetries": 3, "maxExecutionHours": 4, "githubCallTimeoutSeconds": 30]] as NSDictionary)
+    #expect(changes == ["pollIntervalMinutes": 5, "logLevel": "info", "finishedWindowDays": 15, "limits": ["maxConcurrentEpics": 3, "maxReviews": 5, "maxLeadRounds": 3, "maxExecutionRetries": 3, "maxExecutionHours": 4, "githubCallTimeoutSeconds": 30]] as NSDictionary)
     var config = EngineConfig()
     config.pollIntervalMinutes = .nan
     #expect(EngineConfigChange.behavior(config).fields == "")

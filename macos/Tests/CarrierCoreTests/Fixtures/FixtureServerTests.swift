@@ -284,10 +284,11 @@ private func sameJSON(_ a: Data, _ b: Data) throws -> Bool {
     var config = EngineConfig()
     config.logLevel = "debug"
     config.maxReviews = 8
+    config.maxLeadRounds = 2
     config.maxExecutionHours = nil
     #expect(try await sender.send(.behavior(config)).outcome == .applied)
     #expect(try EngineConfig(json: Data(contentsOf: URL(fileURLWithPath: file))) == config)
-    #expect(try (written()["limits"] as? [String: Any])?.keys.sorted() == ["maxExecutionHours", "maxReviews"] && written()["pollIntervalMinutes"] == nil)
+    #expect(try (written()["limits"] as? [String: Any])?.keys.sorted() == ["maxExecutionHours", "maxLeadRounds", "maxReviews"] && written()["pollIntervalMinutes"] == nil)
     #expect(try await sender.send(.behavior(EngineConfig())).outcome == .applied)
     #expect(try written()["limits"] == nil && written()["logLevel"] == nil)
 
@@ -305,13 +306,15 @@ private func sameJSON(_ a: Data, _ b: Data) throws -> Bool {
             #expect(refusal.code == "config.problem" && refusal.params == ["path": .string(path), "problem": .string(problem)], Comment(rawValue: path))
         }
     }
-    var bad = EngineConfig()
-    bad.maxReviews = 0
-    do {
-        _ = try await sender.send(.behavior(bad))
-        Issue.record("a value the engine refuses was saved")
-    } catch ControlError.remote(let refusal) {
-        #expect(refusal.code == "config.problem" && refusal.params["path"] == .string("limits.maxReviews") && refusal.text == "Must be 1 or more")
+    for (key, path) in [("maxReviews", "limits.maxReviews"), ("maxLeadRounds", "limits.maxLeadRounds")] {
+        var bad = EngineConfig()
+        if key == "maxReviews" { bad.maxReviews = 0 } else { bad.maxLeadRounds = 0 }
+        do {
+            _ = try await sender.send(.behavior(bad))
+            Issue.record("a value the engine refuses was saved")
+        } catch ControlError.remote(let refusal) {
+            #expect(refusal.code == "config.problem" && refusal.params["path"] == .string(path) && refusal.text == "Must be 1 or more")
+        }
     }
     #expect(try Data(contentsOf: URL(fileURLWithPath: file)) == before)
 }

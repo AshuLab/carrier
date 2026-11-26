@@ -3547,6 +3547,74 @@
         }
       }
     },
+    "behaviorLeadDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The lead reviewer and the author, one exchange at a time. Then the epic waits for a person (needs-human)"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El revisor líder y el autor, un intercambio cada vez. Después el epic espera a una persona (needs-human)"
+          }
+        }
+      }
+    },
+    "behaviorLeadOffDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lead rounds apply once one is on in Roles"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las rondas del líder se aplican cuando hay uno activado en Roles"
+          }
+        }
+      }
+    },
+    "behaviorLeadOffTitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No lead reviewer yet"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aún no hay revisor líder"
+          }
+        }
+      }
+    },
+    "behaviorLeadTitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lead rounds before asking you"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rondas del revisor líder antes de consultarte"
+          }
+        }
+      }
+    },
     "behaviorLimit": {
       "extractionState": "manual",
       "localizations": {
@@ -3611,6 +3679,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Debe ser un número"
+          }
+        }
+      }
+    },
+    "behaviorOpenLead": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Lead reviewer"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir Revisor líder"
           }
         }
       }
@@ -3706,13 +3791,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Then the epic waits for a person (needs-human)"
+            "value": "A round counts once, however many reviewers it has. Then the epic waits for a person (needs-human)"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Después el epic espera a una persona (needs-human)"
+            "value": "Una ronda cuenta una vez, tenga los revisores que tenga. Después el epic espera a una persona (needs-human)"
           }
         }
       }

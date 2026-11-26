@@ -1,6 +1,6 @@
 import Foundation
 
-// The Behavior page of Settings (docs/specs/behavior-in-settings.md): the eight values of `EngineConfig` in three groups, with the
+// The Behavior page of Settings (docs/specs/behavior-in-settings.md): the nine values of `EngineConfig` in three groups, with the
 // title and description of each and the key it edits, then the Reset card. The view only draws this.
 
 /// How a row is edited.
@@ -46,6 +46,9 @@ public func behaviorGroups(bundle: Bundle? = nil, locale: Locale = .current) -> 
                 key: "maxReviews", title: Copy.behaviorReviewsTitle(bundle: bundle, locale: locale), detail: Copy.behaviorReviewsDetail(bundle: bundle, locale: locale),
                 control: .number(minimum: 1), unit: nil),
             BehaviorRow(
+                key: "maxLeadRounds", title: Copy.behaviorLeadTitle(bundle: bundle, locale: locale), detail: Copy.behaviorLeadDetail(bundle: bundle, locale: locale),
+                control: .number(minimum: 1), unit: nil),
+            BehaviorRow(
                 key: "maxExecutionRetries", title: Copy.behaviorRetriesTitle(bundle: bundle, locale: locale), detail: Copy.behaviorRetriesDetail(bundle: bundle, locale: locale),
                 control: .number(minimum: 0), unit: nil),
             BehaviorRow(
@@ -66,3 +69,8 @@ public func behaviorGroups(bundle: Bundle? = nil, locale: Locale = .current) -> 
     ]
 }
 
+/// Whether the file has a lead reviewer (`agents.leadReviewer`); Lead rounds means nothing until it has one.
+public func fileHasLeadReviewer(json: Data) -> Bool {
+    let file = (try? JSONSerialization.jsonObject(with: json)) as? [String: Any]
+    return (file?["agents"] as? [String: Any])?["leadReviewer"] is [String: Any]
+}

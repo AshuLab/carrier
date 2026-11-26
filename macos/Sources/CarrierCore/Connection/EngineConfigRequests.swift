@@ -43,7 +43,7 @@ public enum EngineConfigChange: Equatable, Sendable {
             return ",\"repos\":[" + names.map(jsonString).joined(separator: ",") + "]"
         case .behavior(let config):
             let limits: [String: Any] = [
-                "maxConcurrentEpics": config.maxConcurrentEpics, "maxReviews": config.maxReviews, "maxExecutionRetries": config.maxExecutionRetries,
+                "maxConcurrentEpics": config.maxConcurrentEpics, "maxReviews": config.maxReviews, "maxLeadRounds": config.maxLeadRounds, "maxExecutionRetries": config.maxExecutionRetries,
                 "maxExecutionHours": config.maxExecutionHours ?? "unlimited", "githubCallTimeoutSeconds": config.githubCallTimeoutSeconds,
             ]
             let changes: [String: Any] = ["pollIntervalMinutes": config.pollIntervalMinutes, "logLevel": config.logLevel, "finishedWindowDays": config.finishedWindowDays, "limits": limits]

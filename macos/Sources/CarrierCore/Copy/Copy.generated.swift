@@ -8998,6 +8998,26 @@ public enum Copy {
         String(localized: "behaviorReviewsDetail", bundle: bundle ?? carrierResources, locale: locale)
     }
 
+    public static func behaviorLeadTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "behaviorLeadTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func behaviorLeadDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "behaviorLeadDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func behaviorLeadOffTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "behaviorLeadOffTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func behaviorLeadOffDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "behaviorLeadOffDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func behaviorOpenLead(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "behaviorOpenLead", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
     public static func behaviorRetriesTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         String(localized: "behaviorRetriesTitle", bundle: bundle ?? carrierResources, locale: locale)
     }

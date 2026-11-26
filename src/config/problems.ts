@@ -1,6 +1,6 @@
 import type { ConfigError } from './load.ts';
 
-/** A config problem with a known kind: the key path and the kind are the parameters ([ADR 0055](../../docs/adr/0055-a-refusal-carries-a-code-and-its-parameters-and-its-english-words-are-the-fallback.md)). */
+/** A config problem with a known kind: the key path and the kind are the parameters ([ADR 0055](../../docs/adr/design/0055-a-refusal-carries-a-code-and-its-parameters-and-its-english-words-are-the-fallback.md)). */
 export type ConfigProblem = { code: string; params: { path: string; problem: string } };
 
 /**

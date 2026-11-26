@@ -1,7 +1,7 @@
 # Spike: which local model and prompt write good session titles
 
 Answers the open question of [the session titles spec](../specs/session-titles-from-a-text-generator.md) (issue #1198, epic #1196): which local model and which fixed system message write titles good enough in Spanish and English mixed, and how long a title takes.
-It follows the decision of [0038](../adr/0038-a-text-generator-is-declared-in-providers-json-and-the-chat-host-writes-session-titles-with-it.md) and does for titles what [0030](../adr/0030-dictation-cleanup-runs-on-local-model-servers-through-their-api.md) asked for the dictation cleanup.
+It follows the decision of [0038](../adr/agents/0038-a-text-generator-is-declared-in-providers-json-and-the-chat-host-writes-session-titles-with-it.md) and does for titles what [0030](../adr/dictation/0030-dictation-cleanup-runs-on-local-model-servers-through-their-api.md) asked for the dictation cleanup.
 It writes no Carrier code: the scripts and the raw results are in [session-titles-spike](session-titles-spike/).
 
 ## The answer

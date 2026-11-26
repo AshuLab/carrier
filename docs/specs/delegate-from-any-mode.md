@@ -7,13 +7,13 @@ Source: AshuLab/carrier#1129
 
 A person in a chat session says "launch two agents, one on this model and one on that", and in Claude's `auto` mode the agent answers that it cannot: the mode does not ask before a change, and delegation needs `default` or `acceptEdits`.
 The same rule shuts out Claude's `dontAsk` and `plan` and Codex's policy `never`.
-The cause is [0033](../adr/0033-an-agent-delegates-to-another-agent-through-child-sessions-and-every-delegation-asks-the-person.md), which used the harness's own approval of each `delegate_start` as the person's consent, and offered delegation only where the harness asks.
+The cause is [0033](../adr/sessions/0033-an-agent-delegates-to-another-agent-through-child-sessions-and-every-delegation-asks-the-person.md), which used the harness's own approval of each `delegate_start` as the person's consent, and offered delegation only where the harness asks.
 The person does not want to be asked: saying it in words is the request, and the agent must be able to call the chat MCP in whatever mode the session is in.
 We know it is fixed when a session in any mode starts child sessions on request, with no refusal and no approval card, and each child runs at the permissions of its parent.
 
 ## Solution
 
-[0036](../adr/0036-a-session-delegates-in-every-mode-and-a-child-runs-at-its-parents-permission-level.md) records the decision and amends 0033; this is how it is built.
+[0036](../adr/sessions/0036-a-session-delegates-in-every-mode-and-a-child-runs-at-its-parents-permission-level.md) records the decision and amends 0033; this is how it is built.
 
 **No refusal by mode.**
 Every session with no parent receives the `act` capability when its conversation opens, whatever its mode, so `delegate_start` and `delegate_wait` are listed to it and `agents` no longer says that the mode does not ask.
@@ -78,7 +78,7 @@ Testing seams, by story:
 
 ## Out of scope
 
-- A setting to turn delegation off, or to list the agents allowed to receive one: the person wants it to work, and [0033](../adr/0033-an-agent-delegates-to-another-agent-through-child-sessions-and-every-delegation-asks-the-person.md) already turned the list down.
+- A setting to turn delegation off, or to list the agents allowed to receive one: the person wants it to work, and [0033](../adr/sessions/0033-an-agent-delegates-to-another-agent-through-child-sessions-and-every-delegation-asks-the-person.md) already turned the list down.
 - Proof that the person asked, such as reading their last message: the host cannot judge intent, and the tool's description says to delegate only when asked.
 - Claude's `bypassPermissions` and Codex's `danger-full-access`: they are not options of the chat, and the issue's "full" modes cannot happen there.
 - Recursion, a message to a child, a worktree for each child, waking the parent: as 0033 leaves them.

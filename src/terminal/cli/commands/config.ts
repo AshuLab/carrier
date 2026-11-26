@@ -55,7 +55,7 @@ async function askOwner(socket: string, cmd: string, fields: Record<string, unkn
 
 /**
  * `carrier config`: one config request on standard input as one line of JSON (the request of the socket, without its `id`), forwarded to the process that owns the file when it answers
- * and otherwise written here by the same code. Prints the reply the socket would give, minus its `id`, as one line of JSON ([ADR 0053](../../../../docs/adr/0053-a-carrier-config-file-has-one-owner-process-and-a-front-end-writes-it-through-that-process.md)).
+ * and otherwise written here by the same code. Prints the reply the socket would give, minus its `id`, as one line of JSON ([ADR 0053](../../../../docs/adr/config/0053-a-carrier-config-file-has-one-owner-process-and-a-front-end-writes-it-through-that-process.md)).
  * Returns 0 when it saved, 1 when it refused, 2 when standard input is not a request it can run.
  */
 export async function configCommand(folder: string, input: Readable = process.stdin): Promise<number> {

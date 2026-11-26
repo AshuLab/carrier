@@ -1,6 +1,6 @@
 # The macOS app today, and where each file goes
 
-The evidence behind [the reorganization of the macOS app](../specs/macos-app-as-the-base-for-a-web-front-end.md): what `macos/Sources` holds at `main` 3ce1aa4e3 (2026-11-24), counted by script, and a first map of every file to its folder in the new tree ([0052](../adr/0052-the-macos-app-is-split-into-three-targets-by-layer-and-each-target-by-area.md)).
+The evidence behind [the reorganization of the macOS app](../specs/macos-app-as-the-base-for-a-web-front-end.md): what `macos/Sources` holds at `main` 3ce1aa4e3 (2026-11-24), counted by script, and a first map of every file to its folder in the new tree ([0052](../adr/design/0052-the-macos-app-is-split-into-three-targets-by-layer-and-each-target-by-area.md)).
 The map was made from the file names and what each file declares, then corrected by hand where a name misled.
 It is a draft: the ticket that moves an area checks each of its files against it, and a file that belongs elsewhere moves there and the map is corrected.
 
@@ -219,14 +219,14 @@ Each is split until no file passes about 400 lines; a split follows what the fil
 | --- | --- | --- |
 | `StartController` | starts processes (15 calls), reads files | `CarrierCore/Lifecycle` decides, `Platform/ProcessRun` runs |
 | `ModelPicker` | runs a process | a model in `CarrierCore/Chat` through `Platform/ProcessRun` |
-| `ProjectsTab` | reads and writes files | the chat host's requests ([0053](../adr/0053-a-carrier-config-file-has-one-owner-process-and-a-front-end-writes-it-through-that-process.md)) |
+| `ProjectsTab` | reads and writes files | the chat host's requests ([0053](../adr/config/0053-a-carrier-config-file-has-one-owner-process-and-a-front-end-writes-it-through-that-process.md)) |
 | `WatchingTab` | reads and writes `engine.json` | the engine's requests |
 | `AgentsTab`, `BehaviorTab`, `SettingsWindow` | read or write files | the owner's requests |
 | `HealthTab` | opens a socket | `CarrierCore/Connection` |
 
 ## Config the app writes today, and the request that replaces each write
 
-Each request goes to the owner's socket when it answers and to `carrier config` when it does not ([0053](../adr/0053-a-carrier-config-file-has-one-owner-process-and-a-front-end-writes-it-through-that-process.md)); the full list of requests is in the spec, §6.
+Each request goes to the owner's socket when it answers and to `carrier config` when it does not ([0053](../adr/config/0053-a-carrier-config-file-has-one-owner-process-and-a-front-end-writes-it-through-that-process.md)); the full list of requests is in the spec, §6.
 
 | File | Written today by | What is changed | Owner and request |
 | --- | --- | --- | --- |

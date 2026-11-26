@@ -1,6 +1,6 @@
 # A generated `.command` script in Terminal, iTerm2, Ghostty and Warp
 
-> Spike from 2026-10-21 for story 6 of the [macOS app redesign](../specs/macos-app-redesign.md). Closes the part of [macos-app-data-github.md](macos-app-data-github.md) (section 9) and of [ADR 0007](../adr/0007-continue-in-terminal-through-a-validated-descriptor.md) that said iTerm2, Ghostty and Warp had not been verified. Run on macOS 27.0, Terminal 2.15, Warp 0.2026.09.09 (stable).
+> Spike from 2026-10-21 for story 6 of the [macOS app redesign](../specs/macos-app-redesign.md). Closes the part of [macos-app-data-github.md](macos-app-data-github.md) (section 9) and of [ADR 0007](../adr/app/0007-continue-in-terminal-through-a-validated-descriptor.md) that said iTerm2, Ghostty and Warp had not been verified. Run on macOS 27.0, Terminal 2.15, Warp 0.2026.09.09 (stable).
 
 ## Short answer
 

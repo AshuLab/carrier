@@ -32,7 +32,7 @@ The process lets him keep preparing new features while the agents work. Diego te
 - `solve:epic:ready` is a sufficient signal to pick up an epic: the orchestrator registers it directly in the queue, with no additional query to Solve to enable it.
 - When an epic's execution starts, remove `solve:epic:ready` and add `solve:epic:running` on GitHub. Keep the execution in SQLite so it can be resumed without depending on the issue still being ready.
 - When it is ready for test, replace `solve:epic:running` with `solve:epic:ready-for-test`. If it requires intervention, replace it with `solve:epic:needs-human`. Also record the result in SQLite.
-- Agents do not run with the host system's permissions: each execution runs in a container with broad permissions inside and only the epic's workspace mounted. The token's minimum scopes and the repos' branch protection are the second boundary. See [ADR 0003](../adr/0003-agents-in-containers.md).
+- Agents do not run with the host system's permissions: each execution runs in a container with broad permissions inside and only the epic's workspace mounted. The token's minimum scopes and the repos' branch protection are the second boundary. See [ADR 0003](../adr/agents/0003-agents-in-containers.md).
 - Run independent epics in parallel, with a configurable maximum concurrency as a positive integer. Initial value: three epics; it can be one, two, four, eight or another value depending on the configuration.
 - Take ready epics in queue arrival order (FIFO), preserving the order of entry on restart.
 - Dependencies between epics are out of scope for the first version and will be resolved in Solve separately. The rule discussed for a future evolution is to wait for the prerequisites to be merged; the MVP does not implement a graph, a waiting-on-dependencies state or unblocking on merge.
@@ -60,14 +60,14 @@ The process lets him keep preparing new features while the agents work. Diego te
 - If the reviewer cannot conclude for lack of context, the epic requires intervention. Record the reason; the absence of blockers detected in an incomplete review does not enable the PR.
 - Epics that require intervention are resolved manually by Diego. The first version records and shows the reason, with no command or controls to reactivate them. This is distinct from automatically resuming executions interrupted by `Ctrl+C`.
 - Skills keep their current outputs. The caller agent interprets them the way a person invoking the skill would.
-- The orchestrator coordinates without interpreting the repo's domain. Author and reviewer apply the repo/Solve rules, choose and evaluate tests/checks and determine blockers. The orchestrator validates the JSON contract and its technical coherence, persists results and manages stages, limits and labels. See [ADR 0001](../adr/0001-separate-coordination-from-repo-evaluation.md).
+- The orchestrator coordinates without interpreting the repo's domain. Author and reviewer apply the repo/Solve rules, choose and evaluate tests/checks and determine blockers. The orchestrator validates the JSON contract and its technical coherence, persists results and manages stages, limits and labels. See [ADR 0001](../adr/orchestration/0001-separate-coordination-from-repo-evaluation.md).
 - The caller writes its conclusion per execution to a structured JSON file. The orchestrator validates its schema and stores the information in SQLite, associated with the epic, stage and execution, keeping the history.
 - The caller's JSON has three results: `completed`, `changes_requested` and `needs_human`. The engine combines the result with the stage to coordinate the next turn.
 - Keep agent sessions per epic and role to resume from the context of an interrupted stage, in addition to continuing the pending stages. Record provider, identifier and location of the session where applicable, and keep the workspace.
 - If a saved session cannot be recovered, start a new one with the persisted context and the current state of the workspace/GitHub. The agent verifies what was done before continuing; it keeps the identity and records the recovery in the history.
 - `Ctrl+C` stops the orchestrator and the executions active at that moment, without waiting for their stages to finish. Keep sessions, workspaces and persisted state to resume on restart.
 - Diego will adapt the skills so that authorized stages can run without waiting for approval.
-- SQLite is the authority for the state of each execution; the `solve:epic:*` labels are its mirror and are reconciled. See [ADR 0002](../adr/0002-sqlite-authority-labels-mirror.md).
+- SQLite is the authority for the state of each execution; the `solve:epic:*` labels are its mirror and are reconciled. See [ADR 0002](../adr/orchestration/0002-sqlite-authority-labels-mirror.md).
 - A web UI or OS app is left for a later evolution.
 
 ## Walkthrough of an epic

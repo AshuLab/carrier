@@ -28,7 +28,7 @@ export class CopyError extends Error {}
 
 const IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const KEY = /^[a-z][A-Za-z0-9]*$/;
-// The words of a text code ([ADR 0055](../docs/adr/0055-a-refusal-carries-a-code-and-its-parameters-and-its-english-words-are-the-fallback.md)): `text.` and the code, which has dots.
+// The words of a text code ([ADR 0055](../docs/adr/design/0055-a-refusal-carries-a-code-and-its-parameters-and-its-english-words-are-the-fallback.md)): `text.` and the code, which has dots.
 // A front-end finds it by the code it receives, so it has no function of its own; only the catalog holds it.
 const TEXT_KEY = /^text(\.[a-z][A-Za-z]*){2,}$/;
 const isTextKey = (key: string) => key.startsWith('text.');

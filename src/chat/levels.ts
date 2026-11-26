@@ -1,4 +1,4 @@
-/** Carrier's permission scale ([ADR 0033](../../docs/adr/0033-an-agent-delegates-to-another-agent-through-child-sessions-and-every-delegation-asks-the-person.md), widened by [ADR 0036](../../docs/adr/0036-a-session-delegates-in-every-mode-and-a-child-runs-at-its-parents-permission-level.md)): what a session may do without asking the person, on which the options of each harness sit. */
+/** Carrier's permission scale ([ADR 0033](../../docs/adr/sessions/0033-an-agent-delegates-to-another-agent-through-child-sessions-and-every-delegation-asks-the-person.md), widened by [ADR 0036](../../docs/adr/sessions/0036-a-session-delegates-in-every-mode-and-a-child-runs-at-its-parents-permission-level.md)): what a session may do without asking the person, on which the options of each harness sit. */
 export type Level = 0 | 1 | 2 | 3;
 export type ScaleHarness = 'claude' | 'codex';
 

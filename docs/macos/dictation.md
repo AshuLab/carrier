@@ -130,7 +130,7 @@ The text starts at the top and goes down; when it is longer than the lines of th
 
 ## History
 
-Every dictation that ends in the widget or in a message box is written to a history, which the History screen of the Dictation page lists (`Carrier/Features/Dictation/HistoryGroup.swift`, over `CarrierCore/Dictation/DictationRecords.swift` and [0031](../adr/0031-dictation-keeps-a-history-and-its-statistics-live-apart-from-it.md)).
+Every dictation that ends in the widget or in a message box is written to a history, which the History screen of the Dictation page lists (`Carrier/Features/Dictation/HistoryGroup.swift`, over `CarrierCore/Dictation/DictationRecords.swift` and [0031](../adr/dictation/0031-dictation-keeps-a-history-and-its-statistics-live-apart-from-it.md)).
 It starts with Keep the text of my dictations (`dictation.history.keepText`, on by default, put back by `reset(.dictation)`), which says that the text is kept in plain text on this Mac: off, nothing new is recorded and the entries that exist stay.
 The store is `<Carrier folder>/app/state/dictations.jsonl`, one JSON entry per line (readable by the account only), read into memory, off the main thread, a moment after the window is drawn (or when the History screen opens), and filtered there; `dictation.log` still never holds text.
 Until the history is read, the History row on the Dictation page says "Reading…" and the screen lists nothing.
@@ -160,7 +160,7 @@ An entry with audio shows a player in its detail (`Carrier/Features/Chat/AudioPl
 
 ## Statistics
 
-The Statistics screen of the Dictation page (`Carrier/Features/Dictation/StatisticsGroup.swift`) shows how much the person dictates, from counters kept apart from the history ([0031](../adr/0031-dictation-keeps-a-history-and-its-statistics-live-apart-from-it.md)).
+The Statistics screen of the Dictation page (`Carrier/Features/Dictation/StatisticsGroup.swift`) shows how much the person dictates, from counters kept apart from the history ([0031](../adr/dictation/0031-dictation-keeps-a-history-and-its-statistics-live-apart-from-it.md)).
 The counters are `<Carrier folder>/app/state/dictation-statistics.json`: per day, hour and speech model, the dictations, the words, the seconds dictated and the longest one, and no text.
 `DictationRecords.record` counts a dictation that ended pasted or copied with words, whatever Keep the text says; a cancelled, failed or empty one is not counted.
 Deleting entries and turning the history off leave the counters as they were, and Reset statistics is the only thing that deletes them.
@@ -203,7 +203,7 @@ Reset (`AppPreferences.reset(.dictation)`) puts the page back to on, Apple's, th
 
 ## Cleanup
 
-The Cleanup group (`Carrier/Features/Projects/CleanupGroup.swift`, over `Carrier/Features/Projects/CleanupController.swift`) sets up the model that will clean the text of a dictation ([0030](../adr/0030-dictation-cleanup-runs-on-local-model-servers-through-their-api.md)); it sets the model up and tests it, and the message boxes use it (below).
+The Cleanup group (`Carrier/Features/Projects/CleanupGroup.swift`, over `Carrier/Features/Projects/CleanupController.swift`) sets up the model that will clean the text of a dictation ([0030](../adr/dictation/0030-dictation-cleanup-runs-on-local-model-servers-through-their-api.md)); it sets the model up and tests it, and the message boxes use it (below).
 It has the switch (`dictation.cleanup.enabled`, off by default), the Server popup (`dictation.cleanup.server`: LM Studio or Ollama, with a chip that says Running or Not running, checked when the page opens, when the server changes and when the app comes back to the front), the Model popup (`dictation.cleanup.model`: the models that server lists, and the saved one when the server is down), the Prompt box (`dictation.cleanup.prompt`: it starts with a default that removes filler words and fixes the punctuation and keeps the language that was spoken) and Try it (the sample dictation in a box labelled Dictated, a Clean this sample button and, under it, a box labelled Cleaned with the answer and its seconds; before the first run that box is an outlined hint, while the model works it shows a spinner with Cleaning… and two lines that shimmer (still under Reduce Motion), and when it gives none it is the same box in orange, titled Could not clean, with the cause).
 The switch is the whole group's: off, the Server, Model, Prompt and Try it rows are not shown, and the server and model are chosen after turning it on; with it on and no server or model chosen the text says so and a dictation is not cleaned (`cleanupCanBeOn` is what a run needs).
 Choosing another server clears the model, since a model belongs to its server.

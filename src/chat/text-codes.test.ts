@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { expect, test } from 'vitest';
 import { ChatRefused, textCode } from './runner.ts';
 
-// The golden list of the codes a refusal can carry ([ADR 0055](../../docs/adr/0055-a-refusal-carries-a-code-and-its-parameters-and-its-english-words-are-the-fallback.md)):
+// The golden list of the codes a refusal can carry ([ADR 0055](../../docs/adr/design/0055-a-refusal-carries-a-code-and-its-parameters-and-its-english-words-are-the-fallback.md)):
 // every code with an example of its parameters, read by the app's tests. UPDATE_FIXTURES=1 rewrites it from the sources.
 // A code is found where `new ChatRefused('<code>'` (or `ResumeRefused`, `RecoverRefused`, `ReloadRefused`, `ConfigRefused`) or `refused(id, '<code>'` (the reply of a fixed error) passes it,
 // or where a helper's reason has `code: '<code>'` (`refusedFor` throws it; `config/problems.ts` gives a config problem its parameters),

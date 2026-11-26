@@ -6,7 +6,7 @@ How to build, test and run it is in [README.md](README.md); what each area does 
 ## Packages and the tree
 
 A SwiftPM package for macOS 26+: `CarrierCore` (library), `CarrierUI` (library, the pieces), `Carrier` (AppKit shell), `CarrierCoreTests` and `CarrierTests` (Swift Testing).
-A dependency points down only ([ADR 0052](../docs/adr/0052-the-macos-app-is-split-into-three-targets-by-layer-and-each-target-by-area.md)); the areas are Lifecycle, Sessions, Chat, Epics, Projects, Terminal, Dictation, Usage, KeepAwake, Updates, Health and Settings.
+A dependency points down only ([ADR 0052](../docs/adr/design/0052-the-macos-app-is-split-into-three-targets-by-layer-and-each-target-by-area.md)); the areas are Lifecycle, Sessions, Chat, Epics, Projects, Terminal, Dictation, Usage, KeepAwake, Updates, Health and Settings.
 
 - `CarrierCore/<Area>/`: clients, rules, what a view shows, with no SwiftUI or AppKit; `Platform/` has the protocols for what only the machine does, `Connection/` the sockets, `Theme/`, `Copy/` and `Settings/` the generated tokens, words and preference keys (`pnpm design`), `Support/` and `Fixtures/` what is shared.
 - `Carrier/App/`: the composition root (`AppDelegate`, `MainMenu`, `PanelModel`, the window), where the controllers are built.

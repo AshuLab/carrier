@@ -1,6 +1,6 @@
 # Research for the macOS app: slice progress, finding Node, notifications, stop and the control socket
 
-> Research of 2026-10-19 for the [macOS app brief](../specs/macos-app.md) and [ADR 0005](../adr/0005-engine-independent-of-the-macos-app.md). Everything ran on this Mac (macOS 27.0, Apple Swift 6.4, Command Line Tools 27.0.0 and Xcode 27.1, Node 22.22.0, 24.14.1, 25.6.0 and 26.12.0 from nvm, `gh` 2.102.0) with no display. The experiments were disposable and are not kept: the `scratch/` paths below name where they ran, the commands and their output are in the text.
+> Research of 2026-10-19 for the [macOS app brief](../specs/macos-app.md) and [ADR 0005](../adr/app/0005-engine-independent-of-the-macos-app.md). Everything ran on this Mac (macOS 27.0, Apple Swift 6.4, Command Line Tools 27.0.0 and Xcode 27.1, Node 22.22.0, 24.14.1, 25.6.0 and 26.12.0 from nvm, `gh` 2.102.0) with no display. The experiments were disposable and are not kept: the `scratch/` paths below name where they ran, the commands and their output are in the text.
 
 ## Summary
 

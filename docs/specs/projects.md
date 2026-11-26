@@ -17,16 +17,16 @@ We would know it is fixed when a person can see all their projects in one place,
 
 ## Solution
 
-A project becomes a thing of the person's workspace, not of the engine ([0041](../adr/0041-a-project-is-an-entry-of-projects-json-identified-by-its-folder.md)).
+A project becomes a thing of the person's workspace, not of the engine ([0041](../adr/projects/0041-a-project-is-an-entry-of-projects-json-identified-by-its-folder.md)).
 It is one entry of `projects.json`, at the top of the Carrier folder and read and written by both the app and the chat host, identified by its folder's path, holding only what the person sets: name, how it came to be, pinned, hidden, tags, icon, the defaults of a new session (agent, base folder or worktree, base branch, empty meaning the same as everywhere) and its actions.
 The remote, the branch, the worktrees, their state and their size are derived and never stored; the size is cached apart by the host.
 
 There is no folder where projects have to live and none is scanned.
-Each project is added by its own folder, from one redesigned sheet that replaces today's Choose a workspace and is the same wherever a person chooses where to work: in Settings it is Add project and a choice acts at once, and in New Session a choice only fills the plan and nothing is cloned or written until the first message ([0018](../adr/0018-a-new-session-is-a-plan-and-the-host-prepares-it-when-the-first-message-is-sent.md)).
+Each project is added by its own folder, from one redesigned sheet that replaces today's Choose a workspace and is the same wherever a person chooses where to work: in Settings it is Add project and a choice acts at once, and in New Session a choice only fills the plan and nothing is cloned or written until the first message ([0018](../adr/sessions/0018-a-new-session-is-a-plan-and-the-host-prepares-it-when-the-first-message-is-sent.md)).
 It has one field that takes a pasted GitHub address, a search over the person's repositories and folders used lately, or a path; drag and drop, the keyboard, the clone destination shown at the action and changeable for that clone, "already a project" instead of a second entry, an error that says what to do when the login cannot see a repository, and, in Settings, a clone that runs in the list with its progress and does not hold the sheet. `projectsFolder` stays only as the default destination of a new clone or new project, and the Projects page ends with a line that says where new clones go, with Change…, which writes it as the old sheet's footer did.
 The clones that exist from before are not imported: the list starts empty and the person adds what they want.
 
-A project is born by hand from Settings, or when a new session's plan that clones or creates a workspace is prepared successfully at the first message ([0018](../adr/0018-a-new-session-is-a-plan-and-the-host-prepares-it-when-the-first-message-is-sent.md)).
+A project is born by hand from Settings, or when a new session's plan that clones or creates a workspace is prepared successfully at the first message ([0018](../adr/sessions/0018-a-new-session-is-a-plan-and-the-host-prepares-it-when-the-first-message-is-sent.md)).
 A folder chosen with Open a folder in a new session stays a plain workspace with an Add as project.
 The sheet that New Session opens lists the projects that are not hidden first, with their icons, then the folders used lately that are not projects and the person's repositories.
 A repository to clone there keeps the choice "Let Carrier watch this repo", on by default, as today, while Add project in Settings does not watch what it adds: watching is the switch on the project's page.
@@ -37,14 +37,14 @@ It is a full-width list with a search, a chip for each tag, All, Watched, Local 
 A project that is cloning shows its progress and is not open yet, and one whose folder is gone shows as not found.
 Choosing a row opens the project as a page of its own, in a centred column, with the toolbar's back returning to the list and the toolbar naming the project.
 
-The project's page has these groups, in this order: Identity (name, icon colour and mark or image, tags); New sessions here (whether it shows when starting a session, agent, work in, base branch); Worktrees and disk (the total and a bar, the main clone and each worktree with its branch, the session that made it, its age, its state and its size; a button to clean up the merged ones and one to remove a worktree, which take only the worktree's folder as [0035](../adr/0035-a-worktree-folder-goes-when-its-work-is-done-and-its-branch-stays.md) does, so the branch and the session stay and the next message brings the folder back and runs the actions; neither touches a worktree with uncommitted changes or one whose session is open); Carrier (only the watch switch, off and explained when there is no GitHub origin); Actions (one row with how many, opening a screen of its own); and Folder (path, remote and Remove).
+The project's page has these groups, in this order: Identity (name, icon colour and mark or image, tags); New sessions here (whether it shows when starting a session, agent, work in, base branch); Worktrees and disk (the total and a bar, the main clone and each worktree with its branch, the session that made it, its age, its state and its size; a button to clean up the merged ones and one to remove a worktree, which take only the worktree's folder as [0035](../adr/projects/0035-a-worktree-folder-goes-when-its-work-is-done-and-its-branch-stays.md) does, so the branch and the session stay and the next message brings the folder back and runs the actions; neither touches a worktree with uncommitted changes or one whose session is open); Carrier (only the watch switch, off and explained when there is no GitHub origin); Actions (one row with how many, opening a screen of its own); and Folder (path, remote and Remove).
 A folder that is not a git repository is a project too, without Worktrees, base branch and Carrier, and says why.
 A project whose folder is gone shows a notice with Locate… and hides the disk.
 Watching writes the project's `owner/name` to `engine.json`'s `repos`, read as it is when the page opens; removing a project never touches it, and the Repos page is unchanged.
 
-Actions are commands kept with the project in Carrier and never read from the repository ([0039](../adr/0039-a-projects-actions-are-kept-in-carrier-and-never-read-from-the-repository.md)).
+Actions are commands kept with the project in Carrier and never read from the repository ([0039](../adr/projects/0039-a-projects-actions-are-kept-in-carrier-and-never-read-from-the-repository.md)).
 They run in a new worktree or after a clone, as steps of the preparation between the worktree and the agent, and again when a cleaned worktree comes back; each has a name, a command, an on switch and what happens if it fails (warn and continue by default, or stop the session).
-They are the setup that [0035](../adr/0035-a-worktree-folder-goes-when-its-work-is-done-and-its-branch-stays.md) left for later.
+They are the setup that [0035](../adr/projects/0035-a-worktree-folder-goes-when-its-work-is-done-and-its-branch-stays.md) left for later.
 
 A project's name and icon are used wherever the project shows, not only on its page: the sidebar's groups, the rows of a session, the new session's picker and the rows of an epic whose repository is the project's `origin`.
 An icon that is not set is drawn as it is today, with initials on a hashed colour; one that is set is a colour and a mark or an image, and the image is copied small into the app's folder.
@@ -53,7 +53,7 @@ A project's worktrees are the sessions whose base folder is its path.
 The layout of `worktrees/` is unchanged, and adding a project whose worktree directory would be another project's is refused with the reason.
 
 Removing a project asks whether it leaves only Carrier or its files go too.
-Deleting from disk is offered only for what Carrier made, moves the folder and its worktrees to the Trash, and stops at uncommitted changes or branches not pushed unless the person confirms after seeing them, and does not go ahead while a session of the project is working, waiting or open; the idle ones stay as history with a notice that their folder is gone ([0040](../adr/0040-deleting-a-project-from-disk-is-only-for-what-carrier-made-and-goes-to-the-trash.md)).
+Deleting from disk is offered only for what Carrier made, moves the folder and its worktrees to the Trash, and stops at uncommitted changes or branches not pushed unless the person confirms after seeing them, and does not go ahead while a session of the project is working, waiting or open; the idle ones stay as history with a notice that their folder is gone ([0040](../adr/projects/0040-deleting-a-project-from-disk-is-only-for-what-carrier-made-and-goes-to-the-trash.md)).
 
 ## Scope
 
@@ -84,7 +84,7 @@ Deleting from disk is offered only for what Carrier made, moves the folder and i
 
 ## Decisions
 
-**The file.** `projects.json` is at `<folder>/projects.json` with `engine.json` and `providers.json` ([0034](../adr/0034-the-carrier-folder-keeps-edited-files-at-the-top-and-splits-each-process-folder-by-lifecycle.md)): its path in `src/config/places.ts` and its Swift twin `CarrierPlaces.swift`, its strict schema, reader and atomic writer in `src/config/projects.ts`, steps in [`src/config/AGENTS.md`](../../src/config/AGENTS.md#adding-a-config-field), and `docs/configuration.md`.
+**The file.** `projects.json` is at `<folder>/projects.json` with `engine.json` and `providers.json` ([0034](../adr/config/0034-the-carrier-folder-keeps-edited-files-at-the-top-and-splits-each-process-folder-by-lifecycle.md)): its path in `src/config/places.ts` and its Swift twin `CarrierPlaces.swift`, its strict schema, reader and atomic writer in `src/config/projects.ts`, steps in [`src/config/AGENTS.md`](../../src/config/AGENTS.md#adding-a-config-field), and `docs/configuration.md`.
 A bad file stops nothing: the host reads it as no projects and the session says so in a notice (an action that would have run did not), never writes over it, and the page shows the problem and does not write either.
 The shape, trimmed to the decision:
 
@@ -104,14 +104,14 @@ type ProjectEntry = {
 
 The schema refuses a repeated path, an empty or blank name or command, an unknown key, a wrong-typed field and an empty path; its test is a table of those and of the well-formed entries, and it writes `macos/Tests/Fixtures/projects.json` for `ContractTests.swift`, as `engine-config-contract.test.ts` does for the engine's file, so that `ProjectsFile.swift` parses, checks and writes the same.
 
-**Who writes what.** The app asks for what the person edits, and for adding an existing folder, and the chat host writes it (`carrier config` does when no host answers; [ADR 0053](../adr/0053-a-carrier-config-file-has-one-owner-process-and-a-front-end-writes-it-through-that-process.md)): it keeps the keys it does not know, reading the file again just before writing.
+**Who writes what.** The app asks for what the person edits, and for adding an existing folder, and the chat host writes it (`carrier config` does when no host answers; [ADR 0053](../adr/config/0053-a-carrier-config-file-has-one-owner-process-and-a-front-end-writes-it-through-that-process.md)): it keeps the keys it does not know, reading the file again just before writing.
 The host writes an entry when a preparation that cloned or created succeeds, and when a project is cloned from Settings. `origin` is `cloned` only when the clone step ran in that preparation, `created` for a new project, and `added` for everything else, including a folder that was already in the projects folder and was only fetched; only the first two can be deleted from disk.
 The app watches the file, since the host can change it while Settings is open.
 
 **What the host answers.** The chat host gets requests behind one capability (`projects`) in its hello, following [`src/control/AGENTS.md`](../../src/control/AGENTS.md#adding-a-request-to-a-socket): a project's worktrees with their branch, session, state and size; removing a worktree's folder; cloning a project into a folder, with its progress; and the clones in flight.
 A worktree is listed from `git worktree list` of the project's folder, kept to those under the chat's `worktrees/`, and joined to the session whose `worktreePath` it is; one with no session is listed with none.
-Removing one is `previewWorktree` and `clearWorktree` of [0035](../adr/0035-a-worktree-folder-goes-when-its-work-is-done-and-its-branch-stays.md), the same ones `cleanWorktrees` uses, so it keeps the branch and refuses a dirty worktree or a live session.
-The app that finds a host without the capability says the host is older and to restart it, as [0018](../adr/0018-a-new-session-is-a-plan-and-the-host-prepares-it-when-the-first-message-is-sent.md) does.
+Removing one is `previewWorktree` and `clearWorktree` of [0035](../adr/projects/0035-a-worktree-folder-goes-when-its-work-is-done-and-its-branch-stays.md), the same ones `cleanWorktrees` uses, so it keeps the branch and refuses a dirty worktree or a live session.
+The app that finds a host without the capability says the host is older and to restart it, as [0018](../adr/sessions/0018-a-new-session-is-a-plan-and-the-host-prepares-it-when-the-first-message-is-sent.md) does.
 
 **Merged.** A worktree is merged when its session's `prState` is `merged`, the rule `worktreeCleanup.afterPrMerged` already uses, so a squash merge counts and a worktree with no session or no pull request never enters Clean up, though it can be removed by hand.
 
@@ -167,5 +167,5 @@ Ordering by how many sessions a project has, dragging to reorder, and managing t
 Notes, environment variables or secrets on a project.
 Showing pull requests or CI.
 Keeping projects in sync between Macs.
-Creating the repository on GitHub for a new project, which [0015](../adr/0015-the-chat-brings-projects-onto-the-mac-with-the-persons-own-github-login.md) already left out.
+Creating the repository on GitHub for a new project, which [0015](../adr/projects/0015-the-chat-brings-projects-onto-the-mac-with-the-persons-own-github-login.md) already left out.
 Importing the clones and sessions from before this version.

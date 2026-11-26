@@ -1,6 +1,6 @@
 # A session can change agent and hand work to other agents
 
-Status: spec; [0036](../adr/0036-a-session-delegates-in-every-mode-and-a-child-runs-at-its-parents-permission-level.md) and the spec of [delegating from any mode](delegate-from-any-mode.md) amend what it says of who may delegate, of the approval of `delegate_start` and of the scale of levels.
+Status: spec; [0036](../adr/sessions/0036-a-session-delegates-in-every-mode-and-a-child-runs-at-its-parents-permission-level.md) and the spec of [delegating from any mode](delegate-from-any-mode.md) amend what it says of who may delegate, of the approval of `delegate_start` and of the scale of levels.
 
 ## Problem
 
@@ -23,7 +23,7 @@ The screens that show all of this are another piece of work, and the host leaves
 There are two capabilities.
 An agent switch changes who holds the session, and a delegation keeps the session where it is and starts others beside it.
 T3 Code makes the same split, and its own release notes recommend delegation over a switch for combining harnesses ([research](../research/t3-code-provider-switching.md)).
-The decisions and the alternatives that lost are in [0032](../adr/0032-a-session-changes-agent-by-starting-a-new-conversation-and-the-new-agent-reads-the-old-one-through-the-chat-mcp.md) for the switch and [0033](../adr/0033-an-agent-delegates-to-another-agent-through-child-sessions-and-every-delegation-asks-the-person.md) for the delegation, and what a spike found about both is in [the spike's findings](../research/switch-and-delegate-spike.md).
+The decisions and the alternatives that lost are in [0032](../adr/sessions/0032-a-session-changes-agent-by-starting-a-new-conversation-and-the-new-agent-reads-the-old-one-through-the-chat-mcp.md) for the switch and [0033](../adr/sessions/0033-an-agent-delegates-to-another-agent-through-child-sessions-and-every-delegation-asks-the-person.md) for the delegation, and what a spike found about both is in [the spike's findings](../research/switch-and-delegate-spike.md).
 
 **Agent switch.**
 A client asks the host to switch a session to another configured agent, between turns only, and any configured agent will do, including another account of the same harness.
@@ -118,7 +118,7 @@ The Codex adapter pins the app-server it was recorded against at 0.153.4 (`CODEX
 
 ## Decisions
 
-The switch is decided in [0032](../adr/0032-a-session-changes-agent-by-starting-a-new-conversation-and-the-new-agent-reads-the-old-one-through-the-chat-mcp.md), the delegation and the scale in [0033](../adr/0033-an-agent-delegates-to-another-agent-through-child-sessions-and-every-delegation-asks-the-person.md) as [0036](../adr/0036-a-session-delegates-in-every-mode-and-a-child-runs-at-its-parents-permission-level.md) amends it, and what this section adds is how they are built.
+The switch is decided in [0032](../adr/sessions/0032-a-session-changes-agent-by-starting-a-new-conversation-and-the-new-agent-reads-the-old-one-through-the-chat-mcp.md), the delegation and the scale in [0033](../adr/sessions/0033-an-agent-delegates-to-another-agent-through-child-sessions-and-every-delegation-asks-the-person.md) as [0036](../adr/sessions/0036-a-session-delegates-in-every-mode-and-a-child-runs-at-its-parents-permission-level.md) amends it, and what this section adds is how they are built.
 No config key is added: the 16,000 bytes, the four children and the 45 seconds are constants, so `docs/configuration.md` does not change.
 
 **Data.**
@@ -185,7 +185,7 @@ The slot and the request id are reserved before the conversation opens: the chil
 The parent's existence is checked again once the child's conversation has opened, as `resume` does.
 
 **Approvals.**
-This is what [0036](../adr/0036-a-session-delegates-in-every-mode-and-a-child-runs-at-its-parents-permission-level.md) changed: no tool of the chat MCP asks the person, `delegate_start` included.
+This is what [0036](../adr/sessions/0036-a-session-delegates-in-every-mode-and-a-child-runs-at-its-parents-permission-level.md) changed: no tool of the chat MCP asks the person, `delegate_start` included.
 On Claude `allowedTools` lists each tool of the chat MCP by name and not the wildcard, and in `plan`, which asks for every tool of a server whatever `allowedTools` says, the adapter's `canUseTool` allows the chat MCP's tools.
 On Codex the server's default is `auto` and each tool is `approve`, so no elicitation reaches the person.
 The host cannot prove that the person asked: the token of a Claude conversation sits in the environment of its process, so an agent that is allowed to run a shell command could post `delegate_start` itself, as it could start `claude` or `codex` itself.
@@ -247,7 +247,7 @@ A worktree of its own for a child, and a way to merge it back.
 Raising the level of a child after it started.
 Waking a parent when a child ends, a `delegate_send` or a `delegate_cancel` tool, and a child that delegates.
 Antigravity as a chat agent, which `chatAccount` refuses today.
-Connecting a session to an epic, which [0012](../adr/0012-sessions-and-epics-are-two-separate-worlds.md) keeps apart.
+Connecting a session to an epic, which [0012](../adr/sessions/0012-sessions-and-epics-are-two-separate-worlds.md) keeps apart.
 Every screen of the app: the agent picker, the message about a limit, the cards and avatars of children, what opening a child shows, the indicator on a parent's row, notifications and the marks of the providers.
 The host leaves the data for them, and they are another brief.
 

@@ -1,6 +1,6 @@
 # Interactive resume of a session the engine started headless
 
-> Spike of 2026-10-21 for the [macOS app redesign](../specs/macos-app-redesign.md) (issue #116). It closes the "not verified" part of [ADR 0007](../adr/0007-continue-in-terminal-through-a-validated-descriptor.md) and of row 8a in the [engine data inventory](macos-app-data-engine.md). Versions: claude 2.1.307, codex-cli 0.153.4, agy 1.4.4.
+> Spike of 2026-10-21 for the [macOS app redesign](../specs/macos-app-redesign.md) (issue #116). It closes the "not verified" part of [ADR 0007](../adr/app/0007-continue-in-terminal-through-a-validated-descriptor.md) and of row 8a in the [engine data inventory](macos-app-data-engine.md). Versions: claude 2.1.307, codex-cli 0.153.4, agy 1.4.4.
 
 ## Method
 

@@ -1,6 +1,6 @@
 # Sparkle auto-update for an ad hoc signed, Homebrew-installed Carrier.app
 
-Researched 2026-11-11 for [0022](../adr/0022-the-app-updates-itself-with-sparkle-and-the-engine-through-homebrew.md) and [the brief](../specs/carrier-updates-itself.md). Primary sources only. "Source" below means the Sparkle repository at tag `2.10.1` (commit `ab7d71291238df6e0492143b120c9b696a35f603`, cloned from https://github.com/sparkle-project/Sparkle), "docs" means the Sparkle documentation site (https://sparkle-project.org/documentation/, read from its source repo https://github.com/sparkle-project/sparkle-project.github.io at commit `6524f21`, 2026-10-31), and "brew" means Homebrew/brew (https://github.com/Homebrew/brew) at tag `7.0.13` (2026-11-09) unless a path says `main` (commit `95d4938`, 2026-11-10). Where I ran something myself on this Mac (Swift 6.4.2, Xcode, macOS 27 host) to check a mechanical claim, the text says "observed here"; that is a reproducible local observation, not a Sparkle or Apple statement, and it is not the spike 0022 asks for.
+Researched 2026-11-11 for [0022](../adr/release/0022-the-app-updates-itself-with-sparkle-and-the-engine-through-homebrew.md) and [the brief](../specs/carrier-updates-itself.md). Primary sources only. "Source" below means the Sparkle repository at tag `2.10.1` (commit `ab7d71291238df6e0492143b120c9b696a35f603`, cloned from https://github.com/sparkle-project/Sparkle), "docs" means the Sparkle documentation site (https://sparkle-project.org/documentation/, read from its source repo https://github.com/sparkle-project/sparkle-project.github.io at commit `6524f21`, 2026-10-31), and "brew" means Homebrew/brew (https://github.com/Homebrew/brew) at tag `7.0.13` (2026-11-09) unless a path says `main` (commit `95d4938`, 2026-11-10). Where I ran something myself on this Mac (Swift 6.4.2, Xcode, macOS 27 host) to check a mechanical claim, the text says "observed here"; that is a reproducible local observation, not a Sparkle or Apple statement, and it is not the spike 0022 asks for.
 
 ## The answer in short
 
@@ -170,7 +170,7 @@ Assumptions in the ADR (0022), the brief and the existing workflow, each marked.
 
 ## Spike result (2026-11-11): Sparkle 2.10.1 on an ad hoc app installed by Homebrew
 
-This is the run that [0022](../adr/0022-the-app-updates-itself-with-sparkle-and-the-engine-through-homebrew.md) and the brief ask for (ticket #804). Everything below was observed on one Mac (macOS 27.0, arm64, Homebrew 7.0.13, Xcode toolchain with Swift 6.4.2, Developer Mode off, Gatekeeper assessments enabled), with a throwaway app that lives outside this repository and has been deleted. Times are local (UTC-3).
+This is the run that [0022](../adr/release/0022-the-app-updates-itself-with-sparkle-and-the-engine-through-homebrew.md) and the brief ask for (ticket #804). Everything below was observed on one Mac (macOS 27.0, arm64, Homebrew 7.0.13, Xcode toolchain with Swift 6.4.2, Developer Mode off, Gatekeeper assessments enabled), with a throwaway app that lives outside this repository and has been deleted. Times are local (UTC-3).
 
 ### What was built
 

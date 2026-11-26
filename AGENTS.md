@@ -47,7 +47,7 @@ Each folder has one job (the folder tree is in [CONTRIBUTING.md](CONTRIBUTING.md
 
 - The engine depends on ports (`GitHub`, `AgentRunner`, `Workspaces`) and an injected clock; tests use fakes of those, never the real thing. Real tools only in the gated integration tests.
 - Node strips types, it does not compile them: no `enum`, no parameter properties, relative imports end in `.ts`.
-- SQLite is the authority and labels are its mirror ([ADR 0002](docs/adr/0002-sqlite-authority-labels-mirror.md)). Importing a result and its transition is one idempotent transaction.
+- SQLite is the authority and labels are its mirror ([ADR 0002](docs/adr/orchestration/0002-sqlite-authority-labels-mirror.md)). Importing a result and its transition is one idempotent transaction.
 - No secrets in config, state or logs. Never echo a child's output that could hold a token.
 - All repo content (code, docs, tests, strings) is in English, except the Spanish translations in `design/copy/es.json`, the one exception ([ui](docs/ui.md) has the look, the words and the preferences every front-end shares).
 - Config schema lives in `src/config/schema.ts` (the engine's), `src/config/providers.ts` (the accounts' `providers.json`) and `src/chat/config.ts` (the chat's `chat.json`); changing any of them means updating `docs/configuration.md`.

@@ -22,7 +22,7 @@ One epic in two parts that do not depend on each other: the new default names of
 ### The labels Carrier writes are named by Carrier
 
 The `labels` block, its distinctness rule, the optional stage and reason groups, the `carrier doctor` check and the names in the snapshot are already built.
-What is left is the defaults ([ADR 0043](../adr/0043-labels-are-named-by-who-writes-them-and-every-one-is-configurable.md)): what Solve writes keeps `solve:epic` and `solve:epic:ready`, and what Carrier writes becomes `carrier:status:running`, `carrier:status:ready-for-test` and `carrier:status:needs-human`.
+What is left is the defaults ([ADR 0043](../adr/orchestration/0043-labels-are-named-by-who-writes-them-and-every-one-is-configurable.md)): what Solve writes keeps `solve:epic` and `solve:epic:ready`, and what Carrier writes becomes `carrier:status:running`, `carrier:status:ready-for-test` and `carrier:status:needs-human`.
 The stage and reason labels stay off until the person names them, and the documentation lists the names the ADR proposes (`carrier:stage:building`, `carrier:stage:reviewing`, `carrier:stage:fixing-review`, `carrier:reason:<kind>`) so a person can copy them.
 Carrier only removes the labels it names now, as it always did, so an issue that carries an old name keeps it: nothing cleans the old names, no migration is written, and the CHANGELOG says so.
 A person with a board or an automation keyed on `solve:epic:running` changes it or sets the old names in `labels`, and `carrier doctor` already tells them when a repo lacks a label Carrier reads.
@@ -30,7 +30,7 @@ The app hides the labels it knows are Carrier's and Solve's from an epic's heade
 
 ### The skills each stage runs
 
-The decision is [ADR 0045](../adr/0045-each-stage-runs-a-skill-the-config-names-and-carrier-keeps-the-contract.md), amended by what [the research on where each harness looks](../research/skill-discovery-per-harness.md) found.
+The decision is [ADR 0045](../adr/orchestration/0045-each-stage-runs-a-skill-the-config-names-and-carrier-keeps-the-contract.md), amended by what [the research on where each harness looks](../research/skill-discovery-per-harness.md) found.
 A `skills` block in `engine.json` names the skill of each stage: `ship`, `review` (with `review` and `publish`) and `fix`, by default Solve's `ship`, `code-review` with `code-post`, and `code-resolve`; `publish` may be `null` for a review skill that publishes by itself.
 A repo's `skills` is merged by key onto the global one, a role's own `skills` (`agents.author.skills`, `agents.reviewer.skills`) wins over both, and the global wins over Solve's defaults, so the order is the role's, the repo's, the global and Solve's defaults.
 A role names only the stages it runs: the author `ship` and `fix`, the reviewer `review`; another key is refused when the config loads, naming it.

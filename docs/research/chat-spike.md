@@ -1,6 +1,6 @@
 # Chat spike: the Claude and Codex paths against the real tools
 
-> Spike of 2026-10-27 for ticket #434 of epic #433 ([spec](../specs/chat-host.md), [ADR 0013](../adr/0013-the-chat-host-is-its-own-process-with-an-adapter-per-provider.md), [in-app sessions research](in-app-sessions.md)). Question: do the two provider paths the port is going to be built on do what the research assumed? Answer: yes for both, with the differences listed in the verdict. The recordings are in [chat-spike/](chat-spike/). The throwaway scripts that made them are not kept.
+> Spike of 2026-10-27 for ticket #434 of epic #433 ([spec](../specs/chat-host.md), [ADR 0013](../adr/sessions/0013-the-chat-host-is-its-own-process-with-an-adapter-per-provider.md), [in-app sessions research](in-app-sessions.md)). Question: do the two provider paths the port is going to be built on do what the research assumed? Answer: yes for both, with the differences listed in the verdict. The recordings are in [chat-spike/](chat-spike/). The throwaway scripts that made them are not kept.
 
 ## Recommendation
 

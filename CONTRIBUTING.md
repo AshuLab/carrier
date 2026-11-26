@@ -93,9 +93,10 @@ carrier/
 ├── macos/              # the native app: a client of the control socket (see its README)
 └── docs/
     ├── specs/          # the specs the features were built from
-    ├── adr/            # architecture decision records
+    ├── adr/            # architecture decision records, one folder per topic and an index
     ├── research/       # spike findings
-    └── glossary.md     # domain vocabulary
+    ├── glossary.md     # domain vocabulary: the index, one line per topic
+    └── glossary/       # the terms, one file per topic
 ```
 
 [`AGENTS.md`](AGENTS.md) has the detail of each folder.
@@ -184,7 +185,7 @@ The commands for the branches are in [docs/agents/solve.md](docs/agents/solve.md
 
 ### Numbered files
 
-Drizzle migrations (`src/storage/migrations/`, `src/chat/migrations/`: the `NNNN_*.sql` file plus its `meta/` snapshot and journal) and ADRs (`docs/adr/NNNN-*.md`) are numbered in sequence, so two branches can take the same number.
+Drizzle migrations (`src/storage/migrations/`, `src/chat/migrations/`: the `NNNN_*.sql` file plus its `meta/` snapshot and journal) and ADRs (`docs/adr/<topic>/NNNN-*.md`, the number global across topics) are numbered in sequence, so two branches can take the same number.
 The branch that merges second fixes its number.
 Before merging into `main`, merge `origin/main` into your branch (merge, never rebase); if your number is taken:
 

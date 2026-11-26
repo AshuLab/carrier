@@ -1,8 +1,8 @@
 # Claude and Codex inside containers on macOS
 
-> **Status: discarded for this version (2026-10-15).** Diego decided that agents run on the host with the terminal's preferences ([ADR 0004](../adr/0004-agents-run-on-host-with-terminal-preferences.md), which replaces ADR 0003). This document is kept as starting material for the security of unattended (AFK) agents; the unchecked boxes will not be closed for now.
+> **Status: discarded for this version (2026-10-15).** Diego decided that agents run on the host with the terminal's preferences ([ADR 0004](../adr/agents/0004-agents-run-on-host-with-terminal-preferences.md), which replaces ADR 0003). This document is kept as starting material for the security of unattended (AFK) agents; the unchecked boxes will not be closed for now.
 
-> Spike from 2026-10-15 (issue #6, epic #3). Answers the open question "Agents in containers" of the [spec](../specs/autonomous-orchestrator.md) and tests [ADR 0003](../adr/0003-agents-in-containers.md). Everything was run in a temporary folder under `/tmp`, with a disposable repo and a local Git remote (`git init --bare`), with no real credentials inside any container and without touching GitHub. The scripts are disposable: [`spike-agent-containers/`](spike-agent-containers/) (`Dockerfile`, `mock-llm.mjs`, `proxy.mjs`).
+> Spike from 2026-10-15 (issue #6, epic #3). Answers the open question "Agents in containers" of the [spec](../specs/autonomous-orchestrator.md) and tests [ADR 0003](../adr/agents/0003-agents-in-containers.md). Everything was run in a temporary folder under `/tmp`, with a disposable repo and a local Git remote (`git init --bare`), with no real credentials inside any container and without touching GitHub. The scripts are disposable: [`spike-agent-containers/`](spike-agent-containers/) (`Dockerfile`, `mock-llm.mjs`, `proxy.mjs`).
 
 ## Verdict
 

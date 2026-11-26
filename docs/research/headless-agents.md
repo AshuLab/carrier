@@ -1,6 +1,6 @@
 # Claude and Codex in headless mode
 
-> Spike from 2026-10-15 (issue #5, epic #3). Answers the open question "Claude and Codex headless" of the [spec](../specs/autonomous-orchestrator.md). Everything was run in a disposable repo in `/tmp`, with no remote, no credentials of real repos and with minimal prompts. It is not an isolation test: that is the containers spike ([ADR 0003](../adr/0003-agents-in-containers.md)).
+> Spike from 2026-10-15 (issue #5, epic #3). Answers the open question "Claude and Codex headless" of the [spec](../specs/autonomous-orchestrator.md). Everything was run in a disposable repo in `/tmp`, with no remote, no credentials of real repos and with minimal prompts. It is not an isolation test: that is the containers spike ([ADR 0003](../adr/agents/0003-agents-in-containers.md)).
 
 ## Result
 

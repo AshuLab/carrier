@@ -4407,7 +4407,7 @@ async function stoppedEpic() {
   return engine;
 }
 const flush = () => new Promise<void>((resolve) => setImmediate(resolve));
-// the code each reason of a refusal carries ([ADR 0055](../../docs/adr/0055-a-refusal-carries-a-code-and-its-parameters-and-its-english-words-are-the-fallback.md)): `refusal` checks it beside the words
+// the code each reason of a refusal carries ([ADR 0055](../../docs/adr/design/0055-a-refusal-carries-a-code-and-its-parameters-and-its-english-words-are-the-fallback.md)): `refusal` checks it beside the words
 const codeOf: Record<ResumeRefusal | RecoverRefusal, string> = {
   'unknown epic': 'epic.unknown',
   'github unavailable': 'github.unavailable',

@@ -10,7 +10,7 @@ import { repoNamePattern } from './schema.ts';
 // The writes of `engine.json` the app and the CLI ask for (ADR 0053): the file's raw JSON is read again just now, changed, checked whole with the engine's own schema and
 // written through a temporary file and a rename. `macos/Sources/CarrierCore` no longer writes these parts of the file; the words are the ones its checks used.
 
-/** Why a change to a config file was not made: its words, a text code and the key path and kind of problem as parameters ([ADR 0055](../../docs/adr/0055-a-refusal-carries-a-code-and-its-parameters-and-its-english-words-are-the-fallback.md)). */
+/** Why a change to a config file was not made: its words, a text code and the key path and kind of problem as parameters ([ADR 0055](../../docs/adr/design/0055-a-refusal-carries-a-code-and-its-parameters-and-its-english-words-are-the-fallback.md)). */
 export class ConfigRefused extends Error {
   code: string;
   params: TextParams;

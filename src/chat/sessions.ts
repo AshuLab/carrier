@@ -47,7 +47,7 @@ const noPullRequests: PullRequests = { find: async () => null, states: async () 
 
 /** An idle session that no request has named for this long is closed: its agent, with every MCP server the person has, holds most of a gigabyte. */
 export const IDLE_CLOSE_MS = 10 * 60_000;
-/** The children of one session that may work or wait for an approval at the same time ([ADR 0033](../../docs/adr/0033-an-agent-delegates-to-another-agent-through-child-sessions-and-every-delegation-asks-the-person.md)). */
+/** The children of one session that may work or wait for an approval at the same time ([ADR 0033](../../docs/adr/sessions/0033-an-agent-delegates-to-another-agent-through-child-sessions-and-every-delegation-asks-the-person.md)). */
 const MAX_RUNNING_CHILDREN = 4;
 /** How much of a done child's last message `delegate_wait` answers. */
 const CHILD_MESSAGE = 4000;

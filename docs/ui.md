@@ -110,7 +110,7 @@ A space token is named by its value (`s8` is 8) so that two areas that add the s
 ## The nine rules of a piece
 
 A piece is a reusable building block of the look, named here and drawn once.
-[ADR 0052](adr/0052-the-macos-app-is-split-into-three-targets-by-layer-and-each-target-by-area.md) has the reasons; each rule has one example.
+[ADR 0052](adr/design/0052-the-macos-app-is-split-into-three-targets-by-layer-and-each-target-by-area.md) has the reasons; each rule has one example.
 
 1. **It is presentational: it takes values and actions, and never reads a store, a singleton, a file or a socket.**
    `AccountMark(symbol:initials:tool:tint:size:)` draws what it is given; the area that shows an account asks the account's identity and passes it.

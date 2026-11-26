@@ -109,7 +109,7 @@ export interface ChatRunner {
 
 export type { TextParams };
 
-/** A code is `<area>.<what>`, named by what happened ([ADR 0055](../../docs/adr/0055-a-refusal-carries-a-code-and-its-parameters-and-its-english-words-are-the-fallback.md)). */
+/** A code is `<area>.<what>`, named by what happened ([ADR 0055](../../docs/adr/design/0055-a-refusal-carries-a-code-and-its-parameters-and-its-english-words-are-the-fallback.md)). */
 export const textCode = /^[a-z][a-zA-Z]*(\.[a-z][a-zA-Z]*)+$/;
 
 /** A reason computed apart from the throw: a code, its English words and its parameters. */

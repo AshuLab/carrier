@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { askedSlots, roleFlagSuffixes } from '../wizard/roles.ts';
+import { roleSlots, roleFlagSuffixes } from '../wizard/roles.ts';
 import { parseCli, usage } from './args.ts';
 
 test('a command and its flags become data', () => {
@@ -121,11 +121,12 @@ test('usage takes --json, --refresh, --days, --provider and --source, and the he
 });
 
 test('every role the table asks takes its flags, and a slot added to the table adds them with no other option code', () => {
-  for (const slot of askedSlots) {
+  for (const slot of roleSlots) {
     for (const suffix of roleFlagSuffixes) expect(parseCli(['init', `--${slot}${suffix}`, 'x'])).toMatchObject({ ok: true, command: 'init', flags: { [`${slot}${suffix}`]: 'x' } });
     expect(parseCli(['init', `--${slot}-failover`, 'codex'])).toMatchObject({ ok: true, flags: { [`${slot}-failover`]: ['codex'] } });
   }
-  expect(askedSlots).toEqual(['author', 'reviewer', 'lead-reviewer']);
+  expect(roleSlots).toEqual(['author', 'reviewer', 'reviewer-2', 'reviewer-3', 'reviewer-4', 'lead-reviewer']);
+  expect(parseCli(['init', '--reviewer-2', 'codex:gpt-5', '--reviewer-3-effort', 'low', '--reviewer-4-failover', 'claude'])).toMatchObject({ ok: true, flags: { 'reviewer-2': 'codex:gpt-5', 'reviewer-3-effort': 'low', 'reviewer-4-failover': ['claude'] } });
   expect(parseCli(['init', '--orchestrator-profile', 'gh'])).toMatchObject({ ok: true, flags: { 'orchestrator-profile': 'gh' } });
   expect(parseCli(['init', '--lead-reviewer-effort', 'high', '--lead-reviewer-persona-prompt', 'p'])).toMatchObject({ ok: true, flags: { 'lead-reviewer-effort': 'high', 'lead-reviewer-persona-prompt': 'p' } });
 });
@@ -152,7 +153,7 @@ test('restart and recover read the same options as before, --reviewer-2 to --rev
 test('the usage shows the role flags as one pattern, not one line per role and flag, and says what --yes picks', () => {
   const text = usage();
   expect(text).toContain('--<role>-failover <account>[:<model>]');
-  expect(text).toContain(`for every role: ${askedSlots.join(', ')}`);
+  expect(text).toContain(`for every role: ${roleSlots.join(', ')}`);
   for (const spelled of ['--author-profile', '--reviewer-effort', '--lead-reviewer-provider', '--author-failover']) expect(text).not.toContain(spelled);
   expect(text).toContain('claude for the author and codex for the reviewer when both exist');
   expect(text).not.toContain('one claude option runs both roles');

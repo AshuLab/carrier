@@ -4,13 +4,16 @@ import { parseHarnessModel, parseIdentity, parseProvider, type Role } from './bu
 import type { InitFlags } from './flags.ts';
 import { effortProblem } from './questions/effort.ts';
 import { personaProblem } from './questions/persona.ts';
-import { askedSlots, camel, roleFlagSuffixes, roleName, type RoleSlot } from './roles.ts';
+import { camel, extraSlots, roleFlagSuffixes, roleName, roleSlots, type RoleSlot } from './roles.ts';
 
 /** A step of a role's failover chain; a step with no model uses the account's, then the harness's. */
 export type FailoverStep = { provider: string; model?: string };
 
 const text = (flags: InitFlags, slot: RoleSlot, suffix: string) => (flags as Record<string, unknown>)[camel(`${slot}${suffix}`)] as string | undefined;
 const stepTexts = (flags: InitFlags, slot: RoleSlot) => ((flags as Record<string, unknown>)[camel(`${slot}-failover`)] ?? []) as string[];
+
+/** An extra reviewer exists when any flag names its slot. */
+export const named = (flags: InitFlags, slot: RoleSlot) => roleFlagSuffixes.some((suffix) => text(flags, slot, suffix) !== undefined) || stepTexts(flags, slot).length > 0;
 
 /** The wizard offers two failover steps. */
 const maxSteps = 2;
@@ -41,9 +44,9 @@ export function failoverSteps(flags: InitFlags, slot: RoleSlot): FailoverStep[] 
   return steps.length > 0 ? steps : undefined;
 }
 
-/** The first thing wrong in the flags that needs no look at the machine, naming its flag; undefined when there is nothing. A value that does not parse, a level that is not one of the five, an orchestrator profile that is neither `forge:<agent>` nor `gh`, a repo that is not `owner/name`, a failover step that is malformed, a third or a repeated one, and `--yes` with no `--repo`. */
+/** The first thing wrong in the flags that needs no look at the machine, naming its flag; undefined when there is nothing. A value that does not parse, a level that is not one of the five, an orchestrator profile that is neither `forge:<agent>` nor `gh`, a repo that is not `owner/name`, a failover step that is malformed, a third or a repeated one, an extra reviewer's flag with none for the one before it, and `--yes` with no `--repo`. */
 export function flagProblem(flags: InitFlags): string | undefined {
-  for (const slot of askedSlots) {
+  for (const slot of roleSlots) {
     const [agent, profile, provider, effort, personaName, personaPrompt] = roleFlagSuffixes.map((suffix) => text(flags, slot, suffix));
     const found =
       (agent === undefined ? undefined : problemOf(`--${slot}`, () => parseHarnessModel(agent))) ??
@@ -65,6 +68,10 @@ export function flagProblem(flags: InitFlags): string | undefined {
       steps.push(parsed.step);
     }
   }
+  // The extra reviewers are a list: a flag for one with none for the one before it has no place to go.
+  for (const [i, slot] of extraSlots.entries()) {
+    if (i > 0 && named(flags, slot) && !named(flags, extraSlots[i - 1]!)) return `--${slot}: there is no place for ${slot} without --${extraSlots[i - 1]}, since the extra reviewers are a list in order`;
+  }
   const orchestrator = flags.orchestratorProfile === undefined ? undefined : problemOf('--orchestrator-profile', () => parseIdentity(flags.orchestratorProfile!));
   if (orchestrator !== undefined) return orchestrator;
   const bad = flags.repo?.find((name) => !repoNamePattern.test(name));
@@ -75,7 +82,7 @@ export function flagProblem(flags: InitFlags): string | undefined {
 
 /** What is wrong with the failover flags once the accounts are known: a step whose account is not among them, or that is a role's own account and model (a step with no model never is). `own` has the roles whose account and model are already settled, such as by `--<role>`. */
 export function failoverProblem(flags: InitFlags, accounts: readonly string[], own: Partial<Record<RoleSlot, Pick<Role, 'provider' | 'model'>>>): string | undefined {
-  for (const slot of askedSlots) {
+  for (const slot of roleSlots) {
     for (const given of stepTexts(flags, slot)) {
       const parsed = parseStep(`--${slot}-failover`, given);
       if ('problem' in parsed) return parsed.problem;

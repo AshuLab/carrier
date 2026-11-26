@@ -56,3 +56,24 @@ test('buildConfig writes the orchestrator as its own profile when it is not the 
   expect(config.agents.author.profile).toBe('gh');
   expect(loadConfig(defaults, config, providers).ok).toBe(true);
 });
+
+test('buildConfig writes the extra reviewers as an ordered list with their own profiles and failover, and the file loads', () => {
+  const config = buildConfig({
+    ...answers,
+    extraReviewers: [
+      { role: { identity: parseIdentity('forge:second'), provider: 'codex', model: 'gpt-5', effort: 'low', persona: { name: 'Rex' } }, failover: [{ provider: 'claude', model: 'opus' }] },
+      { role: { identity: parseIdentity('gh'), provider: 'claude', model: 'sonnet' } },
+    ],
+  });
+  expect(config.agents.extraReviewers).toEqual([
+    { profile: 'second', provider: 'codex', model: 'gpt-5', effort: 'low', persona: { name: 'Rex' }, failover: [{ provider: 'claude', model: 'opus' }] },
+    { profile: 'gh', provider: 'claude', model: 'sonnet' }, // no steps, no failover key: the Reviewer's is used
+  ]);
+  expect(config.profiles).toMatchObject({ second: { kind: 'forge', agent: 'second' }, gh: { kind: 'gh' } });
+  expect(loadConfig(defaults, config, providers).ok).toBe(true);
+});
+
+test('buildConfig has no extraReviewers key without any', () => {
+  expect(buildConfig(answers).agents).not.toHaveProperty('extraReviewers');
+  expect(buildConfig({ ...answers, extraReviewers: [] }).agents).not.toHaveProperty('extraReviewers');
+});

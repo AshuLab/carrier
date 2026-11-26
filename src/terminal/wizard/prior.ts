@@ -1,11 +1,11 @@
 import { defaults, loadConfig } from '../../config/load.ts';
 import { loadProviders } from '../../config/providers.ts';
 import type { Config } from '../../config/schema.ts';
-import type { AIProvider, Failover, Identity, Role } from './build-config.ts';
+import type { AIProvider, Extra, Failover, Identity, Role } from './build-config.ts';
 import { tilde } from './summary.ts';
 
 /** What an existing config already says, to start from when editing it. */
-export type Prior = { repos: string[]; providers: Record<string, AIProvider>; failover?: Failover; orchestrator?: Identity; author: Role; reviewer: Role; leadReviewer?: Role };
+export type Prior = { repos: string[]; providers: Record<string, AIProvider>; failover?: Failover; orchestrator?: Identity; author: Role; reviewer: Role; extraReviewers?: Extra[]; leadReviewer?: Role };
 
 /** `raw` is the parsed `engine.json`, `rawProviders` the parsed `providers.json` (`{}` when there is none). A file that does not validate gives its first error, with its path. */
 export function priorFrom(raw: unknown, rawProviders: unknown): Prior | { error: string } {
@@ -24,6 +24,7 @@ export function priorFrom(raw: unknown, rawProviders: unknown): Prior | { error:
     orchestrator: config.profiles[config.orchestratorProfile]!,
     author: role(config.agents.author),
     reviewer: role(config.agents.reviewer),
+    ...(config.agents.extraReviewers && { extraReviewers: config.agents.extraReviewers.map((extra) => ({ role: role(extra), ...(extra.failover && { failover: extra.failover }) })) }),
     ...(config.agents.leadReviewer ? { leadReviewer: role(config.agents.leadReviewer) } : {}),
   };
 }

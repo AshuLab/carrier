@@ -3414,6 +3414,10 @@ public enum Copy {
         String(localized: "chatSubagentsButtonFailedSpoken \(count) \(failed)", bundle: bundle ?? carrierResources, locale: locale)
     }
 
+    public static func chatSubagentsListSpoken(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSubagentsListSpoken", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
     public static func chatLogNoOutput(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         String(localized: "chatLogNoOutput", bundle: bundle ?? carrierResources, locale: locale)
     }

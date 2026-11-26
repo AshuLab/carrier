@@ -377,4 +377,11 @@ private func group(_ events: [ChatEvent]) -> ToolGroup {
     #expect(Copy.chatSubagentsButtonRunningSpoken(count: 3, running: 2, bundle: es.bundle, locale: es.locale) == "3 subagentes, 2 en marcha")
     #expect(Copy.chatSubagentsButtonFailedSpoken(count: 1, failed: 1, bundle: es.bundle, locale: es.locale) == "1 subagente, 1 falló")
     #expect(Copy.chatSubagentsButtonFailedSpoken(count: 4, failed: 2, bundle: es.bundle, locale: es.locale) == "4 subagentes, 2 fallaron")
+    #expect(Copy.chatSubagentsListSpoken(bundle: es.bundle, locale: es.locale) == "Subagentes")
+    let spanishRow = subagentsList(in: [
+        event(1, "tool_start", callId: "a1", tool: "Agent"),
+        ChatEvent(id: 2, at: 1000, kind: "task", text: "Buscar", callId: "a1", taskId: "t1", state: "started", agentType: "Explore"),
+        ChatEvent(id: 3, at: 2000, kind: "task", callId: "a1", taskId: "t1", state: "stopped", ms: 1000),
+    ]).allSubagents[0]
+    #expect(spanishRow.spoken(bundle: es.bundle, locale: es.locale) == "Subagente Explore, Buscar, Detenido, 0 pasos")
 }

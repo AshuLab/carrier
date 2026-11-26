@@ -687,6 +687,8 @@ Work the agent did (calls, thoughts, messages, an error) is drawn with the chat'
 - **Subagents button (`SubagentsButton`)**: the round glass capsule (`ToolbarPillButton.height`, `.glassEffect(.regular, in: .capsule)`) next to a session's worktree pill (and after the state or Stop pill while a subagent view is open), showing two figures (`Glyph(.users, size: 12)`) and the count.
   While any launch runs, `GlowEdge` turns a thin arc around the capsule; when nothing runs, there is no arc and a 6 pt red dot appears if any subagent failed.
   Its state never depends on colour alone: the arc, the dot and the count carry it, and VoiceOver reads the running or failed counts in words.
+- **Subagents list (`SubagentsListPopover`, `SubagentsListRow`)**: the system popover opened under `SubagentsButton` (520 pt wide, scrolling past 400 pt) holding one `HoverRow` per subagent of the session.
+  Each row shares the 30 pt `SubagentLine` (type chip, title, step or ending, step count, timer, chevron), with a spinner while running, dimmed (`0.55` opacity) and no tick when finished, a 7 pt red dot (or `StateMark` when `statesByShape` is on) when failed, and dimmed with a stop glyph saying Stopped when stopped.
 - **Rows hang under the line** behind a `SettingsDivider`, edge to edge.
 - **A row that opens or links is one click target as a whole**: a 4 % fill under the pointer, and no lone small icon as the only way in.
   A `Button` or a `Link`, never only `.onTapGesture`: a tap gesture is not reachable with the keyboard.

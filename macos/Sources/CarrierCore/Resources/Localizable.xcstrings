@@ -11172,6 +11172,23 @@
         }
       }
     },
+    "chatSubagentsListSpoken": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Subagents"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Subagentes"
+          }
+        }
+      }
+    },
     "chatSummaryCommands %lld": {
       "extractionState": "manual",
       "localizations": {

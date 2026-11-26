@@ -25,28 +25,10 @@ struct SubagentRowView: View {
         }
     }
 
-    /// "1 step", "3 steps": the row's words and the label that reads it aloud.
-    private var steps: String { Copy.chatSubagentSteps(count: subagent.steps) }
-
     private var line: some View {
-        HStack(spacing: Tokens.Space.s10) {
-            lead.frame(width: 16, height: 16)
-            KindChipView(chip: .subagent(type: subagent.type))
-            Text(subagent.name).scaledFont(12.5, weight: .semibold).foregroundStyle(.primary).lineLimit(1).truncationMode(.tail)
-                .layoutPriority(1)
-            Text(subagent.words()).scaledFont(12).foregroundStyle(.tertiary).lineLimit(1).truncationMode(.tail)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            Text(steps).scaledFont(12).foregroundStyle(.tertiary).lineLimit(1).fixedSize()
-            timer
-            if open != nil { CardChevron(open: false, width: 9) }
-        }
-        .scaledFont(12, weight: .medium).monospacedDigit()
-        .padding(.horizontal, Tokens.Space.s10)
-        .frame(height: 30)
-        .workCard()
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(Copy.chatSubagentSpoken(type: subagent.type, name: subagent.name, words: subagent.words(), steps: steps))
-        .contentShape(RoundedRectangle(cornerRadius: Tokens.Radius.card))
+        SubagentLine(subagent: subagent, clock: clock, showsChevron: open != nil) { lead }
+            .workCard()
+            .contentShape(RoundedRectangle(cornerRadius: Tokens.Radius.card))
     }
 
     @ViewBuilder private var lead: some View {
@@ -56,6 +38,37 @@ struct SubagentRowView: View {
         case .failed: StateMark(shape: .problem, size: 12).foregroundStyle(.red)
         case .stopped: Glyph(.stopFilled, size: 8).foregroundStyle(.secondary)
         }
+    }
+}
+
+/// The shared 30 pt subagent line: lead mark, type chip, title, current step or ending, step count, timer, and optional chevron.
+struct SubagentLine<Lead: View>: View {
+    let subagent: Subagent
+    var clock: Date?
+    var showsChevron = true
+    var dimmed = false
+    @ViewBuilder let lead: () -> Lead
+
+    private var steps: String { Copy.chatSubagentSteps(count: subagent.steps) }
+
+    var body: some View {
+        HStack(spacing: Tokens.Space.s10) {
+            lead().frame(width: 16, height: 16)
+            KindChipView(chip: .subagent(type: subagent.type))
+            Text(subagent.name).scaledFont(12.5, weight: .semibold).foregroundStyle(.primary).lineLimit(1).truncationMode(.tail)
+                .layoutPriority(1)
+            Text(subagent.words()).scaledFont(12).foregroundStyle(.tertiary).lineLimit(1).truncationMode(.tail)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Text(steps).scaledFont(12).foregroundStyle(.tertiary).lineLimit(1).fixedSize()
+            timer
+            if showsChevron { CardChevron(open: false, width: 9) }
+        }
+        .opacity(dimmed ? 0.55 : 1)
+        .scaledFont(12, weight: .medium).monospacedDigit()
+        .padding(.horizontal, Tokens.Space.s10)
+        .frame(height: 30)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(subagent.spoken())
     }
 
     /// Ticking while it runs, its own duration once it ended.

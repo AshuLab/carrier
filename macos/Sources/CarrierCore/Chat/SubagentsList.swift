@@ -39,6 +39,9 @@ public struct SubagentItem: Equatable, Identifiable {
         let own = subagent.endedAt ?? subagent.startedAt
         return children.reduce(own) { max($0, $1.latestEnd) }
     }
+
+    /// Every subagent in this subtree in display order: this one first, then its nested subagents recursively.
+    public var flattened: [Subagent] { [subagent] + children.flatMap(\.flattened) }
 }
 
 /// The subagents of one run of the agent's calls, with nested subagents under their launcher.
@@ -77,6 +80,8 @@ public struct SubagentsList: Equatable {
     public var totalCount: Int { launches.reduce(0) { $0 + $1.totalCount } }
     public var runningCount: Int { launches.reduce(0) { $0 + $1.runningCount } }
     public var failedCount: Int { launches.reduce(0) { $0 + $1.failedCount } }
+    /// Every subagent of the session in display order, flattened across launches and nesting.
+    public var allSubagents: [Subagent] { launches.flatMap(\.items).flatMap(\.flattened) }
 
     /// The header button's state: hidden until the first subagent starts, running while any launch runs, quiet when all ended.
     public var buttonState: SubagentsButtonState {

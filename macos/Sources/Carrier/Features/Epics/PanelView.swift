@@ -17,6 +17,8 @@ struct PanelView: View {
     @State var checkAsked: CheckAsked?
     /// The window's size, for the sheets over it.
     @State var windowSize = CGSize(width: 1100, height: 700)
+    /// Whether the Subagents list popover is open in the toolbar.
+    @State var subagentsOpen = false
     /// The right panel's width: also the empty toolbar item that keeps the epic's buttons off it.
     static let inspectorWidth: CGFloat = 316
 
@@ -250,12 +252,16 @@ struct PanelView: View {
             .navigationTitle(shell.subagentHeader == nil ? title : "")
             .navigationSubtitle(shell.subagentHeader == nil ? subtitle : "")
             .onChange(of: model.shell.selection) { _, _ in
+                subagentsOpen = false
                 if let target = activeDrawerTarget,
                    target.isSessionDrawer == false,
                    shell.isTerminalDrawerOpen(for: target.owner),
                    terminalStore.tabs(for: target.owner).isEmpty {
                     shell.setTerminalDrawerOpen(false, for: target.owner)
                 }
+            }
+            .onChange(of: model.shell.subagentsList.buttonState) { _, state in
+                if state == .hidden { subagentsOpen = false }
             }
         }
         .toolbar { panelToolbar }

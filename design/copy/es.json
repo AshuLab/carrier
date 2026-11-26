@@ -1133,6 +1133,7 @@
   "chatSubagentsButtonSpoken": "{count, plural, one {# subagente} other {# subagentes}}",
   "chatSubagentsButtonRunningSpoken": "{count, plural, one {# subagente} other {# subagentes}}, {running, number} en marcha",
   "chatSubagentsButtonFailedSpoken": "{count, plural, one {# subagente} other {# subagentes}}, {failed, plural, one {# falló} other {# fallaron}}",
+  "chatSubagentsListSpoken": "Subagentes",
   "chatLogNoOutput": "Aún sin salida",
   "chatLoading": "Cargando…",
   "chatTimelineLabel": "Cronología de la conversación",

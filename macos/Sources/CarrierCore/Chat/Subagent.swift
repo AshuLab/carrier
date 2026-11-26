@@ -109,6 +109,12 @@ public struct Subagent: Equatable, Identifiable {
         }
     }
 
+    /// What VoiceOver reads aloud for this subagent: its type, title, step or how it ended, and step count.
+    public func spoken(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        let count = Copy.chatSubagentSteps(count: steps, bundle: bundle, locale: locale)
+        return Copy.chatSubagentSpoken(type: type, name: name, words: words(bundle: bundle, locale: locale), steps: count, bundle: bundle, locale: locale)
+    }
+
     /// How long it has run at `now`, or how long it ran: the provider's own count when it gave one.
     public func elapsedMs(now: Int) -> Int {
         if let endedAt { return max(0, reportedMs ?? endedAt - startedAt) }

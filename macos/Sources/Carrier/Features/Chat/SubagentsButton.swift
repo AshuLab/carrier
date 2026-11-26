@@ -9,6 +9,8 @@ struct SubagentsButton: View {
     let spoken: String
     /// Overrides whether the running arc moves; nil follows Reduce Motion.
     var moves: Bool? = nil
+    /// Whether the list popover is open.
+    var open = false
     let action: () -> Void
 
     @State private var hovered = false
@@ -37,7 +39,7 @@ struct SubagentsButton: View {
             }
             .padding(.horizontal, Tokens.Space.s10)
             .frame(height: ToolbarPillButton.height)
-            .background(Capsule().fill(Color.primary.opacity(hovered && enabled ? 0.1 : 0)))
+            .background(Capsule().fill(Color.primary.opacity((hovered || open) && enabled ? 0.1 : 0)))
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)

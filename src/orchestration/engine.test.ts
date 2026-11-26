@@ -7255,7 +7255,9 @@ test('with no verdict and every failure a quota one the epic stops with usage_li
   expect(rows(engine.db)[0]!.needsHumanReason).toContain('no reviewer gave a verdict, every one ran out of usage');
   expect(rows(engine.db)[0]).toMatchObject({ needsHumanCode: 'epic.stop.usageLimit', needsHumanParams: { cause: 'quota', runs: 2, stage: 'review' } });
   expect(rows(engine.db)[0]!.needsHumanReason).toContain('--reviewer <option>');
-  expect(rows(engine.db)[0]!.needsHumanReason).toContain('--seguridad-api <option>');
+  expect(rows(engine.db)[0]!.needsHumanReason).toContain('--extra-reviewer-option "seguridad-api=<option>"');
+  expect(rows(engine.db)[0]!.needsHumanReason).not.toContain('--seguridad-api');
+  expect(rows(engine.db)[0]).toMatchObject({ needsHumanParams: { role: 'reviewer', flag: '--reviewer <option>' } });
   expect(fakeQuota.asked.map((t) => t.configDir).sort()).toEqual(['/cfg/claude', '/cfg/spare']);
   expect(eventsOf(engine.db).filter((e) => e.type === 'auto_resume_scheduled').map((e) => e.data)).toEqual([{ resumeAt: WAKE_LAST }]);
 

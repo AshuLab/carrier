@@ -475,6 +475,9 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     return ranOut.filter((r) => r !== undefined);
   }
 
+  // The flag of `carrier restart` that chooses another option for a slot: an extra reviewer is chosen by its key, in `--extra-reviewer-option`.
+  const flagOf = (role: string) => (role === 'author' || role === 'reviewer' || role === 'lead' ? `--${role} <option>` : `--extra-reviewer-option "${role}=<option>"`);
+
   // The automatic resumes in a row an epic gets (ADR 0049).
   const maxAutoResumes = 3;
 
@@ -495,7 +498,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     const reason: CodedText = {
       code: 'epic.stop.usageLimitWakeRefused',
       text: epic.needsHumanReason.replace(` · resumes by itself at ${stored.when}`, () => ` · it will not resume by itself: ${why}`),
-      params: { cause: stored.cause!, runs: stored.runs!, stage: stored.stage!, option: stored.option!, role: stored.role!, repo: stored.repo!, issue: stored.issue!, detail: stored.detail!, ranOut: stored.ranOut!, why },
+      params: { cause: stored.cause!, runs: stored.runs!, stage: stored.stage!, option: stored.option!, role: stored.role!, flag: flagOf(String(stored.role)), repo: stored.repo!, issue: stored.issue!, detail: stored.detail!, ranOut: stored.ranOut!, why },
     };
     return { needsHumanReason: reason.text, needsHumanCode: reason.code, needsHumanParams: reason.params };
   }
@@ -579,15 +582,15 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
         const role = slotOf(run) ?? 'author';
         const option = run.option ?? run.harness;
         return serverError
-          ? `the provider answered the ${run.stage} execution on option ${option} with a server error, not a usage limit · wait and resume the epic, or carrier restart ${repo}#${issue} --${role} <option>`
-          : `the ${run.stage} execution ran out of usage on option ${option} · carrier restart ${repo}#${issue} --${role} <option>`;
+          ? `the provider answered the ${run.stage} execution on option ${option} with a server error, not a usage limit · wait and resume the epic, or carrier restart ${repo}#${issue} ${flagOf(role)}`
+          : `the ${run.stage} execution ran out of usage on option ${option} · carrier restart ${repo}#${issue} ${flagOf(role)}`;
       }).join(' · ');
       const first = runs[0]!;
       toNeedsHuman(tx, epicId, 'usage_limit', {
         code: 'epic.stop.usageLimit',
         text: `${runs.length > 1 ? 'no reviewer gave a verdict, every one ran out of usage · ' : ''}${what}${wake}${detail}${noStepLeft(ranOut)}`,
         // the words of the run that ran out first, the others in `detail`; `when` is empty unless the window is known
-        params: { cause: serverError ? 'serverError' : 'quota', runs: runs.length, stage: first.stage, option: first.option ?? first.harness ?? '', role: slotOf(first) ?? 'author', repo, issue, wake: wakeKind, when, hours: autoResumeMaxHours, times: maxAutoResumes, detail: runs.flatMap((run) => (run.failureDetail ? [run.failureDetail] : [])).join(' · '), ranOut },
+        params: { cause: serverError ? 'serverError' : 'quota', runs: runs.length, stage: first.stage, option: first.option ?? first.harness ?? '', role: slotOf(first) ?? 'author', flag: flagOf(slotOf(first) ?? 'author'), repo, issue, wake: wakeKind, when, hours: autoResumeMaxHours, times: maxAutoResumes, detail: runs.flatMap((run) => (run.failureDetail ? [run.failureDetail] : [])).join(' · '), ranOut },
       });
       if (scheduled) {
         tx.update(epics).set({ resumeAt: back }).where(eq(epics.id, epicId)).run();

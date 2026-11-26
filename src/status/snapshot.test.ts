@@ -216,6 +216,23 @@ test('a restart is offered every account the epic declares, and no deadline come
   expect(options).toEqual({ names: ['claude', 'codex', 'spare'], author: 'claude', reviewer: 'codex' });
 });
 
+test('the options of the extra reviewers are given by key, and the stopped epic names the key of the one that stopped it', () => {
+  const providers = { claude: { harness: 'claude' as const }, codex: { harness: 'codex' as const } };
+  const withOptions = { ...severalConfig, providers, agents: { ...severalConfig.agents, extraReviewers: severalConfig.agents.extraReviewers!.map((extra, i) => ({ ...extra, option: ['codex', 'claude'][i] })) } } as never;
+  expect(optionsOf({ config: withOptions, authorOption: 'claude', reviewerOption: 'codex' })).toEqual({ names: ['claude', 'codex'], author: 'claude', reviewer: 'codex', extraReviewers: { 'seguridad-api': 'codex', usabilidad: 'claude' } });
+  const { id } = add(1, 'needs_human', { stage: 'review', startedAt: 500, finishedAt: 900, config: withOptions });
+  run(id, 'b', 2_000, { reviewer: 'seguridad-api', status: 'failed', failureKind: 'usage_limit' });
+  expect(snapshot().epics[0]!.options).toMatchObject({ extraReviewers: { 'seguridad-api': 'codex', usabilidad: 'claude' }, failed: 'seguridad-api' });
+});
+
+test('an epic saved before the names still builds, giving its extra reviewers without key, name or type and no options by key', () => {
+  const saved = { name: 'acme/web', providers: { claude: { harness: 'claude' as const } }, agents: { author: agentOf('claude', 'opus'), reviewer: agentOf('codex', 'gpt'), extraReviewers: [agentOf('agy', 'flash'), agentOf('claude', 'sonnet')] } } as never;
+  add(1, 'running', { config: saved });
+  const [epic] = snapshot().epics;
+  expect(epic!.agents!.extraReviewers).toEqual([{ harness: 'agy', model: 'flash', provider: null }, { harness: 'claude', model: 'sonnet', provider: null }]);
+  expect(epic!.options).not.toHaveProperty('extraReviewers');
+});
+
 test('the snapshot reads the executions of an epic by index and never walks the whole table', () => {
   // a few dozen epics of every state, each with several executions: what a snapshot asks per epic must not grow with all of them
   for (let issue = 1; issue <= 30; issue++) {
@@ -344,7 +361,7 @@ test('the agents of the extra reviewers come with the epic, and an epic with non
   add(1, 'running', { config: severalConfig });
   add(2, 'running', { config: { name: 'acme/web', agents: { author: agentOf('claude', 'opus'), reviewer: agentOf('codex', 'gpt') } } as never });
   const [several, single] = snapshot().epics;
-  expect(several!.agents).toEqual({ author: { harness: 'claude', model: 'opus', provider: null }, reviewer: { harness: 'codex', model: 'gpt', provider: null }, extraReviewers: [{ harness: 'agy', model: 'flash', provider: null }, { harness: 'claude', model: 'sonnet', provider: 'ollama' }] });
+  expect(several!.agents).toEqual({ author: { harness: 'claude', model: 'opus', provider: null }, reviewer: { harness: 'codex', model: 'gpt', provider: null }, extraReviewers: [{ harness: 'agy', model: 'flash', provider: null, key: 'seguridad-api', name: 'Seguridad API', type: 'security' }, { harness: 'claude', model: 'sonnet', provider: 'ollama', key: 'usabilidad', name: 'Usabilidad', type: 'ux' }] });
   expect(single!.agents).toEqual({ author: { harness: 'claude', model: 'opus', provider: null }, reviewer: { harness: 'codex', model: 'gpt', provider: null } });
 });
 

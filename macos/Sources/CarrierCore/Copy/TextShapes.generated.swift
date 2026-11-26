@@ -103,7 +103,7 @@ epic.stop.reviewersNotAgreed||=round:s detail:s
 epic.stop.skillMissing||=
 epic.stop.timeout||=stage:s limit:s
 epic.stop.usageLimit||=
-epic.stop.usageLimitWakeRefused|cause|serverError=runs:n stage:s option:s repo:s issue:s role:s detail:s why:s|other=runs:n stage:s option:s repo:s issue:s role:s detail:s why:s
+epic.stop.usageLimitWakeRefused|cause|serverError=runs:n stage:s option:s repo:s issue:s flag:s detail:s why:s|other=runs:n stage:s option:s repo:s issue:s flag:s detail:s why:s
 epic.stop.workspacePrepare||=error:s
 epic.stop.worktreeListFailed||=repo:s attempts:n error:s
 epic.stop.worktreeNotFound||=branch:s repo:s

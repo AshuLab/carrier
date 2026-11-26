@@ -13,13 +13,13 @@ private func row(_ id: String, state: SessionState = .idle, archived: Bool = fal
 private func titles(_ sections: [[SessionMenuItem]]) -> [[String]] { sections.map { $0.map(\.title) } }
 
 @Test func anIdleSessionMenuHasPinRenameOpenCopyArchiveAndDelete() {
-    #expect(titles(sessionMenu(row("a"), bundle: english.bundle, locale: english.locale)) == [["Pin"], ["Rename…"], ["Open in Terminal", "Copy"], ["Archive", "Delete…"]])
+    #expect(titles(sessionMenu(row("a"), bundle: english.bundle, locale: english.locale)) == [["Pin", "Send to sleep"], ["Rename…"], ["Open in Terminal", "Copy"], ["Archive", "Delete…"]])
 }
 
 @Test func theWindowsListsAddMarkAsUnreadNewSessionOnTheBranchAndProjectSettings() {
     let context = SessionMenuContext(marksUnread: true, startsSessions: true, projectKnown: true)
     #expect(titles(sessionMenu(row("a", branch: "fix/x"), context: context, bundle: english.bundle, locale: english.locale)) == [
-        ["Pin", "Mark as unread"], ["Rename…"], ["New session on fix/x", "Project settings…", "Open in Terminal", "Copy"], ["Archive", "Delete…"]])
+        ["Pin", "Mark as unread", "Send to sleep"], ["Rename…"], ["New session on fix/x", "Project settings…", "Open in Terminal", "Copy"], ["Archive", "Delete…"]])
     let items = sessionMenu(row("a", branch: "fix/x"), context: context, bundle: english.bundle, locale: english.locale).flatMap { $0 }
     #expect(items.first { $0.title == "Mark as unread" }?.action == .markUnread)
     #expect(items.first { $0.title == "New session on fix/x" }?.action == .newSession(base: "/Users/dev/web", branch: "fix/x"))
@@ -51,6 +51,19 @@ private func titles(_ sections: [[SessionMenuItem]]) -> [[String]] { sections.ma
     let delete = { (row: SessionRow) in sessionMenu(row, bundle: english.bundle, locale: english.locale).flatMap { $0 }.first { $0.title == "Delete…" } }
     #expect(delete(row("a"))?.disabledReason == nil && delete(row("a"))?.destructive == true)
     #expect(delete(row("a", state: .working))?.disabledReason == "Stop the session to delete it")
+}
+
+@Test func sendToSleepIsOfferedOnlyToASessionWhoseAgentIsIdleAndAwake() {
+    let sleep = { (row: SessionRow) in sessionMenu(row, bundle: english.bundle, locale: english.locale).flatMap { $0 }.first { $0.title == "Send to sleep" } }
+    #expect(sleep(row("a"))?.action == .sleep)
+    // working and waiting end with Stop or an answer, an archived one has no agent, and one asleep already has nothing to close
+    #expect(sleep(row("a", state: .working)) == nil && sleep(row("a", state: .waiting)) == nil && sleep(row("a", archived: true)) == nil)
+    var asleep = row("a")
+    asleep.asleep = true
+    #expect(sleep(asleep) == nil)
+    var background = row("a")
+    background.background = [BackgroundTask(id: "t", kind: "bash", description: "make")]
+    #expect(sleep(background) == nil)
 }
 
 @Test func regenerateTitleIsOfferedOnlyToAHostThatListsIt() {

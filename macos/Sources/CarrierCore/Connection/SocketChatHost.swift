@@ -286,6 +286,12 @@ public struct SocketChatHost: ChatHost {
         let _: AnyReply = try await Task.detached { try chatRequest(path, "setOption", requires: .setOption, fields: fields) }.value
     }
 
+    public func close(_ id: String) async throws {
+        let fields = ",\"sessionId\":\"\(try wireId(id))\""
+        let path = socketPath()
+        let _: AnyReply = try await Task.detached { try chatRequest(path, "close", requires: .close, fields: fields) }.value
+    }
+
     public func archive(_ id: String, _ archived: Bool) async throws {
         let fields = ",\"sessionId\":\"\(try wireId(id))\",\"archived\":\(archived)"
         let path = socketPath()

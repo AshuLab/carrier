@@ -318,6 +318,10 @@ private final class FakeHost: ChatHost, @unchecked Sendable {
         changes.append("\(archived ? "archive" : "restore") \(id)")
         if let error = refuse[id] { throw error }
     }
+    func close(_ id: String) async throws {
+        changes.append("sleep \(id)")
+        if let error = refuse[id] { throw error }
+    }
     func delete(_ id: String) async throws {
         changes.append("delete \(id)")
         if let error = refuse[id] { throw error }
@@ -793,6 +797,15 @@ private func preview(_ id: String, _ worktree: SessionDeletePreview.Worktree?) -
     #expect(await actions.restore("a") == nil)
     #expect(await actions.delete("b") == nil)
     #expect(host.changes == ["archive a", "restore a", "delete b"] && changed == 3)
+}
+
+@MainActor @Test func sendingToSleepClosesTheAgentAndSaysThatTheListsChanged() async {
+    let host = FakeHost()
+    let actions = SessionActions(host: host, log: { _ in })
+    var changed = 0
+    actions.changed = { changed += 1 }
+    #expect(await actions.sleep("a") == nil)
+    #expect(host.changes == ["sleep a"] && changed == 1)
 }
 
 @MainActor @Test func theMenuOffersRegenerateTitleOnlyAfterTheHostListsIt() async {

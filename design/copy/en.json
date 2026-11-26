@@ -821,6 +821,7 @@
   "sessionMenuBranchName": "Branch name",
   "sessionMenuSessionId": "Session id",
   "sessionMenuStop": "Stop",
+  "sessionMenuSleep": "Send to sleep",
   "sessionMenuMarkRead": "Mark as read",
   "sessionMenuMarkUnread": "Mark as unread",
   "sessionMenuMarkWhy": "It is open: opening a session marks it as read",

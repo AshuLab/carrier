@@ -98,7 +98,7 @@ private func group(_ events: [ChatEvent]) -> ToolGroup {
 
 @Test func theMenuOfASessionRowIsSpanish() {
     func titles(_ sections: [[SessionMenuItem]]) -> [[String]] { sections.map { $0.map(\.title) } }
-    #expect(titles(sessionMenu(row("a"), bundle: es.bundle, locale: es.locale)) == [["Fijar"], ["Renombrar…"], ["Abrir en Terminal", "Copiar"], ["Archivar", "Eliminar…"]])
+    #expect(titles(sessionMenu(row("a"), bundle: es.bundle, locale: es.locale)) == [["Fijar", "Mandar a dormir"], ["Renombrar…"], ["Abrir en Terminal", "Copiar"], ["Archivar", "Eliminar…"]])
     let context = SessionMenuContext(marksUnread: true, viewing: true, startsSessions: true, projectKnown: true)
     let full = sessionMenu(row("a", state: .working, branch: "fix/x"), pinned: true, canFilter: true, canRegenerateTitle: true, context: context, bundle: es.bundle, locale: es.locale)
     #expect(titles(full) == [
@@ -110,7 +110,7 @@ private func group(_ events: [ChatEvent]) -> ToolGroup {
     #expect(full[2][3].children.map(\.title) == ["Ruta", "Nombre de la rama", "ID de la sesión"])
     var unread = row("a")
     unread.unread = true
-    #expect(sessionMenu(unread, context: SessionMenuContext(marksUnread: true), bundle: es.bundle, locale: es.locale)[0].map(\.title) == ["Fijar", "Marcar como leída"])
+    #expect(sessionMenu(unread, context: SessionMenuContext(marksUnread: true), bundle: es.bundle, locale: es.locale)[0].map(\.title) == ["Fijar", "Marcar como leída", "Mandar a dormir"])
     #expect(sessionMenu(row("a", archived: true), bundle: es.bundle, locale: es.locale).last?.first?.title == "Restaurar")
     #expect(newSessionTitle(row("a"), bundle: es.bundle, locale: es.locale) == "Nueva sesión en este proyecto")
     #expect(newSessionTitle(row("a", branch: "carrier/a-very-long-branch-name-that-has-to-be-cut-in-the-middle"), bundle: es.bundle, locale: es.locale).hasPrefix("Nueva sesión en carrier/a-very-l…"))

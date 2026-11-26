@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- Send to sleep, in the context menu of a session, closes its agent right away (freeing its memory) and leaves the session asleep: a message wakes it where it left off.
+  It is offered while the agent is idle; one that works or waits ends with Stop.
+
 ### Fixed
 
 - A session's branch in the sidebar and on the Sessions page reads as the branch name again, instead of `ModifiedContent<Text, ScaledFont…>`.

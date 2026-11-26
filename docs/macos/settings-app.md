@@ -70,7 +70,7 @@ An arrow at each side scrolls by three columns, and one that cannot scroll furth
 With the keyboard, up and down move one theme inside a column and left and right one column, choosing the theme as they go (`themeGalleryMove`, which stops at the ends: right from a row the last, shorter column does not have goes to that column's last cell), and the gallery scrolls until the chosen cell is whole.
 VoiceOver reads the gallery as a group called Themes and the chosen cell as selected.
 The page's own file holds only the list of themes; the piece takes the cells, the chosen one's id and an action, so the terminal can use it too.
-The gallery of pieces (the Pieces session of `--fixture`) draws it with the real themes, with forty and at the end of its scroll.
+The gallery of pieces (the Pieces session of `--fixture`) draws it with the real themes, with forty, at the end of its scroll and with the terminal's leading cell.
 
 ## Notifications
 

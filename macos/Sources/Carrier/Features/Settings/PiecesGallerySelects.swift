@@ -18,6 +18,7 @@ struct PiecesGallerySelects: View {
                 GalleryState(.normal) { ThemeGallerySample(count: Theme.allCases.count, chosen: 1) }
                 GalleryState(.long) { ThemeGallerySample(count: 40, chosen: 0) }
                 GalleryState(.atEnd) { ThemeGallerySample(count: 40, chosen: 39) }
+                GalleryState(.withLeadingCell) { ThemeGallerySample(count: 0, chosen: 0, leading: true) }
             }
             GalleryEntry("SelectButtonStyle", "SelectChevron") {
                 GalleryState(.normal) { select(disabled: false) }
@@ -60,15 +61,18 @@ private struct SegmentSample: View {
 
 private struct ThemeGallerySample: View {
     let count: Int
+    /// The terminal's gallery: a first cell that draws a theme under the words "Same as the app".
+    let leading: Bool
     @State private var chosen: Int
 
-    init(count: Int, chosen: Int) {
+    init(count: Int, chosen: Int, leading: Bool = false) {
         self.count = count
+        self.leading = leading
         self._chosen = State(initialValue: chosen)
     }
 
     var body: some View {
-        let cells = PiecesGalleryData.themeCells(count: count)
+        let cells = leading ? terminalThemeCells(app: .ocean, stored: nil).cells : PiecesGalleryData.themeCells(count: count)
         // wider than a column of states, so three columns and half of the next one are not squeezed
         ThemeGallery(cells: cells, chosen: cells[chosen].id) { id in chosen = cells.firstIndex { $0.id == id } ?? chosen }.frame(width: 640)
     }

@@ -175,11 +175,13 @@ The panel is a dependency-free ANSI dashboard: uptime, repos watched and the nex
 
 ## Restart a stopped epic
 
-`carrier restart <owner/name>#<issue> [--author <option>] [--reviewer <option>] [--lead <option>] [--from <ship|review|fix>] [--extra-rounds <K>]` resumes an epic in needs-human from the terminal (the `resumeEpic` request of the socket), on the agent option of each role you choose.
-In a terminal and without flags it asks for each role the epic has (the author, the reviewer and the lead), with the current option preselected and the role of the execution that failed marked; without a terminal it keeps the current options.
-`--author`, `--reviewer` and `--lead` name an option for that role, and an extra reviewer has no flag and is not asked about yet: the engine takes the option of each extra reviewer by its key (`extraReviewers` in the `resumeEpic` request), and the command that sends it comes with the rest of the work on the extra reviewers; Carrier refuses, with the reason printed, an option the repo does not declare and a role the epic does not have.
+`carrier restart <owner/name>#<issue> [--author <option>] [--reviewer <option>] [--lead <option>] [--extra-reviewer-option "<key>=<option>"] [--from <ship|review|fix>] [--extra-rounds <K>]` resumes an epic in needs-human from the terminal (the `resumeEpic` request of the socket), on the agent option of each role you choose.
+In a terminal and without flags it asks for each role the epic has (the author, the reviewer, each extra reviewer by its key, and the lead), with the current option preselected and the role of the execution that failed marked; without a terminal it keeps the current options.
+`--author`, `--reviewer` and `--lead` name an option for that role, and `--extra-reviewer-option "<key>=<option>"` does it for an extra reviewer by its key (the key before the first `=`, as `carrier status` and the doctor show it); repeat it to choose the option of several extra reviewers.
+Carrier refuses, with the reason printed, an option the repo does not declare, a role the epic does not have and a key the epic does not have (the refusal names the key).
 A restart that changes the option of one role keeps every other role of the epic, the extra reviewers and the lead included, and the `resumed` event records the options chosen.
-A Carrier that does not list `resumeReviewerOptions` in its hello is not asked for the lead, and the command says it is too old (restart it).
+A Carrier that does not list `resumeReviewerOptions` in its hello is not asked for the extra reviewers or the lead, and the command says it is too old (restart it).
+An epic saved before its extra reviewers had names is refused, since nothing says which reviewer is which: start it again from its issue.
 The same option continues the agent's session with `--resume`; another one starts a new session in the epic's worktree and pull request, rebuilt from SQLite and GitHub like a lost session.
 With `--from review` or `--from fix` the epic keeps its round, pull request, worktree and blockers and starts at that stage instead of ship; it still goes through the queue and takes a slot.
 Carrier refuses it, with the reason printed, when the epic has no pull request, when the pull request is not open, or, at `fix`, when its head is not the one Carrier saved, since the blockers it hands to the author belong to that head: restart it with `--from review` (which adopts the new head) or from ship then.

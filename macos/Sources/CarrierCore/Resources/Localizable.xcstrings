@@ -61906,7 +61906,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "%#@runs@the %2$@ execution ran out of usage on option %3$@ · carrier restart %4$@#%5$@ --%6$@ <option> · it will not resume by itself: %8$@ · %7$@"
+            "value": "%#@runs@the %2$@ execution ran out of usage on option %3$@ · carrier restart %4$@#%5$@ %6$@ · it will not resume by itself: %8$@ · %7$@"
           },
           "substitutions": {
             "runs": {
@@ -61934,7 +61934,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "%#@runs@la ejecución de %2$@ se quedó sin uso en la opción %3$@ · carrier restart %4$@#%5$@ --%6$@ <option> · no se reanudará solo: %8$@ · %7$@"
+            "value": "%#@runs@la ejecución de %2$@ se quedó sin uso en la opción %3$@ · carrier restart %4$@#%5$@ %6$@ · no se reanudará solo: %8$@ · %7$@"
           },
           "substitutions": {
             "runs": {
@@ -61967,7 +61967,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "%#@runs@the provider answered the %2$@ execution on option %3$@ with a server error, not a usage limit · wait and resume the epic, or carrier restart %4$@#%5$@ --%6$@ <option> · %7$@ · it will not resume by itself: %8$@"
+            "value": "%#@runs@the provider answered the %2$@ execution on option %3$@ with a server error, not a usage limit · wait and resume the epic, or carrier restart %4$@#%5$@ %6$@ · %7$@ · it will not resume by itself: %8$@"
           },
           "substitutions": {
             "runs": {
@@ -61995,7 +61995,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "%#@runs@el proveedor respondió a la ejecución de %2$@ en la opción %3$@ con un error de servidor, no con un límite de uso · espera y reanuda el epic, o carrier restart %4$@#%5$@ --%6$@ <option> · %7$@ · no se reanudará solo: %8$@"
+            "value": "%#@runs@el proveedor respondió a la ejecución de %2$@ en la opción %3$@ con un error de servidor, no con un límite de uso · espera y reanuda el epic, o carrier restart %4$@#%5$@ %6$@ · %7$@ · no se reanudará solo: %8$@"
           },
           "substitutions": {
             "runs": {

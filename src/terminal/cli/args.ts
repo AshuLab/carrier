@@ -1,4 +1,5 @@
 import { parseArgs } from 'node:util';
+import { slugPattern } from '../../config/extra-reviewer-key.ts';
 import { engineConfigPathOf } from '../../config/places.ts';
 import { efforts } from '../../config/schema.ts';
 import { localKinds } from '../../harnesses/local.ts';
@@ -17,7 +18,7 @@ export const usage = () => `Usage: carrier --config <path>          run the orch
        carrier watch                     the live panel of the running Carrier; q leaves it running (exit 1: not running)
        carrier stop|pause|resume|check   stop Carrier, pause or resume intake, look at GitHub now
        carrier reload                    make the running Carrier read engine.json and providers.json again (exit 1: not running, or a file is wrong)
-       carrier restart <owner/name>#<issue> [--author <option>] [--reviewer <option>] [--lead <option>] [--from <ship|review|fix>] [--extra-rounds <K>]   resume a stopped epic on the options you choose
+       carrier restart <owner/name>#<issue> [--author <option>] [--reviewer <option>] [--lead <option>] [--extra-reviewer-option "<key>=<option>"] [--from <ship|review|fix>] [--extra-rounds <K>]   resume a stopped epic on the options you choose
        carrier recover <owner/name>#<issue>   continue a running epic whose agent is not alive, from where it really is
        carrier chat --workspace <folder> [--agent <name>]   talk to an agent in a folder (starts the chat host if needed)
        carrier chat --resume <id>        go on with a closed chat session, after the end of its transcript
@@ -32,7 +33,7 @@ export const usage = () => `Usage: carrier --config <path>          run the orch
 --config defaults to ${engineConfigPathOf()} (where init writes it) when that file exists.
 
 restart: with no option flag it asks for each role in a terminal and keeps the current options without one. --author, --reviewer and --lead name an option
-of the config here, not the <harness>:<model> of init.
+of the config here, not the <harness>:<model> of init. --extra-reviewer-option "<key>=<option>" does it for an extra reviewer by its key (the key carrier status shows); repeat it for several.
 restart --from review or fix keeps the epic's round, pull request and worktree and starts at that stage; ship (the default) starts over with the rounds reset.
 restart --extra-rounds K, with --from review or fix, sets how many review rounds an epic that stopped on the review limit gets from its current one (default: limits.maxReviews).
 
@@ -70,6 +71,7 @@ const options = {
   repo: { type: 'string', multiple: true },
   'orchestrator-profile': { type: 'string' },
   lead: { type: 'string' },
+  'extra-reviewer-option': { type: 'string', multiple: true },
   from: { type: 'string' },
   'extra-rounds': { type: 'string' },
   out: { type: 'string' },
@@ -93,6 +95,19 @@ const options = {
 } as const;
 
 export type Flags = ReturnType<typeof parseArgs<{ options: typeof options; allowPositionals: true }>>['values'];
+/** The options `--extra-reviewer-option "<key>=<option>"` chose, by key; the key is everything before the first `=`. */
+export function extraReviewerOptionsOf(values: string[] = []): { ok: true; options: Record<string, string> } | { ok: false; message: string } {
+  const options: Record<string, string> = {};
+  for (const value of values) {
+    const at = value.indexOf('=');
+    const [key, option] = [value.slice(0, at), value.slice(at + 1)];
+    if (at < 0 || !slugPattern.test(key) || option === '') return { ok: false, message: `--extra-reviewer-option takes "<key>=<option>", and "${value}" is not one` };
+    if (Object.hasOwn(options, key)) return { ok: false, message: `--extra-reviewer-option names ${key} twice` };
+    options[key] = option;
+  }
+  return { ok: true, options };
+}
+
 /** What `restart` and `recover` act on, from `owner/name#N`. */
 export type EpicTarget = { repo: string; issue: number };
 export type Parsed = { ok: true; command: CommandName | undefined; flags: Flags; target?: EpicTarget } | { ok: false; message: string };
@@ -116,6 +131,8 @@ export function parseCli(argv: string[]): Parsed {
     if (command === 'restart' && parsed.values.from !== undefined && !resumeStages.includes(parsed.values.from)) return { ok: false, message: `--from takes ${resumeStages.join(', ')}` };
     const rounds = parsed.values['extra-rounds'];
     if (command === 'restart' && rounds !== undefined && !/^[1-9]\d{0,8}$/.test(rounds)) return { ok: false, message: '--extra-rounds takes a positive whole number' };
+    const extras = command === 'restart' ? extraReviewerOptionsOf(parsed.values['extra-reviewer-option']) : { ok: true as const };
+    if (!extras.ok) return extras;
     return { ok: true, command, flags: parsed.values, target: { repo: repo!, issue: Number(match[2]) } };
   }
   if (extra.length > 0 || (command !== undefined && !(commandNames as readonly string[]).includes(command))) return { ok: false, message: `Unknown command: ${parsed.positionals.join(' ')}` };

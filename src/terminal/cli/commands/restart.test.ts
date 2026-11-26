@@ -33,7 +33,7 @@ async function fakeCarrier(capabilities: string[], reply: (request: any) => unkn
         const request = JSON.parse(line);
         requests.push(request);
         const answer = reply(request);
-        connection.write(`${JSON.stringify(answer instanceof Error ? { id: request.id, ok: false, error: answer.message, ...(code(answer) && { code: code(answer), params: {} }) } : { id: request.id, ok: true, data: answer })}\n`);
+        connection.write(`${JSON.stringify(answer instanceof Error ? { id: request.id, ok: false, error: answer.message, ...(code(answer) && { code: code(answer), params: (answer as Error & { params?: object }).params ?? {} }) } : { id: request.id, ok: true, data: answer })}\n`);
       }
     });
   });
@@ -87,17 +87,24 @@ test('it asks nothing of an epic with a single option, none, or one Carrier does
   expect(asked).toEqual([]);
 });
 
-const several = { ...options, extraReviewers: ['claude', 'codex'], lead: 'claude' };
+const several = { ...options, extraReviewers: { 'seguridad-api': 'claude', usabilidad: 'codex' }, lead: 'claude' };
 
-// The extra reviewers are not asked about until `carrier restart` takes them by their key: the request names them by it and this command does not send it yet.
-test('it asks for the lead the epic has beside the author and the reviewer, and not for the extra reviewers', async () => {
-  const { ui, asked } = scripted({ 'Option for the reviewer': 'claude' });
-  expect(await askRestartOptions({ stage: 'review', options: { ...several, failed: 'seguridad-api' } }, ui)).toEqual({ author: 'claude', reviewer: 'claude', lead: 'claude' });
+test('it asks about each extra reviewer by its key, between the reviewer and the lead, and marks the one that stopped the epic', async () => {
+  const { ui, asked } = scripted({ 'Option for the reviewer': 'claude', 'Option for the usabilidad': 'claude' });
+  expect(await askRestartOptions({ stage: 'review', options: { ...several, failed: 'seguridad-api' } }, ui)).toEqual({ author: 'claude', reviewer: 'claude', extraReviewers: { 'seguridad-api': 'claude', usabilidad: 'claude' }, lead: 'claude' });
   expect(asked.map((q) => [q.message, q.initialValue, q.hints])).toEqual([
     ['Option for the author', 'claude', { claude: 'current', codex: undefined }],
     ['Option for the reviewer', 'codex', { claude: undefined, codex: 'current' }],
+    ['Option for the seguridad-api', 'claude', { claude: 'current, failed', codex: undefined }],
+    ['Option for the usabilidad', 'codex', { claude: undefined, codex: 'current' }],
     ['Option for the lead', 'claude', { claude: 'current', codex: undefined }],
   ]);
+});
+
+test('the extra reviewer that ran out of usage is not preselected', async () => {
+  const { ui, asked } = scripted();
+  await askRestartOptions({ stage: 'review', needsHumanKind: 'usage_limit', options: { ...several, failed: 'usabilidad' } }, ui);
+  expect(asked.find((q) => q.message === 'Option for the usabilidad')).toEqual({ message: 'Option for the usabilidad', initialValue: 'claude', hints: { claude: undefined, codex: 'ran out' } });
 });
 
 test('the lead is marked as failed, and the lead that ran out of usage is not preselected', async () => {
@@ -110,6 +117,22 @@ test('an engine that does not take the extra roles is asked for the author and t
   const { ui, asked } = scripted();
   expect(await askRestartOptions({ stage: 'review', options: several }, ui, false)).toEqual({ author: 'claude', reviewer: 'codex' });
   expect(asked).toHaveLength(2);
+});
+
+test('--extra-reviewer-option is sent as the map of the extra reviewers by key, and an engine without resumeReviewerOptions is told it is too old', async () => {
+  const requests = await fakeCarrier(['resumeEpic', 'resumeReviewerOptions']);
+  vi.spyOn(process.stdout, 'write').mockReturnValue(true);
+  expect(await restartCommand(folder!, target, { extraReviewers: { 'seguridad-api': 'codex', usabilidad: 'claude' } })).toBe(0);
+  expect(sent(requests)).toEqual([{ cmd: 'resumeEpic', ...target, extraReviewers: { 'seguridad-api': 'codex', usabilidad: 'claude' } }]);
+  server!.close();
+  const old = await fakeCarrier(['resumeEpic']);
+  await expect(restartCommand(folder!, target, { extraReviewers: { usabilidad: 'claude' } })).rejects.toThrow('too old to restart an extra reviewer');
+  expect(old).toEqual([]);
+});
+
+test('a key the epic does not have is refused naming the key', async () => {
+  await fakeCarrier(['resumeEpic', 'resumeReviewerOptions'], () => Object.assign(new Error('no such extra reviewer'), { code: 'resume.extraReviewerUnknown', params: { key: 'rendimiento' } }));
+  await expect(restartCommand(folder!, target, { extraReviewers: { rendimiento: 'claude' } })).rejects.toThrow('AshuLab/carrier#5 does not have an extra reviewer with the key rendimiento. Name only the keys its configuration has.');
 });
 
 test('--lead is sent as lead when the engine lists resumeReviewerOptions, and no flag names an extra reviewer', async () => {
@@ -178,7 +201,6 @@ test.each([
   ['resume.optionUnknown', 'That account is not declared in providers.json. Use a name declared there.'],
   ['resume.noPullRequest', 'AshuLab/carrier#5 has no pull request yet, so it can only be restarted from ship.'],
   ['resume.roleUnknown', 'AshuLab/carrier#5 does not have that reviewer or lead. Name only the roles its configuration has.'],
-  ['resume.extraReviewerUnknown', 'AshuLab/carrier#5 does not have that extra reviewer. Name only the keys its configuration has.'],
   ['resume.reviewersWithoutKey', 'AshuLab/carrier#5 was saved before its extra reviewers had names, so it cannot be restarted. Start it again from its issue.'],
   ['resume.extraRoundsNeedStage', '--extra-rounds needs --from review or --from fix: a restart from ship starts the rounds over.'],
   ['resume.extraRoundsNeedReviewLimit', '--extra-rounds grants rounds to an epic that stopped on the review limit, and AshuLab/carrier#5 stopped for another reason.'],

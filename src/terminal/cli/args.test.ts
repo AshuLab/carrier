@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import { roleSlots, roleFlagSuffixes } from '../wizard/roles.ts';
-import { parseCli, usage } from './args.ts';
+import { extraReviewerOptionsOf, parseCli, usage } from './args.ts';
 
 test('a command and its flags become data', () => {
   const parsed = parseCli(['init', '--repo', 'A/a', '--repo', 'B/b', '--author', 'claude:sonnet', '--yes']);
@@ -73,6 +73,14 @@ test('restart without its argument or with a second one is a usage error, and th
   expect(parseCli(['restart'])).toMatchObject({ ok: false, message: expect.stringContaining('owner/name#N') });
   expect(parseCli(['restart', 'A/a#1', 'B/b#2'])).toMatchObject({ ok: false });
   expect(parseCli(['status', 'A/a#1'])).toEqual({ ok: false, message: 'Unknown command: status A/a#1' });
+});
+
+test('restart takes --extra-reviewer-option "<key>=<option>", repeated, and refuses one that is not a key and an option or names a key twice', () => {
+  expect(parseCli(['restart', 'A/a#1', '--extra-reviewer-option', 'seguridad-api=codex', '--extra-reviewer-option=usabilidad=claude'])).toMatchObject({ ok: true, flags: { 'extra-reviewer-option': ['seguridad-api=codex', 'usabilidad=claude'] } });
+  for (const value of ['codex', 'seguridad-api=', '=codex', 'Seguridad=codex', '2a=codex']) expect(parseCli(['restart', 'A/a#1', '--extra-reviewer-option', value])).toMatchObject({ ok: false, message: expect.stringContaining('--extra-reviewer-option takes "<key>=<option>"') });
+  expect(parseCli(['restart', 'A/a#1', '--extra-reviewer-option', 'usabilidad=a', '--extra-reviewer-option', 'usabilidad=b'])).toMatchObject({ ok: false, message: expect.stringContaining('usabilidad twice') });
+  expect(extraReviewerOptionsOf(['seguridad-api=codex'])).toEqual({ ok: true, options: { 'seguridad-api': 'codex' } });
+  expect(usage()).toContain('--extra-reviewer-option "<key>=<option>"');
 });
 
 test('restart takes --from ship, review or fix and refuses any other', () => {

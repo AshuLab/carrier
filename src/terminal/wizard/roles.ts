@@ -6,8 +6,21 @@ export type RoleSlot = (typeof roleSlots)[number];
 /** How a slot reads in a question: `lead-reviewer` is the "lead reviewer". */
 export const roleName = (slot: RoleSlot) => slot.replace(/-/g, ' ');
 
+/** A flag name as the key it has in `InitFlags`: `lead-reviewer-effort` is `leadReviewerEffort`. */
+export const camel = (name: string) => name.replace(/-([a-z0-9])/g, (_, next: string) => next.toUpperCase());
+
+export type Camel<S extends string> = S extends `${infer Head}-${infer Tail}` ? `${Head}${Capitalize<Camel<Tail>>}` : S;
+
 /** The key a slot has in a config and in the flags: `lead-reviewer` is `leadReviewer`. */
-export const roleKey = (slot: RoleSlot) => slot.replace(/-([a-z0-9])/g, (_, next: string) => next.toUpperCase());
+export const roleKey = (slot: RoleSlot) => camel(slot);
+
+/** The slots `init` asks today, in order: the flags of `parseArgs`, the usage pattern and `InitFlags` are all built from this list, so a slot added here gets its flags with no other option code. */
+export const askedSlots = ['author', 'reviewer', 'lead-reviewer'] as const satisfies readonly RoleSlot[];
+
+export type AskedSlot = (typeof askedSlots)[number];
+
+/** What follows `--<role>` in the flags that take one text: the role's `<harness>:<model>` itself, its GitHub profile, local provider, effort and persona. `-failover` is the one that repeats. */
+export const roleFlagSuffixes = ['', '-profile', '-provider', '-effort', '-persona-name', '-persona-prompt'] as const;
 
 /** What the block's box says before its first question. */
 export const roleBlurb = (slot: RoleSlot) =>

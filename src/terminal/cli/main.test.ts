@@ -165,11 +165,14 @@ test('an unknown command or flag exits 2 with the usage', () => {
   }
 });
 
-test.skipIf(!hasInitTools)('init without a terminal names the question a flag has to answer', () => {
-  const result = run('init', '--yes', '--out', join(dir, 'never.json')); // cwd is not a git repo: no repo to suggest
-  expect(result.status).toBe(1);
-  expect(result.stderr).toContain('Repos to watch');
-  expect(result.stderr).toContain('pass it as a flag');
+test('init --yes with no --repo exits 1 saying --repo, and a wrong flag is named before anything is looked at or written', () => {
+  home = join(dir, 'init-flag-home'); // no folder: a write would make one
+  for (const [args, flag] of [[['--yes', '--out', join(dir, 'never.json')], '--repo'], [['--repo', 'AshuLab/carrier', '--author-effort', 'turbo'], '--author-effort "turbo"'], [['--repo', 'nope'], '--repo "nope"'], [['--repo', 'A/b', '--reviewer-failover', 'codex:'], '--reviewer-failover "codex:"']] as const) {
+    const result = run('init', ...args);
+    expect([result.status, result.stderr]).toEqual([1, expect.stringContaining(flag)]);
+    expect(result.stdout).not.toContain('Looking at this Mac');
+    expect(existsSync(home)).toBe(false);
+  }
 });
 
 // Stand-ins for the CLIs `init` looks at, so these tests need no real tool: claude is signed in and its plugin list is unreadable (the doctor's skill check logs a warning), the rest answer a version.

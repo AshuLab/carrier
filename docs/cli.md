@@ -64,7 +64,23 @@ Everything else survives: `limits`, `labels`, `skills`, `logLevel`, `pollInterva
 A config that does not validate is not edited: the wizard prints its first error (path and message) and asks whether to start over, save a new one in another file or leave it, and writes nothing until you answer. With `--yes` it replaces the file, as the flag says, and prints that first error.
 `--config` is not a flag of `init`: it exits 2 and writes nothing, because `init` writes where `--out` says.
 
-Every question has a flag (`carrier init --help`). `--author` and `--reviewer` (`<harness>:<model>`, with `--author-provider` and `--reviewer-provider`) each add an account named after its harness to `providers.json` (the one found, when it matches) and, when both are given, skip the extra-accounts and failover questions. `--author-profile` and `--reviewer-profile` answer the profiles, `--author-persona-name`, `--author-persona-prompt`, `--reviewer-persona-name` and `--reviewer-persona-prompt` the personas, and `--author-effort`, `--reviewer-effort` and `--lead-reviewer-effort` the efforts. `--yes` never asks, so an agent can run it too (`--author-profile gh --reviewer-profile gh` makes both roles your `gh` login):
+Every question has a flag (`carrier init --help`), and they all follow one pattern, with `<role>` one of `author`, `reviewer` and `lead-reviewer`:
+
+| Flag | Answers |
+|---|---|
+| `--repo <owner/name>` | The repos to watch; repeat it for several. |
+| `--orchestrator-profile <forge:<agent>\|gh>` | The orchestrator's GitHub profile. Without it, and when both `--author-profile` and `--reviewer-profile` are given or `--yes` is, no question asks it: it is the file's own when editing, else the author's. |
+| `--<role> <harness>:<model>` | The role's account and model. It adds an account named after its harness to `providers.json` (the one found, when it matches). With `--author` and `--reviewer` both given, the extra-accounts question is skipped. |
+| `--<role>-profile <forge:<agent>\|gh>` | The GitHub profile the role acts as. |
+| `--<role>-provider <lmstudio\|ollama>` | The local server that runs the role's model. |
+| `--<role>-effort <level>` | `low`, `medium`, `high`, `xhigh` or `max`. |
+| `--<role>-persona-name <text>`, `--<role>-persona-prompt <text>` | The persona, within the schema's limits. |
+| `--<role>-failover <account>[:<model>]` | One failover step; repeat it, in order, for up to two. |
+
+The failover step is split at the first colon, so `--author-failover claude:llama3:8b` is the account `claude` with the model `llama3:8b`; a step with no model uses the account's, then the harness's.
+The account must be one found on this Mac or already in `providers.json` (or one a `--<role>` flag declares).
+A role given failover flags is not asked its failover, and the steps replace the ones the file had.
+`--yes` never asks, so an agent can run it too (`--author-profile gh --reviewer-profile gh` makes both roles your `gh` login):
 
 ```bash
 carrier init --yes --repo AshuLab/my-repo \

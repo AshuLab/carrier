@@ -10,6 +10,7 @@ import { askEffort } from './effort.ts';
 import { askIdentity } from './identity.ts';
 import { askRoleFailover, askRoleProvider, type Providers, type Steps } from './options.ts';
 import { askPersona } from './persona.ts';
+import { failoverProblem, failoverSteps } from '../validate-flags.ts';
 
 /** What every role block shares: the terminal, the machine and what was answered before any role. */
 export type RoleContext = {
@@ -59,6 +60,12 @@ export async function askRole(ctx: RoleContext, slot: RoleSlot, { from, steps, a
 
   const persona = await askPersona(ui, slot, { name: flag('PersonaName'), prompt: flag('PersonaPrompt') }, interactive, from?.persona);
   const role: Role = { identity, provider, model, ...(effort && { effort }), ...(persona && { persona }) };
-  const failover = interactive && !ctx.unattended ? await askRoleFailover(ui, ctx.providers, slot, role, ctx.locals, deps, steps) : steps;
+  // Failover flags answer the question: the role is not asked, and the steps are the ones given, in order.
+  const flagSteps = failoverSteps(ctx.flags, slot);
+  if (flagSteps !== undefined) {
+    const problem = failoverProblem(ctx.flags, Object.keys(ctx.providers), { [slot]: role });
+    if (problem !== undefined) throw new Error(problem);
+  }
+  const failover = flagSteps ?? (interactive && !ctx.unattended ? await askRoleFailover(ui, ctx.providers, slot, role, ctx.locals, deps, steps) : steps);
   return { role, ...(failover && { failover }) };
 }

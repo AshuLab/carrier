@@ -12,7 +12,7 @@ _Avoid_: harness, local model (a local model is a model whose provider is a loca
 **Account** - One login of an agent CLI that Carrier can run an agent with: a name, its harness, where its login lives (a config folder, `CLAUDE_CONFIG_DIR` or `CODEX_HOME`, or this Mac's own) and how its CLI is run (binary, launch arguments, compaction). It is what the config calls a `provider`: a role, a failover list and a chat agent each name one. It is kept in `providers.json`, and the app's Providers page lists the tools found on this Mac with their accounts under each.
 _Avoid_: provider (the app's page of tools, and the config key under which accounts are kept), login, connection, option (the older name), identity (a GitHub profile is that).
 
-**GitHub profile** - User-configured reference to an available GitHub identity and its authentication mechanism. It is assigned to the orchestrator, author or reviewer; it is independent of the AI harness/model and of an agent's working session.
+**GitHub profile** - User-configured reference to an available GitHub identity and its authentication mechanism. It is assigned to the orchestrator and to each role; it is independent of the AI harness/model and of an agent's working session. The app calls it an identity, and its Identities page lists each one with the roles that sign as it.
 _Avoid_: model, agent session, AI identity for a GitHub account.
 
 **Orchestrator's profile** - The GitHub profile Carrier reads issues and PRs and changes labels with (`orchestratorProfile`). Left out of the config it is the author's profile; `carrier init` asks for it and Settings → Engine sets it. Set it apart from the author's when the author's bot is not installed on a repo Carrier must read.
@@ -51,7 +51,7 @@ _Avoid_: fallback, automatic retry (an execution retry repeats the same provider
 
 **Failover step** - One entry of a role's failover chain: a provider, an account of the config, and optionally a model; without a model it is the account's, then the harness's. A role has as many as the config lists, and the app offers two.
 
-**Role** - One of the three jobs of an epic: Author, Reviewer and Lead reviewer (optional). Each has a GitHub identity, an account, a model, an effort and an optional persona, and its own failover chain. There are no others and the user cannot make more; the same role can differ for one repo.
+**Role** - One of the jobs of an epic: the Author, the Reviewer, up to three extra reviewers (Reviewer 2 to Reviewer 4) and the Lead reviewer (optional). Each holds everything it runs with: its GitHub profile, an account, a model, an effort, an optional persona, its failover chain and its skills. The user adds and removes extra reviewers and turns the lead on and off, and makes no other kind; the same role can differ for one repo. Settings lists them on its Roles page ([0056](../adr/app/0056-settings-splits-roles-from-identities-and-a-role-holds-everything-it-runs-with.md)).
 _Avoid_: agent (the AI that runs a role; and in Agent Forge, a bot), persona (a role's name and prompt, not the role).
 
 **Text generator** - A model that turns text into text with no tools: a server and a model, declared in `providers.json` under `textGenerators` and chosen in the Providers page.

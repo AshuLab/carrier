@@ -17,6 +17,9 @@ _Avoid_: issue, comment, error.
 **Observation** - A finding of a review that does not stop its approval: a nitpick or a suggestion. The reviewer lists observations in a `completed` result, with a title and a stable id like a blocker; when there are any, the author answers them in one resolve pass before the epic is ready for test ([0009](../adr/review/0009-observations-trigger-one-resolve-pass-before-ready-for-test.md)).
 _Avoid_: nitpick (one kind of observation), comment, blocker (the one that stops approval).
 
+**Extra reviewer** - One of up to three reviewers beside the mandatory one (`agents.extraReviewers`), named by its slot, `reviewer-2` to `reviewer-4` (Reviewer 2 to Reviewer 4 in the app), in the order of the list. It reviews every round with the others, on the same head, and takes the Reviewer's failover steps and skills when it names none. A repo's list replaces the global one whole, and an empty one leaves only the Reviewer there.
+_Avoid_: second reviewer, secondary reviewer, co-reviewer.
+
 **Lead reviewer** - The optional role (`leadReviewer`) that reviews last, once, after the reviewers agree, on the head they agreed on and in its own checkout, and gives the pull request its formal approval when it finds no blocker.
 The engine runs it: the epic goes to the stage `lead` and, when the lead completes, to ready for test with the head the lead approved kept beside the head the reviewers agreed on; a head that moves while it reviews repeats its review.
 It has its own skill (`skills.lead`), and the approval it says it submitted is recorded and shown, never required.

@@ -122,6 +122,7 @@ Images used by the README: [assets](assets/) (`carrier-logo.png`, `app-overview.
 - [behavior-in-settings](specs/behavior-in-settings.md): the Behavior page in the Carrier group. Implemented (v0.4.0).
 - [engine-in-settings](specs/engine-in-settings.md): the Engine page in the Carrier group. Implemented (unreleased).
 - [sessions-in-settings](specs/sessions-in-settings.md): the Sessions page in the Chat group. Implemented (unreleased).
+- [roles-and-identities-in-settings](specs/roles-and-identities-in-settings.md): Agents becomes Roles with every reviewer and the lead, and Identities a page of its own. Spec.
 
 ### macOS app: dictation
 
@@ -211,6 +212,7 @@ Images used by the README: [assets](assets/) (`carrier-logo.png`, `app-overview.
 - [0022 The app updates itself with Sparkle, and the app brings the engine up to date through Homebrew](adr/release/0022-the-app-updates-itself-with-sparkle-and-the-engine-through-homebrew.md)
 - [0027 The embedded terminal runs in-process with GhosttyKit and restores layout across launches](adr/app/0027-embedded-terminal-runs-in-process-with-ghosttykit.md)
 - [0028 Epic Continue in Terminal runs inside an ephemeral embedded Ghostty drawer](adr/app/0028-epic-continue-in-terminal-runs-in-embedded-ghostty-drawer.md)
+- [0056 Settings splits roles from identities, and a role holds everything it runs with](adr/app/0056-settings-splits-roles-from-identities-and-a-role-holds-everything-it-runs-with.md)
 - [0051 The app also ships as an Intel build, with its own zip and feed](adr/release/0051-the-app-also-ships-as-an-intel-build-with-its-own-zip-and-feed.md)
 - [0052 The macOS app is split into three targets by layer, and each target by area](adr/design/0052-the-macos-app-is-split-into-three-targets-by-layer-and-each-target-by-area.md)
 - [0053 A config file of the Carrier folder is written only by Carrier's Node code, through its owner process or `carrier config`](adr/config/0053-a-carrier-config-file-has-one-owner-process-and-a-front-end-writes-it-through-that-process.md)

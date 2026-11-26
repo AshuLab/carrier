@@ -145,3 +145,26 @@ private func readiness(_ json: String, providers: String? = nil) throws -> Roles
     #expect(["vemec", "a", "Diego-G", "user123"].allSatisfy(isGithubLogin))
     #expect(["", "-bad", "has space", "a/b", "a?s=1", "../x", "ñandú", String(repeating: "a", count: 40)].contains(where: isGithubLogin) == false)
 }
+
+@Test func anExtraReviewerThatLacksWhatItNeedsIsNamedAndOpened() throws {
+    let json = #"""
+    {"profiles": {"a": {"kind": "gh"}},
+     "agents": {"author": {"profile": "a", "provider": "claude", "model": "m"}, "reviewer": {"profile": "a", "provider": "codex", "model": "m"},
+                "extraReviewers": [{"profile": "a", "provider": "codex", "model": "m"}, {"provider": "codex"}]}}
+    """#
+    let found = try readiness(json)
+    #expect(found.tone == .attention && found.title == "One role needs attention" && found.fix == .extra(3))
+    #expect(found.problems.map(\.role) == [.extra(3), .extra(3)])
+    #expect(found.problems.map(\.text) == ["it has no identity yet.", "it has no model yet."])
+    #expect(found.notes.first == "Reviewer 3: it has no identity yet.")
+}
+
+@Test func extraReviewersThatAreWholeAreSetUpAndCounted() throws {
+    let json = #"""
+    {"profiles": {"a": {"kind": "gh"}},
+     "agents": {"author": {"profile": "a", "provider": "claude", "model": "m"}, "reviewer": {"profile": "a", "provider": "codex", "model": "m"},
+                "extraReviewers": [{"profile": "a", "provider": "codex", "model": "m"}]}}
+    """#
+    let found = try readiness(json)
+    #expect(found.tone == .ready && found.title == "3 roles are set up" && found.problems.isEmpty)
+}

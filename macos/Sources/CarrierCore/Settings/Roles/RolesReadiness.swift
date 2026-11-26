@@ -5,14 +5,14 @@ import Foundation
 
 /// One thing in the way of a role: said with the role's name in front.
 public struct RoleProblem: Equatable, Identifiable {
-    public let role: AgentRole
+    public let role: RoleSlot
     public let text: String
     /// The text with the role's name in front, in the language it was made in.
     public let line: String
     /// A role can have several, so the line is the id, not the role.
     public var id: String { line }
 
-    public init(role: AgentRole, text: String, bundle: Bundle? = nil, locale: Locale = .current) {
+    public init(role: RoleSlot, text: String, bundle: Bundle? = nil, locale: Locale = .current) {
         self.role = role
         self.text = text
         line = Copy.rolesProblemLine(role: role.title(bundle: bundle, locale: locale), text: text, bundle: bundle, locale: locale)
@@ -28,10 +28,10 @@ public struct RolesReadiness: Equatable {
     public let notes: [String]
     public let problems: [RoleProblem]
     /// The role to open to fix the first problem.
-    public var fix: AgentRole? { problems.first?.role }
+    public var fix: RoleSlot? { problems.first?.role }
 }
 
-/// Whether Author, Reviewer and (when it is on) the Lead reviewer each have an identity, an account of `providers.json` and a model. It says nothing
+/// Whether Author, Reviewer, every extra reviewer and (when it is on) the Lead reviewer each have an identity, an account of `providers.json` and a model. It says nothing
 /// of whether an account is signed in: that is the Providers page's answer.
 public func rolesReadiness(_ page: RolesPage, bundle: Bundle? = nil, locale: Locale = .current) -> RolesReadiness {
     let active = page.rows.filter { $0.off == false }
@@ -40,27 +40,31 @@ public func rolesReadiness(_ page: RolesPage, bundle: Bundle? = nil, locale: Loc
         switch row.identity {
         case .forge, .gh: break
         case .missing:
-            problems.append(RoleProblem(role: row.role, text: Copy.rolesProblemIdentity(profile: row.fields.profile ?? "", bundle: bundle, locale: locale), bundle: bundle, locale: locale))
-        case .unset: problems.append(RoleProblem(role: row.role, text: Copy.rolesProblemNoIdentity(bundle: bundle, locale: locale), bundle: bundle, locale: locale))
+            problems.append(RoleProblem(role: row.slot, text: Copy.rolesProblemIdentity(profile: row.fields.profile ?? "", bundle: bundle, locale: locale), bundle: bundle, locale: locale))
+        case .unset: problems.append(RoleProblem(role: row.slot, text: Copy.rolesProblemNoIdentity(bundle: bundle, locale: locale), bundle: bundle, locale: locale))
         }
         if let provider = row.fields.provider, provider.isEmpty == false {
             if row.providerMissing {
-                problems.append(RoleProblem(role: row.role, text: Copy.rolesProblemAccount(provider: provider, bundle: bundle, locale: locale), bundle: bundle, locale: locale))
+                problems.append(RoleProblem(role: row.slot, text: Copy.rolesProblemAccount(provider: provider, bundle: bundle, locale: locale), bundle: bundle, locale: locale))
             }
         } else {
-            problems.append(RoleProblem(role: row.role, text: Copy.rolesProblemNoAccount(bundle: bundle, locale: locale), bundle: bundle, locale: locale))
+            problems.append(RoleProblem(role: row.slot, text: Copy.rolesProblemNoAccount(bundle: bundle, locale: locale), bundle: bundle, locale: locale))
         }
         if row.fields.model?.isEmpty ?? true {
-            problems.append(RoleProblem(role: row.role, text: Copy.rolesProblemNoModel(bundle: bundle, locale: locale), bundle: bundle, locale: locale))
+            problems.append(RoleProblem(role: row.slot, text: Copy.rolesProblemNoModel(bundle: bundle, locale: locale), bundle: bundle, locale: locale))
         }
     }
-    let lead = page.rows.first { $0.role == .leadReviewer }
+    let lead = page.rows.first { $0.slot == .lead }
     var notes: [String]
     let title: String
     let tone: RolesReadiness.Tone
     if problems.isEmpty {
         tone = .ready
-        title = lead?.off == true ? Copy.rolesTwoSet(bundle: bundle, locale: locale) : Copy.rolesAllSet(bundle: bundle, locale: locale)
+        switch active.count {
+        case 2: title = Copy.rolesTwoSet(bundle: bundle, locale: locale)
+        case 3 where lead?.off == false: title = Copy.rolesAllSet(bundle: bundle, locale: locale)
+        default: title = Copy.rolesCountSet(count: active.count, bundle: bundle, locale: locale)
+        }
         notes = [lead?.off == true ? Copy.rolesLeadOff(bundle: bundle, locale: locale) : Copy.rolesEachHas(bundle: bundle, locale: locale)]
     } else {
         tone = .attention
@@ -101,6 +105,11 @@ extension AgentRole {
         case .leadReviewer: []
         }
     }
+}
+
+extension RoleSlot {
+    /// What the engine runs for the role: an extra reviewer runs the Reviewer's review skills.
+    public func stages(bundle: Bundle? = nil, locale: Locale = .current) -> [RoleStage] { (agentRole ?? .reviewer).stages(bundle: bundle, locale: locale) }
 }
 
 /// How the harness of an account is told to run a skill (`src/prompts/invoke.ts`): Codex spells it `$skill`, Claude Code and Antigravity `/skill`.

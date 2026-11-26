@@ -152,3 +152,10 @@ private func found(_ query: String, _ language: (bundle: Bundle, locale: Locale)
     // Spanish is not English with the keys missing: a key that is missing reads as the key itself, which no entry may
     for entry in spanishIndex { for key in entry.copyKeys { #expect(entry.title != key && entry.detail != key && entry.group != key, Comment(rawValue: key)) } }
 }
+
+@Test func theSearchFindsEachExtraReviewersRowAndOpensItsScreen() {
+    for position in RoleSlot.extraPositions {
+        let entry = englishIndex.first { $0.page == .roles && $0.rowID == "reviewer-\(position)" }
+        #expect(entry?.title == "Reviewer \(position)" && entry?.groupID == "how-an-epic-runs" && entry?.path.isEmpty == true)
+    }
+}

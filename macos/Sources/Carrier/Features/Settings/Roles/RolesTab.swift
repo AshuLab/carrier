@@ -131,14 +131,11 @@ struct RolesTabView: View {
         }
     }
 
-    /// The first screen: whether the roles are set up, the three roles of an epic, and the bots they work as.
+    /// The first screen: whether the roles are set up and the three roles of an epic.
     @ViewBuilder private func first(_ page: RolesPage) -> some View {
         let readiness = rolesReadiness(page)
         SettingsGroup(title: "") { RolesStatusCard(readiness: readiness, open: open) }
         SettingsGroup(id: EpicRail.groupID, title: EpicRail.group, footer: page.rows.contains { $0.slot.isExtra } ? Copy.rolesRailFoot() : nil) { EpicRail(page: page, readiness: readiness, icons: icons, open: open) }
-        SettingsGroup(id: "identities", title: Copy.rolesGroupIdentities(), footer: page.bots.note ?? Copy.rolesIdentitiesFooter()) {
-            CreateBotRow()
-        }
     }
 
     private func detail(_ row: RoleRow, role: AgentRole, page: RolesPage) -> some View {
@@ -158,7 +155,12 @@ struct RolesTabView: View {
             }
             Group {
                 SettingsGroup(id: "who", title: Copy.rolesGroupWho(), footer: identityFooter(row, page: page)) {
-                    SettingsTabRow(id: "identity", title: Copy.rolesIdentity(), detail: row.identityDetail(), first: true) { identityPicker(row, role: role, page: page) }
+                    SettingsTabRow(id: "identity", title: Copy.rolesIdentity(), detail: row.identityDetail(), first: true) {
+                        HStack(spacing: Tokens.Space.s8) {
+                            identityPicker(row, role: role, page: page)
+                            openIdentity(row)
+                        }
+                    }
                     SettingsTabRow(id: "model", title: Copy.rolesModel(), detail: row.providerMissing ? Copy.rolesModelNotAccount() : Copy.rolesModelDetail()) {
                         ModelPickerButton(
                             provider: row.fields.provider, model: row.fields.model, effort: row.fields.effort,
@@ -279,6 +281,14 @@ struct RolesTabView: View {
     private func pickerAccounts(page: RolesPage, current: [String?]) -> [PickerAccount] {
         let reply: HostProviders? = if case .reply(let reply) = providers.outcome { reply } else { nil }
         return CarrierCore.pickerAccounts(reply, declared: page.accounts, icons: icons, current: current.compactMap { $0 })
+    }
+
+    /// The chevron of the Identity row: the identity's own screen, where it can sign and which roles sign as it; none while the role has no identity the registry knows.
+    @ViewBuilder private func openIdentity(_ row: RoleRow) -> some View {
+        if let key = row.identity.key {
+            Button { go(SettingsPlace(.identities, path: [key])) } label: { Glyph(.chevronRight, size: 13, bold: true) }
+                .buttonStyle(HoverTextButtonStyle(tint: nil)).accessibilityLabel(Copy.identitiesOpenIdentity()).help(Copy.identitiesOpenIdentity())
+        }
     }
 
     /// The bots of the registry and the person's own login; a profile that is no longer there stays, marked, and picking it again is a no-op.

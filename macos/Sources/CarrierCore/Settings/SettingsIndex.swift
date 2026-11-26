@@ -259,7 +259,6 @@ private struct IndexBuilder {
             // the rows of the rail: the extra reviewers are listed whether or not the file has them, since the index does not read it
             let railSlots: [RoleSlot] = [.author, .reviewer] + RoleSlot.extraPositions.map { .extra($0) } + [.lead]
             var entries = given(.roles, "how-an-epic-runs", words("rolesRailGroup"), railSlots.map { ($0.name, $0.title(bundle: bundle, locale: locale), $0.purpose(bundle: bundle, locale: locale)) })
-            entries += page(.roles, "identities", "rolesGroupIdentities", [("create-a-bot", "rolesCreateBotTitle", "settingsIndexRolesCreateABotDetail")])
             entries += page(.roles, "", "", [("use-a-lead-reviewer", "rolesUseLead", "settingsIndexRolesUseALeadReviewerDetail")], path: [AgentRole.leadReviewer.rawValue])
             entries += page(.roles, "who", "rolesGroupWho", [("identity", "rolesIdentity", "settingsIndexRolesIdentityDetail"), ("model", "rolesModel", "settingsIndexRolesModelDetail")], path: role)
             entries += page(.roles, "persona", "rolesGroupPersona", [("persona-name", "rolesPersonaName", "rolesPersonaNameDetail"), ("persona-prompt", "rolesPersonaPrompt", "rolesPersonaPromptDetail")], path: role)
@@ -275,6 +274,11 @@ private struct IndexBuilder {
             }
             entries += page(.roles, "when-it-runs-out-of-tokens", "rolesGroupTokens", [("switch-automatically", "rolesSwitch", "rolesSwitchDetail")], path: role)
             return entries
+        case .identities:
+            return page(.identities, "who-signs", "identitiesGroupWho", [("who-signs", "identitiesGroupWho", "settingsPageIdentitiesDetail"), ("create-a-bot", "identitiesCreateBotTitle", "settingsIndexIdentitiesCreateABotDetail")])
+                + page(.identities, "signs-as", "identitiesGroupSignsAs", [("signs-as", "identitiesGroupSignsAs", "settingsIndexIdentitiesSignsAsDetail")])
+                + page(.identities, "can-sign-in", "identitiesGroupCanSign", [("can-sign-in", "identitiesGroupCanSign", "settingsIndexIdentitiesCanSignInDetail")])
+                + page(.identities, "open-on-github", "", [("open-on-github", "identitiesOpenOnGitHub", "identitiesOpenOnGitHubDetail")])
         case .watching:
             return page(.watching, "repositories", "watchingGroupRepositories", [("repositories", "watchingGroupRepositories", "settingsPageWatchingDetail")])
                 + page(.watching, "status", "watchingGroupStatus", [("epics", "watchingEpics", "settingsIndexWatchingEpicsDetail"), ("last-check", "watchingLastCheck", "settingsIndexWatchingLastCheckDetail")])

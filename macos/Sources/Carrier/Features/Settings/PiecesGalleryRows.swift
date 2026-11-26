@@ -24,6 +24,7 @@ struct PiecesGalleryRows: View {
                 GalleryState(.withIcon) {
                     card { NavigationRow(title: sample(.row), detail: sample(.rowDetail), leading: AccountMark(initials: PiecesGalleryData.initials, tint: .blue, size: 22), first: true, action: {}) { Text(sample(.label)).foregroundStyle(.secondary) } }
                 }
+                GalleryState(.error) { card { NavigationRow(title: sample(.row), detail: sample(.rowDetail), first: true, problem: sample(.problem), action: {}) { EmptyView() } } }
             }
             GalleryEntry("SettingsTabRow") {
                 GalleryState(.normal) { card { SettingsTabRow(title: sample(.row), detail: sample(.rowDetail), first: true) { Toggle(sample(.label), isOn: .constant(true)).labelsHidden() } } }

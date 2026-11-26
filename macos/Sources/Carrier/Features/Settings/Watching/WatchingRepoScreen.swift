@@ -68,24 +68,30 @@ struct RepoScreen: View {
     private func checkRow(_ check: RepoCheckRow, first: Bool) -> some View {
         let wrong = check.status == .ok || check.status == .waiting ? nil : [check.detail, check.fix.map { Copy.watchingFix(fix: $0) }].compactMap { $0 }.joined(separator: " ")
         let detail = check.status == .waiting ? (checking ? Copy.watchingChecking() : Copy.watchingWaiting()) : check.status == .ok ? (check.detail ?? "") : ""
-        return SettingsTabRow(title: check.title, detail: detail, first: first, problem: wrong, wrapsDetail: true, leading: AnyView(mark(check.status))) {
+        return SettingsTabRow(title: check.title, detail: detail, first: first, problem: wrong, wrapsDetail: true, leading: AnyView(CheckMark(status: check.status, spinning: checking))) {
             if let role = check.anotherIdentity {
                 Button(Copy.watchingUseAnotherIdentity()) { openRole(RoleSlot(role)) }.controlSize(.small)
             }
         }
     }
+}
 
-    private func mark(_ status: RepoCheckRow.Status) -> some View {
-        // a row still waiting while the doctor runs turns instead of showing the grey dots
-        if status == .waiting && checking {
-            return AnyView(ProgressView().controlSize(.mini).frame(width: 16, height: 16).accessibilityLabel(Copy.watchingMark(which: .checking)))
+/// A check's mark: the doctor's answer as a round mark, or a turning ring for one still being looked at (`spinning`: waiting while the doctor runs).
+struct CheckMark: View {
+    let status: RepoCheckRow.Status
+    var spinning = false
+
+    var body: some View {
+        if status == .waiting && spinning {
+            ProgressView().controlSize(.mini).frame(width: 16, height: 16).accessibilityLabel(Copy.watchingMark(which: .checking))
+        } else {
+            let (symbol, color, label): (AppIcon, Color, String) = switch status {
+            case .ok: (.check, .green, Copy.watchingMark(which: .ok))
+            case .warn: (.exclamation, .yellow, Copy.watchingMark(which: .warn))
+            case .fail: (.close, .orange, Copy.watchingMark(which: .fail))
+            case .waiting: (.dots, .gray, Copy.watchingMark(which: .waiting))
+            }
+            StatusMark(symbol: symbol, color: color, label: label)
         }
-        let (symbol, color, label): (AppIcon, Color, String) = switch status {
-        case .ok: (.check, .green, Copy.watchingMark(which: .ok))
-        case .warn: (.exclamation, .yellow, Copy.watchingMark(which: .warn))
-        case .fail: (.close, .orange, Copy.watchingMark(which: .fail))
-        case .waiting: (.dots, .gray, Copy.watchingMark(which: .waiting))
-        }
-        return AnyView(StatusMark(symbol: symbol, color: color, label: label))
     }
 }

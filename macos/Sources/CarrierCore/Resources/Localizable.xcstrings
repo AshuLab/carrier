@@ -39047,6 +39047,23 @@
         }
       }
     },
+    "pieceState.withLeadingCell": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "With a leading cell"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Con una primera celda"
+          }
+        }
+      }
+    },
     "pieceState.withLink": {
       "extractionState": "manual",
       "localizations": {

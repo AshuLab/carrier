@@ -136,10 +136,7 @@ struct TerminalTabView: View {
         )
     }
 
-    private var themeOptions: [(value: Theme?, title: String)] {
-        [(value: nil, title: Copy.terminalSameAsApp(theme: appTheme.title()))]
-            + Theme.allCases.map { (value: $0, title: $0.title()) }
-    }
+    private var themeChoice: TerminalThemeCells { terminalThemeCells(app: appTheme, stored: themeOverride) }
 
     private var appFontDisplayName: String {
         TerminalSettings.cleanFontFamily(appFontFamily) ?? MonospaceSettings.systemFamily
@@ -183,8 +180,8 @@ struct TerminalTabView: View {
     var body: some View {
         SettingsPageBody(reset: resetTerminalSettings) {
             SettingsGroup(id: "appearance", title: Copy.terminalSettingsAppearance()) {
-                SettingsTabRow(id: "theme", title: Copy.terminalSettingsTheme(), detail: Copy.terminalSettingsThemeDetail(), first: true) {
-                    ChoicePopUp(label: Copy.terminalSettingsTheme(), options: themeOptions, selection: $themeOverride)
+                SettingsStackedRow(id: "theme", title: Copy.terminalSettingsTheme(), detail: Copy.terminalSettingsThemeDetail(), first: true) {
+                    ThemeGallery(cells: themeChoice.cells, chosen: themeChoice.chosen, action: { themeOverride = TerminalThemeCells.stored(picking: $0) })
                 }
                 SettingsTabRow(
                     id: "minimum-contrast", title: Copy.terminalSettingsContrast(),

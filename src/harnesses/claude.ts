@@ -7,8 +7,14 @@ import { addUsage, cost, obj, tokens } from '../execution/usage.ts';
 import type { ExecutionUsage, ModelUsage } from '../storage/executions.ts';
 import { boundOutput, caps, clean, type AgentEvent, type EventState } from '../execution/events.ts';
 
-/** Headless Claude as in docs/research/headless-agents.md; stdin is closed by the runner. */
+/**
+ * Headless Claude as in docs/research/headless-agents.md; stdin is closed by the runner.
+ * `claude -p` stops the subagents and shells still running 10 minutes after the last turn and exits, so a `ship` whose slices build for longer ended with no result.
+ * The variable below turns that ceiling off (`0` waits with no limit); a value the operator already exported is kept.
+ */
 export function buildClaudeCommand(task: AgentTask, ctx: CommandContext): AgentCommand {
+  const env = childEnv(ctx);
+  env.CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS ??= '0';
   return {
     bin: task.command ?? ctx.binary,
     args: [
@@ -34,7 +40,7 @@ export function buildClaudeCommand(task: AgentTask, ctx: CommandContext): AgentC
       ...(task.launchArgs ?? []),
     ],
     cwd: task.workspace,
-    env: { ...childEnv(ctx), ...(task.provider ? claudeLocalEnv(task.provider) : {}), ...(task.configDir && { CLAUDE_CONFIG_DIR: task.configDir }), CARRIER_RESULT_PATH: task.resultPath },
+    env: { ...env, ...(task.provider ? claudeLocalEnv(task.provider) : {}), ...(task.configDir && { CLAUDE_CONFIG_DIR: task.configDir }), CARRIER_RESULT_PATH: task.resultPath },
   };
 }
 

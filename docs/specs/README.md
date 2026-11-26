@@ -25,6 +25,7 @@ Specs of one area that build on each other are listed oldest first.
 - [carrier-terminal-experience](carrier-terminal-experience.md): the terminal panel and running in the background. Implemented (v0.1.0).
 - [carrier-installs-with-homebrew](carrier-installs-with-homebrew.md): installing the command and the app with Homebrew. Implemented (v0.1.0).
 - [carrier-updates-itself](carrier-updates-itself.md): the app updates itself and brings the engine up to date. Implemented (v0.2.0).
+- [init-one-block-per-role](init-one-block-per-role.md): `carrier init` asks the accounts first, one closed block per role and the repos last, with a way back and a flag for every question. Spec.
 
 ## Chat host
 

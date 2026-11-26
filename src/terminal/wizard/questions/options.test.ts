@@ -153,7 +153,8 @@ test('running again on an existing config keeps its options and failover, adds m
   expect(initial['Which account runs the author?']).toBe('codex');
   expect(initial['Which account runs the reviewer?']).toBe('work');
   expect(asked).not.toContain('Where should the config be saved?');
-  expect(asked.some((q) => q.startsWith('Turn failover'))).toBe(false);
+  expect(asked).toContain('Keep the failover you have? author: codex gpt-x'); // the author has one: kept first
+  expect(asked.filter((q) => q.startsWith('Turn failover'))).toHaveLength(1); // only the reviewer, which has none
   const config = load(written, join(home, 'engine.json'), home);
   expect(config.providers).toEqual({ ...existing.providers, agy: { harness: 'agy' } });
   expect(config.failover).toEqual(existing.failover);

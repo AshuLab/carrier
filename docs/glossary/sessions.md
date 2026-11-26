@@ -53,3 +53,16 @@ _Avoid_: failover, subagent call, handover (the parent keeps the session).
 **Permission level** - Carrier's scale of four steps for what a chat session may do, from reading only to Claude's `auto`, on which the options of each harness sit (Claude's permission modes, Codex's sandbox and approval policy).
 It exists to keep a child session from having more privilege than its parent ([0033](../adr/sessions/0033-an-agent-delegates-to-another-agent-through-child-sessions-and-every-delegation-asks-the-person.md), [0036](../adr/sessions/0036-a-session-delegates-in-every-mode-and-a-child-runs-at-its-parents-permission-level.md)).
 _Avoid_: permission mode (Claude's own option), sandbox (Codex's own option), access level (what a chat MCP tool declares, [0024](../adr/sessions/0024-the-chat-mcp-lives-in-the-chat-host-and-is-injected-per-session.md)).
+
+**Turn** - The stretch of a session in which the model acts: from a message of the person (or a wake-up by the agent's own work) to the end the agent reports.
+A session is working only during a turn or while it has agent work; what is left running after the turn ended is not the model working.
+_Avoid_: run, job, activity (anything that is not the model acting).
+
+**Background task** - Anything the agent started that is still running after its turn ended, as the host lists it in a session's `background`: an agent work or a background process.
+_Avoid_: job, pending task.
+
+**Agent work** - A background task that is the model's own work: a subagent or a workflow. It will wake the agent with a result, so the session is still working while it runs.
+_Avoid_: background job, async task.
+
+**Background process** - A background task that is not the model working: a command, a monitor, an MCP tool, a dev server left running. The turn is over, the session is done and the process is a fact about it, not work (it does not mean the engine's [Detached run](orchestration.md)).
+_Avoid_: job, service, daemon, running task.

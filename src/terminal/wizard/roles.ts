@@ -14,7 +14,7 @@ export const camel = (name: string) => name.replace(/-([a-z0-9])/g, (_, next: st
 
 export type Camel<S extends string> = S extends `${infer Head}-${infer Tail}` ? `${Head}${Capitalize<Camel<Tail>>}` : S;
 
-/** The key a slot has in a config and in the flags: `lead-reviewer` is `leadReviewer`. */
+/** The key a slot has in the flags and in the roles of a config: `lead-reviewer` is `leadReviewer`. An extra reviewer has no key of its own in a config, it is an entry of `agents.extraReviewers`: `reviewer-2` is `reviewer2` here, the name of its flags. */
 export const roleKey = (slot: RoleSlot) => camel(slot);
 
 /** What follows `--<role>` in the flags that take one text: the role's `<harness>:<model>` itself, its GitHub profile, local provider, effort and persona. `-failover` is the one that repeats. */

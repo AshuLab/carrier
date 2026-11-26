@@ -1,4 +1,4 @@
-const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
+import { isObject } from '../../config/engine-edit.ts';
 
 // What the wizard asks of a role; the rest of the role (its `skills`) stays as the file has it.
 const askedOfRole = ['profile', 'provider', 'model', 'effort', 'persona'];

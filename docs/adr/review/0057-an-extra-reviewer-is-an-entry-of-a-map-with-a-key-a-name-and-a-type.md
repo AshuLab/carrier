@@ -21,7 +21,7 @@ The type is only a label: the engine runs nothing different for it.
 The signature of an extra reviewer is `🤖 Reviewer [NAME] via Carrier`, with the persona's name when it has one and the entry's name when it does not.
 The engine's requests address a reviewer by its key.
 
-The key is the reviewer's identity wherever the engine names it: the review slot of a stored execution, the round and its retries, the prefix of a blocker's id, the folder of its checkout, the roles `carrier restart` asks about, the epic's status and the doctor's lines.
+The key is the reviewer's identity wherever the engine names it: the review slot of a stored execution, the round and its retries, the prefix of a blocker's id, the folder of its checkout, the roles `carrier restart` asks about, the epic's status and the labels of the doctor's checks.
 `reviewer-2` to `reviewer-4` do not exist any more; the slots `reviewer` and `lead` stay, and no key is one of them or `author`.
 The epic's saved configuration is the engine's own record and keeps the resolved reviewers in the order of the map, each carrying its key, name and type, and the app shows a reviewer by its name, read from there.
 

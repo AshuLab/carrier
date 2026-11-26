@@ -52,7 +52,11 @@ struct WatchingTabView: View {
 
     var body: some View {
         let problem = reposProblem(draft)
-        let rows = watchingOrder(repoRows(draft: draft, saved: saved, snapshot: snapshot))
+        let rows = watchingOrder(repoRows(draft: draft, saved: saved, snapshot: snapshot)).map { row in
+            var row = row
+            row.extras = configData.flatMap { repoRoles(json: $0, repo: row.name) }?.extras ?? .sameAsEverywhere
+            return row
+        }
         let chosen = place.path.first.flatMap { name in rows.first { $0.name == name } }
         let repoPage = chosen.flatMap { rolesPage(of: $0) }
         let role = place.path.dropFirst().first.flatMap(RoleSlot.init(name:))
@@ -193,6 +197,12 @@ struct WatchingTabView: View {
         return repoRolesPage(config: configData, providers: providersData, bots: bots, repo: repo.name)
     }
 
+    /// The extra reviewers that run in the repo: its own list, or Roles'.
+    private func reviewers(of repo: RepoRow) -> [RoleRow] {
+        guard let configData, let bots else { return [] }
+        return repoExtraReviewers(config: configData, providers: providersData, bots: bots, repo: repo.name) ?? []
+    }
+
     /// The chosen repo's screen. Open on GitHub and Check again are the toolbar's.
     private func repoScreen(_ row: RepoRow, page: RolesPage?) -> some View {
         let status = repoStatus(row, engine: engine, cloneExists: FileManager.default.fileExists(atPath: row.clonePath(engine: engine)), notLoaded: settingsNote(state: state, canReload: canReload, outcome: reloaded.outcome))
@@ -201,7 +211,9 @@ struct WatchingTabView: View {
         return RepoScreen(
             row: row, status: status, project: owner?.name,
             checks: repoChecks(repo: row.name, roles: roles?.rows ?? [], doctor: doctor.state), checking: doctor.state == .running,
-            roles: page.flatMap { page in roles.map { (page: page, own: Set($0.rows.filter(\.isOwn).map { RoleSlot($0.role) })) } },
+            roles: page.flatMap { page in
+                roles.map { (page: page, own: Set($0.rows.filter(\.isOwn).map { RoleSlot($0.role) }), extras: $0.extras, reviewers: reviewers(of: row)) }
+            },
             icons: accountIcons(providersJSON: providersData), refusal: refusal,
             openProject: { owner.map { go(SettingsPlace(.projects, path: [$0.path])) } ?? go(SettingsPlace(.projects)) },
             openRole: { go(SettingsPlace(.watching, path: [row.name, $0.name])) }, stop: { removing = row.name }

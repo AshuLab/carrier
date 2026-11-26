@@ -284,6 +284,7 @@ private struct IndexBuilder {
                 + page(.watching, "status", "watchingGroupStatus", [("epics", "watchingEpics", "settingsIndexWatchingEpicsDetail"), ("last-check", "watchingLastCheck", "settingsIndexWatchingLastCheckDetail")])
                 + page(.watching, "ready-for-carrier", "watchingGroupReady", [("ready-for-carrier", "watchingGroupReady", "settingsIndexWatchingReadyForCarrierDetail")])
                 + page(.watching, "who-works-here", "watchingGroupWho", [("who-works-here", "watchingGroupWho", "settingsIndexWatchingWhoWorksHereDetail")])
+                + page(.watching, "more-reviewers-here", "watchingGroupMore", [("more-reviewers-here", "watchingGroupMore", "settingsIndexWatchingMoreReviewersDetail")])
                 + page(.watching, "repository", "watchingGroupRepository", [
                     ("project", "watchingProject", "settingsIndexWatchingProjectDetail"), ("clone", "watchingClone", "settingsIndexWatchingCloneDetail"), ("on-github", "watchingOnGitHub", "settingsIndexWatchingOnGithubDetail"),
                 ])

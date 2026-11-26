@@ -116,5 +116,5 @@ private func readiness(_ json: String) throws -> RolesReadiness { rolesReadiness
     #expect(roles.rows[0].value.text(bundle: b, locale: l) == "x · claude · sonnet" && RoleFields().text(bundle: b, locale: l) == "Sin definir")
     #expect(signatureNote(roles.rows, bundle: b, locale: l) == "El autor y el revisor trabajan los dos como x: la firma lo mostrará.")
     let page = try #require(repoRolesPage(config: json, providers: nil, bots: bots, repo: "a/b", bundle: b, locale: l))
-    #expect(page.rows.map { $0.title(bundle: b, locale: l) } == ["Autor", "Revisor"])
+    #expect(page.rows.map { $0.title(bundle: b, locale: l) } == ["Autor", "Revisor", "Revisor líder"])
 }

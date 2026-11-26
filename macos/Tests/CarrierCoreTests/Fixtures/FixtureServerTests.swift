@@ -406,12 +406,12 @@ private struct ScratchEngine {
 @Test func theFixtureEngineSetsARepoRoleFromTheFieldsThatAreSetAndResetTakesItOut() async throws {
     let engine = try ScratchEngine()
     defer { engine.server.stop() }
-    // the fields that are set, and Reset takes the entry out (and agents with the last)
+    // the fields that are set, and Reset takes the entry out (the repo's own list of reviewers stays: it is not a role's field)
     func repoAgents() throws -> [String: Any]? { try (engine.written()["repos"] as? [[String: Any]])?.first { $0["name"] as? String == "acme/web" }?["agents"] as? [String: Any] }
     #expect(try await engine.sender.send(.repoRole(repo: "acme/web", role: .reviewer, fields: RoleFields(model: "qwen", persona: RolePersona(name: "Rex")))).outcome == .applied)
     #expect(try repoAgents()?["reviewer"] as? NSDictionary == ["model": "qwen", "persona": ["name": "Rex"]] as NSDictionary)
     #expect(try await engine.sender.send(.repoRole(repo: "acme/web", role: .reviewer, fields: nil)).outcome == .applied)
-    #expect(try repoAgents() == nil)
+    #expect(try repoAgents()?["reviewer"] == nil && repoAgents()?["extraReviewers"] != nil)
     #expect(try await engine.refusal(.repoRole(repo: "x/y", role: .author, fields: nil)).text == "x/y is no longer in the config file.")
     #expect(try await engine.refusal(.repoRole(repo: "acme/web", role: .author, fields: RoleFields(profile: "ghost"))).text == "Identity “ghost” is not declared in profiles. Pick another one.")
 }

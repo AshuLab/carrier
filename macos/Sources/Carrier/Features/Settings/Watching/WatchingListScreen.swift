@@ -3,7 +3,7 @@ import CarrierUI
 import SwiftUI
 
 /// The first screen of Watching: one group of rows, as Projects' list is, with no line of column titles. Each repo is a row with the project's tile and a dot for its
-/// health, `owner/name`, under it the project that has it and what its last check said, at the right what it has in flight, and a chevron that opens its screen.
+/// health, `owner/name`, under it the project that has it and what its last check said, at the right what it has in flight and a chip when it has its own extra reviewers or none, and a chevron that opens its screen.
 /// The order is `watchingOrder`; with nothing watched the screen is an empty state. Watch a project and Check now are the toolbar's.
 struct WatchingListScreen: View {
     let rows: [RepoRow]
@@ -65,13 +65,18 @@ private struct WatchingRowView: View {
         Text(verbatim: (projectName ?? Copy.watchingNoProject()) + " \u{00B7} ").foregroundStyle(.secondary) + Text(row.line).foregroundStyle(row.health == .error ? Color.red : .secondary)
     }
 
-    /// What the repo has in flight, as chips; none when nothing is or nobody knows (Carrier is stopped).
+    /// What the repo has in flight and whether it has its own reviewers, as chips; none when it has neither (or nobody knows what is in flight: Carrier is stopped).
     @ViewBuilder private var chips: some View {
-        if let epics = row.epics, epics.isNone == false {
+        let epics = row.epics.flatMap { $0.isNone ? nil : $0 }
+        if epics != nil || row.extras != .sameAsEverywhere {
             HStack(spacing: Tokens.Space.s4) {
-                if epics.needsYou > 0 { StatusChip(text: Copy.watchingNeedsYou(count: epics.needsYou), tint: .orange) }
-                if epics.running > 0 { StatusChip(text: Copy.watchingRunning(count: epics.running), tint: .green) }
-                if epics.queued > 0 { StatusChip(text: Copy.watchingQueued(count: epics.queued), tint: .blue) }
+                if row.extras == .ownList { StatusChip(text: Copy.watchingChipOwnReviewers(), tint: .secondary) }
+                if row.extras == .noExtras { StatusChip(text: Copy.watchingChipNoReviewers(), tint: .secondary) }
+                if let epics {
+                    if epics.needsYou > 0 { StatusChip(text: Copy.watchingNeedsYou(count: epics.needsYou), tint: .orange) }
+                    if epics.running > 0 { StatusChip(text: Copy.watchingRunning(count: epics.running), tint: .green) }
+                    if epics.queued > 0 { StatusChip(text: Copy.watchingQueued(count: epics.queued), tint: .blue) }
+                }
             }
             .fixedSize()
         }

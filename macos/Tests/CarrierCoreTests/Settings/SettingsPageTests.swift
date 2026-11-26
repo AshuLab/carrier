@@ -16,9 +16,11 @@ import Testing
     #expect(SettingsPage.sessions.detail(bundle: english.bundle, locale: english.locale) == "How sessions start and age out")
 }
 
-@Test func theCarrierGroupHoldsRolesWatchingAndBehavior() {
+@Test func theCarrierGroupHoldsRolesIdentitiesWatchingAndBehavior() {
     #expect(SettingsPage.Group.carrier.heading(bundle: english.bundle, locale: english.locale) == "Carrier")
-    #expect(SettingsPage.pages(in: .carrier) == [.roles, .watching, .behavior])
+    #expect(SettingsPage.pages(in: .carrier) == [.roles, .identities, .watching, .behavior])
+    #expect(SettingsPage.identities.title(bundle: english.bundle, locale: english.locale) == "Identities" && SettingsPage.identities.rawValue == "identities" && SettingsPage.identities.icon == .user)
+    #expect(SettingsPage.identities.detail(bundle: english.bundle, locale: english.locale) == "The GitHub accounts roles sign as, and where each can sign")
     #expect(SettingsPage.behavior.detail(bundle: english.bundle, locale: english.locale) == "How Carrier runs epics")
     #expect(SettingsPage.roles.title(bundle: english.bundle, locale: english.locale) == "Roles" && SettingsPage.roles.rawValue == "roles")
     #expect(SettingsPage.roles.detail(bundle: english.bundle, locale: english.locale) == "Who works on an epic and where it goes when its tokens run out")
@@ -35,7 +37,7 @@ import Testing
     #expect(SettingsPage.Group.allCases == [.app, .workspace, .carrier, .system])
     #expect(SettingsPage.Group.allCases.map { $0.heading(bundle: english.bundle, locale: english.locale) } == [nil, "Workspace", "Carrier", "System"])
     #expect(SettingsPage.allCases == SettingsPage.Group.allCases.flatMap { SettingsPage.pages(in: $0) })
-    #expect(SettingsPage.allCases.count == 18)
+    #expect(SettingsPage.allCases.count == 19)
     #expect(SettingsPage.allCases.allSatisfy { !$0.detail(bundle: english.bundle, locale: english.locale).isEmpty })
     // Projects sits between Sessions and Sidebar, with an icon the set already has
     let workspace = SettingsPage.pages(in: .workspace)
@@ -44,7 +46,7 @@ import Testing
 }
 
 @Test func thePagesOfSettingsThatAreSettingsFormsAreTheOnesMadeOfSimpleRows() {
-    #expect(SettingsPage.allCases.filter(\.usesForm) == [.general, .providers, .appearance, .notifications, .keybindings, .dictation, .keepAwake, .chat, .sessions, .sidebar, .terminal, .roles, .watching, .behavior, .engine, .about])
+    #expect(SettingsPage.allCases.filter(\.usesForm) == [.general, .providers, .appearance, .notifications, .keybindings, .dictation, .keepAwake, .chat, .sessions, .sidebar, .terminal, .roles, .identities, .watching, .behavior, .engine, .about])
 }
 
 @Test func theLongPagesAreAColumnAndTheListsAndTablesTakeTheWidth() {

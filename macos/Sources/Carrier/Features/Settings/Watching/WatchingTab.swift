@@ -40,7 +40,6 @@ struct WatchingTabView: View {
     @Environment(\.settingsHeaderButtons) private var headerButtons
     @State private var owner = UUID()
     private let doctor = AppHealth.doctor
-    @ObservedObject private var setup = SetupController.shared
 
     private var path: String { configFilePath() }
 
@@ -185,13 +184,8 @@ struct WatchingTabView: View {
 
     // MARK: a repo's screen
 
-    /// Not awaited: the card says it is running. The store ignores a run while one is running and runs only with an `engine.json`.
-    private func runDoctor() {
-        let settings = setup.settings, configExists = start.configExists
-        // a fixture has no `carrier` to find: any path will do, the run answers with the golden output
-        let carrier = setup.carrier ?? (CommandLine.arguments.contains("--fixture") ? "/fixture/carrier" : nil)
-        Task { await doctor.check(settings: settings, carrier: carrier, environment: ProcessInfo.processInfo.environment, configExists: configExists) }
-    }
+    /// Not awaited: the card says it is running.
+    private func runDoctor() { runSettingsDoctor() }
 
     /// A repo's roles as the repo has them: the global ones with its own over them. nil when the file does not read.
     private func rolesPage(of repo: RepoRow) -> RolesPage? {

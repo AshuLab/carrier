@@ -53,7 +53,38 @@ A session whose turn ended with a dev server alive is Done and, if unread, shows
 A person can forget a process that no state of the session reminds them of, so the marker of processes has to be visible enough to be found again; that design is open.
 
 The allowlist depends on a string the SDK does not promise, so a new agent-like type is a process until it is added here.
-`remote_agent` and `in_process_teammate` are placed by inference (they exist in the CLI, and what they do while they run was not confirmed), and `local_script` is unknown: it is a process by the rule above.
+`local_agent` was seen (below), and it is agent work.
+`remote_agent` and `in_process_teammate` are still placed by inference: the spike ([#1542](https://github.com/AshuLab/carrier/issues/1542)) could not make either appear, so nothing here says what the host lists for them or whether the model goes on working meanwhile.
+`local_script` is unknown: it is a process by the rule above.
+
+What the spike did, on 2026-11-26, with Claude Code 2.1.332 (the `claude` on the path, which is the binary the adapter runs) and `@anthropic-ai/claude-agent-sdk` 0.3.326, model `haiku`, in a throwaway folder under the temporary directory and never `~/.carrier`.
+A script outside the repo opened a conversation with Carrier's own adapter (`claudeChatRunner().open`, `src/chat/claude.ts`), logged each raw `background_tasks_changed` message by wrapping the SDK's `query`, and logged each `ChatEvent`; it did not go through the chat host's process or its database.
+
+- **Teammate (`in_process_teammate`): not observed.** With `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`, with and without the flag `--teammate-mode in-process`, three runs asked the model to spawn a teammate named `helper` with the `Agent` tool (`name` set, no `subagent_type`, with and without `run_in_background`) that ran `sleep 15` or `sleep 20` while the lead went on running `sleep 3 && echo tick`.
+  Every time the host listed `{"task_type":"local_agent","subagent_type":"general-purpose"}`, no `ambient`, `agentWork: true`, and the lead's ticks went on while it ran, until the task ended and the list became empty.
+  That confirms `local_agent` and nothing about teammates: this version has no `TeamCreate` tool (the model looked for it and did not find it; the `Agent` tool's `team_name` is described as "Deprecated; ignored. The session has a single implicit team"), and a spawn with a `name` never became a teammate in the headless stream.
+  Why is not known: the code that spawns a teammate sits behind a condition this run did not meet (the CLI's own flags, which a person's account sets, or an interactive session), and the interactive session was out of reach of this spike.
+- **Remote agent (`remote_agent`): not observed**, on purpose: it starts a cloud session, which bills and runs outside the machine, and the spike was not to launch one.
+  The SDK's own type says where it comes from (`WorkflowOutput.taskType` in `sdk-tools.d.ts`: "`remote_agent` when `remote:true` dispatches to CCR") and the CLI names it "cloud session".
+- **What the CLI itself says (read in its bundled code, not observed in a run).** The CLI keeps one set for the tasks that count as agent work running, `local_agent`, `remote_agent`, `in_process_teammate` and `local_workflow`, and a separate test for `local_bash`.
+  That is the allowlist here, from the side that owns the types, so it is the best evidence that none of the four is wrongly placed; it is not an observation of what the host lists or of the model working.
+  The same code leaves out of that count an idle teammate (one that waits for a message) and a cloud session marked as long-running, and `background_tasks_changed` carries nothing that tells either, so a teammate that is only waiting may hold a session as working here.
+  That reading is also inferred.
+
+Nothing seen or read puts a type in the wrong list, so the allowlist in `src/chat/claude.ts`, its test and the spec's list stay as they are.
+A person who runs a teammate or a cloud agent in the app, and looks at what the session shows, closes the two open ends.
+
+Closing a session did end a background shell, in all six runs.
+The model was asked to run `sleep 4217` with `run_in_background`; the host listed `{"task_type":"local_bash","description":"Sleep for 4217 seconds"}` (no `ambient`, `agentWork: false`) and the turn ended.
+`ps -axo pid,ppid,pgid,command | grep "sleep 4217"` then showed the shell and its `sleep`, children of the `claude` process but in a process group of their own, not the agent's.
+The script then called `conversation.close()`, which is what the host's `close` ends in for an archive or a delete (`src/chat/sessions.ts`), with no `stopTask` before it, and the same command found nothing: 1.5 seconds after the close in the first run, still there at 1.5 seconds and gone a few seconds later in the second, at the first check (the last run polled every 0.2 seconds, right after `close()` returned) in the sixth, and no `sleep 4217` was left at the end of the three between.
+The shell is not in the group that `endGroup` signals, so it is the `claude` process, ending on SIGTERM, that takes its shells with it; the spike did not observe which step does it.
+So the archive's promise holds for a closed session, with or without `stopTask`, and no ticket is needed for it.
+(A `pgrep -f "sleep 4217"` can match the checking script's own command line, which holds that text: the check above excludes it.)
+
+The one case that left a shell running is not a close: a side check sent SIGKILL to the `claude` process, and its shell stayed alive, its parent now `launchd` (pid 1), in its own group.
+`endGroup` escalates to SIGKILL after three seconds when `claude` does not end on SIGTERM, and the startup sweep signals the agent's group by the `pgid` it stored (`src/chat/sweep.ts`), so by reading both a shell in a group of its own would not be reached there; that part is read, not run.
+It is a leak of a host that dies or an agent that does not end, not of archiving, and it is left as a note here and not as a ticket.
 `awaited` and `off_host` come in the SDK's entries but are not typed or documented, and nothing here relies on them.
 
 Codex is not touched: the host reads no background task from it today, and its terminals and subagents reach the host only as items, so the rule has nothing to separate there.

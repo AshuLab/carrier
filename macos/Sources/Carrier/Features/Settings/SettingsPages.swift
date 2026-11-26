@@ -104,6 +104,7 @@ struct SettingsPages: View {
         case .behavior: BehaviorTabView()
         case .watching: WatchingTabView(place: navigator.place, go: navigator.go, state: state, canReload: canReload, openRoles: { navigator.go(.roles) })
         case .roles: RolesTabView(place: navigator.place, go: navigator.go)
+        case .identities: IdentitiesTabView(place: navigator.place, go: navigator.go)
         case .sessions: SessionsTabView()
         case .projects: ProjectsTabView(place: navigator.place, go: navigator.go, sessions: sessions, state: state, canReload: canReload)
         case .notifications: NotificationsTabView(centre: SystemNotificationCentre.shared, reader: SystemNotificationCentre.shared)

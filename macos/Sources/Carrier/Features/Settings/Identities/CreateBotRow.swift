@@ -3,14 +3,14 @@ import CarrierCore
 import CarrierUI
 import SwiftUI
 
-/// Create a bot… on the Roles page: Terminal opens on `agent-forge add` (`createBotInTerminal`). The page reads the registry again when the
+/// Create a bot… on the Identities page: Terminal opens on `agent-forge add` (`createBotInTerminal`). The page reads the registry again when the
 /// app is active, so the new bot shows without a refresh button. Under `--fixture` the opener only says what it would have run.
 struct CreateBotRow: View {
     @State private var failure: String?
 
     var body: some View {
-        SettingsTabRow(id: "create-a-bot", title: Copy.rolesCreateBotTitle(), detail: failure ?? Copy.rolesCreateBotDetail()) {
-            Button { open() } label: { Label(Copy.rolesCreateBotTitle(), icon: .plus) }.buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).help(Copy.rolesCreateBotHelp())
+        SettingsTabRow(id: "create-a-bot", title: Copy.identitiesCreateBotTitle(), detail: failure ?? Copy.identitiesCreateBotDetail()) {
+            Button { open() } label: { Label(Copy.identitiesCreateBotTitle(), icon: .plus) }.buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).help(Copy.identitiesCreateBotHelp())
         }
     }
 

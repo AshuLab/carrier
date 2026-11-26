@@ -123,6 +123,7 @@ extension SettingsPage {
         case .sidebar: .cyan
         case .terminal: Color(Tokens.Tile.terminal)
         case .roles: .orange
+        case .identities: .indigo
         case .watching, .health: .green
         case .behavior: .brown
         }

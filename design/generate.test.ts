@@ -589,7 +589,7 @@ describe('the tokens', () => {
     ]);
   });
 
-  it('commit the nine themes and the seven accent presets', () => {
+  it('commit the twelve themes and the seven accent presets', () => {
     const { themes, accents } = loadSources(REPOSITORY_ROOT).tokens;
     expect(themes.map(([name]) => name)).toEqual(['carrier', 'graphite', 'ocean', 'forest', 'sunset', 'paper', 'rose', 'lavender', 'midnight', 'solarized', 'nord', 'gruvbox']);
     expect(accents.map(([name]) => name)).toEqual(['blue', 'purple', 'pink', 'red', 'orange', 'green', 'graphite']);

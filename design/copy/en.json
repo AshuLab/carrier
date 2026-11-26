@@ -809,6 +809,8 @@
   "archiveDeleteMessage": "Its transcript is removed and cannot be brought back.",
   "archiveDeleteMessageLosing": "{lost} will be removed with its worktree. Its transcript is removed and cannot be brought back.",
   "archiveDeleteMessageWorktree": "Its worktree will be removed. Its transcript is removed and cannot be brought back.",
+  "archiveStopsTitle": "Archive “{title}”?",
+  "archiveStopsMessage": "This stops {names}",
   "archiveBlockWorking": "Stop the session to archive it",
   "archiveBlockWaiting": "Answer or stop the session to archive it",
   "archiveBlockBackground": "{count, plural, one {Stop the background task to archive it} other {Stop the background tasks to archive it}}",

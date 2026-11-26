@@ -53,7 +53,7 @@ struct SessionRowView: View {
 
     /// What the host refuses (a session that is working) is told in an alert, as the context menu does.
     private func archive() {
-        Task { if let refusal = await actions.archive(row.id) { tell(refusal) } }
+        Task { if let refusal = await archiveAsking(row, actions) { tell(refusal) } }
     }
 
     private func place(_ place: SessionPlace) -> Text {

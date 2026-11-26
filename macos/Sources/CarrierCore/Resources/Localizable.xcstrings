@@ -12643,6 +12643,23 @@
         }
       }
     },
+    "choiceThemeGruvbox": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gruvbox"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gruvbox"
+          }
+        }
+      }
+    },
     "choiceThemeLavender": {
       "extractionState": "manual",
       "localizations": {
@@ -12673,6 +12690,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Medianoche"
+          }
+        }
+      }
+    },
+    "choiceThemeNord": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nord"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nord"
           }
         }
       }
@@ -12724,6 +12758,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Rosa"
+          }
+        }
+      }
+    },
+    "choiceThemeSolarized": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solarized"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solarized"
           }
         }
       }

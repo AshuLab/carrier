@@ -17,7 +17,7 @@ What a script does check is that every piece has its entry in the gallery (`maco
 
 They hold for every front-end; the sections after the catalog say how the Mac applies them.
 
-- **The theme gives the colours.** The nine themes, the accents and the semantic colours come from `design/tokens.json`; a piece takes them from its environment and never writes a colour of its own.
+- **The theme gives the colours.** The twelve themes, the accents and the semantic colours come from `design/tokens.json`; a piece takes them from its environment and never writes a colour of its own.
   A second front-end that wrote its own would drift from the first in a week.
 - **The words are copy keys.** Every text a person reads is a key of `design/copy/` with an English and a Spanish value, read through `Copy`; a piece shows the text it is given.
 - **A state is never the colour alone.** A word, an icon or a shape says it too (a `StatusChip` has its word; with "Tell states apart by shape" on, the state pieces draw their symbol).

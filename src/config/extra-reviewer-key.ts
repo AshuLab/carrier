@@ -2,6 +2,8 @@
 export const slugPattern = /^[a-z][a-z0-9-]{0,39}$/;
 
 export const maxSlugLength = 40;
+/** The longest name an extra reviewer has, one line; it is the key's length too, so a key cut from a name loses nothing of a name that fits. */
+export const maxNameLength = 40;
 
 /** What a key cannot be: the words the file already uses for a role, and the two slots of a round that are not an extra reviewer's. */
 export const reservedKeys = ['author', 'reviewer', 'lead', 'lead-reviewer'] as const;

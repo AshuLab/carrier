@@ -62,9 +62,9 @@ export async function askRole(ctx: RoleContext, slot: Block, { given, from, step
 
   const persona = await askPersona(ui, slot, given ? { name: given.personaName, prompt: given.personaPrompt } : { name: flag('PersonaName'), prompt: flag('PersonaPrompt') }, interactive, from?.persona);
   const role: Role = { identity, provider, model, ...(effort && { effort }), ...(persona && { persona }) };
-  // Failover flags answer the question: the role is not asked, and the steps are the ones given, in order.
+  // Failover flags answer the question: the role is not asked, and the steps are the ones given, in order. An extra reviewer's steps were checked against the accounts before the first question (`extraFailoverProblem`).
   const flagSteps = given ? stepsOf('--extra-reviewer-failover', given.failover) : failoverSteps(ctx.flags, slot);
-  if (flagSteps !== undefined) {
+  if (flagSteps !== undefined && given === undefined) {
     const problem = failoverProblem(ctx.flags, Object.keys(ctx.providers), { [slot]: role });
     if (problem !== undefined) throw new Error(problem);
   }

@@ -1964,7 +1964,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       // The requeue freezes the epic's options again from the configuration the engine runs with, so that is what the names are checked against.
       const repoConfig = repos().find((r) => r.name === repo);
       const declared = (repoConfig?.providers ?? repoConfig?.options) ?? {};
-      const picked = Object.entries({ author: chosen.author, reviewer: chosen.reviewer, ...chosen.extraReviewers, lead: chosen.lead }).filter((pick): pick is [string, string] => pick[1] !== undefined);
+      const picked = [['author', chosen.author], ['reviewer', chosen.reviewer], ...Object.entries(chosen.extraReviewers ?? {}), ['lead', chosen.lead]].filter((pick): pick is [string, string] => pick[1] !== undefined);
       if (picked.some(([, name]) => !Object.hasOwn(declared, name))) throw new ResumeRefused('resume.optionUnknown', 'unknown option');
       // The roles the epic will run with are the ones the requeue freezes again, from the configuration the engine runs with.
       if (chosen.lead !== undefined && !repoConfig?.agents.leadReviewer) throw new ResumeRefused('resume.roleUnknown', 'no such role');

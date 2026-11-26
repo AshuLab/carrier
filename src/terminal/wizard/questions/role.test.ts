@@ -68,7 +68,7 @@ test('in edit mode the block starts from the file: its model, effort and persona
   expect(asked.findIndex((m) => m.startsWith('Keep the failover'))).toBeGreaterThan(asked.indexOf("Customise the author's persona?"));
 });
 
-test('the journal serves a block of any slot: reviewer-2 goes back one question and asks only that one again, with no per-role code', async () => {
+test('the journal serves a block of any slot: an extra reviewer goes back one question and asks only that one again, with no per-role code', async () => {
   const { ui, asked } = quietUi({ 'Which account runs the extra reviewer?': 'codex' });
   let thrown = false;
   const spy: RoleContext['ui'] = {

@@ -1,6 +1,6 @@
 import { readForgeAgents } from '../terminal/wizard/forge-registry.ts';
 import { isObject, readObject, refuse, write } from './engine-edit.ts';
-import { extraReviewerKey, maxSlugLength, reservedKeys, slugPattern } from './extra-reviewer-key.ts';
+import { extraReviewerKey, maxNameLength, reservedKeys, slugPattern } from './extra-reviewer-key.ts';
 import { providersProblem, readProvidersFile } from './providers.ts';
 import { efforts } from './schema.ts';
 
@@ -152,7 +152,7 @@ function changeRole(current: Json, role: Role, changes: RoleChanges, creating: b
 function checkedName(name: string, others: unknown[], at: string) {
   const trimmed = name.trim();
   if (trimmed === '') throw refuse(`${at}.name`, 'empty', 'The name cannot be empty.');
-  if (trimmed.length > maxSlugLength || /[\r\n]/.test(name)) throw refuse(`${at}.name`, 'tooLong', 'The name is one line of up to 40 characters.');
+  if (trimmed.length > maxNameLength || /[\r\n]/.test(name)) throw refuse(`${at}.name`, 'tooLong', 'The name is one line of up to 40 characters.');
   if (others.some((other) => isObject(other) && typeof other.name === 'string' && other.name.trim().toLowerCase() === trimmed.toLowerCase())) throw refuse(`${at}.name`, 'taken', `“${trimmed}” is already another reviewer’s name. Pick another one.`);
   return trimmed;
 }
@@ -186,8 +186,8 @@ export function editRole(target: Target, changes: EditRoleChanges, file: string,
   const at = atOf(target);
   const entry = entryOf(current, target);
   const others = Object.entries(object(object(current.agents).extraReviewers)).filter(([key]) => key !== target.extraReviewer).map(([, other]) => other);
-  if (name !== undefined) entry.name = checkedName(name, others, extrasAt);
-  if (type !== undefined) entry.type = checkedType(type, extrasAt);
+  if (name !== undefined) entry.name = checkedName(name, others, at);
+  if (type !== undefined) entry.type = checkedType(type, at);
   const profiles = object(current.profiles);
   applyChanges(entry, profiles, fields, at, 'The extra reviewer', folder);
   dropOwnSteps(entry);
@@ -228,8 +228,6 @@ const maxExtraReviewers = 3;
 export function addExtraReviewer(draft: ExtraReviewerDraft, file: string, folder: string) {
   const missing = ([['name', draft.name?.trim()], ['type', draft.type?.trim()], ['identity', draft.identity], ['provider', draft.provider?.trim()], ['model', draft.model?.trim()]] as const).filter(([, value]) => !value).map(([label]) => label);
   if (missing.length > 0) throw refuse(`${extrasAt}.${missing[0]}`, 'incomplete', `An extra reviewer needs ${missing.join(', ')}.`);
-  const name = draft.name!.trim();
-  if (name.length > maxSlugLength || /[\r\n]/.test(draft.name!)) throw refuse(`${extrasAt}.name`, 'tooLong', 'The name is one line of up to 40 characters.');
   const type = checkedType(draft.type!, extrasAt);
   if (draft.effort !== undefined && (efforts as readonly string[]).includes(draft.effort) === false) throw refuse(`${extrasAt}.effort`, 'notOneOf', `Effort must be one of ${efforts.join(', ')}.`);
   const current = readObject(file);
@@ -238,7 +236,7 @@ export function addExtraReviewer(draft: ExtraReviewerDraft, file: string, folder
   const extras = object(agents.extraReviewers);
   const entries = Object.values(extras);
   if (entries.length >= maxExtraReviewers) throw refuse(extrasAt, 'full', `At most ${maxExtraReviewers} extra reviewers: remove one first.`);
-  if (entries.some((other) => isObject(other) && typeof other.name === 'string' && other.name.trim().toLowerCase() === name.toLowerCase())) throw refuse(`${extrasAt}.name`, 'taken', `“${name}” is already another reviewer’s name. Pick another one.`);
+  const name = checkedName(draft.name!, entries, extrasAt);
   const entry: Json = { type, name };
   const profiles = object(current.profiles);
   applyChanges(entry, profiles, { identity: draft.identity, provider: draft.provider, model: draft.model, effort: draft.effort }, extrasAt, 'An extra reviewer', folder);

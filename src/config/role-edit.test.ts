@@ -350,7 +350,7 @@ describe('an extra reviewer as the target of editRole, editPersona and editFailo
       ['an empty model', { model: ' ' }, 'The model cannot be empty.', 'model', 'empty'],
       ['an effort that is not a level', { effort: 'ultra' }, 'Effort must be one of low, medium, high, xhigh, max.', 'effort', 'notOneOf'],
     ] as const)('%s is refused naming the field, nothing written', (_what, changes, words, field, kind) => {
-      expect(refused(() => editRole(target, changes as never, file, folder))).toEqual([words, 'config.problem', { path: `agents.extraReviewers.${field === 'name' || field === 'type' ? field : `seguridad-api.${field}`}`, problem: kind }]);
+      expect(refused(() => editRole(target, changes as never, file, folder))).toEqual([words, 'config.problem', { path: `agents.extraReviewers.seguridad-api.${field}`, problem: kind }]);
     });
 
     test('its own name is not taken by itself, and a change with one refused field writes none', () => {

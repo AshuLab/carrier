@@ -399,7 +399,8 @@ The lead moves through `failover.roles.leadReviewer` when its quota runs out, or
 
 An epic starts at once on its roles: nothing waits for a provider to be chosen, however many accounts are declared. The account each role ran on is recorded, because resuming its session and moving the role on failover need it.
 
-`carrier restart <owner/name>#<issue>` of a stopped epic is the one place a provider is chosen: it offers every declared account to each role, with no timer, and `--author`, `--reviewer` and `--lead` name one without asking (each for a role the epic has); an extra reviewer has no flag and is not asked about yet (the engine takes its option by its key).
+`carrier restart <owner/name>#<issue>` of a stopped epic is the one place a provider is chosen: it offers every declared account to each role, with no timer, and `--author`, `--reviewer` and `--lead` name one without asking (each for a role the epic has).
+Each extra reviewer is asked by its key like the other roles, and `--extra-reviewer-option "<key>=<option>"` names its option without asking (repeat it for several reviewers; a key the epic does not have is refused, naming the key).
 
 A config with `limits.optionChoiceSeconds`, or a `providers.json` account with `enabled`, is refused naming the key: an epic starts at once on its roles, so there is no choice to wait for or to hold back accounts from. Delete the key.
 
@@ -491,7 +492,7 @@ The extra reviewers and the resolved skills of each and of the lead are saved wi
 An epic saved before this version has none saved and reads Solve's, with no extra reviewers and no lead.
 Carrier remembers which skills you named at any level (a global one that is Solve's own name counts as not named) and which are Solve's defaults.
 
-Before an epic starts, resumes or changes the option of a role (a failover, or `carrier restart` with an option for a role: `--author`, `--reviewer` or `--lead`), Carrier asks whether the harness and account of that role find each skill the role invokes.
+Before an epic starts, resumes or changes the option of a role (a failover, or `carrier restart` with an option for a role: `--author`, `--reviewer`, `--lead` or `--extra-reviewer-option "<key>=<option>"`), Carrier asks whether the harness and account of that role find each skill the role invokes.
 Only a skill you named stops an epic, and only when the answer is that it is absent: the epic stops in needs-human with the kind `skill_missing`, naming the skill, the role and where it looked, before any agent run is spent.
 A skill that is Solve's default never stops an epic, and neither does an answer of "cannot tell" (a place Carrier cannot read might hold the skill), so a role that runs today keeps running.
 Carrier reads the places of Claude Code, Codex and Antigravity (`agy`) for this; [troubleshooting](troubleshooting.md) lists where each harness is read.

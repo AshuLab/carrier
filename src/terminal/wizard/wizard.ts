@@ -101,7 +101,8 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
   const heldAccounts = heldBy(deps, providersPath);
   // A failover step names an account of this Mac or of the file, or one a --<role> flag declares: checked as soon as they are known, before the first question.
   const known = declareFlagged(flags, mergeAccounts(heldAccounts, harnesses));
-  const missing = failoverProblem(flags, Object.keys(known.providers), known.roles) ?? extraFailoverProblem(parseExtras(flags).reviewers, Object.keys(known.providers), known.extras);
+  const flaggedExtras = parseExtras(flags).reviewers;
+  const missing = failoverProblem(flags, Object.keys(known.providers), known.roles) ?? extraFailoverProblem(flaggedExtras, Object.keys(known.providers), known.extras);
   if (missing !== undefined) throw new Error(missing);
 
   const fallback = engineConfigPathOf(folder);
@@ -210,10 +211,9 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
       const reviewer = await block('reviewer', 'reviewer', author.role);
       // The extra reviewers, up to three: first the ones the flags create, in the order given (each with the fields its flags answered), then "add another?" until the person says no. With no flag the file's reviewers, walked in the order of its map, are the starts when editing; with flags they are the whole list. Each one's name, type and block.
       const extraReviewers: Extra[] = [];
-      const created = parseExtras(flags).reviewers;
       for (let n = 1; n <= maxExtraReviewers; n++) {
-        const given = created[extraReviewers.length];
-        const held = created.length > 0 ? undefined : from?.extraReviewers?.[extraReviewers.length];
+        const given = flaggedExtras[extraReviewers.length];
+        const held = flaggedExtras.length > 0 ? undefined : from?.extraReviewers?.[extraReviewers.length];
         const at = `extra-${n}`;
         journal.at(at);
         const add = given !== undefined || (interactive ? await ui.confirm(held ? `Keep ${held.name}?` : 'Add another reviewer?', held !== undefined) : held !== undefined);

@@ -1,7 +1,7 @@
 # Docs
 
 Every document under `docs/`, by area, one line each.
-The areas of the macOS app are the ones of `macos/Sources` ([0052](adr/0052-the-macos-app-is-split-into-three-targets-by-layer-and-each-target-by-area.md)); `macos/AGENTS.md` is where each lives in the code.
+The areas of the macOS app are the ones of `macos/Sources` ([0052](adr/design/0052-the-macos-app-is-split-into-three-targets-by-layer-and-each-target-by-area.md)); `macos/AGENTS.md` is where each lives in the code.
 Specs and research are history (each says whether it was built); the area docs say how Carrier works today.
 
 ## Using Carrier
@@ -147,81 +147,81 @@ Images used by the README: [assets](assets/) (`carrier-logo.png`, `app-overview.
 
 ### Engine and orchestration
 
-- [0001 Separate coordination from repo evaluation](adr/0001-separate-coordination-from-repo-evaluation.md)
-- [0002 SQLite is the authority for state, labels are its mirror](adr/0002-sqlite-authority-labels-mirror.md)
-- [0003 Agents run isolated in containers](adr/0003-agents-in-containers.md)
-- [0004 Agents run on the host with the terminal's preferences](adr/0004-agents-run-on-host-with-terminal-preferences.md)
-- [0006 The engine records what the agents do as events in SQLite, with bounded and redacted output](adr/0006-agent-events-stored-in-sqlite-with-bounded-output.md)
-- [0008 Slices are kept in SQLite as a cache of GitHub, not as authority](adr/0008-slices-are-kept-in-sqlite-as-a-cache-of-github.md)
-- [0009 A review that leaves observations triggers one resolve pass by the author before the epic is ready for test](adr/0009-observations-trigger-one-resolve-pass-before-ready-for-test.md)
-- [0010 Carrier runs in the background as a detached process started on demand, not as a login service](adr/0010-carrier-runs-in-the-background-as-a-detached-process.md)
-- [0011 Author and reviewer may share one GitHub identity, signed visibly](adr/0011-author-and-reviewer-may-share-one-github-identity-signed-visibly.md)
-- [0014 An epic chooses its agent option per role, and failover is opt-in](adr/0014-an-epic-chooses-its-agent-option-per-role-and-failover-is-opt-in.md)
-- [0021 An epic starts on its three roles, and a role's failover chain names a provider and a model](adr/0021-an-epic-starts-on-its-three-roles-and-a-roles-failover-chain-names-a-provider-and-a-model.md)
-- [0023 The engine reloads its configuration on request, and running work keeps what it started with](adr/0023-the-engine-reloads-its-configuration-on-request-and-running-work-keeps-what-it-started-with.md)
-- [0043 Labels are named by who writes them, and every one is configurable](adr/0043-labels-are-named-by-who-writes-them-and-every-one-is-configurable.md)
-- [0044 Recover continues an epic from its real state, and no command sets one](adr/0044-recover-continues-an-epic-from-its-real-state-and-no-command-sets-one.md)
-- [0045 Each stage runs a skill the config names, and Carrier keeps the contract](adr/0045-each-stage-runs-a-skill-the-config-names-and-carrier-keeps-the-contract.md)
-- [0046 An unexpected error stops the epic it happened on, and the poll recovers an epic that lost its agent](adr/0046-an-unexpected-error-stops-the-epic-it-happened-on-and-the-poll-recovers-an-epic-that-lost-its-agent.md)
-- [0047 A review is tied to the head it was given, and a moved head is reviewed again](adr/0047-a-review-is-tied-to-the-head-it-was-given-and-a-moved-head-is-reviewed-again.md)
-- [0048 A review round has several reviewers in parallel, and a lead reviewer closes it](adr/0048-a-review-round-has-several-reviewers-in-parallel-and-a-lead-reviewer-closes-it.md)
-- [0049 A quota stop wakes up by itself when the provider says the window is back](adr/0049-a-quota-stop-wakes-up-by-itself-when-the-provider-says-the-window-is-back.md)
-- [0050 One authentication signal is a technical failure of its epic, and a profile stops when it repeats](adr/0050-one-authentication-signal-is-a-technical-failure-of-its-epic-and-a-profile-stops-when-it-repeats.md)
+- [0001 Separate coordination from repo evaluation](adr/orchestration/0001-separate-coordination-from-repo-evaluation.md)
+- [0002 SQLite is the authority for state, labels are its mirror](adr/orchestration/0002-sqlite-authority-labels-mirror.md)
+- [0003 Agents run isolated in containers](adr/agents/0003-agents-in-containers.md)
+- [0004 Agents run on the host with the terminal's preferences](adr/agents/0004-agents-run-on-host-with-terminal-preferences.md)
+- [0006 The engine records what the agents do as events in SQLite, with bounded and redacted output](adr/orchestration/0006-agent-events-stored-in-sqlite-with-bounded-output.md)
+- [0008 Slices are kept in SQLite as a cache of GitHub, not as authority](adr/orchestration/0008-slices-are-kept-in-sqlite-as-a-cache-of-github.md)
+- [0009 A review that leaves observations triggers one resolve pass by the author before the epic is ready for test](adr/review/0009-observations-trigger-one-resolve-pass-before-ready-for-test.md)
+- [0010 Carrier runs in the background as a detached process started on demand, not as a login service](adr/orchestration/0010-carrier-runs-in-the-background-as-a-detached-process.md)
+- [0011 Author and reviewer may share one GitHub identity, signed visibly](adr/agents/0011-author-and-reviewer-may-share-one-github-identity-signed-visibly.md)
+- [0014 An epic chooses its agent option per role, and failover is opt-in](adr/agents/0014-an-epic-chooses-its-agent-option-per-role-and-failover-is-opt-in.md)
+- [0021 An epic starts on its three roles, and a role's failover chain names a provider and a model](adr/agents/0021-an-epic-starts-on-its-three-roles-and-a-roles-failover-chain-names-a-provider-and-a-model.md)
+- [0023 The engine reloads its configuration on request, and running work keeps what it started with](adr/orchestration/0023-the-engine-reloads-its-configuration-on-request-and-running-work-keeps-what-it-started-with.md)
+- [0043 Labels are named by who writes them, and every one is configurable](adr/orchestration/0043-labels-are-named-by-who-writes-them-and-every-one-is-configurable.md)
+- [0044 Recover continues an epic from its real state, and no command sets one](adr/orchestration/0044-recover-continues-an-epic-from-its-real-state-and-no-command-sets-one.md)
+- [0045 Each stage runs a skill the config names, and Carrier keeps the contract](adr/orchestration/0045-each-stage-runs-a-skill-the-config-names-and-carrier-keeps-the-contract.md)
+- [0046 An unexpected error stops the epic it happened on, and the poll recovers an epic that lost its agent](adr/orchestration/0046-an-unexpected-error-stops-the-epic-it-happened-on-and-the-poll-recovers-an-epic-that-lost-its-agent.md)
+- [0047 A review is tied to the head it was given, and a moved head is reviewed again](adr/review/0047-a-review-is-tied-to-the-head-it-was-given-and-a-moved-head-is-reviewed-again.md)
+- [0048 A review round has several reviewers in parallel, and a lead reviewer closes it](adr/review/0048-a-review-round-has-several-reviewers-in-parallel-and-a-lead-reviewer-closes-it.md)
+- [0049 A quota stop wakes up by itself when the provider says the window is back](adr/orchestration/0049-a-quota-stop-wakes-up-by-itself-when-the-provider-says-the-window-is-back.md)
+- [0050 One authentication signal is a technical failure of its epic, and a profile stops when it repeats](adr/agents/0050-one-authentication-signal-is-a-technical-failure-of-its-epic-and-a-profile-stops-when-it-repeats.md)
 
 ### Chat host and sessions
 
-- [0012 Sessions and epics are two separate worlds in the app](adr/0012-sessions-and-epics-are-two-separate-worlds.md)
-- [0013 The chat host is its own process, with transcripts in SQLite and one adapter per provider](adr/0013-the-chat-host-is-its-own-process-with-an-adapter-per-provider.md)
-- [0014 A session worktree lives in Carrier's home and dies with its session](adr/0014-a-session-worktree-lives-in-carriers-home-and-dies-with-its-session.md)
-- [0015 The chat brings projects onto the Mac with the person's own GitHub login](adr/0015-the-chat-brings-projects-onto-the-mac-with-the-persons-own-github-login.md)
-- [0018 A new session is a plan, and the host prepares it when the first message is sent](adr/0018-a-new-session-is-a-plan-and-the-host-prepares-it-when-the-first-message-is-sent.md)
-- [0019 Sessions age by the clock, and an automatic delete never removes unsaved work](adr/0019-sessions-age-by-the-clock-and-an-automatic-delete-never-removes-unsaved-work.md)
-- [0024 The chat MCP lives in the chat host and is injected per session](adr/0024-the-chat-mcp-lives-in-the-chat-host-and-is-injected-per-session.md)
-- [0032 A session changes agent by starting a new conversation, and the new agent reads the old one through the chat MCP](adr/0032-a-session-changes-agent-by-starting-a-new-conversation-and-the-new-agent-reads-the-old-one-through-the-chat-mcp.md)
-- [0033 An agent delegates to another agent through child sessions, and every delegation asks the person](adr/0033-an-agent-delegates-to-another-agent-through-child-sessions-and-every-delegation-asks-the-person.md)
-- [0035 A worktree's folder goes when its work is done, and its branch stays](adr/0035-a-worktree-folder-goes-when-its-work-is-done-and-its-branch-stays.md)
-- [0036 A session delegates in every mode, and a child runs at its parent's permission level](adr/0036-a-session-delegates-in-every-mode-and-a-child-runs-at-its-parents-permission-level.md)
-- [0037 A new worktree is cut from the remote branch by default, and choosing a project fetches it](adr/0037-a-new-worktree-is-cut-from-the-remote-branch-by-default-and-choosing-a-project-fetches-it.md)
-- [0038 A text generator is declared in `providers.json`, and the chat host writes session titles with it](adr/0038-a-text-generator-is-declared-in-providers-json-and-the-chat-host-writes-session-titles-with-it.md)
-- [0042 A session's worktree folder is cleaned by default](adr/0042-a-session-worktree-folder-is-cleaned-by-default.md)
+- [0012 Sessions and epics are two separate worlds in the app](adr/sessions/0012-sessions-and-epics-are-two-separate-worlds.md)
+- [0013 The chat host is its own process, with transcripts in SQLite and one adapter per provider](adr/sessions/0013-the-chat-host-is-its-own-process-with-an-adapter-per-provider.md)
+- [0014 A session worktree lives in Carrier's home and dies with its session](adr/projects/0014-a-session-worktree-lives-in-carriers-home-and-dies-with-its-session.md)
+- [0015 The chat brings projects onto the Mac with the person's own GitHub login](adr/projects/0015-the-chat-brings-projects-onto-the-mac-with-the-persons-own-github-login.md)
+- [0018 A new session is a plan, and the host prepares it when the first message is sent](adr/sessions/0018-a-new-session-is-a-plan-and-the-host-prepares-it-when-the-first-message-is-sent.md)
+- [0019 Sessions age by the clock, and an automatic delete never removes unsaved work](adr/sessions/0019-sessions-age-by-the-clock-and-an-automatic-delete-never-removes-unsaved-work.md)
+- [0024 The chat MCP lives in the chat host and is injected per session](adr/sessions/0024-the-chat-mcp-lives-in-the-chat-host-and-is-injected-per-session.md)
+- [0032 A session changes agent by starting a new conversation, and the new agent reads the old one through the chat MCP](adr/sessions/0032-a-session-changes-agent-by-starting-a-new-conversation-and-the-new-agent-reads-the-old-one-through-the-chat-mcp.md)
+- [0033 An agent delegates to another agent through child sessions, and every delegation asks the person](adr/sessions/0033-an-agent-delegates-to-another-agent-through-child-sessions-and-every-delegation-asks-the-person.md)
+- [0035 A worktree's folder goes when its work is done, and its branch stays](adr/projects/0035-a-worktree-folder-goes-when-its-work-is-done-and-its-branch-stays.md)
+- [0036 A session delegates in every mode, and a child runs at its parent's permission level](adr/sessions/0036-a-session-delegates-in-every-mode-and-a-child-runs-at-its-parents-permission-level.md)
+- [0037 A new worktree is cut from the remote branch by default, and choosing a project fetches it](adr/projects/0037-a-new-worktree-is-cut-from-the-remote-branch-by-default-and-choosing-a-project-fetches-it.md)
+- [0038 A text generator is declared in `providers.json`, and the chat host writes session titles with it](adr/agents/0038-a-text-generator-is-declared-in-providers-json-and-the-chat-host-writes-session-titles-with-it.md)
+- [0042 A session's worktree folder is cleaned by default](adr/projects/0042-a-session-worktree-folder-is-cleaned-by-default.md)
 
 ### Projects
 
-- [0039 A project's actions are kept in Carrier and never read from the repository](adr/0039-a-projects-actions-are-kept-in-carrier-and-never-read-from-the-repository.md)
-- [0040 Deleting a project from disk is only for what Carrier made, goes to the Trash and stops at unsaved work](adr/0040-deleting-a-project-from-disk-is-only-for-what-carrier-made-and-goes-to-the-trash.md)
-- [0041 A project is an entry of `projects.json`, identified by its folder](adr/0041-a-project-is-an-entry-of-projects-json-identified-by-its-folder.md)
+- [0039 A project's actions are kept in Carrier and never read from the repository](adr/projects/0039-a-projects-actions-are-kept-in-carrier-and-never-read-from-the-repository.md)
+- [0040 Deleting a project from disk is only for what Carrier made, goes to the Trash and stops at unsaved work](adr/projects/0040-deleting-a-project-from-disk-is-only-for-what-carrier-made-and-goes-to-the-trash.md)
+- [0041 A project is an entry of `projects.json`, identified by its folder](adr/projects/0041-a-project-is-an-entry-of-projects-json-identified-by-its-folder.md)
 
 ### Dictation
 
-- [0023 Dictation runs on recognizers with a fixed list of downloadable speech models](adr/0023-dictation-runs-on-recognizers-with-a-fixed-list-of-downloadable-speech-models.md)
-- [0029 Global dictation is a widget that pastes once at the end and falls back to the clipboard](adr/0029-global-dictation-is-a-widget-that-pastes-once-and-falls-back-to-the-clipboard.md)
-- [0030 Dictation cleanup runs on local model servers through their API, not on agent CLIs](adr/0030-dictation-cleanup-runs-on-local-model-servers-through-their-api.md)
-- [0031 Dictation keeps a history, and its statistics live apart from it](adr/0031-dictation-keeps-a-history-and-its-statistics-live-apart-from-it.md)
+- [0023 Dictation runs on recognizers with a fixed list of downloadable speech models](adr/dictation/0023-dictation-runs-on-recognizers-with-a-fixed-list-of-downloadable-speech-models.md)
+- [0029 Global dictation is a widget that pastes once at the end and falls back to the clipboard](adr/dictation/0029-global-dictation-is-a-widget-that-pastes-once-and-falls-back-to-the-clipboard.md)
+- [0030 Dictation cleanup runs on local model servers through their API, not on agent CLIs](adr/dictation/0030-dictation-cleanup-runs-on-local-model-servers-through-their-api.md)
+- [0031 Dictation keeps a history, and its statistics live apart from it](adr/dictation/0031-dictation-keeps-a-history-and-its-statistics-live-apart-from-it.md)
 
 ### Usage
 
-- [0025 Usage collection and serving run inside the chat host](adr/0025-usage-runs-inside-the-chat-host.md)
-- [0026 Claude's usage reads the login from the macOS Keychain, and never refreshes it](adr/0026-claude-usage-reads-the-login-from-the-keychain-and-never-refreshes-it.md)
+- [0025 Usage collection and serving run inside the chat host](adr/usage/0025-usage-runs-inside-the-chat-host.md)
+- [0026 Claude's usage reads the login from the macOS Keychain, and never refreshes it](adr/usage/0026-claude-usage-reads-the-login-from-the-keychain-and-never-refreshes-it.md)
 
 ### The macOS app, install and updates
 
-- [0005 The engine runs on its own and the macOS app is a client of its control socket](adr/0005-engine-independent-of-the-macos-app.md)
-- [0007 Continue in Terminal: the engine sends a descriptor, the app builds and launches the command](adr/0007-continue-in-terminal-through-a-validated-descriptor.md)
-- [0017 Carrier is installed with a Homebrew tap, and the app is not signed with a Developer ID](adr/0017-carrier-is-installed-with-a-homebrew-tap-and-the-app-is-not-signed-with-a-developer-id.md)
-- [0022 The app updates itself with Sparkle, and the app brings the engine up to date through Homebrew](adr/0022-the-app-updates-itself-with-sparkle-and-the-engine-through-homebrew.md)
-- [0027 The embedded terminal runs in-process with GhosttyKit and restores layout across launches](adr/0027-embedded-terminal-runs-in-process-with-ghosttykit.md)
-- [0028 Epic Continue in Terminal runs inside an ephemeral embedded Ghostty drawer](adr/0028-epic-continue-in-terminal-runs-in-embedded-ghostty-drawer.md)
-- [0051 The app also ships as an Intel build, with its own zip and feed](adr/0051-the-app-also-ships-as-an-intel-build-with-its-own-zip-and-feed.md)
-- [0052 The macOS app is split into three targets by layer, and each target by area](adr/0052-the-macos-app-is-split-into-three-targets-by-layer-and-each-target-by-area.md)
-- [0053 A config file of the Carrier folder is written only by Carrier's Node code, through its owner process or `carrier config`](adr/0053-a-carrier-config-file-has-one-owner-process-and-a-front-end-writes-it-through-that-process.md)
-- [0054 The look, the words and the app's preferences have one neutral source, generated for each front-end](adr/0054-the-look-the-words-and-the-apps-preferences-have-one-neutral-source-generated-for-each-front-end.md)
-- [0055 A refusal, and every text Node sends a person, carries a code and its parameters, and its English words are the fallback](adr/0055-a-refusal-carries-a-code-and-its-parameters-and-its-english-words-are-the-fallback.md)
+- [0005 The engine runs on its own and the macOS app is a client of its control socket](adr/app/0005-engine-independent-of-the-macos-app.md)
+- [0007 Continue in Terminal: the engine sends a descriptor, the app builds and launches the command](adr/app/0007-continue-in-terminal-through-a-validated-descriptor.md)
+- [0017 Carrier is installed with a Homebrew tap, and the app is not signed with a Developer ID](adr/release/0017-carrier-is-installed-with-a-homebrew-tap-and-the-app-is-not-signed-with-a-developer-id.md)
+- [0022 The app updates itself with Sparkle, and the app brings the engine up to date through Homebrew](adr/release/0022-the-app-updates-itself-with-sparkle-and-the-engine-through-homebrew.md)
+- [0027 The embedded terminal runs in-process with GhosttyKit and restores layout across launches](adr/app/0027-embedded-terminal-runs-in-process-with-ghosttykit.md)
+- [0028 Epic Continue in Terminal runs inside an ephemeral embedded Ghostty drawer](adr/app/0028-epic-continue-in-terminal-runs-in-embedded-ghostty-drawer.md)
+- [0051 The app also ships as an Intel build, with its own zip and feed](adr/release/0051-the-app-also-ships-as-an-intel-build-with-its-own-zip-and-feed.md)
+- [0052 The macOS app is split into three targets by layer, and each target by area](adr/design/0052-the-macos-app-is-split-into-three-targets-by-layer-and-each-target-by-area.md)
+- [0053 A config file of the Carrier folder is written only by Carrier's Node code, through its owner process or `carrier config`](adr/config/0053-a-carrier-config-file-has-one-owner-process-and-a-front-end-writes-it-through-that-process.md)
+- [0054 The look, the words and the app's preferences have one neutral source, generated for each front-end](adr/design/0054-the-look-the-words-and-the-apps-preferences-have-one-neutral-source-generated-for-each-front-end.md)
+- [0055 A refusal, and every text Node sends a person, carries a code and its parameters, and its English words are the fallback](adr/design/0055-a-refusal-carries-a-code-and-its-parameters-and-its-english-words-are-the-fallback.md)
 
 ### The Carrier folder and its files
 
-- [0016 Carrier keeps everything in one folder, with a subfolder per process and three levels of configuration](adr/0016-carrier-keeps-everything-in-one-folder-with-a-subfolder-per-process.md)
-- [0020 Accounts live in a file both processes read](adr/0020-accounts-live-in-a-file-both-processes-read.md)
-- [0034 The Carrier folder keeps the edited files at the top and splits each process's folder by lifecycle](adr/0034-the-carrier-folder-keeps-edited-files-at-the-top-and-splits-each-process-folder-by-lifecycle.md)
+- [0016 Carrier keeps everything in one folder, with a subfolder per process and three levels of configuration](adr/config/0016-carrier-keeps-everything-in-one-folder-with-a-subfolder-per-process.md)
+- [0020 Accounts live in a file both processes read](adr/agents/0020-accounts-live-in-a-file-both-processes-read.md)
+- [0034 The Carrier folder keeps the edited files at the top and splits each process's folder by lifecycle](adr/config/0034-the-carrier-folder-keeps-edited-files-at-the-top-and-splits-each-process-folder-by-lifecycle.md)
 
 [adr/README.md](adr/README.md) has each one's status.
 

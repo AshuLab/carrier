@@ -1,7 +1,7 @@
 # src/chat
 
-The chat host ([ADR 0013](../../docs/adr/0013-the-chat-host-is-its-own-process-with-an-adapter-per-provider.md)), a process of its own that holds user sessions and shares no state with the engine.
-It starts from the Carrier folder alone ([ADR 0016](../../docs/adr/0016-carrier-keeps-everything-in-one-folder-with-a-subfolder-per-process.md)) and reads no engine config, only `providers.json` at each request through `account.ts` ([ADR 0020](../../docs/adr/0020-accounts-live-in-a-file-both-processes-read.md)).
+The chat host ([ADR 0013](../../docs/adr/sessions/0013-the-chat-host-is-its-own-process-with-an-adapter-per-provider.md)), a process of its own that holds user sessions and shares no state with the engine.
+It starts from the Carrier folder alone ([ADR 0016](../../docs/adr/config/0016-carrier-keeps-everything-in-one-folder-with-a-subfolder-per-process.md)) and reads no engine config, only `providers.json` at each request through `account.ts` ([ADR 0020](../../docs/adr/agents/0020-accounts-live-in-a-file-both-processes-read.md)).
 It keeps its state in `<folder>/chat/`, settings in `<folder>/chat.json` (paths: `config/places.ts`).
 
 Adding a request to `chat.sock`: follow the checklist in [`src/control/AGENTS.md`](../control/AGENTS.md#adding-a-request-to-a-socket).
@@ -23,7 +23,7 @@ Adding a `chat.json` field: [`src/config/AGENTS.md`](../config/AGENTS.md#adding-
   `refuseChild` refuses `send`, `resume`, `archive`, `delete`, `rename`, `regenerateTitle`, `setOption` and a switch on a child; `interrupt`, `close`, `answer`, `events` work as on any. It opens with `child: true` (Allow and Deny only) and its MCP token never gets `act`.
   `switchAgent` (ADR 0032) moves an idle session to another agent: the new conversation opens with the handoff as its `instructions`, the old one closes after that, so a refusal leaves the session as it was.
   The session is in `switching`, which every request and a second switch check; the old conversation is detached. The notice has `switched: { from, to }`, and later opens and resumes pass the handoff again.
-  `regenerateTitle` ([ADR 0038](../../docs/adr/0038-a-text-generator-is-declared-in-providers-json-and-the-chat-host-writes-session-titles-with-it.md)) rewrites one title with the text generator, `regenerateTitles` queues the first-line ones in the background, and `autoTitle` titles a session after its first ok reply.
+  `regenerateTitle` ([ADR 0038](../../docs/adr/agents/0038-a-text-generator-is-declared-in-providers-json-and-the-chat-host-writes-session-titles-with-it.md)) rewrites one title with the text generator, `regenerateTitles` queues the first-line ones in the background, and `autoTitle` titles a session after its first ok reply.
 - `text-generator.ts`, `title-prompt.ts`: the text-generator port (`realTextGenerator`, `FakeTextGenerator` in `fake.ts`) and the fixed title prompt.
 - `session-data.ts` and `pull-requests.ts`: the `diff` and `pr` of a `list` row, read in a background sweep ([spec](../../docs/specs/chat-host.md)).
 - `plan.ts`: the plan's request schema and step types.
@@ -51,7 +51,7 @@ Adding a `chat.json` field: [`src/config/AGENTS.md`](../config/AGENTS.md#adding-
 - `git.ts`: the port to the machine's git (`realGit` in production, `FakeGit` in `fake.ts`).
 - `workspace.ts`: what a folder is as a repository, and its fetch.
 - `names.ts` and `words.ts`: the worktree name, where a worktree lives (`worktreeDirectory`, `worktreePath`) and `checkWorktreeClash` (shared table: `macos/Tests/Fixtures/worktree-clash.json`).
-- `worktree.ts`: the creation, the delete preview and the removal of a session's worktree under `<folder>/chat/worktrees` ([ADR 0014](../../docs/adr/0014-a-session-worktree-lives-in-carriers-home-and-dies-with-its-session.md)).
+- `worktree.ts`: the creation, the delete preview and the removal of a session's worktree under `<folder>/chat/worktrees` ([ADR 0014](../../docs/adr/projects/0014-a-session-worktree-lives-in-carriers-home-and-dies-with-its-session.md)).
 - `transcript.ts`: the redact-then-cut limits.
 - `schema.ts`, `db.ts`, `migrations/`: its own database (`pnpm db:generate` generates both).
 

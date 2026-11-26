@@ -19,7 +19,7 @@ import { fixes, installFix } from './fixes.ts';
 
 /**
  * `fix` is one remedy line for the person at the terminal; only failures and warnings have one.
- * `detailCode` and `detailParams` stand for `detail`, `fixCode` and `fixParams` for `fix` ([ADR 0055](../../docs/adr/0055-a-refusal-carries-a-code-and-its-parameters-and-its-english-words-are-the-fallback.md)): each pair is there when its words are, and the words stay.
+ * `detailCode` and `detailParams` stand for `detail`, `fixCode` and `fixParams` for `fix` ([ADR 0055](../../docs/adr/design/0055-a-refusal-carries-a-code-and-its-parameters-and-its-english-words-are-the-fallback.md)): each pair is there when its words are, and the words stay.
  * `repo` and `profiles` are set together on the checks about one repo: the names under `config.profiles` the check stands for, never empty.
  */
 export type Check = {

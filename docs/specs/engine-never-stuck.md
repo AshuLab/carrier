@@ -27,7 +27,7 @@ One epic in three parts, in this order, because the attempt rule of the first is
 
 ### Never stuck
 
-The decisions are [ADR 0046](../adr/0046-an-unexpected-error-stops-the-epic-it-happened-on-and-the-poll-recovers-an-epic-that-lost-its-agent.md) and these.
+The decisions are [ADR 0046](../adr/orchestration/0046-an-unexpected-error-stops-the-epic-it-happened-on-and-the-poll-recovers-an-epic-that-lost-its-agent.md) and these.
 An unexpected error in an epic's path parks that epic in needs-human with the new kind `engine_error`, whose reason is the error as one redacted line, and never stops the engine or the other epics; an error about the whole engine still stops it, loudly.
 The poll recovers a `running` epic that has no live execution and nothing scheduled, with the same guards as a launch, at most three times in a row, and each recovery is an event; the count starts again when the epic's next execution finishes or its stage changes, and the next failure parks the epic in `engine_error`.
 An epic whose issue answers 404 or 410 while its repo answers normally is cancelled with the reason that the issue no longer exists, so the engine starts and its repo's queue is not blocked; when the repo does not answer normally (GitHub also answers 404 for a repo the token lost access to) it is a refusal of the repo, shown with its reason and tried again at the next check, and no epic of it is cancelled.
@@ -38,7 +38,7 @@ Smaller, with no decision needed: the recovery gets a branch for `timed_out` and
 ### Recover and resume from a stage
 
 `recover` is a per-epic request that makes the engine continue one running epic whose agent is not alive, from its real state, as it does at start.
-It refuses when an execution of that epic is really alive or the epic is not running, and no request sets a status, stage or round the caller picked ([ADR 0044](../adr/0044-recover-continues-an-epic-from-its-real-state-and-no-command-sets-one.md)).
+It refuses when an execution of that epic is really alive or the epic is not running, and no request sets a status, stage or round the caller picked ([ADR 0044](../adr/orchestration/0044-recover-continues-an-epic-from-its-real-state-and-no-command-sets-one.md)).
 Resuming an epic in needs-human at `review` or `fix` keeps its round, pull request, worktree and blockers, where today it always restarts from ship and resets the rounds; resuming at `ship` stays as it is.
 When the epic stopped on the review limit, resuming gives it more rounds counted from the current one, by default as many as `maxReviews`, and a flag adjusts that number, so the app's promise of new rounds stays true.
 It needs the pull request to be open and its head to be the one stored, and refuses otherwise.
@@ -50,7 +50,7 @@ The CLI (`carrier recover <repo>#<issue>`, `carrier restart --from`) and, later,
 
 ### Wake up when the quota comes back
 
-The decision is [ADR 0049](../adr/0049-a-quota-stop-wakes-up-by-itself-when-the-provider-says-the-window-is-back.md).
+The decision is [ADR 0049](../adr/orchestration/0049-a-quota-stop-wakes-up-by-itself-when-the-provider-says-the-window-is-back.md).
 It is off until the person turns it on with `limits.autoResume`, because it spends credits with nobody watching.
 An epic that stops in needs-human with the kind `usage_limit` keeps that status, and when the provider tells when the exhausted window comes back it also keeps `resumeAt`, that time, shown in the panel and in the CLI as when it resumes.
 The time comes from the quota probes `carrier usage` already uses, for the account of the option that ran out: the latest `resetsAt` of the windows that are at 100%, and, when the epic had failover options, the earliest of those over the options it tried.

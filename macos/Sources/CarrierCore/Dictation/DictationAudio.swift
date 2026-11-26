@@ -1,6 +1,6 @@
 import Foundation
 
-// The audio of a dictation, for the history that keeps it (docs/adr/0031-dictation-keeps-a-history-and-its-statistics-live-apart-from-it.md): what the
+// The audio of a dictation, for the history that keeps it (docs/adr/dictation/0031-dictation-keeps-a-history-and-its-statistics-live-apart-from-it.md): what the
 // session gathers while it listens and the WAV file the history writes from it, which any player reads.
 
 /// What a dictation heard: mono samples at the microphone's rate.

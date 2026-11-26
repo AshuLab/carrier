@@ -31,14 +31,14 @@ Both build on what the first epic left: the attempt rule (only the executions si
 
 ### A review to trust
 
-The decision is [ADR 0047](../adr/0047-a-review-is-tied-to-the-head-it-was-given-and-a-moved-head-is-reviewed-again.md), with the rules below.
+The decision is [ADR 0047](../adr/review/0047-a-review-is-tied-to-the-head-it-was-given-and-a-moved-head-is-reviewed-again.md), with the rules below.
 The head a review was given is the commit its checkout is at, which the checkout reports, and not the head the epic stored: the two differ when someone pushed in between.
 The review's prompt tells the reviewer that commit, and the result must carry it as its head or it is an invalid result and is retried.
 When the head GitHub has at the end of a review is not that commit, the engine stores the new head, reviews again without counting a round, at most twice in a row, and then stops the epic in needs-human with `pr_invalid`; the count of repeats in a row starts again when a review completes on its own head, and a new attempt clears it.
 The result of a review of a head that was superseded is kept as an execution but is never read: the blockers and observations of the next round never come from it.
 A resume at `review` after the head moved adopts the new head, since the review looks at it anyway; a resume at `fix` still refuses, because the blockers it hands to the author belong to the head the epic stored.
 
-The decision on authentication is [ADR 0050](../adr/0050-one-authentication-signal-is-a-technical-failure-of-its-epic-and-a-profile-stops-when-it-repeats.md).
+The decision on authentication is [ADR 0050](../adr/agents/0050-one-authentication-signal-is-a-technical-failure-of-its-epic-and-a-profile-stops-when-it-repeats.md).
 A first authentication signal of a profile ends that execution as a technical failure, retried like any other, and the profile's other epics go on; a second signal of the same profile, in the retry or in another epic, stops every epic of the profile as today, and any execution of the profile that ends with no signal clears the memory.
 On `agy` the plain text `Authentication required` counts only when it comes on stderr, and the structured result that says authentication failed or timed out keeps counting wherever it comes.
 The real message of an authentication error is kept with the epic as the reason it stopped, and not only in `stderr.log`.

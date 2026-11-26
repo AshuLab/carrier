@@ -26,10 +26,10 @@ _Avoid_: process success/failure, CLI state.
 **Human intervention** - State of an epic that is stopped (`carrier:status:needs-human`) by `needs_human`, timeout, exhausted limit, inconclusive review or authentication error. Diego resolves it outside Carrier; Carrier takes it back only when he puts `solve:epic:ready` on the issue again.
 _Avoid_: error, failure, pause.
 
-**Control socket** - Local channel (a Unix socket, `engine/state/control.sock` in the Carrier folder) a running Carrier opens so another process can watch it and drive it: the snapshot and the agent's output come out, and pause, check now and stop go in. The macOS app is a client of it. See [0005](../adr/0005-engine-independent-of-the-macos-app.md).
+**Control socket** - Local channel (a Unix socket, `engine/state/control.sock` in the Carrier folder) a running Carrier opens so another process can watch it and drive it: the snapshot and the agent's output come out, and pause, check now and stop go in. The macOS app is a client of it. See [0005](../adr/app/0005-engine-independent-of-the-macos-app.md).
 _Avoid_: API, daemon, IPC.
 
-**Slice progress** - How many of an epic's slices (its sub-issues) are closed out of the total, read from GitHub on every poll, when the agent runs a command that changes the slices, and once a minute for live epics. The list behind the count is kept in SQLite as a cache of GitHub, never as authority ([0008](../adr/0008-slices-are-kept-in-sqlite-as-a-cache-of-github.md)); the agent running `ship` works the slices inside its own session.
+**Slice progress** - How many of an epic's slices (its sub-issues) are closed out of the total, read from GitHub on every poll, when the agent runs a command that changes the slices, and once a minute for live epics. The list behind the count is kept in SQLite as a cache of GitHub, never as authority ([0008](../adr/orchestration/0008-slices-are-kept-in-sqlite-as-a-cache-of-github.md)); the agent running `ship` works the slices inside its own session.
 _Avoid_: ticket progress, issue status.
 
 **Lane** - One of the up to three parallel worktrees inside a `ship` execution (`<epic worktree>--lane-N`). A lane is a place, not a worker: it is reused, so lane 1 builds one slice and then another, and the subagent that builds a slice runs in a lane. Solve decides the lanes; the engine does not know them, and a lane has no session of its own, so it cannot be resumed apart from the ship session.
@@ -66,7 +66,7 @@ _Avoid_: restart (Carrier keeps running and nothing is interrupted), refresh, ho
 
 **Label role** - Each label Carrier reads or writes on an epic's issue has a role, and the config names the label of each role in `labels`: `epic` and `ready` are written by Solve and by people, `running`, `readyForTest` and `needsHuman` by Carrier.
 No two roles, stages or reasons may share a label.
-See [ADR 0043](../adr/0043-labels-are-named-by-who-writes-them-and-every-one-is-configurable.md).
+See [ADR 0043](../adr/orchestration/0043-labels-are-named-by-who-writes-them-and-every-one-is-configurable.md).
 _Avoid_: tag, state label (a status label is only the three Carrier writes).
 
 **Status label** - The label Carrier puts on an epic's issue to mirror its status: `running`, `ready for test` or `needs human`, by default `carrier:status:*`.
@@ -84,7 +84,7 @@ _Avoid_: cause label, error label.
 **Recover (an epic)** - Asking the engine to continue one running epic whose agent is not alive, from its real state: it reads the epic's last execution and GitHub and goes on from there, as the engine does at start.
 It refuses when an execution of that epic is really alive, and it never sets a status, stage or round the caller picked.
 An epic in needs-human is resumed, not recovered.
-See [ADR 0044](../adr/0044-recover-continues-an-epic-from-its-real-state-and-no-command-sets-one.md).
+See [ADR 0044](../adr/orchestration/0044-recover-continues-an-epic-from-its-real-state-and-no-command-sets-one.md).
 _Avoid_: unstick, fix the state, reset, retry (an execution retry is the automatic one after a technical failure).
 
 **Resume from a stage** - Resuming an epic at `review` or `fix` instead of `ship`, keeping its round, pull request, worktree and blockers.
@@ -95,7 +95,7 @@ _Avoid_: restart from review, rewind.
 **Stage skill** - The skill a stage invokes, named in the `skills` block of the config (a repo's `skills` replaces what it names): by default Solve's `ship`, `code-review` with `code-post` to publish, and `code-resolve`.
 The prompts of ship, review and fix invoke the names the epic was saved with, so a reload does not change a running epic and a restart from ship takes the new ones.
 Only the name is configurable; Carrier keeps the prompt around it and the result contract, and the skill has to leave what the engine checks, above all a linked worktree and an open pull request that closes the epic after ship.
-See [ADR 0045](../adr/0045-each-stage-runs-a-skill-the-config-names-and-carrier-keeps-the-contract.md).
+See [ADR 0045](../adr/orchestration/0045-each-stage-runs-a-skill-the-config-names-and-carrier-keeps-the-contract.md).
 _Avoid_: command, plugin, custom prompt (the prompt is not configurable).
 
 **Attempt (of an epic)** - The stretch of an epic since its current start: the engine sets its start when it reserves the epic, and a resume starts a new one.
@@ -105,12 +105,12 @@ _Avoid_: run, try, session (a session belongs to an agent, not to the epic).
 
 **Engine error** - The kind of stop (`engine_error`) for an epic whose own path hit an unexpected error of the engine, or that the poll recovered three times in a row without success.
 The reason is the error in one redacted line, and the epic can be resumed.
-See [ADR 0046](../adr/0046-an-unexpected-error-stops-the-epic-it-happened-on-and-the-poll-recovers-an-epic-that-lost-its-agent.md).
+See [ADR 0046](../adr/orchestration/0046-an-unexpected-error-stops-the-epic-it-happened-on-and-the-poll-recovers-an-epic-that-lost-its-agent.md).
 _Avoid_: crash, internal error.
 
 **Wake-up (on quota)** - An epic stopped in `usage_limit` that resumes by itself once the provider's probe says the exhausted window is back, from the stage where it stopped.
 It is off until `limits.autoResume` is set, saves the time as `resumeAt`, checks the probe again before resuming, and does nothing when the wait is longer than `limits.autoResumeMaxHours`.
-See [ADR 0049](../adr/0049-a-quota-stop-wakes-up-by-itself-when-the-provider-says-the-window-is-back.md).
+See [ADR 0049](../adr/orchestration/0049-a-quota-stop-wakes-up-by-itself-when-the-provider-says-the-window-is-back.md).
 _Avoid_: auto-retry (a retry is the automatic new execution after a technical failure), auto-restart, resume by timer.
 
 **Cancelled before it started** - An epic cancelled with no execution yet, because its `ready` label was removed or its issue closed; it goes back to the queue when `ready` returns, with nothing of the cancel left on it.

@@ -41,7 +41,7 @@ Only if you use it as the author or the reviewer. It must be installed and logge
 
 ## Safety net
 
-The agents run on your machine with your permissions ([ADR 0004](adr/0004-agents-run-on-host-with-terminal-preferences.md)). Turn on **branch protection** on the repos you point Carrier at: it never merges the final PR, but the agents can push branches.
+The agents run on your machine with your permissions ([ADR 0004](adr/agents/0004-agents-run-on-host-with-terminal-preferences.md)). Turn on **branch protection** on the repos you point Carrier at: it never merges the final PR, but the agents can push branches.
 
 ## Check it
 

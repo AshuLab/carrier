@@ -25,7 +25,7 @@ Still read only at start: the Carrier folder, the `--config` path and the one-in
 
 ## Who writes each file
 
-One process writes each of the four config files, and a front-end (the Mac app) changes one through that process, a request at a time ([ADR 0053](adr/0053-a-carrier-config-file-has-one-owner-process-and-a-front-end-writes-it-through-that-process.md)).
+One process writes each of the four config files, and a front-end (the Mac app) changes one through that process, a request at a time ([ADR 0053](adr/config/0053-a-carrier-config-file-has-one-owner-process-and-a-front-end-writes-it-through-that-process.md)).
 
 | File | Written by | Requests (the `config` capability of its socket) |
 |---|---|---|
@@ -53,7 +53,7 @@ A file broken by hand is fixed by hand: the engine and the chat host refuse to s
 
 Carrier keeps everything it owns in one folder: `~/.carrier/`, or the one in `CARRIER_HOME`. The folder is only that: no key of the config and no `--config` changes it. `--config <file>` only chooses which config file to read (by default `<folder>/engine.json`); to run a second Carrier, give it a second `CARRIER_HOME`.
 
-The top of the folder holds only the files you edit; each process has its own folder next to them, and only that process writes in it ([ADR 0034](adr/0034-the-carrier-folder-keeps-edited-files-at-the-top-and-splits-each-process-folder-by-lifecycle.md)).
+The top of the folder holds only the files you edit; each process has its own folder next to them, and only that process writes in it ([ADR 0034](adr/config/0034-the-carrier-folder-keeps-edited-files-at-the-top-and-splits-each-process-folder-by-lifecycle.md)).
 
 ```
 <folder>/
@@ -182,7 +182,7 @@ A change applies to the next check after a reload: an epic already queued stays 
 
 An AI provider represents an account/login setup for an AI harness (e.g. Claude Code with a specific `configDir`, Antigravity, or Codex). A provider defines the account and installation independently of the model.
 
-The accounts live in `providers.json` in the Carrier folder (`~/.carrier`, or `CARRIER_HOME`), next to `engine.json` and wherever `--config` points: [ADR 0020](adr/0020-accounts-live-in-a-file-both-processes-read.md). It is optional (without it there is one account per harness, see below), it is read when the engine starts and again on a [reload](#changing-the-config-while-carrier-runs), and a file that does not match stops the start, or is refused by the reload, with the key named. An `engine.json` that still has `providers` is refused and told to move it here.
+The accounts live in `providers.json` in the Carrier folder (`~/.carrier`, or `CARRIER_HOME`), next to `engine.json` and wherever `--config` points: [ADR 0020](adr/agents/0020-accounts-live-in-a-file-both-processes-read.md). It is optional (without it there is one account per harness, see below), it is read when the engine starts and again on a [reload](#changing-the-config-while-carrier-runs), and a file that does not match stops the start, or is refused by the reload, with the key named. An `engine.json` that still has `providers` is refused and told to move it here.
 
 ```json
 {
@@ -464,7 +464,7 @@ A profile names a GitHub identity. There are two kinds and neither holds a secre
 - `{ "kind": "forge", "agent": "<name in your Agent Forge registry>" }`: a bot (a GitHub App) through [Agent Forge](https://github.com/AshuLab/agent-forge). Each run gets a short-lived token with the minimum scope.
 - `{ "kind": "gh" }`: your own `gh` login.
 
-There is no `identities` key. An epic is **shared** when its author and reviewer resolve to the same account, and **separate** when they differ; nothing in the file says which, and the config and `carrier doctor` never require them to differ. Two names for the same bot and your own `gh` login on both roles are shared; two different bots, or a bot and your login, are separate. A shared epic's agents sign what they post (`🤖 <role> via Carrier`), because everything then comes from one account, and both roles act with everything that login's token can do. A config that still has `identities` is refused: delete the key. `carrier doctor` still checks that each profile can get a token and read each repo. See [ADR 0011](adr/0011-author-and-reviewer-may-share-one-github-identity-signed-visibly.md) and [ADR 0021](adr/0021-an-epic-starts-on-its-three-roles-and-a-roles-failover-chain-names-a-provider-and-a-model.md).
+There is no `identities` key. An epic is **shared** when its author and reviewer resolve to the same account, and **separate** when they differ; nothing in the file says which, and the config and `carrier doctor` never require them to differ. Two names for the same bot and your own `gh` login on both roles are shared; two different bots, or a bot and your login, are separate. A shared epic's agents sign what they post (`🤖 <role> via Carrier`), because everything then comes from one account, and both roles act with everything that login's token can do. A config that still has `identities` is refused: delete the key. `carrier doctor` still checks that each profile can get a token and read each repo. See [ADR 0011](adr/agents/0011-author-and-reviewer-may-share-one-github-identity-signed-visibly.md) and [ADR 0021](adr/agents/0021-an-epic-starts-on-its-three-roles-and-a-roles-failover-chain-names-a-provider-and-a-model.md).
 
 ## Per-repo overrides
 
@@ -512,9 +512,9 @@ The chat host and `carrier chat` start from the Carrier folder alone (`~/.carrie
 | `logLevel` | `info` | `debug`, `info`, `warn` or `error`. Read when the host starts. |
 | `archiveAfterDays` | `15` | Days of no activity after which a session is archived: a positive whole number, or `"never"`. A wrong value (`0`, a negative, a fraction, a text such as `"15"`, `null`) stops the host naming the key. See [The session clock](#the-session-clock). |
 | `deleteAfterDays` | `30` | Days of no activity after which an archived session is deleted, with its worktree and branch: a positive whole number, or `"never"`. It must be greater than `archiveAfterDays` when both are numbers (the error is reported on `deleteAfterDays`); with `"never"` on either side there is no such rule. Same checks as `archiveAfterDays`. See [The session clock](#the-session-clock). |
-| `worktreeStart` | `remote` | Where a new session's worktree is cut from when its plan does not say: `remote` is `origin/<branch>` as of the last fetch, `local` is the local branch. Any other value or type stops the host naming the key. A branch that exists only locally is cut from the local branch either way, and a branch that already carries `origin/` is cut from that ref. A plan's own `worktree.startFrom` wins over it. Read at each plan, so a change applies to the next session with no restart, and a file that is wrong keeps the last value that was good. See [ADR 0037](adr/0037-a-new-worktree-is-cut-from-the-remote-branch-by-default-and-choosing-a-project-fetches-it.md). |
+| `worktreeStart` | `remote` | Where a new session's worktree is cut from when its plan does not say: `remote` is `origin/<branch>` as of the last fetch, `local` is the local branch. Any other value or type stops the host naming the key. A branch that exists only locally is cut from the local branch either way, and a branch that already carries `origin/` is cut from that ref. A plan's own `worktree.startFrom` wins over it. Read at each plan, so a change applies to the next session with no restart, and a file that is wrong keeps the last value that was good. See [ADR 0037](adr/projects/0037-a-new-worktree-is-cut-from-the-remote-branch-by-default-and-choosing-a-project-fetches-it.md). |
 | `idleCloseMinutes` | `10` | Minutes after which the host closes the agent of an idle session that no request names (reading its events, sending to it and changing its options name it; listing the sessions does not): `10`, `30` or `60`. The session stays in the list as asleep and wakes where it left off with the next message; one that works, waits for an approval or waits for a task it started is never closed for being idle. Any other value or type stops the host naming the key. The host takes a change of the file with no restart, at the next listing of the sessions (the app lists them every few seconds) or hourly clock pass, and uses it from the next time a session is named; a session already waiting keeps the time it was armed with until then. |
-| `worktreeCleanup` | `afterPrMerged: true`, `afterInactiveDays: 14` | When the clock removes the folder of a session's worktree and keeps its branch. The whole folder goes, including every file git ignores (build output and dependencies, but also a local `.env` or config you kept inside the worktree); a folder with uncommitted or untracked files, or whose HEAD is detached, is kept. The rules: `afterPrMerged` (`true` or `false`) once the session's pull request is merged, `afterInactiveDays` (a positive whole number or `"never"`, same checks as `archiveAfterDays`) once the session is archived and has had no activity for that many days (the clock of `archiveAfterDays` and `deleteAfterDays`: it counts from the last activity, not from the archiving). To turn it all off, set `"afterPrMerged": false` and `"afterInactiveDays": "never"`. See [ADR 0042](adr/0042-a-session-worktree-folder-is-cleaned-by-default.md) and [The session clock](#the-session-clock). |
+| `worktreeCleanup` | `afterPrMerged: true`, `afterInactiveDays: 14` | When the clock removes the folder of a session's worktree and keeps its branch. The whole folder goes, including every file git ignores (build output and dependencies, but also a local `.env` or config you kept inside the worktree); a folder with uncommitted or untracked files, or whose HEAD is detached, is kept. The rules: `afterPrMerged` (`true` or `false`) once the session's pull request is merged, `afterInactiveDays` (a positive whole number or `"never"`, same checks as `archiveAfterDays`) once the session is archived and has had no activity for that many days (the clock of `archiveAfterDays` and `deleteAfterDays`: it counts from the last activity, not from the archiving). To turn it all off, set `"afterPrMerged": false` and `"afterInactiveDays": "never"`. See [ADR 0042](adr/projects/0042-a-session-worktree-folder-is-cleaned-by-default.md) and [The session clock](#the-session-clock). |
 
 A session never works inside `<folder>/engine/`, nor through a symlink into it. The engine's config has no `chat` section: it rejects one like any unknown key.
 
@@ -530,7 +530,7 @@ The chat host applies the two ages in one pass when it starts and again every ho
 - **What is never deleted.** The clones in the [projects folder](#projects-folder) and anything else in it.
 - **Changing it.** Edit the two keys here, or in the macOS app under Settings, Sessions: each age is a number of days or Never, and it is saved as you change it, and the page says in dates when a session left alone from today is archived and deleted. The host reads the file at each pass, so no restart is needed; if the file is wrong at that moment the pass is skipped and the log says why. The Archive page shows when each archived session will go ("Deletes in N days", "Deletes soon" once due) or "Kept because its worktree has unsaved work". If a session is kept, see [Troubleshooting](troubleshooting.md#an-archived-session-is-kept-and-not-deleted).
 
-The reasons are in [ADR 0019](adr/0019-sessions-age-by-the-clock-and-an-automatic-delete-never-removes-unsaved-work.md).
+The reasons are in [ADR 0019](adr/sessions/0019-sessions-age-by-the-clock-and-an-automatic-delete-never-removes-unsaved-work.md).
 
 ## Chat agents
 
@@ -549,7 +549,7 @@ A chat applies every key of its account that starts the CLI: `configDir` and `co
 
 ## Projects
 
-The projects you work on live in `projects.json` in the Carrier folder (`~/.carrier`, or `CARRIER_HOME`), next to `engine.json`, `chat.json` and `providers.json`: [ADR 0041](adr/0041-a-project-is-an-entry-of-projects-json-identified-by-its-folder.md).
+The projects you work on live in `projects.json` in the Carrier folder (`~/.carrier`, or `CARRIER_HOME`), next to `engine.json`, `chat.json` and `providers.json`: [ADR 0041](adr/projects/0041-a-project-is-an-entry-of-projects-json-identified-by-its-folder.md).
 The chat host writes it (the app asks it to, [who writes each file](#who-writes-each-file)) and reads the file again just before it writes, so you can edit it by hand while Carrier runs.
 It is optional: without it there are no projects.
 A file that does not match is reported with the field named and the host does not write over it.

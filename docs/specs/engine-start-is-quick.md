@@ -39,7 +39,7 @@ What was cut: raising the app's wait from 15 to about 60 seconds, because it is 
 
 ## Out of scope
 
-The polling cycle: what it reads for every repo, which of that is only for display (progress, slices, pull request blocks, [ADR 0008](../adr/0008-slices-are-kept-in-sqlite-as-a-cache-of-github.md)), and reading repos in parallel with a limit. It scales with the repos too, but it runs in the background after start and has its own ticket and its own measurements.
+The polling cycle: what it reads for every repo, which of that is only for display (progress, slices, pull request blocks, [ADR 0008](../adr/orchestration/0008-slices-are-kept-in-sqlite-as-a-cache-of-github.md)), and reading repos in parallel with a limit. It scales with the repos too, but it runs in the background after start and has its own ticket and its own measurements.
 
 What the app and `carrier start` show while Carrier is starting: the 15-second cap, a "starting" state, the text of the failure. It waits until the engine side is done and the start time is known again.
 

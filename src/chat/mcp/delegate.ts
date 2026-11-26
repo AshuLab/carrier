@@ -4,7 +4,7 @@ import { chatCaps } from '../transcript.ts';
 
 const name = z.string().min(1).max(100);
 
-/** Starts a child session for another configured agent. It needs the `act` capability, which a child never has ([ADR 0033](../../../docs/adr/0033-an-agent-delegates-to-another-agent-through-child-sessions-and-every-delegation-asks-the-person.md)). */
+/** Starts a child session for another configured agent. It needs the `act` capability, which a child never has ([ADR 0033](../../../docs/adr/sessions/0033-an-agent-delegates-to-another-agent-through-child-sessions-and-every-delegation-asks-the-person.md)). */
 export const delegateStart = defineTool({
   name: 'delegate_start',
   description:

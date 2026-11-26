@@ -22,7 +22,7 @@ Where to look: the panel in the terminal shows each epic's stage, its history, r
 
 ### macOS will not open the app
 
-The cask clears the quarantine attribute after it downloads the app, because the app is signed ad hoc and not notarized ([ADR 0017](adr/0017-carrier-is-installed-with-a-homebrew-tap-and-the-app-is-not-signed-with-a-developer-id.md)). If macOS still says it cannot open or verify `Carrier.app` (for example you copied the app from somewhere else, or the step did not run), clear the attribute by hand and open it again:
+The cask clears the quarantine attribute after it downloads the app, because the app is signed ad hoc and not notarized ([ADR 0017](adr/release/0017-carrier-is-installed-with-a-homebrew-tap-and-the-app-is-not-signed-with-a-developer-id.md)). If macOS still says it cannot open or verify `Carrier.app` (for example you copied the app from somewhere else, or the step did not run), clear the attribute by hand and open it again:
 
 ```bash
 xattr -dr com.apple.quarantine /Applications/Carrier.app
@@ -267,5 +267,5 @@ Look at what was kept and delete it by hand when it is no longer needed.
 Logs and sessions of a merged or cancelled epic are deleted 30 days after the merge or the close.
 An epic still waiting in ready-for-test keeps them.
 SQLite (`<folder>/engine/state/carrier.db`) is never deleted by Carrier.
-A chat session's worktree folder is removed by the cleanup above, and an epic's worktrees when the epic is merged or cancelled ([ADR 0035](adr/0035-a-worktree-folder-goes-when-its-work-is-done-and-its-branch-stays.md)).
+A chat session's worktree folder is removed by the cleanup above, and an epic's worktrees when the epic is merged or cancelled ([ADR 0035](adr/projects/0035-a-worktree-folder-goes-when-its-work-is-done-and-its-branch-stays.md)).
 Each agent run's `stdout.log` and `stderr.log` hold at most 50 MB: past that the file becomes `stdout.log.1` and a new one starts, so the older output of a very long run is the part that is dropped.

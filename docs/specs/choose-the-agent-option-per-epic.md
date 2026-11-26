@@ -1,6 +1,6 @@
 # An epic runs on the agent option you choose, and can switch when one runs out of credits
 
-Status: implemented (v0.1.0), superseded in part by ADR 0021; the choice at the start of an epic was removed and failover took another shape, see [ADR 0021](../adr/0021-an-epic-starts-on-its-three-roles-and-a-roles-failover-chain-names-a-provider-and-a-model.md). An epic now starts at once on its roles.
+Status: implemented (v0.1.0), superseded in part by ADR 0021; the choice at the start of an epic was removed and failover took another shape, see [ADR 0021](../adr/agents/0021-an-epic-starts-on-its-three-roles-and-a-roles-failover-chain-names-a-provider-and-a-model.md). An epic now starts at once on its roles.
 
 ## Problem
 
@@ -31,7 +31,7 @@ A repo's `agents.<role>` can still override `profile`, `option` and `persona`. A
 
 ### The choice
 
-The epic stores one option name per role, and the definitions are frozen with the rest of the effective config when the epic is reserved, so editing the config later moves no running epic. An epic starts at once on its roles, however many options are declared: nothing waits for a choice. (The wait this spec first described, with its `limits.optionChoiceSeconds`, its countdown in the panel and its `o` and `a` keys, was removed by [ADR 0021](../adr/0021-an-epic-starts-on-its-three-roles-and-a-roles-failover-chain-names-a-provider-and-a-model.md).)
+The epic stores one option name per role, and the definitions are frozen with the rest of the effective config when the epic is reserved, so editing the config later moves no running epic. An epic starts at once on its roles, however many options are declared: nothing waits for a choice. (The wait this spec first described, with its `limits.optionChoiceSeconds`, its countdown in the panel and its `o` and `a` keys, was removed by [ADR 0021](../adr/agents/0021-an-epic-starts-on-its-three-roles-and-a-roles-failover-chain-names-a-provider-and-a-model.md).)
 
 A stopped epic is resumed from the terminal with a new command, `carrier restart <owner/repo>#<issue>`, because `carrier resume` already means taking the queue off pause and `retry` is the glossary's word for repeating an execution. It does what `resumeEpic` does, which today only the macOS app can ask for, and takes `--author <option>` and `--reviewer <option>`; with neither flag, in a terminal, it asks for each role with the role's current option preselected and the one that failed marked, and with no terminal it keeps the current options. It prints the engine's reason when it is refused and exits 1, as the other commands do when Carrier cannot do what was asked. Restarting with the same option continues the agent's session with `--resume`. Resuming with another one starts a new session of the role and rebuilds its context from SQLite and GitHub, the way a lost session is rebuilt today, in the epic's existing worktree and pull request. The conversation of the agent is lost, the work is not.
 
@@ -55,7 +55,7 @@ Each execution records the option it ran on and its `configDir`, next to the har
 
 Antigravity has no environment variable for its config folder: its state lives under `~/.gemini/antigravity-cli` and follows `HOME`, and `~/.antigravity` belongs to the IDE. So an Antigravity option cannot have a `configDir`, the loader refuses it, and two Antigravity logins are not supported.
 
-What lost. A global active account, because a running epic would change account in silence and concurrent epics could not differ. Choosing only a Claude folder, because it does not cover credits left on another provider. Keeping `harness` and `model` in `agents.<role>` and adding an `options` block next to them, because it leaves two ways to say the same thing for the sake of not editing one file. Failover to any option, because it would send a private repo's code to another provider and spend another account unasked. Copying the session file between folders, because it does not cross harnesses and the rebuild exists. Remembering exhausted options across epics, because the reset time is only text and the memory would go stale. The decisions are in [ADR 0014](../adr/0014-an-epic-chooses-its-agent-option-per-role-and-failover-is-opt-in.md).
+What lost. A global active account, because a running epic would change account in silence and concurrent epics could not differ. Choosing only a Claude folder, because it does not cover credits left on another provider. Keeping `harness` and `model` in `agents.<role>` and adding an `options` block next to them, because it leaves two ways to say the same thing for the sake of not editing one file. Failover to any option, because it would send a private repo's code to another provider and spend another account unasked. Copying the session file between folders, because it does not cross harnesses and the rebuild exists. Remembering exhausted options across epics, because the reset time is only text and the memory would go stale. The decisions are in [ADR 0014](../adr/agents/0014-an-epic-chooses-its-agent-option-per-role-and-failover-is-opt-in.md).
 
 ## Scope
 
@@ -74,7 +74,7 @@ What lost. A global active account, because a running epic would change account 
 
 ## Decisions
 
-- The shape of the config, the choice, and failover are in [ADR 0014](../adr/0014-an-epic-chooses-its-agent-option-per-role-and-failover-is-opt-in.md); the sketch above is the shape of the files.
+- The shape of the config, the choice, and failover are in [ADR 0014](../adr/agents/0014-an-epic-chooses-its-agent-option-per-role-and-failover-is-opt-in.md); the sketch above is the shape of the files.
 - An option's `configDir` must be an absolute path after `~` is expanded and only a Claude or Codex option may have one; `provider` keeps its current rule: Antigravity cannot have one. `failover.order` has no duplicates and every name must be declared. An unknown option name in `agents` or in a repo override is a load error, as an unknown profile is.
 - `epics` gets `authorOption` and `reviewerOption`; `executions` gets `option` and `configDir`; `needsHumanKinds` gets `usage_limit`. All are nullable so existing rows keep reading.
 - An execution resumes with `--resume` only when the session was written by the option the role runs on now; otherwise it takes the path of `session_lost`.

@@ -98,7 +98,7 @@ export const capabilities: Capability[] = ['sessions', 'events', 'epic', 'files'
 export type Hello = { event: 'hello'; protocol: 1; pid: number; startedAt: number; version: string; capabilities: (Capability | ChatCapability)[] };
 export type Reply = { id: number; ok: true; data?: unknown } | { id: number | null; ok: false; error: string; code?: string; params?: TextParams };
 
-/** A refused reply: the words in `error` as always, the code and its parameters beside them ([ADR 0055](../../docs/adr/0055-a-refusal-carries-a-code-and-its-parameters-and-its-english-words-are-the-fallback.md)). Also what the chat socket answers for its fixed errors. */
+/** A refused reply: the words in `error` as always, the code and its parameters beside them ([ADR 0055](../../docs/adr/design/0055-a-refusal-carries-a-code-and-its-parameters-and-its-english-words-are-the-fallback.md)). Also what the chat socket answers for its fixed errors. */
 export const refused = (id: number | null, code: string, error: string, params: TextParams = {}): Reply => ({ id, ok: false, error, code, params });
 
 /** What the socket does for the client: the same controls the interactive panel's keys use. */

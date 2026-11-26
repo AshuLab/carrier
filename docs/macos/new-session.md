@@ -13,7 +13,7 @@ Cancel, while it runs, stops the step, deletes the session with its worktree (a 
 When the person picks a branch other than the one checked out in the folder (and no worktree), the block under the message box that says what sending does has a step for it, "Change the folder's branch" ("Switches the folder from main to feat/x when you send"), after the repository's update (`NewSessionModel.sendSteps`, `branchChange`); a fresh clone follows the pick and has no such step.
 A folder that already existed with uncommitted changes is never switched to the picked branch: the `checkout` step fails and says so, see [Troubleshooting](../troubleshooting.md#a-new-session-does-not-start).
 A repository is added to the engine's `repos` only once the agent has answered.
-The reasons are in [the spec](../specs/session-prepared-on-first-message.md) and [0018](../adr/0018-a-new-session-is-a-plan-and-the-host-prepares-it-when-the-first-message-is-sent.md); the details follow.
+The reasons are in [the spec](../specs/session-prepared-on-first-message.md) and [0018](../adr/sessions/0018-a-new-session-is-a-plan-and-the-host-prepares-it-when-the-first-message-is-sent.md); the details follow.
 
 ## The draft and the workspace
 
@@ -60,7 +60,7 @@ Sending in a worktree puts `branch` (the one the worktree starts from) and `work
 
 ## Where a worktree starts
 
-A new worktree is cut from the remote copy of the branch by default, and the person can cut it from the local branch instead ([0037](../adr/0037-a-new-worktree-is-cut-from-the-remote-branch-by-default-and-choosing-a-project-fetches-it.md), [the spec](../specs/worktrees-start-from-remote.md)).
+A new worktree is cut from the remote copy of the branch by default, and the person can cut it from the local branch instead ([0037](../adr/projects/0037-a-new-worktree-is-cut-from-the-remote-branch-by-default-and-choosing-a-project-fetches-it.md), [the spec](../specs/worktrees-start-from-remote.md)).
 The branch picker of a worktree (`BranchSheet`) has two tabs under the search field, Remote and Local, with how many branches each lists, and one list at a time (`BranchPicker.rows`), so a branch is never offered twice: the Remote tab lists the branches on `origin`, the Local tab the local ones.
 A local branch with no counterpart on `origin` is only in the Local tab, marked "not on origin" (`BranchRow.localOnly`), and a branch that is only on `origin` is only in the Remote one.
 The picker opens on the tab `worktreeStart` of `chat.json` says (`NewSessionModel.startTab`, read when the workspace is chosen, [Settings](settings.md)), Remote when it says nothing.
@@ -79,7 +79,7 @@ Choosing a folder, or a repository already in the projects folder, that is a git
 Only a host whose hello lists `fetchIfStale` is asked (`hostFetchesIfStale`); the app sends it `fetch` with `ifStale: true`, which the host answers without a git call when the last fetch is within its window (five minutes).
 An older host is not asked and not sent the field: choosing fetches nothing and Fetch now works as it always did.
 A folder that is not a git repository, a bare one, one with no `origin` (`WorkspaceInfo.hasOrigin`: the host names a GitHub remote as `repo`, and any remote shows by its `origin/*` branches on disk) and a repository still to clone are not fetched.
-This is the one place where choosing a folder writes to it, and only `FETCH_HEAD` and the `origin/*` refs, never a branch, the index or the working tree ([0037](../adr/0037-a-new-worktree-is-cut-from-the-remote-branch-by-default-and-choosing-a-project-fetches-it.md)).
+This is the one place where choosing a folder writes to it, and only `FETCH_HEAD` and the `origin/*` refs, never a branch, the index or the working tree ([0037](../adr/projects/0037-a-new-worktree-is-cut-from-the-remote-branch-by-default-and-choosing-a-project-fetches-it.md)).
 The branches show at once from what is on disk, and the spinner beside the project's chip (the one that marks GitHub's branches loading) turns while the fetch runs (`NewSessionModel.fetching`); when it ends the picker shows the refreshed branches, and a fetch inside the window ends it at once with nothing changed.
 A fetch that cannot reach the remote shows no error and asks for nothing: it sets `unreachable`, and the picker's footer says "Could not reach origin" in orange under "Fetched 3 days ago" (or "Never fetched"), in place of the "may be out of date" line (`BranchPicker.unreachable`).
 Fetch now ignores the window, fetches again whatever the footer says, shows its own failure in red as before, and clears `unreachable` when it works.

@@ -5,16 +5,16 @@ It is settled when every reviewer has given a verdict on the round's head, one t
 It ends when every reviewer has settled, and it counts once toward `maxReviews` however many reviewers it has.
 A technical execution failure does not consume a round.
 It is not a lead round.
-See [ADR 0048](../adr/0048-a-review-round-has-several-reviewers-in-parallel-and-a-lead-reviewer-closes-it.md).
+See [ADR 0048](../adr/review/0048-a-review-round-has-several-reviewers-in-parallel-and-a-lead-reviewer-closes-it.md).
 _Avoid_: retry, iteration, review (that is one reviewer's execution), turn.
 
-**Review thread** - A conversation on a line of a pull request's diff, with who opened it, the file and line, whether it is resolved and a link to it on GitHub. The app lists the final pull request's threads in the Review tab, from a cache of GitHub like the slices ([0008](../adr/0008-slices-are-kept-in-sqlite-as-a-cache-of-github.md)); a reviewer agent's blocker is a thread too.
+**Review thread** - A conversation on a line of a pull request's diff, with who opened it, the file and line, whether it is resolved and a link to it on GitHub. The app lists the final pull request's threads in the Review tab, from a cache of GitHub like the slices ([0008](../adr/orchestration/0008-slices-are-kept-in-sqlite-as-a-cache-of-github.md)); a reviewer agent's blocker is a thread too.
 _Avoid_: comment (a thread holds several), blocker (what the reviewer agent reports in its result).
 
 **Blocker** - A finding of a review that stops its approval. It has a title and, when the reviewer provides them, a stable id and a mark when a later round resolves it; the app shows each round's blockers and which carry over.
 _Avoid_: issue, comment, error.
 
-**Observation** - A finding of a review that does not stop its approval: a nitpick or a suggestion. The reviewer lists observations in a `completed` result, with a title and a stable id like a blocker; when there are any, the author answers them in one resolve pass before the epic is ready for test ([0009](../adr/0009-observations-trigger-one-resolve-pass-before-ready-for-test.md)).
+**Observation** - A finding of a review that does not stop its approval: a nitpick or a suggestion. The reviewer lists observations in a `completed` result, with a title and a stable id like a blocker; when there are any, the author answers them in one resolve pass before the epic is ready for test ([0009](../adr/review/0009-observations-trigger-one-resolve-pass-before-ready-for-test.md)).
 _Avoid_: nitpick (one kind of observation), comment, blocker (the one that stops approval).
 
 **Lead reviewer** - The optional role (`leadReviewer`) that reviews last, once, after the reviewers agree, on the head they agreed on and in its own checkout, and gives the pull request its formal approval when it finds no blocker.
@@ -32,7 +32,7 @@ _Avoid_: round (that is a review round).
 
 **Re-review (of a moved head)** - A review made again on the new head, without counting a round, because the pull request's head moved while the review ran; at most twice in a row, then the epic stops in `pr_invalid`.
 It is not a review round: the round count is about how many times the author and the reviewer disagree.
-See [ADR 0047](../adr/0047-a-review-is-tied-to-the-head-it-was-given-and-a-moved-head-is-reviewed-again.md).
+See [ADR 0047](../adr/review/0047-a-review-is-tied-to-the-head-it-was-given-and-a-moved-head-is-reviewed-again.md).
 _Avoid_: retry (a retry is the new execution after a technical failure), second round.
 
 **Unanswered observations** - The observations of the last review that no author pass answered because the one pass was already taken (`already_taken`) or the round was the last the epic's cap allows (`last_round`); the epic goes to ready for test with their count and the reason.

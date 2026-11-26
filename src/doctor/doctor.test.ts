@@ -646,7 +646,7 @@ test('a skill an extra reviewer or the lead named that is absent fails, and a de
   expect(checks.find((check) => check.status === 'fail')).toMatchObject({ detail: expect.stringContaining('does not find it for the account of the reviewer-2'), fix: expect.stringContaining('my-review') });
 });
 
-// The code and parameters of each detail, beside its words ([ADR 0055](../../docs/adr/0055-a-refusal-carries-a-code-and-its-parameters-and-its-english-words-are-the-fallback.md)).
+// The code and parameters of each detail, beside its words ([ADR 0055](../../docs/adr/design/0055-a-refusal-carries-a-code-and-its-parameters-and-its-english-words-are-the-fallback.md)).
 const detailOf = async (cfg: Config, d: Partial<DoctorDeps>, only = (c: Check) => c.status !== 'ok') => (await doctor(cfg, deps(d))).find(only);
 const absent = new FakeSkills();
 absent.answers['code-review'] = 'absent';

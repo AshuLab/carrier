@@ -1,7 +1,7 @@
 import Foundation
 import Observation
 
-// The history of dictations (docs/adr/0031-dictation-keeps-a-history-and-its-statistics-live-apart-from-it.md): one entry per dictation in a JSON
+// The history of dictations (docs/adr/dictation/0031-dictation-keeps-a-history-and-its-statistics-live-apart-from-it.md): one entry per dictation in a JSON
 // Lines file of the app's folder, read into memory and filtered there. `dictation.log` never holds text; this file does, and says so on its page.
 
 /// How a dictation ended: its text was put in a field (pasted, or typed into a Carrier box), it was only copied, or it was cancelled or failed.

@@ -1,6 +1,6 @@
 import Foundation
 
-// The statistics of dictation (docs/adr/0031-dictation-keeps-a-history-and-its-statistics-live-apart-from-it.md): counters per day and hour, with no text,
+// The statistics of dictation (docs/adr/dictation/0031-dictation-keeps-a-history-and-its-statistics-live-apart-from-it.md): counters per day and hour, with no text,
 // kept by `DictationRecords` apart from the history, and the figures of the Statistics segment as pure functions of them.
 
 /// What was dictated in one hour of one day with one speech model, as `DictationRecords` counts it when a dictation ends pasted or copied.

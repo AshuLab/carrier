@@ -12,7 +12,7 @@ The app already has Regenerate title in a session's menu, and it fails with "the
 The button is the symptom; the sessions never found are the problem, and a button that fixes one session at a time, only when remembered, does not fix them.
 
 Carrier has no call that takes text and gives text.
-The dictation cleanup ([0030](../adr/0030-dictation-cleanup-runs-on-local-model-servers-through-their-api.md)) has a client for LM Studio and Ollama in the app, with its server and model in the app's preferences, where the chat host cannot read them.
+The dictation cleanup ([0030](../adr/dictation/0030-dictation-cleanup-runs-on-local-model-servers-through-their-api.md)) has a client for LM Studio and Ollama in the app, with its server and model in the app's preferences, where the chat host cannot read them.
 More texts will want generating later, from local models first and from external APIs after, but no second text was named.
 
 We know it is solved when a new session gets a title that says what it is about without the person doing anything, and when the sessions already in the list with a first-line title can be given one too.
@@ -21,7 +21,7 @@ We know it is solved when a new session gets a title that says what it is about 
 
 A **text generator** is a model that turns text into text with no tools ([glossary](../glossary.md)).
 It is declared in `providers.json` and chosen in a new group "Text generators" of the app's Providers page: a local server, LM Studio or Ollama, and one of its models.
-The decision and the alternatives that lost are in [0038](../adr/0038-a-text-generator-is-declared-in-providers-json-and-the-chat-host-writes-session-titles-with-it.md); this is its shape.
+The decision and the alternatives that lost are in [0038](../adr/agents/0038-a-text-generator-is-declared-in-providers-json-and-the-chat-host-writes-session-titles-with-it.md); this is its shape.
 
 **The file.**
 `providers.json` gets two keys next to `providers`: `textGenerators`, a map by name of `{ kind, model }`, and `textGenerator`, the name of the one in use.
@@ -82,7 +82,7 @@ The configuration guide documents the two keys, the glossary has the term, [sess
 
 ## Decisions
 
-The choice of a file, `providers.json`, and of the host as the writer of the title is in [0038](../adr/0038-a-text-generator-is-declared-in-providers-json-and-the-chat-host-writes-session-titles-with-it.md); the rest below is what the ADR leaves to the build.
+The choice of a file, `providers.json`, and of the host as the writer of the title is in [0038](../adr/agents/0038-a-text-generator-is-declared-in-providers-json-and-the-chat-host-writes-session-titles-with-it.md); the rest below is what the ADR leaves to the build.
 
 - The shape of the file, the schema in `src/config/providers.ts` next to `accounts`:
 
@@ -95,7 +95,7 @@ The choice of a file, `providers.json`, and of the host as the writer of the tit
 
   A name follows the account's rule (`optionNamePattern`).
 - The strict schema is the reason for the capability: a host without `textGenerators` in its hello refuses the keys, so the app writes them only while it is there, as it does `accountIdentity`.
-  The engine and the chat host are one package, `carrier`, and the app checks the host it talks to; an engine that is older than the host in the same install is the update flow's case ([0022](../adr/0022-the-app-updates-itself-with-sparkle-and-the-engine-through-homebrew.md)) and not new.
+  The engine and the chat host are one package, `carrier`, and the app checks the host it talks to; an engine that is older than the host in the same install is the update flow's case ([0022](../adr/release/0022-the-app-updates-itself-with-sparkle-and-the-engine-through-homebrew.md)) and not new.
 - The three capabilities, `textGenerators`, `regenerateTitles` and the existing case `regenerateTitle` of the app, are added to `ChatCapability` and `capabilities` of `src/chat/server.ts`, and the golden `macos/Tests/Fixtures/capabilities.json` is rewritten with `UPDATE_FIXTURES=1`; the `unannounced` entry of `ContractTests.swift` goes, since a host now announces it.
 - `titleSource` is a column of `sessions` with a migration (`pnpm db:generate`), null for a row that existed.
   The first message of a session sets `first_line`, the generator `generated` and `rename` `renamed`.

@@ -46,7 +46,7 @@ That also fixes sessions that were already cut from a stale `main`, which no new
 The `fetch` request gets an optional `ifStale`, and the host a capability `fetchIfStale` for it (the schema is strict, so the app sends it only to a host that lists it): when it is true and the last fetch is within the window the host skips the git call, and either way it answers with the current `workspace` reply.
 The app asks with `ifStale: true` when a project is chosen: the branches show at once from what is on disk, the spinner that already marks branches loading runs next to the project's chip, and the picker is current when it ends.
 A fetch that cannot reach the remote says so in the picker's footer ("Could not reach origin", with when the branches were last fetched) and nothing else: no error, no prompt.
-This is the one place where choosing a folder writes to it, and only `FETCH_HEAD` and the `origin/*` refs, never a branch, the index or the working tree ([0037](../adr/0037-a-new-worktree-is-cut-from-the-remote-branch-by-default-and-choosing-a-project-fetches-it.md)). "Fetch now" stays as it is and ignores the window.
+This is the one place where choosing a folder writes to it, and only `FETCH_HEAD` and the `origin/*` refs, never a branch, the index or the working tree ([0037](../adr/projects/0037-a-new-worktree-is-cut-from-the-remote-branch-by-default-and-choosing-a-project-fetches-it.md)). "Fetch now" stays as it is and ignores the window.
 
 **Behind and not pushed.** A local branch that has a counterpart on `origin` carries in the `workspace` reply how many commits it is `behind` and how many are `ahead` (not pushed); one without a counterpart carries neither, which is how the picker knows it is "not on origin".
 A repository with hundreds of branches must not make `workspace` slow: the counts are computed in one pass where git allows it and measured on a large repository before the slice is done.
@@ -85,7 +85,7 @@ What lost: keeping the local branch as the start and only warning (the drift sta
 
 Implementation calls above are the spec's; the ones a ticket must not reopen:
 
-- The setting is `chat.json`'s `worktreeStart` and the per-session choice is the plan's `worktree.startFrom`; the app never writes the setting from a session's choice. [0037](../adr/0037-a-new-worktree-is-cut-from-the-remote-branch-by-default-and-choosing-a-project-fetches-it.md) records why.
+- The setting is `chat.json`'s `worktreeStart` and the per-session choice is the plan's `worktree.startFrom`; the app never writes the setting from a session's choice. [0037](../adr/projects/0037-a-new-worktree-is-cut-from-the-remote-branch-by-default-and-choosing-a-project-fetches-it.md) records why.
 - The freshness window is five minutes, one constant in the host, used by the send step and by `fetch`'s `ifStale`; the app does not keep its own copy of it.
 - The fallback is a `notice` of the session, as the host's other notices are, and never a refused send for a folder; the `fetch` step it falls back from ends as done.
 - The host reads `worktreeStart` fresh at each preparation, through the same path as the session ages.
@@ -119,7 +119,7 @@ Testing seams, by story:
 
 ## Out of scope
 
-"Current folder" is not touched: Carrier does not pull, merge or switch the branch of the person's folder to bring it up to date (its branch switch stays as [0018](../adr/0018-a-new-session-is-a-plan-and-the-host-prepares-it-when-the-first-message-is-sent.md) has it).
+"Current folder" is not touched: Carrier does not pull, merge or switch the branch of the person's folder to bring it up to date (its branch switch stays as [0018](../adr/sessions/0018-a-new-session-is-a-plan-and-the-host-prepares-it-when-the-first-message-is-sent.md) has it).
 
 No per-repository setting for where a worktree starts.
 

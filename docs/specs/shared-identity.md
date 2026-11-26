@@ -1,6 +1,6 @@
 # Carrier runs with one GitHub identity, and every role has a persona
 
-Status: implemented (v0.1.0), superseded in part by ADR 0021; the `identities` key was removed: an epic is shared when its author and reviewer resolve to the same account, see [ADR 0021](../adr/0021-an-epic-starts-on-its-three-roles-and-a-roles-failover-chain-names-a-provider-and-a-model.md).
+Status: implemented (v0.1.0), superseded in part by ADR 0021; the `identities` key was removed: an epic is shared when its author and reviewer resolve to the same account, see [ADR 0021](../adr/agents/0021-an-epic-starts-on-its-three-roles-and-a-roles-failover-chain-names-a-provider-and-a-model.md).
 
 ## Problem
 
@@ -10,7 +10,7 @@ Next to it, the agents have no way to be told who they are. When Agent Forge lau
 
 ## Solution
 
-The user chooses at setup between separate identities, which is today's flow with Agent Forge and stays the default, and a shared identity, where the author and the reviewer use the same GitHub profile, normally the `gh` login of the machine ([ADR 0011](../adr/0011-author-and-reviewer-may-share-one-github-identity-signed-visibly.md), [glossary](../glossary.md)). The choice is a global setting, `identities: separate | shared`. Under `shared` the schema and `carrier doctor` accept the same profile for both roles, and a repo that wants a bot keeps the per-repo identity override it has today.
+The user chooses at setup between separate identities, which is today's flow with Agent Forge and stays the default, and a shared identity, where the author and the reviewer use the same GitHub profile, normally the `gh` login of the machine ([ADR 0011](../adr/agents/0011-author-and-reviewer-may-share-one-github-identity-signed-visibly.md), [glossary](../glossary.md)). The choice is a global setting, `identities: separate | shared`. Under `shared` the schema and `carrier doctor` accept the same profile for both roles, and a repo that wants a bot keeps the per-repo identity override it has today.
 
 Each role, author and reviewer, has a persona in both setups: a name the user chooses and an optional prompt that says who the agent is and how it behaves, the equivalent of what Forge's `systemPrompt` does when Forge launches an agent. Carrier adds it to the role's own prompt, right after the generic line that says which role it is and before what the stage asks. The persona belongs to the role and not to a stage: what `ship`, review and fix are asked to do is a different thing and is not touched. A bot's personality is set in Carrier's config and not in Forge's registry, which Carrier does not read for it because the registry holds paths to private keys. A repo can override the persona of a role as it overrides the rest of the role.
 

@@ -12,7 +12,7 @@ That UI wiring (standalone sidebar terminals, session and epic drawers, Settings
 
 ## Solution
 
-We embed `GhosttyKit` (`Lakr233/libghostty-spm`, pinned to `2.2.2026111302`, MIT) directly in `Carrier.app` via [0027](../adr/0027-embedded-terminal-runs-in-process-with-ghosttykit.md).
+We embed `GhosttyKit` (`Lakr233/libghostty-spm`, pinned to `2.2.2026111302`, MIT) directly in `Carrier.app` via [0027](../adr/app/0027-embedded-terminal-runs-in-process-with-ghosttykit.md).
 Ghostty handles the native PTY (`/usr/bin/login` login shell inheriting the user's full `PATH`), VT parser, Metal/CoreText rendering, IME, clipboard protection, URL click handling, drag-and-drop paths, scrollback search, and `foregroundPid` / `ttyName` / `close_surface(processAlive:)` signals.
 Our code divides into two layers so domain rules remain fast, pure, and AppKit-free:
 
@@ -37,7 +37,7 @@ Terminal preferences live in a dedicated `TerminalSettings` model backed by `App
 Each of Carrier's nine light and dark themes maps to complete, high-contrast `background`, `foreground`, `selectionBackground`, `selectionForeground`, `cursorColor`, and `minimumContrast` values.
 
 **Persistence and restore.**
-Whenever the terminal workspace structure mutates (tab/pane create, split, move, rename, or close), the store writes `<Carrier folder>/app/terminals.json` immediately ([0016](../adr/0016-carrier-keeps-everything-in-one-folder-with-a-subfolder-per-process.md)), while continuous split-ratio drags and shell `workingDirectory` updates are debounced; persistence is skipped under `--fixture` / `--selftest` runs.
+Whenever the terminal workspace structure mutates (tab/pane create, split, move, rename, or close), the store writes `<Carrier folder>/app/terminals.json` immediately ([0016](../adr/config/0016-carrier-keeps-everything-in-one-folder-with-a-subfolder-per-process.md)), while continuous split-ratio drags and shell `workingDirectory` updates are debounced; persistence is skipped under `--fixture` / `--selftest` runs.
 On app launch, Carrier restores each owner's tabs, binary split tree, ratios, active tab/pane, zoom, titles, and validated working directories by spawning fresh shells in those positions.
 
 **Process confirmation and teardown.**
@@ -57,7 +57,7 @@ Closing an entire tab, deleting or archiving a chat session, or quitting `Carrie
 ## Decisions
 
 **Dependency and runtime architecture.**
-See [0027](../adr/0027-embedded-terminal-runs-in-process-with-ghosttykit.md) — `GhosttyKit` runs in-process without a separate Node PTY daemon.
+See [0027](../adr/app/0027-embedded-terminal-runs-in-process-with-ghosttykit.md) — `GhosttyKit` runs in-process without a separate Node PTY daemon.
 Because `2.2.2026111302` already spawns `/usr/bin/login` -> `-/bin/zsh` cleanly on macOS and populates `foregroundPid` and `ttyName` at runtime, the host does not need custom `PATH` scraping.
 
 **Pane-keyed caching and layout model.**
@@ -75,7 +75,7 @@ For multi-pane / multi-tab / app-quit preflight checks (`pendingConfirmation(for
 Terminal link activation (`isAllowedTerminalURL`) permits only `http` and `https` URLs with a non-empty host.
 
 **Persistence file location and format.**
-Persisted layout uses JSON (`Codable`, versioned `schemaVersion: 1`) written atomically with `0600` permissions in `<Carrier folder>/app/terminals.json` ([0016](../adr/0016-carrier-keeps-everything-in-one-folder-with-a-subfolder-per-process.md)), stripping `envVars` so environment secrets never hit disk.
+Persisted layout uses JSON (`Codable`, versioned `schemaVersion: 1`) written atomically with `0600` permissions in `<Carrier folder>/app/terminals.json` ([0016](../adr/config/0016-carrier-keeps-everything-in-one-folder-with-a-subfolder-per-process.md)), stripping `envVars` so environment secrets never hit disk.
 `SchemaVersionHeader` is decoded before the full snapshot so unrecognized future schema versions are logged and write-protected for that launch (newer files are never overwritten), while corrupt files are logged and moved to a timestamped `.bak` copy before recovering persistence.
 Stale session ids are pruned only after two consecutive authoritative session snapshots omit them (an authoritative snapshot is a cycle that read both lists, about one a minute: `ChatSessionsPoller.onAuthoritativeSessionIds`, never when the chat host is unreachable or incomplete), and removed worktree directories fall back safely on restore.
 
@@ -89,7 +89,7 @@ Stale session ids are pruned only after two consecutive authoritative session sn
 
 ## Out of scope
 
-App UI design details belong to [terminal](../macos/terminal.md), and epic **Continue in Terminal** drawer policy lives in [0028](../adr/0028-epic-continue-in-terminal-runs-in-embedded-ghostty-drawer.md).
+App UI design details belong to [terminal](../macos/terminal.md), and epic **Continue in Terminal** drawer policy lives in [0028](../adr/app/0028-epic-continue-in-terminal-runs-in-embedded-ghostty-drawer.md).
 
 Injecting live terminal output into autonomous orchestrator agent turns.
 

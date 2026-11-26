@@ -82,7 +82,7 @@ A hover peek is not "see everything".
 ## Decisions
 
 **The link rides on the chat events, and the history is those events.**
-The host stores the transcript of a session as its chat events, bounded and redacted ([ADR 0006](../adr/0006-agent-events-stored-in-sqlite-with-bounded-output.md) for the engine's, the same for the chat), and a subagent's view is drawn from them like every other part of it, not from `getSubagentMessages`, which reads the subagent's own transcript file and would bypass that bounding and redaction.
+The host stores the transcript of a session as its chat events, bounded and redacted ([ADR 0006](../adr/orchestration/0006-agent-events-stored-in-sqlite-with-bounded-output.md) for the engine's, the same for the chat), and a subagent's view is drawn from them like every other part of it, not from `getSubagentMessages`, which reads the subagent's own transcript file and would bypass that bounding and redaction.
 A restart of the host keeps the history because it is in SQLite.
 Sessions that predate the change are not backfilled (story 12).
 A cursor page of events may start inside a subagent, and the app handles the cut as `ToolCall(orphanEnd:)` handles a call whose start was before the page.

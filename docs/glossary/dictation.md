@@ -1,6 +1,6 @@
 # Dictation
 
-**Dictation** - Speaking to write: the app listens through the microphone and puts the recognized text where the person is typing. It starts from the button in a message box, which fills that box, or from the global shortcut ([0029](../adr/0029-global-dictation-is-a-widget-that-pastes-once-and-falls-back-to-the-clipboard.md)).
+**Dictation** - Speaking to write: the app listens through the microphone and puts the recognized text where the person is typing. It starts from the button in a message box, which fills that box, or from the global shortcut ([0029](../adr/dictation/0029-global-dictation-is-a-widget-that-pastes-once-and-falls-back-to-the-clipboard.md)).
 _Avoid_: voice input, transcription (a recording turned into text afterwards), speech-to-text (that is what a recognizer does).
 
 **Recognizer** - The piece of software that turns audio into text, each with its own list of speech models: Apple's SpeechAnalyzer, FluidAudio (Parakeet, Nemotron) and Whisper. A person picks a recognizer and then one of its models. It runs inside the app, not in the engine.

@@ -1,6 +1,6 @@
 # Spike: global shortcut, focus detection and paste
 
-Answers the input questions of [the global dictation spec](../specs/global-dictation.md) (issue #985, epic #983) and the Consequences of [ADR 0029](../adr/0029-global-dictation-is-a-widget-that-pastes-once-and-falls-back-to-the-clipboard.md): how the app registers a global shortcut with the key release a hold needs, how it reads what has the focus in another app and whether that is a secure field, and how it pastes without losing the person's clipboard. It writes no production code. The throwaway programs lived in a scratch folder outside the repository and are not part of the change.
+Answers the input questions of [the global dictation spec](../specs/global-dictation.md) (issue #985, epic #983) and the Consequences of [ADR 0029](../adr/dictation/0029-global-dictation-is-a-widget-that-pastes-once-and-falls-back-to-the-clipboard.md): how the app registers a global shortcut with the key release a hold needs, how it reads what has the focus in another app and whether that is a secure field, and how it pastes without losing the person's clipboard. It writes no production code. The throwaway programs lived in a scratch folder outside the repository and are not part of the change.
 
 ## What was and was not observed
 

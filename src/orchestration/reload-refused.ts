@@ -1,6 +1,6 @@
 import type { TextParams } from './text-params.ts';
 
-/** Why a reload changed nothing: what a start would print for the file, with the key named; the control socket sends `problem` to the client as it is, with the code and the parameters beside it ([ADR 0055](../../docs/adr/0055-a-refusal-carries-a-code-and-its-parameters-and-its-english-words-are-the-fallback.md)). */
+/** Why a reload changed nothing: what a start would print for the file, with the key named; the control socket sends `problem` to the client as it is, with the code and the parameters beside it ([ADR 0055](../../docs/adr/design/0055-a-refusal-carries-a-code-and-its-parameters-and-its-english-words-are-the-fallback.md)). */
 export class ReloadRefused extends Error {
   code: string;
   problem: string;

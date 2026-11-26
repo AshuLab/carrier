@@ -10,7 +10,7 @@ We know it is solved when a session left alone for 15 days is archived, one left
 
 ## Solution
 
-The decisions, and the three that lost, are in [0019](../adr/0019-sessions-age-by-the-clock-and-an-automatic-delete-never-removes-unsaved-work.md); the terms are in the glossary (Session lifecycle). The first message creating the session is another epic's.
+The decisions, and the three that lost, are in [0019](../adr/sessions/0019-sessions-age-by-the-clock-and-an-automatic-delete-never-removes-unsaved-work.md); the terms are in the glossary (Session lifecycle). The first message creating the session is another epic's.
 
 A session is archived after 15 days of no activity and an archived session is deleted after 30, both counted from the last message or event (`lastActiveAt`), and restoring a session from the archive counts as activity. The numbers are `archiveAfterDays` and `deleteAfterDays` in the chat's `chat.json`, each a whole number of days or `"never"`. `"never"` for the first means nothing is deleted by the clock, whatever the second says. The second must be greater than the first when both are numbers, and a file that breaks that or any other rule stops the host naming the key, as any wrong value of that file does.
 
@@ -37,7 +37,7 @@ What lost, besides what 0019 lists: a lifecycle with more states (a "done" state
 
 ## Decisions
 
-The ages and the sparing of unsaved work are decided in [0019](../adr/0019-sessions-age-by-the-clock-and-an-automatic-delete-never-removes-unsaved-work.md); the config level in [0016](../adr/0016-carrier-keeps-everything-in-one-folder-with-a-subfolder-per-process.md). `config.ts` documents the two keys and `docs/configuration.md` is updated (AGENTS.md: changing `chat.json`'s schema means updating that guide).
+The ages and the sparing of unsaved work are decided in [0019](../adr/sessions/0019-sessions-age-by-the-clock-and-an-automatic-delete-never-removes-unsaved-work.md); the config level in [0016](../adr/config/0016-carrier-keeps-everything-in-one-folder-with-a-subfolder-per-process.md). `config.ts` documents the two keys and `docs/configuration.md` is updated (AGENTS.md: changing `chat.json`'s schema means updating that guide).
 
 The keys, as the schema takes them. Run against the inputs the stories take: `0`, `-1`, `1.5`, `"15"` and `null` are refused for either key; `archiveAfterDays: 30, deleteAfterDays: 30` and `15, 10` are refused (delete must be greater); `"never"` and `5` are accepted together (nothing is deleted); a file with one key only takes the other's default.
 

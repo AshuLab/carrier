@@ -4695,7 +4695,7 @@ test('a projects.json that does not match is told once for a session, however ma
   expect(noticesOf(s, one.id)).toHaveLength(2);
 });
 
-// The code and parameters of each text beside its words ([ADR 0055](../../docs/adr/0055-a-refusal-carries-a-code-and-its-parameters-and-its-english-words-are-the-fallback.md)).
+// The code and parameters of each text beside its words ([ADR 0055](../../docs/adr/design/0055-a-refusal-carries-a-code-and-its-parameters-and-its-english-words-are-the-fallback.md)).
 const stepCodesOf = (s: ReturnType<typeof setup>, id: string) =>
   (s.sessions.events({ sessionId: id, limit: 200 }).events as any[]).filter((e) => e.kind === 'step' && e.status === 'failed').map(({ step, detail, code, params }) => ({ step, detail, code, params }));
 const noticeCodes = (s: ReturnType<typeof setup>, id: string) => (s.sessions.events({ sessionId: id, limit: 200 }).events as any[]).filter((e) => e.kind === 'notice').map(({ code, params }) => ({ code, params }));

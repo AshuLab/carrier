@@ -15,7 +15,7 @@ It is the epic that touches the most of the engine, because the engine is built 
 ## Solution
 
 One epic in two parts, in this order: several reviewers in a round, then the lead reviewer after them.
-The decision is [ADR 0048](../adr/0048-a-review-round-has-several-reviewers-in-parallel-and-a-lead-reviewer-closes-it.md), amended by what this spec settles.
+The decision is [ADR 0048](../adr/review/0048-a-review-round-has-several-reviewers-in-parallel-and-a-lead-reviewer-closes-it.md), amended by what this spec settles.
 
 ### Several reviewers
 
@@ -40,13 +40,13 @@ When two reviewers' blockers contradict each other the author decides, and says 
 If every verdict is a completed review the observations of all go to the author in the one pass the epic has, each with its reviewer, and the head that does not change after it is the head the reviewers agreed on.
 A round counts once toward `maxReviews`, however many reviewers it has.
 A reviewer whose blockers are still open and who gives no verdict in a later round is not agreement: if every verdict that came is a completed review, the round does not close, and the epic stops with `reviewers_failed` naming that reviewer; if some other reviewer asks for changes, the fix goes ahead, because it also answers the blockers still open.
-A head that moves during a round, whichever reviewer reports it, repeats the whole round on the new head, not counted, under the rule of [ADR 0047](../adr/0047-a-review-is-tied-to-the-head-it-was-given-and-a-moved-head-is-reviewed-again.md): the first result that finds the head moved stops the round's other running executions, because their verdicts would be set aside, and launches the round again.
+A head that moves during a round, whichever reviewer reports it, repeats the whole round on the new head, not counted, under the rule of [ADR 0047](../adr/review/0047-a-review-is-tied-to-the-head-it-was-given-and-a-moved-head-is-reviewed-again.md): the first result that finds the head moved stops the round's other running executions, because their verdicts would be set aside, and launches the round again.
 The two repeats in a row before the epic stops with `pr_invalid` count rounds and not executions, so four reviewers that find the same moved head are one repeat, and the count goes back to zero only when a round decides on its own head.
 
 Each extra reviewer keeps its own option, failover and retry state, as the author and the mandatory reviewer do.
 A failover step list is its own `failover` when it declares one and `failover.roles.reviewer` when it does not; the retries are counted per reviewer, so one reviewer's failures never break another's streak, and an extra reviewer that runs out of retries or of failover steps is a reviewer with no verdict.
 When a round ends with no verdict and every failure was `usage_limit` (reviewers that share a provider account run out together), the epic stops with `usage_limit` and not with `reviewers_failed`, so the wake-up on quota applies, and it resumes at the time the last of the exhausted windows comes back.
-An authentication signal of the profile of any role, an extra reviewer or the lead included, counts as the rule of [ADR 0050](../adr/0050-one-authentication-signal-is-a-technical-failure-of-its-epic-and-a-profile-stops-when-it-repeats.md) says (the first is a technical failure of that execution, the second stops the profile), and stopping a profile stops the epics that use it in any role.
+An authentication signal of the profile of any role, an extra reviewer or the lead included, counts as the rule of [ADR 0050](../adr/agents/0050-one-authentication-signal-is-a-technical-failure-of-its-epic-and-a-profile-stops-when-it-repeats.md) says (the first is a technical failure of that execution, the second stops the profile), and stopping a profile stops the epics that use it in any role.
 `carrier restart` takes an option for each reviewer with `--reviewer-2` to `--reviewer-4` where it takes `--author` and `--reviewer`.
 
 Every reviewer publishes its own comments on the pull request with its review skill, by default `code-review` and `code-post`, and a profile may be shared between roles; what tells two reviewers apart is the prefix of the blocker's id, not the account that wrote the comment.
@@ -169,7 +169,7 @@ The blocks are strict, so an unknown key is refused naming it.
 `agents.extraReviewers` takes zero to three entries with the fields of any agent plus `skills` (only `review`) and `failover` (the steps of `failover.roles`); a fourth is refused naming the list.
 A repo's `agents.extraReviewers` entry has to carry the profile, provider and model, as a repo's `leadReviewer` does when no global one exists, because the list replaces and does not merge.
 The lead's role takes `skills` with only `lead`.
-`skills.lead` has the shape of `skills.review`, a name or `null` for `publish`, with the name rule of [ADR 0045](../adr/0045-each-stage-runs-a-skill-the-config-names-and-carrier-keeps-the-contract.md), and it is resolved as that ADR says (merged by key, role over repo over global) with one more step: what no level names for the lead is taken from the repo's or the global `skills.review`, never from another role's own skills, and then from Solve's defaults.
+`skills.lead` has the shape of `skills.review`, a name or `null` for `publish`, with the name rule of [ADR 0045](../adr/orchestration/0045-each-stage-runs-a-skill-the-config-names-and-carrier-keeps-the-contract.md), and it is resolved as that ADR says (merged by key, role over repo over global) with one more step: what no level names for the lead is taken from the repo's or the global `skills.review`, never from another role's own skills, and then from Solve's defaults.
 An extra reviewer's `review` skill resolves the same way, from its own entry, the repo's `skills.review`, the global and Solve's defaults.
 `limits.maxLeadRounds` is a positive whole number, 3 by default, and reaches the JSON schema and the settings like the other defaults.
 
@@ -204,7 +204,7 @@ The prompts. The review prompt names the reviewer's slot, gives it only its own 
 
 The doctor. The roles of a repo include the extra reviewers for the profile, the provider, the harness, the local model and the token checks, and the skills check asks about each skill each of them invokes, the lead's `lead` skills included.
 
-Documentation is part of each slice, so it never says what the code does not do: `docs/configuration.md` (extra reviewers, `skills.lead`, `maxLeadRounds`, the stage and reason labels, `limits.idleMinutes` as the bound of a slow reviewer, a profile for each reviewer), `docs/cli.md` (the role options of `restart`), `docs/troubleshooting.md` (the two kinds of stop, a round with no verdict), the CHANGELOG, the glossary (Review round, Lead reviewer and Lead round stop being planned), and the specs `autonomous-orchestrator.md` (the rule of one active execution) and `resume-a-stopped-epic.md` (the lead's exchange on a resume); [ADR 0048](../adr/0048-a-review-round-has-several-reviewers-in-parallel-and-a-lead-reviewer-closes-it.md) is amended to say what this spec settles.
+Documentation is part of each slice, so it never says what the code does not do: `docs/configuration.md` (extra reviewers, `skills.lead`, `maxLeadRounds`, the stage and reason labels, `limits.idleMinutes` as the bound of a slow reviewer, a profile for each reviewer), `docs/cli.md` (the role options of `restart`), `docs/troubleshooting.md` (the two kinds of stop, a round with no verdict), the CHANGELOG, the glossary (Review round, Lead reviewer and Lead round stop being planned), and the specs `autonomous-orchestrator.md` (the rule of one active execution) and `resume-a-stopped-epic.md` (the lead's exchange on a resume); [ADR 0048](../adr/review/0048-a-review-round-has-several-reviewers-in-parallel-and-a-lead-reviewer-closes-it.md) is amended to say what this spec settles.
 
 Testing seams, per story, preferring the seams the repo has:
 

@@ -17,7 +17,7 @@ The MCP timeouts are not a constraint for a wait of 45 seconds on either harness
 | | In Carrier | Latest stable | Note |
 | --- | --- | --- | --- |
 | `@anthropic-ai/claude-agent-sdk` | 0.3.311 (pinned in `package.json`) | 0.3.326, 2026-11-16, bundles Claude Code 2.1.326 (0.3.325 of 2026-11-13 bundled 2.1.325) | The SDK runs the person's own `claude` binary, installed here at 2.1.325. |
-| `@openai/codex` | 0.167.2 installed, the one [0024](../adr/0024-the-chat-mcp-lives-in-the-chat-host-and-is-injected-per-session.md) was verified on | 0.169.0, 2026-11-13 | An alpha, 0.171.0-alpha.8, exists and is not a target. |
+| `@openai/codex` | 0.167.2 installed, the one [0024](../adr/sessions/0024-the-chat-mcp-lives-in-the-chat-host-and-is-injected-per-session.md) was verified on | 0.169.0, 2026-11-13 | An alpha, 0.171.0-alpha.8, exists and is not a target. |
 
 The first Codex versions that have each setting we use or want to use:
 
@@ -28,7 +28,7 @@ The first Codex versions that have each setting we use or want to use:
 | `tools.<tool>.approval_mode` | 0.117.0 |
 | `default_tools_approval_mode` on a server of our own | 0.122.0 |
 
-Before 0.122.0 `default_tools_approval_mode` existed only for Codex's own `codex_apps` server, so 0.122.0 is the floor for [0024](../adr/0024-the-chat-mcp-lives-in-the-chat-host-and-is-injected-per-session.md)'s pre-approval.
+Before 0.122.0 `default_tools_approval_mode` existed only for Codex's own `codex_apps` server, so 0.122.0 is the floor for [0024](../adr/sessions/0024-the-chat-mcp-lives-in-the-chat-host-and-is-injected-per-session.md)'s pre-approval.
 
 ## Claude: how an MCP tool is approved (read directly from the SDK's permissions page)
 

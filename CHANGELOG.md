@@ -380,7 +380,7 @@ Old paths are not read: move `config.json` to `engine.json` and `chat/chat.json`
 
 ### Changed
 
-- The Carrier folder has a new layout ([ADR 0034](docs/adr/0034-the-carrier-folder-keeps-edited-files-at-the-top-and-splits-each-process-folder-by-lifecycle.md)): the engine's config is `engine.json` (was `config.json`) and the chat's is `chat.json` at the top (was `chat/chat.json`), next to `providers.json`; the app keeps its terminals and dictation history in `app/state/`, its speech models and terminal shim in `app/cache/`. Old paths are not read: move or recreate the files.
+- The Carrier folder has a new layout ([ADR 0034](docs/adr/config/0034-the-carrier-folder-keeps-edited-files-at-the-top-and-splits-each-process-folder-by-lifecycle.md)): the engine's config is `engine.json` (was `config.json`) and the chat's is `chat.json` at the top (was `chat/chat.json`), next to `providers.json`; the app keeps its terminals and dictation history in `app/state/`, its speech models and terminal shim in `app/cache/`. Old paths are not read: move or recreate the files.
 - What the Carrier folder holds no longer grows without end: `orchestrator.log` and `chat-host.log` rotate at 10 MB and keep 10 files; a file dropped in a message waits in `chat/pending/` and moves into `chat/sessions/<id>/attachments/` when the message is sent, so deleting the session deletes it, and one left in the box for more than a day is swept, and is copied again from where you dropped it when you send (if the original is gone too, the send waits and its chip says so); the execution results in `engine/state/results/` go with the execution logs 30 days after the epic ends; and the app's `cache/` is kept out of Time Machine.
 
 ## [0.11.0] - 2026-11-18
@@ -657,8 +657,8 @@ Carrier's Mac app now updates itself, and Settings grows pages for Providers, Ag
 
 ### Changed
 
-- The accounts of the agent CLIs moved out of `config.json` into `providers.json` in the Carrier folder, which the engine and the chat host read and the app writes ([ADR 0020](docs/adr/0020-accounts-live-in-a-file-both-processes-read.md)).
-- An epic starts at once on its three roles, with no wait at the start ([ADR 0021](docs/adr/0021-an-epic-starts-on-its-three-roles-and-a-roles-failover-chain-names-a-provider-and-a-model.md)).
+- The accounts of the agent CLIs moved out of `config.json` into `providers.json` in the Carrier folder, which the engine and the chat host read and the app writes ([ADR 0020](docs/adr/agents/0020-accounts-live-in-a-file-both-processes-read.md)).
+- An epic starts at once on its three roles, with no wait at the start ([ADR 0021](docs/adr/agents/0021-an-epic-starts-on-its-three-roles-and-a-roles-failover-chain-names-a-provider-and-a-model.md)).
 - The chat in the macOS app looks better: even spacing in the model pill, a copy button that stays usable, and a run's steps that fold and open smoothly.
 - The Homebrew cask declares `auto_updates true`, and `brew uninstall --zap` also removes the app's cache folder.
 - An app that is older than the installed `carrier` tells you to update it instead of only refusing to talk to it.

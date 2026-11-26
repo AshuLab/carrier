@@ -1186,6 +1186,10 @@ public enum Copy {
         String(localized: "sessionBackgroundCount \(count)", bundle: bundle ?? carrierResources, locale: locale)
     }
 
+    public static func sessionProcessesSpoken(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionProcessesSpoken \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
     public static func sessionOpenLabel(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
         String(localized: "sessionOpenLabel \(count)", bundle: bundle ?? carrierResources, locale: locale)
     }
@@ -3340,6 +3344,10 @@ public enum Copy {
 
     public static func chatPeekWaitingOn(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         String(localized: "chatPeekWaitingOn", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatPeekRunning(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatPeekRunning", bundle: bundle ?? carrierResources, locale: locale)
     }
 
     public static func chatPeekMoreTasks(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {

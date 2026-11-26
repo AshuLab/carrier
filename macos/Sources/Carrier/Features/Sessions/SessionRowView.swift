@@ -128,7 +128,8 @@ struct SessionRowView: View {
                 HStack(spacing: Tokens.Space.s4) {
                     detail(content).sidebarFont(.detail).lineLimit(1).truncationMode(.tail)
                     Spacer(minLength: 4)
-                    // with no third line the providers sit here; with one they go down to it
+                    // the still mark of the background processes is always here, before the providers; with a third line the providers go down to it
+                    if content.processes > 0 { SessionProcessMark(count: content.processes) }
                     if third == false { ProviderMarks(names: content.providers) }
                 }
                 .frame(height: Self.detailLine)
@@ -169,7 +170,7 @@ struct SessionRowView: View {
     }
 
     /// What the row says aloud: the title, the state in words (the icon draws it), where it works, the providers and "5 minutes ago",
-    /// the parts the person switched off left out.
+    /// the background processes and the parts the person switched off left out.
     private func label(_ content: SessionRowContent) -> String {
         let state: String? = switch row.state {
         case .working: Copy.sessionStatusWorking()
@@ -183,7 +184,7 @@ struct SessionRowView: View {
         }
         let age = content.age == nil ? nil : spokenAge(row.updatedAt, now: Date())
         let work: [String?] = roomy ? [content.pullRequest?.spoken(), content.diff.map { Copy.sessionDiffSpoken(added: $0.added, removed: String($0.removed)) }] : []
-        return ([row.title, state, row.workspace, place] + work + content.providers + [age]).compactMap { $0 }.joined(separator: ", ")
+        return ([row.title, state, row.workspace, place] + work + [content.processesSpoken()] + content.providers + [age]).compactMap { $0 }.joined(separator: ", ")
     }
 }
 

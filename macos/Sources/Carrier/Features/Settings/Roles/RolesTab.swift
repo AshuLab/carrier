@@ -127,14 +127,11 @@ struct RolesTabView: View {
         }
     }
 
-    /// The first screen: whether the roles are set up, the three roles of an epic, and the bots they work as.
+    /// The first screen: whether the roles are set up and the three roles of an epic.
     @ViewBuilder private func first(_ page: RolesPage) -> some View {
         let readiness = rolesReadiness(page)
         SettingsGroup(title: "") { RolesStatusCard(readiness: readiness, open: open) }
         SettingsGroup(id: EpicRail.groupID, title: EpicRail.group) { EpicRail(page: page, readiness: readiness, icons: icons, open: open) }
-        SettingsGroup(id: "identities", title: Copy.rolesGroupIdentities(), footer: page.bots.note ?? Copy.rolesIdentitiesFooter()) {
-            CreateBotRow()
-        }
     }
 
     private func detail(_ row: RoleRow, page: RolesPage) -> some View {
@@ -154,7 +151,12 @@ struct RolesTabView: View {
             }
             Group {
                 SettingsGroup(id: "who", title: Copy.rolesGroupWho(), footer: identityFooter(row, page: page)) {
-                    SettingsTabRow(id: "identity", title: Copy.rolesIdentity(), detail: row.identityDetail(), first: true) { identityPicker(row, page: page) }
+                    SettingsTabRow(id: "identity", title: Copy.rolesIdentity(), detail: row.identityDetail(), first: true) {
+                        HStack(spacing: Tokens.Space.s8) {
+                            identityPicker(row, page: page)
+                            openIdentity(row)
+                        }
+                    }
                     SettingsTabRow(id: "model", title: Copy.rolesModel(), detail: row.providerMissing ? Copy.rolesModelNotAccount() : Copy.rolesModelDetail()) {
                         ModelPickerButton(
                             provider: row.fields.provider, model: row.fields.model, effort: row.fields.effort,
@@ -277,6 +279,14 @@ struct RolesTabView: View {
         return CarrierCore.pickerAccounts(reply, declared: page.accounts, icons: icons, current: current.compactMap { $0 })
     }
 
+    /// The chevron of the Identity row: the identity's own screen, where it can sign and which roles sign as it; none while the role has no identity the registry knows.
+    @ViewBuilder private func openIdentity(_ row: RoleRow) -> some View {
+        if let key = row.identity.key {
+            Button { go(SettingsPlace(.identities, path: [key])) } label: { Glyph(.chevronRight, size: 13, bold: true) }
+                .buttonStyle(HoverTextButtonStyle(tint: nil)).accessibilityLabel(Copy.identitiesOpenIdentity()).help(Copy.identitiesOpenIdentity())
+        }
+    }
+
     /// The bots of the registry and the person's own login; a profile that is no longer there stays, marked, and picking it again is a no-op.
     private func identityPicker(_ row: RoleRow, page: RolesPage) -> some View {
         let current: String
@@ -320,78 +330,5 @@ private struct SkillValue: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Copy.rolesSkill())
         .accessibilityValue(Copy.rolesSkillValue(skill: skill))
-    }
-}
-
-/// A text saved when the person presses Return or leaves the field; what the file refuses is put back.
-struct CommitField: View {
-    let label: String
-    let text: String
-    let width: CGFloat
-    let mono: Bool
-    var prompt = ""
-    let commit: (String) async -> Bool
-    @State private var draft: String
-    @FocusState private var focused: Bool
-
-    init(label: String, text: String, width: CGFloat, mono: Bool, prompt: String = "", commit: @escaping (String) async -> Bool) {
-        self.label = label
-        self.text = text
-        self.width = width
-        self.mono = mono
-        self.prompt = prompt
-        self.commit = commit
-        _draft = State(initialValue: text)
-    }
-
-    var body: some View {
-        TextField(label, text: $draft, prompt: Text(prompt))
-            .scaledFont(mono ? 11.5 : 13, design: mono ? .monospaced : nil).settingsField(width: width, focused: $focused)
-            .onSubmit(save)
-            .onChange(of: focused) { _, now in if now == false { save() } }
-            .accessibilityLabel(label)
-    }
-
-    private func save() {
-        guard draft != text else { return }
-        let value = draft
-        Task { if await commit(value) == false { draft = text } }
-    }
-}
-
-/// A text of several lines saved when the person leaves it (a return is a new line here, so there is no key that saves); what the file refuses is
-/// put back. In the box of `settingsField`, with the prompt shown while it is empty.
-struct CommitEditor: View {
-    let label: String
-    let text: String
-    var prompt = ""
-    let commit: (String) async -> Bool
-    @State private var draft: String
-    @FocusState private var focused: Bool
-
-    init(label: String, text: String, prompt: String = "", commit: @escaping (String) async -> Bool) {
-        self.label = label
-        self.text = text
-        self.prompt = prompt
-        self.commit = commit
-        _draft = State(initialValue: text)
-    }
-
-    var body: some View {
-        TextEditor(text: $draft).scaledFont(13).scrollContentBackground(.hidden).frame(height: 96)
-            .overlay(alignment: .topLeading) {
-                if draft.isEmpty { Text(prompt).foregroundStyle(.tertiary).padding(.leading, Tokens.Space.s5).allowsHitTesting(false) }
-            }
-            .settingsField(focused: $focused)
-            // the system's writing tools (and its "Write with Siri" button, which sits on the box) have nothing to do with an instruction for an agent
-            .writingToolsBehavior(.disabled)
-            .onChange(of: focused) { _, now in if now == false { save() } }
-            .accessibilityLabel(label)
-    }
-
-    private func save() {
-        guard draft != text else { return }
-        let value = draft
-        Task { if await commit(value) == false { draft = text } }
     }
 }

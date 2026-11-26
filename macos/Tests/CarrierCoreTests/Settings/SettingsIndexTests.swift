@@ -152,3 +152,17 @@ private func found(_ query: String, _ language: (bundle: Bundle, locale: Locale)
     // Spanish is not English with the keys missing: a key that is missing reads as the key itself, which no entry may
     for entry in spanishIndex { for key in entry.copyKeys { #expect(entry.title != key && entry.detail != key && entry.group != key, Comment(rawValue: key)) } }
 }
+
+@Test func theIdentitiesPageIsSearchableByItsNameItsRowsAndCreateABotMovedToItFromRoles() {
+    #expect(found("Identities", english).first.map { $0.isPage && $0.page == .identities } == true)
+    #expect(found("Identidades", spanish).first.map { $0.isPage && $0.page == .identities } == true)
+    #expect(englishIndex.filter { $0.page == .identities && $0.isPage == false }.map(\.anchor) == [
+        "identities.who-signs", "identities.who-signs.create-a-bot", "identities.signs-as", "identities.can-sign-in", "identities.open-on-github",
+    ])
+    #expect(found("Create a bot", english).first { $0.rowID == "create-a-bot" }?.page == .identities)
+    #expect(found("Crear un bot", spanish).first { $0.rowID == "create-a-bot" }?.page == .identities)
+    #expect(englishIndex.contains { $0.page == .roles && $0.rowID == "create-a-bot" } == false)
+    // the words of the rows an identity's screen draws are found in both languages
+    #expect(found("mint a token", english).contains { $0.page == .identities && $0.groupID == "can-sign-in" })
+    #expect(found("Abrir en GitHub", spanish).contains { $0.page == .identities && $0.rowID == "open-on-github" })
+}

@@ -9527,28 +9527,88 @@ public enum Copy {
         String(localized: "rolesRoleOff \(role)", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func rolesCreateBotTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "rolesCreateBotTitle", bundle: bundle ?? carrierResources, locale: locale)
+    public static func identitiesCreateBotTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "identitiesCreateBotTitle", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func rolesCreateBotDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "rolesCreateBotDetail", bundle: bundle ?? carrierResources, locale: locale)
+    public static func identitiesCreateBotDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "identitiesCreateBotDetail", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func rolesCreateBotHelp(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "rolesCreateBotHelp", bundle: bundle ?? carrierResources, locale: locale)
+    public static func identitiesCreateBotHelp(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "identitiesCreateBotHelp", bundle: bundle ?? carrierResources, locale: locale)
     }
 
     public static func rolesCouldNotOpenTerminal(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         String(localized: "rolesCouldNotOpenTerminal", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func rolesGroupIdentities(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "rolesGroupIdentities", bundle: bundle ?? carrierResources, locale: locale)
+    public static func identitiesGroupWho(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "identitiesGroupWho", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func rolesIdentitiesFooter(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "rolesIdentitiesFooter", bundle: bundle ?? carrierResources, locale: locale)
+    public static func identitiesFooter(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "identitiesFooter", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func identitiesNoRole(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "identitiesNoRole", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func identitiesRoleIn(role: String, repo: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "identitiesRoleIn \(role) \(repo)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func identitiesCannotSign(repos: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "identitiesCannotSign \(repos)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func identitiesCouldNotCheck(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "identitiesCouldNotCheck", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func identitiesGroupSignsAs(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "identitiesGroupSignsAs", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func identitiesGroupCanSign(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "identitiesGroupCanSign", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func identitiesNoRoleSigns(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "identitiesNoRoleSigns", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func identitiesGlobalSetting(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "identitiesGlobalSetting", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func identitiesRepoSetting(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "identitiesRepoSetting", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func identitiesNoRoleHere(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "identitiesNoRoleHere", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func identitiesCanMint(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "identitiesCanMint", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func identitiesOpenOnGitHub(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "identitiesOpenOnGitHub", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func identitiesOpenOnGitHubDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "identitiesOpenOnGitHubDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func identitiesAppId(id: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "identitiesAppId \(id)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func identitiesOpenIdentity(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "identitiesOpenIdentity", bundle: bundle ?? carrierResources, locale: locale)
     }
 
     public static func rolesUseLead(bundle: Bundle? = nil, locale: Locale = .current) -> String {
@@ -10816,6 +10876,14 @@ public enum Copy {
         String(localized: "settingsPageRolesDetail", bundle: bundle ?? carrierResources, locale: locale)
     }
 
+    public static func settingsPageIdentities(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsPageIdentities", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsPageIdentitiesDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsPageIdentitiesDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
     public static func settingsPageWatching(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         String(localized: "settingsPageWatching", bundle: bundle ?? carrierResources, locale: locale)
     }
@@ -11773,8 +11841,16 @@ public enum Copy {
         String(localized: "settingsIndexTerminalVerticalPaddingDetail", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func settingsIndexRolesCreateABotDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "settingsIndexRolesCreateABotDetail", bundle: bundle ?? carrierResources, locale: locale)
+    public static func settingsIndexIdentitiesCreateABotDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexIdentitiesCreateABotDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexIdentitiesSignsAsDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexIdentitiesSignsAsDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexIdentitiesCanSignInDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexIdentitiesCanSignInDetail", bundle: bundle ?? carrierResources, locale: locale)
     }
 
     public static func settingsIndexRolesUseALeadReviewerDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {

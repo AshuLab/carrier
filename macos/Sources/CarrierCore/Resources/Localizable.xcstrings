@@ -28923,6 +28923,346 @@
         }
       }
     },
+    "identitiesAppId %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub App %1$@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App de GitHub %1$@"
+          }
+        }
+      }
+    },
+    "identitiesCanMint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Can mint a token"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Puede obtener un token"
+          }
+        }
+      }
+    },
+    "identitiesCannotSign %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cannot sign in %1$@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No puede firmar en %1$@"
+          }
+        }
+      }
+    },
+    "identitiesCouldNotCheck": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not check where it can sign"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo comprobar dónde puede firmar"
+          }
+        }
+      }
+    },
+    "identitiesCreateBotDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opens Terminal on agent-forge add; the list updates when you come back"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abre Terminal en agent-forge add; la lista se actualiza cuando vuelves"
+          }
+        }
+      }
+    },
+    "identitiesCreateBotHelp": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opens Terminal and runs agent-forge add"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abre Terminal y ejecuta agent-forge add"
+          }
+        }
+      }
+    },
+    "identitiesCreateBotTitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Create a bot…"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Crear un bot…"
+          }
+        }
+      }
+    },
+    "identitiesFooter": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "An identity is the GitHub account that signs what a role posts. A role picks its own on its screen."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Una identidad es la cuenta de GitHub que firma lo que publica un rol. Cada rol elige la suya en su pantalla."
+          }
+        }
+      }
+    },
+    "identitiesGlobalSetting": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Set in Roles"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Definido en Roles"
+          }
+        }
+      }
+    },
+    "identitiesGroupCanSign": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Can sign in"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Puede firmar en"
+          }
+        }
+      }
+    },
+    "identitiesGroupSignsAs": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Signs as"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Firma como"
+          }
+        }
+      }
+    },
+    "identitiesGroupWho": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Who signs on GitHub"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quién firma en GitHub"
+          }
+        }
+      }
+    },
+    "identitiesNoRole": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No role"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sin rol"
+          }
+        }
+      }
+    },
+    "identitiesNoRoleHere": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No role signs as it here, so it is not checked"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ningún rol firma aquí con ella, así que no se comprueba"
+          }
+        }
+      }
+    },
+    "identitiesNoRoleSigns": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No role signs as it. Pick it in a role’s Identity."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ningún rol firma con ella. Elígela en la Identidad de un rol."
+          }
+        }
+      }
+    },
+    "identitiesOpenIdentity": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open identity"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir identidad"
+          }
+        }
+      }
+    },
+    "identitiesOpenOnGitHub": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open on GitHub"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir en GitHub"
+          }
+        }
+      }
+    },
+    "identitiesOpenOnGitHubDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Its installations and permissions live there"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sus instalaciones y permisos están ahí"
+          }
+        }
+      }
+    },
+    "identitiesRepoSetting": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The repo’s own setting"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajuste propio del repo"
+          }
+        }
+      }
+    },
+    "identitiesRoleIn %@ %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ in %2$@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ en %2$@"
+          }
+        }
+      }
+    },
     "jsonMessagePullRequest": {
       "extractionState": "manual",
       "localizations": {
@@ -46292,57 +46632,6 @@
         }
       }
     },
-    "rolesCreateBotDetail": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Opens Terminal on agent-forge add; the list updates when you come back"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Abre Terminal en agent-forge add; la lista se actualiza cuando vuelves"
-          }
-        }
-      }
-    },
-    "rolesCreateBotHelp": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Opens Terminal and runs agent-forge add"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Abre Terminal y ejecuta agent-forge add"
-          }
-        }
-      }
-    },
-    "rolesCreateBotTitle": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Create a bot…"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Crear un bot…"
-          }
-        }
-      }
-    },
     "rolesDefault": {
       "extractionState": "manual",
       "localizations": {
@@ -46462,23 +46751,6 @@
         }
       }
     },
-    "rolesGroupIdentities": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Identities"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Identidades"
-          }
-        }
-      }
-    },
     "rolesGroupPersona": {
       "extractionState": "manual",
       "localizations": {
@@ -46543,23 +46815,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Quién"
-          }
-        }
-      }
-    },
-    "rolesIdentitiesFooter": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "A bot is the GitHub account a role works as. Every role can pick one."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Un bot es la cuenta de GitHub con la que trabaja un rol. Cada rol puede elegir uno."
           }
         }
       }
@@ -52689,6 +52944,57 @@
         }
       }
     },
+    "settingsIndexIdentitiesCanSignInDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Each watched repo and whether the identity can mint a token there"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cada repo vigilado y si la identidad puede obtener un token ahí"
+          }
+        }
+      }
+    },
+    "settingsIndexIdentitiesCreateABotDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opens Terminal on agent-forge add, to make a GitHub identity for a role"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abre Terminal con agent-forge add, para crear una identidad de GitHub para un rol"
+          }
+        }
+      }
+    },
+    "settingsIndexIdentitiesSignsAsDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The roles that sign as an identity, in Roles and as a repo’s own role"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los roles que firman con una identidad, en Roles y como rol propio de un repo"
+          }
+        }
+      }
+    },
     "settingsIndexKeepAwakeKeepAwakeWhileAgentsWorkDetail": {
       "extractionState": "manual",
       "localizations": {
@@ -52957,23 +53263,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "%1$@. Ejecuta la skill %2$@"
-          }
-        }
-      }
-    },
-    "settingsIndexRolesCreateABotDetail": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Opens Terminal on agent-forge add, to make a GitHub identity for a role"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Abre Terminal con agent-forge add, para crear una identidad de GitHub para un rol"
           }
         }
       }
@@ -53790,6 +54079,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "¿Este Mac está listo?"
+          }
+        }
+      }
+    },
+    "settingsPageIdentities": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Identities"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Identidades"
+          }
+        }
+      }
+    },
+    "settingsPageIdentitiesDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The GitHub accounts roles sign as, and where each can sign"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las cuentas de GitHub con las que firman los roles y dónde puede firmar cada una"
           }
         }
       }

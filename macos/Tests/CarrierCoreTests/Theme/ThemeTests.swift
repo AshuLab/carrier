@@ -100,10 +100,14 @@ import Testing
         (.tokyoNight, .dark, 0x1a1b26, 0x16161e, 0x7aa2f7), (.tokyoNight, .light, 0xe1e2e7, 0xd0d5e3, 0x2e7de9),
         (.catppuccin, .dark, 0x1e1e2e, 0x181825, 0xcba6f7), (.catppuccin, .light, 0xeff1f5, 0xe6e9ef, 0x8839ef),
         (.oneDark, .dark, 0x282c34, 0x21252b, 0x61afef), (.oneDark, .light, 0xfafafa, 0xeaeaeb, 0x4078f2),
+        (.monokai, .dark, 0x272822, 0x1e1f1c, 0xa6e22e), (.monokai, .light, 0xf9f8f1, 0xebe9dc, 0x62890a),
+        (.rosePine, .dark, 0x191724, 0x1f1d2e, 0xebbcba), (.rosePine, .light, 0xfaf4ed, 0xf2e9e1, 0xd7827e),
+        (.everforest, .dark, 0x2d353b, 0x232a2e, 0xa7c080), (.everforest, .light, 0xfffbef, 0xf2efdf, 0x8da101),
+        (.ayu, .dark, 0x242936, 0x1f2430, 0xffcc66), (.ayu, .light, 0xfcfcfc, 0xf8f9fa, 0xf29718),
     ]
 
-    @Test func the_sixteen_themes_in_both_versions_keep_the_values_of_the_switch_they_came_from() {
-        #expect(Theme.allCases.count == 16 && Self.before.count == 32)
+    @Test func the_twenty_themes_in_both_versions_keep_the_values_of_the_switch_they_came_from() {
+        #expect(Theme.allCases.count == 20 && Self.before.count == 40)
         for (theme, scheme, window, sidebar, accent) in Self.before {
             #expect(
                 themeSurfaces(theme, scheme: scheme, translucent: false) == ThemeSurfaces(window: RGBA(hex: window), sidebar: RGBA(hex: sidebar), accent: accent.map { RGBA(hex: $0) }),

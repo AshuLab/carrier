@@ -12592,6 +12592,23 @@
         }
       }
     },
+    "choiceThemeAyu": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ayu"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ayu"
+          }
+        }
+      }
+    },
     "choiceThemeCarrier": {
       "extractionState": "manual",
       "localizations": {
@@ -12639,6 +12656,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Dracula"
+          }
+        }
+      }
+    },
+    "choiceThemeEverforest": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Everforest"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Everforest"
           }
         }
       }
@@ -12728,6 +12762,23 @@
         }
       }
     },
+    "choiceThemeMonokai": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Monokai"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Monokai"
+          }
+        }
+      }
+    },
     "choiceThemeNord": {
       "extractionState": "manual",
       "localizations": {
@@ -12809,6 +12860,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Rosa"
+          }
+        }
+      }
+    },
+    "choiceThemeRosePine": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rosé Pine"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rosé Pine"
           }
         }
       }

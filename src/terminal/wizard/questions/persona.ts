@@ -3,6 +3,12 @@ import type { Ui } from '../../prompts/types.ts';
 import type { Persona } from '../build-config.ts';
 import { roleName, type RoleSlot } from '../roles.ts';
 
+/** What is wrong with a persona flag, naming it; undefined when it is within the schema's limits. */
+export function personaProblem(slot: RoleSlot, key: 'name' | 'prompt', value: string) {
+  const parsed = persona.shape[key].safeParse(value);
+  return parsed.success ? undefined : `--${slot}-persona-${key}: ${parsed.error.issues[0]?.message}`;
+}
+
 /** The persona of a role: one "customise the persona?" (Enter says no, or yes when the file has one), and only a yes asks a name and a prompt, each skippable by leaving it empty; when editing, empty keeps the current value and `-` clears it. The limits are the schema's. A flag answers ahead of time and, outside the limits, is an error naming it. */
 export async function askPersona(ui: Ui, slot: RoleSlot, given: { name?: string; prompt?: string }, interactive: boolean, current?: Persona): Promise<Persona | undefined> {
   const role = roleName(slot);
@@ -13,8 +19,8 @@ export async function askPersona(ui: Ui, slot: RoleSlot, given: { name?: string;
       return parsed.success ? undefined : parsed.error.issues[0]?.message;
     };
     if (flag !== undefined) {
-      const problem = refusal(flag);
-      if (problem !== undefined) throw new Error(`--${slot}-persona-${key}: ${problem}`);
+      const problem = personaProblem(slot, key, flag);
+      if (problem !== undefined) throw new Error(problem);
       return flag.trim();
     }
     if (!interactive) return undefined;

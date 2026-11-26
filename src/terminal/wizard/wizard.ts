@@ -7,7 +7,7 @@ import { installFix } from '../../doctor/fixes.ts';
 import type { LocalProvider } from '../../harnesses/local.ts';
 import { harnessNames } from '../../harnesses/names.ts';
 import { Cancelled, type Ui } from '../prompts/types.ts';
-import { buildConfig, type AIProvider, type Role } from './build-config.ts';
+import { buildConfig, parseIdentity, type AIProvider, type Role } from './build-config.ts';
 import { realDeps, type InitDeps } from './deps.ts';
 import type { InitFlags } from './flags.ts';
 import type { ForgeAgent } from './forge-registry.ts';
@@ -19,6 +19,7 @@ import { askRole } from './questions/role.ts';
 import { askOut } from './questions/out.ts';
 import { askRepos } from './questions/repos.ts';
 import { roleKey, type RoleSlot } from './roles.ts';
+import { failoverProblem, flagProblem } from './validate-flags.ts';
 import { foundLines, summary, tilde } from './summary.ts';
 
 /** The accounts `providers.json` already holds, as it keeps them (a folder under the home folder with its `~`); none when the file is not there or has no `providers` key. An unreadable or invalid file stops here: writing over it would lose its accounts. */
@@ -36,8 +37,26 @@ function heldBy(deps: InitDeps, providersPath: string): Record<string, AIProvide
   return Object.fromEntries(Object.entries(loaded.providers).map(([name, account]) => [name, { ...account, ...(account.configDir && { configDir: tilde(account.configDir) }), ...(account.command && { command: tilde(account.command) }) }]));
 }
 
+/** The accounts the `--<role>` flags declare on top of `accounts` (one is reused when it matches), and the account and model each flagged role starts on. */
+function declareFlagged(flags: InitFlags, accounts: Record<string, AIProvider>) {
+  let providers = accounts;
+  const flagged = (slot: 'author' | 'reviewer' | 'lead-reviewer') => {
+    const key = roleKey(slot) as 'author' | 'reviewer' | 'leadReviewer';
+    const flag = flags[key];
+    if (flag === undefined) return undefined;
+    const declared = declareFlaggedProvider(providers, slot, flag, flags[`${key}Provider`]);
+    providers = declared.providers;
+    return { provider: declared.providerName, model: declared.model };
+  };
+  const roles = { author: flagged('author'), reviewer: flagged('reviewer'), 'lead-reviewer': flagged('lead-reviewer') };
+  return { providers, roles };
+}
+
 /** The setup flow: look at the machine, ask what is missing, recap, save, check, offer to start. */
 export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDeps, folder = carrierHome()) {
+  // Flags that cannot work are refused before anything is shown or probed.
+  const wrong = flagProblem(flags);
+  if (wrong !== undefined) throw new Error(wrong);
   ui.intro('Carrier setup');
   const interactive = ui.interactive && !flags.yes; // --yes never asks, whatever the terminal
   if (interactive) ui.note('Carrier works through your GitHub epics with AI agents: one writes the code, another reviews it.\nI look at this Mac first, then ask what is missing:\n  1. Your AI accounts\n  2. Who Carrier reads GitHub as (the orchestrator\'s GitHub profile)\n  3. The author, the reviewer and an optional lead reviewer, one block each: GitHub profile, account, model and effort, persona and failover\n  4. The repos to watch\n  5. Where to save it\nBefore anything is written you see the whole picture and can change it.', 'What this does');
@@ -65,9 +84,16 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
   ui.note(foundLines(detected).join('\n'), 'Found on this Mac');
   if (login === undefined) ui.warn('gh is not logged in (run: gh auth login): your repos cannot be listed, and a "my own gh login" profile will not work.');
 
+  const providersPath = providersPathOf(folder); // the accounts go here, whatever --out says (ADR 0020)
+  // The accounts already in providers.json are the base of every path; what was found is added, never replacing.
+  const heldAccounts = heldBy(deps, providersPath);
+  // A failover step names an account of this Mac or of the file, or one a --<role> flag declares: checked as soon as they are known, before the first question.
+  const known = declareFlagged(flags, mergeAccounts(heldAccounts, harnesses));
+  const missing = failoverProblem(flags, Object.keys(known.providers), known.roles);
+  if (missing !== undefined) throw new Error(missing);
+
   // A config that is already there: edit it (its answers become the starting points), start over, or leave it.
   const fallback = engineConfigPathOf(folder);
-  const providersPath = providersPathOf(folder); // the accounts go here, whatever --out says (ADR 0020)
   let out = flags.out === undefined ? undefined : resolve(flags.out);
   let settled = false; // the question below settled where the config goes, and that it may be replaced
   let prior: Prior | undefined;
@@ -120,21 +146,11 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
     if ('error' in found) ui.warn(`${tilde(out ?? fallback)} does not validate and is replaced, first error: ${found.error}`);
   }
 
-  // The accounts already in providers.json are the base of every path; what was found is added, never replacing.
-  const heldAccounts = heldBy(deps, providersPath);
-
   const ask = async (from: Prior | undefined, accounts: Record<string, AIProvider>, heldNames: string[]): Promise<Prior> => {
     // 1. Accounts: found on this Mac and the ones already held, then the person's own
-    let providers = accounts;
-    const flagged = (slot: 'author' | 'reviewer' | 'lead-reviewer') => {
-      const key = roleKey(slot) as 'author' | 'reviewer' | 'leadReviewer';
-      const flag = flags[key];
-      if (flag === undefined) return undefined;
-      const declared = declareFlaggedProvider(providers, slot, flag, flags[`${key}Provider`]);
-      providers = declared.providers;
-      return { provider: declared.providerName, model: declared.model };
-    };
-    const [flaggedAuthor, flaggedReviewer, flaggedLead] = [flagged('author'), flagged('reviewer'), flagged('lead-reviewer')];
+    const declared = declareFlagged(flags, accounts);
+    let providers = declared.providers;
+    const { author: flaggedAuthor, reviewer: flaggedReviewer, 'lead-reviewer': flaggedLead } = declared.roles;
     const unattended = flaggedAuthor !== undefined && flaggedReviewer !== undefined;
     if (!unattended) providers = await askProviders(ui, providers, harnesses, locals, deps, heldNames);
 
@@ -154,8 +170,8 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
         'GitHub profiles',
       );
     }
-    // Not asked (--yes or the profile flags): the file's own when editing, else the author's profile.
-    const orchestrator = asking ? await askIdentity(ui, 'orchestrator', forge, readForge, login, undefined, deps, interactive, from?.orchestrator) : from?.orchestrator;
+    // Not asked (--orchestrator-profile, --yes or the profile flags): the flag's, else the file's own when editing, else the author's profile.
+    const orchestrator = flags.orchestratorProfile !== undefined ? parseIdentity(flags.orchestratorProfile) : asking ? await askIdentity(ui, 'orchestrator', forge, readForge, login, undefined, deps, interactive, from?.orchestrator) : from?.orchestrator;
 
     // 3. One closed block per role
     const context = { ui, deps, flags, interactive, unattended, providers, locals, forge, readForge, login };

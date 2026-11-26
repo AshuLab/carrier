@@ -1,5 +1,9 @@
 import { parseArgs } from 'node:util';
 import { engineConfigPathOf } from '../../config/places.ts';
+import { efforts } from '../../config/schema.ts';
+import { localKinds } from '../../harnesses/local.ts';
+import { harnessNames } from '../../harnesses/names.ts';
+import { askedSlots, roleFlagSuffixes, type AskedSlot } from '../wizard/roles.ts';
 
 export const commandNames = ['init', 'doctor', 'schema', 'start', 'status', 'watch', 'stop', 'pause', 'resume', 'check', 'reload', 'restart', 'recover', 'chat', 'chat-host', 'usage', 'config'] as const;
 export type CommandName = (typeof commandNames)[number];
@@ -34,42 +38,33 @@ restart --extra-rounds K, with --from review or fix, sets how many review rounds
 
 init flags (each one skips its question; --yes never asks):
   --repo <owner/name>            repeat for several repos
-  --author-profile <forge:<agent>|gh>   --reviewer-profile <forge:<agent>|gh>   --lead-reviewer-profile <forge:<agent>|gh>
-  --author <harness>:<model>            --reviewer <harness>:<model>            --lead-reviewer <harness>:<model>
-  --author-provider <lmstudio|ollama>   --reviewer-provider <lmstudio|ollama>   --lead-reviewer-provider <lmstudio|ollama>
-  --author-effort <level>        --reviewer-effort <level>        --lead-reviewer-effort <level>     level: low, medium, high, xhigh or max
-  --author-persona-name <text>   --reviewer-persona-name <text>   --lead-reviewer-persona-name <text>
-  --author-persona-prompt <text> --reviewer-persona-prompt <text> --lead-reviewer-persona-prompt <text>
+  --orchestrator-profile <forge:<agent>|gh>   the orchestrator's GitHub profile
+  --<role>[-profile|-provider|-effort|-persona-name|-persona-prompt|-failover] <value>   for every role: ${askedSlots.join(', ')}
+      --<role> <harness>:<model>              harness: ${harnessNames.join(', ')}
+      --<role>-profile <forge:<agent>|gh>
+      --<role>-provider <${localKinds.join('|')}>
+      --<role>-effort <level>                 level: ${efforts.join(', ')}
+      --<role>-persona-name <text>   --<role>-persona-prompt <text>
+      --<role>-failover <account>[:<model>]   repeat for up to two steps, in order; the account is one of this Mac or providers.json
   --out <path>                   default is the --config default above
-  --yes                          no questions; overwrite the output file (without --author and --reviewer, one claude option runs both roles)`;
+  --yes                          no questions; overwrite the output file; the author and the reviewer take the first of each agent found (claude for the author and codex for the reviewer when both exist)`;
+
+/** What `--<role>`, `--<role>-profile` and the rest of a role's flags are, from the table of slots `init` asks. */
+const roleOptions = Object.fromEntries(
+  askedSlots.flatMap((slot) => [...roleFlagSuffixes.map((suffix) => [`${slot}${suffix}`, { type: 'string' }]), [`${slot}-failover`, { type: 'string', multiple: true }]]),
+) as { [Name in `${AskedSlot}${(typeof roleFlagSuffixes)[number]}`]: { readonly type: 'string' } } & { [Name in `${AskedSlot}-failover`]: { readonly type: 'string'; readonly multiple: true } };
 
 const options = {
+  ...roleOptions,
   config: { type: 'string' },
   repo: { type: 'string', multiple: true },
-  'author-profile': { type: 'string' },
-  'reviewer-profile': { type: 'string' },
-  'lead-reviewer-profile': { type: 'string' },
-  author: { type: 'string' },
-  reviewer: { type: 'string' },
+  'orchestrator-profile': { type: 'string' },
   'reviewer-2': { type: 'string' },
   'reviewer-3': { type: 'string' },
   'reviewer-4': { type: 'string' },
   lead: { type: 'string' },
   from: { type: 'string' },
   'extra-rounds': { type: 'string' },
-  'lead-reviewer': { type: 'string' },
-  'author-provider': { type: 'string' },
-  'reviewer-provider': { type: 'string' },
-  'lead-reviewer-provider': { type: 'string' },
-  'author-effort': { type: 'string' },
-  'reviewer-effort': { type: 'string' },
-  'lead-reviewer-effort': { type: 'string' },
-  'author-persona-name': { type: 'string' },
-  'author-persona-prompt': { type: 'string' },
-  'reviewer-persona-name': { type: 'string' },
-  'reviewer-persona-prompt': { type: 'string' },
-  'lead-reviewer-persona-name': { type: 'string' },
-  'lead-reviewer-persona-prompt': { type: 'string' },
   out: { type: 'string' },
   yes: { type: 'boolean' },
   json: { type: 'boolean' },

@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- A session's branch in the sidebar and on the Sessions page reads as the branch name again, instead of `ModifiedContent<Text, ScaledFont…>`.
+
 ## [0.20.0] - 2026-11-25
 
 The Mac app in Spanish and organized by area, `carrier config`, named engine and chat host processes, worktree chips that say where the work stands, and glass terminals.

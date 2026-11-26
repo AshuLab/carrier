@@ -373,3 +373,15 @@ private func group(_ events: [ChatEvent]) -> ToolGroup {
     #expect(Copy.chatContextTokens(count: "900", bundle: es.bundle, locale: es.locale) == "900 de contexto")
     #expect(Copy.chatToolUnnamed(bundle: es.bundle, locale: es.locale) == "herramienta" && Copy.chatSubagentTypeDefault(bundle: es.bundle, locale: es.locale) == "Agente")
 }
+
+@Test func theProcessesCardIsSpanishWithAndWithoutStopInItsSingularAndPluralCases() {
+    let build = BackgroundTask(id: "p1", kind: "local_bash", description: "pnpm build", agentWork: false)
+    let watch = BackgroundTask(id: "p2", kind: "local_bash", description: "pnpm test", agentWork: false)
+    let one = ProcessesCard([build], canStop: true, bundle: es.bundle, locale: es.locale)
+    #expect(one?.title == "1 proceso sigue en marcha" && one?.stop == "Detener" && one?.stopHelp == "Detener el proceso")
+    let several = ProcessesCard([build, watch], canStop: true, bundle: es.bundle, locale: es.locale)
+    #expect(several?.title == "2 procesos siguen en marcha" && several?.stop == "Detener todo" && several?.stopHelp == "Detener todos los procesos")
+    #expect(several?.spoken == "2 procesos siguen en marcha, pnpm build, pnpm test")
+    #expect(ProcessesCard([build], canStop: false, bundle: es.bundle, locale: es.locale)?.stop == nil)
+    #expect(Copy.chatProcessesHintShow(bundle: es.bundle, locale: es.locale) == "Muestra los procesos" && Copy.chatProcessesHintHide(bundle: es.bundle, locale: es.locale) == "Oculta los procesos")
+}

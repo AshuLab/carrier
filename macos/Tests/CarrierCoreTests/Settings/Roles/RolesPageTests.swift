@@ -181,3 +181,20 @@ private func withExtras(_ entries: String) -> String {
     for slot in [RoleSlot.author, .reviewer, .lead, .extra(2), .extra(4)] { #expect(RoleSlot(name: slot.name) == slot) }
     #expect(RoleSlot(name: "reviewer-1") == nil && RoleSlot(name: "reviewer-5") == nil && RoleSlot(name: "reviewer-02") == nil && RoleSlot(name: "x") == nil)
 }
+
+@Test func anExtraReviewersSkillsAreTheReviewersAndAnIdentityLessSlotHasNone() throws {
+    let found = try page(withExtras(#"{"profile": "a", "provider": "codex", "model": "m"}"#))
+    let extra = try #require(found.rows.first { $0.slot == .extra(2) })
+    let reviewer = try #require(found.rows.first { $0.slot == .reviewer })
+    let stages = { (row: RoleRow) in row.slot.stages(bundle: english.bundle, locale: english.locale).map(\.skill) }
+    #expect(stages(extra) == ["code-review", "code-post"] && stages(extra) == stages(reviewer))
+    #expect(RoleSlot.lead.stages(bundle: english.bundle, locale: english.locale).isEmpty)
+}
+
+@Test func aPlaceWhoseReviewerNoLongerExistsHasNoRowSoTheViewShowsTheFirstScreen() throws {
+    // the place names a slot that parses, but the file now has fewer extra reviewers: no row answers it
+    let place = try #require(RoleSlot(name: "reviewer-3"))
+    let one = try page(withExtras(#"{"profile": "a", "provider": "codex", "model": "m"}"#))
+    #expect(one.rows.contains { $0.slot == .extra(2) } && one.rows.contains { $0.slot == place } == false)
+    #expect(try page(withExtras("")).rows.contains { $0.slot == place } == false)
+}

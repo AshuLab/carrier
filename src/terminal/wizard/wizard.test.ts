@@ -933,12 +933,98 @@ test('an extra with its own failover steps writes them, and one without writes n
   expect(extras.usabilidad).not.toHaveProperty('failover');
 });
 
-test('under --yes there is no extra reviewer: no flag creates one yet, and nothing is asked', async () => {
+test('under --yes with no --extra-reviewer there is no extra reviewer, and nothing is asked', async () => {
   const none = fakeDeps();
   const { ui, asked } = quietUi();
   await runInit({ ...flagged, yes: true, out: join(dir, 'extras-yes-none.json') }, ui, none.deps);
   expect(JSON.parse(none.written[join(dir, 'extras-yes-none.json')]!).agents).not.toHaveProperty('extraReviewers');
   expect(asked.filter((m) => !m.startsWith('outro') && !m.startsWith('checks:'))).toEqual([]);
+});
+
+test('under --yes an --extra-reviewer with its type writes the reviewer under the key of its name, and the file loads', async () => {
+  const { deps, written } = fakeDeps();
+  const { ui, asked } = quietUi();
+  const out = join(dir, 'extras-yes-flag.json');
+  await runInit({ ...flagged, yes: true, out, extraReviewer: ['Seguridad API=claude:sonnet'], extraReviewerType: ['Seguridad API=security'] }, ui, deps);
+  const config = JSON.parse(written[out]!);
+  expect(Object.keys(config.agents.extraReviewers)).toEqual(['seguridad-api']);
+  expect(config.agents.extraReviewers['seguridad-api']).toMatchObject({ name: 'Seguridad API', type: 'security', provider: 'claude', model: 'sonnet' });
+  expect(config.agents.extraReviewers['seguridad-api']).not.toHaveProperty('failover');
+  expect(loadConfig(defaults, config, providersWritten(written) as never).ok).toBe(true);
+  expect(asked).not.toContain(moreKey);
+  expect(asked).not.toContain(nameKey);
+  expect(asked).not.toContain(typeKey);
+});
+
+test('under --yes the type of a reviewer no flag typed is general', async () => {
+  const { deps, written } = fakeDeps();
+  const out = join(dir, 'extras-yes-general.json');
+  await runInit({ ...flagged, yes: true, out, extraReviewer: ['Usabilidad=claude:sonnet'] }, quietUi().ui, deps);
+  expect(JSON.parse(written[out]!).agents.extraReviewers.usabilidad.type).toBe('general');
+});
+
+test('two --extra-reviewer flags create two reviewers in the order given, each field flag sets the reviewer it names and no other, and the failover repeats in order', async () => {
+  const { deps, written } = fakeDeps();
+  const out = join(dir, 'extras-yes-two.json');
+  await runInit(
+    {
+      ...flagged,
+      yes: true,
+      out,
+      extraReviewer: ['Usabilidad=codex:gpt-5', 'Seguridad API=claude:opus'],
+      extraReviewerType: ['seguridad api=security'],
+      extraReviewerProfile: ['Usabilidad=gh'],
+      extraReviewerEffort: ['Seguridad API=low'],
+      extraReviewerPersonaName: ['Usabilidad=Ada'],
+      extraReviewerPersonaPrompt: ['Usabilidad=Looks at the screens.'],
+      extraReviewerFailover: ['Seguridad API=codex:gpt-5', 'Seguridad API=claude'],
+    },
+    quietUi().ui,
+    deps,
+  );
+  const extras = JSON.parse(written[out]!).agents.extraReviewers;
+  expect(Object.keys(extras)).toEqual(['usabilidad', 'seguridad-api']);
+  expect(extras.usabilidad).toMatchObject({ name: 'Usabilidad', type: 'general', profile: 'gh', model: 'gpt-5', persona: { name: 'Ada', prompt: 'Looks at the screens.' } });
+  expect(extras.usabilidad.effort).not.toBe('low'); // the effort flag was Seguridad API's
+  expect(extras.usabilidad).not.toHaveProperty('failover');
+  expect(extras['seguridad-api']).toMatchObject({ name: 'Seguridad API', type: 'security', model: 'opus', effort: 'low', failover: [{ provider: 'codex', model: 'gpt-5' }, { provider: 'claude' }] });
+  expect(extras['seguridad-api']).not.toHaveProperty('persona');
+  expect(extras['seguridad-api'].profile).not.toBe('gh'); // the profile flag was Usabilidad's
+});
+
+test('in an interactive run a reviewer a flag created is not asked what its flags answered, and its other questions are asked', async () => {
+  const { ui, asked, notes } = quietUi({ [typeKey]: 'ux', 'Customise the extra reviewer\'s persona?': false });
+  const { deps, written } = fakeDeps();
+  const out = join(dir, 'extras-interactive-flag.json');
+  await runInit({ repo: ['A/b'], out, extraReviewer: ['Seguridad API=claude:sonnet'], extraReviewerProfile: ['Seguridad API=gh'], extraReviewerEffort: ['Seguridad API=high'], extraReviewerType: ['Seguridad API=security'] }, ui, deps);
+  expect(asked).not.toContain(nameKey);
+  expect(asked).not.toContain(typeKey); // the type flag answered it
+  expect(asked).not.toContain('GitHub profile for the extra reviewer');
+  expect(asked.filter((m) => /^Effort for the extra reviewer|^Model and effort/.test(m))).toHaveLength(2); // the author's and the reviewer's, not the extra's
+  expect(asked.filter((m) => m === 'Which account runs the extra reviewer?')).toEqual([]); // the account came with the flagged agent
+  expect(asked).toContain('Customise the extra reviewer\'s persona?'); // what no flag answered is asked
+  expect(asked.filter((m) => m === moreKey)).toHaveLength(1); // after the flagged one: add another?
+  expect(notes.some((n) => n.title === 'Seguridad API')).toBe(false); // its profile and agent are answered, so no box
+  expect(JSON.parse(written[out]!).agents.extraReviewers['seguridad-api']).toMatchObject({ name: 'Seguridad API', type: 'security', effort: 'high', profile: 'gh' });
+});
+
+test('in an interactive run a flagged reviewer with no type flag is asked its type, and another can be added after it', async () => {
+  const { ui, asked } = quietUi({ [typeKey]: ['security', 'ux'], [moreKey]: [true, false], [nameKey]: 'Usabilidad', 'Add a lead reviewer?': false });
+  const { deps, written } = fakeDeps();
+  const out = join(dir, 'extras-interactive-more.json');
+  await runInit({ repo: ['A/b'], out, extraReviewer: ['Seguridad API=claude:sonnet'] }, ui, deps);
+  expect(asked.filter((m) => m === nameKey)).toHaveLength(1); // only the one the person adds
+  expect(asked.filter((m) => m === typeKey)).toHaveLength(2);
+  expect(Object.keys(JSON.parse(written[out]!).agents.extraReviewers)).toEqual(['seguridad-api', 'usabilidad']);
+});
+
+test('a name asked for after a flagged one cannot repeat it', async () => {
+  const { ui, asked } = quietUi({ [moreKey]: [true, false], [nameKey]: ['seguridad api', 'Usabilidad'] });
+  const { deps, written } = fakeDeps();
+  const out = join(dir, 'extras-interactive-dup.json');
+  await runInit({ repo: ['A/b'], out, extraReviewer: ['Seguridad API=claude:sonnet'] }, ui, deps);
+  expect(asked.filter((m) => m.startsWith('warn:'))).toContain('warn:another extra reviewer already has that name: try another name');
+  expect(Object.keys(JSON.parse(written[out]!).agents.extraReviewers)).toEqual(['seguridad-api', 'usabilidad']);
 });
 
 const withExtras = {

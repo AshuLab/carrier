@@ -10,7 +10,7 @@ import { askEffort } from './effort.ts';
 import { askIdentity } from './identity.ts';
 import { askRoleFailover, askRoleProvider, type Providers, type Steps } from './options.ts';
 import { askPersona } from './persona.ts';
-import { failoverProblem, failoverSteps } from '../validate-flags.ts';
+import { failoverProblem, failoverSteps, stepsOf, type ExtraFlags } from '../validate-flags.ts';
 
 /** What every role block shares: the terminal, the machine and what was answered before any role. */
 export type RoleContext = {
@@ -29,11 +29,11 @@ export type RoleContext = {
   said: { failover: boolean };
 };
 
-/** Where a block starts: the file's answers for the slot (edit mode), the role asked just before it, and the account and model a `--<role>` flag named. */
-export type RoleStart = { from?: Role; steps?: Steps; after?: Role; flagged?: { provider: string; model: string }; /** What the block's box is headed with: an extra reviewer's name; a slot's is its own name. */ title?: string };
+/** Where a block starts: the file's answers for the slot (edit mode), the role asked just before it, and the account and model a `--<role>` flag named. `given` is what the flags of an extra reviewer answered; a slot's flags are read from the context. */
+export type RoleStart = { given?: ExtraFlags; from?: Role; steps?: Steps; after?: Role; flagged?: { provider: string; model: string }; /** What the block's box is headed with: an extra reviewer's name; a slot's is its own name. */ title?: string };
 
 /** One role, closed: its GitHub profile, its account, whether to change the model and effort it starts on, whether to customise the persona, and its failover. The same piece serves every slot; with every default accepted it costs the profile and the account and Enter for the rest. */
-export async function askRole(ctx: RoleContext, slot: Block, { from, steps, after, flagged, title }: RoleStart = {}): Promise<{ role: Role; failover?: Steps }> {
+export async function askRole(ctx: RoleContext, slot: Block, { given, from, steps, after, flagged, title }: RoleStart = {}): Promise<{ role: Role; failover?: Steps }> {
   const { ui, deps, interactive } = ctx;
   const name = roleName(slot);
   const key = roleKey(slot);
@@ -41,7 +41,7 @@ export async function askRole(ctx: RoleContext, slot: Block, { from, steps, afte
     const value = (ctx.flags as Record<string, unknown>)[`${key}${suffix}`];
     return typeof value === 'string' ? value : undefined;
   };
-  const [profileFlag, effortFlag] = [flag('Profile'), flag('Effort')];
+  const [profileFlag, effortFlag] = given ? [given.profile, given.effort] : [flag('Profile'), flag('Effort')];
 
   if (interactive && !(profileFlag && flagged)) ui.note(roleBlurb(slot), title ?? `${name[0]!.toUpperCase()}${name.slice(1)}`);
   const identity = profileFlag ? parseIdentity(profileFlag) : await askIdentity(ui, slot, ctx.forge, ctx.readForge, ctx.login, after?.identity, deps, interactive, from?.identity);
@@ -60,10 +60,10 @@ export async function askRole(ctx: RoleContext, slot: Block, { from, steps, afte
   }
   model ??= await askModel(ui, account.harness, account.provider, ctx.locals, deps, name);
 
-  const persona = await askPersona(ui, slot, { name: flag('PersonaName'), prompt: flag('PersonaPrompt') }, interactive, from?.persona);
+  const persona = await askPersona(ui, slot, given ? { name: given.personaName, prompt: given.personaPrompt } : { name: flag('PersonaName'), prompt: flag('PersonaPrompt') }, interactive, from?.persona);
   const role: Role = { identity, provider, model, ...(effort && { effort }), ...(persona && { persona }) };
   // Failover flags answer the question: the role is not asked, and the steps are the ones given, in order.
-  const flagSteps = failoverSteps(ctx.flags, slot);
+  const flagSteps = given ? stepsOf('--extra-reviewer-failover', given.failover) : failoverSteps(ctx.flags, slot);
   if (flagSteps !== undefined) {
     const problem = failoverProblem(ctx.flags, Object.keys(ctx.providers), { [slot]: role });
     if (problem !== undefined) throw new Error(problem);

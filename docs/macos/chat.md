@@ -34,6 +34,8 @@ The message box's Stop, which shows while the session works, interrupts the turn
 Back leaves one level, and so does choosing another session or page.
 Back from the last level puts the cursor in the message box again, as when the session opened.
 The place of the message box holds "Subagent work is read-only." and a ‹ Back to chat button, so nothing can be typed to it.
+A completed subagent whose `task` event carried a `summary` shows it after its work in a Result block (the same card as the work cards, folded at six lines with a control to open the rest).
+A failed subagent shows its `summary` in the Result block when it has one and only "Failed" when not, while a stopped subagent shows no Result block because the provider sends its title there.
 While it runs, its live line is the conversation's, for it; once it ended or its session stopped working, a call that never ended shows stopped.
 Once the run finishes, its summary counts MCP calls apart from other tools.
 A poll that fails shows its reason under the feed and is logged once; polling goes on.

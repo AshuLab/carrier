@@ -17,8 +17,15 @@ export function boundEvent(event: ChatEvent | StepEvent): Record<string, unknown
     case 'reasoning':
       return { text: clean(event.text, chatCaps.message), ...(event.parentCallId !== undefined && { parentCallId: event.parentCallId }) };
     case 'task': {
-      const { kind: _kind, text, agentType, lastTool, ...rest } = event;
-      return { ...rest, ...(text !== undefined && { text: clean(text, chatCaps.arg) }), ...(agentType !== undefined && { agentType: clean(agentType, chatCaps.title) }), ...(lastTool !== undefined && { lastTool: clean(lastTool, chatCaps.title) }) };
+      const { kind: _kind, text, agentType, lastTool, summary, ...rest } = event;
+      const ended = event.state === 'completed' || event.state === 'failed' || event.state === 'stopped';
+      return {
+        ...rest,
+        ...(text !== undefined && { text: clean(text, chatCaps.arg) }),
+        ...(agentType !== undefined && { agentType: clean(agentType, chatCaps.title) }),
+        ...(lastTool !== undefined && { lastTool: clean(lastTool, chatCaps.title) }),
+        ...(ended && summary !== undefined && { summary: clean(summary, chatCaps.message) }),
+      };
     }
     case 'compact': {
       const { kind: _kind, error, ...rest } = event;

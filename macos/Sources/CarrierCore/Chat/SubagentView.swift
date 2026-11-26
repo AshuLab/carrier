@@ -57,11 +57,27 @@ public struct SubagentHeader: Equatable {
     }
 }
 
-/// A subagent as its view draws it: the header's description, the brief it was given (nil when the events do not carry it) and its own work.
+/// What a finished or failed subagent's view shows at the end of its work: its `report` when present, or "Failed" alone when it failed without one.
+public struct SubagentResult: Equatable {
+    public let text: String?
+    public let failed: Bool
+
+    public init(text: String?, failed: Bool = false) {
+        self.text = text
+        self.failed = failed
+    }
+}
+
+/// A subagent as its view draws it: the header's description, the brief it was given (nil when the events do not carry it), its own work and what it returned.
 public struct SubagentWork: Equatable {
     public internal(set) var header: SubagentHeader
     public let brief: String?
     public let items: [FlowItem]
+    public let result: SubagentResult?
+
+    public init(header: SubagentHeader, brief: String?, items: [FlowItem], result: SubagentResult? = nil) {
+        (self.header, self.brief, self.items, self.result) = (header, brief, items, result)
+    }
 }
 
 /// The subagent launched by `call`, from the events of the session: its own calls, thoughts and messages as flow items (the rows of any
@@ -104,7 +120,12 @@ public func subagentWork(in events: [ChatEvent], call: String, working: Bool = t
         }
     }
     let launch = events.first { $0.kind == "tool_start" && $0.callId == call }
-    return SubagentWork(header: SubagentHeader(subagent), brief: launch?.arg.flatMap(brief(of:)), items: items)
+    let result: SubagentResult? = switch subagent.status {
+    case .running, .stopped: nil
+    case .completed: subagent.report.map { SubagentResult(text: $0, failed: false) }
+    case .failed: SubagentResult(text: subagent.report, failed: true)
+    }
+    return SubagentWork(header: SubagentHeader(subagent), brief: launch?.arg.flatMap(brief(of:)), items: items, result: result)
 }
 
 /// The subagent of the slice card `id` in the epic's sessions, as its view draws it: the lane's own flow items, all its runs in one view (a

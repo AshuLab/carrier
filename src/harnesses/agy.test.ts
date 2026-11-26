@@ -20,7 +20,7 @@ const task: AgentTask = {
   context: { previousSummaries: [] },
 };
 const ctx = { binary: '/real/agy', githubToken: 'ghs_secret', baseEnv: { PATH: '/bin', HOME: '/h', GH_TOKEN: 'ghs_other' } };
-const fixed = ['--output-format', 'stream-json', '--model', 'gemini-3.8-flash-low', '--dangerously-skip-permissions', '--add-dir', '/root/orchestrator/results', '--log-file', join(tmpdir(), 'carrier-exec-exec-1.log')];
+const fixed = ['--output-format', 'stream-json', '--print-timeout', '0', '--model', 'gemini-3.8-flash-low', '--dangerously-skip-permissions', '--add-dir', '/root/orchestrator/results', '--log-file', join(tmpdir(), 'carrier-exec-exec-1.log')];
 
 test('command: real binary, cwd in the workspace, stream-json, no prompts, the marker in the log path', () => {
   const command = buildAgyCommand(task, ctx);

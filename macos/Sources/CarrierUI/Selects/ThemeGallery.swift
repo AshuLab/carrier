@@ -23,6 +23,7 @@ public struct ThemeGallery: View {
     @State private var viewport: CGFloat = 0
     // a click on a cell puts the keyboard in the gallery, so the arrows work right after picking one with the mouse
     @FocusState private var focused: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private static let rows = 3
     private static let gap = Tokens.Space.s10
@@ -42,7 +43,7 @@ public struct ThemeGallery: View {
         ScrollView(.horizontal, showsIndicators: false) {
             LazyHGrid(rows: Array(repeating: GridItem(.flexible(), spacing: Self.gap), count: Self.rows), spacing: Self.gap) {
                 ForEach(cells) { cell in
-                    ThemeCellButton(cell: cell, chosen: cell.id == chosen) {
+                    ThemeCellButton(cell: cell, chosen: cell.id == chosen, focused: focused) {
                         focused = true
                         action(cell.id)
                     }
@@ -75,22 +76,26 @@ public struct ThemeGallery: View {
             return .handled
         }
         .onChange(of: chosen) { scrollToChosen(animated: true) }
+        // the first layout gives the viewport its width after the first scroll, so scroll again once it has one
+        .onChange(of: viewport) { old, _ in if old == 0 { scrollToChosen(animated: false) } }
         .onAppear { scrollToChosen(animated: false) }
         .accessibilityElement(children: .contain).accessibilityLabel(Copy.pieceThemes())
     }
 
     /// The least the gallery moves for the chosen cell to be whole.
     private func scrollToChosen(animated: Bool) {
-        if animated { withAnimation(.smooth(duration: 0.25)) { position.scrollTo(id: chosen) } } else { position.scrollTo(id: chosen) }
+        if animated && !reduceMotion { withAnimation(.smooth(duration: 0.25)) { position.scrollTo(id: chosen) } } else { position.scrollTo(id: chosen) }
     }
 
     @ViewBuilder private func arrow(_ icon: AppIcon, name: String, visible: Bool, by direction: CGFloat) -> some View {
         if visible {
             IconButton(icon: icon, name: name) {
-                withAnimation(.smooth(duration: 0.3)) { page(direction) }
+                // the arrow can hide itself at the end of the scroll, so the keyboard goes back to the gallery rather than to nowhere
+                focused = true
+                if reduceMotion { page(direction) } else { withAnimation(.smooth(duration: 0.3)) { page(direction) } }
             }
-            .background(.regularMaterial, in: Circle()).overlay(Circle().strokeBorder(Color.secondary.opacity(0.3), lineWidth: 0.5))
-            .padding(.horizontal, Tokens.Space.s4).transition(.opacity)
+            .background(.regularMaterial, in: Circle()).overlay(Circle().strokeBorder(Color.secondary.opacity(0.3), lineWidth: 1))
+            .padding(.horizontal, Tokens.Space.s4).transition(reduceMotion ? .identity : .opacity)
         }
     }
 
@@ -105,6 +110,8 @@ public struct ThemeGallery: View {
 private struct ThemeCellButton: View {
     let cell: ThemeCell
     let chosen: Bool
+    /// The gallery has the keyboard: the chosen cell, the one the arrows move from, carries a ring inside its edge.
+    let focused: Bool
     let action: () -> Void
     @Environment(\.pieceTheme) private var pieceTheme
 
@@ -115,14 +122,42 @@ private struct ThemeCellButton: View {
                     ThemePreview(theme: cell.theme, scheme: .light)
                     ThemePreview(theme: cell.theme, scheme: .dark)
                 }
-                Text(cell.title).scaledFont(12).lineLimit(1)
+                // a tick before the name says which is chosen where the accent's edge is too faint to tell (a light Ayu, Rosé Pine or Everforest)
+                HStack(spacing: Tokens.Space.s4) {
+                    if chosen { Glyph(.check, size: 11, bold: true) }
+                    Text(cell.title).scaledFont(12).lineLimit(1)
+                }
             }
             .padding(Tokens.Space.s8).frame(maxWidth: .infinity)
             .overlay(RoundedRectangle(cornerRadius: Tokens.Radius.card).strokeBorder(chosen ? pieceTheme.accent : Color.secondary.opacity(0.2), lineWidth: chosen ? 2 : 1))
+            .overlay {
+                if chosen && focused {
+                    RoundedRectangle(cornerRadius: Tokens.Radius.card).inset(by: Tokens.Space.s3).strokeBorder(Color.primary.opacity(0.6), lineWidth: 1)
+                }
+            }
             .contentShape(RoundedRectangle(cornerRadius: Tokens.Radius.card))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(ThemeCellButtonStyle())
+        .help(cell.title)
         .accessibilityLabel(cell.title).accessibilityAddTraits(chosen ? .isSelected : [])
+    }
+}
+
+/// A faint fill under the cell on hover and a stronger one while pressed, in 0.12 s, as the other pieces answer the pointer.
+private struct ThemeCellButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View { Face(configuration: configuration) }
+
+    private struct Face: View {
+        let configuration: ButtonStyleConfiguration
+        @State private var hovered = false
+
+        var body: some View {
+            let fill = configuration.isPressed ? 0.2 : hovered ? 0.1 : 0
+            configuration.label
+                .background(RoundedRectangle(cornerRadius: Tokens.Radius.card).fill(Color.primary.opacity(fill)))
+                .onHover { hovered = $0 }
+                .animation(.easeOut(duration: 0.12), value: fill)
+        }
     }
 }
 

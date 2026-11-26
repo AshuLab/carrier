@@ -81,7 +81,8 @@ What the gallery shows beyond layout comes from a pure function in `CarrierCore/
 - Keyboard movement: given the cell chosen, the key and the count, the cell to go to, one inside a column and one column at a time, stopping at the ends. Covers story 5's rules; the scrolling itself is the view's.
 - The themes: the tests that already exist are the seam, extended by one row per theme. `ThemeTests` pins each theme's window, sidebar and accent in both versions and the count; the contrast test of `TerminalCoreTests` covers the palette of story 9; the Spanish title test and `pnpm design:check` with `design/generate.test.ts` cover the names and the preference lists.
 
-Stories 1 to 4 and 6 have no unit test: where a column is cut, the arrows and the scroll are layout, and a test of them would only repeat the view. They are checked in the app as `docs/ui.md` asks (the Pieces session of `--fixture`, both schemes, `--smoke-window` for the widths), and the piece needs its `GalleryEntry` or `check-structure.sh` fails.
+Stories 1 to 4 and 6 have no unit test: where a column is cut, the arrows and the scroll are layout, and a test of them would only repeat the view.
+They are checked in the app as `docs/ui.md` asks (the Pieces session of `--fixture`, both schemes, `--smoke-window` for the widths), and the piece needs its `GalleryEntry` or `check-structure.sh` fails.
 Story 10 is a docs change checked by reading.
 
 **The first slice is a small SwiftUI prototype in the real app** of the three-row horizontal grid (`LazyHGrid` in a scroll view): the cut column, the arrows and scrolling to the chosen cell.

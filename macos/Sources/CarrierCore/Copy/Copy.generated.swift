@@ -12665,6 +12665,22 @@ public enum Copy {
         String(localized: "choiceThemeOneDark", bundle: bundle ?? carrierResources, locale: locale)
     }
 
+    public static func choiceThemeMonokai(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "choiceThemeMonokai", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func choiceThemeRosePine(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "choiceThemeRosePine", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func choiceThemeEverforest(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "choiceThemeEverforest", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func choiceThemeAyu(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "choiceThemeAyu", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
     public static func choiceAccentBlue(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         String(localized: "choiceAccentBlue", bundle: bundle ?? carrierResources, locale: locale)
     }

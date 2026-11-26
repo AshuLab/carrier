@@ -38,6 +38,10 @@ public enum Tokens {
         "tokyoNight": SchemePair(light: ThemeColors(window: 0xe1e2e7, sidebar: 0xd0d5e3, accent: 0x2e7de9), dark: ThemeColors(window: 0x1a1b26, sidebar: 0x16161e, accent: 0x7aa2f7)),
         "catppuccin": SchemePair(light: ThemeColors(window: 0xeff1f5, sidebar: 0xe6e9ef, accent: 0x8839ef), dark: ThemeColors(window: 0x1e1e2e, sidebar: 0x181825, accent: 0xcba6f7)),
         "oneDark": SchemePair(light: ThemeColors(window: 0xfafafa, sidebar: 0xeaeaeb, accent: 0x4078f2), dark: ThemeColors(window: 0x282c34, sidebar: 0x21252b, accent: 0x61afef)),
+        "monokai": SchemePair(light: ThemeColors(window: 0xf9f8f1, sidebar: 0xebe9dc, accent: 0x62890a), dark: ThemeColors(window: 0x272822, sidebar: 0x1e1f1c, accent: 0xa6e22e)),
+        "rosePine": SchemePair(light: ThemeColors(window: 0xfaf4ed, sidebar: 0xf2e9e1, accent: 0xd7827e), dark: ThemeColors(window: 0x191724, sidebar: 0x1f1d2e, accent: 0xebbcba)),
+        "everforest": SchemePair(light: ThemeColors(window: 0xfffbef, sidebar: 0xf2efdf, accent: 0x8da101), dark: ThemeColors(window: 0x2d353b, sidebar: 0x232a2e, accent: 0xa7c080)),
+        "ayu": SchemePair(light: ThemeColors(window: 0xfcfcfc, sidebar: 0xf8f9fa, accent: 0xf29718), dark: ThemeColors(window: 0x242936, sidebar: 0x1f2430, accent: 0xffcc66)),
     ]
 
     /// The accent presets, in the order the picker shows them.

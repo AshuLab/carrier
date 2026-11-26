@@ -55,19 +55,24 @@ Then it asks, in this order:
 
 Before saving it shows a recap with three choices: save, **change an answer** or cancel; nothing is written until you save.
 "Change an answer" shows a menu of the AI accounts, the orchestrator, each role (author, reviewer, lead reviewer) and the repos: you pick one, `init` asks only that block's questions starting from its current answers, and every other block keeps its answers.
-In `init` **Esc goes back one question** (at the start of a block, to the last question of the one before) and shows it with the answer it had; every answer already given stays, and going back does not run the GitHub or CLI calls (listing repos, adding an Agent Forge bot) again. At the very first question Esc leaves, like Ctrl+C.
-**Ctrl+C leaves** from any question, with nothing written before Save. `restart`, which asks its options through the same prompts, leaves on Esc as well as on Ctrl+C.
+In `init` **Esc goes back one question** (at the start of a block, to the last question of the one before) and shows it with the answer it had; every answer already given stays, and going back does not run the GitHub or CLI calls (listing repos, adding an Agent Forge bot) again.
+At the very first question Esc leaves, like Ctrl+C.
+**Ctrl+C leaves** from any question, with nothing written before Save.
+`restart`, which asks its options through the same prompts, leaves on Esc as well as on Ctrl+C.
 It then runs the checks of `carrier doctor`, printing only what fails (otherwise a single count), shows how many epics are waiting, and offers to start Carrier.
 Ctrl+C (or Esc) at that last question, once the config is saved and checked, counts as no: it prints the closing line with what to run (`carrier`, with `--config` when the file is not the global one), exits 0, and the saved files stay.
 While `init` runs, the log lines of the checks go to `engine/logs/orchestrator.log` in the Carrier folder and never to the screen.
 
-Run again on an existing config, it offers to edit it (its answers are the starting points), start over, save a new one in another file, or leave it. Editing keeps the accounts of `providers.json` and lets you add more (editing or removing one is done in the file), starts each role's model, effort, persona and lead reviewer from the file, and asks whether to keep the failover steps it has; `-` in a persona field clears it.
+Run again on an existing config, it offers to edit it (its answers are the starting points), start over, save a new one in another file, or leave it.
+Editing keeps the accounts of `providers.json` and lets you add more (editing or removing one is done in the file), starts each role's model, effort, persona and lead reviewer from the file, and asks whether to keep the failover steps it has; `-` in a persona field clears it.
 Editing keeps the rest of the file: `engine.json` is written as it is, with only the keys the wizard asks replaced.
 Those are `repos` (a repo you keep keeps its entry and its per-repo overrides, a repo you leave out is dropped, a new one is `{ "name": "owner/name" }`), `profiles` (the ones you picked are set over the file's), `orchestratorProfile`, the failover of the author, the reviewer and the lead reviewer (`failover.triggers` stays), and each of those roles' `profile`, `provider`, `model`, `effort` and `persona`.
-`agents.extraReviewers` is owned too: each extra reviewer in the file is walked as a block starting from its values, "Add reviewer-N?" starts on Yes while the file has one more, and a No drops that reviewer and the ones after it. The list is replaced by the answers (an extra keeps the keys the wizard does not ask, such as its `skills`) and removed when there are none.
+`agents.extraReviewers` is owned too: each extra reviewer in the file is walked as a block starting from its values, "Add reviewer-N?" starts on Yes while the file has one more, and a No drops that reviewer and the ones after it.
+The list is replaced by the answers (an extra keeps the keys the wizard does not ask, such as its `skills`) and removed when there are none.
 Everything else survives: `limits`, `labels`, `skills`, `logLevel`, `pollIntervalMinutes`, `finishedWindowDays` and a role's own `skills`; a lead reviewer you decline is removed.
 "Start over", a new file and `--out` to another file are written whole from the answers.
-A config that does not validate is not edited: the wizard prints its first error (path and message) and asks whether to start over, save a new one in another file or leave it, and writes nothing until you answer. With `--yes` it replaces the file, as the flag says, and prints that first error.
+A config that does not validate is not edited: the wizard prints its first error (path and message) and asks whether to start over, save a new one in another file or leave it, and writes nothing until you answer.
+With `--yes` it replaces the file, as the flag says, and prints that first error.
 `--config` is not a flag of `init`: it exits 2 and writes nothing, because `init` writes where `--out` says.
 
 Every question has a flag (`carrier init --help`), and they all follow one pattern, with `<role>` one of `author`, `reviewer`, `reviewer-2`, `reviewer-3`, `reviewer-4` and `lead-reviewer`:
@@ -75,14 +80,15 @@ Every question has a flag (`carrier init --help`), and they all follow one patte
 | Flag | Answers |
 |---|---|
 | `--repo <owner/name>` | The repos to watch; repeat it for several. |
-| `--orchestrator-profile <forge:<agent>\|gh>` | The orchestrator's GitHub profile. Without it, and when both `--author-profile` and `--reviewer-profile` are given or `--yes` is, no question asks it: it is the file's own when editing, else the author's. |
-| `--<role> <harness>:<model>` | The role's account and model. It adds an account named after its harness to `providers.json` (the one found, when it matches). With `--author` and `--reviewer` both given, the extra-accounts question is skipped. |
+| `--orchestrator-profile <forge:<agent>\|gh>` | The orchestrator's GitHub profile; without it, and when both `--author-profile` and `--reviewer-profile` are given or `--yes` is, no question asks it: it is the file's own when editing, else the author's. |
+| `--<role> <harness>:<model>` | The role's account and model; it adds an account named after its harness to `providers.json` (the one found, when it matches). |
 | `--<role>-profile <forge:<agent>\|gh>` | The GitHub profile the role acts as. |
 | `--<role>-provider <lmstudio\|ollama>` | The local server that runs the role's model. |
 | `--<role>-effort <level>` | `low`, `medium`, `high`, `xhigh` or `max`. |
 | `--<role>-persona-name <text>`, `--<role>-persona-prompt <text>` | The persona, within the schema's limits. |
 | `--<role>-failover <account>[:<model>]` | One failover step; repeat it, in order, for up to two. |
 
+With `--author` and `--reviewer` both given, the extra-accounts question is skipped.
 `reviewer-2` to `reviewer-4` are the extra reviewers, and an extra exists when any flag names its slot.
 They are a list in order, so a flag for `reviewer-3` with none for `reviewer-2` is refused before anything is probed, naming the missing flag (`--reviewer-2`).
 A flagged extra is not asked again; "Add another reviewer?" is asked once after the last flagged one when there is room, and under `--yes` there is no extra unless a flag names it.
@@ -106,7 +112,9 @@ Without `--author` and `--reviewer`, `--yes` gives the author the first account 
 
 ## `carrier doctor` and `carrier schema`
 
-`carrier doctor` verifies the tools are installed, that each profile can get a token for each repo, that the orchestrator can read it, and that each repo it could read has the labels Carrier reads (`labels.epic` and `labels.ready`, by default `solve:epic` and `solve:epic:ready`; the fix is to run `solve:setup` in the repo). It checks a config of yours or a hand-written one at any time. `carrier schema` prints the JSON Schema of the config for your editor.
+`carrier doctor` verifies the tools are installed, that each profile can get a token for each repo, that the orchestrator can read it, and that each repo it could read has the labels Carrier reads (`labels.epic` and `labels.ready`, by default `solve:epic` and `solve:epic:ready`; the fix is to run `solve:setup` in the repo).
+It checks a config of yours or a hand-written one at any time.
+`carrier schema` prints the JSON Schema of the config for your editor.
 
 For each role of each repo it also asks whether each skill the role invokes exists for the account the role runs on: the author's `ship` and `fix`, the reviewer's `review` and `publish` (none when `publish` is `null`), as `skills` in the config names them.
 Each skill gets one check with one of three answers.

@@ -275,6 +275,23 @@ test('the intro and the signature tell the slot of a review apart: a reviewer by
   expect(buildPrompt(slotted('lead'))).toContain('🤖 Lead reviewer [Atlas] via Carrier');
 });
 
+test('an extra reviewer signs with its persona name, else with its own name; the author, reviewer and lead keep their persona name or none', () => {
+  const extra = (persona?: AgentTask['persona']) => buildPrompt({ ...task('review'), reviewer: 'seguridad-api', reviewerName: 'Seguridad API', sharedIdentity: true, ...(persona && { persona }) });
+  expect(extra({ name: 'Atlas' })).toContain('🤖 Reviewer [Atlas] via Carrier');
+  expect(extra({ name: 'Atlas' })).not.toContain('[Seguridad API]');
+  expect(extra()).toContain('🤖 Reviewer [Seguridad API] via Carrier');
+  expect(extra({ prompt: 'Only a prompt.' })).toContain('🤖 Reviewer [Seguridad API] via Carrier');
+  expect(extra()).not.toContain('Your name is'); // the sentence that tells it its name stays the persona's alone
+  expect(extra({ name: 'Atlas' })).toContain('Your name is Atlas.');
+  const base = { sharedIdentity: true, reviewerName: undefined };
+  expect(buildPrompt({ ...task('ship'), ...base })).toContain('🤖 Author via Carrier');
+  expect(buildPrompt({ ...task('review'), ...base })).toContain('🤖 Reviewer via Carrier');
+  expect(buildPrompt({ ...leadTask(), ...base })).toContain('🤖 Lead reviewer via Carrier');
+  expect(buildPrompt({ ...task('ship'), ...base, persona: { name: 'Ada' } })).toContain('🤖 Author [Ada] via Carrier');
+  expect(buildPrompt({ ...task('review'), ...base, persona: { name: 'Ada' } })).toContain('🤖 Reviewer [Ada] via Carrier');
+  expect(buildPrompt({ ...leadTask(), ...base, persona: { name: 'Ada' } })).toContain('🤖 Lead reviewer [Ada] via Carrier');
+});
+
 test('signatureOf names the role and the persona, and leaves no brackets without a name', () => {
   expect(signatureOf('reviewer', 'Atlas')).toBe('🤖 Reviewer [Atlas] via Carrier');
   expect(signatureOf('author')).toBe('🤖 Author via Carrier');

@@ -6,10 +6,10 @@ const roleTitle = (role: 'author' | Slot) => (role === 'author' ? 'Author' : rol
 
 export const signatureOf = (role: 'author' | Slot, name?: string) => `🤖 ${roleTitle(role)}${name ? ` [${name}]` : ''} via Carrier`;
 
-/** Who the user says this role is: its name, then its prompt as written. Under a shared identity, the rule to sign what it publishes. */
+/** Who the user says this role is: its persona's name (the name line stays the persona's alone), then its prompt as written. Under a shared identity, the rule to sign what it publishes. */
 export function personaLines(task: AgentTask): string[] {
   const { persona, sharedIdentity } = task;
-  const signature = signatureOf(slotOf(task) ?? 'author', persona?.name);
+  const signature = signatureOf(slotOf(task) ?? 'author', persona?.name || task.reviewerName); // an extra reviewer with no persona name signs with its own (`reviewerName` is set for extra reviewers only)
   return [
     ...(persona?.name ? [`Your name is ${persona.name}.`] : []),
     ...(persona?.prompt ? [persona.prompt] : []),

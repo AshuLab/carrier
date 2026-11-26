@@ -28,7 +28,7 @@ struct StatisticsGroup: View {
             } else {
                 let speed = min(max(wpm, AppPreferences.dictationTypingSpeedRange.lowerBound), AppPreferences.dictationTypingSpeedRange.upperBound)
                 let figures = dictationFigures(records.counts, range: range, now: Date())
-                SettingsGroup(id: "overview", title: Copy.dictationGroupOverview(), accessory: {
+                SettingsGroup(id: "overview", title: Copy.dictationGroupOverview(), card: false, accessory: {
                     SegmentedChoice(options: StatisticsRange.allCases.map { (value: $0, title: $0.title(), icon: nil) }, selection: $range)
                 }, content: { cards(figures, wpm: speed) })
                 SettingsGroup(title: Copy.dictationPerDay(metric: metric.title()), accessory: {
@@ -113,7 +113,7 @@ struct StatisticsGroup: View {
 
     private func recordsGroup(_ records: StatisticsRecords) -> some View {
         func on(_ day: Date?) -> String { day?.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day()) ?? Copy.dictationNothingYet() }
-        return SettingsGroup(id: "records", title: Copy.dictationGroupRecords(), footer: Copy.dictationRecordsFooter()) {
+        return SettingsGroup(id: "records", title: Copy.dictationGroupRecords(), footer: Copy.dictationRecordsFooter(), card: false) {
             cardGrid([
                 StatisticsCard(title: Copy.dictationRecordMostDictations(), value: (records.mostDictations?.value ?? 0).formatted(), line: on(records.mostDictations?.day)),
                 StatisticsCard(title: Copy.dictationRecordMostWords(), value: (records.mostWords?.value ?? 0).formatted(), line: on(records.mostWords?.day)),

@@ -11,6 +11,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - A session's branch in the sidebar and on the Sessions page reads as the branch name again, instead of `ModifiedContent<Text, ScaledFont…>`.
 - A session no longer shows the pull request of an older branch that had the same name: one merged or closed before the session started is not its own.
 - The week chart of the Dictation statistics puts each day's name centred under its bar and spells it out (Fri, Sat), instead of a single letter to the left of the bar that was the same for Saturday and Sunday.
+- The four figures of Overview and of Records in the Dictation statistics sit on the panel's own background, no longer inside a second card.
 
 ## [0.20.0] - 2026-11-25
 

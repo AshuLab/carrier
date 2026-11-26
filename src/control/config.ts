@@ -1,5 +1,5 @@
 import { editBehavior, setWatchedRepos, type BehaviorChanges } from '../config/engine-edit.ts';
-import { editFailover, editPersona, editRepoRole, editRole, setLeadReviewer, setOrchestratorProfile, type FailoverStep, type RepoRoleFields, type Role, type RoleChanges } from '../config/role-edit.ts';
+import { addExtraReviewer, editFailover, editPersona, editRepoRole, editRole, setLeadReviewer, setOrchestratorProfile, type ExtraReviewerDraft, type FailoverStep, type RepoRoleFields, type Role, type RoleChanges } from '../config/role-edit.ts';
 import { ReloadRefused } from '../orchestration/reload-refused.ts';
 import type { TextParams } from '../orchestration/text-params.ts';
 
@@ -14,7 +14,8 @@ export type EngineConfigRequest =
   | { cmd: 'editPersona'; role: Role; name: string | null; prompt: string | null }
   | { cmd: 'editFailover'; role: Role; first: FailoverStep | null; second: FailoverStep | null }
   | { cmd: 'setLeadReviewer'; draft: RoleChanges | null }
-  | { cmd: 'setOrchestratorProfile'; name: string | null };
+  | { cmd: 'setOrchestratorProfile'; name: string | null }
+  | { cmd: 'addExtraReviewer'; draft: ExtraReviewerDraft };
 
 /** What the engine did with the file that was saved: ran on it, kept its settings and says why (a text code, its params and its words), or was not there to be asked. */
 export type EngineOutcome = { engine: 'applied' | 'notRunning' } | { engine: 'refused'; reason: { code: string; params: TextParams; error: string } };
@@ -31,6 +32,7 @@ export function writeEngineConfig(request: EngineConfigRequest, file: string, fo
     case 'editFailover': return editFailover(request.role, request.first, request.second, file, folder);
     case 'setLeadReviewer': return setLeadReviewer(request.draft, file, folder);
     case 'setOrchestratorProfile': return setOrchestratorProfile(request.name, file, folder);
+    case 'addExtraReviewer': return addExtraReviewer(request.draft, file, folder);
   }
 }
 

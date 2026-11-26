@@ -37,6 +37,7 @@ let goldenRoleChanges: [(String, EngineConfigChange)] = [
     ("engine-set-lead-reviewer.json", .leadReviewer(goldenLead())),
     ("engine-set-lead-reviewer-off.json", .leadReviewer(nil)),
     ("engine-set-orchestrator-profile.json", .orchestratorProfile("author-bot")),
+    ("engine-add-extra-reviewer.json", .addExtraReviewer(ExtraReviewerDraft(name: "Seguridad API", type: "security", identity: .bot("nova"), provider: "claude", model: "sonnet", effort: "high"))),
 ]
 
 func goldenLead() -> LeadReviewerDraft {
@@ -125,6 +126,11 @@ private func launcher(_ runner: FakeRunner) -> CarrierConfigLauncher { CarrierCo
     draft.apply(.provider("codex"))
     #expect(try object(EngineConfigChange.leadReviewer(draft).request) == ["cmd": "setLeadReviewer", "draft": ["provider": "codex", "model": ""]] as NSDictionary)
     #expect(try object(EngineConfigChange.orchestratorProfile(nil).request) == ["cmd": "setOrchestratorProfile", "name": NSNull()] as NSDictionary)
+}
+
+@Test func anExtraReviewerWithoutAnEffortIsSentWithoutOne() throws {
+    let draft = ExtraReviewerDraft(name: "Sec", type: "security", identity: .gh, provider: "claude", model: "opus")
+    #expect(try object(EngineConfigChange.addExtraReviewer(draft).request) == ["cmd": "addExtraReviewer", "draft": ["name": "Sec", "type": "security", "identity": ["kind": "gh"], "provider": "claude", "model": "opus"]] as NSDictionary)
 }
 
 @MainActor @Test func theQueueSendsOneChangeAtATimeInTheOrderItWasAskedEvenWhenAnEarlierOneAnswersLast() async {

@@ -17,6 +17,7 @@
     "setTextGenerator"
   ],
   "engine": [
+    "addExtraReviewer",
     "editBehavior",
     "editFailover",
     "editPersona",

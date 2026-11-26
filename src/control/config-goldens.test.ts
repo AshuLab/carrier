@@ -71,3 +71,7 @@ test('the setLeadReviewer requests, on and off, and their replies equal engine-s
 test('the setOrchestratorProfile request and reply equal engine-set-orchestrator-profile.json', () => {
   golden('engine-set-orchestrator-profile', { cmd: 'setOrchestratorProfile', name: 'author-bot' });
 });
+
+test('the addExtraReviewer request and reply equal engine-add-extra-reviewer.json', () => {
+  golden('engine-add-extra-reviewer', { cmd: 'addExtraReviewer', draft: { name: 'Seguridad API', type: 'security', identity: { kind: 'forge', agent: 'nova' }, provider: 'claude', model: 'sonnet', effort: 'high' } });
+});

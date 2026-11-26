@@ -81,7 +81,7 @@ async function client() {
 test('a client gets a hello, and the snapshot as JSON when it asks', async () => {
   await open();
   const c = await client();
-  expect(c.hello).toEqual({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, version: JSON.parse(readFileSync('package.json', 'utf8')).version, capabilities: ['sessions', 'events', 'epic', 'files', 'fileDiff', 'availableRepos', 'availableReposPaged', 'resumeEpic', 'resumeFromStage', 'resumeReviewerOptions', 'recoverEpic', 'reload', 'config'] });
+  expect(c.hello).toEqual({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, version: JSON.parse(readFileSync('package.json', 'utf8')).version, capabilities: ['sessions', 'events', 'epic', 'files', 'fileDiff', 'availableRepos', 'availableReposPaged', 'resumeEpic', 'resumeFromStage', 'resumeReviewerOptions', 'recoverEpic', 'reload', 'config', 'extraReviewers'] });
   expect(await c.ask('{"id":1,"cmd":"snapshot"}')).toEqual({ id: 1, ok: true, data: snapshotData });
   expect(await c.ask('{"id":7,"cmd":"snapshot"}')).toMatchObject({ id: 7, ok: true });
 });
@@ -518,6 +518,7 @@ test('no request takes a status, a stage or a round, and each accepts exactly th
     editFailover: ['first', 'role', 'second'],
     setLeadReviewer: ['draft'],
     setOrchestratorProfile: ['name'],
+    addExtraReviewer: ['draft'],
   });
   expect(Object.values(accepted).flat().filter((field) => ['status', 'stage', 'round', 'rounds'].includes(field))).toEqual([]);
 });
@@ -767,6 +768,7 @@ test.each([
   ['editFailover', '"role":"author","first":{"provider":"codex","model":"g"},"second":null', (file: any) => file.failover.roles.author, [{ provider: 'codex', model: 'g' }]],
   ['setLeadReviewer', '"draft":{"identity":{"kind":"gh"},"provider":"claude","model":"opus"}', (file: any) => file.agents.leadReviewer, { profile: 'reviewer-bot', provider: 'claude', model: 'opus' }],
   ['setOrchestratorProfile', '"name":"author-bot"', (file: any) => file.orchestratorProfile, 'author-bot'],
+  ['addExtraReviewer', '"draft":{"name":"Seguridad API","type":"security","identity":{"kind":"gh"},"provider":"claude","model":"opus"}', (file: any) => file.agents.extraReviewers, { 'seguridad-api': { type: 'security', name: 'Seguridad API', profile: 'reviewer-bot', provider: 'claude', model: 'opus' } }],
 ])('%s writes the file, keeping every key it does not touch, makes the engine run on it and answers saved and the engine', async (cmd, fields, read, expected) => {
   const reload = vi.fn();
   const { file, c } = await openConfig(reload);
@@ -796,6 +798,7 @@ test.each([
   ['editFailover', '"role":"author","first":null,"second":{"provider":"codex"}', 'Then needs a First step.', { path: 'failover.roles.author.1', problem: 'firstMissing' }],
   ['editFailover', '"role":"author","first":{"provider":"claude","model":"m"},"second":null', 'First is the role’s own provider and model, so it would move nowhere.', { path: 'failover.roles.author.0', problem: 'stepOwnRole' }],
   ['setLeadReviewer', '"draft":{"provider":"claude"}', 'The lead reviewer needs an identity, a model.', { path: 'agents.leadReviewer', problem: 'incomplete' }],
+  ['addExtraReviewer', '"draft":{"name":"Sec","provider":"claude","model":"opus"}', 'An extra reviewer needs type, identity.', { path: 'agents.extraReviewers.type', problem: 'incomplete' }],
   ['setOrchestratorProfile', '"name":"ghost"', expect.stringContaining('orchestratorProfile'), { path: 'orchestratorProfile', problem: 'invalid' }],
 ])('%s with %s is refused with its words, code and params, no reload, and the file is as it was', async (cmd, fields, words, params) => {
   const reload = vi.fn();
@@ -819,6 +822,8 @@ test.each([
   '{"id":5,"cmd":"editFailover","role":"author","first":null,"second":null,"accounts":["a"]}',
   '{"id":5,"cmd":"setLeadReviewer"}',
   '{"id":5,"cmd":"setOrchestratorProfile","name":5}',
+  '{"id":5,"cmd":"addExtraReviewer"}',
+  '{"id":5,"cmd":"addExtraReviewer","draft":{"name":"a","key":"a"}}',
 ])('%s is a validation error', async (line) => {
   const { c } = await openConfig(() => {});
   expect(await c.ask(line)).toEqual({ id: 5, ok: false, error: 'invalid request', code: 'request.invalid', params: {} });

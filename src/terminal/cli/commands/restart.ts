@@ -9,8 +9,8 @@ import { connectControl, ControlRefused, ControlUnreachable, type CarrierClient 
 // The engine waits up to 30 seconds for the epic to start again before it refuses.
 const RESTART_WAIT_MS = 40_000;
 
-// What the request names for each role: the extra reviewers are `reviewer2` to `reviewer4`, as the request spells them; only the three roles of `flagRoles` have a flag.
-const roleKeys = ['author', 'reviewer', 'reviewer2', 'reviewer3', 'reviewer4', 'lead'] as const;
+// The roles the command chooses an option for: an extra reviewer's option is the request's `extraReviewers`, which this command does not send yet.
+const roleKeys = ['author', 'reviewer', 'lead'] as const;
 const flagRoles = ['author', 'reviewer', 'lead'] as const;
 type Chosen = Partial<Record<(typeof roleKeys)[number], string>>;
 type Flags = Partial<Record<(typeof flagRoles)[number], string>> & { from?: 'ship' | 'review' | 'fix'; extraRounds?: number };
@@ -23,6 +23,8 @@ export const refusals: Record<string, (target: string) => string> = {
   'resume.didNotRestart': () => 'The ready label is back on the issue, but the epic did not start within 30 seconds. The next check will take it.',
   'resume.optionUnknown': () => 'That account is not declared in providers.json. Use a name declared there.',
   'resume.roleUnknown': (target) => `${target} does not have that reviewer or lead. Name only the roles its configuration has.`,
+  'resume.extraReviewerUnknown': (target) => `${target} does not have that extra reviewer. Name only the keys its configuration has.`,
+  'resume.reviewersWithoutKey': (target) => `${target} was saved before its extra reviewers had names, so it cannot be restarted. Start it again from its issue.`,
   'resume.noPullRequest': (target) => `${target} has no pull request yet, so it can only be restarted from ship.`,
   'resume.extraRoundsNeedStage': () => '--extra-rounds needs --from review or --from fix: a restart from ship starts the rounds over.',
   'resume.extraRoundsNeedReviewLimit': (target) => `--extra-rounds grants rounds to an epic that stopped on the review limit, and ${target} stopped for another reason.`,
@@ -31,7 +33,7 @@ export const refusals: Record<string, (target: string) => string> = {
 };
 
 /**
- * One question per role the epic has (the author, the reviewer, each extra reviewer and the lead, the last two only with `reviewers`, which says the engine takes them),
+ * One question per role the epic has (the author, the reviewer and the lead, the last only with `reviewers`, which says the engine takes it),
  * with the role's current option preselected, and the option of the role of the execution that stopped the epic marked.
  * When that role ran out of usage its option is not preselected: two Enters would run the same option again.
  * Nothing is asked of an epic that has fewer than two options to choose from (or predates options).
@@ -39,14 +41,14 @@ export const refusals: Record<string, (target: string) => string> = {
 export async function askRestartOptions(epic: (Pick<PanelEpic, 'stage' | 'options'> & Partial<Pick<EpicAdditions, 'needsHumanKind'>>) | undefined, ui: Pick<Ui, 'select'>, reviewers = true): Promise<Chosen> {
   const options = epic?.options;
   if (!options || options.names.length < 2) return {};
-  const failed = (options.failed ?? (epic.stage === 'review' ? 'reviewer' : 'author')).replace('-', '');
-  const roles = roleKeys.filter((role) => role === 'author' || role === 'reviewer' || (reviewers && (role === 'lead' ? options.lead !== undefined : options.extraReviewers?.[Number(role.slice(-1)) - 2] !== undefined)));
+  const failed = options.failed ?? (epic.stage === 'review' ? 'reviewer' : 'author');
+  const roles = roleKeys.filter((role) => role === 'author' || role === 'reviewer' || (reviewers && options.lead !== undefined));
   const chosen: Chosen = {};
   for (const role of roles) {
-    const current = (role === 'lead' ? options.lead : role === 'author' || role === 'reviewer' ? options[role] : options.extraReviewers![Number(role.slice(-1)) - 2]) ?? null;
+    const current = options[role] ?? null;
     const ranOut = role === failed && epic.needsHumanKind === 'usage_limit';
     chosen[role] = await ui.select({
-      message: `Option for the ${role.replace(/(\d)$/, ' $1')}`,
+      message: `Option for the ${role}`,
       initialValue: (ranOut ? options.names.find((name) => name !== current) : current) ?? undefined,
       options: options.names.map((name) => ({ value: name, label: name, ...(name === current && { hint: ranOut ? 'ran out' : role === failed ? 'current, failed' : 'current' }) })),
     });

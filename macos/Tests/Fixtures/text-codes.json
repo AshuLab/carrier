@@ -629,6 +629,11 @@
   "resume.didNotRestart": {
     "params": {}
   },
+  "resume.extraReviewerUnknown": {
+    "params": {
+      "key": "example"
+    }
+  },
   "resume.extraRoundsNeedReviewLimit": {
     "params": {}
   },
@@ -648,6 +653,9 @@
     "params": {}
   },
   "resume.pullRequestNotOpen": {
+    "params": {}
+  },
+  "resume.reviewersWithoutKey": {
     "params": {}
   },
   "resume.roleUnknown": {

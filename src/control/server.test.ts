@@ -308,6 +308,18 @@ test('resumeEpic passes the options named for each role, a role left out as unde
   expect(resumeEpic).toHaveBeenLastCalledWith('AshuLab/carrier', 5, { author: undefined, reviewer: 'claude' });
 });
 
+test('resumeEpic passes the option of each extra reviewer by its key, and refuses the old names and a key that is not a slug', async () => {
+  const resumeEpic = vi.fn(() => Promise.resolve());
+  await open(undefined, { ...fakeControls().controls, resumeEpic });
+  const c = await client();
+  expect(await c.ask('{"id":4,"cmd":"resumeEpic","repo":"AshuLab/carrier","issue":5,"extraReviewers":{"seguridad-api":"codex","usabilidad":"claude"}}')).toEqual({ id: 4, ok: true });
+  expect(resumeEpic).toHaveBeenLastCalledWith('AshuLab/carrier', 5, { author: undefined, reviewer: undefined, extraReviewers: { 'seguridad-api': 'codex', usabilidad: 'claude' } });
+  for (const extra of ['"reviewer2":"codex"', '"reviewer3":"codex"', '"reviewer4":"codex"', '"extraReviewers":{"2":"codex"}', '"extraReviewers":{"Seguridad":"codex"}', '"extraReviewers":["codex"]', '"extraReviewers":{"a":"codex","b":"codex","c":"codex","d":"codex"}']) {
+    expect(await c.ask(`{"id":5,"cmd":"resumeEpic","repo":"AshuLab/carrier","issue":5,${extra}}`)).toMatchObject({ id: 5, ok: false });
+  }
+  expect(resumeEpic).toHaveBeenCalledTimes(1);
+});
+
 test('resumeEpic passes the stage named in from, and refuses any other', async () => {
   const resumeEpic = vi.fn(() => Promise.resolve());
   await open(undefined, { ...fakeControls().controls, resumeEpic });
@@ -352,6 +364,7 @@ test.each([
   ['resume.didNotRestart', 'did not restart'],
   ['resume.optionUnknown', 'unknown option'],
   ['resume.roleUnknown', 'no such role'],
+  ['resume.reviewersWithoutKey', 'reviewers without a key'],
   ['resume.noPullRequest', 'no pull request'],
   ['resume.pullRequestNotOpen', 'pull request not open'],
   ['resume.pullRequestHeadChanged', 'pull request head changed'],
@@ -360,6 +373,11 @@ test.each([
 ] as const)('resumeEpic refused with %s answers "%s" as the words', async (code, reason) => {
   await open(undefined, { ...fakeControls().controls, resumeEpic: () => Promise.reject(new ResumeRefused(code, reason)) });
   expect(await (await client()).ask('{"id":4,"cmd":"resumeEpic","repo":"AshuLab/carrier","issue":5}')).toEqual({ id: 4, ok: false, error: reason, code, params: {} });
+});
+
+test('resumeEpic refused for an extra reviewer the epic does not have carries its key as the parameter', async () => {
+  await open(undefined, { ...fakeControls().controls, resumeEpic: () => Promise.reject(new ResumeRefused('resume.extraReviewerUnknown', 'no such extra reviewer', { key: 'rendimiento' })) });
+  expect(await (await client()).ask('{"id":4,"cmd":"resumeEpic","repo":"AshuLab/carrier","issue":5}')).toEqual({ id: 4, ok: false, error: 'no such extra reviewer', code: 'resume.extraReviewerUnknown', params: { key: 'rendimiento' } });
 });
 
 test('resumeEpic that fails for any other reason is an "internal error" without the reason, and the server goes on', async () => {
@@ -508,7 +526,7 @@ test('no request takes a status, a stage or a round, and each accepts exactly th
     fileDiff: ['issue', 'path', 'repo', 'section'],
     availableRepos: ['page'],
     reload: [],
-    resumeEpic: ['author', 'extraRounds', 'from', 'issue', 'lead', 'repo', 'reviewer', 'reviewer2', 'reviewer3', 'reviewer4'],
+    resumeEpic: ['author', 'extraReviewers', 'extraRounds', 'from', 'issue', 'lead', 'repo', 'reviewer'],
     recoverEpic: ['issue', 'repo'],
     setWatchedRepos: ['repos'],
     editBehavior: ['changes'],

@@ -4,11 +4,11 @@ import type { Slot } from '../storage/executions.ts';
 
 // The extra reviewers live in the epic's saved configuration (`agents.extraReviewers`, as the config's schema names them), which an epic saved before them lacks.
 // Read here as agents: what each also keeps (its review skills, its failover steps) is only carried along.
-type SavedAgents = { author: Agent; reviewer: Agent; leadReviewer?: Agent; extraReviewers?: Agent[] };
+type SavedAgents = { author: Agent; reviewer: Agent; leadReviewer?: Agent; extraReviewers?: (Agent & Pick<ExtraReviewer, 'key' | 'name' | 'type'>)[] };
 const withAgents = (config: EffectiveRepoConfig, agents: SavedAgents): EffectiveRepoConfig => ({ ...config, agents: agents as EffectiveRepoConfig['agents'] });
 
-// `reviewer-2` is the first of the extra ones.
-const extraIndex = (slot: Slot) => Number(slot.slice(-1)) - 2;
+/** Whether the slot is an extra reviewer's: its key, as the epic's saved configuration carries it. */
+export const isExtraSlot = (slot: Slot | null) => slot !== null && slot !== 'reviewer' && slot !== 'lead';
 
 /** The agent a slot runs with in the epic's saved configuration (null: the author); undefined when the epic saved none for it. */
 export function agentOfSlot(config: EffectiveRepoConfig, slot: Slot | null): Agent | undefined {
@@ -16,7 +16,7 @@ export function agentOfSlot(config: EffectiveRepoConfig, slot: Slot | null): Age
   if (slot === null) return agents.author;
   if (slot === 'reviewer') return agents.reviewer;
   if (slot === 'lead') return agents.leadReviewer;
-  return agents.extraReviewers?.[extraIndex(slot)];
+  return agents.extraReviewers?.find((extra) => extra.key === slot);
 }
 
 /** What a lead or an extra reviewer keeps besides its agent: carried over when the agent is replaced, never the agent's own fields. */
@@ -33,8 +33,8 @@ export function withAgentOfSlot(config: EffectiveRepoConfig, slot: Slot | null, 
   if (slot === 'reviewer') return withAgents(config, { ...agents, reviewer: agent });
   // The agent replaces the previous one whole, so a field the new option leaves unset (provider, configDir, command, effort...) does not survive from the old option.
   if (slot === 'lead') return withAgents(config, { ...agents, leadReviewer: { ...agent, ...besidesAgent(agents.leadReviewer) } });
-  const extraReviewers = [...(agents.extraReviewers ?? [])];
-  extraReviewers[extraIndex(slot)] = { ...agent, ...besidesAgent(extraReviewers[extraIndex(slot)]) };
+  // The key, name and type are the entry's, not the agent's: they stay where the entry is.
+  const extraReviewers = (agents.extraReviewers ?? []).map((extra) => (extra.key === slot ? { ...agent, ...besidesAgent(extra), key: extra.key, name: extra.name, type: extra.type } : extra));
   return withAgents(config, { ...agents, extraReviewers });
 }
 
@@ -45,8 +45,8 @@ const failoverRoleOf = (slot: Slot | null): 'author' | 'reviewer' | 'leadReviewe
 export const failoverStepsOfSlot = (config: EffectiveRepoConfig | null, slot: Slot | null) =>
   (slot === null || config === null ? undefined : (agentOfSlot(config, slot) as Partial<ExtraReviewer> | undefined)?.failover) ?? failoverStepsFor(config?.failover, failoverRoleOf(slot));
 
-/** The slots that review a round, the mandatory reviewer first: an epic saved before the extra reviewers has one. */
-export const roundSlots = (config: EffectiveRepoConfig | null): Slot[] => ['reviewer', ...(config?.agents.extraReviewers ?? []).map((_, i) => `reviewer-${i + 2}` as Slot)];
+/** The slots that review a round, the mandatory reviewer first and then the extra ones in the order of the epic's saved configuration: an epic saved before the extra reviewers has one. A saved extra reviewer with no key (saved before the names) is no slot. */
+export const roundSlots = (config: EffectiveRepoConfig | null): Slot[] => ['reviewer', ...(config?.agents.extraReviewers ?? []).flatMap((extra) => (typeof extra.key === 'string' ? [extra.key] : []))];
 
 /** The skills a slot invokes: an extra reviewer's own review skills replace the epic's. */
 export function skillsOfSlot(config: EffectiveRepoConfig, slot: Slot | null): ResolvedSkills {

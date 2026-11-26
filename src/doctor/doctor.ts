@@ -303,8 +303,8 @@ export async function runDoctor(config: Config, folder: string, overrides: Parti
     const invoked = [
       { role: 'author', agent: repo.agents.author, skills: [repo.skills!.ship, repo.skills!.fix] },
       { role: 'reviewer', agent: repo.agents.reviewer, skills: [repo.skills!.review.review, repo.skills!.review.publish] },
-      // The slots the engine names them by: `reviewer-2` to `reviewer-4`, and `lead`.
-      ...(repo.agents.extraReviewers ?? []).map((agent, i) => ({ role: `reviewer-${i + 2}`, agent, skills: [agent.skills.review, agent.skills.publish] })),
+      // The slots the engine names them by: each extra reviewer's key, and `lead`.
+      ...(repo.agents.extraReviewers ?? []).map((agent) => ({ role: agent.key, agent, skills: [agent.skills.review, agent.skills.publish] })),
       ...(repo.agents.leadReviewer && repo.skills!.lead ? [{ role: 'lead', agent: repo.agents.leadReviewer, skills: [repo.skills!.lead.review, repo.skills!.lead.publish] }] : []),
     ];
     for (const { role, agent, skills } of invoked) {

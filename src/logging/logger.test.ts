@@ -53,7 +53,7 @@ test('taskContext derives the role from the stage and adds the round only when t
 
 test('taskContext names the slot of a review when it has one', () => {
   const base = { repo: 'a/b', epic: 3, executionId: 'x', stage: 'review' as const };
-  expect(taskContext({ ...base, reviewer: 'reviewer-2' }).role).toBe('reviewer-2');
+  expect(taskContext({ ...base, reviewer: 'seguridad-api' }).role).toBe('seguridad-api');
   expect(taskContext({ ...base, reviewer: 'lead' }).role).toBe('lead');
   expect(taskContext({ ...base, stage: 'ship', reviewer: null }).role).toBe('author');
 });

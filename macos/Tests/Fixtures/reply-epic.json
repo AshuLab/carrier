@@ -16,7 +16,7 @@
       "endedAt": 60000,
       "reviewers": [
         "reviewer",
-        "reviewer-2"
+        "seguridad-api"
       ]
     },
     {
@@ -143,7 +143,7 @@
       "commits": [],
       "otherReviewers": [
         {
-          "slot": "reviewer-2",
+          "slot": "seguridad-api",
           "agent": {
             "harness": "claude",
             "model": "claude-sonnet-5-5",
@@ -341,7 +341,7 @@
     "of": 3,
     "none": [
       {
-        "slot": "reviewer-3",
+        "slot": "usabilidad",
         "why": "cannot verify the migration"
       }
     ]

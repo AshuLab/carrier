@@ -81,7 +81,7 @@ What each part of `engine/` holds:
 | `state/` | `carrier.db` (SQLite, the authority, in WAL mode: `carrier.db-wal` and `carrier.db-shm` appear beside it while it is open and are part of it, so do not delete them or copy `carrier.db` alone while Carrier runs; `.backup` of `sqlite3` takes a consistent copy), `control.sock` (the control socket the CLI and the app use), `carrier.lock` (one engine per folder), the results of each execution (deleted with its logs), and `forge-cwd/<owner>/<name>` (the stub folder Forge runs in before a repo's first clone). |
 | `logs/` | `orchestrator.log`, `executions/<id>/` (each agent run's full output), and `start.log` (what a detached Carrier prints; the macOS app's start writes `app-start.log`). |
 | `repos/` | Carrier's clones, `<owner>/<repo>`. |
-| `reviews/` | The reviewers' separate checkouts: `<repo>/<epic>/` for the mandatory reviewer, and `<repo>/<epic>--<slot>/` beside it for each other slot (`reviewer-2` to `reviewer-4`, `lead`). |
+| `reviews/` | The reviewers' separate checkouts: `<repo>/<epic>/` for the mandatory reviewer, and `<repo>/<epic>--<slot>/` beside it for each other slot (an extra reviewer's key, such as `seguridad-api`, or `lead`). |
 | `worktrees/` | `<repo>/<feature>/`, Carrier's own place for an epic's worktree by default. Any other place works: Carrier finds an epic's worktree with `git worktree list`. |
 
 When an epic is merged or cancelled the engine removes, always, the checkouts of its reviewers, the author's worktree and Solve's `<worktree>--lane-N` worktrees beside it, wherever they are, and the epic's local branches whose tip is already on the remote.
@@ -303,7 +303,10 @@ Each role in `agents` (`author`, `reviewer`, and optional `leadReviewer`) specif
 `agents.extraReviewers` adds up to three reviewers beside `agents.reviewer`, and `agents.leadReviewer` is a final reviewer that runs after them.
 The keys are read, checked and saved with each epic, and `carrier doctor` checks them.
 The engine runs the extra reviewers: when the author's `ship` is validated it launches every reviewer at once on the same commit, each in its own checkout, and the round is settled when every reviewer has a verdict or has settled with none.
-The author's `fix` gets the open blockers of every reviewer, shown as `reviewer-2:B1` when the epic has several reviewers; a round counts once toward `limits.maxReviews` however many reviewers it has.
+The key of an extra reviewer is its identity wherever the engine names it: the slot its executions are stored with, the retries and the failover of its own, the prefix of its blockers' ids, the name of its checkout folder and the role the app and the logs name it by.
+The reviewers of a round are ordered as the epic's saved configuration has them, which is the order of the map, whatever their keys sort to.
+An epic saved before the reviewers had keys cannot be restarted, and the engine says why: it has to be started again.
+The author's `fix` gets the open blockers of every reviewer, shown as `seguridad-api:B1` (the reviewer's key and its own id) when the epic has several reviewers; a round counts once toward `limits.maxReviews` however many reviewers it has.
 A reviewer that gives no verdict does not stop the round: it answers `needs_human`, fails technically with its retries and failover steps out, runs out of usage with no failover step left, or, for an extra reviewer, lacks a skill you named for it.
 One verdict is enough for the round to count, and the mandatory reviewer's own missing skill still stops the epic with `skill_missing` before any reviewer is launched.
 A slow reviewer holds the round for as long as an execution may last, and the epic has no limit of its own for a round.
@@ -359,7 +362,7 @@ A resume at `review` or `fix` (`carrier restart --from`) of an epic that stopped
 - The profile and the provider of each extra reviewer must be declared, and the steps of its `failover` are checked like those of `failover.roles` (a provider that is not declared, a step repeated, a step equal to the reviewer's own provider and model), each refused naming its path, which holds the reviewer's key.
 - Give each reviewer a profile of its own, a bot for each.
   Every reviewer publishes its comments on the pull request with its own account, so with one bot per reviewer the pull request shows who said what, and a reviewer re-reviewing never takes another's open threads for its own.
-  Reviewers may share a profile, with each other or with the author: what tells their blockers apart is the reviewer's prefix on the blocker's id (`reviewer-2:B1`), never the account that wrote the comment, and a blocker with no `id` is told apart by its title and the same prefix.
+  Reviewers may share a profile, with each other or with the author: what tells their blockers apart is the reviewer's prefix on the blocker's id (its key, as in `seguridad-api:B1`), never the account that wrote the comment, and a blocker with no `id` is told apart by its title and the same prefix.
   The comments of reviewers that share a profile come from one login, so each is told to judge only the blockers it is given and to leave the review threads it did not open; a profile for each reviewer is still the advice, because then the pull request itself shows who said what.
 - When the blockers of two reviewers contradict each other the author decides and says in its summary which one it did not follow and why; the reviewers read the summaries of the earlier rounds in their next round, and the epic has no stop for a contradiction.
 
@@ -385,7 +388,7 @@ The lead moves through `failover.roles.leadReviewer` when its quota runs out, or
 
 An epic starts at once on its roles: nothing waits for a provider to be chosen, however many accounts are declared. The account each role ran on is recorded, because resuming its session and moving the role on failover need it.
 
-`carrier restart <owner/name>#<issue>` of a stopped epic is the one place a provider is chosen: it offers every declared account to each role, with no timer, and `--author`, `--reviewer` and `--lead` name one without asking (each for a role the epic has); an extra reviewer is asked about in a terminal, and has no flag.
+`carrier restart <owner/name>#<issue>` of a stopped epic is the one place a provider is chosen: it offers every declared account to each role, with no timer, and `--author`, `--reviewer` and `--lead` name one without asking (each for a role the epic has); an extra reviewer has no flag and is not asked about yet (the engine takes its option by its key).
 
 A config with `limits.optionChoiceSeconds`, or a `providers.json` account with `enabled`, is refused naming the key: an epic starts at once on its roles, so there is no choice to wait for or to hold back accounts from. Delete the key.
 

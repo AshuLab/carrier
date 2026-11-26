@@ -63098,6 +63098,23 @@
         }
       }
     },
+    "text.resume.extraReviewerUnknown %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The epic does not have an extra reviewer with the key %1$@. Name only the keys its configuration has."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El epic no tiene un revisor extra con la clave %1$@. Nombra solo las claves que tiene su configuración."
+          }
+        }
+      }
+    },
     "text.resume.extraRoundsNeedReviewLimit": {
       "extractionState": "manual",
       "localizations": {
@@ -63213,6 +63230,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "La pull request del epic ya no está abierta, así que no se cambió nada. Reinícialo desde ship, o reabre la pull request."
+          }
+        }
+      }
+    },
+    "text.resume.reviewersWithoutKey": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The epic was saved before its extra reviewers had names, so it cannot be restarted. Start it again from its issue."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El epic se guardó antes de que sus revisores extra tuvieran nombre, así que no se puede reiniciar. Empiézalo de nuevo desde su issue."
           }
         }
       }

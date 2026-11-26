@@ -101,10 +101,15 @@ public struct BackgroundTask: Equatable, Decodable, Sendable {
     public var description: String
     /// When the host first saw it; nil from a host that does not say.
     public var startedAt: Date?
+    /// Whether the model goes on working while it runs (a subagent, a workflow), as the host says; false is a background process (a command, a monitor).
+    /// A host that does not say reads as agent work, as the app did before the field.
+    public var agentWork: Bool
 
-    public init(id: String, kind: String, description: String, startedAt: Date? = nil) { (self.id, self.kind, self.description, self.startedAt) = (id, kind, description, startedAt) }
+    public init(id: String, kind: String, description: String, startedAt: Date? = nil, agentWork: Bool = true) {
+        (self.id, self.kind, self.description, self.startedAt, self.agentWork) = (id, kind, description, startedAt, agentWork)
+    }
 
-    private enum CodingKeys: String, CodingKey { case id, kind, description, startedAt }
+    private enum CodingKeys: String, CodingKey { case id, kind, description, startedAt, agentWork }
 
     public init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
@@ -112,6 +117,7 @@ public struct BackgroundTask: Equatable, Decodable, Sendable {
         kind = try values.decode(String.self, forKey: .kind)
         description = try values.decode(String.self, forKey: .description)
         startedAt = try values.decodeIfPresent(Double.self, forKey: .startedAt).map { Date(timeIntervalSince1970: $0 / 1000) }
+        agentWork = try values.decodeIfPresent(Bool.self, forKey: .agentWork) ?? true
     }
 
     /// What names it: what the agent said it was, else its kind.
@@ -178,7 +184,7 @@ public struct SessionRow: Equatable {
     public var diff: SessionDiff?
     /// The pull request of its branch, nil while none is known.
     public var pullRequest: SessionPullRequest?
-    /// What the agent waits for after its turn ended. The session is not idle while it has some: it is working, in the background.
+    /// What the agent waits for after its turn ended: the session is working while some of it is agent work, and a process does not hold it.
     public var background: [BackgroundTask]
     /// Where the lists place it while it works: the time its turn began, held still (`WorkingOrder`), and nil otherwise, when its last activity does.
     public var orderedAt: Date?
@@ -186,15 +192,19 @@ public struct SessionRow: Equatable {
     /// What the lists order and bucket the session by.
     public var sortedAt: Date { orderedAt ?? updatedAt }
 
-    /// Whether the agent is busy: it works, or its turn ended and it waits for something it started. What shows as working, and what cannot be archived.
-    public var isWorking: Bool { state == .working || (state != .waiting && background.isEmpty == false) }
+    /// The background tasks that are processes (a command, a monitor, a dev server): shown beside the session, never holding it as working.
+    public var processes: [BackgroundTask] { background.filter { $0.agentWork == false } }
+
+    /// Whether the model is busy: it works a turn, or its turn ended and it waits for agent work (a subagent). What shows as working;
+    /// a background process does not hold it, and a session that waits for the person still waits.
+    public var isWorking: Bool { state == .working || (state != .waiting && background.contains { $0.agentWork }) }
 
     /// What it is for the person; see `SessionStatus`.
     public var status: SessionStatus {
         switch state {
         case .waiting: .needsYou
         case .working: .working
-        case .idle, .done: background.isEmpty == false ? .working : unread ? .unread : asleep ? .asleep : .idle
+        case .idle, .done: isWorking ? .working : unread ? .unread : asleep ? .asleep : .idle
         }
     }
 

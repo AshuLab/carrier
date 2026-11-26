@@ -572,7 +572,7 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
     // What the agent waits for in the background is the state of the session, not something said in it: it is kept as it is and never stored.
     if (event.kind === 'background') {
       // a task that was there keeps the time it began; one that is new begins now
-      live.background = event.tasks.map((task) => ({ id: task.id, kind: task.kind, description: clean(task.description, chatCaps.arg), startedAt: live.background.find((known) => known.id === task.id)?.startedAt ?? clock.now() }));
+      live.background = event.tasks.map((task) => ({ id: task.id, kind: task.kind, description: clean(task.description, chatCaps.arg), agentWork: task.agentWork, startedAt: live.background.find((known) => known.id === task.id)?.startedAt ?? clock.now() }));
       armIdle(sessionId, live);
       onLiveChange();
       return;

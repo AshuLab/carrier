@@ -71,7 +71,19 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"", protocol vers
     // and the three tasks of the build session started minutes before
     #expect(active[0].lastActiveAt + 5_000 >= beforeMs && active[0].lastActiveAt + 5_000 <= afterMs)
     #expect(active[4].background.allSatisfy { ($0.startedAt.map { Date().timeIntervalSince($0) } ?? 0) > 90 })
-    #expect(server.unreadSessionIds == ["a1000000-0000-4000-8000-000000000001"] && server.pinnedSessionIds == ["a1000000-0000-4000-8000-000000000004"])
+    #expect(server.unreadSessionIds == ["a1000000-0000-4000-8000-000000000001", "a1000000-0000-4000-8000-000000000002"] && server.pinnedSessionIds == ["a1000000-0000-4000-8000-000000000004"])
+}
+
+@Test func theFixtureHasASessionWithOnlyProcessesThatReadsDoneAndOneWithASubagentThatWorks() async throws {
+    let server = try FixtureServer(fixtures: fixtures)
+    defer { server.stop() }
+    let host = SocketChatHost(socketPath: { server.chatSocketPath })
+    var rows = sessionRows(try await host.list(archived: false), bundle: english.bundle, locale: english.locale)
+    for index in rows.indices { rows[index].unread = server.unreadSessionIds.contains(rows[index].id) }
+    let processes = try #require(rows.first { $0.id == "a1000000-0000-4000-8000-000000000002" })
+    #expect(processes.processes.isEmpty == false && processes.isWorking == false && processes.status == .unread)
+    let subagent = try #require(rows.first { $0.id == "9b8c7d6e-5f4a-4b3c-8d2e-1f0a9b8c7d07" })
+    #expect(subagent.isWorking && subagent.status == .working && subagent.processes.count == 2)
 }
 
 @Test func theFixtureHostCutsAPlansWorktreeFromTheRemoteBranchWhenTheStartIsRemote() async throws {

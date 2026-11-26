@@ -17,7 +17,7 @@ export async function initCommand(flags: Flags, folder: string): Promise<number 
   const initFlags = initFlagsOf(flags);
   const wrong = flagProblem(initFlags); // a flag that cannot work is refused before the Carrier folder is touched, not just before the wizard looks at the machine
   if (wrong !== undefined) throw new CliError(1, wrong);
-  const ui = flags.yes || !process.stdin.isTTY ? noPromptUi : makeClackUi({ compact: true });
+  const ui = flags.yes || !process.stdin.isTTY ? noPromptUi : makeClackUi({ compact: true, back: true });
   installFileLogging(join(enginePlacesOf(folder).logs, 'orchestrator.log'), LogLevel.INFO); // the doctor's checks log through console: to the Carrier folder's log, not over the wizard
   let started;
   try {

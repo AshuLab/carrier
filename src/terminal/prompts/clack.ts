@@ -1,13 +1,8 @@
 import { styleText } from 'node:util';
 import { autocomplete, autocompleteMultiselect, cancel, confirm, groupMultiselect, intro, isCancel, log, note, outro, select, spinner, text } from '@clack/prompts';
 import type { Check } from '../../doctor/doctor.ts';
-import { Cancelled, type Ui } from './types.ts';
-
-
-const keep = <T>(value: T | symbol): T => {
-  if (isCancel(value)) throw new Cancelled();
-  return value as T;
-};
+import { cancelFor, type Key } from './keys.ts';
+import type { Ui } from './types.ts';
 
 const checkLine = ({ name, detail }: Check) => (detail ? `${name} — ${detail}` : name);
 const fixLine = (fix: string) => log.message(styleText('dim', `→ ${fix}`));
@@ -27,7 +22,14 @@ const longList = 10;
  * `compact`: what passes leaves no trace but a final count, only failures are printed (init: nobody needs eight lines
  * that say everything is fine). Not compact: one line per check (the `doctor` command, which is asked for them).
  */
-export function makeClackUi({ compact = false } = {}): Ui {
+export function makeClackUi({ compact = false, back = false } = {}): Ui {
+  // Clack ends Esc and Ctrl+C with the same cancel symbol: the last key pressed tells them apart. Only a caller that can go back (`back`) hears Esc as `Back`.
+  let lastKey: Key | undefined;
+  if (back) process.stdin.on('keypress', (_char: string | undefined, key: Key | undefined) => void (lastKey = key));
+  const keep = <T>(value: T | symbol): T => {
+    if (isCancel(value)) throw cancelFor(lastKey, back);
+    return value as T;
+  };
   // A check that takes a while (a token from Forge, a call to GitHub) shows a spinner until its result arrives.
   let spin: ReturnType<typeof spinner> | undefined;
   return {

@@ -4135,6 +4135,40 @@
         }
       }
     },
+    "archiveStopsMessage %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This stops %1$@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esto detiene %1$@"
+          }
+        }
+      }
+    },
+    "archiveStopsTitle %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Archive “%1$@”?"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "¿Archivar «%1$@»?"
+          }
+        }
+      }
+    },
     "archiveTitle": {
       "extractionState": "manual",
       "localizations": {
@@ -8397,6 +8431,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Pull request"
+          }
+        }
+      }
+    },
+    "chatPeekRunning": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Running"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En ejecución"
           }
         }
       }
@@ -50096,6 +50147,67 @@
           "stringUnit": {
             "state": "translated",
             "value": "Pull request %1$@, abierto"
+          }
+        }
+      }
+    },
+    "sessionProcessesSpoken %lld": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%#@count@"
+          },
+          "substitutions": {
+            "count": {
+              "argNum": 1,
+              "formatSpecifier": "lld",
+              "variations": {
+                "plural": {
+                  "one": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg background process"
+                    }
+                  },
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg background processes"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%#@count@"
+          },
+          "substitutions": {
+            "count": {
+              "argNum": 1,
+              "formatSpecifier": "lld",
+              "variations": {
+                "plural": {
+                  "one": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg proceso en segundo plano"
+                    }
+                  },
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg procesos en segundo plano"
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }

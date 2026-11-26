@@ -1186,6 +1186,10 @@ public enum Copy {
         String(localized: "sessionBackgroundCount \(count)", bundle: bundle ?? carrierResources, locale: locale)
     }
 
+    public static func sessionProcessesSpoken(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionProcessesSpoken \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
     public static func sessionOpenLabel(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
         String(localized: "sessionOpenLabel \(count)", bundle: bundle ?? carrierResources, locale: locale)
     }
@@ -2092,6 +2096,14 @@ public enum Copy {
 
     public static func archiveDeleteMessageWorktree(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         String(localized: "archiveDeleteMessageWorktree", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func archiveStopsTitle(title: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "archiveStopsTitle \(title)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func archiveStopsMessage(names: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "archiveStopsMessage \(names)", bundle: bundle ?? carrierResources, locale: locale)
     }
 
     public static func archiveBlockWorking(bundle: Bundle? = nil, locale: Locale = .current) -> String {
@@ -3356,6 +3368,10 @@ public enum Copy {
 
     public static func chatPeekWaitingOn(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         String(localized: "chatPeekWaitingOn", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatPeekRunning(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatPeekRunning", bundle: bundle ?? carrierResources, locale: locale)
     }
 
     public static func chatPeekMoreTasks(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {

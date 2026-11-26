@@ -632,13 +632,28 @@ test('a session that waits for background work is not closed for being idle, and
   expect(one.conversation.closed).toBe(true);
 });
 
-test('a session that waits for background work is not archived or deleted until it stops, and a stop with no turn running stops those tasks', async () => {
+const agent = (...ids: string[]) => ({ kind: 'background' as const, tasks: ids.map((id) => ({ id, kind: 'local_agent', description: `review ${id}`, agentWork: true })) });
+/** Makes the fake's `stopTask` note whether the conversation was already closed when it was called, and reject when asked to. */
+const watchStops = (conversation: { closed: boolean; stopTask?: (taskId: string) => Promise<void> }, refuse: string[] = []) => {
+  const calls: { id: string; closedYet: boolean }[] = [];
+  conversation.stopTask = async (id) => {
+    calls.push({ id, closedYet: conversation.closed });
+    if (refuse.includes(id)) throw new Error('the agent refused');
+  };
+  return calls;
+};
+
+test('a session that waits for agent work is not archived or deleted until it stops, its processes are not stopped by the refusal, and a stop with no turn running stops those tasks', async () => {
   const s = setup();
   const one = await openOne(s);
-  one.conversation.emit(bg('a'));
+  one.conversation.emit(agent('a'));
   await expect(s.sessions.archive({ sessionId: one.id, archived: true })).rejects.toThrow('waiting for a background task; stop it first, then archive it');
   await expect(s.sessions.delete({ sessionId: one.id })).rejects.toThrow('stop it first, then delete it');
-  one.conversation.emit(bg('a', 'b'));
+  one.conversation.emit({ kind: 'background', tasks: [...agent('a').tasks, ...bg('p').tasks] }); // agent work beside a process: refused, and the count is the agent work
+  await expect(s.sessions.archive({ sessionId: one.id, archived: true })).rejects.toMatchObject({ code: 'session.tasksRunning', params: { count: 1, action: 'archive' } });
+  expect(one.conversation.stopped).toEqual([]);
+  expect(one.conversation.closed).toBe(false);
+  one.conversation.emit(agent('a', 'b'));
   await expect(s.sessions.archive({ sessionId: one.id, archived: true })).rejects.toThrow('waiting for background tasks; stop them first');
   await s.sessions.interrupt({ sessionId: one.id });
   expect(one.conversation.stopped).toEqual(['a', 'b']);
@@ -647,6 +662,62 @@ test('a session that waits for background work is not archived or deleted until 
   expect(one.conversation.stopped).toEqual(['a', 'b']);
   await s.sessions.archive({ sessionId: one.id, archived: true });
   expect(s.sessions.list({ archived: true }).sessions.map((row) => row.id)).toEqual([one.id]);
+});
+
+test('a session with only background processes is archived after each process is stopped once and before the session closes, and a stop that rejects does not stop the archive', async () => {
+  const s = setup();
+  const one = await openOne(s);
+  const calls = watchStops(one.conversation, ['a']);
+  one.conversation.emit(bg('a', 'b'));
+  await s.sessions.archive({ sessionId: one.id, archived: true });
+  expect(calls).toEqual([{ id: 'a', closedYet: false }, { id: 'b', closedYet: false }]);
+  expect(one.conversation.closed).toBe(true);
+  expect(s.sessions.list({ archived: true }).sessions.map((row) => row.id)).toEqual([one.id]);
+});
+
+test('an adapter with no stopTask has nothing to stop: a session with only processes is archived anyway', async () => {
+  const s = setup();
+  const one = await openOne(s);
+  Object.defineProperty(one.conversation, 'stopTask', { value: undefined });
+  one.conversation.emit(bg('a'));
+  await s.sessions.archive({ sessionId: one.id, archived: true });
+  expect(one.conversation.closed).toBe(true);
+});
+
+test('a session with only background processes is deleted after each process is stopped once and before the session closes, and a stop that rejects does not stop the delete', async () => {
+  const s = setup();
+  const one = await openOne(s);
+  const calls = watchStops(one.conversation, ['b']);
+  one.conversation.emit(bg('a', 'b'));
+  await s.sessions.delete({ sessionId: one.id });
+  expect(calls).toEqual([{ id: 'a', closedYet: false }, { id: 'b', closedYet: false }]);
+  expect(one.conversation.closed).toBe(true);
+  expect(rows('sessions').map((r) => r.id)).not.toContain(one.id);
+});
+
+test('a parent whose child has only processes is archived and deleted after the child stops them, and a child with agent work refuses with its own code and stops nothing', async () => {
+  const f = await family();
+  const childCalls = watchStops(f.childConversation);
+  f.finish();
+  f.childConversation.emit({ kind: 'background', tasks: [...agent('x').tasks, ...bg('p').tasks] });
+  await expect(f.sessions.archive({ sessionId: f.parent.id, archived: true })).rejects.toMatchObject({ code: 'session.childTasksRunning', params: { count: 1, action: 'archive' } });
+  expect(childCalls).toEqual([]);
+  expect(f.childConversation.closed).toBe(false);
+  f.childConversation.emit(bg('p', 'q'));
+  await f.sessions.archive({ sessionId: f.parent.id, archived: true });
+  expect(childCalls).toEqual([{ id: 'p', closedYet: false }, { id: 'q', closedYet: false }]);
+  expect(f.childConversation.closed).toBe(true);
+  expect(f.rowOf(f.parent.id)!.archived).toBe(true);
+});
+
+test('deleting a parent whose child has only processes stops them before the child closes', async () => {
+  const f = await family();
+  const childCalls = watchStops(f.childConversation);
+  f.finish();
+  f.childConversation.emit(bg('p'));
+  await f.sessions.delete({ sessionId: f.parent.id });
+  expect(childCalls).toEqual([{ id: 'p', closedYet: false }]);
+  expect(f.db.select().from(schemaSessions).all()).toEqual([]);
 });
 
 test('a turn the agent begins on its own is working from its first word and ends at its turn_end, which is recorded', async () => {

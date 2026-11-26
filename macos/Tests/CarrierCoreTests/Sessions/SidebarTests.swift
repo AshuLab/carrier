@@ -491,6 +491,23 @@ private func content(_ row: SessionRow = workRow, workspace: Bool = true, parts:
     #expect(content(parts: SessionRowParts(age: false)).age == nil)
 }
 
+@Test func aRowCountsItsBackgroundProcessesAndSaysThemAloudInEnglish() {
+    let process = { (id: String) in BackgroundTask(id: id, kind: "local_bash", description: "pnpm dev", agentWork: false) }
+    let agent = BackgroundTask(id: "a", kind: "local_agent", description: "Review the diff", agentWork: true)
+    var row = workRow
+    // none: no mark and nothing said
+    #expect(content(row).processes == 0 && content(row).processesSpoken(bundle: english.bundle, locale: english.locale) == nil)
+    row.background = [process("p1")]
+    #expect(content(row).processes == 1 && content(row).processesSpoken(bundle: english.bundle, locale: english.locale) == "1 background process")
+    // agent work is not a process, and the mark shows whatever the other parts say or the state is, a turn included
+    row.background = [process("p1"), process("p2"), agent]
+    row.state = .working
+    #expect(content(row).processes == 2 && content(row).processesSpoken(bundle: english.bundle, locale: english.locale) == "2 background processes")
+    #expect(content(row, parts: SessionRowParts(icon: false, branch: false, providers: false, age: false)).processes == 2)
+    row.background = [agent]
+    #expect(content(row).processes == 0)
+}
+
 @Test func theWorkspaceShowsOnlyOutsideTheWorkspaceOrderWhateverTheFlagsSay() {
     #expect(content(workspace: false).workspace == nil)
     #expect(content(workspace: true, parts: SessionRowParts(icon: false, branch: false, providers: false, age: false)).workspace == "carrier")

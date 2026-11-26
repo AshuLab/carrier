@@ -28,12 +28,12 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"", protocol vers
     #expect(AgentAccounts.harness(of: "nobody") == "nobody")
 
     let active = try await host.list(archived: false)
-    // the fifth is a session whose turn ended while a build runs; the twelve after it fill the sidebar's other states (unread, a single task, plain, pinned, a worktree preparing, a long title, every component of a conversation, every tool...), and the last is the one with three subagents
+    // the fifth is a session whose turn ended while a build runs; the twelve after it fill the sidebar's other states (unread, a single task, plain, pinned, a turn with a process (the long branch), two processes before the providers, a worktree preparing, a long title, every component of a conversation, every tool...), and the last is the one with three subagents
     #expect(active.map(\.state) == [.working, .waitingApproval, .idle, .idle, .idle, .idle, .idle, .working, .idle, .working, .idle, .preparing, .idle, .waitingApproval, .working, .idle, .idle, .idle])
     #expect(active.map(\.live) == [true, true, false, false, true, true, true, true, true, true, true, true, false, true, true, true, true, false])
     let worktree = "/Users/dev/work/web"
     #expect(active.map { $0.workspace?.base } == [nil, nil, nil, worktree, nil, nil, nil, nil, nil, worktree, worktree, worktree, nil, nil, nil, nil, nil, nil])
-    #expect(active.map(\.background.count) == [0, 0, 0, 0, 3, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+    #expect(active.map(\.background.count) == [0, 0, 0, 0, 3, 0, 2, 0, 0, 1, 0, 0, 0, 0, 0, 0, 2, 0])
     #expect(active.compactMap(\.pullRequest).map(\.number) == [983, 979, 412, 88, 1051, 1060, 431, 398, 77] && active.compactMap(\.diff).count == 10)
     #expect(try await host.list(archived: true).map(\.archived) == [true, true])
     // the parent carries its children and none of the other sessions has a parent or children

@@ -698,7 +698,7 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
   /** The ids of a session's children. */
   const kidsOf = (parentId: string) => db.select({ id: sessions.id }).from(sessions).where(eq(sessions.parentSessionId, parentId)).all().map((kid) => kid.id);
 
-  /** Readies a session and its children to be archived or deleted: refuses, before closing anything, an unknown one, one working or waiting for an approval and a child that does; then closes the idle live ones.
+  /** Readies a session and its children to be archived or deleted: refuses, before closing anything, an unknown one, one working or waiting for an approval, one with agent work running in the background and a child that does; then stops the background processes of the idle live ones and closes them.
    * An archive does not wait for the agent to end, which can take seconds (the person is watching the row go); a delete does, as its worktree cannot be removed under a running agent. */
   async function settle(sessionId: string, verb: 'archive' | 'delete') {
     notSwitching(sessionId);
@@ -706,7 +706,7 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
     const family = [sessionId, ...kidsOf(sessionId)];
     if (family.some((id) => opening.has(id))) throw new ChatRefused('session.childStarting', `A child of this session is starting; try again in a moment, then ${verb} it`, { action: verb });
     for (const id of family) {
-      const waiting = lives.get(id)?.background.length ?? 0;
+      const waiting = lives.get(id)?.background.filter((task) => task.agentWork).length ?? 0;
       if (waiting > 0) {
         const tasks = waiting === 1 ? ['a background task', 'it'] : ['background tasks', 'them'];
         if (id === sessionId) throw new ChatRefused('session.tasksRunning', `This session is waiting for ${tasks[0]}; stop ${tasks[1]} first, then ${verb} it`, { count: waiting, action: verb });
@@ -718,7 +718,10 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
       if (state !== undefined && state !== 'idle') throw new ChatRefused(id === sessionId ? 'session.busy' : 'session.childBusy', `${id === sessionId ? 'This session' : 'A child of this session'} is ${state === 'working' ? 'working' : 'waiting for an approval'}; interrupt or close it first, then ${verb} ${id === sessionId ? 'it' : 'the session'}`, { state, action: verb });
     }
     for (const id of family) {
-      if (lives.has(id) === false) continue;
+      const live = lives.get(id);
+      if (live === undefined) continue;
+      // only processes are left (agent work refused above): they are stopped before the close, and one that refuses does not stop the archive
+      await Promise.all(live.background.map((task) => live.conversation.stopTask?.(task.id).catch((error) => log.error('stopping a background process failed', error))));
       await close({ sessionId: id }, { wait: verb === 'delete' });
       if (lives.has(id)) throw new ChatRefused('session.resumedMeanwhile', 'This session was resumed meanwhile; close it first'); // a resume that finished during the close
     }

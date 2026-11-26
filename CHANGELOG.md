@@ -11,6 +11,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Eleven more themes in Settings, Appearance: Solarized, Nord, Gruvbox, Dracula, Tokyo Night, Catppuccin, One Dark, Monokai, Rosé Pine, Everforest and Ayu, each with a light and a dark version that the colour scheme picks, twenty themes in all.
   The terminal can use any of them too, each with its own 16-colour palette built from the theme's published terminal colours and nudged only where the contrast test needs it.
   Monokai has no official light version, so its light one is Carrier's own, inspired by the original.
+- Send to sleep, in the context menu of a session, closes its agent right away (freeing its memory) and leaves the session asleep: a message wakes it where it left off.
+  It is offered while the agent is idle; one that works or waits ends with Stop.
 
 ### Changed
 
@@ -26,6 +28,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- A session's branch in the sidebar and on the Sessions page reads as the branch name again, instead of `ModifiedContent<Text, ScaledFont…>`.
+- A session no longer shows the pull request of an older branch that had the same name: one merged or closed before the session started is not its own.
+- The week chart of the Dictation statistics puts each day's name centred under its bar and spells it out (Fri, Sat), instead of a single letter to the left of the bar that was the same for Saturday and Sunday.
+- The four figures of Overview and of Records in the Dictation statistics sit on the panel's own background, no longer inside a second card.
+- The Settings window no longer shrinks below its smallest size (it could be dragged down to about 400 px wide, where its pages broke): it stops at 950 px wide, and opens at 1000.
 - `carrier init` no longer takes anything away: it adds the agent CLIs it finds to the accounts in `providers.json` instead of replacing them, an edit keeps the keys it does not ask (`limits`, `labels`, `skills`, `behavior`, per-repo overrides), an existing config that does not validate is reported with its first error before the file is touched, and `--config` is refused with a line that says `init` writes with `--out`.
 - An epic whose slices build for more than 10 minutes no longer ends its `ship` with "no result file was written" and starts again from the top.
   Claude's headless mode stopped the subagents still running 10 minutes after the agent's last turn and exited; the engine now turns that limit off (a `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS` you exported is kept), pins Antigravity's print mode to no time limit, and tells the author, whatever its harness, not to end its turn while its subagents or background tasks are running.

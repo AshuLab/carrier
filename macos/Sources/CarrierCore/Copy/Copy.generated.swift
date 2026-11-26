@@ -2144,6 +2144,10 @@ public enum Copy {
         String(localized: "sessionMenuStop", bundle: bundle ?? carrierResources, locale: locale)
     }
 
+    public static func sessionMenuSleep(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionMenuSleep", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
     public static func sessionMenuMarkRead(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         String(localized: "sessionMenuMarkRead", bundle: bundle ?? carrierResources, locale: locale)
     }

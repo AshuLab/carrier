@@ -241,9 +241,9 @@ Use for: the title of a Carrier home section, above its card. Not for: a group o
 
 ### SettingsGroup
 Kind: Cards · File: `macos/Sources/CarrierUI/Cards/SettingsGroup.swift` · Web: `<SettingsGroup>`
-Takes: `id`, `title`, `footer`, `accessory` (a control at the right of the title), its rows as content.
-States: normal; with a footer; with an accessory.
-Use for: a group of rows of a Settings page: a small uppercase title over a card, or a section of a form. Not for: a list of things that open a screen of their own (that is a card of `NavigationRow`).
+Takes: `id`, `title`, `footer`, `card` (false leaves the content on the panel's background, for content that is cards itself), `accessory` (a control at the right of the title), its rows as content.
+States: normal; with a footer; with an accessory; without the card.
+Use for: a group of rows of a Settings page: a small uppercase title over a card, or a section of a form. Not for: a card inside another card (pass `card: false`), and a list of things that open a screen of their own (that is a card of `NavigationRow`).
 
 ### SettingsTabCard
 Kind: Cards · File: `macos/Sources/CarrierUI/Cards/SettingsTabCard.swift` · Web: `<SettingsTabCard>`

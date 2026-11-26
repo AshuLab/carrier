@@ -6,8 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- `carrier init` asks the AI accounts first, then the orchestrator's GitHub profile, then one closed block for each role (the Author, the Reviewer, each extra reviewer and the Lead reviewer), and the repos last.
+  A role block asks its profile and account, shows the model and effort it would use and asks only whether to change them, asks one "customise the persona?" and then its failover, which is asked only with two or more accounts.
+  After the Reviewer it offers up to three extra reviewers (`reviewer-2` to `reviewer-4`), written to `agents.extraReviewers`.
+- Esc goes back one question in `init` and keeps the earlier answers, Ctrl+C leaves, and the recap's "Change an answer" is a menu that jumps to one block instead of asking everything again.
+  Ctrl+C at "Start Carrier now?" counts as no and prints what to run.
+- Every `init` question has a flag, built from the same table of roles (`--<role>`, `--<role>-profile`, `--<role>-provider`, `--<role>-effort`, `--<role>-persona-name`, `--<role>-persona-prompt`, repeatable `--<role>-failover`, plus `--orchestrator-profile`), and a mistake in a flag is reported naming it before the wizard looks at the machine or GitHub.
+  `--yes` prints what it chose and now always needs `--repo`.
+
 ### Fixed
 
+- `carrier init` no longer takes anything away: it adds the agent CLIs it finds to the accounts in `providers.json` instead of replacing them, an edit keeps the keys it does not ask (`limits`, `labels`, `skills`, `behavior`, per-repo overrides), an existing config that does not validate is reported with its first error before the file is touched, and `--config` is refused with a line that says `init` writes with `--out`.
 - An epic whose slices build for more than 10 minutes no longer ends its `ship` with "no result file was written" and starts again from the top.
   Claude's headless mode stopped the subagents still running 10 minutes after the agent's last turn and exited; the engine now turns that limit off (a `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS` you exported is kept), pins Antigravity's print mode to no time limit, and tells the author, whatever its harness, not to end its turn while its subagents or background tasks are running.
 

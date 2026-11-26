@@ -174,7 +174,7 @@ struct SessionRowView: View {
         let state: String? = switch row.state {
         case .working: Copy.sessionStatusWorking()
         case .waiting: Copy.sessionNeedsAttention()
-        case .idle, .done: row.background.isEmpty == false ? Copy.sessionWaitingBackground() : row.status == .unread ? Copy.sessionDone() : nil
+        case .idle, .done: row.isWorking ? Copy.sessionWaitingBackground() : row.status == .unread ? Copy.sessionDone() : nil
         }
         let place: String? = switch content.place {
         case .branch(let name)?: name

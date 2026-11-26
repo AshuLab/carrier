@@ -584,15 +584,15 @@ test('a live session that is idle and that no request names is closed after the 
   expect(s.claude.conversations[1]!.closed).toBe(true);
 });
 
-const bg = (...ids: string[]) => ({ kind: 'background' as const, tasks: ids.map((id) => ({ id, kind: 'local_bash', description: `run ${id}` })) });
+const bg = (...ids: string[]) => ({ kind: 'background' as const, tasks: ids.map((id) => ({ id, kind: 'local_bash', description: `run ${id}`, agentWork: false })) });
 const background = (s: { sessions: ReturnType<typeof createSessions> }, id: string) => (s.sessions.list({}).sessions.find((row) => row.id === id) as { background: unknown[] }).background;
 
 test('what the agent waits for in the background is in its row, as it says it, redacted, and never stored', async () => {
   const s = setup();
   const one = await openOne(s);
   expect(background(s, one.id)).toEqual([]);
-  one.conversation.emit({ kind: 'background', tasks: [{ id: 'a', kind: 'local_bash', description: `deploy with ${token}` }, { id: 'b', kind: 'local_agent', description: 'review' }] });
-  expect(background(s, one.id)).toEqual([{ id: 'a', kind: 'local_bash', description: 'deploy with [redacted]', startedAt: 0 }, { id: 'b', kind: 'local_agent', description: 'review', startedAt: 0 }]);
+  one.conversation.emit({ kind: 'background', tasks: [{ id: 'a', kind: 'local_bash', description: `deploy with ${token}`, agentWork: false }, { id: 'b', kind: 'local_agent', description: 'review', agentWork: true }] });
+  expect(background(s, one.id)).toEqual([{ id: 'a', kind: 'local_bash', description: 'deploy with [redacted]', agentWork: false, startedAt: 0 }, { id: 'b', kind: 'local_agent', description: 'review', agentWork: true, startedAt: 0 }]);
   // a task keeps the time it began while it stays; one that comes later begins when it comes
   await s.clock.advance(5_000);
   one.conversation.emit(bg('b', 'c'));
@@ -610,9 +610,9 @@ test('the summary of events says whether the session is live and what it waits f
   const from = (id: string) => s.sessions.events({ sessionId: id, limit: 10 }).session;
   const row = (id: string) => s.sessions.list({}).sessions.find((found) => found.id === id)!;
   expect(from(one.id)).toMatchObject({ agent: 'claude', archived: false, live: true, background: [] });
-  one.conversation.emit({ kind: 'background', tasks: [{ id: 'a', kind: 'local_bash', description: 'deploy' }] });
+  one.conversation.emit({ kind: 'background', tasks: [{ id: 'a', kind: 'local_bash', description: 'deploy', agentWork: false }] });
   expect(from(one.id).background).toEqual((row(one.id) as { background: unknown[] }).background);
-  expect(from(one.id).background).toHaveLength(1);
+  expect(from(one.id).background).toMatchObject([{ id: 'a', agentWork: false }]);
   await s.sessions.close({ sessionId: one.id });
   expect(from(one.id)).toMatchObject({ live: false, background: [] });
   await s.sessions.archive({ sessionId: one.id, archived: true });

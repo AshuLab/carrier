@@ -74,6 +74,7 @@ export const engineFileRequests = [
   z.strictObject({ id, cmd: z.literal('setLeadReviewer'), draft: roleChanges.nullable() }),
   z.strictObject({ id, cmd: z.literal('setOrchestratorProfile'), name: field.nullable() }),
   z.strictObject({ id, cmd: z.literal('addExtraReviewer'), draft: z.strictObject({ name: field.optional(), type: field.optional(), identity: identity.optional(), provider: field.optional(), model: field.optional(), effort: field.optional() }) }),
+  z.strictObject({ id, cmd: z.literal('removeExtraReviewer'), key: field }),
 ] as const;
 type EngineFileCmd = (typeof engineFileRequests)[number]['shape']['cmd']['value'];
 // An allowlist: any other command, field or type is rejected before anything acts on it.

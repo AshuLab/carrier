@@ -234,8 +234,8 @@ For `providers.json`:
 For `projects.json`:
 `addProject { folder }`, `removeProject { path }`, `editProject { path, key, value }` (`key` is `name`, `pinned` or `hidden`), `moveProject { path, folder }`, `editProjectIcon { path, changes }`, `editProjectDefaults { path, changes }`, `editProjectTags { path, add, remove }` and `setProjectActions { path, actions }`.
 
-The engine owns `engine.json`, through its nine requests:
-`setWatchedRepos { repos }`, `editBehavior { changes }`, `editRole { role, changes }`, `editRepoRole { repo, role, fields }` (`fields: null` removes the override), `editPersona { role, name, prompt }`, `editFailover { role, first, second }`, `setLeadReviewer { draft }` (`draft: null` turns it off), `setOrchestratorProfile { name }` and `addExtraReviewer { draft }` (the draft has `name`, `type`, `identity`, `provider`, `model` and an optional `effort`; the key is derived from the name and never sent).
+The engine owns `engine.json`, through its ten requests:
+`setWatchedRepos { repos }`, `editBehavior { changes }`, `editRole { role, changes }`, `editRepoRole { repo, role, fields }` (`fields: null` removes the override), `editPersona { role, name, prompt }`, `editFailover { role, first, second }`, `setLeadReviewer { draft }` (`draft: null` turns it off), `setOrchestratorProfile { name }`, `addExtraReviewer { draft }` (the draft has `name`, `type`, `identity`, `provider`, `model` and an optional `effort`; the key is derived from the name and never sent) and `removeExtraReviewer { key }`.
 `editRole`, `editPersona` and `editFailover` take `"role": { "extraReviewer": "<key>" }` in place of a role name to change an extra reviewer by its key; `editRole` then also takes `name` and `type` in `changes`, and `editFailover` writes the reviewer's own `failover`.
 
 A reply that saved has `saved`, the part of the file it changed (`addProject` also says `added`, `removeProject` says `removed`).

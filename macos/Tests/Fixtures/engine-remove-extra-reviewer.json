@@ -1,0 +1,13 @@
+{
+  "request": {
+    "cmd": "removeExtraReviewer",
+    "key": "seguridad-api"
+  },
+  "reply": {
+    "ok": true,
+    "data": {
+      "saved": {},
+      "engine": "applied"
+    }
+  }
+}

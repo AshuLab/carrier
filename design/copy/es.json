@@ -821,6 +821,7 @@
   "sessionMenuBranchName": "Nombre de la rama",
   "sessionMenuSessionId": "ID de la sesión",
   "sessionMenuStop": "Detener",
+  "sessionMenuSleep": "Mandar a dormir",
   "sessionMenuMarkRead": "Marcar como leída",
   "sessionMenuMarkUnread": "Marcar como no leída",
   "sessionMenuMarkWhy": "Está abierta: al abrir una sesión se marca como leída",

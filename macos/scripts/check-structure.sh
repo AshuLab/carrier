@@ -198,4 +198,11 @@ if [ -s /tmp/check-structure-copy.$$ ]; then
 fi
 rm -f /tmp/check-structure-copy.$$
 
+# Rule: no `.scaledFont` on a Text interpolated into another Text.
+# `scaledFont` returns a View, not a Text, so the interpolation prints its description ("ModifiedContent<Text, ScaledFont>") instead of the words.
+# Use `.font(textScale.font(...))` there, with `@Environment(\.textScale)`. Ignores: a Text whose argument holds a `)` (a grep, not a parser).
+if grep -rnE '\\\(Text\([^)]*\)\.scaledFont\(' Sources | sed 's/$/: .scaledFont inside a Text interpolation prints the view description: use .font(textScale.font(...))/' | grep .; then
+  FAILED=1
+fi
+
 exit $FAILED

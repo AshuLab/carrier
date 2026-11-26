@@ -228,6 +228,7 @@ private struct SessionHomeRow: View {
     let open: () -> Void
     @State private var hovered = false
     @Environment(SessionActions.self) private var actions
+    @Environment(\.textScale) private var textScale
     @AppStorage(Preference.sidebarPinned) private var pinnedStored
 
     private var pinned: Bool { pinnedIds(pinnedStored).contains(row.id) }
@@ -293,7 +294,7 @@ private struct SessionHomeRow: View {
         HStack(spacing: Tokens.Space.s6) {
             Group {
                 if let branch = row.branch {
-                    Text("\(Image(inline: .gitBranch)) \(Text(branch).scaledFont(11, design: .monospaced))").lineLimit(1).truncationMode(.middle)
+                    Text("\(Image(inline: .gitBranch)) \(Text(branch).font(textScale.font(11, design: .monospaced)))").lineLimit(1).truncationMode(.middle)
                 } else {
                     Label(Copy.sessionBaseFolder(), icon: .folder).labelStyle(.titleAndIcon).lineLimit(1)
                 }

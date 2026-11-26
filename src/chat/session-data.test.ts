@@ -37,9 +37,11 @@ class FakePulls implements PullRequests {
   found: Record<string, PullRequestInfo | null> = {};
   open: Record<string, PullRequestInfo> = {};
   finds: string[] = [];
+  sinces: number[] = [];
   asked: string[][] = [];
-  async find(repo: string, branch: string) {
+  async find(repo: string, branch: string, since: number) {
     this.finds.push(`${repo}:${branch}`);
+    this.sinces.push(since);
     return this.found[`${repo}:${branch}`] ?? null;
   }
   async states(refs: { repo: string; number: number }[]) {
@@ -84,10 +86,19 @@ test('a pull request node says its state and checks, and a closed one has no che
 test('of the pull requests of a branch the newest open one is shown, else the newest, and a fork\'s is not the branch\'s', () => {
   const node = (number: number, state: string, from: string) => ({ number, url: `https://github.com/o/r/pull/${number}`, state, isDraft: false, headRepository: { nameWithOwner: from } });
   // newest first, as GitHub lists them
-  expect(pickPullRequest('o/r', [node(9, 'MERGED', 'o/r'), node(8, 'OPEN', 'o/r'), node(7, 'CLOSED', 'o/r')])?.number).toBe(8);
-  expect(pickPullRequest('o/r', [node(9, 'MERGED', 'o/r'), node(7, 'CLOSED', 'o/r')])?.number).toBe(9);
-  expect(pickPullRequest('o/r', [node(10, 'OPEN', 'someone/r'), node(9, 'MERGED', 'O/R')])?.number).toBe(9);
-  expect(pickPullRequest('o/r', [])).toBeNull();
+  expect(pickPullRequest('o/r', [node(9, 'MERGED', 'o/r'), node(8, 'OPEN', 'o/r'), node(7, 'CLOSED', 'o/r')], 0)?.number).toBe(8);
+  expect(pickPullRequest('o/r', [node(9, 'MERGED', 'o/r'), node(7, 'CLOSED', 'o/r')], 0)?.number).toBe(9);
+  expect(pickPullRequest('o/r', [node(10, 'OPEN', 'someone/r'), node(9, 'MERGED', 'O/R')], 0)?.number).toBe(9);
+  expect(pickPullRequest('o/r', [], 0)).toBeNull();
+});
+
+test('a pull request closed before the session started is an older branch of the same name, not the session\'s', () => {
+  const since = Date.parse('2026-11-26T10:00:00Z');
+  const node = (number: number, state: string, closedAt: string | null) => ({ number, url: `https://github.com/o/r/pull/${number}`, state, isDraft: false, closedAt, headRepository: { nameWithOwner: 'o/r' } });
+  expect(pickPullRequest('o/r', [node(669, 'MERGED', '2026-11-05T17:08:59Z')], since)).toBeNull();
+  expect(pickPullRequest('o/r', [node(700, 'MERGED', '2026-11-26T11:00:00Z'), node(669, 'MERGED', '2026-11-05T17:08:59Z')], since)?.number).toBe(700);
+  // an open one is the branch's whenever it was opened: a session can pick up a pull request that already exists
+  expect(pickPullRequest('o/r', [node(650, 'OPEN', null)], since)?.number).toBe(650);
 });
 
 test('the pull request is found when origin is an ssh alias of GitHub', async () => {
@@ -185,6 +196,8 @@ test('the pull request of the branch is looked for when a turn ends and kept: th
   expect(s.data.view(s.row()).pr).toBeNull();
   await s.data.afterTurn(s.id);
   expect(s.pulls.finds).toEqual(['AshuLab/carrier:feat/x']);
+  // a pull request closed before the session was created is an older branch of the same name
+  expect(s.pulls.sinces).toEqual([s.row().createdAt]);
   expect(s.data.view(s.row()).pr).toEqual({ repo: 'AshuLab/carrier', number: 983, url: 'https://github.com/AshuLab/carrier/pull/983', state: 'draft', checks: null });
   // linked and open: the next turn asks its state by number and does not look for it again
   s.pulls.open['ashulab/carrier#983'] = pr(983, 'open', 'passing');

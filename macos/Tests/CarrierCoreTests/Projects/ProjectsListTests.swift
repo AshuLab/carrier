@@ -695,13 +695,12 @@ private func session(_ base: String, _ ago: TimeInterval, now: Date) -> SessionR
     #expect(projectList(table, order: ProjectOrder(key: .name, ascending: false)).flatMap(\.rows).map(\.name) == ["Zeta", "Notes", "Alpha"])
 }
 
-// Settings' detail is the window minus a sidebar of 200 to 300, the page's 2 x 24 and the card's 2 x 14; the window is 760 wide at least and 940 at first.
+// Settings' detail is the window minus a sidebar of 200 to 300, the page's 2 x 24 and the card's 2 x 14; the window is 950 wide at least and 1000 at first.
 @Test func theProjectsColumnsGiveWayBeforeTheProjectColumnDoes() {
     let card = { (window: CGFloat, sidebar: CGFloat) in window - sidebar - 48 - 28 }
-    #expect(ProjectColumns(contentWidth: card(760, 200)) == ProjectColumns(contentWidth: 484))
-    #expect(ProjectColumns(contentWidth: 484).showsCarrier && ProjectColumns(contentWidth: 484).showsTags == false)
-    #expect(ProjectColumns(contentWidth: card(940, 240)).showsTags)
-    #expect(ProjectColumns(contentWidth: card(940, 300)).showsTags == false)
+    #expect(ProjectColumns(contentWidth: card(950, 200)).showsCarrier && ProjectColumns(contentWidth: card(950, 200)).showsTags)
+    #expect(ProjectColumns(contentWidth: card(950, 300)).showsCarrier && ProjectColumns(contentWidth: card(950, 300)).showsTags == false)
+    #expect(ProjectColumns(contentWidth: card(1000, 240)).showsTags)
     #expect(ProjectColumns(contentWidth: 300).showsCarrier == false && ProjectColumns(contentWidth: 300).showsTags == false)
     #expect(ProjectColumns(contentWidth: 0).showsCarrier == false)
 }

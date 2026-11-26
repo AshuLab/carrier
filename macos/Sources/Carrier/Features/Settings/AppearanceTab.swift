@@ -78,7 +78,9 @@ struct AppearanceTabView: View {
         let page = appearancePage(textSize: textSize, iconWeight: iconWeight, codeSize: Int(codeSize))
         SettingsPageBody(reset: { AppPreferences().reset(.appearance) }) {
             SettingsGroup(id: "theme", title: page.theme) {
-                ThemeGallery(theme: $theme)
+                ThemeGallery(
+                    cells: Theme.allCases.map { ThemeCell(id: $0.rawValue, title: $0.title(), theme: $0) },
+                    chosen: theme.rawValue, action: { theme = Theme(rawValue: $0) ?? theme })
             }
             SettingsGroup(id: "look", title: page.look) {
                 SettingsTabRow(id: "color-scheme", title: page.colorScheme.title, detail: page.colorScheme.detail, first: true) {

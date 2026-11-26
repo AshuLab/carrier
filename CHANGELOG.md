@@ -8,11 +8,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- Eleven more themes in Settings, Appearance: Solarized, Nord, Gruvbox, Dracula, Tokyo Night, Catppuccin, One Dark, Monokai, Rosé Pine, Everforest and Ayu, each with a light and a dark version that the colour scheme picks, twenty themes in all.
+  The terminal can use any of them too, each with its own 16-colour palette built from the theme's published terminal colours and nudged only where the contrast test needs it.
+  Monokai has no official light version, so its light one is Carrier's own, inspired by the original.
 - Send to sleep, in the context menu of a session, closes its agent right away (freeing its memory) and leaves the session asleep: a message wakes it where it left off.
   It is offered while the agent is idle; one that works or waits ends with Stop.
 
 ### Changed
 
+- The theme gallery shows three rows and scrolls sideways, with half a column cut at the right edge while there are more themes, an arrow at each side, and the arrow keys moving the choice, so it keeps the same height with twenty themes as with nine.
+- The terminal chooses its theme in that same gallery instead of a pop-up, and its first cell, "Same as app", follows the app's theme until another one is picked.
 - `carrier init` asks the AI accounts first, then the orchestrator's GitHub profile, then one closed block for each role (the Author, the Reviewer, each extra reviewer and the Lead reviewer), and the repos last.
   A role block asks its profile and account, shows the model and effort it would use and asks only whether to change them, asks one "customise the persona?" and then its failover, which is asked only with two or more accounts.
   After the Reviewer it offers up to three extra reviewers (`reviewer-2` to `reviewer-4`), written to `agents.extraReviewers`.

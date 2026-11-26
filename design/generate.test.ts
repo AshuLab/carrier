@@ -589,9 +589,9 @@ describe('the tokens', () => {
     ]);
   });
 
-  it('commit the twelve themes and the seven accent presets', () => {
+  it('commit the sixteen themes and the seven accent presets', () => {
     const { themes, accents } = loadSources(REPOSITORY_ROOT).tokens;
-    expect(themes.map(([name]) => name)).toEqual(['carrier', 'graphite', 'ocean', 'forest', 'sunset', 'paper', 'rose', 'lavender', 'midnight', 'solarized', 'nord', 'gruvbox']);
+    expect(themes.map(([name]) => name)).toEqual(['carrier', 'graphite', 'ocean', 'forest', 'sunset', 'paper', 'rose', 'lavender', 'midnight', 'solarized', 'nord', 'gruvbox', 'dracula', 'tokyoNight', 'catppuccin', 'oneDark']);
     expect(accents.map(([name]) => name)).toEqual(['blue', 'purple', 'pink', 'red', 'orange', 'green', 'graphite']);
   });
 });

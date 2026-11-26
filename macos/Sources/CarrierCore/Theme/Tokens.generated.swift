@@ -34,6 +34,10 @@ public enum Tokens {
         "solarized": SchemePair(light: ThemeColors(window: 0xfdf6e3, sidebar: 0xeee8d5, accent: 0x1f7ab8), dark: ThemeColors(window: 0x002b36, sidebar: 0x073642, accent: 0x3a9bdc)),
         "nord": SchemePair(light: ThemeColors(window: 0xeceff4, sidebar: 0xd8dee9, accent: 0x5e81ac), dark: ThemeColors(window: 0x2e3440, sidebar: 0x3b4252, accent: 0x88c0d0)),
         "gruvbox": SchemePair(light: ThemeColors(window: 0xfbf1c7, sidebar: 0xebdbb2, accent: 0xb57614), dark: ThemeColors(window: 0x282828, sidebar: 0x3c3836, accent: 0xfabd2f)),
+        "dracula": SchemePair(light: ThemeColors(window: 0xfffbeb, sidebar: 0xdedccf, accent: 0x644ac9), dark: ThemeColors(window: 0x282a36, sidebar: 0x21222c, accent: 0xbd93f9)),
+        "tokyoNight": SchemePair(light: ThemeColors(window: 0xe1e2e7, sidebar: 0xd0d5e3, accent: 0x2e7de9), dark: ThemeColors(window: 0x1a1b26, sidebar: 0x16161e, accent: 0x7aa2f7)),
+        "catppuccin": SchemePair(light: ThemeColors(window: 0xeff1f5, sidebar: 0xe6e9ef, accent: 0x8839ef), dark: ThemeColors(window: 0x1e1e2e, sidebar: 0x181825, accent: 0xcba6f7)),
+        "oneDark": SchemePair(light: ThemeColors(window: 0xfafafa, sidebar: 0xeaeaeb, accent: 0x4078f2), dark: ThemeColors(window: 0x282c34, sidebar: 0x21252b, accent: 0x61afef)),
     ]
 
     /// The accent presets, in the order the picker shows them.

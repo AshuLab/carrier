@@ -12609,6 +12609,40 @@
         }
       }
     },
+    "choiceThemeCatppuccin": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Catppuccin"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Catppuccin"
+          }
+        }
+      }
+    },
+    "choiceThemeDracula": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dracula"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dracula"
+          }
+        }
+      }
+    },
     "choiceThemeForest": {
       "extractionState": "manual",
       "localizations": {
@@ -12728,6 +12762,23 @@
         }
       }
     },
+    "choiceThemeOneDark": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "One Dark"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "One Dark"
+          }
+        }
+      }
+    },
     "choiceThemePaper": {
       "extractionState": "manual",
       "localizations": {
@@ -12792,6 +12843,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Atardecer"
+          }
+        }
+      }
+    },
+    "choiceThemeTokyoNight": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tokyo Night"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tokyo Night"
           }
         }
       }
@@ -52032,13 +52100,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nine themes, each in light and dark"
+            "value": "Themes, each in light and dark"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nueve temas, cada uno en claro y oscuro"
+            "value": "Temas, cada uno en claro y oscuro"
           }
         }
       }

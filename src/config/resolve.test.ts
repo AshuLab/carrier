@@ -150,23 +150,40 @@ describe('resolveRepoConfig skills', () => {
       agents: {
         ...base.agents,
         leadReviewer: { profile: 'c', provider: 'claude', model: 'm3', skills: { lead: { publish: 'own-post' } } },
-        extraReviewers: [{ profile: 'c', provider: 'local', model: 'm4', skills: { review: { review: 'mine' } }, failover: [{ provider: 'codex' }] }, { profile: 'b', provider: 'codex', model: 'm5' }],
+        extraReviewers: {
+          'seguridad-api': { type: 'security', name: 'Seguridad API', profile: 'c', provider: 'local', model: 'm4', skills: { review: { review: 'mine' } }, failover: [{ provider: 'codex' }] },
+          usabilidad: { type: 'ux', name: 'Usabilidad', profile: 'b', provider: 'codex', model: 'm5' },
+        },
       },
     });
     expect(resolved.skills!.lead).toEqual({ review: { name: 'g-lead', named: true }, publish: { name: 'own-post', named: true } });
+    // the map's order, each reviewer carrying its key, name and type
     expect(resolved.agents.extraReviewers).toEqual([
-      { profile: 'c', option: 'local', providerName: 'local', harness: 'codex', provider: 'ollama', configDir: '/srv/codex', model: 'm4', skills: { review: { name: 'mine', named: true }, publish: null }, failover: [{ provider: 'codex' }], sharedIdentity: true },
-      { ...resolvedReviewer, profile: 'b', model: 'm5', skills: { review: { name: 'g-review', named: true }, publish: null }, sharedIdentity: true },
+      { key: 'seguridad-api', name: 'Seguridad API', type: 'security', profile: 'c', option: 'local', providerName: 'local', harness: 'codex', provider: 'ollama', configDir: '/srv/codex', model: 'm4', skills: { review: { name: 'mine', named: true }, publish: null }, failover: [{ provider: 'codex' }], sharedIdentity: true },
+      { ...resolvedReviewer, key: 'usabilidad', name: 'Usabilidad', type: 'ux', profile: 'b', model: 'm5', skills: { review: { name: 'g-review', named: true }, publish: null }, sharedIdentity: true },
     ]);
   });
 
   test('an extra reviewer is saved as sharing the author\'s identity only when its profile is the same account', () => {
     const resolved = resolveFirst({
       profiles: { ...base.profiles, bot: { kind: 'forge', agent: 'reviewer-bot' } },
-      agents: { ...base.agents, extraReviewers: [{ profile: 'bot', provider: 'codex', model: 'm4' }, { profile: 'a', provider: 'codex', model: 'm5' }] },
+      agents: { ...base.agents, extraReviewers: { one: { type: 'general', name: 'One', profile: 'bot', provider: 'codex', model: 'm4' }, two: { type: 'general', name: 'Two', profile: 'a', provider: 'codex', model: 'm5' } } },
     });
     expect(resolved.agents.extraReviewers!.map((e) => e.sharedIdentity)).toEqual([undefined, true]);
   });
+  test('the reviewers of an epic are a list in the order of the map, each with its key, name and type, and a repo\'s map replaces the global one whole', () => {
+    const entry = (name: string, type: string, model = 'm4') => ({ type, name, profile: 'c', provider: 'codex', model });
+    const result = load({
+      agents: { ...base.agents, extraReviewers: { zeta: entry('Zeta', 'ux'), alfa: entry('Alfa', 'security'), mid: entry('Mid', 'ux') } },
+      repos: [{ name: 'A/global' }, { name: 'A/own', agents: { extraReviewers: { mine: entry('Mine', 'general', 'own') } } }, { name: 'A/none', agents: { extraReviewers: {} } }],
+    });
+    if (!result.ok) throw new Error(JSON.stringify(result.errors));
+    const [global, own, none] = result.config.repos.map((repo) => resolveRepoConfig(result.config, repo).agents.extraReviewers);
+    expect(global!.map(({ key, name, type }) => [key, name, type])).toEqual([['zeta', 'Zeta', 'ux'], ['alfa', 'Alfa', 'security'], ['mid', 'Mid', 'ux']]);
+    expect(own!.map(({ key, name, type, model }) => [key, name, type, model])).toEqual([['mine', 'Mine', 'general', 'own']]);
+    expect(none).toBeUndefined();
+  });
+
   test('the lead is saved as sharing the author\'s identity only when its profile is the same account', () => {
     const profiles = { ...base.profiles, bot: { kind: 'forge', agent: 'reviewer-bot' } };
     const lead = (profile: string) => resolveFirst({ profiles, agents: { ...base.agents, leadReviewer: { profile, provider: 'claude', model: 'm3' } } }).agents.leadReviewer;

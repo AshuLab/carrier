@@ -581,10 +581,13 @@ test('a review that does not publish with another skill has no check for it', as
 
 // --- extra reviewers and the lead ---
 
+/** The extra reviewers as the map the config has: each entry named by its place, `one`, `two`, `three`. */
+const extrasMap = (entries: Record<string, unknown>[]) => Object.fromEntries(entries.map((entry, i) => [['one', 'two', 'three'][i]!, { type: 'general', name: `Reviewer ${i + 1}`, ...entry }]));
+
 const withExtras = (extra: Record<string, unknown>[], more: Record<string, unknown> = {}) => config({
   profiles: { ...base.profiles, c: { kind: 'forge', agent: 'rev-two' } },
   providers: { ...base.providers, second: { harness: 'claude', configDir: '/tmp/second' }, local: { harness: 'codex', provider: 'lmstudio' }, agy: { harness: 'agy' } },
-  agents: { ...base.agents, extraReviewers: extra },
+  agents: { ...base.agents, extraReviewers: extrasMap(extra) },
   ...more,
 });
 
@@ -613,7 +616,7 @@ test('the skills each extra reviewer and the lead invoke are asked of their own 
   const skills = new FakeSkills();
   const cfg = withExtras([], {
     skills: { review: { publish: 'g-post' }, lead: { review: 'my-lead', publish: null } },
-    agents: { ...base.agents, extraReviewers: [{ profile: 'c', provider: 'second', model: 'm', skills: { review: { review: 'my-review', publish: null } } }, { profile: 'b', provider: 'codex', model: 'm' }], leadReviewer: { profile: 'c', provider: 'agy', model: 'g' } },
+    agents: { ...base.agents, extraReviewers: extrasMap([{ profile: 'c', provider: 'second', model: 'm', skills: { review: { review: 'my-review', publish: null } } }, { profile: 'b', provider: 'codex', model: 'm' }]), leadReviewer: { profile: 'c', provider: 'agy', model: 'g' } },
   });
   const checks = skillChecks(await doctor(cfg, deps({ skills })));
   expect(checks.map((check) => [check.name, check.status])).toEqual([
@@ -637,7 +640,7 @@ test('a skill an extra reviewer or the lead named that is absent fails, and a de
   skills.answers['my-lead'] = 'absent';
   skills.answers['code-post'] = 'absent';
   const cfg = withExtras([], {
-    agents: { ...base.agents, extraReviewers: [{ profile: 'c', provider: 'second', model: 'm', skills: { review: { review: 'my-review' } } }], leadReviewer: { profile: 'c', provider: 'claude', model: 'm', skills: { lead: { review: 'my-lead' } } } },
+    agents: { ...base.agents, extraReviewers: extrasMap([{ profile: 'c', provider: 'second', model: 'm', skills: { review: { review: 'my-review' } } }]), leadReviewer: { profile: 'c', provider: 'claude', model: 'm', skills: { lead: { review: 'my-lead' } } } },
   });
   const checks = skillChecks(await doctor(cfg, deps({ skills })));
   const byStatus = (status: string) => checks.filter((check) => check.status === status).map((check) => check.name);

@@ -118,7 +118,7 @@ The accounts the roles name (`claude` and `codex` here) are declared in `provide
 | `orchestratorProfile` | no | the author's profile | Profile used to read issues and PRs and to change labels. Left out, it is `agents.author.profile`; set it only when the author's profile cannot read a repo, for instance a repo of another owner where the author's bot is not installed. `carrier init` asks for it, before the author and the reviewer. You can also choose it in the Mac app, under GitHub identity in Settings > Engine (the default takes the key out of the file). When a repo's read check fails with a 404, the doctor's fix names this key as the second way out, besides installing the App. |
 | `agents.author` / `agents.reviewer` | yes | | `{ profile, provider, model, persona? }` for each role: the GitHub identity it acts as, the AI provider it connects through, and the model it uses. |
 | `agents.leadReviewer` | no | none | Optional lead reviewer `{ profile, provider, model, effort?, persona?, skills? }`; its `skills` takes only `lead`. The engine runs it once after the reviewers agree and before the epic is ready for test, and `carrier doctor` checks it. See [Extra reviewers and the lead reviewer](#extra-reviewers-and-the-lead-reviewer). |
-| `agents.extraReviewers` | no | none | Zero to three more reviewers beside `agents.reviewer`, each `{ profile, provider, model, effort?, persona?, skills?, failover? }`. The engine runs them with the mandatory reviewer in every review round, in parallel; they are checked by `carrier doctor` and saved with the epic. See [Extra reviewers and the lead reviewer](#extra-reviewers-and-the-lead-reviewer). |
+| `agents.extraReviewers` | no | none | A map of up to three more reviewers beside `agents.reviewer`, from a key to `{ type, name, profile, provider, model, effort?, persona?, skills?, failover? }`. The engine runs them with the mandatory reviewer in every review round, in parallel; they are checked by `carrier doctor` and saved with the epic. See [Extra reviewers and the lead reviewer](#extra-reviewers-and-the-lead-reviewer). |
 | `agents.<role>.effort` | no | none | How hard the model thinks: one of `low`, `medium`, `high`, `xhigh` or `max`, in the global role and in a repo's override of it. Passed as `--effort` to Claude and Antigravity and as `-c model_reasoning_effort=<level>` to Codex, in every run and resume. Without it nothing is passed and the CLI uses its own. Anything else is refused naming the key. |
 | `agents.<role>.persona` | no | none | `{ name?, prompt? }`: who the agent of that role is. `name` is one line of at most 40 characters; `prompt` is text of at most 4000 characters, given to the agent as you wrote it. See [Personas](#personas). |
 | `skills` | no | Solve's: `ship`, `code-review` with `code-post`, `code-resolve` | The skill each stage runs: `{ ship, review: { review, publish }, fix, lead: { review, publish } }`, also in a repo and in a role. `lead` is the lead reviewer's and has no default of its own: left out, it takes `review`. See [Skills](#skills). |
@@ -327,21 +327,33 @@ A resume at `review` or `fix` (`carrier restart --from`) of an epic that stopped
   "skills": { "lead": { "review": "my-lead-review", "publish": null } },
   "agents": {
     "reviewer": { "profile": "reviewer-bot", "provider": "codex", "model": "<model>" },
-    "extraReviewers": [
-      { "profile": "second-reviewer-bot", "provider": "claude", "model": "<model>", "skills": { "review": { "review": "my-review" } }, "failover": [{ "provider": "claude", "model": "<model>" }] }
-    ],
+    "extraReviewers": {
+      "seguridad-api": { "type": "security", "name": "Seguridad API", "profile": "second-reviewer-bot", "provider": "claude", "model": "<model>", "skills": { "review": { "review": "my-review" } }, "failover": [{ "provider": "claude", "model": "<model>" }] },
+      "usabilidad": { "type": "ux", "name": "Usabilidad", "profile": "third-reviewer-bot", "provider": "claude", "model": "<model>" }
+    },
     "leadReviewer": { "profile": "lead-reviewer-bot", "provider": "claude", "model": "<model>", "skills": { "lead": { "review": "my-lead-review" } } }
   },
   "limits": { "maxLeadRounds": 3 }
 }
 ```
 
-- An extra reviewer has the fields of any role (`profile`, `provider`, `model`, `effort`, `persona`), `skills` with only `review` (`review` and `publish`, as in [Skills](#skills)) and its own `failover`, a list of steps shaped like those of `failover.roles`.
+- `agents.extraReviewers` is a map from a key to a reviewer ([ADR 0057](adr/review/0057-an-extra-reviewer-is-an-entry-of-a-map-with-a-key-a-name-and-a-type.md)), and it keeps the order of the file: the epic runs the reviewers in that order.
+  An entry has the fields of any role (`profile`, `provider`, `model`, `effort`, `persona`), `skills` with only `review` (`review` and `publish`, as in [Skills](#skills)), its own `failover`, a list of steps shaped like those of `failover.roles`, and two fields every entry needs: `name` and `type`.
   Left out, its failover is that of `failover.roles.reviewer`.
-- A fourth entry is refused naming `agents.extraReviewers`.
-- A repo's `agents.extraReviewers` replaces the whole global list, an empty list included, so a repo can turn the extras off; each of its entries carries `profile`, `provider` and `model`, because nothing is merged.
+- The key identifies the reviewer in the file and in the engine's requests.
+  It is a slug of 1 to 40 characters that starts with a lowercase letter and then holds lowercase letters, digits and hyphens, so no key reads as a number, and it is not `author`, `reviewer`, `lead` or `lead-reviewer`.
+  Keys are never typed by `carrier init`: it derives them from the name (lowercase, accents removed, every run of characters that are not a letter or a digit one hyphen, an `r-` in front when the result does not start with a letter, `extra` when nothing is left, `-2`, `-3` and so on while the key is taken or reserved), so `Seguridad API` is `seguridad-api`, `Ñandú` is `nandu`, `123` is `r-123`, `!!!` is `extra` and `Lead` is `lead-2`.
+- `name` is the text the app shows: one line of 1 to 40 characters.
+  `type` is a label for what the reviewer looks at, a slug like the key (`general`, `security`, `ux`, anything else you write); several reviewers can share one, and the engine runs nothing different for it.
+  Two reviewers of a map cannot share a key or a name (the name compared without regard to case).
+- A fourth entry is refused naming it.
+  A key or a type that is not a slug, a key that is one of the words above, a name that repeats another's, is blank, is longer than 40 characters or holds a line break, and a missing `name` or `type` are each refused naming the entry and the reason.
+- An older file with `extraReviewers` as a list, globally or in a repo, is refused when it loads, with a message that says the map it needs, and nothing rewrites it: write each entry under a key with its `name` and `type`.
+  `carrier init` does not edit such a file either: it prints that first error and asks whether to start over, save a new one in another file or leave it.
+- A repo's `agents.extraReviewers` is a map of the same shape that replaces the whole global map: with no key the repo runs the global reviewers, `{}` turns the extras off for it, and entries are its own list.
+  Each of its entries carries `type`, `name`, `profile`, `provider` and `model`, because nothing is merged.
 - The lead takes `skills` with only `lead`; a key for a stage the role does not run is refused naming it.
-- The profile and the provider of each extra reviewer must be declared, and the steps of its `failover` are checked like those of `failover.roles` (a provider that is not declared, a step repeated, a step equal to the reviewer's own provider and model), each refused naming its path.
+- The profile and the provider of each extra reviewer must be declared, and the steps of its `failover` are checked like those of `failover.roles` (a provider that is not declared, a step repeated, a step equal to the reviewer's own provider and model), each refused naming its path, which holds the reviewer's key.
 - Give each reviewer a profile of its own, a bot for each.
   Every reviewer publishes its comments on the pull request with its own account, so with one bot per reviewer the pull request shows who said what, and a reviewer re-reviewing never takes another's open threads for its own.
   Reviewers may share a profile, with each other or with the author: what tells their blockers apart is the reviewer's prefix on the blocker's id (`reviewer-2:B1`), never the account that wrote the comment, and a blocker with no `id` is told apart by its title and the same prefix.
@@ -370,7 +382,7 @@ The lead moves through `failover.roles.leadReviewer` when its quota runs out, or
 
 An epic starts at once on its roles: nothing waits for a provider to be chosen, however many accounts are declared. The account each role ran on is recorded, because resuming its session and moving the role on failover need it.
 
-`carrier restart <owner/name>#<issue>` of a stopped epic is the one place a provider is chosen: it offers every declared account to each role, with no timer, and `--author`, `--reviewer`, `--reviewer-2` to `--reviewer-4` and `--lead` name one without asking (each for a role the epic has).
+`carrier restart <owner/name>#<issue>` of a stopped epic is the one place a provider is chosen: it offers every declared account to each role, with no timer, and `--author`, `--reviewer` and `--lead` name one without asking (each for a role the epic has); an extra reviewer is asked about in a terminal, and has no flag.
 
 A config with `limits.optionChoiceSeconds`, or a `providers.json` account with `enabled`, is refused naming the key: an epic starts at once on its roles, so there is no choice to wait for or to hold back accounts from. Delete the key.
 
@@ -462,7 +474,7 @@ The extra reviewers and the resolved skills of each and of the lead are saved wi
 An epic saved before this version has none saved and reads Solve's, with no extra reviewers and no lead.
 Carrier remembers which skills you named at any level (a global one that is Solve's own name counts as not named) and which are Solve's defaults.
 
-Before an epic starts, resumes or changes the option of a role (a failover, or `carrier restart` with an option for a role: `--author`, `--reviewer`, `--reviewer-2` to `--reviewer-4` or `--lead`), Carrier asks whether the harness and account of that role find each skill the role invokes.
+Before an epic starts, resumes or changes the option of a role (a failover, or `carrier restart` with an option for a role: `--author`, `--reviewer` or `--lead`), Carrier asks whether the harness and account of that role find each skill the role invokes.
 Only a skill you named stops an epic, and only when the answer is that it is absent: the epic stops in needs-human with the kind `skill_missing`, naming the skill, the role and where it looked, before any agent run is spent.
 A skill that is Solve's default never stops an epic, and neither does an answer of "cannot tell" (a place Carrier cannot read might hold the skill), so a role that runs today keeps running.
 Carrier reads the places of Claude Code, Codex and Antigravity (`agy`) for this; [troubleshooting](troubleshooting.md) lists where each harness is read.

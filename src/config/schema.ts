@@ -2,6 +2,7 @@ import { LogLevel } from '@ashulab/universal-logger';
 import { z } from 'zod';
 import { labelRoles, stageNames } from '../orchestration/github.ts';
 import { needsHumanKinds } from '../storage/schema.ts';
+import { reservedKeys, slugPattern } from './extra-reviewer-key.ts';
 import { accounts } from './providers.ts';
 
 /** `owner/name`, each part a plain folder name: the managed clone lives in `repos/<owner>/<name>`. */
@@ -69,9 +70,43 @@ const step = z.strictObject(
   { error: (issue) => (issue.code === 'invalid_type' && issue.expected === 'object' ? `a failover step is { "provider": "<account>", "model": "<optional>", "effort": "<optional>" }, not a name` : undefined) },
 );
 
-/** A reviewer beyond the mandatory one: the fields of any agent, the review skills and its own failover steps. A repo's list replaces the whole list, so each entry carries profile, provider and model. */
-const extraReviewer = z.strictObject({ ...agentFields, skills: z.strictObject(reviewSkills).optional(), failover: z.array(step).optional() });
-const extraReviewers = z.array(extraReviewer).max(3, 'at most three extra reviewers: a fourth is refused');
+const extraReviewerShape = '"extraReviewers": { "<key>": { "type": "<slug>", "name": "<text>", "profile": "<profile>", "provider": "<account>", "model": "<model>" } }';
+
+/** A key or a type of an extra reviewer. */
+export const slug = z.string().regex(slugPattern, 'must be a lowercase slug of 1 to 40 characters: it starts with a letter and holds letters, digits and hyphens');
+
+/** The text the app shows for an extra reviewer: one line of 1 to 40 characters. */
+export const extraReviewerName = z.string().regex(/^[^\r\n]*$/, 'must be one line').trim().min(1).max(40);
+
+/** A reviewer beyond the mandatory one: the fields of any agent, the review skills and its own failover steps, and what it is called: its `name` (the text the app shows) and its `type` (a label for what it looks at). A repo's map replaces the whole map, so each entry carries profile, provider and model. */
+const extraReviewer = z.strictObject({
+  type: slug,
+  name: extraReviewerName,
+  ...agentFields,
+  skills: z.strictObject(reviewSkills).optional(),
+  failover: z.array(step).optional(),
+});
+
+/** At most three, each under its key (a slug that is not a role's word), with no name taken twice (compared without case). The map keeps the order of the file. */
+const extraReviewers = z
+  .record(slug, extraReviewer, {
+    error: (issue) => {
+      if (issue.code === 'invalid_type') return `must be a map from a key to a reviewer${Array.isArray(issue.input) ? ', not a list' : ''}: ${extraReviewerShape}`;
+      if (issue.code === 'invalid_key') return `the key ${issue.issues[0]?.message ?? 'is not a valid key'}`;
+      return undefined;
+    },
+  })
+  .superRefine((map, ctx) => {
+    const entries = Object.entries(map);
+    if (entries.length > 3) ctx.addIssue({ code: 'custom', path: [entries[3]![0]], message: 'at most three extra reviewers: a fourth is refused' });
+    const names = new Map<string, string>();
+    for (const [key, entry] of entries) {
+      if ((reservedKeys as readonly string[]).includes(key)) ctx.addIssue({ code: 'custom', path: [key], message: `the key cannot be ${reservedKeys.join(', ')}: those are the names of roles` });
+      const first = names.get(entry.name.toLowerCase());
+      if (first === undefined) names.set(entry.name.toLowerCase(), key);
+      else ctx.addIssue({ code: 'custom', path: [key, 'name'], message: `is the same name as "${first}"'s, compared without case: each extra reviewer needs its own` });
+    }
+  });
 
 const failoverSchema = z.strictObject(
   {
@@ -157,13 +192,13 @@ export const configSchema = z
       [['agents', 'reviewer', 'profile'], config.agents.reviewer.profile],
     ];
     if (config.agents.leadReviewer) refs.push([['agents', 'leadReviewer', 'profile'], config.agents.leadReviewer.profile]);
-    config.agents.extraReviewers?.forEach((extra, j) => refs.push([['agents', 'extraReviewers', j, 'profile'], extra.profile]));
+    for (const [key, extra] of Object.entries(config.agents.extraReviewers ?? {})) refs.push([['agents', 'extraReviewers', key, 'profile'], extra.profile]);
     config.repos.forEach((repo, i) => {
       for (const role of ['author', 'reviewer', 'leadReviewer'] as const) {
         const profile = repo.agents?.[role]?.profile;
         if (profile !== undefined) refs.push([['repos', i, 'agents', role, 'profile'], profile]);
       }
-      repo.agents?.extraReviewers?.forEach((extra, j) => refs.push([['repos', i, 'agents', 'extraReviewers', j, 'profile'], extra.profile]));
+      for (const [key, extra] of Object.entries(repo.agents?.extraReviewers ?? {})) refs.push([['repos', i, 'agents', 'extraReviewers', key, 'profile'], extra.profile]);
     });
     for (const [path, name] of refs) {
       if (!(name in config.profiles)) {
@@ -176,13 +211,13 @@ export const configSchema = z
       [['agents', 'reviewer', 'provider'], config.agents.reviewer.provider],
     ];
     if (config.agents.leadReviewer) providerRefs.push([['agents', 'leadReviewer', 'provider'], config.agents.leadReviewer.provider]);
-    config.agents.extraReviewers?.forEach((extra, j) => providerRefs.push([['agents', 'extraReviewers', j, 'provider'], extra.provider]));
+    for (const [key, extra] of Object.entries(config.agents.extraReviewers ?? {})) providerRefs.push([['agents', 'extraReviewers', key, 'provider'], extra.provider]);
     config.repos.forEach((repo, i) => {
       for (const role of ['author', 'reviewer', 'leadReviewer'] as const) {
         const provider = repo.agents?.[role]?.provider;
         if (provider !== undefined) providerRefs.push([['repos', i, 'agents', role, 'provider'], provider]);
       }
-      repo.agents?.extraReviewers?.forEach((extra, j) => providerRefs.push([['repos', i, 'agents', 'extraReviewers', j, 'provider'], extra.provider]));
+      for (const [key, extra] of Object.entries(repo.agents?.extraReviewers ?? {})) providerRefs.push([['repos', i, 'agents', 'extraReviewers', key, 'provider'], extra.provider]);
     });
     for (const [path, name] of providerRefs) {
       if (!Object.hasOwn(config.providers, name)) {
@@ -204,8 +239,10 @@ export const configSchema = z
       });
     };
     for (const role of ['author', 'reviewer', 'leadReviewer'] as const) checkSteps(config.failover?.roles?.[role], config.agents[role], ['failover', 'roles', role], `failover.roles.${role}`);
-    config.agents.extraReviewers?.forEach((extra, j) => checkSteps(extra.failover, extra, ['agents', 'extraReviewers', j, 'failover'], `agents.extraReviewers.${j}.failover`));
-    config.repos.forEach((repo, i) => repo.agents?.extraReviewers?.forEach((extra, j) => checkSteps(extra.failover, extra, ['repos', i, 'agents', 'extraReviewers', j, 'failover'], `repos.${i}.agents.extraReviewers.${j}.failover`)));
+    for (const [key, extra] of Object.entries(config.agents.extraReviewers ?? {})) checkSteps(extra.failover, extra, ['agents', 'extraReviewers', key, 'failover'], `agents.extraReviewers.${key}.failover`);
+    config.repos.forEach((repo, i) => {
+      for (const [key, extra] of Object.entries(repo.agents?.extraReviewers ?? {})) checkSteps(extra.failover, extra, ['repos', i, 'agents', 'extraReviewers', key, 'failover'], `repos.${i}.agents.extraReviewers.${key}.failover`);
+    });
 
     // Solve's worktrees are `worktrees/<repo>/<feature>`, with no owner: same-name repos would share paths.
     const seen = new Map<string, string>();

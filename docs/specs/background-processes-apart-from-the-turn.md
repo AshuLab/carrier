@@ -20,7 +20,7 @@ A session left with only processes is idle or Done like any other, its clock sto
 The terms are in the glossary (Turn, Background task, Agent work, Background process).
 
 **What is agent work** is decided once, by the Claude adapter, as an allowlist on the task's `task_type`, because the SDK types it as a free string: `local_agent`, `local_workflow`, `in_process_teammate` and `remote_agent` are agent work, and everything else, today's (`local_bash`, which includes a Monitor that runs a command, `monitor_mcp`, `monitor_ws`, `mcp_task`) and tomorrow's, is a process.
-It was checked in the SDK's types, its docs and the CLI it ships; the placement of `remote_agent` and `in_process_teammate` is inferred.
+It was checked in the SDK's types, its docs and the CLI it ships, whose own set of agent work is the same four types; the placement of `remote_agent` and `in_process_teammate` is still inferred, since the spike ([0056](../adr/sessions/0056-a-session-is-working-only-while-the-model-acts-and-a-background-process-does-not-hold-it.md), Consequences) could not make either appear.
 "Wakes the agent when it ends" does not separate them, since a shell that exits wakes it too, so the line is whether the model goes on working while the task runs, which is a rule of Carrier's.
 The adapter says its answer on each task (`agentWork`), the host stores it and lists it in `background` with the rest, and every reader asks that field instead of keeping a list of its own, so the host and the app cannot disagree.
 A host that does not send the field reads as agent work, which is what the app did before.
@@ -112,7 +112,13 @@ Showing the address of a process (`localhost:5173`) as a link: the host does not
 
 ## Open questions
 
-Whether `remote_agent` and `in_process_teammate` are agent work as inferred: it needs a session that runs a teammate and a cloud agent to see what the host lists while they run (`research`).
+Whether `remote_agent` and `in_process_teammate` are agent work as inferred.
+The spike ran Claude Code 2.1.332 headless: a spawn with a name listed a `local_agent`, never a teammate, and a cloud agent was not launched because it bills and runs off the machine.
+The CLI's own code names the same four types as agent work, so the inference has support but no observation; it needs a person to run a teammate and a cloud agent and look at what the session shows.
 A wrong placement costs little: a teammate shown as a process leaves the session Done while it works, and the person can still read and stop it.
+A teammate that only waits for a message may hold a session as working: the CLI does not count it as work, and the event carries nothing that says it.
 
-Whether closing a session ends the shell tasks its agent started: the archive does not depend on it, since it stops each process first, but the promise "archiving stops them" holds only as far as `stopTask` does (`research`).
+Answered, as observed: closing a session ended the shell tasks its agent started.
+A background `sleep` was gone after `close()` in each of six runs, within a few seconds where it was timed (one run needed those few seconds) and with no `stopTask` before it, so "archiving stops them" held without it; the ADR does not separate a delayed kill from some other cause.
+The shell lives in a process group of its own, outside the group the host signals.
+In one side check a `claude` killed with SIGKILL left its shell running, which is a dying host and not an archive (ADR 0056, Consequences).

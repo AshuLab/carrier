@@ -132,8 +132,16 @@ test('every role the table asks takes its flags, and a slot added to the table a
     expect(parseCli(['restart', 'A/a#1', flag, 'x'])).toMatchObject({ ok: false, message: expect.stringContaining(flag) });
   }
   expect(usage()).not.toMatch(/reviewer-[234]/);
+  expect(usage()).toContain('--extra-reviewer "<name>=<harness>:<model>"');
   expect(parseCli(['init', '--orchestrator-profile', 'gh'])).toMatchObject({ ok: true, flags: { 'orchestrator-profile': 'gh' } });
   expect(parseCli(['init', '--lead-reviewer-effort', 'high', '--lead-reviewer-persona-prompt', 'p'])).toMatchObject({ ok: true, flags: { 'lead-reviewer-effort': 'high', 'lead-reviewer-persona-prompt': 'p' } });
+});
+
+test('--extra-reviewer and every field flag repeat, one text per reviewer, and keep the order given', () => {
+  const parsed = parseCli(['init', '--extra-reviewer', 'A=claude:m', '--extra-reviewer', 'B=codex:n', ...['profile', 'provider', 'effort', 'type', 'persona-name', 'persona-prompt', 'failover'].flatMap((field) => [`--extra-reviewer-${field}`, `A=x`, `--extra-reviewer-${field}`, `B=y`])]);
+  expect(parsed).toMatchObject({ ok: true, flags: { 'extra-reviewer': ['A=claude:m', 'B=codex:n'], 'extra-reviewer-failover': ['A=x', 'B=y'], 'extra-reviewer-persona-name': ['A=x', 'B=y'], 'extra-reviewer-type': ['A=x', 'B=y'] } });
+  expect(parseCli(['init', '--extra-reviewer-color', 'A=red'])).toMatchObject({ ok: false, message: expect.stringContaining('--extra-reviewer-color') });
+  expect(parseCli(['init', '--extra-reviewer'])).toMatchObject({ ok: false });
 });
 
 test('--<role>-failover repeats and keeps the order given, and a flag no role has is still an error', () => {

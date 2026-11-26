@@ -78,7 +78,7 @@ A file whose `agents.extraReviewers` is still a list is one of them: the error n
 With `--yes` it replaces the file, as the flag says, and prints that first error.
 `--config` is not a flag of `init`: it exits 2 and writes nothing, because `init` writes where `--out` says.
 
-Every question has a flag (`carrier init --help`), and they all follow one pattern, with `<role>` one of `author`, `reviewer` and `lead-reviewer`:
+Every question has a flag (`carrier init --help`), and they all follow one pattern, with `<role>` one of `author`, `reviewer` and `lead-reviewer` (the extra reviewers' flags are below):
 
 | Flag | Answers |
 |---|---|
@@ -92,7 +92,30 @@ Every question has a flag (`carrier init --help`), and they all follow one patte
 | `--<role>-failover <account>[:<model>]` | One failover step; repeat it, in order, for up to two. |
 
 With `--author` and `--reviewer` both given, the extra-accounts question and every role's failover question are skipped, and the failover steps the file has stay (a `--<role>-failover` flag still sets its role's steps).
-An extra reviewer has no flags: the ones that named it by its place (`--reviewer-2` to `--reviewer-4` and their companions) are gone, so `--yes` creates no extra reviewer, and flags that name one by its name are not there yet.
+The extra reviewers are named by their flags, because a free name cannot be a flag of its own:
+
+| Flag | Answers |
+|---|---|
+| `--extra-reviewer "<name>=<harness>:<model>"` | Creates an extra reviewer, with its account and model as `--<role>` does; repeat it for up to three, and they are created in the order of the flags. |
+| `--extra-reviewer-profile "<name>=<forge:<agent>\|gh>"` | The GitHub profile the reviewer acts as. |
+| `--extra-reviewer-provider "<name>=<lmstudio\|ollama>"` | The local server that runs the reviewer's model. |
+| `--extra-reviewer-effort "<name>=<level>"` | `low`, `medium`, `high`, `xhigh` or `max`. |
+| `--extra-reviewer-type "<name>=<type>"` | The reviewer's type, a slug (`security`, `ux`); without it the type is asked, and `--yes` takes `general`. |
+| `--extra-reviewer-persona-name "<name>=<text>"`, `--extra-reviewer-persona-prompt "<name>=<text>"` | The persona, within the schema's limits. |
+| `--extra-reviewer-failover "<name>=<account>[:<model>]"` | One failover step of that reviewer; repeat it, in order, for up to two. |
+
+The name is everything before the first `=`, so a name that holds `=` can only be given at its question, and a name is compared without regard to case.
+Each field flag sets that field of the reviewer it names and no other, and a flag that names a reviewer no `--extra-reviewer` created is refused, naming the flag, before anything is probed.
+So are a fourth `--extra-reviewer`, a name given twice, one that is blank, longer than 40 characters or with a line break, a value with no `=`, a field given twice for one reviewer, a type that is not a slug and an effort that is not a level; a failover account the Mac does not know is refused as soon as the accounts are known, before the first question.
+The key of each reviewer is derived from its name (`Seguridad API` is `seguridad-api`).
+In an interactive run a reviewer created by a flag is not asked what its flags answered, its other questions are asked, and "Add another reviewer?" follows the last one while there is room.
+With flags for extra reviewers the reviewers of the file being edited are not walked: the flags are the whole list.
+
+```sh
+carrier init --yes --repo acme/web \
+  --extra-reviewer "Seguridad API=claude:sonnet" --extra-reviewer-type "Seguridad API=security" \
+  --extra-reviewer "Usabilidad=codex:gpt-5" --extra-reviewer-effort "Usabilidad=high"
+```
 
 The failover step is split at the first colon, so `--author-failover claude:llama3:8b` is the account `claude` with the model `llama3:8b`; a step with no model uses the account's, then the harness's.
 The account must be one found on this Mac or already in `providers.json` (or one a `--<role>` flag declares).

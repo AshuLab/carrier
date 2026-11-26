@@ -22,7 +22,7 @@ import { askRole } from './questions/role.ts';
 import { askOut } from './questions/out.ts';
 import { askRepos } from './questions/repos.ts';
 import { maxExtraReviewers, roleKey, roleName, roleSlots, type Block, type RoleSlot } from './roles.ts';
-import { failoverProblem, flagProblem, named } from './validate-flags.ts';
+import { extraFailoverProblem, failoverProblem, flagProblem, named, parseExtras, type ExtraFlags } from './validate-flags.ts';
 import { foundLines, summary, tilde } from './summary.ts';
 
 /** The accounts `providers.json` already holds, as it keeps them (a folder under the home folder with its `~`); none when the file is not there or has no `providers` key. An unreadable or invalid file stops here: writing over it would lose its accounts. */
@@ -40,10 +40,11 @@ function heldBy(deps: InitDeps, providersPath: string): Record<string, AIProvide
   return Object.fromEntries(Object.entries(loaded.providers).map(([name, account]) => [name, { ...account, ...(account.configDir && { configDir: tilde(account.configDir) }), ...(account.command && { command: tilde(account.command) }) }]));
 }
 
-/** The accounts the `--<role>` flags declare on top of `accounts` (one is reused when it matches), and the account and model each flagged role starts on. */
+/** The accounts the `--<role>` and `--extra-reviewer` flags declare on top of `accounts` (one is reused when it matches), and the account and model each flagged role, and each flagged extra reviewer in the order given, starts on. */
 function declareFlagged(flags: InitFlags, accounts: Record<string, AIProvider>) {
   let providers = accounts;
   const roles: Partial<Record<RoleSlot, { provider: string; model: string }>> = {};
+  const extras: { provider: string; model: string }[] = [];
   for (const slot of roleSlots) {
     const key = roleKey(slot) as 'author';
     const flag = flags[key];
@@ -52,7 +53,12 @@ function declareFlagged(flags: InitFlags, accounts: Record<string, AIProvider>) 
     providers = declared.providers;
     roles[slot] = { provider: declared.providerName, model: declared.model };
   }
-  return { providers, roles };
+  for (const extra of parseExtras(flags).reviewers) {
+    const declared = declareFlaggedProvider(providers, extraReviewerKey(extra.name), extra.agent, extra.provider);
+    providers = declared.providers;
+    extras.push({ provider: declared.providerName, model: declared.model });
+  }
+  return { providers, roles, extras };
 }
 
 /** What "Start over" says it does: the file is written whole from the answers, so what the wizard does not ask goes with it. */
@@ -95,7 +101,7 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
   const heldAccounts = heldBy(deps, providersPath);
   // A failover step names an account of this Mac or of the file, or one a --<role> flag declares: checked as soon as they are known, before the first question.
   const known = declareFlagged(flags, mergeAccounts(heldAccounts, harnesses));
-  const missing = failoverProblem(flags, Object.keys(known.providers), known.roles);
+  const missing = failoverProblem(flags, Object.keys(known.providers), known.roles) ?? extraFailoverProblem(parseExtras(flags).reviewers, Object.keys(known.providers), known.extras);
   if (missing !== undefined) throw new Error(missing);
 
   const fallback = engineConfigPathOf(folder);
@@ -192,28 +198,30 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
 
       // 3. One closed block per role
       const context = { ui, deps, flags, interactive, unattended, providers, locals, forge, readForge, login, said };
-      const block = (slot: Block, at: string, after?: Role, held?: Extra, title?: string) => {
+      const block = (slot: Block, at: string, after?: Role, held?: Extra, title?: string, extra?: { given: ExtraFlags; flagged: { provider: string; model: string } }) => {
         const key = roleKey(slot) as 'author' | 'reviewer' | 'leadReviewer'; // an extra reviewer's start is `held`, the file's entry under its key
         const fromRole = held?.role ?? from?.[key];
         const steps = slot === 'extra-reviewer' ? held?.failover : from?.failover?.roles?.[key];
-        const flagged = slot === 'extra-reviewer' ? undefined : declared.roles[slot];
+        const flagged = slot === 'extra-reviewer' ? extra?.flagged : declared.roles[slot];
         journal.at(at);
-        return askRole(context, slot, { ...(after && { after }), ...(fromRole && { from: fromRole }), ...(steps && { steps }), ...(flagged && { flagged }), ...(title && { title }) });
+        return askRole(context, slot, { ...(extra && { given: extra.given }), ...(after && { after }), ...(fromRole && { from: fromRole }), ...(steps && { steps }), ...(flagged && { flagged }), ...(title && { title }) });
       };
       const author = await block('author', 'author');
       const reviewer = await block('reviewer', 'reviewer', author.role);
-      // The extra reviewers, up to three: "add another?" until the person says no (the file's reviewers, walked in the order of its map, to start on when editing), then each one's name, type and block.
+      // The extra reviewers, up to three: first the ones the flags create, in the order given (each with the fields its flags answered), then "add another?" until the person says no. With no flag the file's reviewers, walked in the order of its map, are the starts when editing; with flags they are the whole list. Each one's name, type and block.
       const extraReviewers: Extra[] = [];
+      const created = parseExtras(flags).reviewers;
       for (let n = 1; n <= maxExtraReviewers; n++) {
-        const held = from?.extraReviewers?.[extraReviewers.length];
+        const given = created[extraReviewers.length];
+        const held = created.length > 0 ? undefined : from?.extraReviewers?.[extraReviewers.length];
         const at = `extra-${n}`;
         journal.at(at);
-        const add = interactive ? await ui.confirm(held ? `Keep ${held.name}?` : 'Add another reviewer?', held !== undefined) : held !== undefined;
+        const add = given !== undefined || (interactive ? await ui.confirm(held ? `Keep ${held.name}?` : 'Add another reviewer?', held !== undefined) : held !== undefined);
         if (!add) break;
-        const name = interactive ? await askExtraName(ui, extraReviewers.map((extra) => extra.name), held?.name) : held!.name;
-        const type = interactive ? await askExtraType(ui, held?.type) : held!.type;
+        const name = given?.name ?? (interactive ? await askExtraName(ui, extraReviewers.map((extra) => extra.name), held?.name) : held!.name);
+        const type = given?.type ?? (interactive ? await askExtraType(ui, held?.type) : (held?.type ?? 'general'));
         const extraKey = held?.key ?? extraReviewerKey(name, extraReviewers.map((extra) => extra.key));
-        const extra = await block('extra-reviewer', at, extraReviewers.at(-1)?.role ?? reviewer.role, held, name);
+        const extra = await block('extra-reviewer', at, extraReviewers.at(-1)?.role ?? reviewer.role, held, name, given && { given, flagged: declared.extras[extraReviewers.length]! });
         extraReviewers.push({ key: extraKey, name, type, role: extra.role, ...(extra.failover && { failover: extra.failover }) });
       }
       journal.at('lead-reviewer');

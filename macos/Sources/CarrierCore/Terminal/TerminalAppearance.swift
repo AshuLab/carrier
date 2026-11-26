@@ -150,7 +150,7 @@ private func hexPalette(_ hexValues: [UInt32]) -> [RGBA] {
     hexValues.map { RGBA(hex: $0) }
 }
 
-/// Curated 16-color ANSI palettes (0...7 normal, 8...15 bright) harmonized with each of Carrier's 9 themes in both light and dark modes.
+/// Curated 16-color ANSI palettes (0...7 normal, 8...15 bright) harmonized with each of Carrier's 12 themes in both light and dark modes.
 private func themeTerminalPalette(for theme: Theme, scheme: ThemeScheme) -> [RGBA] {
     switch (theme, scheme) {
     case (.carrier, .dark):
@@ -242,6 +242,36 @@ private func themeTerminalPalette(for theme: Theme, scheme: ThemeScheme) -> [RGB
         return hexPalette([
             0x12182b, 0xa82534, 0x0e6646, 0x7a5005, 0x1d4aa3, 0x6231b0, 0x0a695b, 0xcad0e8,
             0x4e597a, 0xba2c3d, 0x137551, 0x8a5b07, 0x2458bf, 0x733cc9, 0x0e7868, 0xf7f8fc,
+        ])
+    case (.solarized, .dark):
+        return hexPalette([
+            0x073642, 0xec5e5a, 0x93a82a, 0xc99a14, 0x3b9ae0, 0xe85aa4, 0x35b0a6, 0xeee8d5,
+            0x586e75, 0xf67a76, 0xa9bf3a, 0xdcae2a, 0x5cb0ee, 0xee70ae, 0x55c6bc, 0xfdf6e3,
+        ])
+    case (.solarized, .light):
+        return hexPalette([
+            0x073642, 0xc62a28, 0x5f7000, 0x8a6700, 0x1a6fb0, 0xb02a6c, 0x14756d, 0xeee8d5,
+            0x586e75, 0xd13633, 0x6b7d00, 0x9a7400, 0x2078bf, 0xc03478, 0x1a8279, 0xffffff,
+        ])
+    case (.nord, .dark):
+        return hexPalette([
+            0x3b4252, 0xe08790, 0xa3be8c, 0xebcb8b, 0x8fadd0, 0xc29dbb, 0x88c0d0, 0xe5e9f0,
+            0x6b7690, 0xea9ea5, 0xb5cf9f, 0xf2d9a4, 0xa8c0dc, 0xd2b4cc, 0x8fbcbb, 0xeceff4,
+        ])
+    case (.nord, .light):
+        return hexPalette([
+            0x2e3440, 0xa23d49, 0x4e7a38, 0x806010, 0x3b5f8f, 0x7e5078, 0x2f7480, 0xd8dee9,
+            0x4c566a, 0xb04654, 0x588440, 0x8f6d1a, 0x4a70a2, 0x8f5e89, 0x1f7a7a, 0xffffff,
+        ])
+    case (.gruvbox, .dark):
+        return hexPalette([
+            0x3c3836, 0xfc6450, 0xb8bb26, 0xfabd2f, 0x83a598, 0xd3869b, 0x8ec07c, 0xd5c4a1,
+            0x928374, 0xff8470, 0xcdd041, 0xffcf55, 0x9db8ab, 0xe0a0b0, 0xa4d391, 0xfbf1c7,
+        ])
+    case (.gruvbox, .light):
+        return hexPalette([
+            0x3c3836, 0x9d0006, 0x79740e, 0x8f5c00, 0x076678, 0x8f3f71, 0x427b58, 0xebdbb2,
+            0x7c6f64, 0xb00c12, 0x6f6a0c, 0x9d6a00, 0x0d7488, 0x9d4c7e, 0x3d7550, 0xffffff,
         ])
     }
 }

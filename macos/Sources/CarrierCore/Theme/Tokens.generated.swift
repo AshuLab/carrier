@@ -31,6 +31,9 @@ public enum Tokens {
         "rose": SchemePair(light: ThemeColors(window: 0xfbeff2, sidebar: 0xf2d6de, accent: 0xd6336c), dark: ThemeColors(window: 0x1f1418, sidebar: 0x35212a, accent: 0xff6b9a)),
         "lavender": SchemePair(light: ThemeColors(window: 0xf3effb, sidebar: 0xe0d6f2, accent: 0x7c3aed), dark: ThemeColors(window: 0x18141f, sidebar: 0x2a2238, accent: 0xb58cff)),
         "midnight": SchemePair(light: ThemeColors(window: 0xeceef8, sidebar: 0xd3d8ee, accent: 0x0f9d8a), dark: ThemeColors(window: 0x0a0e1a, sidebar: 0x141b30, accent: 0x2dd4bf)),
+        "solarized": SchemePair(light: ThemeColors(window: 0xfdf6e3, sidebar: 0xeee8d5, accent: 0x1f7ab8), dark: ThemeColors(window: 0x002b36, sidebar: 0x073642, accent: 0x3a9bdc)),
+        "nord": SchemePair(light: ThemeColors(window: 0xeceff4, sidebar: 0xd8dee9, accent: 0x5e81ac), dark: ThemeColors(window: 0x2e3440, sidebar: 0x3b4252, accent: 0x88c0d0)),
+        "gruvbox": SchemePair(light: ThemeColors(window: 0xfbf1c7, sidebar: 0xebdbb2, accent: 0xb57614), dark: ThemeColors(window: 0x282828, sidebar: 0x3c3836, accent: 0xfabd2f)),
     ]
 
     /// The accent presets, in the order the picker shows them.

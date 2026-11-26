@@ -93,10 +93,13 @@ import Testing
         (.rose, .dark, 0x1f1418, 0x35212a, 0xff6b9a), (.rose, .light, 0xfbeff2, 0xf2d6de, 0xd6336c),
         (.lavender, .dark, 0x18141f, 0x2a2238, 0xb58cff), (.lavender, .light, 0xf3effb, 0xe0d6f2, 0x7c3aed),
         (.midnight, .dark, 0x0a0e1a, 0x141b30, 0x2dd4bf), (.midnight, .light, 0xeceef8, 0xd3d8ee, 0x0f9d8a),
+        (.solarized, .dark, 0x002b36, 0x073642, 0x3a9bdc), (.solarized, .light, 0xfdf6e3, 0xeee8d5, 0x1f7ab8),
+        (.nord, .dark, 0x2e3440, 0x3b4252, 0x88c0d0), (.nord, .light, 0xeceff4, 0xd8dee9, 0x5e81ac),
+        (.gruvbox, .dark, 0x282828, 0x3c3836, 0xfabd2f), (.gruvbox, .light, 0xfbf1c7, 0xebdbb2, 0xb57614),
     ]
 
-    @Test func the_nine_themes_in_both_versions_keep_the_values_of_the_switch_they_came_from() {
-        #expect(Theme.allCases.count == 9 && Self.before.count == 18)
+    @Test func the_twelve_themes_in_both_versions_keep_the_values_of_the_switch_they_came_from() {
+        #expect(Theme.allCases.count == 12 && Self.before.count == 24)
         for (theme, scheme, window, sidebar, accent) in Self.before {
             #expect(
                 themeSurfaces(theme, scheme: scheme, translucent: false) == ThemeSurfaces(window: RGBA(hex: window), sidebar: RGBA(hex: sidebar), accent: accent.map { RGBA(hex: $0) }),

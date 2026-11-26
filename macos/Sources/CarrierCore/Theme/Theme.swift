@@ -26,10 +26,10 @@ public struct RGBA: Equatable, Sendable {
 /// The two versions a theme is drawn in; the color scheme picks the one that shows.
 public enum ThemeScheme: CaseIterable, Sendable { case light, dark }
 
-/// The nine themes of the gallery. A theme sets the color of the windows, the color of the sidebar and an accent of its own, each for
+/// The twelve themes of the gallery. A theme sets the color of the windows, the color of the sidebar and an accent of its own, each for
 /// the light and the dark version (`docs/research/macos-app-design/theme-reach.md`: nothing else a theme says is promised).
 public enum Theme: String, CaseIterable, Codable, Sendable {
-    case carrier, graphite, ocean, forest, sunset, paper, rose, lavender, midnight
+    case carrier, graphite, ocean, forest, sunset, paper, rose, lavender, midnight, solarized, nord, gruvbox
 
     public func title(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         switch self {
@@ -42,6 +42,9 @@ public enum Theme: String, CaseIterable, Codable, Sendable {
         case .rose: Copy.choiceThemeRose(bundle: bundle, locale: locale)
         case .lavender: Copy.choiceThemeLavender(bundle: bundle, locale: locale)
         case .midnight: Copy.choiceThemeMidnight(bundle: bundle, locale: locale)
+        case .solarized: Copy.choiceThemeSolarized(bundle: bundle, locale: locale)
+        case .nord: Copy.choiceThemeNord(bundle: bundle, locale: locale)
+        case .gruvbox: Copy.choiceThemeGruvbox(bundle: bundle, locale: locale)
         }
     }
 

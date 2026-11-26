@@ -150,7 +150,7 @@ private func hexPalette(_ hexValues: [UInt32]) -> [RGBA] {
     hexValues.map { RGBA(hex: $0) }
 }
 
-/// Curated 16-color ANSI palettes (0...7 normal, 8...15 bright) harmonized with each of Carrier's 12 themes in both light and dark modes.
+/// Curated 16-color ANSI palettes (0...7 normal, 8...15 bright) harmonized with each of Carrier's 16 themes in both light and dark modes.
 private func themeTerminalPalette(for theme: Theme, scheme: ThemeScheme) -> [RGBA] {
     switch (theme, scheme) {
     case (.carrier, .dark):
@@ -272,6 +272,46 @@ private func themeTerminalPalette(for theme: Theme, scheme: ThemeScheme) -> [RGB
         return hexPalette([
             0x3c3836, 0x9d0006, 0x79740e, 0x8f5c00, 0x076678, 0x8f3f71, 0x427b58, 0xebdbb2,
             0x7c6f64, 0xb00c12, 0x6f6a0c, 0x9d6a00, 0x0d7488, 0x9d4c7e, 0x3d7550, 0xffffff,
+        ])
+    case (.dracula, .dark):
+        return hexPalette([
+            0x21222c, 0xff5555, 0x50fa7b, 0xf1fa8c, 0xbd93f9, 0xff79c6, 0x8be9fd, 0xf8f8f2,
+            0x6272a4, 0xff6e6e, 0x69ff94, 0xffffa5, 0xd6acff, 0xff92df, 0xa4ffff, 0xffffff,
+        ])
+    case (.dracula, .light):
+        return hexPalette([
+            0x1f1f1f, 0xcb3a2a, 0x14710a, 0x846e15, 0x644ac9, 0xa3144d, 0x036a96, 0xcfcfde,
+            0x6c664b, 0xd74c3c, 0x1f8014, 0x947d1a, 0x7459d6, 0xb81d5a, 0x0a7aa8, 0xfffbeb,
+        ])
+    case (.tokyoNight, .dark):
+        return hexPalette([
+            0x15161e, 0xf7768e, 0x9ece6a, 0xe0af68, 0x7aa2f7, 0xbb9af7, 0x7dcfff, 0xa9b1d6,
+            0x414868, 0xff899d, 0x9fe044, 0xfaba4a, 0x8db0ff, 0xc7a9ff, 0xa4daff, 0xc0caf5,
+        ])
+    case (.tokyoNight, .light):
+        return hexPalette([
+            0x343b58, 0xd52558, 0x587539, 0x8b6b3d, 0x296fcf, 0x8c4dde, 0x007197, 0x6172b0,
+            0xa1a6c5, 0xc73c6a, 0x567c21, 0x906924, 0x2a6ecc, 0x8a53d6, 0x0079a1, 0x3760bf,
+        ])
+    case (.catppuccin, .dark):
+        return hexPalette([
+            0x45475a, 0xf38ba8, 0xa6e3a1, 0xf9e2af, 0x89b4fa, 0xf5c2e7, 0x94e2d5, 0xbac2de,
+            0x585b70, 0xf38ba8, 0xa6e3a1, 0xf9e2af, 0x89b4fa, 0xf5c2e7, 0x94e2d5, 0xa6adc8,
+        ])
+    case (.catppuccin, .light):
+        return hexPalette([
+            0x5c5f77, 0xd20f39, 0x378a25, 0xa76a16, 0x1e66f5, 0xb25a9a, 0x15858b, 0xacb0be,
+            0x6c6f85, 0xd20f39, 0x378a25, 0xa76a16, 0x1e66f5, 0xb25a9a, 0x15858b, 0xbcc0cc,
+        ])
+    case (.oneDark, .dark):
+        return hexPalette([
+            0x21252b, 0xe06c75, 0x98c379, 0xe5c07b, 0x61afef, 0xc678dd, 0x56b6c2, 0xabb2bf,
+            0x5c6370, 0xe06c75, 0x98c379, 0xe5c07b, 0x61afef, 0xc678dd, 0x56b6c2, 0xc8ccd4,
+        ])
+    case (.oneDark, .light):
+        return hexPalette([
+            0x383a42, 0xd95245, 0x468e46, 0xaa7401, 0x4078f2, 0xa626a4, 0x0184bc, 0xa0a1a7,
+            0x696c77, 0xd95245, 0x468e46, 0xaa7401, 0x4078f2, 0xa626a4, 0x0184bc, 0xfafafa,
         ])
     }
 }

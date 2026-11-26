@@ -118,7 +118,8 @@ private struct SplitContainerView: View {
 
     @State private var dragBaseRatio: Double?
 
-    private static let dividerThickness: CGFloat = 1
+    /// The gap between two cards; the divider's hit area, drawn only under the pointer.
+    private static let dividerThickness: CGFloat = Tokens.Space.s8
 
     var body: some View {
         GeometryReader { geometry in
@@ -175,6 +176,7 @@ private struct SplitContainerView: View {
         let clamped = SplitNode.clampRatio(ratio)
         return TerminalResizeDivider(
             horizontal: horizontal,
+            thickness: Self.dividerThickness,
             isDragging: dragBaseRatio != nil,
             accessibilityLabel: horizontal ? Copy.terminalDividerVertical() : Copy.terminalDividerHorizontal(),
             accessibilityValue: Copy.terminalPercentValue(percent: Int((clamped * 100).rounded())),

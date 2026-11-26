@@ -44,10 +44,9 @@ struct TerminalDrawerView: View {
                     Task { _ = await store.closeOtherTabs(except: keepingId, for: owner) }
                 },
                 trailingAccessory: {
-                    IconButton(icon: dismissIcon, name: dismissLabel, action: dismissDrawer)
+                    TerminalBarButton(icon: dismissIcon, name: dismissLabel, action: dismissDrawer)
                 }
             )
-            SettingsDivider()
             if let activeTab {
                 TerminalSplitLayoutView(
                     store: store,
@@ -57,17 +56,20 @@ struct TerminalDrawerView: View {
                 )
                 .id(activeTab.id)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(.horizontal, Tokens.Space.s8)
+                .padding(.bottom, Tokens.Space.s8)
             }
         }
         .frame(height: clampedHeight)
         .background {
             let profile = store.appearanceProfile
+            // the cards float over this: the window's own surface when translucent, the chrome's color when opaque
             if profile.isSurfaceTranslucent {
                 Rectangle()
                     .fill(.regularMaterial)
                     .overlay(Color(profile.chromeBackground))
             } else {
-                Color(profile.background)
+                Color(profile.chromeBackground)
             }
         }
         .onAppear { ensureTabExists() }
@@ -95,6 +97,7 @@ struct TerminalDrawerView: View {
         let ceiling = max(Self.minHeight, maxHeight)
         return TerminalResizeDivider(
             horizontal: false,
+            thickness: 1,
             isDragging: dragStartHeight != nil,
             accessibilityLabel: Copy.terminalDrawerHandle(),
             accessibilityValue: Copy.terminalPointsValue(count: Int(min(max(dragHeight ?? height, Self.minHeight), ceiling).rounded())),

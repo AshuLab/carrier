@@ -50,7 +50,8 @@ public struct TerminalAppearanceProfile: Equatable, Sendable {
         let chromeSurfaces = themeSurfaces(resolvedTheme, scheme: scheme, accent: accent, tint: tint, translucent: translucent)
         let background = solidSurfaces.window
         let resolvedAccent = solidSurfaces.accent ?? RGBA(hex: scheme == .dark ? 0x0a84ff : 0x0066cc)
-        let isSurfaceTranslucent = resolvedTheme == .carrier && translucent
+        // the surface is glass for every theme: the terminal draws no background and the card behind it is the theme's color over glass
+        let isSurfaceTranslucent = translucent
 
         let preferredInk = RGBA(hex: scheme == .dark ? 0xf2f4f8 : 0x15171c)
         let fallbackDark = RGBA(hex: 0x0a0b0e)

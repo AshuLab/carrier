@@ -8,6 +8,8 @@ import UniformTypeIdentifiers
 struct TerminalResizeDivider: View {
     @Environment(\.pieceTheme) private var theme
     let horizontal: Bool
+    /// The room the divider takes (the gap between two cards, or the edge of the drawer); what is drawn is only a line under the pointer.
+    let thickness: CGFloat
     let isDragging: Bool
     let accessibilityLabel: String
     let accessibilityValue: String
@@ -18,10 +20,15 @@ struct TerminalResizeDivider: View {
     @State private var hovered = false
 
     var body: some View {
-        Rectangle()
-            .fill(hovered || isDragging ? theme.accent.opacity(0.65) : Color.primary.opacity(0.08))
-            .frame(width: horizontal ? 1 : nil, height: horizontal ? nil : 1)
+        Color.clear
+            .frame(width: horizontal ? thickness : nil, height: horizontal ? nil : thickness)
             .frame(maxWidth: horizontal ? nil : .infinity, maxHeight: horizontal ? .infinity : nil)
+            .overlay {
+                Capsule()
+                    .fill(theme.accent.opacity(hovered || isDragging ? 0.65 : 0))
+                    .frame(width: horizontal ? 2 : nil, height: horizontal ? nil : 2)
+                    .animation(.easeOut(duration: 0.12), value: hovered || isDragging)
+            }
             .contentShape(Rectangle().inset(by: -3))
             .hoverCursor(horizontal ? .resizeLeftRight : .resizeUpDown) { hovered = $0 }
             .gesture(

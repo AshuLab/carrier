@@ -18,6 +18,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   Dates, times and relative times follow the person's region.
   The app's code is now organized by area in three targets (`CarrierCore`, `CarrierUI` and `Carrier`), with its look, its words and its preferences generated from one neutral source (`pnpm design`), and a structure check in CI (`macos/scripts/check-structure.sh`).
 
+### Changed
+
+- The terminals are drawn as glass: each pane is a rounded card with a margin and a gap between panes, and the tabs are a flat group as wide as they are, which scrolls and fades at the end that has more, with only the selected tab in glass and the add and hide buttons beside it, bigger.
+  The line that resizes the split panes and the drawer is drawn only under the pointer.
+  The terminal's surface is glass with every theme when Translucent windows is on (it was only with Carrier), and opaque when it is off or macOS reduces transparency.
+
 ### Fixed
 
 - The time a session shows while it works counts the turn that runs now, not the ones before it: it used to carry on from an earlier turn when the session's row was not on screen as that turn ended, or when the agent was still waiting for something it had started in the background and a new message began a new turn.

@@ -84,7 +84,7 @@ test('the journal serves a block of any slot: reviewer-2 goes back one question 
   };
   const done = await block().catch((error) => {
     expect(error).toBeInstanceOf(Back);
-    expect(journal.back()).toBe(true); // drops the model question's answer
+    expect(journal.back()).toBe('question'); // drops the model question's answer
     return block();
   });
   expect(asked).toEqual([

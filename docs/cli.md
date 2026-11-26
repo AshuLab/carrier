@@ -57,6 +57,7 @@ Before saving it shows a recap with three choices: save, **change an answer** or
 "Change an answer" shows a menu of the AI accounts, the orchestrator, each role (author, reviewer, the extra reviewers there are and the next one to add, lead reviewer) and the repos: you pick one, `init` asks only that block's questions starting from its current answers, and every other block keeps its answers.
 In `init` **Esc goes back one question** (at the start of a block, to the last question of the one before) and shows it with the answer it had; every answer already given stays, and going back does not run the GitHub or CLI calls (listing repos, adding an Agent Forge bot) again.
 At the very first question Esc leaves, like Ctrl+C.
+At the recap, Esc at "Which part do you want to change?" goes back to "Save it?", and Esc at the first question of a block you jumped to goes back to the recap with that block as it was.
 **Ctrl+C leaves** from any question, with nothing written before Save.
 `restart`, which asks its options through the same prompts, leaves on Esc as well as on Ctrl+C.
 It then runs the checks of `carrier doctor`, printing only what fails (otherwise a single count), shows how many epics are waiting, and offers to start Carrier.

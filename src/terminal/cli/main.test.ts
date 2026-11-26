@@ -207,6 +207,18 @@ test('init --yes puts no JSON log line on the screen: the checks log to the Carr
   expect(readFileSync(join(folder, 'engine', 'logs', 'orchestrator.log'), 'utf8')).toContain('could not read everywhere Claude Code looks for a skill');
 }, 30_000);
 
+test('init that stops before Save, on a flag the machine refuses or a tool it lacks, leaves no Carrier folder behind: the log starts with the checks', () => {
+  const refused = join(dir, 'init-refused');
+  const result = runInitWithStubs(refused, '--yes', '--out', join(dir, 'refused.json'), '--author-failover', 'nosuch');
+  expect([result.status, result.stderr]).toEqual([1, expect.stringContaining('--author-failover "nosuch"')]);
+  expect(existsSync(refused)).toBe(false);
+
+  const lacking = join(dir, 'init-lacking');
+  const bare = spawnSync(process.execPath, [main, 'init', '--repo', 'AshuLab/carrier', '--yes', '--out', join(dir, 'lacking.json')], { cwd: dir, encoding: 'utf8', env: { ...process.env, CARRIER_HOME: lacking, PATH: dirname(process.execPath) } });
+  expect([bare.status, bare.stderr]).toEqual([1, expect.stringContaining('Carrier needs these before it can run')]);
+  expect(existsSync(lacking)).toBe(false);
+}, 30_000);
+
 test('init with no terminal and no --yes on a file that is already there exits 1 and says to use --yes or --out', () => {
   const folder = join(dir, 'init-there');
   mkdirSync(folder, { recursive: true });

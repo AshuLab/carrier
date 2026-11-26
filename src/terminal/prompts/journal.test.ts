@@ -28,7 +28,7 @@ async function run<T>(journal: ReturnType<typeof journaled>, flow: () => Promise
     try {
       return await flow();
     } catch (error) {
-      if (!(error instanceof Back) || !journal.back()) throw error;
+      if (!(error instanceof Back) || journal.back() === 'leave') throw error;
     }
   }
 }
@@ -127,4 +127,32 @@ test('what the flow prints while replaying is shown only if the next question is
   };
   await run(journal, flow);
   expect(notes.map((n) => n.message)).toEqual(['one', 'two', 'three', 'two', 'three']); // after the Back, 'one' is not repeated: only what leads to the question asked again comes back
+});
+
+test('Esc at the first question asked after a jump abandons the jump with the block as it was, and Esc deeper in the block goes back one question', async () => {
+  const { ui } = quietUi();
+  const asked: string[] = [];
+  const spy: Ui = {
+    ...ui,
+    confirm: async (m, i) => {
+      asked.push(m);
+      if (m === 'reviewer one' && asked.filter((q) => q === m).length === 2) throw new Back();
+      return i ?? true;
+    },
+  };
+  const journal = journaled(spy);
+  const flow = async () => {
+    journal.at('author');
+    await journal.ui.confirm('author one', true);
+    journal.at('reviewer');
+    await journal.ui.confirm('reviewer one', false);
+  };
+  await flow();
+  journal.settled();
+  journal.jump('reviewer');
+  await expect(flow()).rejects.toBeInstanceOf(Back); // Esc at "reviewer one", the first question asked for real after the jump
+  expect(journal.back()).toBe('recap');
+  await flow(); // the recap's pass: every answer, the reviewer's included, comes from the journal
+  expect(asked).toEqual(['author one', 'reviewer one', 'reviewer one']);
+  expect(journal.back()).toBe('question'); // once settled, Esc is one question back as always
 });

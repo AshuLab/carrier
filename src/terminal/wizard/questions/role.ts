@@ -47,7 +47,7 @@ export async function askRole(ctx: RoleContext, slot: RoleSlot, { from, steps, a
   const account = ctx.providers[provider]!;
 
   // The file's model and effort when the account is still the file's, else what the harness starts on.
-  const start = from?.provider === provider ? { model: from.model, effort: from.effort } : await defaultsFor(account.harness, account.provider, ctx.locals, deps);
+  const start = from?.provider === provider ? { model: from.model, effort: from.effort } : await defaultsFor(ui, account.harness, account.provider, ctx.locals, deps);
   let model = flagged?.model ?? start.model;
   let effort: Effort | undefined = start.effort;
   if (effortFlag !== undefined) effort = await askEffort(ui, slot, effortFlag, interactive);

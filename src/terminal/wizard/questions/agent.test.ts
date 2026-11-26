@@ -45,10 +45,10 @@ test('defaults: Antigravity starts on gemini-4-hydrogen-high with no effort, els
 
 test('defaultsFor gives the model and effort a harness starts on, and none when a local server offers no model', async () => {
   const { deps } = fakeDeps({ codexModel: () => undefined, codexModels: () => [] });
-  expect(await defaultsFor('claude', undefined, {}, deps)).toEqual({ model: 'sonnet', effort: 'high' });
-  expect(await defaultsFor('codex', undefined, {}, deps)).toEqual({ effort: 'high' }); // nothing to start from: the model is typed
-  expect(await defaultsFor('codex', 'ollama', { ollama: ['qwen3:8b', 'x'] }, deps)).toEqual({ model: 'qwen3:8b', effort: 'high' });
-  expect(await defaultsFor('agy', undefined, {}, deps)).toEqual({ model: antigravityModel });
+  expect(await defaultsFor(quietUi().ui, 'claude', undefined, {}, deps)).toEqual({ model: 'sonnet', effort: 'high' });
+  expect(await defaultsFor(quietUi().ui, 'codex', undefined, {}, deps)).toEqual({ effort: 'high' }); // nothing to start from: the model is typed
+  expect(await defaultsFor(quietUi().ui, 'codex', 'ollama', { ollama: ['qwen3:8b', 'x'] }, deps)).toEqual({ model: 'qwen3:8b', effort: 'high' });
+  expect(await defaultsFor(quietUi().ui, 'agy', undefined, {}, deps)).toEqual({ model: antigravityModel });
 });
 
 test('"Change them?" opens the model and then the effort, starting from the defaults', async () => {

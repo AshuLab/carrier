@@ -206,7 +206,7 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
         extraReviewers.push({ role: extra.role, ...(extra.failover && { failover: extra.failover }) });
       }
       journal.at('lead-reviewer');
-      const wantLead = flags.leadReviewer !== undefined || (interactive ? await ui.confirm('Add a lead reviewer?', from?.leadReviewer !== undefined) : from?.leadReviewer !== undefined);
+      const wantLead = named(flags, 'lead-reviewer') || (interactive ? await ui.confirm('Add a lead reviewer?', from?.leadReviewer !== undefined) : from?.leadReviewer !== undefined);
       const lead = wantLead ? await block('lead-reviewer', extraReviewers.at(-1)?.role ?? reviewer.role) : undefined;
 
       const chosen = { author: author.failover, reviewer: reviewer.failover, leadReviewer: lead?.failover };
@@ -245,42 +245,54 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
       ({ answers, made, out } = await settle());
     } catch (error) {
       if (!(error instanceof Back)) throw error;
-      if (journal.back()) continue;
-      throw new Cancelled(); // the first question: Esc leaves as Ctrl+C does
+      const went = journal.back();
+      if (went === 'leave') throw new Cancelled(); // the first question: Esc leaves as Ctrl+C does
+      continue; // a question back, or the recap again when Esc undid a jump
     }
+    journal.settled();
     const file = out;
     const recap = () => ui.note(summary(answers.repos, answers.author, answers.reviewer, answers.providers, answers.failover, file, providersPath, answers.leadReviewer, answers.orchestrator, answers.extraReviewers), 'This is what will be saved');
     recap(); // --yes asked nothing, so the recap is the only place the choices show
     if (!interactive) break;
     try {
-      const next = await ui.select({
-        message: 'Save it?',
-        options: [
-          { value: 'save', label: 'Save it' },
-          { value: 'change', label: 'Change an answer', hint: 'pick the part to ask again' },
-          { value: 'cancel', label: 'Cancel', hint: 'writes nothing' },
-        ],
-        initialValue: 'save',
-      });
-      if (next === 'cancel') throw new Cancelled();
-      if (next === 'save') break;
-      const extras = answers.extraReviewers?.length ?? 0;
-      const block = await ui.select({
-        message: 'Which part do you want to change?',
-        options: [
-          { value: 'accounts', label: 'AI accounts' },
-          { value: 'orchestrator', label: 'Orchestrator GitHub profile' },
-          // The roles there are, and the next extra reviewer to add while there is room.
-          ...roleSlots
-            .filter((slot) => extraSlots.indexOf(slot) <= extras)
-            .map((slot) => ({ value: slot as string, label: `${roleName(slot)[0]!.toUpperCase()}${roleName(slot).slice(1)}`, ...((slot === 'lead-reviewer' ? answers.leadReviewer === undefined : extraSlots.indexOf(slot) === extras) && { hint: 'none yet' }) })),
-          { value: 'repos', label: 'Repos to watch' },
-        ],
-      });
+      let block: string | undefined; // the part to ask again
+      let save = false;
+      while (block === undefined && !save) {
+        const next = await ui.select({
+          message: 'Save it?',
+          options: [
+            { value: 'save', label: 'Save it' },
+            { value: 'change', label: 'Change an answer', hint: 'pick the part to ask again' },
+            { value: 'cancel', label: 'Cancel', hint: 'writes nothing' },
+          ],
+          initialValue: 'save',
+        });
+        if (next === 'cancel') throw new Cancelled();
+        save = next === 'save';
+        if (save) break;
+        const extras = answers.extraReviewers?.length ?? 0;
+        try {
+          block = await ui.select({
+            message: 'Which part do you want to change?',
+            options: [
+              { value: 'accounts', label: 'AI accounts' },
+              { value: 'orchestrator', label: 'Orchestrator GitHub profile' },
+              // The roles there are, and the next extra reviewer to add while there is room.
+              ...roleSlots
+                .filter((slot) => extraSlots.indexOf(slot) <= extras)
+                .map((slot) => ({ value: slot as string, label: `${roleName(slot)[0]!.toUpperCase()}${roleName(slot).slice(1)}`, ...((slot === 'lead-reviewer' ? answers.leadReviewer === undefined : extraSlots.indexOf(slot) === extras) && { hint: 'none yet' }) })),
+              { value: 'repos', label: 'Repos to watch' },
+            ],
+          });
+        } catch (error) {
+          if (!(error instanceof Back)) throw error; // Esc at the menu is back to "Save it?", with no answer dropped
+        }
+      }
+      if (block === undefined) break; // Save
       journal.jump(block);
     } catch (error) {
       if (!(error instanceof Back)) throw error;
-      if (!journal.back()) throw new Cancelled();
+      if (journal.back() === 'leave') throw new Cancelled();
     }
   }
   deps.writeConfig({ engine: made.user, file: out, providers: answers.providers, folder });

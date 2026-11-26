@@ -35,7 +35,7 @@ export async function askConfigDir(ui: Ui, harness: 'claude' | 'codex', deps: In
 }
 
 /** The model and effort a role starts on when nothing in the file says otherwise. Claude: `sonnet` at `high`. Codex: the model in its own `config.toml`, else the first it lists, at `high`. Antigravity: `antigravityModel`, else the first `agy models` lists, with no effort (it is in the id). A local server: its first model. No model when there is none to start from: it is typed. */
-export async function defaultsFor(harness: HarnessName, provider: LocalProvider | undefined, locals: Partial<Record<LocalProvider, string[]>>, deps: InitDeps): Promise<{ model?: string; effort?: Effort }> {
+export async function defaultsFor(ui: Ui, harness: HarnessName, provider: LocalProvider | undefined, locals: Partial<Record<LocalProvider, string[]>>, deps: InitDeps): Promise<{ model?: string; effort?: Effort }> {
   const effort = harness === 'agy' ? {} : { effort: 'high' as const };
   if (provider) return { ...(locals[provider]?.[0] && { model: locals[provider][0] }), ...effort };
   if (harness === 'claude') return { model: 'sonnet', ...effort };
@@ -43,7 +43,7 @@ export async function defaultsFor(harness: HarnessName, provider: LocalProvider 
     const model = deps.codexModel() ?? deps.codexModels()[0]?.value;
     return { ...(model && { model }), ...effort };
   }
-  const listed = await deps.agyModels();
+  const listed = await ui.busy('Asking Antigravity which models it has…', async () => deps.agyModels());
   return { model: listed.length === 0 || listed.some((m) => m.value === antigravityModel) ? antigravityModel : listed[0]!.value };
 }
 

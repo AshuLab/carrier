@@ -625,6 +625,17 @@ test('every wait on the machine or GitHub shows a loading line', async () => {
   expect(waits).toEqual(['Looking at this Mac…', 'Reading your GitHub repos…', 'Asking GitHub which epics are ready…']);
 });
 
+test('asking Antigravity which models it has shows a loading line, once, even when Esc runs the block again', async () => {
+  const waits: string[] = [];
+  let calls = 0;
+  const { ui } = quietUi({ 'Which account runs the author?': 'agy', [notNow]: false });
+  const spy: Ui = { ...withEsc(ui, ["Customise the author's persona?"]).ui, busy: (message, work) => (waits.push(message), work()) };
+  const { deps } = fakeDeps({ machine: fakeMachine({ resolveBinary: (name) => `/opt/bin/${name}` }), agyModels: () => (calls++, [{ value: 'gemini-4-hydrogen-high', label: 'gemini-4-hydrogen-high' }]) });
+  await runInit({ repo: ['A/b'], out: join(dir, 'busy-agy.json') }, spy, deps);
+  expect(waits.filter((w) => w.startsWith('Asking Antigravity'))).toHaveLength(1);
+  expect(calls).toBe(1);
+});
+
 test('the profile step is explained before it is asked, unless both profiles came as flags', async () => {
   const noteFor = async (flags: Parameters<typeof runInit>[0]) => {
     const { ui, notes } = quietUi({ [notNow]: false });
@@ -861,12 +872,12 @@ test('Enter at "Add another reviewer?" is no, and no extraReviewers key is writt
   expect(JSON.parse(written[out]!).agents).not.toHaveProperty('extraReviewers');
 });
 
-test('the recap lists each extra reviewer under its slot name', async () => {
+test('the recap lists each extra reviewer under its name, spelled as the rest of the wizard does', async () => {
   const { ui, notes } = quietUi({ [moreKey]: [true, true, false] });
   await runInit({ repo: ['A/b'], out: join(dir, 'extras-recap.json') }, ui, fakeDeps().deps);
   const recap = notes.find((n) => n.title === 'This is what will be saved')!.message;
-  expect(recap).toMatch(/\nreviewer-2 {4}.* · claude .*\nreviewer-3 {4}/);
-  expect(recap).not.toContain('reviewer-4');
+  expect(recap).toMatch(/\nReviewer 2 {4}.* · claude .*\nReviewer 3 {4}/);
+  expect(recap).not.toContain('Reviewer 4');
 });
 
 test('an extra with its own failover steps writes them, and one without writes no failover key', async () => {
@@ -949,4 +960,48 @@ test('Esc at the lead reviewer question goes back across the extras and the reca
   await runInit({ repo: ['A/b'], out }, ui, deps);
   expect(asked.filter((m) => m === 'Which account runs the reviewer 2?')).toHaveLength(2);
   expect(JSON.parse(written[out]!).agents.extraReviewers).toHaveLength(1);
+});
+
+test('--yes with a lead-reviewer flag alone, even one that is not --lead-reviewer, creates the lead reviewer', async () => {
+  const { deps, written } = fakeDeps();
+  const { ui } = quietUi();
+  const out = join(dir, 'lead-effort-only.json');
+  await runInit({ repo: ['A/b'], leadReviewerEffort: 'xhigh', out, yes: true }, ui, deps);
+  expect(JSON.parse(written[out]!).agents.leadReviewer).toMatchObject({ effort: 'xhigh' });
+});
+
+test('Esc at "Which part do you want to change?" goes back to "Save it?" and drops no answer', async () => {
+  const { deps, written } = fakeDeps();
+  const base = quietUi({ 'Save it?': ['change', 'save'], [notNow]: false });
+  const { ui } = withEsc(base.ui, [changeMenu]);
+  const out = join(dir, 'menu-esc.json');
+  await runInit({ repo: ['A/b'], out }, ui, deps);
+  expect(base.asked.filter((q) => q === 'Save it?')).toHaveLength(2); // the menu, Esc, and the recap's own question again
+  expect(base.asked.filter((q) => q === 'Add a lead reviewer?')).toHaveLength(1); // the last answer was not dropped and asked again
+  expect(JSON.parse(written[out]!).agents.reviewer.provider).toBe('codex');
+});
+
+test('Esc at the first question of a block the recap jumped to returns to the recap, with the block as it was', async () => {
+  const { deps, written } = fakeDeps();
+  const base = quietUi({ 'Save it?': ['change', 'save'], [changeMenu]: 'reviewer', [notNow]: false });
+  let jumped = false;
+  let escaped = false;
+  const ui: Ui = {
+    ...base.ui,
+    select: async (o) => {
+      if (o.message === changeMenu) jumped = true;
+      if (jumped && !escaped && o.message === 'GitHub profile for the reviewer') {
+        escaped = true;
+        throw new Back();
+      }
+      return base.ui.select(o);
+    },
+  };
+  const out = join(dir, 'jump-esc.json');
+  await runInit({ repo: ['A/b'], out }, ui, deps);
+  expect(escaped).toBe(true);
+  expect(base.asked.filter((q) => q === 'Save it?')).toHaveLength(2); // back at the recap, not in the author's block
+  expect(base.asked.filter((q) => q.startsWith('Turn failover on for the author'))).toHaveLength(1);
+  expect(base.asked.filter((q) => q === 'GitHub profile for the reviewer')).toHaveLength(1); // the jump was abandoned, not asked on
+  expect(JSON.parse(written[out]!).agents.reviewer.model).toBe('gpt-test');
 });

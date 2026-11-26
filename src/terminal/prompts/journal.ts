@@ -13,6 +13,8 @@ export function journaled(ui: Ui) {
   let seen = new Map<string, number>();
   let block = '';
   let replaying = false;
+  let dropped: Map<string, unknown> | undefined; // what the last jump took out, kept until its first question is asked for real or the pass is settled
+  let firstLive: number | undefined; // how many questions were replayed before that first one: Esc there leaves the jump
   let held: (() => void)[] = []; // what the flow printed since the last replayed answer: shown only if the next question is asked for real
 
   const keyOf = (kind: string, message: string) => {
@@ -43,6 +45,7 @@ export function journaled(ui: Ui) {
       return answers.get(key) as T;
     }
     live();
+    if (dropped !== undefined) firstLive ??= order.length;
     const start = starting.get(key);
     const answer = await run(valid(start) ? (start as T) : undefined);
     answers.set(key, answer);
@@ -90,22 +93,39 @@ export function journaled(ui: Ui) {
     once,
     /** The block the next questions belong to. */
     at: (name: string) => void (block = name),
-    /** Esc: drops the answer of the last question answered and starts the pass again. False when there is nothing to go back to. */
-    back: () => {
+    /**
+     * Esc: what to do with the pass that stopped on it, then start it again.
+     * `recap`: the question was the first one asked for real after a jump, so the jump is abandoned with its block's answers back, and the flow ends where it did before.
+     * `question`: drops the answer of the last question answered; it is asked again with that answer as its start.
+     * `leave`: nothing is left to go back to.
+     */
+    back: (): 'recap' | 'question' | 'leave' => {
+      if (dropped !== undefined && firstLive === order.length) {
+        for (const [key, answer] of dropped) answers.set(key, answer);
+        starting.clear();
+        dropped = firstLive = undefined;
+        begin();
+        return 'recap';
+      }
       const key = order.pop();
-      if (key === undefined) return false;
+      if (key === undefined) return 'leave';
       starting.set(key, answers.get(key));
       answers.delete(key);
       begin();
-      return true;
+      return 'question';
     },
     /** The recap's jump: drops the answers of one block, keeps every other, and starts the pass again. */
     jump: (name: string) => {
+      dropped = new Map();
+      firstLive = undefined;
       for (const key of [...answers.keys()].filter((k) => k.startsWith(`${name}|`))) {
         starting.set(key, answers.get(key));
+        dropped.set(key, answers.get(key));
         answers.delete(key);
       }
       begin();
     },
+    /** The pass reached the recap: a jump that was made is now part of the answers. */
+    settled: () => void (dropped = firstLive = undefined),
   };
 }

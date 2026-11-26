@@ -3,7 +3,7 @@ import type { Detected } from '../../doctor/detect.ts';
 import { harnessLabel, harnessNames, type HarnessName } from '../../harnesses/names.ts';
 import { localKinds, localLabel, type LocalProvider } from '../../harnesses/local.ts';
 import { sameAccount } from '../../config/resolve.ts';
-import { extraSlots } from './roles.ts';
+import { extraSlots, roleName } from './roles.ts';
 import type { AIProvider, Extra, Failover, Identity, Role } from './build-config.ts';
 
 /** `~` for the home folder, for what is shown to a person. */
@@ -63,7 +63,13 @@ export const summary = (
     ['Accounts', Object.keys(providers).join(', ')],
     ['Author', roleLine(author, providers)],
     ['Reviewer', roleLine(reviewer, providers)],
-    ...extraReviewers.map(({ role }, i) => [extraSlots[i]!, roleLine(role, providers)]),
+    // An extra that declares no failover uses the Reviewer's, so its line says so when the Reviewer has any.
+    ...extraReviewers.map(({ role, failover: steps }, i) => {
+      const name = roleName(extraSlots[i]!);
+      const reviewerSteps = (failover?.roles?.reviewer ?? []).length > 0;
+      const own = steps && steps.length > 0 ? stepsLine(steps) : reviewerSteps ? "the Reviewer's" : undefined;
+      return [`${name[0]!.toUpperCase()}${name.slice(1)}`, `${roleLine(role, providers)}${own ? `\n              failover: ${own}` : ''}`];
+    }),
     ...(leadReviewer ? [['Lead reviewer', roleLine(leadReviewer, providers)]] : []),
     ...(failover?.roles && failoverLine(failover) !== '' ? [['Failover', failoverLine(failover)]] : []),
     ['Config', tilde(out)],

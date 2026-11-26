@@ -130,6 +130,14 @@ test.each([
   expect(read(JSON.parse(readFileSync(engineFile(), 'utf8')).agents.extraReviewers.sec)).toEqual(expected);
 });
 
+test('with no engine, removeExtraReviewer takes the reviewer out of engine.json and says notRunning', async () => {
+  const sec = { type: 'security', name: 'Sec', profile: 'reviewer-bot', provider: 'claude', model: 'opus' };
+  writeFileSync(engineFile(), JSON.stringify({ ...validEngineFile, agents: { ...validEngineFile.agents, extraReviewers: { sec } } }));
+  expect(await run(JSON.stringify({ cmd: 'removeExtraReviewer', key: 'sec' }))).toBe(0);
+  expect(printed()).toEqual({ ok: true, data: { saved: {}, engine: 'notRunning' } });
+  expect(JSON.parse(readFileSync(engineFile(), 'utf8'))).toEqual(validEngineFile);
+});
+
 test('a refused role change prints the refusal with its code and params and leaves the file as it was', async () => {
   const text = JSON.stringify(validEngineFile);
   writeFileSync(engineFile(), text);

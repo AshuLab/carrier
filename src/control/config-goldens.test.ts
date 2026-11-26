@@ -88,6 +88,10 @@ const withExtraReviewers = {
   },
 };
 
+test('the removeExtraReviewer request and reply equal engine-remove-extra-reviewer.json', () => {
+  golden('engine-remove-extra-reviewer', { cmd: 'removeExtraReviewer', key: 'seguridad-api' }, withExtraReviewers);
+});
+
 test('the editRole request that points at an extra reviewer and its reply equal engine-edit-extra-reviewer-role.json', () => {
   golden(
     'engine-edit-extra-reviewer-role',

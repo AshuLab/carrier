@@ -23,6 +23,7 @@
     "editPersona",
     "editRepoRole",
     "editRole",
+    "removeExtraReviewer",
     "setLeadReviewer",
     "setOrchestratorProfile",
     "setWatchedRepos"

@@ -49,6 +49,8 @@ public enum EngineConfigChange: Equatable, Sendable {
     case extraReviewerPersona(key: String, name: String?, prompt: String?)
     /// The first two failover steps of an extra reviewer's own list; both nil takes the list out and the reviewer goes back to the Reviewer's steps.
     case extraReviewerFailover(key: String, first: FailoverStep?, second: FailoverStep?)
+    /// Takes an extra reviewer out of the global map by its key; the profile it used stays in the file.
+    case removeExtraReviewer(key: String)
 
     var command: String {
         switch self {
@@ -61,6 +63,7 @@ public enum EngineConfigChange: Equatable, Sendable {
         case .leadReviewer: "setLeadReviewer"
         case .orchestratorProfile: "setOrchestratorProfile"
         case .addExtraReviewer: "addExtraReviewer"
+        case .removeExtraReviewer: "removeExtraReviewer"
         }
     }
 
@@ -104,6 +107,8 @@ public enum EngineConfigChange: Equatable, Sendable {
             return members(["role": ["extraReviewer": key], "name": name ?? NSNull(), "prompt": prompt ?? NSNull()])
         case .extraReviewerFailover(let key, let first, let second):
             return members(["role": ["extraReviewer": key], "first": first.map(wire) ?? NSNull(), "second": second.map(wire) ?? NSNull()])
+        case .removeExtraReviewer(let key):
+            return members(["key": key])
         }
     }
 

@@ -248,6 +248,17 @@ export function addExtraReviewer(draft: ExtraReviewerDraft, file: string, folder
   return { saved: { agents: { extraReviewers: { [key]: entry } }, profiles } };
 }
 
+/** Removes an extra reviewer, entry and failover steps with it, from the global `agents.extraReviewers` (the map goes with the last one); the profile it used and every other key stay. */
+export function removeExtraReviewer(key: string, file: string, folder: string) {
+  const current = readObject(file);
+  entryOf(current, { extraReviewer: key });
+  const agents = object(current.agents);
+  const { [key]: _gone, ...extras } = object(agents.extraReviewers);
+  const { extraReviewers: _old, ...rest } = agents;
+  write(file, { ...current, agents: Object.keys(extras).length > 0 ? { ...rest, extraReviewers: extras } : rest }, folder);
+  return { saved: {} };
+}
+
 /** A repo's own role: the fields that are set, the entry's other keys kept; the entry goes when nothing is left (and `agents` with the last), and `fields: null` takes it out whole. */
 export function editRepoRole(repo: string, role: Role, fields: RepoRoleFields | null, file: string, folder: string) {
   const current = readObject(file);

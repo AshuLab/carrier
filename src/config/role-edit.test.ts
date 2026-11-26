@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { ConfigRefused } from './engine-edit.ts';
 import { engineConfigPathOf, providersPathOf } from './places.ts';
-import { addExtraReviewer, editFailover, editPersona, editRepoRole, editRole, setLeadReviewer, setOrchestratorProfile } from './role-edit.ts';
+import { addExtraReviewer, editFailover, editPersona, editRepoRole, editRole, removeExtraReviewer, setLeadReviewer, setOrchestratorProfile } from './role-edit.ts';
 import { validEngineFile } from './testing.ts';
 
 // The role writes of `engine.json`: the file after each request (every key it does not touch stays), a refusal with the words the app's checks gave, its code and its key path and kind, and the file as it was.
@@ -429,6 +429,39 @@ describe('an extra reviewer as the target of editRole, editPersona and editFailo
     test('a key the file does not hold is refused naming it', () => {
       expect(refused(() => editFailover({ extraReviewer: 'ghost' }, { provider: 'agy' }, null, file, folder))[2]).toEqual({ path: 'agents.extraReviewers.ghost', problem: 'noEntry' });
     });
+  });
+});
+
+describe('removeExtraReviewer', () => {
+  const reviewer = (name: string, profile: string) => ({ type: 'general', name, profile, provider: 'claude', model: 'm', failover: [{ provider: 'codex', model: 'g' }] });
+  const three = { a: reviewer('A', 'nova'), b: reviewer('B', 'author-bot'), c: reviewer('C', 'reviewer-bot') };
+  const extras = (map: object) => withFile((edited) => ((edited.agents.extraReviewers = map), (edited.profiles = { ...edited.profiles, nova: { kind: 'forge', agent: 'nova' } })));
+
+  test('the middle reviewer goes with its steps, the others keep their keys and their order, the profile and every other key stay', () => {
+    extras(three);
+    const before = written();
+    expect(removeExtraReviewer('b', file, folder)).toEqual({ saved: {} });
+    expect(written()).toEqual({ ...before, agents: { ...before.agents, extraReviewers: { a: three.a, c: three.c } } });
+    expect(Object.keys(written().agents.extraReviewers)).toEqual(['a', 'c']);
+    expect(Object.keys(written())).toEqual(Object.keys(before));
+    removeExtraReviewer('a', file, folder);
+    expect(written().profiles).toEqual(before.profiles);
+  });
+
+  test('the last one takes extraReviewers out of agents, and the file reads as one with no extra reviewer', () => {
+    extras({ a: three.a });
+    removeExtraReviewer('a', file, folder);
+    expect(written().agents).toEqual(validEngineFile.agents);
+    expect(written().profiles.nova).toEqual({ kind: 'forge', agent: 'nova' });
+  });
+
+  test.each([['ghost'], ['toString']])('the key %s the file does not hold is refused, naming it, and the file is as it was', (key) => {
+    extras(three);
+    expect(refused(() => removeExtraReviewer(key, file, folder))).toEqual([`There is no extra reviewer “${key}” in engine.json.`, 'config.problem', { path: `agents.extraReviewers.${key}`, problem: 'noEntry' }]);
+  });
+
+  test('a file with no extra reviewers refuses every key', () => {
+    expect(refused(() => removeExtraReviewer('a', file, folder))[2]).toEqual({ path: 'agents.extraReviewers.a', problem: 'noEntry' });
   });
 });
 

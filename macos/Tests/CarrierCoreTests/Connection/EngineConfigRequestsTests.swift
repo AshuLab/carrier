@@ -41,6 +41,7 @@ let goldenRoleChanges: [(String, EngineConfigChange)] = [
     ("engine-edit-extra-reviewer-role.json", .extraReviewerRole(key: "seguridad-api", name: "Seguridad del front", type: "frontend-security", [.bot("nova"), .provider("codex"), .model("gpt-5-codex"), .effort(nil)])),
     ("engine-edit-extra-reviewer-persona.json", .extraReviewerPersona(key: "seguridad-api", name: "Centinela", prompt: nil)),
     ("engine-edit-extra-reviewer-failover.json", .extraReviewerFailover(key: "seguridad-api", first: FailoverStep(provider: "agy", model: "gemini", effort: "low"), second: nil)),
+    ("engine-remove-extra-reviewer.json", .removeExtraReviewer(key: "seguridad-api")),
 ]
 
 func goldenLead() -> LeadReviewerDraft {

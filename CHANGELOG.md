@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Fixed
 
 - A session's branch in the sidebar and on the Sessions page reads as the branch name again, instead of `ModifiedContent<Text, ScaledFont…>`.
+- A session no longer shows the pull request of an older branch that had the same name: one merged or closed before the session started is not its own.
 
 ## [0.20.0] - 2026-11-25
 

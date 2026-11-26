@@ -1,4 +1,4 @@
-/** The role slots `carrier init` asks and has flags for, in the order a person meets them: the one table the blocks and the flags are built from. The extra reviewers are not slots: each has the name its person gives it and no flags of its own yet; the lead keeps the `lead-reviewer` the flags already have. */
+/** The role slots `carrier init` asks and has flags for, in the order a person meets them: the one table the blocks and the flags are built from. The extra reviewers are not slots: each has the name its person gives it and its flags name it (`extraFlagSuffixes`); the lead keeps the `lead-reviewer` the flags already have. */
 export const roleSlots = ['author', 'reviewer', 'lead-reviewer'] as const;
 
 export type RoleSlot = (typeof roleSlots)[number];
@@ -17,11 +17,14 @@ export const camel = (name: string) => name.replace(/-([a-z0-9])/g, (_, next: st
 
 export type Camel<S extends string> = S extends `${infer Head}-${infer Tail}` ? `${Head}${Capitalize<Camel<Tail>>}` : S;
 
-/** The key a block has in the flags and in the roles of a config: `lead-reviewer` is `leadReviewer`. An extra reviewer has no flags, and its key in the config is derived from its name. */
+/** The key a block has in the flags and in the roles of a config: `lead-reviewer` is `leadReviewer`. An extra reviewer's flags name it, and its key in the config is derived from its name. */
 export const roleKey = (block: Block) => camel(block);
 
 /** What follows `--<role>` in the flags that take one text: the role's `<harness>:<model>` itself, its GitHub profile, local provider, effort and persona. `-failover` is the one that repeats. */
 export const roleFlagSuffixes = ['', '-profile', '-provider', '-effort', '-persona-name', '-persona-prompt'] as const;
+
+/** What follows `--extra-reviewer` in the flags that set one field of an extra reviewer: each takes `"<name>=<value>"` and repeats, once per reviewer (`-failover` once per step). `--extra-reviewer "<name>=<harness>:<model>"` itself creates the reviewer. */
+export const extraFlagSuffixes = ['-profile', '-provider', '-effort', '-type', '-persona-name', '-persona-prompt', '-failover'] as const;
 
 /** What the block's box says before its first question. */
 export const roleBlurb = (slot: Block) =>

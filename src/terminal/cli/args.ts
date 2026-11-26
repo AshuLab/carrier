@@ -3,7 +3,7 @@ import { engineConfigPathOf } from '../../config/places.ts';
 import { efforts } from '../../config/schema.ts';
 import { localKinds } from '../../harnesses/local.ts';
 import { harnessNames } from '../../harnesses/names.ts';
-import { roleSlots, roleFlagSuffixes, type RoleSlot } from '../wizard/roles.ts';
+import { roleSlots, roleFlagSuffixes, extraFlagSuffixes, type RoleSlot } from '../wizard/roles.ts';
 
 export const commandNames = ['init', 'doctor', 'schema', 'start', 'status', 'watch', 'stop', 'pause', 'resume', 'check', 'reload', 'restart', 'recover', 'chat', 'chat-host', 'usage', 'config'] as const;
 export type CommandName = (typeof commandNames)[number];
@@ -46,7 +46,10 @@ init flags (each one skips its question; --yes never asks):
       --<role>-effort <level>                 level: ${efforts.join(', ')}
       --<role>-persona-name <text>   --<role>-persona-prompt <text>
       --<role>-failover <account>[:<model>]   repeat for up to two steps, in order; the account is one of this Mac or providers.json
-      the extra reviewers have no flags yet: init asks each one's name and type
+  --extra-reviewer "<name>=<harness>:<model>"   create an extra reviewer (up to three); repeat it, the reviewers keep the order given
+  --extra-reviewer-<field> "<name>=<value>"     set a field of the reviewer with that name (the name is everything before the first =, compared without regard to case)
+      fields: profile <forge:<agent>|gh>, provider <${localKinds.join('|')}>, effort <level>, type <slug>, persona-name, persona-prompt, failover <account>[:<model>] (repeat for up to two steps)
+      a field no flag answers is asked, or takes its default under --yes
   --out <path>                   default is the --config default above
   --yes                          no questions (needs --repo); overwrite the output file; the author and the reviewer take the first of each agent found (claude for the author and codex for the reviewer when both exist)`;
 
@@ -55,8 +58,14 @@ const roleOptions = Object.fromEntries(
   roleSlots.flatMap((slot) => [...roleFlagSuffixes.map((suffix) => [`${slot}${suffix}`, { type: 'string' }]), [`${slot}-failover`, { type: 'string', multiple: true }]]),
 ) as { [Name in `${RoleSlot}${(typeof roleFlagSuffixes)[number]}`]: { readonly type: 'string' } } & { [Name in `${RoleSlot}-failover`]: { readonly type: 'string'; readonly multiple: true } };
 
+/** `--extra-reviewer` and one flag per field: each repeats, since each takes a reviewer's name before its value. */
+const extraOptions = Object.fromEntries(['', ...extraFlagSuffixes].map((suffix) => [`extra-reviewer${suffix}`, { type: 'string', multiple: true }])) as {
+  [Name in `extra-reviewer${'' | (typeof extraFlagSuffixes)[number]}`]: { readonly type: 'string'; readonly multiple: true };
+};
+
 const options = {
   ...roleOptions,
+  ...extraOptions,
   config: { type: 'string' },
   repo: { type: 'string', multiple: true },
   'orchestrator-profile': { type: 'string' },

@@ -71,6 +71,7 @@ export const engineFileRequests = [
   z.strictObject({ id, cmd: z.literal('editFailover'), role: roleName, first: failoverStep, second: failoverStep }),
   z.strictObject({ id, cmd: z.literal('setLeadReviewer'), draft: roleChanges.nullable() }),
   z.strictObject({ id, cmd: z.literal('setOrchestratorProfile'), name: field.nullable() }),
+  z.strictObject({ id, cmd: z.literal('addExtraReviewer'), draft: z.strictObject({ name: field.optional(), type: field.optional(), identity: identity.optional(), provider: field.optional(), model: field.optional(), effort: field.optional() }) }),
 ] as const;
 type EngineFileCmd = (typeof engineFileRequests)[number]['shape']['cmd']['value'];
 // An allowlist: any other command, field or type is rejected before anything acts on it.
@@ -95,9 +96,9 @@ export const request = z.union([
 export const version = (JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')) as { version: string }).version;
 
 /** The optional requests an engine can answer; each one's slice adds its name to `capabilities`. */
-export type Capability = 'sessions' | 'events' | 'epic' | 'files' | 'fileDiff' | 'availableRepos' | 'availableReposPaged' | 'resumeEpic' | 'resumeFromStage' | 'resumeReviewerOptions' | 'recoverEpic' | 'reload' | 'config';
+export type Capability = 'sessions' | 'events' | 'epic' | 'files' | 'fileDiff' | 'availableRepos' | 'availableReposPaged' | 'resumeEpic' | 'resumeFromStage' | 'resumeReviewerOptions' | 'recoverEpic' | 'reload' | 'config' | 'extraReviewers';
 /** What the hello announces. */
-export const capabilities: Capability[] = ['sessions', 'events', 'epic', 'files', 'fileDiff', 'availableRepos', 'availableReposPaged', 'resumeEpic', 'resumeFromStage', 'resumeReviewerOptions', 'recoverEpic', 'reload', 'config'];
+export const capabilities: Capability[] = ['sessions', 'events', 'epic', 'files', 'fileDiff', 'availableRepos', 'availableReposPaged', 'resumeEpic', 'resumeFromStage', 'resumeReviewerOptions', 'recoverEpic', 'reload', 'config', 'extraReviewers'];
 export type Hello = { event: 'hello'; protocol: 1; pid: number; startedAt: number; version: string; capabilities: (Capability | ChatCapability)[] };
 export type Reply = { id: number; ok: true; data?: unknown } | { id: number | null; ok: false; error: string; code?: string; params?: TextParams };
 

@@ -110,6 +110,7 @@ test.each([
   [{ cmd: 'editFailover', role: 'author', first: { provider: 'codex' }, second: null }, (file: any) => file.failover.roles.author, [{ provider: 'codex' }]],
   [{ cmd: 'setLeadReviewer', draft: null }, (file: any) => file.agents.leadReviewer, undefined],
   [{ cmd: 'setOrchestratorProfile', name: null }, (file: any) => file.orchestratorProfile, undefined],
+  [{ cmd: 'addExtraReviewer', draft: { name: 'Sec', type: 'security', identity: { kind: 'gh' }, provider: 'claude', model: 'opus' } }, (file: any) => file.agents.extraReviewers, { sec: { type: 'security', name: 'Sec', profile: 'reviewer-bot', provider: 'claude', model: 'opus' } }],
 ])('with no engine, %o writes engine.json with the same code and says notRunning', async (request, read, expected) => {
   writeFileSync(engineFile(), JSON.stringify(validEngineFile));
   expect(await run(JSON.stringify(request))).toBe(0);

@@ -2,7 +2,7 @@ import { extraReviewerName, slug } from '../../../config/schema.ts';
 import type { Ui } from '../../prompts/types.ts';
 
 /** Why a name cannot be an extra reviewer's, or undefined: it is the schema's (one line of 1 to 40 characters) and no earlier reviewer of the config has it, compared without case. */
-const nameProblem = (value: string, others: string[]) => {
+export const nameProblem = (value: string, others: string[]) => {
   const parsed = extraReviewerName.safeParse(value);
   if (!parsed.success) return value.trim() === '' ? 'a name is required' : parsed.error.issues[0]?.message;
   return others.some((other) => other.toLowerCase() === parsed.data.toLowerCase()) ? 'another extra reviewer already has that name' : undefined;

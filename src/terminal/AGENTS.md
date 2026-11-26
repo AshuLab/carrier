@@ -12,6 +12,7 @@
 - `wizard`: `carrier init`.
   `wizard.ts` is the flow, `questions/` one file per thing asked, `deps.ts` everything that touches the machine (replaceable in tests; the agent CLIs, their logins and the local servers go through `doctor/detect.ts`, the one detector), `prior.ts` and `summary.ts` the edit mode and the recap.
   `roles.ts` is the one table of the roles that have flags (author, reviewer, lead reviewer) that `questions/role.ts` (one closed block per role, the extra reviewers' too), `flags.ts` (the flags of every question) and `validate-flags.ts` (the flags refused before the machine is probed) are built from.
+  The extra reviewers' flags name the reviewer (`--extra-reviewer "<name>=<harness>:<model>"` and `--extra-reviewer-<field> "<name>=<value>"`, the fields in `extraFlagSuffixes`): `parseExtras` in `validate-flags.ts` turns them into one `ExtraFlags` per reviewer, in the order given, and is the one place that refuses them.
   An extra reviewer is not a slot: its block (`questions/extra.ts` asks its name and type) is the `extra-reviewer` block, and its questions never carry its name, because the journal knows a question by its words and a new name keeps the answers already given; its key comes from `config/extra-reviewer-key.ts`.
   `keep-rest.ts` makes an edit write `engine.json` as it is, with only the keys the wizard owns replaced.
 - `dashboard`: the panel.

@@ -12,7 +12,8 @@
     "resumeReviewerOptions",
     "recoverEpic",
     "reload",
-    "config"
+    "config",
+    "extraReviewers"
   ],
   "chat": [
     "agents",

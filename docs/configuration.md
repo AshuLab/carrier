@@ -29,7 +29,7 @@ One process writes each of the four config files, and a front-end (the Mac app) 
 
 | File | Written by | Requests (the `config` capability of its socket) |
 |---|---|---|
-| `engine.json` | the engine | `setWatchedRepos`, `editBehavior`, `editRole`, `editRepoRole`, `editPersona`, `editFailover`, `setLeadReviewer`, `setOrchestratorProfile` |
+| `engine.json` | the engine | `setWatchedRepos`, `editBehavior`, `editRole`, `editRepoRole`, `editPersona`, `editFailover`, `setLeadReviewer`, `setOrchestratorProfile`, `addExtraReviewer` |
 | `providers.json` | the chat host | `setAccounts`, `addAccount`, `editAccount`, `removeAccount`, `setTextGenerator` |
 | `projects.json` | the chat host | `addProject`, `removeProject`, `editProject`, `moveProject`, `editProjectIcon`, `editProjectDefaults`, `editProjectTags`, `setProjectActions` |
 | `chat.json` | the chat host | `editChatSettings`, `setProjectsFolder` |
@@ -355,6 +355,9 @@ A resume at `review` or `fix` (`carrier restart --from`) of an epic that stopped
   `carrier init` does not edit such a file either: it prints that first error and asks whether to start over, save a new one in another file or leave it.
 - A repo's `agents.extraReviewers` is a map of the same shape that replaces the whole global map: with no key the repo runs the global reviewers, `{}` turns the extras off for it, and entries are its own list.
   Each of its entries carries `type`, `name`, `profile`, `provider` and `model`, because nothing is merged.
+- `addExtraReviewer` adds a reviewer from a complete draft (`name`, `type`, identity, `provider`, `model` and an optional `effort`) at the end of the global map, in one write.
+  The engine derives the key from the name with the rule above, the same one `carrier init` uses, and refuses the draft naming the field when one is missing, the name is blank, over 40 characters, holds a line break or is another reviewer's (compared without case), the type is not a slug, the identity, the provider or the effort is not one the file knows, or the map already has three.
+  The engine announces it with the capability `extraReviewers`.
 - The lead takes `skills` with only `lead`; a key for a stage the role does not run is refused naming it.
 - The profile and the provider of each extra reviewer must be declared, and the steps of its `failover` are checked like those of `failover.roles` (a provider that is not declared, a step repeated, a step equal to the reviewer's own provider and model), each refused naming its path, which holds the reviewer's key.
 - Give each reviewer a profile of its own, a bot for each.

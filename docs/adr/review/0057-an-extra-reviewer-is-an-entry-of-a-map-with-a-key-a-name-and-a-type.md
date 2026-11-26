@@ -1,6 +1,6 @@
 # 0057 - An extra reviewer is an entry of a map with a key, a name and a type
 
-- Status: proposed; amends [0048](0048-a-review-round-has-several-reviewers-in-parallel-and-a-lead-reviewer-closes-it.md) (the shape of `extraReviewers`)
+- Status: proposed; amends [0048](0048-a-review-round-has-several-reviewers-in-parallel-and-a-lead-reviewer-closes-it.md) (the shape of `extraReviewers` and the names of the places in a round)
 - Date: 2026-11-26
 
 ## Context
@@ -21,12 +21,13 @@ The type is only a label: the engine runs nothing different for it.
 The signature of an extra reviewer is `🤖 Reviewer [NAME] via Carrier`, with the persona's name when it has one and the entry's name when it does not.
 The engine's requests address a reviewer by its key.
 
-The place a reviewer takes in a round, `reviewer-2` to `reviewer-4`, stays as the engine's own: it is the position of the entry in the map when the epic starts, kept in the epic's saved configuration, so the stored executions, the stage strip and the prefix of a blocker's id do not change.
-The app shows a reviewer by its name, read from the saved configuration of the epic.
+The key is the reviewer's identity wherever the engine names it: the review slot of a stored execution, the round and its retries, the prefix of a blocker's id, the folder of its checkout, the roles `carrier restart` asks about, the epic's status and the doctor's lines.
+`reviewer-2` to `reviewer-4` do not exist any more; the slots `reviewer` and `lead` stay, and no key is one of them or `author`.
+The epic's saved configuration is the engine's own record and keeps the resolved reviewers in the order of the map, each carrying its key, name and type, and the app shows a reviewer by its name, read from there.
 
 The list is not read any more.
 A file whose `extraReviewers` is a list is refused when it loads, with a message that names the shape the file needs, and nothing migrates it.
-The epic's saved configuration is the engine's own record and stays an ordered list of the resolved reviewers, each now carrying its key, name and type; one saved before has none of them, and the app shows its reviewers as Reviewer 2 to Reviewer 4.
+Nothing migrates what was recorded either: the executions stored with `reviewer-2` to `reviewer-4` keep the text they have and the engine does not read it as a reviewer, and an epic that was running with extra reviewers when this lands cannot be resumed.
 
 ## Alternatives considered
 
@@ -34,11 +35,11 @@ The list with a unique `name` on each entry lost, because it keeps the position 
 A map whose key is the type lost, because it allows one reviewer of each type and a person who wants two security reviewers, one for the API and one for the front, would have to invent a type for the second.
 A map whose key is the name lost, because a name is text a person edits, and renaming a reviewer would then change the key that requests, files and a repo's override point at; the key stays put while the name changes.
 One `setExtraReviewers` request that replaces the whole map lost for the global map, because the app would have to send back the skills, the failover steps and any key it does not edit, or the engine would lose them; a request for each reviewer changes only what it names.
-Making the key the engine's own place, replacing `reviewer-2` to `reviewer-4` in the executions, lost because it renames what the database already stores for no gain: the person never sees the place.
+Keeping `reviewer-2` to `reviewer-4` as the engine's own place, derived from the position of the entry, lost, because it gives one reviewer two names, its key in the file and in the requests and its place in the executions, the blockers and the checkouts, and anyone reading one has to map it to the other; it would have spared the stored executions a rename, which the person gave up with the migration.
 
 ## Consequences
 
 A file of 0.19.0 or 0.20.0 with extra reviewers stops loading until its list is rewritten as a map; this is accepted, and the refusal says what to write.
-The wizard of `carrier init`, the engine's snapshot, the app's roles page and its Watching screens, and the goldens of the app have to speak the map, and the epics that are building on the list adapt to this one.
+The engine's storage, rounds, retries, blockers and checkouts, `carrier restart`, the snapshot and the doctor name a reviewer by its key, the wizard of `carrier init` asks each extra reviewer's name and takes it by flags that name it, and the app's roles page, its Watching screens and its goldens have to speak the map; the epics that are building on the list adapt to this one.
 A reviewer has a name the person chooses and a type that can group them later, and skills that each reviewer can have of its own become a field of the entry rather than a shape of the file.
 The type carries no behaviour, so it costs nothing to add one, and a later epic can give a type its defaults without changing the file.

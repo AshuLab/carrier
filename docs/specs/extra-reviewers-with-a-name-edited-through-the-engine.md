@@ -50,9 +50,9 @@ Its entries carry `type`, `name`, `profile`, `provider` and `model`, and `effort
 
 Nothing is migrated: a file, global or a repo's, whose `extraReviewers` is a list is refused when it loads, with a message that names the shape it needs.
 
-The engine's own place for a reviewer in a round, `reviewer-2` to `reviewer-4`, does not change.
-It is the position of the entry in the map when the epic starts, and the epic's saved configuration keeps the ordered list of the resolved reviewers, each now carrying its key, name and type, so the stored executions, the stage strip and the prefix of a blocker's id stay as they are.
-An epic saved before has no key, name or type, and the app shows its reviewers as Reviewer 2 to Reviewer 4.
+The key is the reviewer's identity wherever the engine names it: the review slot of a stored execution, the round and its retries, the prefix of a blocker's id, the folder of its checkout, the roles `carrier restart` asks about, the epic's status and the doctor's lines.
+`reviewer-2` to `reviewer-4` do not exist any more, the slots `reviewer` and `lead` stay, and the epic's saved configuration keeps the resolved reviewers in the order of the map, each carrying its key, name and type.
+Nothing migrates what was recorded before: the executions stored with `reviewer-2` to `reviewer-4` keep the text they have and the engine does not read it as a reviewer, and an epic that was running with extra reviewers when this lands cannot be resumed.
 
 ### The requests
 
@@ -69,10 +69,18 @@ A refusal carries a code and its parameters with English words as the fallback, 
 Each request has a golden under `macos/Tests/Fixtures`, written by the engine's contract test as the others are, and `capabilities.json` lists the new capability.
 The app's `ContractTests` fail when the engine lists a request that the app does not build as its golden says, or announces a capability the app does not know, so the app's model layer (`CarrierCore`, no screen) learns each request and the capability in the same slice that adds them: a case of `EngineConfigChange` that encodes the request, its row in the golden tables of the tests, and a case of `ControlClient.Capability` for the capability that the fixture engine also announces.
 
+### `carrier init`
+
+The wizard that writes `engine.json` writes the map and takes each extra reviewer by its name.
+In the block of each extra reviewer it asks the name, which is required and has no suggestion (a blank answer asks again), and the type, which starts on `general`; the key is derived from the name by the rule of the request that adds a reviewer.
+In edit mode each extra reviewer of the file's map is walked in the order of the map, starting from its name and type, and the file keeps each one's key and the fields the wizard does not ask.
+The flags that answered a reviewer by its position (`--reviewer-2` to `--reviewer-4` and their `-profile`, `-provider`, `-effort`, `-persona-name`, `-persona-prompt` and `-failover`) are replaced by flags that name the reviewer: `--extra-reviewer "<name>=<harness>:<model>"` creates one and can be repeated, and `--extra-reviewer-profile`, `-provider`, `-effort`, `-type`, `-persona-name`, `-persona-prompt` and `-failover` each take `"<name>=<value>"`.
+The name is everything before the first `=`, so a name that holds `=` can only be given in the question; a flag that names a reviewer no `--extra-reviewer` created is refused before anything is probed, naming the flag.
+
 ### What else reads the setting
 
 The resolver turns the map into the ordered list the engine runs, and each resolved reviewer carries its key, name and type.
-The doctor names a reviewer by its name where it names it `reviewer-N`, the epic's status snapshot carries each extra reviewer's `name` and `type` beside its harness, model and provider when the epic has them, and `carrier restart`, the stage slots, the retry streaks and the profile cooldown keep working on the place of the reviewer, which does not change.
+The round, the retry streaks, the blockers, the checkouts and the stage slots use the key where they used `reviewer-N`, the doctor names a reviewer by its name, the epic's status snapshot carries each extra reviewer's key, `name` and `type` beside its harness, model and provider, and `carrier restart` asks about a reviewer by its key; the profile cooldown keeps working on the profiles of the resolved reviewers.
 The documents that describe the setting say the map: `docs/configuration.md`, `docs/cli.md` and the `src/control` and `src/config` notes for the agents.
 
 ## Scope
@@ -80,27 +88,32 @@ The documents that describe the setting say the map: `docs/configuration.md`, `d
 1. A config file whose `agents.extraReviewers` is a map of up to three reviewers, each with a key, a name, a type and the fields of an agent, loads; a fourth, a duplicate key or name, a reserved or malformed key, a name that is empty or over 40 characters or has a line break, and a missing name or type are each refused with the path and the reason.
 2. A config file, global or a repo's, whose `extraReviewers` is a list is refused when it loads, with a message that names the map it needs.
 3. A repo's map replaces the global map whole, `{}` turns the extra reviewers off for it, and no key leaves the global map.
-4. An epic runs the reviewers of its map in the order of the file, each in the place `reviewer-2` to `reviewer-4` that its position gives it, and one that has a persona signs with its persona's name and otherwise with its name.
+4. An epic runs the reviewers of its map in the order of the file, and one that has a persona signs with its persona's name and otherwise with its name.
 5. The engine adds an extra reviewer from a complete draft in one request, derives its key from its name, and refuses an incomplete draft, a taken name or a fourth reviewer without changing the file; the app's model layer builds the request as its golden says.
 6. The engine changes an extra reviewer's identity, provider, model, effort, name and type, its persona and its failover steps by its key, each request changing only what it names, and refuses a key the file does not hold; the app's model layer builds each request as its golden says.
 7. The engine removes an extra reviewer by its key and changes nothing else in the file; the app's model layer builds the request as its golden says.
 8. The engine sets a repo's list, takes it out or makes it empty, in one request, and refuses a repo it does not watch or an entry that breaks the rules; the app's model layer builds the request as its golden says.
 9. The engine announces the capability `extraReviewers` in its hello, and the app knows it and its fixture engine announces it.
-10. The epic's saved configuration and its status snapshot carry each extra reviewer's name and type, and an epic saved before them still reads, its reviewers without them.
+10. The epic's saved configuration and its status snapshot carry each extra reviewer's key, name and type.
 11. The doctor names a reviewer by its name, and the documents describe the map and the new requests.
+12. The engine records, retries, checks out and reports each extra reviewer by its key: its stored executions, its blockers' ids, its checkout folder, the epic's status and `carrier restart` use the key, and no name of the form `reviewer-2` to `reviewer-4` is written or read.
+13. `carrier init` asks each extra reviewer's name and type, takes the reviewers by the flags that name them, writes the map, and in edit mode keeps each one's key and the fields it does not ask.
 
 ## Decisions
 
-The shape, the key, the name and the type, the place a reviewer takes in a round, the refusal of the list, and what lost against each choice are in [0057](../adr/review/0057-an-extra-reviewer-is-an-entry-of-a-map-with-a-key-a-name-and-a-type.md).
+The shape, the key, the name and the type, the key as the one identity of a reviewer in the engine, the refusal of the list, and what lost against each choice are in [0057](../adr/review/0057-an-extra-reviewer-is-an-entry-of-a-map-with-a-key-a-name-and-a-type.md).
 The requests reuse the ones the Reviewer has (`editRole`, `editPersona`, `editFailover`) rather than a request of their own for each field, so an extra reviewer is edited as the Reviewer is and the app sends only what the person changed.
 `name` and `type` are required in the schema for every entry, global and a repo's, so a map written by hand and one written by the app have one rule.
 The wizard of `carrier init` does not read or write `extraReviewers` on `main`: the epic that adds extra reviewers to it (#1514) is still open, and whichever of the two lands second writes the map.
-The three places that name the setting in the engine and keep working unchanged are `carrier restart`, the stage slots and the profile cooldown, because they read the resolved, ordered list.
+The key replaces `reviewer-2` to `reviewer-4` in every place that named a reviewer, and nothing reads the old names; a key is never `reviewer` or `lead`, so the slots of the Reviewer and the Lead cannot collide with an extra reviewer's.
+The flags of an extra reviewer in `carrier init` name the reviewer (`--extra-reviewer "<name>=<harness>:<model>"` and a flag for each field that takes `"<name>=<value>"`), because a free name cannot be a flag of its own.
 
 Testing seams, by story:
 
 - **1, 2, 3 (the file):** the config's loader, `src/config/load.test.ts`, which already feeds a file and reads its problems; cases for each refusal, with the wrong-typed inputs a hand-written file brings: a list, an empty map, a key of `2a` or `A` or `a_b` or 41 characters, a name that is blank or has a line break, a number where the name goes. `src/config/engine-config-contract.test.ts` keeps the contract the macOS app checks.
-- **4 (running an epic):** the resolver, `src/config/resolve.test.ts`, for the order, the repo's replacement and the signature name; the existing slot tests for the place, with no new case beyond a map in the saved configuration.
+- **4 (running an epic):** the resolver, `src/config/resolve.test.ts`, for the order, the repo's replacement and the signature name.
+- **12 (the key everywhere):** the storage tests of executions, the orchestration tests of the round, the retries, the blockers and the slots, the workspace tests of the checkout folder and `carrier restart`'s tests, each with a reviewer named by a key such as `seguridad-api` and an epic of two extra reviewers.
+- **13 (`carrier init`):** the wizard's tests (the builder of the config, the reader of the existing file, the keep-the-rest edit, the flags and their validation, and the wizard flow), with the flags that name a reviewer and the refusal of one that names none.
 - **5, 6, 7, 8 (the requests):** `src/config/role-edit.test.ts` for each request on a file in a temporary folder, including the refusals that leave the file as it was; and `src/control/config-goldens.test.ts`, whose golden of each request and reply is the contract with the app (`UPDATE_FIXTURES=1` writes it, the macOS tests compare).
 - **9 (the capability):** `src/control/capabilities-contract.test.ts` and its golden `capabilities.json`.
 - **10 (saved configuration and snapshot):** `src/status/snapshot.test.ts` and `snapshot-contract.test.ts` for the reviewers' name and type, with a saved configuration that lacks them.
@@ -111,8 +124,6 @@ Testing seams, by story:
 
 - Choosing another skill for an extra reviewer or any role: a later epic makes skills editable, and until then they are shown and not changed.
 - Giving a type behaviour (defaults of skills or persona for a type): the type is a label.
-- Migrating files that use the list: nothing migrates, and the refusal says what to write.
-- Moving the engine's own place of a reviewer (`reviewer-2` to `reviewer-4`) to the key.
+- Migrating files, recorded executions or running epics that use the list or `reviewer-2` to `reviewer-4`: nothing migrates, and the refusal says what to write.
 - Creating or removing GitHub identities, and cleaning up profiles no reviewer uses.
 - The macOS screens, the fixture engine's answers to the new requests, and the rewrite of #1527 and #1528 on the new shape, which #1513 does when it resumes; this epic touches the app only where its contract tests require it.
-- Changes to the wizard's flags: `carrier init` (#1514) has to write the map, but its questions and flags are its own epic.

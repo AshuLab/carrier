@@ -43,10 +43,22 @@ describe('what a subagent made is stored with the call that launched it, bounded
   });
 
   it('keeps every field of a task and bounds and redacts its words', () => {
-    const task = boundEvent({ kind: 'task', callId: 'c1', taskId: 't1', state: 'progress', agentType: 'Explore', text: `look at ${token} ${'y'.repeat(3000)}`, lastTool: 'Bash', tools: 2, tokens: 300, ms: 1200, background: true, parentCallId: 'agent-1' })!;
+    const task = boundEvent({ kind: 'task', callId: 'c1', taskId: 't1', state: 'progress', agentType: 'Explore', text: `look at ${token} ${'y'.repeat(3000)}`, lastTool: 'Bash', tools: 2, tokens: 300, ms: 1200, background: true, parentCallId: 'agent-1', summary: 'ignored on progress' })!;
     expect(task).toEqual({ callId: 'c1', taskId: 't1', state: 'progress', agentType: 'Explore', text: expect.any(String), lastTool: 'Bash', tools: 2, tokens: 300, ms: 1200, background: true, parentCallId: 'agent-1' });
     expect((task.text as string).length).toBeLessThanOrEqual(chatCaps.arg);
     expect(task.text).not.toContain(token);
+  });
+
+  it('redacts and cuts an end task summary at the cap of an assistant message', () => {
+    for (const state of ['completed', 'failed', 'stopped'] as const) {
+      const stored = boundEvent({ kind: 'task', callId: 'c1', taskId: 't1', state, summary: `secret ${token} ${'z'.repeat(chatCaps.message)}` })!;
+      expect(stored.summary).toContain('[redacted]');
+      expect(stored.summary).not.toContain(token);
+      expect((stored.summary as string).length).toBe(chatCaps.message);
+      expect((stored.summary as string).endsWith('…')).toBe(true);
+    }
+    const started = boundEvent({ kind: 'task', callId: 'c1', taskId: 't1', state: 'started', summary: 'ignored on started' })!;
+    expect(started).not.toHaveProperty('summary');
   });
 });
 

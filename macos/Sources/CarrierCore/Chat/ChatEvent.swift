@@ -103,6 +103,8 @@ public struct ChatEvent: Codable, Equatable {
     /// The text code and parameters of the `text` of a `notice` or the `detail` of a `step`; nil on an event stored before the codes, which has its words only.
     public var code: String?
     public var params: [String: TextParam]?
+    /// What a subagent returned (or why it failed), on an ended `task` event when the provider sent one; nil otherwise.
+    public var summary: String?
 
     /// The `text` of a notice or the `detail` of a step (`words`) in the person's language: the copy of the event's code, else the words, which is all an event stored before the codes has.
     public func shown(_ words: String?, bundle: Bundle? = nil, locale: Locale = .current) -> String? {
@@ -132,7 +134,7 @@ public struct ChatEvent: Codable, Equatable {
         answers: [String: String]? = nil, parentCallId: String? = nil, taskId: String? = nil, state: String? = nil, agentType: String? = nil,
         lastTool: String? = nil, tools: Int? = nil, tokens: Int? = nil, ms: Int? = nil, background: Bool? = nil, switched: Switched? = nil, reason: String? = nil, resetsAt: Int? = nil, resetText: String? = nil,
         trigger: String? = nil, before: Double? = nil, after: Double? = nil, error: String? = nil,
-        code: String? = nil, params: [String: TextParam]? = nil
+        code: String? = nil, params: [String: TextParam]? = nil, summary: String? = nil
     ) {
         self.id = id
         self.at = at
@@ -174,5 +176,6 @@ public struct ChatEvent: Codable, Equatable {
         self.error = error
         self.code = code
         self.params = params
+        self.summary = summary
     }
 }

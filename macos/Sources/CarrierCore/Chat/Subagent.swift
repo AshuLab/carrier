@@ -42,6 +42,8 @@ public struct Subagent: Equatable, Identifiable {
     public internal(set) var endedAt: Int?
     /// The time the provider reported for its whole life, once it ended.
     private var reportedMs: Int?
+    /// What the subagent returned (or why it failed), from its end notification; nil when none was sent or when it was stopped.
+    public internal(set) var report: String?
     private var ownCalls = 0
     private var reported = 0
 
@@ -67,6 +69,11 @@ public struct Subagent: Equatable, Identifiable {
             status = event.state == "completed" ? .completed : event.state == "failed" ? .failed : .stopped
             endedAt = event.at
             reportedMs = event.ms
+            if status == .stopped {
+                report = nil
+            } else if let text = event.summary?.trimmingCharacters(in: .whitespacesAndNewlines), text.isEmpty == false {
+                report = text
+            }
         default: break
         }
     }

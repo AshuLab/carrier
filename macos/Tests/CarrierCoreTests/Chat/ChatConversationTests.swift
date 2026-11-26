@@ -1723,8 +1723,8 @@ private func subagents(_ rows: [FeedRow]) -> [Subagent] {
 
 // MARK: a subagent's row
 
-private func task(_ id: Int, _ at: Int, _ call: String, _ state: String, text: String? = nil, type: String? = nil, lastTool: String? = nil, tools: Int? = nil, ms: Int? = nil) -> ChatEvent {
-    ChatEvent(id: id, at: at, kind: "task", text: text, callId: call, taskId: "t-\(call)", state: state, agentType: type, lastTool: lastTool, tools: tools, ms: ms)
+private func task(_ id: Int, _ at: Int, _ call: String, _ state: String, text: String? = nil, type: String? = nil, lastTool: String? = nil, tools: Int? = nil, ms: Int? = nil, summary: String? = nil) -> ChatEvent {
+    ChatEvent(id: id, at: at, kind: "task", text: text, callId: call, taskId: "t-\(call)", state: state, agentType: type, lastTool: lastTool, tools: tools, ms: ms, summary: summary)
 }
 
 @Test func aSubagentRowHasItsTypeTitleStepStepsTimerAndStateFromEvents() {
@@ -2037,8 +2037,39 @@ private func flow(_ work: SubagentWork?) -> [String] {
         "tools: Explored | 1 search | ", "message: translate() never reads parent_tool_use_id.",
         "tools: Worked | 1 thought · 1 subagent | translate() drops sidechain info; checking the types next.",
     ])
+    #expect(work?.result == SubagentResult(text: "`translate()` drops `parent_tool_use_id` and all `task_*` events in `src/chat/claude.ts:336-407`.", failed: false))
+    #expect(subagentWork(in: events, call: "a2", bundle: english.bundle, locale: english.locale)?.result?.text?.contains("`ChatToolGroups.swift`") == true)
     #expect(subagentWork(in: events, call: "a3", bundle: english.bundle, locale: english.locale)?.header.state == .running)
-    #expect(subagentWork(in: events, call: "n1", bundle: english.bundle, locale: english.locale)?.header.title == "Check the runner types")
+    #expect(subagentWork(in: events, call: "a3", bundle: english.bundle, locale: english.locale)?.result == nil)
+    let nested = subagentWork(in: events, call: "n1", bundle: english.bundle, locale: english.locale)
+    #expect(nested?.header.title == "Check the runner types" && nested?.result == nil)
+}
+
+@Test func aSubagentKeepsTheSummaryOfCompletedAndFailedEndsAndDropsItWhenStopped() {
+    let base = [
+        ChatEvent(id: 1, at: 0, kind: "tool_start", callId: "a1", tool: "Agent", arg: "{}"),
+        task(2, 10, "a1", "started", text: "Check logs", type: "Explore"),
+    ]
+    // completed with summary keeps it; completed without summary has nil result
+    let completed = subagentWork(in: base + [task(3, 50, "a1", "completed", ms: 40, summary: "  Found 2 errors.  ")], call: "a1", bundle: english.bundle, locale: english.locale)
+    #expect(completed?.result == SubagentResult(text: "Found 2 errors.", failed: false))
+    let completedEmpty = subagentWork(in: base + [task(3, 50, "a1", "completed", ms: 40, summary: "   ")], call: "a1", bundle: english.bundle, locale: english.locale)
+    #expect(completedEmpty?.result == nil)
+    // failed keeps its summary when present and marks failed alone when absent
+    let failedWithSummary = subagentWork(in: base + [task(3, 50, "a1", "failed", ms: 40, summary: "Timed out after 30s")], call: "a1", bundle: english.bundle, locale: english.locale)
+    #expect(failedWithSummary?.result == SubagentResult(text: "Timed out after 30s", failed: true))
+    let failedWithoutSummary = subagentWork(in: base + [task(3, 50, "a1", "failed", ms: 40)], call: "a1", bundle: english.bundle, locale: english.locale)
+    #expect(failedWithoutSummary?.result == SubagentResult(text: nil, failed: true))
+    // stopped never shows its summary (the provider puts the title there)
+    let stopped = subagentWork(in: base + [task(3, 50, "a1", "stopped", ms: 40, summary: "Check logs")], call: "a1", bundle: english.bundle, locale: english.locale)
+    #expect(stopped?.result == nil)
+    // running has no result, and stopping on idle leaves no result
+    #expect(subagentWork(in: base, call: "a1", working: true, bundle: english.bundle, locale: english.locale)?.result == nil)
+    #expect(subagentWork(in: base, call: "a1", working: false, bundle: english.bundle, locale: english.locale)?.result == nil)
+    // row model keeps report on completed/failed and drops it on stopped
+    let doneRow = subagents(chatFeed(base + [task(3, 50, "a1", "completed", summary: "Done")], bundle: english.bundle, locale: english.locale))[0]
+    let stoppedRow = subagents(chatFeed(base + [task(3, 50, "a1", "stopped", summary: "Check logs")], bundle: english.bundle, locale: english.locale))[0]
+    #expect(doneRow.report == "Done" && stoppedRow.report == nil)
 }
 
 // MARK: a subagent that outlives its session's work

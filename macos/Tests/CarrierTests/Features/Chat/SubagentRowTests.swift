@@ -42,3 +42,27 @@ func aSubagentRowKeepsOneHeightInEveryStateAndWidth(width: CGFloat) throws {
     }
     #expect(Set(seen) == [.running, .completed, .failed, .stopped])
 }
+
+@MainActor @Test(arguments: [CGFloat(480), 560, 900])
+func aSubagentResultBlockFoldsSummariesLongerThanSixLinesToOneHeight(width: CGFloat) throws {
+    let oneLine = SubagentResultCard(result: SubagentResult(text: "Found the adapter in src/chat/claude.ts.", failed: false))
+    let sixLines = SubagentResultCard(result: SubagentResult(text: (1...6).map { "Line \($0)" }.joined(separator: "\n"), failed: false))
+    let sevenLines = SubagentResultCard(result: SubagentResult(text: (1...7).map { "Line \($0)" }.joined(separator: "\n"), failed: false))
+    let twentyLines = SubagentResultCard(result: SubagentResult(text: (1...20).map { "Line \($0)" }.joined(separator: "\n"), failed: false))
+    let expandedTwenty = SubagentResultCard(result: SubagentResult(text: (1...20).map { "Line \($0)" }.joined(separator: "\n"), failed: false), startsExpanded: true)
+    let failedOnly = SubagentResultCard(result: SubagentResult(text: nil, failed: true))
+
+    let h1 = try height(oneLine, width: width)
+    let h6 = try height(sixLines, width: width)
+    let h7 = try height(sevenLines, width: width)
+    let h20 = try height(twentyLines, width: width)
+    let h20Expanded = try height(expandedTwenty, width: width)
+    let hFailed = try height(failedOnly, width: width)
+
+    #expect(hFailed == 60)
+    #expect(h1 < h6)
+    #expect(h6 < h7)
+    #expect(h7 == h20)
+    #expect(h20 < h20Expanded)
+    #expect(try height(sevenLines.environment(\.colorScheme, .dark), width: width) == h7)
+}

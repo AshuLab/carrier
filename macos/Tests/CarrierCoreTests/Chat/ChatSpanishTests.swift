@@ -362,4 +362,8 @@ private func group(_ events: [ChatEvent]) -> ToolGroup {
     #expect(Copy.chatToolDoingLive(doing: "Leyendo a.ts", bundle: es.bundle, locale: es.locale) == "Leyendo a.ts…")
     #expect(Copy.chatContextTokens(count: "900", bundle: es.bundle, locale: es.locale) == "900 de contexto")
     #expect(Copy.chatToolUnnamed(bundle: es.bundle, locale: es.locale) == "herramienta" && Copy.chatSubagentTypeDefault(bundle: es.bundle, locale: es.locale) == "Agente")
+    #expect(Copy.chatSubagentResult(bundle: es.bundle, locale: es.locale) == "Resultado")
+    #expect(Copy.chatSubagentResultShowMore(bundle: es.bundle, locale: es.locale) == "Mostrar más")
+    #expect(Copy.chatSubagentResultShowLess(bundle: es.bundle, locale: es.locale) == "Mostrar menos")
+    #expect(Copy.chatFailed(bundle: es.bundle, locale: es.locale) == "Falló")
 }

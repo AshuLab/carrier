@@ -18,6 +18,12 @@ _Avoid_: main folder, original, source.
 **Session worktree** - A git worktree that Carrier creates for a user session, on a new branch named `carrier/<adjective>-<unit>-<place>` and cut from a branch the person picks, so the base folder stays untouched. It lives in the chat folder's `worktrees/`, its name is generated (the person may type another after the `carrier/` prefix) and it is removed with the session ([0014](../adr/projects/0014-a-session-worktree-lives-in-carriers-home-and-dies-with-its-session.md)). It is not an epic's worktree and not a lane.
 _Avoid_: workspace copy, sandbox, checkout, epic worktree.
 
+**Worktree integration** - Where the work of a session worktree stands, shown apart from what is happening to it: Merged (the session's pull request is merged), In main, Not pushed, PR open, PR closed or Pushed. It is one word for each worktree, read from git first and from the pull request second, and it is not the worktree's activity (Session open, Uncommitted changes), which can hold at the same time.
+_Avoid_: worktree status, clean (it said nothing about integration).
+
+**In main** - The integration of a worktree whose HEAD is already part of the project's remote default branch, by git alone: its work was merged without a squash, or it never had commits of its own. It is not Merged, which is only for a pull request GitHub says is merged.
+_Avoid_: merged (that needs a pull request), up to date.
+
 **Start point** - The branch a session worktree is cut from, taken from its remote copy (`origin/<branch>`) by default and from the local branch when the person chooses it.
 The default is `worktreeStart` in `chat.json`, the session's own choice is the Remote or Local tab of the branch picker, and a branch that exists only locally can only start from local.
 A start point that cannot be reached falls back to the local branch with a notice ([0037](../adr/projects/0037-a-new-worktree-is-cut-from-the-remote-branch-by-default-and-choosing-a-project-fetches-it.md)).

@@ -145,7 +145,11 @@ private func sameJSON(_ a: Data, _ b: Data) throws -> Bool {
     let host = SocketChatHost(socketPath: { server.chatSocketPath })
     let listed = try await host.projectWorktrees(server.home + "/projects/carrier")
     #expect(listed.main == .init(path: server.home + "/projects/carrier", branch: "main", state: .notPushed))
-    #expect(listed.worktrees.count == 5 && listed.worktrees.contains { $0.session == nil })
+    #expect(listed.worktrees.count == 6 && listed.worktrees.contains { $0.session == nil })
+    // the golden file draws every activity and every integration, with a pull request on three of them
+    #expect(listed.worktrees.compactMap(\.activity) == [.sessionOpen, .uncommitted])
+    #expect(Set(listed.worktrees.map(\.integration)) == [.merged, .inMain, .notPushed, .prOpen, .prClosed, .pushed])
+    #expect(listed.worktrees.compactMap(\.pullRequest?.number) == [1496, 1495, 1480])
     // a project the golden file does not list has its main clone and nothing else
     #expect(try await host.projectWorktrees(server.home + "/projects/notes") == .init(main: .init(path: server.home + "/projects/notes", branch: "main", state: .clean), worktrees: []))
 }
@@ -173,16 +177,16 @@ private func sameJSON(_ a: Data, _ b: Data) throws -> Bool {
     await #expect(throws: ControlError.remote(Refusal(code: "worktree.sessionOpen", text: "Its session is open"))) { try await host.removeProjectWorktree(project, path: worktree("kerrigan")) }
     await #expect(throws: ControlError.remote(Refusal(code: "worktree.uncommitted", text: "It has uncommitted changes"))) { try await host.removeProjectWorktree(project, path: worktree("zeratul")) }
     await #expect(throws: ControlError.remote(Refusal(code: "worktree.unknown", text: "That is not a worktree of this project"))) { try await host.removeProjectWorktree(project, path: "/nowhere") }
-    #expect(try await host.projectWorktrees(project).worktrees.count == 5)
+    #expect(try await host.projectWorktrees(project).worktrees.count == 6)
 
     try await host.removeProjectWorktree(project, path: worktree("tassadar"))
     #expect(try await host.projectWorktrees(project).worktrees.map(\.path).contains(worktree("tassadar")) == false)
 
     let preview = try await host.cleanProjectWorktrees(project, run: false)
     #expect(preview.removed.map(\.path) == [worktree("raynor")] && preview.skipped.map(\.path) == [worktree("zeratul")])
-    #expect(try await host.projectWorktrees(project).worktrees.count == 4) // a preview lists nothing away
+    #expect(try await host.projectWorktrees(project).worktrees.count == 5) // a preview lists nothing away
     #expect(try await host.cleanProjectWorktrees(project, run: true) == preview)
-    #expect(try await host.projectWorktrees(project).worktrees.count == 3)
+    #expect(try await host.projectWorktrees(project).worktrees.count == 4)
     #expect(try await host.cleanProjectWorktrees(project, run: false).removed.isEmpty)
 }
 

@@ -20,6 +20,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- A worktree on a project's page shows two chips instead of one: what is happening now (Session open or Uncommitted changes, only when it applies) and where its work stands (Merged · #N, In main, Not pushed, PR open · #N, PR closed · #N or Pushed), with the pull request number as a link.
+  In main is read from git, so a worktree already in the remote default branch says it even with no pull request, and the page refreshes the pull request state when it opens, so a merged pull request of an archived session says Merged.
+  Clean up is now "Finished worktrees" and takes every worktree with a session that is Merged or In main and has nothing open or uncommitted, and Remove is a trash icon.
 - The terminals are drawn as glass: each pane is a rounded card with a margin and a gap between panes, and the tabs are a flat group as wide as they are, which scrolls and fades at the end that has more, with only the selected tab in glass and the add and hide buttons beside it, bigger.
   The line that resizes the split panes and the drawer is drawn only under the pointer.
   The terminal's surface is glass with every theme when Translucent windows is on (it was only with Carrier), and opaque when it is off or macOS reduces transparency.

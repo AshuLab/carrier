@@ -40095,13 +40095,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Merged worktrees nothing blocks: %1$@"
+            "value": "Merged or already in main, nothing blocks them: %1$@"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Worktrees fusionados que nada bloquea: %1$@"
+            "value": "Fusionados o ya en main, nada los bloquea: %1$@"
           }
         }
       }
@@ -40187,6 +40187,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Se omitió %1$@: %2$@."
+          }
+        }
+      }
+    },
+    "projectsCleanUpTitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Finished worktrees"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Worktrees terminados"
           }
         }
       }
@@ -42886,13 +42903,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Removes this worktree's folder; its branch and its session stay"
+            "value": "Remove this worktree's folder"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Quita la carpeta de este worktree; su rama y su sesión se quedan"
+            "value": "Quitar la carpeta de este worktree"
           }
         }
       }
@@ -44317,19 +44334,19 @@
         }
       }
     },
-    "projectsWorktreeStateClean": {
+    "projectsWorktreeStateInMain": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Clean"
+            "value": "In main"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Limpio"
+            "value": "En main"
           }
         }
       }
@@ -44381,6 +44398,57 @@
           "stringUnit": {
             "state": "translated",
             "value": "Sesión abierta"
+          }
+        }
+      }
+    },
+    "projectsWorktreeStatePrClosed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PR closed"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PR cerrado"
+          }
+        }
+      }
+    },
+    "projectsWorktreeStatePrOpen": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PR open"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PR abierto"
+          }
+        }
+      }
+    },
+    "projectsWorktreeStatePushed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pushed"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Subido"
           }
         }
       }

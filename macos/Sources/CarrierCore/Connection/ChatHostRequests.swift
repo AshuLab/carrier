@@ -42,9 +42,9 @@ func usageRequest<Reply: Decodable>(_ path: String, _ command: String, requires 
     }
 }
 
-/// `chatRequest` for the `projects` capability, but a host that does not list it is told in the words of what to do about it.
-func projectsRequest<Reply: Decodable>(_ path: String, _ command: String, fields: String = "", timeout: TimeInterval = 5) throws -> Reply {
-    do { return try chatRequest(path, command, requires: .projects, fields: fields, timeout: timeout) } catch ControlError.remote(let reason) where reason.isHostLacking(command) {
+/// `chatRequest` for the `projects` capability (or `capability`, for a request whose reply changed later), but a host that does not list it is told in the words of what to do about it.
+func projectsRequest<Reply: Decodable>(_ path: String, _ command: String, requires capability: ControlClient.Capability = .projects, fields: String = "", timeout: TimeInterval = 5) throws -> Reply {
+    do { return try chatRequest(path, command, requires: capability, fields: fields, timeout: timeout) } catch ControlError.remote(let reason) where reason.isHostLacking(command) {
         throw ControlError.remote(.projectsNeedNewerHost)
     }
 }

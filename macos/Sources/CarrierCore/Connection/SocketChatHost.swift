@@ -154,7 +154,7 @@ public struct SocketChatHost: ChatHost {
         if folder.isEmpty || folder.count > 4096 { throw ControlError.remote(.folderUnusable) }
         let fields = ",\"folder\":\(jsonString(folder))"
         let path = socketPath()
-        return try await Task.detached { try projectsRequest(path, "projectWorktrees", fields: fields) }.value
+        return try await Task.detached { try projectsRequest(path, "projectWorktrees", requires: .worktreeIntegration, fields: fields) }.value
     }
 
     public func projectDisk(_ folders: [String], refresh: ProjectDiskRefresh) async throws -> ProjectDiskReply {

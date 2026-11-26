@@ -51,8 +51,8 @@ private let now = Date(timeIntervalSince1970: 1_800_000_000)
 
 @Test func theWorktreeRowsCarryTheSizeOfEachFolderAndADashForOneNotMeasured() {
     let reply = ProjectWorktrees(main: .init(path: "/p/app", branch: "main"), worktrees: [
-        .init(path: "/w/a", branch: "carrier/a", session: .init(id: "1", title: "Add retry"), lastActiveAt: 0, state: .clean),
-        .init(path: "/w/new", branch: "carrier/new", session: nil, lastActiveAt: 0, state: .clean),
+        .init(path: "/w/a", branch: "carrier/a", session: .init(id: "1", title: "Add retry"), lastActiveAt: 0, integration: .pushed),
+        .init(path: "/w/new", branch: "carrier/new", session: nil, lastActiveAt: 0, integration: .pushed),
     ])
     let rows = worktreeRows(reply, sizes: ["/p/app": 1_830_000_000, "/w/a": 310_000], now: now, format: format, bundle: english.bundle, locale: english.locale)
     #expect(rows.map(\.size) == ["1.8 GB", "310 KB", "—"])
@@ -63,9 +63,9 @@ private let now = Date(timeIntervalSince1970: 1_800_000_000)
 
 @Test func theBarGivesEachFolderItsShareInTheOrderOfTheRowsAndLeavesOutWhatHasNoSize() {
     let reply = ProjectWorktrees(main: .init(path: "/p/app", branch: "main"), worktrees: [
-        .init(path: "/w/a", branch: nil, session: nil, lastActiveAt: 0, state: .clean),
-        .init(path: "/w/empty", branch: nil, session: nil, lastActiveAt: 0, state: .clean),
-        .init(path: "/w/new", branch: nil, session: nil, lastActiveAt: 0, state: .clean),
+        .init(path: "/w/a", branch: nil, session: nil, lastActiveAt: 0, integration: .pushed),
+        .init(path: "/w/empty", branch: nil, session: nil, lastActiveAt: 0, integration: .pushed),
+        .init(path: "/w/new", branch: nil, session: nil, lastActiveAt: 0, integration: .pushed),
     ])
     let shares = diskShares(worktreeRows(reply, sizes: ["/p/app": 750, "/w/a": 250, "/w/empty": 0], now: now, format: format, bundle: english.bundle, locale: english.locale))
     #expect(shares == [DiskShare(id: "/p/app", fraction: 0.75), DiskShare(id: "/w/a", fraction: 0.25)])

@@ -37,9 +37,11 @@ class FakePulls implements PullRequests {
   found: Record<string, PullRequestInfo | null> = {};
   open: Record<string, PullRequestInfo> = {};
   finds: string[] = [];
+  sinces: number[] = [];
   asked: string[][] = [];
-  async find(repo: string, branch: string) {
+  async find(repo: string, branch: string, since: number) {
     this.finds.push(`${repo}:${branch}`);
+    this.sinces.push(since);
     return this.found[`${repo}:${branch}`] ?? null;
   }
   async states(refs: { repo: string; number: number }[]) {
@@ -194,6 +196,8 @@ test('the pull request of the branch is looked for when a turn ends and kept: th
   expect(s.data.view(s.row()).pr).toBeNull();
   await s.data.afterTurn(s.id);
   expect(s.pulls.finds).toEqual(['AshuLab/carrier:feat/x']);
+  // a pull request closed before the session was created is an older branch of the same name
+  expect(s.pulls.sinces).toEqual([s.row().createdAt]);
   expect(s.data.view(s.row()).pr).toEqual({ repo: 'AshuLab/carrier', number: 983, url: 'https://github.com/AshuLab/carrier/pull/983', state: 'draft', checks: null });
   // linked and open: the next turn asks its state by number and does not look for it again
   s.pulls.open['ashulab/carrier#983'] = pr(983, 'open', 'passing');

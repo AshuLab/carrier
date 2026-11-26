@@ -107,7 +107,7 @@ public protocol ChatHost {
     /// Changes one of the session's options; the host refuses a value the provider does not list and an option that can only change between turns.
     func setOption(_ id: String, option: String, value: String) async throws
     /// Closes the session's agent and leaves the session listed as asleep, freeing its memory; a message wakes it where it left off. Nothing to do for a session that is not live.
-    /// Only for a host whose hello lists `close`: `capabilities()` says it. The caller does not ask for a session that works or waits, since closing it ends the turn.
+    /// The caller does not ask for a session that works or waits, since closing it ends the turn.
     func close(_ id: String) async throws
     /// Sets or clears the archived mark; the host refuses a session that is working or waiting for an approval.
     func archive(_ id: String, _ archived: Bool) async throws

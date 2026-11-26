@@ -107,3 +107,13 @@ test('the editPersona request that points at an extra reviewer and its reply equ
 test('the editFailover request that points at an extra reviewer and its reply equal engine-edit-extra-reviewer-failover.json', () => {
   golden('engine-edit-extra-reviewer-failover', { cmd: 'editFailover', role: { extraReviewer: 'seguridad-api' }, first: { provider: 'agy', model: 'gemini', effort: 'low' }, second: null }, withExtraReviewers);
 });
+
+test('the setRepoExtraReviewers requests, its own list, none and the key taken out, and their replies equal engine-set-repo-extra-reviewers.json, -none.json and -global.json', () => {
+  const sec = { type: 'security', name: 'Seguridad API', profile: 'author-bot', provider: 'claude', model: 'sonnet', effort: 'high' };
+  golden('engine-set-repo-extra-reviewers', { cmd: 'setRepoExtraReviewers', repo: 'acme/web', reviewers: { 'seguridad-api': sec, usabilidad: { type: 'ux', name: 'Usabilidad', profile: 'reviewer-bot', provider: 'codex', model: 'gpt-5' } } });
+  golden('engine-set-repo-extra-reviewers-none', { cmd: 'setRepoExtraReviewers', repo: 'acme/web', reviewers: {} });
+  golden('engine-set-repo-extra-reviewers-global', { cmd: 'setRepoExtraReviewers', repo: 'acme/web', reviewers: null }, {
+    ...validEngineFile,
+    repos: [validEngineFile.repos[0], { name: 'acme/web', agents: { author: { model: 'opus' }, extraReviewers: { 'seguridad-api': sec } } }],
+  });
+});

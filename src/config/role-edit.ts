@@ -1,6 +1,6 @@
 import { readForgeAgents } from '../terminal/wizard/forge-registry.ts';
 import { isObject, readObject, refuse, write } from './engine-edit.ts';
-import { extraReviewerKey, maxSlugLength, slugPattern } from './extra-reviewer-key.ts';
+import { extraReviewerKey, maxSlugLength, reservedKeys, slugPattern } from './extra-reviewer-key.ts';
 import { providersProblem, readProvidersFile } from './providers.ts';
 import { efforts } from './schema.ts';
 
@@ -257,6 +257,44 @@ export function removeExtraReviewer(key: string, file: string, folder: string) {
   const { extraReviewers: _old, ...rest } = agents;
   write(file, { ...current, agents: Object.keys(extras).length > 0 ? { ...rest, extraReviewers: extras } : rest }, folder);
   return { saved: {} };
+}
+
+/** What a repo's own extra reviewer carries as `setRepoExtraReviewers` takes it; a field left out is refused by name. Persona, failover steps and skills are the Reviewer's. */
+export type RepoExtraReviewer = { type?: string; name?: string; profile?: string; provider?: string; model?: string; effort?: string };
+
+/** A repo's own list of extra reviewers, sent whole: a map replaces the repo's earlier one, `{}` is none and `null` takes the key out (the global map applies). The repo's other `agents` keys stay, and `agents` goes when it is left empty. */
+export function setRepoExtraReviewers(repo: string, reviewers: Record<string, RepoExtraReviewer> | null, file: string, folder: string) {
+  const current = readObject(file);
+  const repos = Array.isArray(current.repos) ? [...current.repos] : [];
+  const index = repos.findIndex((entry) => isObject(entry) && entry.name === repo);
+  if (index === -1) throw refuse('repos', 'notWatched', `${repo} is no longer in the config file.`);
+  const at = `repos[${index}].agents.extraReviewers`;
+  let own: Record<string, Json> | undefined;
+  if (reviewers !== null) {
+    if (Object.keys(reviewers).length > maxExtraReviewers) throw refuse(at, 'full', `At most ${maxExtraReviewers} extra reviewers.`);
+    const profiles = Object.keys(object(current.profiles));
+    const accounts = accountsOf(folder);
+    own = {};
+    for (const [key, sent] of Object.entries(reviewers)) {
+      const where = `${at}.${key}`;
+      if (slugPattern.test(key) === false || (reservedKeys as readonly string[]).includes(key)) throw refuse(where, 'badKey', `The key “${key}” is a slug of up to 40 characters that starts with a letter, and it is not ${reservedKeys.join(', ')}.`);
+      const missing = (['type', 'name', 'profile', 'provider', 'model'] as const).filter((label) => text(sent[label]) === undefined);
+      if (missing.length > 0) throw refuse(`${where}.${missing[0]}`, 'incomplete', `An extra reviewer needs ${missing.join(', ')}.`);
+      const entry: Json = { type: checkedType(sent.type!, where), name: checkedName(sent.name!, Object.values(own), where), profile: text(sent.profile), provider: text(sent.provider), model: text(sent.model) };
+      if (text(sent.effort) !== undefined) entry.effort = text(sent.effort);
+      fieldsProblem({ profile: text(sent.profile), provider: text(sent.provider), effort: text(sent.effort) }, profiles, accounts, where);
+      own[key] = entry;
+    }
+  }
+  const entry = object(repos[index]);
+  const agents = object(entry.agents);
+  if (own === undefined) delete agents.extraReviewers;
+  else agents.extraReviewers = own;
+  if (Object.keys(agents).length > 0) entry.agents = agents;
+  else delete entry.agents;
+  repos[index] = entry;
+  write(file, { ...current, repos }, folder);
+  return { saved: { repos: [entry] } };
 }
 
 /** A repo's own role: the fields that are set, the entry's other keys kept; the entry goes when nothing is left (and `agents` with the last), and `fields: null` takes it out whole. */

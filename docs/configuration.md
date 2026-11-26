@@ -29,7 +29,7 @@ One process writes each of the four config files, and a front-end (the Mac app) 
 
 | File | Written by | Requests (the `config` capability of its socket) |
 |---|---|---|
-| `engine.json` | the engine | `setWatchedRepos`, `editBehavior`, `editRole`, `editRepoRole`, `editPersona`, `editFailover`, `setLeadReviewer`, `setOrchestratorProfile`, `addExtraReviewer`, `removeExtraReviewer` |
+| `engine.json` | the engine | `setWatchedRepos`, `editBehavior`, `editRole`, `editRepoRole`, `editPersona`, `editFailover`, `setLeadReviewer`, `setOrchestratorProfile`, `addExtraReviewer`, `removeExtraReviewer`, `setRepoExtraReviewers` |
 | `providers.json` | the chat host | `setAccounts`, `addAccount`, `editAccount`, `removeAccount`, `setTextGenerator` |
 | `projects.json` | the chat host | `addProject`, `removeProject`, `editProject`, `moveProject`, `editProjectIcon`, `editProjectDefaults`, `editProjectTags`, `setProjectActions` |
 | `chat.json` | the chat host | `editChatSettings`, `setProjectsFolder` |
@@ -362,6 +362,9 @@ A resume at `review` or `fix` (`carrier restart --from`) of an epic that stopped
   When it was the last one, `extraReviewers` goes out of `agents` and the file reads as one with no extra reviewer.
   A key the file does not hold is refused, naming it, and the file stays as it was.
   An epic that is already running keeps the reviewers it started with.
+- `setRepoExtraReviewers` sets the own list of a repo the file watches, sent whole: a map from a key to `type`, `name`, `profile`, `provider`, `model` and an optional `effort` replaces the repo's `agents.extraReviewers` and keeps nothing of the earlier one (its persona, failover steps and skills are the Reviewer's), `{}` writes the empty map so an epic of that repo runs no extra reviewer, and `null` takes the key out so it runs the global ones.
+  The other keys of the repo's `agents` stay, and `agents` goes when it is left empty.
+  The engine refuses the request, naming the field, for a repo the file does not watch, for more than three entries, for a key, name or type that breaks the rules above, for an entry that lacks a `profile`, a `provider` or a `model`, and for a profile, an account or an effort the file does not know, and the file stays as it was.
 - `editRole`, `editPersona` and `editFailover` take `{ "extraReviewer": "<key>" }` in place of a role name, and change only what they name, with the rules and the refusals they have for the Reviewer.
   `editRole` also takes `name` and `type` for an extra reviewer, with the rules of a name and a type above (the key never changes), and refuses them for the author, the reviewer and the lead.
   `editFailover` writes the `failover` of the reviewer's own entry, not `failover.roles`, and takes it out when both steps are `null`, so the reviewer goes back to the Reviewer's steps; a change of the reviewer's provider and model drops an own step that now means nothing.

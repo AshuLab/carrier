@@ -1,6 +1,6 @@
 import Foundation
 
-// What the top of the Agents page says (docs/macos/settings-carrier.md): whether the roles of an epic are set up, and what is in the way; and what
+// What the top of the Roles page says (docs/macos/settings-carrier.md): whether the roles of an epic are set up, and what is in the way; and what
 // each role runs, stage by stage. Decided here from what the page reads, so it can be tested; the views only draw it.
 
 /// One thing in the way of a role: said with the role's name in front.
@@ -15,11 +15,11 @@ public struct RoleProblem: Equatable, Identifiable {
     public init(role: AgentRole, text: String, bundle: Bundle? = nil, locale: Locale = .current) {
         self.role = role
         self.text = text
-        line = Copy.agentsProblemLine(role: role.title(bundle: bundle, locale: locale), text: text, bundle: bundle, locale: locale)
+        line = Copy.rolesProblemLine(role: role.title(bundle: bundle, locale: locale), text: text, bundle: bundle, locale: locale)
     }
 }
 
-public struct AgentsReadiness: Equatable {
+public struct RolesReadiness: Equatable {
     public enum Tone: Equatable { case ready, attention }
 
     public let tone: Tone
@@ -33,50 +33,50 @@ public struct AgentsReadiness: Equatable {
 
 /// Whether Author, Reviewer and (when it is on) the Lead reviewer each have an identity, an account of `providers.json` and a model. It says nothing
 /// of whether an account is signed in: that is the Providers page's answer.
-public func agentsReadiness(_ page: AgentsPage, bundle: Bundle? = nil, locale: Locale = .current) -> AgentsReadiness {
+public func rolesReadiness(_ page: RolesPage, bundle: Bundle? = nil, locale: Locale = .current) -> RolesReadiness {
     let active = page.rows.filter { $0.off == false }
     var problems: [RoleProblem] = []
     for row in active {
         switch row.identity {
         case .forge, .gh: break
         case .missing:
-            problems.append(RoleProblem(role: row.role, text: Copy.agentsProblemIdentity(profile: row.fields.profile ?? "", bundle: bundle, locale: locale), bundle: bundle, locale: locale))
-        case .unset: problems.append(RoleProblem(role: row.role, text: Copy.agentsProblemNoIdentity(bundle: bundle, locale: locale), bundle: bundle, locale: locale))
+            problems.append(RoleProblem(role: row.role, text: Copy.rolesProblemIdentity(profile: row.fields.profile ?? "", bundle: bundle, locale: locale), bundle: bundle, locale: locale))
+        case .unset: problems.append(RoleProblem(role: row.role, text: Copy.rolesProblemNoIdentity(bundle: bundle, locale: locale), bundle: bundle, locale: locale))
         }
         if let provider = row.fields.provider, provider.isEmpty == false {
             if row.providerMissing {
-                problems.append(RoleProblem(role: row.role, text: Copy.agentsProblemAccount(provider: provider, bundle: bundle, locale: locale), bundle: bundle, locale: locale))
+                problems.append(RoleProblem(role: row.role, text: Copy.rolesProblemAccount(provider: provider, bundle: bundle, locale: locale), bundle: bundle, locale: locale))
             }
         } else {
-            problems.append(RoleProblem(role: row.role, text: Copy.agentsProblemNoAccount(bundle: bundle, locale: locale), bundle: bundle, locale: locale))
+            problems.append(RoleProblem(role: row.role, text: Copy.rolesProblemNoAccount(bundle: bundle, locale: locale), bundle: bundle, locale: locale))
         }
         if row.fields.model?.isEmpty ?? true {
-            problems.append(RoleProblem(role: row.role, text: Copy.agentsProblemNoModel(bundle: bundle, locale: locale), bundle: bundle, locale: locale))
+            problems.append(RoleProblem(role: row.role, text: Copy.rolesProblemNoModel(bundle: bundle, locale: locale), bundle: bundle, locale: locale))
         }
     }
     let lead = page.rows.first { $0.role == .leadReviewer }
     var notes: [String]
     let title: String
-    let tone: AgentsReadiness.Tone
+    let tone: RolesReadiness.Tone
     if problems.isEmpty {
         tone = .ready
-        title = lead?.off == true ? Copy.agentsTwoSet(bundle: bundle, locale: locale) : Copy.agentsAllSet(bundle: bundle, locale: locale)
-        notes = [lead?.off == true ? Copy.agentsLeadOff(bundle: bundle, locale: locale) : Copy.agentsEachHas(bundle: bundle, locale: locale)]
+        title = lead?.off == true ? Copy.rolesTwoSet(bundle: bundle, locale: locale) : Copy.rolesAllSet(bundle: bundle, locale: locale)
+        notes = [lead?.off == true ? Copy.rolesLeadOff(bundle: bundle, locale: locale) : Copy.rolesEachHas(bundle: bundle, locale: locale)]
     } else {
         tone = .attention
         let roles = Set(problems.map(\.role)).count
-        title = Copy.agentsNeedAttention(count: roles, bundle: bundle, locale: locale)
+        title = Copy.rolesNeedAttention(count: roles, bundle: bundle, locale: locale)
         notes = problems.map(\.line)
     }
     if let shared = page.sharedNote { notes.append(shared) }
-    return AgentsReadiness(tone: tone, title: title, notes: notes, problems: problems)
+    return RolesReadiness(tone: tone, title: title, notes: notes, problems: problems)
 }
 
 /// One step of an epic that runs a skill of Solve (`AshuLab/skills`) for a role.
 public struct RoleStage: Equatable, Identifiable {
     public let title: String
     public let detail: String
-    /// The skill the engine invokes in this stage, as the engine's defaults name it (`skills` in `engine.json`; `AgentsReadinessTests` reads them from the contract fixture and fails when this drifts).
+    /// The skill the engine invokes in this stage, as the engine's defaults name it (`skills` in `engine.json`; `RolesReadinessTests` reads them from the contract fixture and fails when this drifts).
     public let skill: String
     public var id: String { skill }
 }
@@ -88,15 +88,15 @@ extension AgentRole {
         switch self {
         case .author: [
             RoleStage(
-                title: Copy.agentsStageTitle(which: .first, bundle: bundle, locale: locale), detail: Copy.agentsStageDetail(which: .first, bundle: bundle, locale: locale), skill: "ship"),
+                title: Copy.rolesStageTitle(which: .first, bundle: bundle, locale: locale), detail: Copy.rolesStageDetail(which: .first, bundle: bundle, locale: locale), skill: "ship"),
             RoleStage(
-                title: Copy.agentsStageTitle(which: .answer, bundle: bundle, locale: locale), detail: Copy.agentsStageDetail(which: .answer, bundle: bundle, locale: locale), skill: "code-resolve"),
+                title: Copy.rolesStageTitle(which: .answer, bundle: bundle, locale: locale), detail: Copy.rolesStageDetail(which: .answer, bundle: bundle, locale: locale), skill: "code-resolve"),
         ]
         case .reviewer: [
             RoleStage(
-                title: Copy.agentsStageTitle(which: .review, bundle: bundle, locale: locale), detail: Copy.agentsStageDetail(which: .review, bundle: bundle, locale: locale), skill: "code-review"),
+                title: Copy.rolesStageTitle(which: .review, bundle: bundle, locale: locale), detail: Copy.rolesStageDetail(which: .review, bundle: bundle, locale: locale), skill: "code-review"),
             RoleStage(
-                title: Copy.agentsStageTitle(which: .post, bundle: bundle, locale: locale), detail: Copy.agentsStageDetail(which: .post, bundle: bundle, locale: locale), skill: "code-post"),
+                title: Copy.rolesStageTitle(which: .post, bundle: bundle, locale: locale), detail: Copy.rolesStageDetail(which: .post, bundle: bundle, locale: locale), skill: "code-post"),
         ]
         case .leadReviewer: []
         }

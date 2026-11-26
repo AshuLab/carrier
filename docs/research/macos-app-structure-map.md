@@ -76,7 +76,7 @@ macos/Sources/
     KeepAwake/    KeepAwake
     Updates/      UpdateFlow, UpdateDelay
     Health/       Health, HealthRows, DoctorChecks, SetupDetection, ...
-    Settings/     the window's pages as values, one subfolder for each page that is Carrier's config: Agents/, Watching/, Behavior/, Providers/, Engine/; the rest (SettingsIndex, SettingsHistory, SettingsPage, AppPreferences) at its top
+    Settings/     the window's pages as values, one subfolder for each page that is Carrier's config: Roles/, Watching/, Behavior/, Providers/, Engine/; the rest (SettingsIndex, SettingsHistory, SettingsPage, AppPreferences) at its top
     Platform/     only protocols: Recognizer, Microphone, KeepAwakeAssertion, Notifier, Updater, GlobalShortcut, Clipboard, ProcessRunner
     Theme/        the design tokens as values (generated) and what reads them: Theme, TypeScale, MonospaceSettings, IconSets, FileIcons, ProviderIcons
     Copy/         the copy keys (generated) and the language
@@ -109,7 +109,7 @@ macos/Sources/
       KeepAwake/  KeepAwakeTab
       Updates/    UpdatePill
       Health/     HealthTab, HealthFixButton, SetupController, CheckAgainButton
-      Settings/   SettingsWindow, SettingsSidebar, SettingsPages, General, Appearance, Notifications, Keybindings, About, NoticesGalleryView; Agents/, Watching/, Behavior/, Providers/, Engine/
+      Settings/   SettingsWindow, SettingsSidebar, SettingsPages, General, Appearance, Notifications, Keybindings, About, NoticesGalleryView; Roles/, Watching/, Behavior/, Providers/, Engine/
     Platform/     TerminalHost, CarrierTerminalView, TerminalAppearance, TerminalProcessInspector, CommandTextView, AppleRecognizer, FluidAudioRecognizer, WhisperKitRecognizer, MicrophoneCapture, CaptureConverter, DictationSoundPlayer, KeepAwakeController, GlobalHotKey, FocusedField, ClipboardPaste, SystemNotificationCentre, AppUpdater, IconController, MetricsSink, ProcessRun, BrewRunner, ShellDetector, ProgramVersions
 macos/Tests/
   CarrierCoreTests/<the same folders as CarrierCore>/
@@ -123,7 +123,7 @@ scripts/
 
 Two rules decide where a file goes when its name does not:
 
-- A page of Settings that changes one app area lives in that area (the Dictation, Terminal, Sessions, Projects and Keep awake pages); a page that is Carrier's config, or the app as a whole, lives under `Settings/` (Agents, Watching, Behavior, Providers, Engine, General, Appearance, Notifications, Keybindings, About).
+- A page of Settings that changes one app area lives in that area (the Dictation, Terminal, Sessions, Projects and Keep awake pages); a page that is Carrier's config, or the app as a whole, lives under `Settings/` (Roles, Watching, Behavior, Providers, Engine, General, Appearance, Notifications, Keybindings, About).
 - Only `Platform/` imports Ghostty, FluidAudio, WhisperKit, Speech, AVFoundation, IOKit, Carbon, ApplicationServices, UserNotifications, Sparkle, MetricKit or ServiceManagement; a file that needs one of them and also draws is split in two.
 
 ## Every file, by its new folder
@@ -144,7 +144,7 @@ Under `CarrierUI`, the files hold whole pieces today; the pieces hidden in scree
 - `Carrier/Features/Updates` [1]: UpdatePill (106).
 - `Carrier/Features/Health` [3]: HealthTab (127), SetupController (82), HealthFixButton (37).
 - `Carrier/Features/Settings` [5]: SettingsTabs (1,494, split: its pieces to `CarrierUI`, General, Appearance (with `ThemeGallery`, `AccentSwatches`) and Notifications (`NotificationsTabView`, the name `NotificationsTab` is `CarrierCore`'s) to `Settings/`, the toolbar's state to `SettingsToolbarState`, the Sidebar page to `Sessions/SidebarTab`, the Chat page to `Chat/ChatTab`), SettingsWindow (582, split: `SettingsSidebar`, `SettingsPages`, `EngineParts`), AboutTab (144), NoticesGalleryView (127), KeybindingsTab (119).
-- `Carrier/Features/Settings/Agents` [4]: AgentsTab (392), AgentsParts (228), RoleAvatar (132), CreateBotRow (26).
+- `Carrier/Features/Settings/Roles` [4]: RolesTab (392), RolesParts (228), RoleAvatar (132), CreateBotRow (26).
 - `Carrier/Features/Settings/Watching` [6]: WatchingTab (277), WatchingListScreen (172), WatchingRole (123), WatchingRepoScreen (91), WatchedReposView (68), WatchingBanner (36).
 - `Carrier/Features/Settings/Behavior` [1]: BehaviorTab (276, split: its button styles and `NumberField` to `CarrierUI`).
 - `Carrier/Features/Settings/Providers` [2]: ProvidersTab (553, split: `ProvidersTextGenerators`, `ProvidersParts`), ProvidersEditor (300).
@@ -164,7 +164,7 @@ Under `CarrierUI`, the files hold whole pieces today; the pieces hidden in scree
 - `CarrierCore/Updates` [2]: UpdateFlow (97), UpdateDelay (15).
 - `CarrierCore/Health` [6]: HealthRows (179), SetupDetection (132), DoctorChecks (105), Health (84), HealthFix (58), CheckPhase (30).
 - `CarrierCore/Settings` [12]: AppPreferences (903), SettingsIndex (265), Notifications (257), NotificationsTab (149), SettingsPage (101), SettingsHistory (40), SettingsNote (37), LogAccessibility (36), PublishedNote (29), AboutSheet (19), SheetSize (14), NoticeText (12).
-- `CarrierCore/Settings/Agents` [7]: AgentsPage (195), RepoRoles (125), RepoRoleSave (119), GlobalRoleSave (103), AgentsReadiness (100), RoleDetailsSave (91), AgentOffers (89).
+- `CarrierCore/Settings/Roles` [7]: RolesPage (195), RepoRoles (125), RepoRoleSave (119), GlobalRoleSave (103), RolesReadiness (100), RoleDetailsSave (91), AgentOffers (89).
 - `CarrierCore/Settings/Watching` [3]: RepoList (135), WatchingList (68), RepoChecks (62).
 - `CarrierCore/Settings/Behavior` [1]: BehaviorPage (47).
 - `CarrierCore/Settings/Providers` [5]: ProvidersPage (512), ProvidersEdit (257), ProvidersDirectory (131), ProviderIdentity (107), ProvidersFile (95).
@@ -221,7 +221,7 @@ Each is split until no file passes about 400 lines; a split follows what the fil
 | `ModelPicker` | runs a process | a model in `CarrierCore/Chat` through `Platform/ProcessRun` |
 | `ProjectsTab` | reads and writes files | the chat host's requests ([0053](../adr/config/0053-a-carrier-config-file-has-one-owner-process-and-a-front-end-writes-it-through-that-process.md)) |
 | `WatchingTab` | reads and writes `engine.json` | the engine's requests |
-| `AgentsTab`, `BehaviorTab`, `SettingsWindow` | read or write files | the owner's requests |
+| `RolesTab`, `BehaviorTab`, `SettingsWindow` | read or write files | the owner's requests |
 | `HealthTab` | opens a socket | `CarrierCore/Connection` |
 
 ## Config the app writes today, and the request that replaces each write

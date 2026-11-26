@@ -14,8 +14,8 @@ struct WatchingTabView: View {
     var go: (SettingsPlace) -> Void = { _ in }
     let state: ConnectionState?
     let canReload: Bool
-    /// Open Agents: the page of the global roles, which every repo inherits.
-    let openAgents: () -> Void
+    /// Open Roles: the page of the global roles, which every repo inherits.
+    let openRoles: () -> Void
     @ObservedObject private var start = StartController.shared
     @State private var saved: [String] = []
     @State private var draft: [String] = []
@@ -194,13 +194,13 @@ struct WatchingTabView: View {
     }
 
     /// A repo's roles as the repo has them: the global ones with its own over them. nil when the file does not read.
-    private func rolesPage(of repo: RepoRow) -> AgentsPage? {
+    private func rolesPage(of repo: RepoRow) -> RolesPage? {
         guard let configData, let bots else { return nil }
-        return repoAgentsPage(config: configData, providers: providersData, bots: bots, repo: repo.name)
+        return repoRolesPage(config: configData, providers: providersData, bots: bots, repo: repo.name)
     }
 
     /// The chosen repo's screen. Open on GitHub and Check again are the toolbar's.
-    private func repoScreen(_ row: RepoRow, page: AgentsPage?) -> some View {
+    private func repoScreen(_ row: RepoRow, page: RolesPage?) -> some View {
         let status = repoStatus(row, engine: engine, cloneExists: FileManager.default.fileExists(atPath: row.clonePath(engine: engine)), notLoaded: settingsNote(state: state, canReload: canReload, outcome: reloaded.outcome))
         let owner = project(of: row)
         let roles = configData.flatMap { repoRoles(json: $0, repo: row.name) }
@@ -215,7 +215,7 @@ struct WatchingTabView: View {
     }
 
     /// A role's screen in the repo.
-    @ViewBuilder private func roleScreen(_ repo: RepoRow, _ row: RoleRow, page: AgentsPage) -> some View {
+    @ViewBuilder private func roleScreen(_ repo: RepoRow, _ row: RoleRow, page: RolesPage) -> some View {
         if let mine = configData.flatMap({ repoRoles(json: $0, repo: repo.name) })?.rows.first(where: { $0.role == row.role }), let roles = configData.flatMap({ repoRoles(json: $0, repo: repo.name) }) {
             RepoRoleScreen(
                 row: row, mine: mine, page: page, profiles: roles.profiles, accounts: declaredAccounts(providersJSON: providersData), icons: accountIcons(providersJSON: providersData),

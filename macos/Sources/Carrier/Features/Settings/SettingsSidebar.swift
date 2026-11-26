@@ -122,7 +122,7 @@ extension SettingsPage {
         case .projects: .mint
         case .sidebar: .cyan
         case .terminal: Color(Tokens.Tile.terminal)
-        case .agents: .orange
+        case .roles: .orange
         case .watching, .health: .green
         case .behavior: .brown
         }

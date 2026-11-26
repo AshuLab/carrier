@@ -259,7 +259,7 @@ describe('what a repo\'s page writes under repos[].agents', () => {
   });
 });
 
-describe('what the Agents page writes under agents.<role> and profiles', () => {
+describe('what the Roles page writes under agents.<role> and profiles', () => {
   const author = valid.agents.author;
   const bot = { kind: 'forge', agent: 'spare' };
 

@@ -137,11 +137,11 @@ private func found(_ query: String, _ language: (bundle: Bundle, locale: Locale)
     #expect(found("inactivity timeout", english).contains { $0.rowID == "sleep-after" })
     #expect(found("tiempo de inactividad", spanish).contains { $0.rowID == "sleep-after" })
     #expect(englishIndex.first { $0.rowID == "sleep-after" }?.detail.contains("timeout") == false)
-    // the shortcut of a row of Keybindings and the stage of an Agents role are sentences with arguments
+    // the shortcut of a row of Keybindings and the stage of a role of Roles are sentences with arguments
     #expect(spanishIndex.first { $0.rowID == "newSession" }?.detail == "Predeterminado: ⌘N")
     #expect(englishIndex.first { $0.rowID == "newSession" }?.detail == "Default: ⌘N")
-    #expect(spanishIndex.first { $0.page == .agents && $0.groupID == "skills" }?.detail.contains(". Ejecuta la skill ") == true)
-    #expect(englishIndex.first { $0.page == .agents && $0.groupID == "skills" }?.detail.contains(". Runs the skill ") == true)
+    #expect(spanishIndex.first { $0.page == .roles && $0.groupID == "skills" }?.detail.contains(". Ejecuta la skill ") == true)
+    #expect(englishIndex.first { $0.page == .roles && $0.groupID == "skills" }?.detail.contains(". Runs the skill ") == true)
 }
 
 @Test func theAnchorAndTheIdOfEveryEntryAreTheSameInEnglishAndInSpanishAndEachIsUnique() {

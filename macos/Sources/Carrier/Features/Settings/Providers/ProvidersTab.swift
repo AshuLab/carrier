@@ -12,8 +12,8 @@ struct ProvidersTabView: View {
     let place: SettingsPlace
     let go: (SettingsPlace) -> Void
     let back: () -> Void
-    /// Use in an agent… on an account no role names: opens the Agents page.
-    let openAgents: () -> Void
+    /// Use in a role… on an account no role names: opens the Roles page.
+    let openRoles: () -> Void
     let store = AppHealth.providers
     private let usage = AppUsage.store
     @State private var config: Data?
@@ -244,8 +244,8 @@ struct ProvidersTabView: View {
         }
         if account.state == .ready, account.uses.isEmpty {
             SettingsGroup(title: "") {
-                SettingsTabRow(title: Copy.providersUseInAgent(), detail: Copy.providersUseInAgentDetail(account: account.name), first: true) {
-                    Button(Copy.providersOpenAgents(), action: openAgents).buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
+                SettingsTabRow(title: Copy.providersUseInRole(), detail: Copy.providersUseInRoleDetail(account: account.name), first: true) {
+                    Button(Copy.providersOpenRoles(), action: openRoles).buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
                 }
             }
         }
@@ -280,7 +280,7 @@ struct ProvidersTabView: View {
             failure = nil
         } catch {
             NSLog("Carrier: provider \(action.rawValue) in Terminal failed: %@", String(describing: error))
-            failure = error is ProviderCommandError ? Copy.providersTerminalFailed() : Copy.agentsCouldNotOpenTerminal()
+            failure = error is ProviderCommandError ? Copy.providersTerminalFailed() : Copy.rolesCouldNotOpenTerminal()
         }
     }
 }

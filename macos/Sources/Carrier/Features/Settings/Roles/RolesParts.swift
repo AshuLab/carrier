@@ -2,11 +2,11 @@ import CarrierCore
 import CarrierUI
 import SwiftUI
 
-// The pieces of the Agents page that are not rows of a form: the card at the top of the first screen, the rail of roles under it, and the top of a
-// role's screen (its picture and where it sits in an epic). AgentsTab.swift puts them together.
+// The pieces of the Roles page that are not rows of a form: the card at the top of the first screen, the rail of roles under it, and the top of a
+// role's screen (its picture and where it sits in an epic). RolesTab.swift puts them together.
 
 /// The avatar of a role as the page draws it everywhere: the bot's picture (by `appIds` of the registry) and the mark of the account it runs on.
-func roleAvatar(_ row: RoleRow, page: AgentsPage, icons: [String: String], size: CGFloat) -> RoleAvatar {
+func roleAvatar(_ row: RoleRow, page: RolesPage, icons: [String: String], size: CGFloat) -> RoleAvatar {
     var appId: String?
     if case .forge(let bot) = row.identity { appId = page.bots.appIds[bot] }
     return RoleAvatar(
@@ -16,8 +16,8 @@ func roleAvatar(_ row: RoleRow, page: AgentsPage, icons: [String: String], size:
 }
 
 /// The card at the top of the first screen: whether the roles of an epic are set up, and what is in the way, with a button to the role to fix.
-struct AgentsStatusCard: View {
-    let readiness: AgentsReadiness
+struct RolesStatusCard: View {
+    let readiness: RolesReadiness
     let open: (AgentRole) -> Void
 
     var body: some View {
@@ -30,7 +30,7 @@ struct AgentsStatusCard: View {
                     Text(note).scaledFont(12).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
                 if let fix = readiness.fix {
-                    Button { open(fix) } label: { Label(Copy.agentsOpenRole(role: fix.title()), icon: .arrowRight).labelStyle(.titleAndIcon) }
+                    Button { open(fix) } label: { Label(Copy.rolesOpenRole(role: fix.title()), icon: .arrowRight).labelStyle(.titleAndIcon) }
                         .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).padding(.top, Tokens.Space.s4)
                 }
             }
@@ -45,15 +45,15 @@ struct AgentsStatusCard: View {
 /// request, the reviewer asks for changes and the author answers until the review passes, and then the lead reviewer. One row of the form with the
 /// rail drawn through it (separate rows would break the line at every edge). Each role is a button that opens its screen.
 struct EpicRail: View {
-    let page: AgentsPage
-    let readiness: AgentsReadiness
+    let page: RolesPage
+    let readiness: RolesReadiness
     let icons: [String: String]
-    /// On a repo's screen: the roles the repo has its own settings for; every row then says whether it is one of them or follows Agents. nil on Agents itself.
+    /// On a repo's screen: the roles the repo has its own settings for; every row then says whether it is one of them or follows Roles. nil on Roles itself.
     var own: Set<AgentRole>?
     let open: (AgentRole) -> Void
 
     /// The title of the group the rows are in, which the search finds them by.
-    static var group: String { Copy.agentsRailGroup() }
+    static var group: String { Copy.rolesRailGroup() }
     static let groupID = "how-an-epic-runs"
 
     var body: some View {
@@ -74,12 +74,12 @@ struct EpicRail: View {
         if next.role == .reviewer {
             RailLink(dashed: false) {
                 FlowLayout(spacing: Tokens.Space.s8) {
-                    Text(Copy.agentsRailOpens())
-                    StatusChip(text: Copy.agentsRailAsks(), tint: .secondary)
+                    Text(Copy.rolesRailOpens())
+                    StatusChip(text: Copy.rolesRailAsks(), tint: .secondary)
                 }
             }
         } else {
-            RailLink(dashed: next.off) { Text(next.off ? Copy.agentsRailLeadOff() : Copy.agentsRailPasses()) }
+            RailLink(dashed: next.off) { Text(next.off ? Copy.rolesRailLeadOff() : Copy.rolesRailPasses()) }
         }
     }
 }
@@ -88,7 +88,7 @@ private struct RoleRailRow: View {
     @Environment(\.pieceTheme) private var theme
     let row: RoleRow
     let needsAttention: Bool
-    /// Whether the repo has settings of its own for the role (a repo's screen), nil on Agents.
+    /// Whether the repo has settings of its own for the role (a repo's screen), nil on Roles.
     var own: Bool?
     let avatar: RoleAvatar
     let action: () -> Void
@@ -104,7 +104,7 @@ private struct RoleRailRow: View {
                 }
                 Spacer(minLength: 8)
                 trailing
-                if let own { StatusChip(text: own ? Copy.agentsOwn() : Copy.agentsSameAsEverywhere(), tint: own ? theme.accent : .secondary) }
+                if let own { StatusChip(text: own ? Copy.rolesOwn() : Copy.rolesSameAsEverywhere(), tint: own ? theme.accent : .secondary) }
                 Glyph(.chevronRight, size: 13, bold: true).foregroundStyle(.tertiary)
             }
             .padding(.horizontal, Tokens.Space.s8).frame(minHeight: 54)
@@ -119,14 +119,14 @@ private struct RoleRailRow: View {
 
     @ViewBuilder private var trailing: some View {
         if row.off {
-            StatusChip(text: Copy.agentsOff(), tint: .secondary)
+            StatusChip(text: Copy.rolesOff(), tint: .secondary)
         } else if needsAttention {
-            StatusChip(text: Copy.agentsNeedsAttention(), tint: .orange)
+            StatusChip(text: Copy.rolesNeedsAttention(), tint: .orange)
         } else {
             let model = [row.fields.model, row.fields.effort].compactMap { $0 }.filter { $0.isEmpty == false }.joined(separator: " \u{00b7} ")
             VStack(alignment: .trailing, spacing: Tokens.Space.s1) {
-                Text(model.isEmpty ? Copy.agentsNoModel() : model).scaledFont(12).foregroundStyle(model.isEmpty ? .secondary : .primary)
-                Text(row.fields.profile ?? Copy.agentsNoIdentity()).scaledFont(12).foregroundStyle(.secondary)
+                Text(model.isEmpty ? Copy.rolesNoModel() : model).scaledFont(12).foregroundStyle(model.isEmpty ? .secondary : .primary)
+                Text(row.fields.profile ?? Copy.rolesNoIdentity()).scaledFont(12).foregroundStyle(.secondary)
             }
             .lineLimit(1).truncationMode(.middle).frame(maxWidth: 250, alignment: .trailing)
         }
@@ -163,7 +163,7 @@ private struct RailLine: Shape {
 /// are links, so a person goes from one to the next without going back.
 struct RoleHero: View {
     let row: RoleRow
-    let page: AgentsPage
+    let page: RolesPage
     let icons: [String: String]
     private let store = ForgeAvatarStore.shared
 
@@ -184,18 +184,18 @@ struct RoleHero: View {
     private var name: String {
         switch row.identity {
         case .forge(let bot): bot
-        case .gh: Copy.agentsIdentityGh()
-        case .missing: row.fields.profile ?? Copy.agentsUnknownIdentity()
-        case .unset: Copy.agentsNoIdentityYet()
+        case .gh: Copy.rolesIdentityGh()
+        case .missing: row.fields.profile ?? Copy.rolesUnknownIdentity()
+        case .unset: Copy.rolesNoIdentityYet()
         }
     }
 
     @ViewBuilder private var source: some View {
         switch row.identity {
         case .forge(let bot):
-            StatusChip(text: store.image(for: page.bots.appIds[bot]) == nil ? Copy.agentsInitials() : Copy.agentsPicture(), tint: .secondary)
-        case .gh: StatusChip(text: Copy.agentsOwnAccount(), tint: .secondary)
-        case .missing: StatusChip(text: Copy.agentsNotInForge(), tint: .orange)
+            StatusChip(text: store.image(for: page.bots.appIds[bot]) == nil ? Copy.rolesInitials() : Copy.rolesPicture(), tint: .secondary)
+        case .gh: StatusChip(text: Copy.rolesOwnAccount(), tint: .secondary)
+        case .missing: StatusChip(text: Copy.rolesNotInForge(), tint: .orange)
         case .unset: EmptyView()
         }
     }
@@ -209,7 +209,7 @@ struct RoleFlowStrip: View {
 
     var body: some View {
         FlowLayout(spacing: Tokens.Space.s8) {
-            Text(Copy.agentsInAnEpic()).scaledFont(11.5).foregroundStyle(.secondary)
+            Text(Copy.rolesInAnEpic()).scaledFont(11.5).foregroundStyle(.secondary)
             ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
                 if index > 0 {
                     Glyph(index == 1 ? .exchange : .arrowRight, size: 11).foregroundStyle(.tertiary).accessibilityHidden(true)
@@ -220,7 +220,7 @@ struct RoleFlowStrip: View {
                         .accessibilityAddTraits(.isSelected)
                 } else {
                     // a role that is off says so in words, not only in a lighter button
-                    Button { open(row.role) } label: { Text(row.off ? Copy.agentsRoleOff(role: row.title()) : row.title()) }
+                    Button { open(row.role) } label: { Text(row.off ? Copy.rolesRoleOff(role: row.title()) : row.title()) }
                         .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
                 }
             }

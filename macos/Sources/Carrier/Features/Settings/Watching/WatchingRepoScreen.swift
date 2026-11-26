@@ -3,7 +3,7 @@ import CarrierUI
 import SwiftUI
 
 /// A repository's screen, a group for each thing it says or does, in the order of what a person comes here for: how it stands (Status), whether Carrier can work in
-/// it (Ready for Carrier), who works there (the rail of Agents, each role opening its own screen), what it is (the project, the clone, GitHub) and, last and apart,
+/// it (Ready for Carrier), who works there (the rail of Roles, each role opening its own screen), what it is (the project, the clone, GitHub) and, last and apart,
 /// Stop watching. Open on GitHub and Check again are the toolbar's.
 struct RepoScreen: View {
     let row: RepoRow
@@ -13,7 +13,7 @@ struct RepoScreen: View {
     let checks: RepoChecks
     let checking: Bool
     /// The repository's roles as it has them, and the ones it has settings of its own for; nil while the file does not read.
-    let roles: (page: AgentsPage, own: Set<AgentRole>)?
+    let roles: (page: RolesPage, own: Set<AgentRole>)?
     let icons: [String: String]
     /// The doctor's refusal of the config, said under Who works here.
     let refusal: String?
@@ -37,7 +37,7 @@ struct RepoScreen: View {
         }
         if let roles {
             SettingsGroup(id: "who-works-here", title: Copy.watchingGroupWho(), footer: refusal ?? Copy.watchingWhoFooter()) {
-                EpicRail(page: roles.page, readiness: agentsReadiness(roles.page), icons: icons, own: roles.own, open: openRole)
+                EpicRail(page: roles.page, readiness: rolesReadiness(roles.page), icons: icons, own: roles.own, open: openRole)
             }
         }
         SettingsGroup(id: "repository", title: Copy.watchingGroupRepository()) {

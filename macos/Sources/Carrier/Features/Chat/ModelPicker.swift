@@ -2,7 +2,7 @@ import CarrierCore
 import CarrierUI
 import SwiftUI
 
-/// The models each provider offers, for the Agents page's picker: asked of the chat host (the same list the message box shows) and kept in the
+/// The models each provider offers, for the Roles page's picker: asked of the chat host (the same list the message box shows) and kept in the
 /// app's offer store, so the picker has them as soon as it opens.
 @MainActor @Observable final class ModelCatalog {
     static let shared = ModelCatalog()

@@ -26,7 +26,7 @@ extension AppDelegate {
         do {
             let server = try FixtureServer(fixtures: fixtures, longTranscript: CommandLine.arguments.contains("--fixture-long-transcript"))
             setenv("CARRIER_HOME", server.home, 1)
-            // the Agents page lists the bots of this registry: names and GitHub App ids, never a key (no picture is fetched under --fixture)
+            // the Roles page lists the bots of this registry: names and GitHub App ids, never a key (no picture is fetched under --fixture)
             setenv("AGENT_FORGE_CONFIG", server.home + "/agent-forge.json", 1)
             fixtureServer = server
             // what the person has seen and pinned is the app's own: the sessions the list marks start unread (never seen) and pinned
@@ -125,10 +125,10 @@ extension AppDelegate {
                     WindowController.shared.showSettings(place: SettingsPlace(.dictation, path: [screen.rawValue])); return WindowController.shared.settingsStatus
                 })
             }
-            // and the screen of each role of the Agents page
+            // and the screen of each role of the Roles page
             let roles: [(String, () -> String)] = AgentRole.allCases.map { role in
-                ("settings agents \(role.rawValue)", {
-                    WindowController.shared.showSettings(place: SettingsPlace(.agents, path: [role.rawValue])); return WindowController.shared.settingsStatus
+                ("settings roles \(role.rawValue)", {
+                    WindowController.shared.showSettings(place: SettingsPlace(.roles, path: [role.rawValue])); return WindowController.shared.settingsStatus
                 })
             }
             // and the screen of the first project and its actions, when the Carrier folder has one (a fixture does)

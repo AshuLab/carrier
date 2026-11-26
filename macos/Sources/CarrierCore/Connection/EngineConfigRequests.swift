@@ -10,7 +10,7 @@ public enum EngineConfigChange: Equatable, Sendable {
     case watchedRepos([String])
     /// The eight values Behavior edits; Node takes out of the file the ones equal to the engine's default.
     case behavior(EngineConfig)
-    /// The changes of one pick of the Agents page to a global role, applied together or not at all.
+    /// The changes of one pick of the Roles page to a global role, applied together or not at all.
     case role(AgentRole, [RoleChange])
     /// A repo's own fields of a role (the ones left nil are not its own); nil takes the repo's override out.
     case repoRole(repo: String, role: AgentRole, fields: RoleFields?)

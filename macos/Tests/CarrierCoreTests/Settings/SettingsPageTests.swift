@@ -16,10 +16,12 @@ import Testing
     #expect(SettingsPage.sessions.detail(bundle: english.bundle, locale: english.locale) == "How sessions start and age out")
 }
 
-@Test func theCarrierGroupHoldsAgentsReposAndBehavior() {
+@Test func theCarrierGroupHoldsRolesWatchingAndBehavior() {
     #expect(SettingsPage.Group.carrier.heading(bundle: english.bundle, locale: english.locale) == "Carrier")
-    #expect(SettingsPage.pages(in: .carrier) == [.agents, .watching, .behavior])
+    #expect(SettingsPage.pages(in: .carrier) == [.roles, .watching, .behavior])
     #expect(SettingsPage.behavior.detail(bundle: english.bundle, locale: english.locale) == "How Carrier runs epics")
+    #expect(SettingsPage.roles.title(bundle: english.bundle, locale: english.locale) == "Roles" && SettingsPage.roles.rawValue == "roles")
+    #expect(SettingsPage.roles.detail(bundle: english.bundle, locale: english.locale) == "Who works on an epic and where it goes when its tokens run out")
 }
 
 @Test func theSystemGroupHoldsEngineHealthAndAboutAtTheFoot() {
@@ -42,7 +44,7 @@ import Testing
 }
 
 @Test func thePagesOfSettingsThatAreSettingsFormsAreTheOnesMadeOfSimpleRows() {
-    #expect(SettingsPage.allCases.filter(\.usesForm) == [.general, .providers, .appearance, .notifications, .keybindings, .dictation, .keepAwake, .chat, .sessions, .sidebar, .terminal, .agents, .watching, .behavior, .engine, .about])
+    #expect(SettingsPage.allCases.filter(\.usesForm) == [.general, .providers, .appearance, .notifications, .keybindings, .dictation, .keepAwake, .chat, .sessions, .sidebar, .terminal, .roles, .watching, .behavior, .engine, .about])
 }
 
 @Test func theLongPagesAreAColumnAndTheListsAndTablesTakeTheWidth() {
@@ -64,6 +66,11 @@ import Testing
     #expect(preferences.lastSettingsPage == .keepAwake)
     defaults.set("Watching", forKey: "settingsLastPage")
     #expect(preferences.lastSettingsPage == .watching)
+    // the Agents page of an earlier build, by identifier or by title, opens General: that page is Roles now
+    defaults.set("agents", forKey: "settingsLastPage")
+    #expect(preferences.lastSettingsPage == .general)
+    defaults.set("Agents", forKey: "settingsLastPage")
+    #expect(preferences.lastSettingsPage == .general)
     // anything else opens General
     defaults.set("Not a page", forKey: "settingsLastPage")
     #expect(preferences.lastSettingsPage == .general)

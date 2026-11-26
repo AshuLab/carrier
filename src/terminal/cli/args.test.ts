@@ -125,8 +125,13 @@ test('every role the table asks takes its flags, and a slot added to the table a
     for (const suffix of roleFlagSuffixes) expect(parseCli(['init', `--${slot}${suffix}`, 'x'])).toMatchObject({ ok: true, command: 'init', flags: { [`${slot}${suffix}`]: 'x' } });
     expect(parseCli(['init', `--${slot}-failover`, 'codex'])).toMatchObject({ ok: true, flags: { [`${slot}-failover`]: ['codex'] } });
   }
-  expect(roleSlots).toEqual(['author', 'reviewer', 'reviewer-2', 'reviewer-3', 'reviewer-4', 'lead-reviewer']);
-  expect(parseCli(['init', '--reviewer-2', 'codex:gpt-5', '--reviewer-3-effort', 'low', '--reviewer-4-failover', 'claude'])).toMatchObject({ ok: true, flags: { 'reviewer-2': 'codex:gpt-5', 'reviewer-3-effort': 'low', 'reviewer-4-failover': ['claude'] } });
+  expect(roleSlots).toEqual(['author', 'reviewer', 'lead-reviewer']);
+  // no flag of init or restart names an extra reviewer by its place
+  for (const flag of ['--reviewer-2', '--reviewer-3-effort', '--reviewer-4-failover']) {
+    expect(parseCli(['init', flag, 'x'])).toMatchObject({ ok: false, message: expect.stringContaining(flag) });
+    expect(parseCli(['restart', 'A/a#1', flag, 'x'])).toMatchObject({ ok: false, message: expect.stringContaining(flag) });
+  }
+  expect(usage()).not.toMatch(/reviewer-[234]/);
   expect(parseCli(['init', '--orchestrator-profile', 'gh'])).toMatchObject({ ok: true, flags: { 'orchestrator-profile': 'gh' } });
   expect(parseCli(['init', '--lead-reviewer-effort', 'high', '--lead-reviewer-persona-prompt', 'p'])).toMatchObject({ ok: true, flags: { 'lead-reviewer-effort': 'high', 'lead-reviewer-persona-prompt': 'p' } });
 });
@@ -140,12 +145,12 @@ test('--<role>-failover repeats and keeps the order given, and a flag no role ha
   expect(parseCli(['init', '--author-fallback', 'codex'])).toMatchObject({ ok: false, message: expect.stringContaining('--author-fallback') });
 });
 
-test('restart and recover read the same options as before, --reviewer-2 to --reviewer-4 and --lead among them', () => {
-  expect(parseCli(['restart', 'A/a#1', '--author', 'codex', '--reviewer', 'claude', '--reviewer-2', 'x', '--reviewer-3', 'y', '--reviewer-4', 'z', '--lead', 'l', '--from', 'fix', '--extra-rounds', '2'])).toEqual({
+test('restart and recover read the same options as before, --lead among them', () => {
+  expect(parseCli(['restart', 'A/a#1', '--author', 'codex', '--reviewer', 'claude', '--lead', 'l', '--from', 'fix', '--extra-rounds', '2'])).toEqual({
     ok: true,
     command: 'restart',
     target: { repo: 'A/a', issue: 1 },
-    flags: { author: 'codex', reviewer: 'claude', 'reviewer-2': 'x', 'reviewer-3': 'y', 'reviewer-4': 'z', lead: 'l', from: 'fix', 'extra-rounds': '2' },
+    flags: { author: 'codex', reviewer: 'claude', lead: 'l', from: 'fix', 'extra-rounds': '2' },
   });
   expect(parseCli(['recover', 'A/a#1', '--config', 'x.json'])).toEqual({ ok: true, command: 'recover', target: { repo: 'A/a', issue: 1 }, flags: { config: 'x.json' } });
 });

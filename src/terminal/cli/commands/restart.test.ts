@@ -116,18 +116,18 @@ test('an engine that does not take the extra roles is asked for the author and t
   expect(asked).toHaveLength(2);
 });
 
-test('--reviewer-2 to --reviewer-4 and --lead are sent as reviewer2 to reviewer4 and lead when the engine lists resumeReviewerOptions', async () => {
+test('--lead is sent as lead when the engine lists resumeReviewerOptions, and no flag names an extra reviewer', async () => {
   const requests = await fakeCarrier(['resumeEpic', 'resumeReviewerOptions']);
   vi.spyOn(process.stdout, 'write').mockReturnValue(true);
-  expect(await restartCommand(folder!, target, { reviewer2: 'a', reviewer3: 'b', reviewer4: 'c', lead: 'd' })).toBe(0);
-  expect(sent(requests)).toEqual([{ cmd: 'resumeEpic', ...target, reviewer2: 'a', reviewer3: 'b', reviewer4: 'c', lead: 'd' }]);
+  expect(await restartCommand(folder!, target, { lead: 'd' })).toBe(0);
+  expect(sent(requests)).toEqual([{ cmd: 'resumeEpic', ...target, lead: 'd' }]);
 });
 
 test('--lead against an engine that does not list resumeReviewerOptions says so and asks nothing', async () => {
   const requests = await fakeCarrier(['resumeEpic', 'resumeFromStage']);
   const run = restartCommand(folder!, target, { lead: 'claude' });
   await expect(run).rejects.toThrow(CliError);
-  await expect(run).rejects.toThrow('too old to restart the extra reviewers and the lead');
+  await expect(run).rejects.toThrow('too old to restart the lead');
   expect(requests).toEqual([]);
 });
 

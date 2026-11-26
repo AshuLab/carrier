@@ -5,6 +5,7 @@ The Carrier folder (`~/.carrier`, or `CARRIER_HOME`, [ADR 0034](../../docs/adr/c
 The engine's files are in `<folder>/engine/`: `state/` (`carrier.db`, `control.sock`, `carrier.lock`), `logs/`, `repos/`, `reviews/` and `worktrees/`.
 `places.ts` computes every path in the folder (the four files at the top, the engine's and the chat's places), and nothing else decides them; `--config` only chooses the engine's config file.
 Its Swift twin is `macos/Sources/CarrierCore/Support/CarrierPlaces.swift`, which also has the app's places.
+An extra reviewer is an entry of `agents.extraReviewers`, a map from a key to its `type`, `name` and agent fields ([ADR 0057](../../docs/adr/review/0057-an-extra-reviewer-is-an-entry-of-a-map-with-a-key-a-name-and-a-type.md)); `extra-reviewer-key.ts` derives the key from the name, the one rule `carrier init` and the request that adds a reviewer share, and `resolve.ts` turns the map into the ordered list the engine runs, each reviewer carrying its key, name and type.
 
 ## Adding a config field
 

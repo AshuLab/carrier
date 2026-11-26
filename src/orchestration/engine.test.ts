@@ -2278,7 +2278,7 @@ test('the skills of the repo are saved with the epic when it is reserved; a row 
 });
 
 test('the extra reviewers and the lead\'s skills are saved with the epic when it is reserved, a reload changes nothing for it, and an epic saved before reads one reviewer and no lead', async () => {
-  const extra = { profile: 'c', option: 'o', harness: 'claude' as const, model: 'm', skills: resolveReviewSkills('review', solveSkills, undefined, { review: 'my-review' }) };
+  const extra = { key: 'seguridad-api', name: 'Seguridad API', type: 'security', profile: 'c', option: 'o', harness: 'claude' as const, model: 'm', skills: resolveReviewSkills('review', solveSkills, undefined, { review: 'my-review' }) };
   const withExtras = (extraReviewers: (typeof extra)[], lead = resolveReviewSkills('lead', solveSkills, undefined, { review: 'my-lead' })): EffectiveRepoConfig => ({
     ...repos[0]!,
     agents: { ...agents, leadReviewer: { profile: 'd', option: 'o', harness: 'claude', model: 'm' }, extraReviewers },

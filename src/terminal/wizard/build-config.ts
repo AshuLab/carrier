@@ -9,8 +9,8 @@ export type AIProvider = Providers[string];
 export type Failover = NonNullable<Config['failover']>;
 export type Effort = NonNullable<Config['agents']['author']['effort']>;
 export type Role = { identity: Identity; provider: string; model: string; effort?: Effort; persona?: Persona };
-/** An extra reviewer: a role with its own failover steps, none meaning the Reviewer's. */
-export type Extra = { role: Role; failover?: { provider: string; model?: string }[] };
+/** An extra reviewer: its key in the file (the one the file has for it, or one derived from its name when it is new), what it is called and what it looks at, a role, and its own failover steps (none meaning the Reviewer's). */
+export type Extra = { key: string; name: string; type: string; role: Role; failover?: { provider: string; model?: string }[] };
 export type Answers = { repos: string[]; orchestrator?: Identity; author: Role; reviewer: Role; extraReviewers?: Extra[]; leadReviewer?: Role; failover?: Failover };
 
 /** `forge:<agent>` or `gh`, the form used by flags and by the prompts' values. */
@@ -71,14 +71,21 @@ export function buildConfig({ repos, orchestrator, author, reviewer, extraReview
         ...(reviewer.persona && { persona: reviewer.persona }),
       },
       ...(extraReviewers.length > 0 && {
-        extraReviewers: extraReviewers.map(({ role, failover: steps }) => ({
-          profile: profileName(role.identity),
-          provider: role.provider,
-          model: role.model,
-          ...(role.effort && { effort: role.effort }),
-          ...(role.persona && { persona: role.persona }),
-          ...(steps && steps.length > 0 && { failover: steps }),
-        })),
+        extraReviewers: Object.fromEntries(
+          extraReviewers.map(({ key, name, type, role, failover: steps }) => [
+            key,
+            {
+              type,
+              name,
+              profile: profileName(role.identity),
+              provider: role.provider,
+              model: role.model,
+              ...(role.effort && { effort: role.effort }),
+              ...(role.persona && { persona: role.persona }),
+              ...(steps && steps.length > 0 && { failover: steps }),
+            },
+          ]),
+        ),
       }),
       ...(leadReviewer && l ? {
         leadReviewer: {

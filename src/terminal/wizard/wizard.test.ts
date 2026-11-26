@@ -758,7 +758,7 @@ test('failover needs two accounts: with one the block says so and asks nothing, 
       if (name === 'claude') return '/opt/bin/claude';
       throw new Error('missing');
     } }) });
-  const alone = quietUi({ [moreKey]: [true, false], 'Add a lead reviewer?': true });
+  const alone = quietUi({ [moreKey]: [true, false], [nameKey]: 'Seguridad', 'Add a lead reviewer?': true });
   await runInit({ repo: ['A/b'], out: join(dir, 'one.json') }, withEsc(alone.ui, ['Add a lead reviewer?']).ui, one.deps);
   expect(alone.asked.some((m) => m.startsWith('Turn failover on'))).toBe(false);
   // once for the whole run, whatever the number of roles and the Esc that ran the blocks again
@@ -843,25 +843,66 @@ test('no message, note, option or warning of a full run says "identity" or "fall
   expect(spoken.filter((m) => /identit|fallback/i.test(stripVTControlCharacters(m)))).toEqual([]);
 });
 
-// Extra reviewers: the loop, the cap, edit mode, the flags and the written file.
+// Extra reviewers: the loop, the cap, the name and the type, edit mode and the written file.
 
 const moreKey = 'Add another reviewer?';
+const nameKey = 'What is this extra reviewer called?';
+const typeKey = 'What does it look at? A type, like general, security or ux';
 const flagged: InitFlags = { repo: ['A/b'], authorProfile: 'forge:artanis-agent', reviewerProfile: 'gh', author: 'claude:m1', reviewer: 'codex:m2' };
+const inTheWords = (texts: string[]) => texts.filter((text) => /reviewer[- ]?[234]\b/i.test(stripVTControlCharacters(text)));
 
-test('"Add another reviewer?" opens a block for reviewer-2, reviewer-3 and reviewer-4, is not asked after the third, and the lead comes after all of them', async () => {
-  const { ui, asked, notes } = quietUi({ [moreKey]: [true, true, true], 'Add a lead reviewer?': true });
+test('"Add another reviewer?" opens a block that asks the name and then the type before the rest, is not asked after the third, and the lead comes after all of them', async () => {
+  const { ui, asked, notes } = quietUi({ [moreKey]: [true, true, true], [nameKey]: ['Seguridad API', 'Usabilidad', '123'], [typeKey]: ['security', 'ux'], 'Add a lead reviewer?': true });
   const { deps, written } = fakeDeps();
   const out = join(dir, 'extras-loop.json');
   await runInit({ repo: ['A/b'], out }, ui, deps);
   expect(asked.filter((m) => m === moreKey)).toHaveLength(3);
-  expect(notes.map((n) => n.title).filter((t) => /^(Author|Reviewer|Lead)/.test(t ?? ''))).toEqual(['Author', 'Reviewer', 'Reviewer 2', 'Reviewer 3', 'Reviewer 4', 'Lead reviewer']);
-  expect(asked.indexOf('Which account runs the reviewer 4?')).toBeLessThan(asked.indexOf('Add a lead reviewer?'));
+  expect(notes.map((n) => n.title).filter((t) => ['Author', 'Reviewer', 'Seguridad API', 'Usabilidad', '123', 'Lead reviewer'].includes(t ?? ''))).toEqual(['Author', 'Reviewer', 'Seguridad API', 'Usabilidad', '123', 'Lead reviewer']);
+  const first = asked.indexOf(moreKey);
+  expect(asked.slice(first, first + 5)).toEqual([moreKey, nameKey, typeKey, 'GitHub profile for the extra reviewer', 'Which account runs the extra reviewer?']);
+  expect(asked.lastIndexOf('Which account runs the extra reviewer?')).toBeLessThan(asked.indexOf('Add a lead reviewer?'));
   const config = JSON.parse(written[out]!);
-  expect(config.agents.extraReviewers).toHaveLength(3);
-  expect(config.agents.extraReviewers[0]).toMatchObject({ provider: 'claude', model: 'sonnet' });
-  expect(config.agents.extraReviewers[0]).not.toHaveProperty('failover');
+  expect(Object.keys(config.agents.extraReviewers)).toEqual(['seguridad-api', 'usabilidad', 'r-123']); // the keys come from the names, in the order they were given
+  expect(config.agents.extraReviewers['seguridad-api']).toMatchObject({ type: 'security', name: 'Seguridad API', provider: 'claude', model: 'sonnet' });
+  expect(config.agents.extraReviewers['seguridad-api']).not.toHaveProperty('failover');
+  expect(config.agents.extraReviewers.usabilidad).toMatchObject({ type: 'ux', name: 'Usabilidad' });
+  expect(config.agents.extraReviewers['r-123']).toMatchObject({ type: 'general', name: '123' }); // Enter at the type
   expect(config.agents).toHaveProperty('leadReviewer');
   expect(loadConfig(defaults, config, providersWritten(written) as never).ok).toBe(true);
+  expect(inTheWords([...asked, ...notes.flatMap((n) => [n.title ?? '', n.message])])).toEqual([]);
+});
+
+test('the name has no suggestion and a blank answer asks again, and so does one that another reviewer has, without regard to case', async () => {
+  const { ui, asked } = quietUi({ [moreKey]: [true, true, false], [nameKey]: ['', '   ', 'Seguridad', 'SEGURIDAD', 'Usabilidad'] });
+  const seen: unknown[] = [];
+  const spy: Ui = { ...ui, text: async (o) => (o.message === nameKey && seen.push(o.defaultValue), ui.text(o)) };
+  const { deps, written } = fakeDeps();
+  const out = join(dir, 'extras-name.json');
+  await runInit({ repo: ['A/b'], out }, spy, deps);
+  expect(asked.filter((m) => m === nameKey)).toHaveLength(5);
+  expect(seen).toEqual([undefined, undefined, undefined, undefined, undefined]);
+  expect(asked.filter((m) => m.startsWith('warn:'))).toEqual(['warn:a name is required: try another name', 'warn:a name is required: try another name', 'warn:another extra reviewer already has that name: try another name']);
+  expect(Object.keys(JSON.parse(written[out]!).agents.extraReviewers)).toEqual(['seguridad', 'usabilidad']);
+});
+
+test('the type starts on general, and a type that is not a slug asks again', async () => {
+  const { ui, asked } = quietUi({ [moreKey]: [true, false], [nameKey]: 'Seguridad', [typeKey]: ['Not A Slug', 'security'] });
+  const starts: unknown[] = [];
+  const spy: Ui = { ...ui, text: async (o) => (o.message === typeKey && starts.push(o.defaultValue), ui.text(o)) };
+  const { deps, written } = fakeDeps();
+  const out = join(dir, 'extras-type.json');
+  await runInit({ repo: ['A/b'], out }, spy, deps);
+  expect(starts).toEqual(['general', 'general']);
+  expect(asked.filter((m) => m.startsWith('warn:'))).toHaveLength(1);
+  expect(JSON.parse(written[out]!).agents.extraReviewers.seguridad.type).toBe('security');
+});
+
+test('names that give the same key get -2, and one that is a role\'s word is not the key', async () => {
+  const { ui } = quietUi({ [moreKey]: [true, true, true], [nameKey]: ['A B', 'A-B', 'Lead'] });
+  const { deps, written } = fakeDeps();
+  const out = join(dir, 'extras-keys.json');
+  await runInit({ repo: ['A/b'], out }, ui, deps);
+  expect(Object.keys(JSON.parse(written[out]!).agents.extraReviewers)).toEqual(['a-b', 'a-b-2', 'lead-2']);
 });
 
 test('Enter at "Add another reviewer?" is no, and no extraReviewers key is written', async () => {
@@ -873,94 +914,143 @@ test('Enter at "Add another reviewer?" is no, and no extraReviewers key is writt
   expect(JSON.parse(written[out]!).agents).not.toHaveProperty('extraReviewers');
 });
 
-test('the recap lists each extra reviewer under its name, spelled as the rest of the wizard does', async () => {
-  const { ui, notes } = quietUi({ [moreKey]: [true, true, false] });
+test('the recap lists each extra reviewer by its name and type', async () => {
+  const { ui, notes } = quietUi({ [moreKey]: [true, true, false], [nameKey]: ['Seguridad API', 'Usabilidad'], [typeKey]: ['security', 'ux'] });
   await runInit({ repo: ['A/b'], out: join(dir, 'extras-recap.json') }, ui, fakeDeps().deps);
   const recap = notes.find((n) => n.title === 'This is what will be saved')!.message;
-  expect(recap).toMatch(/\nReviewer 2 {4}.* · claude .*\nReviewer 3 {4}/);
-  expect(recap).not.toContain('Reviewer 4');
+  expect(recap).toMatch(/\nExtra {9}Seguridad API · security · .* · claude .*\nExtra {9}Usabilidad · ux · /);
+  expect(inTheWords([recap])).toEqual([]);
 });
 
 test('an extra with its own failover steps writes them, and one without writes no failover key', async () => {
-  const { ui } = quietUi({ [moreKey]: false });
+  const failoverKey = 'Turn failover on for the extra reviewer? When it runs out of credits it moves to the steps you list, each an account and a model.';
+  const { ui } = quietUi({ [moreKey]: [true, true, false], [nameKey]: ['Seguridad', 'Usabilidad'], [failoverKey]: [true, false], 'Failover for the extra reviewer: which account goes first?': 'codex', 'Failover for the extra reviewer: which account goes second?': '\0done' });
   const { deps, written } = fakeDeps();
   const out = join(dir, 'extras-failover.json');
-  await runInit({ ...flagged, reviewer2: 'claude:opus', reviewer2Profile: 'gh', reviewer2Failover: ['codex:gpt-x'], reviewer3: 'codex:gpt-y', reviewer3Profile: 'gh', out }, ui, deps);
+  await runInit({ repo: ['A/b'], out }, ui, deps);
   const extras = JSON.parse(written[out]!).agents.extraReviewers;
-  expect(extras).toMatchObject([{ provider: 'claude', model: 'opus', failover: [{ provider: 'codex', model: 'gpt-x' }] }, { provider: 'codex', model: 'gpt-y' }]);
-  expect(extras[1]).not.toHaveProperty('failover');
+  expect(extras.seguridad.failover).toEqual([{ provider: 'codex', model: 'gpt-test' }]);
+  expect(extras.usabilidad).not.toHaveProperty('failover');
 });
 
-test('a flagged extra is not asked again, and "Add another reviewer?" is asked once after the last flagged one when there is room', async () => {
-  const { ui, asked } = quietUi();
-  const { deps, written } = fakeDeps();
-  const out = join(dir, 'extras-flagged.json');
-  await runInit({ ...flagged, reviewer2: 'claude:opus', reviewer2Profile: 'gh', reviewer3Profile: 'gh', out }, ui, deps);
-  expect(asked.filter((m) => m === moreKey)).toHaveLength(1);
-  expect(asked).not.toContain('Which account runs the reviewer 2?'); // its profile and account were flagged
-  expect(asked).toContain('Which account runs the reviewer 3?'); // only its profile was
-  expect(JSON.parse(written[out]!).agents.extraReviewers).toHaveLength(2);
-});
-
-test('under --yes there is no extra unless a flag names it', async () => {
+test('under --yes there is no extra reviewer: no flag creates one yet, and nothing is asked', async () => {
   const none = fakeDeps();
-  await runInit({ ...flagged, yes: true, out: join(dir, 'extras-yes-none.json') }, quietUi().ui, none.deps);
-  expect(JSON.parse(none.written[join(dir, 'extras-yes-none.json')]!).agents).not.toHaveProperty('extraReviewers');
-  const some = fakeDeps();
-  const out = join(dir, 'extras-yes-some.json');
   const { ui, asked } = quietUi();
-  await runInit({ ...flagged, yes: true, reviewer2: 'codex:m3', reviewer2Profile: 'gh', out }, ui, some.deps);
+  await runInit({ ...flagged, yes: true, out: join(dir, 'extras-yes-none.json') }, ui, none.deps);
+  expect(JSON.parse(none.written[join(dir, 'extras-yes-none.json')]!).agents).not.toHaveProperty('extraReviewers');
   expect(asked.filter((m) => !m.startsWith('outro') && !m.startsWith('checks:'))).toEqual([]);
-  expect(JSON.parse(some.written[out]!).agents.extraReviewers).toMatchObject([{ provider: 'codex', model: 'm3' }]);
-});
-
-test('a flag for a slot with none for the one before it is refused before anything is probed', async () => {
-  const calls: string[] = [];
-  const { deps } = fakeDeps({ ghLogin: () => (calls.push('gh'), 'diego'), which: (tool) => (calls.push(tool), true), forgeAgents: () => (calls.push('forge'), []) });
-  await expect(runInit({ ...flagged, reviewer3: 'codex:m', out: join(dir, 'extras-gap.json') }, quietUi().ui, deps)).rejects.toThrow('--reviewer-2');
-  expect(calls).toEqual([]);
 });
 
 const withExtras = {
   ...existing,
-  agents: { ...existing.agents, extraReviewers: [{ profile: 'gh', provider: 'claude', model: 'opus', effort: 'low', skills: { review: { review: 'mine' } }, failover: [{ provider: 'codex' }] }, { profile: 'tassadar-agent', provider: 'codex', model: 'gpt-x' }] },
+  agents: {
+    ...existing.agents,
+    extraReviewers: {
+      'seguridad-api': { type: 'security', name: 'Seguridad API', profile: 'gh', provider: 'claude', model: 'opus', effort: 'low', skills: { review: { review: 'mine' } }, failover: [{ provider: 'codex' }] },
+      usabilidad: { type: 'ux', name: 'Usabilidad', profile: 'tassadar-agent', provider: 'codex', model: 'gpt-x', skills: { review: { publish: null } } },
+    },
+  },
+};
+const editWith = async (file: object, answers: Record<string, boolean | string | (boolean | string)[]> = {}) => {
+  const { deps, written } = fakeDeps({ exists: () => true, readConfig: asFiles(file as Record<string, unknown>) });
+  const base = quietUi({ [existingKey]: 'edit', [notNow]: false, ...answers });
+  const starts: Record<string, unknown> = {};
+  const spy: Ui = {
+    ...base.ui,
+    text: async (o) => ((starts[o.message] ??= o.defaultValue), base.ui.text(o)),
+    confirm: async (m, i) => ((starts[m] ??= i), base.ui.confirm(m, i)),
+  };
+  await withHome(() => runInit({}, spy, deps));
+  return { agents: JSON.parse(written[join(dir, 'home', 'engine.json')]!).agents, asked: base.asked, starts };
 };
 
-test('in edit mode each extra in the file is walked from its values, "Add reviewer-N?" starts on yes while the file has one more, and the file\'s skills stay', async () => {
-  const { deps, written } = fakeDeps({ exists: () => true, readConfig: asFiles(withExtras) });
-  const { ui, asked } = quietUi({ [existingKey]: 'edit', [notNow]: false });
-  const spy: Ui = { ...ui, confirm: async (message, initialValue) => (/^Add .*reviewer/.test(message) ? (asked.push(`${message}=${initialValue}`), initialValue ?? false) : ui.confirm(message, initialValue)) };
-  await withHome(() => runInit({}, spy, deps));
-  expect(asked.filter((m) => /^Add .*reviewer/.test(m))).toEqual(['Add reviewer-2?=true', 'Add reviewer-3?=true', 'Add another reviewer?=false', 'Add a lead reviewer?=false']);
-  const config = JSON.parse(written[join(dir, 'home', 'engine.json')]!);
-  expect(config.agents.extraReviewers).toEqual(withExtras.agents.extraReviewers);
+test('in edit mode each extra reviewer of the map is walked in its order from its name and type, and the file keeps its key, skills and failover', async () => {
+  const { agents, asked, starts } = await editWith(withExtras);
+  expect(asked.filter((m) => /^(Keep .*\?|Add .*reviewer\?)$/.test(m) || m === nameKey || m === typeKey)).toEqual(['Keep Seguridad API?', nameKey, typeKey, 'Keep Usabilidad?', nameKey, typeKey, moreKey, 'Add a lead reviewer?']);
+  expect(starts['Keep Seguridad API?']).toBe(true);
+  expect(starts[moreKey]).toBe(false);
+  expect(agents.extraReviewers).toEqual(withExtras.agents.extraReviewers);
+  expect(Object.keys(agents.extraReviewers)).toEqual(['seguridad-api', 'usabilidad']);
+});
+
+test('in edit mode the name and type start from the file\'s, and a new name keeps the key', async () => {
+  const { agents, starts } = await editWith(withExtras, { [nameKey]: ['Seguridad Web', 'Usabilidad'], [typeKey]: ['appsec', 'ux'] });
+  expect(starts[nameKey]).toBe('Seguridad API');
+  expect(starts[typeKey]).toBe('security');
+  expect(agents.extraReviewers['seguridad-api']).toMatchObject({ name: 'Seguridad Web', type: 'appsec', skills: { review: { review: 'mine' } } });
+  expect(Object.keys(agents.extraReviewers)).toEqual(['seguridad-api', 'usabilidad']);
 });
 
 test('in edit mode a No drops that extra and the ones after it, and none left removes the key', async () => {
-  const run = async (answers: Record<string, boolean | string>) => {
-    const { deps, written } = fakeDeps({ exists: () => true, readConfig: asFiles(withExtras) });
-    await withHome(() => runInit({}, quietUi({ [existingKey]: 'edit', [notNow]: false, ...answers }).ui, deps));
-    return JSON.parse(written[join(dir, 'home', 'engine.json')]!).agents;
-  };
-  expect((await run({ 'Add reviewer-3?': false })).extraReviewers).toEqual([withExtras.agents.extraReviewers[0]]);
-  expect(await run({ 'Add reviewer-2?': false })).not.toHaveProperty('extraReviewers');
+  expect((await editWith(withExtras, { 'Keep Usabilidad?': false })).agents.extraReviewers).toEqual({ 'seguridad-api': withExtras.agents.extraReviewers['seguridad-api'] });
+  expect((await editWith(withExtras, { 'Keep Seguridad API?': false })).agents).not.toHaveProperty('extraReviewers');
 });
 
 test('an edit of a file with no extras asks "Add another reviewer?" on no and writes none', async () => {
-  const { deps, written } = fakeDeps({ exists: () => true, readConfig: asFiles(existing) });
-  const { ui, asked } = quietUi({ [existingKey]: 'edit', [notNow]: false });
-  await withHome(() => runInit({}, ui, deps));
+  const { agents, asked } = await editWith(existing);
   expect(asked).toContain(moreKey);
-  expect(JSON.parse(written[join(dir, 'home', 'engine.json')]!).agents).not.toHaveProperty('extraReviewers');
+  expect(agents).not.toHaveProperty('extraReviewers');
 });
 
-test('Esc at the lead reviewer question goes back across the extras and the recap can jump to one', async () => {
+test('a file whose extraReviewers is a list is not edited: the first error names the map, and the wizard asks what to do and writes nothing', async () => {
+  const list = { ...existing, agents: { ...existing.agents, extraReviewers: [{ profile: 'gh', provider: 'claude', model: 'opus' }] } };
+  const { deps, written } = fakeDeps({ exists: () => true, readConfig: asFiles(list) });
+  const { ui, asked } = quietUi({ [existingKey]: 'edit', [notNow]: false });
+  const options: string[] = [];
+  const spy: Ui = { ...ui, select: async (o) => (options.push(...o.options.map((option) => option.value)), ui.select(o)) };
+  await withHome(() => runInit({}, spy, deps).catch((error) => expect(error).toBeInstanceOf(Cancelled))); // the default answer leaves it
+  expect(asked.find((m) => m.startsWith('warn:'))).toMatch(/does not validate, first error: agents\.extraReviewers: must be a map from a key to a reviewer, not a list/);
+  expect(asked).toContain('What do you want to do with it?');
+  expect(options.slice(-3)).toEqual(['fresh', 'elsewhere', 'cancel']);
+  expect(written).toEqual({});
+});
+
+test('Esc back to an extra reviewer\'s name, changing it, keeps the answers given to the block\'s other questions as the starting points', async () => {
+  const model = 'Model and effort: gpt-test at high, change them?';
+  const { ui, asked } = quietUi({ [moreKey]: [true, false], [nameKey]: ['Seguridad', 'Seguridad Web'], [typeKey]: 'security', 'Which account runs the extra reviewer?': 'codex', "Customise the extra reviewer's persona?": true, 'Extra Reviewer persona: give it a name': 'Sentinel' });
+  // Esc, in this order: at the lead question, then at each question that comes up from the end of the block back to the type, which goes back to the name.
+  const backs = ['Add a lead reviewer?', moreKey, 'Turn failover on for the extra reviewer', 'Extra Reviewer persona: describe', 'Extra Reviewer persona: give it a name', "Customise the extra reviewer's persona?", 'Model and effort', 'Which account runs the extra reviewer?', 'GitHub profile for the extra reviewer', typeKey];
+  const starts: Record<string, unknown[]> = {};
+  let next = 0;
+  const gate = (message: string, start: unknown) => {
+    (starts[message] ??= []).push(start);
+    if (message.startsWith(backs[next] ?? '\0')) {
+      next++;
+      throw new Back();
+    }
+  };
+  const spy: Ui = {
+    ...ui,
+    select: async (o) => (gate(o.message, o.initialValue), ui.select(o)),
+    confirm: async (m, i) => (gate(m, i), ui.confirm(m, i)),
+    text: async (o) => (gate(o.message, o.defaultValue), ui.text(o)),
+  };
   const { deps, written } = fakeDeps();
-  const { ui, asked } = quietUi({ [moreKey]: [true, false], 'Save it?': ['change', 'save'], 'Which part do you want to change?': 'reviewer-2', [notNow]: false });
+  const out = join(dir, 'extras-rename.json');
+  await runInit({ repo: ['A/b'], out }, spy, deps);
+  expect(next).toBe(backs.length);
+  expect(starts[nameKey]).toEqual([undefined, 'Seguridad']); // the name starts from the one before, and nothing is suggested the first time
+  expect(starts[typeKey]!.at(-1)).toBe('security');
+  expect(starts['Which account runs the extra reviewer?']!.at(-1)).toBe('codex');
+  expect(starts["Customise the extra reviewer's persona?"]!.at(-1)).toBe(true);
+  expect(starts['Extra Reviewer persona: give it a name']!.at(-1)).toBe('Sentinel');
+  expect(asked.filter((m) => m === model).length).toBeGreaterThan(1);
+  const extras = JSON.parse(written[out]!).agents.extraReviewers;
+  expect(Object.keys(extras)).toEqual(['seguridad-web']);
+  expect(extras['seguridad-web']).toMatchObject({ name: 'Seguridad Web', type: 'security', provider: 'codex', persona: { name: 'Sentinel' } });
+});
+
+test('the recap\'s "Change an answer" lists each extra reviewer by its name and the next one to add, and a jump to one asks only its questions', async () => {
+  const { deps, written } = fakeDeps();
+  const base = quietUi({ [moreKey]: [true, false], [nameKey]: ['Seguridad', 'Seguridad Web'], 'Save it?': ['change', 'save'], [changeMenu]: 'extra-1', [notNow]: false });
+  const labels: string[] = [];
+  const spy: Ui = { ...base.ui, select: async (o) => (o.message === changeMenu && labels.push(...o.options.map((option) => option.label)), base.ui.select(o)) };
   const out = join(dir, 'extras-jump.json');
-  await runInit({ repo: ['A/b'], out }, ui, deps);
-  expect(asked.filter((m) => m === 'Which account runs the reviewer 2?')).toHaveLength(2);
-  expect(JSON.parse(written[out]!).agents.extraReviewers).toHaveLength(1);
+  await runInit({ repo: ['A/b'], out }, spy, deps);
+  expect(labels).toEqual(['AI accounts', 'Orchestrator GitHub profile', 'Author', 'Reviewer', 'Seguridad', 'Extra reviewer', 'Lead reviewer', 'Repos to watch']);
+  expect(base.asked.filter((m) => m === nameKey)).toHaveLength(2);
+  expect(base.asked.filter((m) => m === 'GitHub profile for the author')).toHaveLength(1); // the author's block was not asked again
+  expect(Object.keys(JSON.parse(written[out]!).agents.extraReviewers)).toEqual(['seguridad-web']);
 });
 
 test('--yes with a lead-reviewer flag alone, even one that is not --lead-reviewer, creates the lead reviewer', async () => {

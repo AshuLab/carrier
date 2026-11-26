@@ -4,7 +4,7 @@ import { parseIdentity, type Effort, type Role } from '../build-config.ts';
 import type { InitDeps } from '../deps.ts';
 import type { InitFlags } from '../flags.ts';
 import type { ForgeAgent } from '../forge-registry.ts';
-import { roleBlurb, roleKey, roleName, type RoleSlot } from '../roles.ts';
+import { roleBlurb, roleKey, roleName, type Block } from '../roles.ts';
 import { askModel, defaultsFor } from './agent.ts';
 import { askEffort } from './effort.ts';
 import { askIdentity } from './identity.ts';
@@ -30,10 +30,10 @@ export type RoleContext = {
 };
 
 /** Where a block starts: the file's answers for the slot (edit mode), the role asked just before it, and the account and model a `--<role>` flag named. */
-export type RoleStart = { from?: Role; steps?: Steps; after?: Role; flagged?: { provider: string; model: string } };
+export type RoleStart = { from?: Role; steps?: Steps; after?: Role; flagged?: { provider: string; model: string }; /** What the block's box is headed with: an extra reviewer's name; a slot's is its own name. */ title?: string };
 
 /** One role, closed: its GitHub profile, its account, whether to change the model and effort it starts on, whether to customise the persona, and its failover. The same piece serves every slot; with every default accepted it costs the profile and the account and Enter for the rest. */
-export async function askRole(ctx: RoleContext, slot: RoleSlot, { from, steps, after, flagged }: RoleStart = {}): Promise<{ role: Role; failover?: Steps }> {
+export async function askRole(ctx: RoleContext, slot: Block, { from, steps, after, flagged, title }: RoleStart = {}): Promise<{ role: Role; failover?: Steps }> {
   const { ui, deps, interactive } = ctx;
   const name = roleName(slot);
   const key = roleKey(slot);
@@ -43,7 +43,7 @@ export async function askRole(ctx: RoleContext, slot: RoleSlot, { from, steps, a
   };
   const [profileFlag, effortFlag] = [flag('Profile'), flag('Effort')];
 
-  if (interactive && !(profileFlag && flagged)) ui.note(roleBlurb(slot), `${name[0]!.toUpperCase()}${name.slice(1)}`);
+  if (interactive && !(profileFlag && flagged)) ui.note(roleBlurb(slot), title ?? `${name[0]!.toUpperCase()}${name.slice(1)}`);
   const identity = profileFlag ? parseIdentity(profileFlag) : await askIdentity(ui, slot, ctx.forge, ctx.readForge, ctx.login, after?.identity, deps, interactive, from?.identity);
   const provider = flagged?.provider ?? (await askRoleProvider(ui, slot, ctx.providers, from?.provider, after?.provider));
   const account = ctx.providers[provider]!;

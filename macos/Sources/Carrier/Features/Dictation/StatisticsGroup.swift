@@ -214,7 +214,7 @@ private struct WeekChart: View {
                 .accessibilityLabel(day.day.formatted(.dateTime.weekday(.wide).month().day()))
                 .accessibilityValue(Copy.dictationWordsCount(count: day.words))
         }
-        .chartXAxis { AxisMarks(values: .stride(by: .day)) { _ in AxisValueLabel(format: .dateTime.weekday(.narrow)) } }
+        .chartXAxis { AxisMarks(values: .stride(by: .day)) { _ in AxisValueLabel(format: .dateTime.weekday(.abbreviated), centered: true) } }
         .chartYAxis(.hidden)
         .frame(height: 70)
         .accessibilityLabel(Copy.dictationWeekChartLabel())

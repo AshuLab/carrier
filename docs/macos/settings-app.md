@@ -61,6 +61,17 @@ Under `--fixture` the fixture home has a `providers.json` and the fake host's `p
   A save of `providers.json` ends by asking the engine to reload, like every other writer, so a running engine applies the accounts with no restart.
   Under `--fixture` the fake host's `providers` follows the file (a display name, binary, folder, a Remove giving the tool its "Found, not added" row back), so each of these can be done against the fixture folder.
 
+## Appearance
+
+The Appearance page (`AppearanceTabView` in `Carrier/Features/Settings/AppearanceTab.swift`) starts with the Theme group: the themes as cells in `ThemeGallery` (`CarrierUI/Selects/ThemeGallery.swift`), each a light and a dark preview side by side with the name under them, the chosen one with the accent's edge.
+The cells sit in three fixed rows that fill column by column and the gallery scrolls sideways, so the page is the same height (about 400 points) with twelve themes or forty.
+While there are themes beyond the right edge half a column is cut there, so it is clear there is more; at the end of the scroll the last column is whole.
+An arrow at each side scrolls by three columns, and one that cannot scroll further is not shown.
+With the keyboard, up and down move one theme inside a column and left and right one column, choosing the theme as they go (`themeGalleryMove`, which stops at the ends: right from a row the last, shorter column does not have goes to that column's last cell), and the gallery scrolls until the chosen cell is whole.
+VoiceOver reads the gallery as a group called Themes and the chosen cell as selected.
+The page's own file holds only the list of themes; the piece takes the cells, the chosen one's id and an action, so the terminal can use it too.
+The gallery of pieces (the Pieces session of `--fixture`) draws it with the real themes, with forty and at the end of its scroll.
+
 ## Notifications
 
 The Notifications tab (`CarrierCore/Settings/NotificationsTab.swift`, the logic in `CarrierCore/Settings/Notifications.swift`) has four groups (Carrier, Chat, Delivery and Permission).

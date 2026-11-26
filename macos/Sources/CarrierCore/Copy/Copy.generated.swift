@@ -69,9 +69,10 @@ public enum Copy {
         }
     }
 
-    public enum PieceState: Sendable { case bold; case byShape; case changes; case checking; case closed; case danger; case disabled; case done; case empty; case error; case failed; case finished; case folded; case high; case idle; case image; case info; case initials; case large; case loading; case long; case noResults; case normal; case open; case plain; case quiet; case record; case selected; case sets; case small; case still; case symbol; case tinted; case tool; case waiting; case warning; case withActions; case withBadge; case withDetail; case withFooter; case withIcon; case withLink; case withoutDetail; case working }
+    public enum PieceState: Sendable { case atEnd; case bold; case byShape; case changes; case checking; case closed; case danger; case disabled; case done; case empty; case error; case failed; case finished; case folded; case high; case idle; case image; case info; case initials; case large; case loading; case long; case noResults; case normal; case open; case plain; case quiet; case record; case selected; case sets; case small; case still; case symbol; case tinted; case tool; case waiting; case warning; case withActions; case withBadge; case withDetail; case withFooter; case withIcon; case withLink; case withoutDetail; case working }
     public static func pieceState(which: PieceState, bundle: Bundle? = nil, locale: Locale = .current) -> String {
         switch which {
+        case .atEnd: return String(localized: "pieceState.atEnd", bundle: bundle ?? carrierResources, locale: locale)
         case .bold: return String(localized: "pieceState.bold", bundle: bundle ?? carrierResources, locale: locale)
         case .byShape: return String(localized: "pieceState.byShape", bundle: bundle ?? carrierResources, locale: locale)
         case .changes: return String(localized: "pieceState.changes", bundle: bundle ?? carrierResources, locale: locale)
@@ -12139,6 +12140,18 @@ public enum Copy {
 
     public static func pieceChosen(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         String(localized: "pieceChosen", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func pieceThemes(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "pieceThemes", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func pieceThemesEarlier(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "pieceThemesEarlier", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func pieceThemesMore(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "pieceThemesMore", bundle: bundle ?? carrierResources, locale: locale)
     }
 
     public static func piecePullRequest(number: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {

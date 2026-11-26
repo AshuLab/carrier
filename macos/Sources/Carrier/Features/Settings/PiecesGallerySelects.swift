@@ -14,6 +14,11 @@ struct PiecesGallerySelects: View {
                 GalleryState(.normal) { SegmentSample(icons: false) }
                 GalleryState(.withIcon) { SegmentSample(icons: true) }
             }
+            GalleryEntry("ThemeGallery") {
+                GalleryState(.normal) { ThemeGallerySample(count: Theme.allCases.count, chosen: 1) }
+                GalleryState(.long) { ThemeGallerySample(count: 40, chosen: 0) }
+                GalleryState(.atEnd) { ThemeGallerySample(count: 40, chosen: 39) }
+            }
             GalleryEntry("SelectButtonStyle", "SelectChevron") {
                 GalleryState(.normal) { select(disabled: false) }
                 GalleryState(.disabled) { select(disabled: true) }
@@ -50,5 +55,21 @@ private struct SegmentSample: View {
     var body: some View {
         let marks: [AppIcon] = [.code, .clock, .archive]
         SegmentedChoice(options: choices().map { (value: $0.value, title: $0.title, icon: icons ? marks[$0.value] : nil) }, selection: $value)
+    }
+}
+
+private struct ThemeGallerySample: View {
+    let count: Int
+    @State private var chosen: Int
+
+    init(count: Int, chosen: Int) {
+        self.count = count
+        self._chosen = State(initialValue: chosen)
+    }
+
+    var body: some View {
+        let cells = PiecesGalleryData.themeCells(count: count)
+        // wider than a column of states, so three columns and half of the next one are not squeezed
+        ThemeGallery(cells: cells, chosen: cells[chosen].id) { id in chosen = cells.firstIndex { $0.id == id } ?? chosen }.frame(width: 640)
     }
 }

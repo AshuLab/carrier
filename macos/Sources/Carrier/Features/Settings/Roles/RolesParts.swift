@@ -100,7 +100,7 @@ struct EpicRail: View {
                 }
             }
         } else {
-            RailLink(dashed: next.off) { Text(next.off ? Copy.rolesRailLeadOff() : Copy.rolesRailPasses()) }
+            RailLink(dashed: next.off) { Text(next.off ? Copy.rolesRailLeadOff() : Copy.rolesRailPasses(rounds: page.leadRounds)) }
         }
     }
 }

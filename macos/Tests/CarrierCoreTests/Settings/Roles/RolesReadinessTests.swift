@@ -104,10 +104,12 @@ private func readiness(_ json: String, providers: String? = nil) throws -> Roles
     let listed = Set(AgentRole.allCases.flatMap { $0.stages(bundle: english.bundle, locale: english.locale) }.map(\.skill))
     #expect(invoked.count == 4)
     #expect(listed == invoked, "AgentRole.stages and the default skills disagree on the skills each stage runs")
+    // `skills.lead` names nothing by default and takes the review skills (docs/configuration.md): the lead runs the review skills of the fixture, in their order
+    #expect(AgentRole.leadReviewer.stages(bundle: english.bundle, locale: english.locale).map(\.skill) == [review["review"], review["publish"]].compactMap { $0 })
 }
 
-@Test func theLeadReviewerHasNoStageAndTheOthersHaveTheirSkillsInOrder() {
-    #expect(AgentRole.leadReviewer.stages(bundle: english.bundle, locale: english.locale).isEmpty)
+@Test func theLeadReviewerRunsTheReviewSkillsAndTheOthersHaveTheirSkillsInOrder() {
+    #expect(AgentRole.leadReviewer.stages(bundle: english.bundle, locale: english.locale).map(\.title) == ["Lead review", "Post and approve"])
     #expect(AgentRole.author.stages(bundle: english.bundle, locale: english.locale).map(\.skill) == ["ship", "code-resolve"])
     #expect(AgentRole.reviewer.stages(bundle: english.bundle, locale: english.locale).map(\.skill) == ["code-review", "code-post"])
 }

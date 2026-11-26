@@ -86,8 +86,7 @@ public struct RoleStage: Equatable, Identifiable {
 }
 
 extension AgentRole {
-    /// What the engine runs for the role, in the order an epic goes through it. The Lead reviewer has no stage here: the engine runs it,
-    /// once after the reviewers agree, but the app does not list its skills yet.
+    /// What the engine runs for the role, in the order an epic goes through it. The Lead reviewer runs the review skills (`skills.lead` takes them when it names none).
     public func stages(bundle: Bundle? = nil, locale: Locale = .current) -> [RoleStage] {
         switch self {
         case .author: [
@@ -102,7 +101,12 @@ extension AgentRole {
             RoleStage(
                 title: Copy.rolesStageTitle(which: .post, bundle: bundle, locale: locale), detail: Copy.rolesStageDetail(which: .post, bundle: bundle, locale: locale), skill: "code-post"),
         ]
-        case .leadReviewer: []
+        case .leadReviewer: [
+            RoleStage(
+                title: Copy.rolesStageTitle(which: .leadReview, bundle: bundle, locale: locale), detail: Copy.rolesStageDetail(which: .leadReview, bundle: bundle, locale: locale), skill: "code-review"),
+            RoleStage(
+                title: Copy.rolesStageTitle(which: .leadPost, bundle: bundle, locale: locale), detail: Copy.rolesStageDetail(which: .leadPost, bundle: bundle, locale: locale), skill: "code-post"),
+        ]
         }
     }
 }

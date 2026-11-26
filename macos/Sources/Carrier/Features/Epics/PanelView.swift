@@ -177,7 +177,7 @@ struct PanelView: View {
                         } else if let emptyPage {
                             EmptyStateView(state: emptyPage).inPageScroll()
                         } else if case .session(let id) = shell.selection {
-                            ConversationView(sessionId: id, draft: model.newSession, request: shell.conversationRequest, subagents: $shell.subagents, header: $shell.subagentHeader) { plan in
+                            ConversationView(sessionId: id, draft: model.newSession, request: shell.conversationRequest, subagents: $shell.subagents, header: $shell.subagentHeader, subagentsList: $shell.subagentsList) { plan in
                                 model.newSession.restore(plan)
                                 shell.selection = .newSession
                             }.id(id)

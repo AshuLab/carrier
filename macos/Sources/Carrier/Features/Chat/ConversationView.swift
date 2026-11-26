@@ -42,15 +42,17 @@ struct ConversationView: View {
     /// what `header` is told, which is the window's too.
     @Binding private var subagents: [String]
     @Binding private var header: SubagentHeader?
+    @Binding private var subagentsList: SubagentsList
 
     init(
         sessionId: String, draft: NewSessionModel? = nil, request: ConversationRequest? = nil, subagents: Binding<[String]> = .constant([]),
-        header: Binding<SubagentHeader?> = .constant(nil), cancelled: @escaping (SessionPlan) -> Void = { _ in }
+        header: Binding<SubagentHeader?> = .constant(nil), subagentsList: Binding<SubagentsList> = .constant(.empty), cancelled: @escaping (SessionPlan) -> Void = { _ in }
     ) {
         self.draft = draft
         self.request = request
         _subagents = subagents
         _header = header
+        _subagentsList = subagentsList
         self.cancelled = cancelled
         // a model made at every pass over the parent's body is wasted work: the events count them
         Signposts.render.emitEvent("ConversationModel init")
@@ -92,6 +94,7 @@ struct ConversationView: View {
                 }
             }
             .onChange(of: model.openSubagent?.header) { _, shown in header = shown }
+            .onChange(of: model.subagents, initial: true) { _, list in subagentsList = list }
     }
 
     private var conversation: some View {

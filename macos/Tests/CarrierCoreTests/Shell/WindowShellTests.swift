@@ -296,9 +296,10 @@ private let fakeSessions = [
     shell.leaveSubagent()
     #expect(shell.subagents == ["c1"])
     shell.subagentHeader = SubagentHeader(title: "T", type: "Explore", state: .running, startedAt: 0, durationMs: nil)
+    shell.subagentsList = SubagentsList(launches: [SubagentLaunch(id: "g", items: [], startedAt: 0, endedAt: nil)])
     // choosing another page or session leaves it, the header with it; Back with none open is nothing
     shell.selection = .session(id: "b")
-    #expect(shell.subagents.isEmpty && shell.subagentHeader == nil)
+    #expect(shell.subagents.isEmpty && shell.subagentHeader == nil && shell.subagentsList == .empty)
     shell.leaveSubagent()
     #expect(shell.subagents.isEmpty)
     shell.openSubagent("c1")

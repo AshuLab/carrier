@@ -24,7 +24,8 @@ public func chatFeed(
     var lastContext: Double?
     var held: [Thought] = []
     // the calls that launched a subagent of the main agent (a `task` event names its call), and where each subagent is: its row and its place in it
-    let launching = Set(events.compactMap { $0.kind == "task" && $0.parentCallId == nil ? $0.callId : nil })
+    let nested = Set(events.compactMap { $0.kind == "task" && $0.parentCallId != nil ? $0.callId : nil })
+    let launching = Set(events.compactMap { $0.kind == "task" && $0.parentCallId == nil ? $0.callId : nil }).subtracting(nested)
     var subagents: [String: (row: Int, index: Int)] = [:]
     // thoughts no call came to take: a run of their own, where the piece that ends them begins
     func release() {

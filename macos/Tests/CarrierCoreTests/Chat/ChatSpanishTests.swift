@@ -371,4 +371,10 @@ private func group(_ events: [ChatEvent]) -> ToolGroup {
     #expect(Copy.chatSubagentBriefExpandSpoken(bundle: es.bundle, locale: es.locale) == "Mostrar todo el encargo")
     #expect(Copy.chatSubagentBriefCollapseSpoken(bundle: es.bundle, locale: es.locale) == "Plegar el encargo")
     #expect(Copy.chatFailed(bundle: es.bundle, locale: es.locale) == "Falló")
+    #expect(Copy.chatSubagentsButtonSpoken(count: 1, bundle: es.bundle, locale: es.locale) == "1 subagente")
+    #expect(Copy.chatSubagentsButtonSpoken(count: 3, bundle: es.bundle, locale: es.locale) == "3 subagentes")
+    #expect(Copy.chatSubagentsButtonRunningSpoken(count: 1, running: 1, bundle: es.bundle, locale: es.locale) == "1 subagente, 1 en marcha")
+    #expect(Copy.chatSubagentsButtonRunningSpoken(count: 3, running: 2, bundle: es.bundle, locale: es.locale) == "3 subagentes, 2 en marcha")
+    #expect(Copy.chatSubagentsButtonFailedSpoken(count: 1, failed: 1, bundle: es.bundle, locale: es.locale) == "1 subagente, 1 falló")
+    #expect(Copy.chatSubagentsButtonFailedSpoken(count: 4, failed: 2, bundle: es.bundle, locale: es.locale) == "4 subagentes, 2 fallaron")
 }

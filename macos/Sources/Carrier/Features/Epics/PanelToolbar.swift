@@ -77,6 +77,12 @@ extension PanelView {
                 ToolbarItem(placement: .primaryAction) { SessionPlacePill(row: session) }
                     .sharedBackgroundVisibility(.hidden)
             }
+            if shell.subagentsList.buttonState != .hidden {
+                ToolbarItem(placement: .primaryAction) {
+                    SubagentsButton(state: shell.subagentsList.buttonState, spoken: shell.subagentsList.buttonSpoken()) {}
+                }
+                .sharedBackgroundVisibility(.hidden)
+            }
             ToolbarSpacer(.fixed, placement: .primaryAction)
             ToolbarItem(placement: .primaryAction) {
                 ToolbarGlassIconButton(icon: .terminal, active: drawerOpen, name: drawerOpen ? Copy.epicsToolbarHideTerminal() : Copy.epicsToolbarOpenTerminal(path: abbreviatedTerminalPath(session.folder))) {

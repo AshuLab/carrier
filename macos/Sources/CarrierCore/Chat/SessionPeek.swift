@@ -24,8 +24,10 @@ public struct SessionPeek: Equatable {
     /// What the row's third line says, and more: the card shows the lines changed even for a session with no pull request.
     public var pullRequest: SessionPullRequest?
     public var diff: SessionDiff?
-    /// What the agent waits for after its turn ended.
+    /// What the agent waits for after its turn ended: its own work (a subagent, a workflow).
     public var background: [BackgroundTask] = []
+    /// What runs in the background without the model: a command, a monitor, a dev server. Said apart from the state, not in the tone of work.
+    public var processes: [BackgroundTask] = []
     /// The folder the session is grouped under: the project's tile is looked up by it.
     public var base = ""
 }
@@ -57,6 +59,6 @@ public func sessionPeek(_ row: SessionRow, now: Date, bundle: Bundle? = nil, loc
     }
     return SessionPeek(
         title: row.title, name: row.workspace, subtitle: subtitle, tone: tone, lastMessage: row.lastMessage?.isEmpty == false ? row.lastMessage : nil,
-        facts: facts, timeline: Copy.chatPeekUpdated(age: spokenAge(row.updatedAt, now: now, locale: locale), bundle: bundle, locale: locale), pullRequest: row.pullRequest, diff: row.diff, background: row.background, base: row.base
+        facts: facts, timeline: Copy.chatPeekUpdated(age: spokenAge(row.updatedAt, now: now, locale: locale), bundle: bundle, locale: locale), pullRequest: row.pullRequest, diff: row.diff, background: row.background.filter(\.agentWork), processes: row.processes, base: row.base
     )
 }

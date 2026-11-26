@@ -25,6 +25,21 @@ struct SessionPeekView: View {
     /// The most of the tasks it waits for that the card lists, and "+n" for the rest.
     private static let tasksShown = 3
 
+    /// The names of tasks, three at most and "+n more", each after its mark.
+    private func taskNames<Mark: View>(_ tasks: [CarrierCore.BackgroundTask], @ViewBuilder mark: @escaping () -> Mark) -> some View {
+        VStack(alignment: .leading, spacing: Tokens.Space.s3) {
+            ForEach(tasks.prefix(Self.tasksShown), id: \.id) { task in
+                HStack(spacing: Tokens.Space.s6) {
+                    mark().accessibilityHidden(true)
+                    Text(task.name).scaledFont(10.5, design: .monospaced).lineLimit(1).truncationMode(.tail)
+                }
+            }
+            if tasks.count > Self.tasksShown {
+                Text(Copy.chatPeekMoreTasks(count: tasks.count - Self.tasksShown)).scaledFont(11).foregroundStyle(.tertiary)
+            }
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: Tokens.Space.s12) {
             HStack(alignment: .top, spacing: Tokens.Space.s10) {
@@ -57,17 +72,14 @@ struct SessionPeekView: View {
                 if card.background.isEmpty == false {
                     GridRow(alignment: .firstTextBaseline) {
                         Text(Copy.chatPeekWaitingOn()).foregroundStyle(.secondary)
-                        VStack(alignment: .leading, spacing: Tokens.Space.s3) {
-                            ForEach(card.background.prefix(Self.tasksShown), id: \.id) { task in
-                                HStack(spacing: Tokens.Space.s6) {
-                                    Circle().fill(Color.backgroundWork).frame(width: 6, height: 6).accessibilityHidden(true)
-                                    Text(task.name).scaledFont(10.5, design: .monospaced).lineLimit(1).truncationMode(.tail)
-                                }
-                            }
-                            if card.background.count > Self.tasksShown {
-                                Text(Copy.chatPeekMoreTasks(count: card.background.count - Self.tasksShown)).scaledFont(11).foregroundStyle(.tertiary)
-                            }
-                        }
+                        taskNames(card.background) { Circle().fill(Color.backgroundWork).frame(width: 6, height: 6) }
+                    }
+                }
+                if card.processes.isEmpty == false {
+                    // the processes are a fact beside the state: a grey terminal glyph, never the cyan of work
+                    GridRow(alignment: .firstTextBaseline) {
+                        Text(Copy.chatPeekRunning()).foregroundStyle(.secondary)
+                        taskNames(card.processes) { Glyph(.terminal, size: 9).foregroundStyle(.secondary) }
                     }
                 }
             }

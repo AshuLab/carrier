@@ -382,7 +382,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         # A draft is never `releases/latest`. A re-run finds the release as it was left, draft or published, and replaces its files.
-        run: .github/scripts/github-release.sh draft "$VERSION" \
+        run: |
+          .github/scripts/github-release.sh draft "$VERSION" \
           "out/Carrier-$VERSION.zip" "out/Carrier-$VERSION.zip.sha256" "out/Carrier-$VERSION.dSYM.zip" \
           "out/Carrier-$VERSION-intel.zip" "out/Carrier-$VERSION-intel.zip.sha256" "out/Carrier-$VERSION-intel.dSYM.zip"
 

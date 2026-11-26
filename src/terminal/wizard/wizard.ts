@@ -11,6 +11,7 @@ import { buildConfig, parseIdentity, type AIProvider, type Role } from './build-
 import { realDeps, type InitDeps } from './deps.ts';
 import type { InitFlags } from './flags.ts';
 import type { ForgeAgent } from './forge-registry.ts';
+import { keepRest } from './keep-rest.ts';
 import { priorFrom, type Prior } from './prior.ts';
 import { askIdentity } from './questions/identity.ts';
 import { askFailover, askProviders, askRoleProvider, declareFlaggedProvider } from './questions/options.ts';
@@ -56,8 +57,19 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
   let out = flags.out === undefined ? undefined : resolve(flags.out);
   let settled = false; // the question below settled where the config goes, and that it may be replaced
   let prior: Prior | undefined;
+  let base: Record<string, unknown> | undefined; // the file being edited, as it is: an edit keeps what the wizard does not ask
+  // What a file there says: its answers, or its first error. A file that cannot be read is an error too.
+  const readPrior = (path: string) => {
+    try {
+      const raw = deps.readConfig(path);
+      const found = priorFrom(raw, deps.exists(providersPath) ? deps.readConfig(providersPath) : {});
+      return 'error' in found ? found : { prior: found, raw: raw as Record<string, unknown> };
+    } catch (error) {
+      return { error: `cannot read it: ${error instanceof Error ? error.message : String(error)}` };
+    }
+  };
   if (flags.out === undefined && interactive && deps.exists(fallback)) {
-    const choice = await ui.select({
+    let choice = await ui.select({
       message: `A config already exists at ${tilde(fallback)}`,
       options: [
         { value: 'edit', label: 'Edit it', hint: 'its answers are the starting points' },
@@ -67,19 +79,31 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
       ],
       initialValue: 'edit',
     });
+    if (choice === 'edit') {
+      const found = readPrior(fallback);
+      if ('error' in found) {
+        // Nothing is touched until the person answers.
+        ui.warn(`${tilde(fallback)} does not validate, first error: ${found.error}`);
+        choice = await ui.select({
+          message: 'What do you want to do with it?',
+          options: [
+            { value: 'fresh', label: 'Start over', hint: 'replaces it' },
+            { value: 'elsewhere', label: 'Save a new one in another file' },
+            { value: 'cancel', label: 'Leave it as it is' },
+          ],
+          initialValue: 'cancel',
+        });
+      } else ({ prior, raw: base } = found);
+    }
     if (choice === 'cancel') throw new Cancelled();
     if (choice === 'edit' || choice === 'fresh') {
       out = fallback;
       settled = true;
     }
-    if (choice === 'edit') {
-      try {
-        prior = priorFrom(deps.readConfig(fallback), deps.exists(providersPath) ? deps.readConfig(providersPath) : {});
-      } catch {
-        // unreadable: handled as no prior below
-      }
-      if (prior === undefined) ui.warn(`${tilde(fallback)} (with ${tilde(providersPath)}) is not a valid config, so there is nothing to start from.`);
-    }
+  } else if (flags.yes && deps.exists(out ?? fallback)) {
+    // --yes replaces the file as the flag says, and still says why a file that does not validate goes.
+    const found = readPrior(out ?? fallback);
+    if ('error' in found) ui.warn(`${tilde(out ?? fallback)} does not validate and is replaced, first error: ${found.error}`);
   }
 
   const ask = async (from: Prior | undefined, keepAccounts: boolean): Promise<Prior> => {
@@ -182,7 +206,8 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
   };
 
   const make = (answers: Prior) => {
-    const user = buildConfig(answers);
+    const built = buildConfig(answers);
+    const user = base === undefined ? built : keepRest(base, built);
     const loaded = loadConfig(defaults, user, answers.providers);
     if (!loaded.ok) throw new Error(`the answers do not make a valid config:\n${loaded.errors.map((e) => `  ${e.path}: ${e.message}`).join('\n')}`);
     return { user, config: loaded.config };

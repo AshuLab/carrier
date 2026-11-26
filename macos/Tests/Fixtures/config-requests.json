@@ -26,6 +26,7 @@
     "removeExtraReviewer",
     "setLeadReviewer",
     "setOrchestratorProfile",
+    "setRepoExtraReviewers",
     "setWatchedRepos"
   ]
 }

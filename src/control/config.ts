@@ -1,5 +1,5 @@
 import { editBehavior, setWatchedRepos, type BehaviorChanges } from '../config/engine-edit.ts';
-import { addExtraReviewer, editFailover, editPersona, editRepoRole, editRole, removeExtraReviewer, setLeadReviewer, setOrchestratorProfile, type EditRoleChanges, type ExtraReviewerDraft, type FailoverStep, type RepoRoleFields, type Role, type RoleChanges, type Target } from '../config/role-edit.ts';
+import { addExtraReviewer, editFailover, editPersona, editRepoRole, editRole, removeExtraReviewer, setLeadReviewer, setOrchestratorProfile, setRepoExtraReviewers, type EditRoleChanges, type ExtraReviewerDraft, type FailoverStep, type RepoExtraReviewer, type RepoRoleFields, type Role, type RoleChanges, type Target } from '../config/role-edit.ts';
 import { ReloadRefused } from '../orchestration/reload-refused.ts';
 import type { TextParams } from '../orchestration/text-params.ts';
 
@@ -16,7 +16,8 @@ export type EngineConfigRequest =
   | { cmd: 'setLeadReviewer'; draft: RoleChanges | null }
   | { cmd: 'setOrchestratorProfile'; name: string | null }
   | { cmd: 'addExtraReviewer'; draft: ExtraReviewerDraft }
-  | { cmd: 'removeExtraReviewer'; key: string };
+  | { cmd: 'removeExtraReviewer'; key: string }
+  | { cmd: 'setRepoExtraReviewers'; repo: string; reviewers: Record<string, RepoExtraReviewer> | null };
 
 /** What the engine did with the file that was saved: ran on it, kept its settings and says why (a text code, its params and its words), or was not there to be asked. */
 export type EngineOutcome = { engine: 'applied' | 'notRunning' } | { engine: 'refused'; reason: { code: string; params: TextParams; error: string } };
@@ -35,6 +36,7 @@ export function writeEngineConfig(request: EngineConfigRequest, file: string, fo
     case 'setOrchestratorProfile': return setOrchestratorProfile(request.name, file, folder);
     case 'addExtraReviewer': return addExtraReviewer(request.draft, file, folder);
     case 'removeExtraReviewer': return removeExtraReviewer(request.key, file, folder);
+    case 'setRepoExtraReviewers': return setRepoExtraReviewers(request.repo, request.reviewers, file, folder);
   }
 }
 

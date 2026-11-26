@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { ConfigRefused } from './engine-edit.ts';
 import { engineConfigPathOf, providersPathOf } from './places.ts';
-import { addExtraReviewer, editFailover, editPersona, editRepoRole, editRole, removeExtraReviewer, setLeadReviewer, setOrchestratorProfile } from './role-edit.ts';
+import { addExtraReviewer, editFailover, editPersona, editRepoRole, editRole, removeExtraReviewer, setLeadReviewer, setOrchestratorProfile, setRepoExtraReviewers } from './role-edit.ts';
 import { validEngineFile } from './testing.ts';
 
 // The role writes of `engine.json`: the file after each request (every key it does not touch stays), a refusal with the words the app's checks gave, its code and its key path and kind, and the file as it was.
@@ -462,6 +462,61 @@ describe('removeExtraReviewer', () => {
 
   test('a file with no extra reviewers refuses every key', () => {
     expect(refused(() => removeExtraReviewer('a', file, folder))[2]).toEqual({ path: 'agents.extraReviewers.a', problem: 'noEntry' });
+  });
+});
+
+describe('setRepoExtraReviewers', () => {
+  const entry = (name: string, extra: object = {}) => ({ type: 'general', name, profile: 'author-bot', provider: 'claude', model: 'm', ...extra });
+  const own = { sec: entry('Sec', { effort: 'high' }), ux: entry('UX') };
+  const set = (reviewers: Parameters<typeof setRepoExtraReviewers>[1]) => setRepoExtraReviewers('acme/web', reviewers, file, folder);
+
+  test('a map is the repo own list whole, trimmed, in the order sent, and the reply says what was saved', () => {
+    expect(set({ ux: entry(' UX ', { type: ' general ' }), sec: own.sec })).toEqual({ saved: { repos: [{ name: 'acme/web', agents: { author: { model: 'opus' }, extraReviewers: { ux: own.ux, sec: own.sec } } }] } });
+    expect(Object.keys(written().repos[1].agents.extraReviewers)).toEqual(['ux', 'sec']);
+    expect(written().repos[0]).toEqual(validEngineFile.repos[0]);
+    expect(Object.keys(written())).toEqual(Object.keys(validEngineFile));
+  });
+
+  test('a map keeps nothing of the earlier one: an entry is what was sent', () => {
+    withFile((edited) => (edited.repos[1].agents.extraReviewers = { sec: { ...own.sec, persona: { name: 'Old' }, failover: [{ provider: 'codex' }] }, gone: entry('Gone') }));
+    set({ sec: entry('Sec') });
+    expect(written().repos[1].agents.extraReviewers).toEqual({ sec: entry('Sec') });
+  });
+
+  test('{} is none: the key stays as an empty map, and null takes it out', () => {
+    set({});
+    expect(written().repos[1].agents).toEqual({ author: { model: 'opus' }, extraReviewers: {} });
+    set(null);
+    expect(written()).toEqual(validEngineFile);
+  });
+
+  test('taking the key out of the only key of agents takes agents out, and a repo with no key is left as it was', () => {
+    withFile((edited) => (edited.repos[1].agents = { extraReviewers: own }));
+    set(null);
+    expect(written().repos[1]).toEqual({ name: 'acme/web' });
+    expect(set(null)).toEqual({ saved: { repos: [{ name: 'acme/web' }] } });
+  });
+
+  test.each([
+    ['a fourth entry', { a: entry('A'), b: entry('B'), c: entry('C'), d: entry('D') }, 'At most 3 extra reviewers.', 'repos[1].agents.extraReviewers', 'full'],
+    ['a key that is not a slug', { 'Sec API': entry('Sec') }, expect.stringContaining('The key “Sec API”'), 'repos[1].agents.extraReviewers.Sec API', 'badKey'],
+    ['a reserved key', { lead: entry('Sec') }, expect.stringContaining('The key “lead”'), 'repos[1].agents.extraReviewers.lead', 'badKey'],
+    ['a missing profile', { sec: { ...entry('Sec'), profile: undefined } }, 'An extra reviewer needs profile.', 'repos[1].agents.extraReviewers.sec.profile', 'incomplete'],
+    ['a blank provider and a missing model', { sec: { ...entry('Sec'), provider: ' ', model: undefined } }, 'An extra reviewer needs provider, model.', 'repos[1].agents.extraReviewers.sec.provider', 'incomplete'],
+    ['a missing name', { sec: { ...entry('Sec'), name: undefined } }, 'An extra reviewer needs name.', 'repos[1].agents.extraReviewers.sec.name', 'incomplete'],
+    ['a name of 41 characters', { sec: entry('x'.repeat(41)) }, 'The name is one line of up to 40 characters.', 'repos[1].agents.extraReviewers.sec.name', 'tooLong'],
+    ['a name another entry has, without regard to case', { sec: entry('Sec'), ux: entry(' sEC ') }, '“sEC” is already another reviewer’s name. Pick another one.', 'repos[1].agents.extraReviewers.ux.name', 'taken'],
+    ['a type that is not a slug', { sec: entry('Sec', { type: 'Not A Slug' }) }, expect.stringContaining('The type is a slug'), 'repos[1].agents.extraReviewers.sec.type', 'notASlug'],
+    ['a profile the file does not declare', { sec: entry('Sec', { profile: 'ghost' }) }, 'Identity “ghost” is not declared in profiles. Pick another one.', 'repos[1].agents.extraReviewers.sec.profile', 'notDeclared'],
+    ['an account providers.json does not have', { sec: entry('Sec', { provider: 'ollama' }) }, 'Provider “ollama” is not an account of providers.json. Pick another one.', 'repos[1].agents.extraReviewers.sec.provider', 'notAnAccount'],
+    ['an effort that is not one', { sec: entry('Sec', { effort: 'extreme' }) }, expect.stringContaining('Effort must be one of'), 'repos[1].agents.extraReviewers.sec.effort', 'notOneOf'],
+  ])('%s is refused naming the field, and the file is as it was', (_what, reviewers, words, path, kind) => {
+    withFile((edited) => (edited.repos[1].agents.extraReviewers = { old: entry('Old') }));
+    expect(refused(() => set(reviewers as never))).toEqual([words, 'config.problem', { path, problem: kind }]);
+  });
+
+  test('a repo that is not in the file is refused', () => {
+    expect(refused(() => setRepoExtraReviewers('x/y', {}, file, folder))).toEqual(['x/y is no longer in the config file.', 'config.problem', { path: 'repos', problem: 'notWatched' }]);
   });
 });
 

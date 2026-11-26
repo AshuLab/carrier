@@ -538,6 +538,7 @@ test('no request takes a status, a stage or a round, and each accepts exactly th
     setOrchestratorProfile: ['name'],
     addExtraReviewer: ['draft'],
     removeExtraReviewer: ['key'],
+    setRepoExtraReviewers: ['repo', 'reviewers'],
   });
   expect(Object.values(accepted).flat().filter((field) => ['status', 'stage', 'round', 'rounds'].includes(field))).toEqual([]);
 });
@@ -809,6 +810,15 @@ test('removeExtraReviewer takes the reviewer out of the file, makes the engine r
   expect(reload).toHaveBeenCalledTimes(1);
 });
 
+test('setRepoExtraReviewers writes the repo\'s own list, makes the engine run on it and answers saved and the engine', async () => {
+  const reload = vi.fn();
+  const { file, c } = await openConfig(reload);
+  const sec = { type: 'security', name: 'Sec', profile: 'reviewer-bot', provider: 'claude', model: 'opus' };
+  expect(await c.ask(JSON.stringify({ id: 5, cmd: 'setRepoExtraReviewers', repo: 'acme/web', reviewers: { sec } }))).toEqual({ id: 5, ok: true, data: { saved: { repos: [{ name: 'acme/web', agents: { author: { model: 'opus' }, extraReviewers: { sec } } }] }, engine: 'applied' } });
+  expect(JSON.parse(readFileSync(file, 'utf8')).repos[1].agents.extraReviewers).toEqual({ sec });
+  expect(reload).toHaveBeenCalledTimes(1);
+});
+
 test('setLeadReviewer with draft null on a file with no lead reviewer answers saved and the engine runs on it', async () => {
   const reload = vi.fn();
   const { file, c } = await openConfig(reload);
@@ -833,6 +843,7 @@ test.each([
   ['setLeadReviewer', '"draft":{"provider":"claude"}', 'The lead reviewer needs an identity, a model.', { path: 'agents.leadReviewer', problem: 'incomplete' }],
   ['addExtraReviewer', '"draft":{"name":"Sec","provider":"claude","model":"opus"}', 'An extra reviewer needs type, identity.', { path: 'agents.extraReviewers.type', problem: 'incomplete' }],
   ['removeExtraReviewer', '"key":"ghost"', 'There is no extra reviewer “ghost” in engine.json.', { path: 'agents.extraReviewers.ghost', problem: 'noEntry' }],
+  ['setRepoExtraReviewers', '"repo":"x/y","reviewers":{}', 'x/y is no longer in the config file.', { path: 'repos', problem: 'notWatched' }],
   ['setOrchestratorProfile', '"name":"ghost"', expect.stringContaining('orchestratorProfile'), { path: 'orchestratorProfile', problem: 'invalid' }],
 ])('%s with %s is refused with its words, code and params, no reload, and the file is as it was', async (cmd, fields, words, params) => {
   const reload = vi.fn();
@@ -865,6 +876,9 @@ test.each([
   '{"id":5,"cmd":"addExtraReviewer","draft":{"name":"a","key":"a"}}',
   '{"id":5,"cmd":"removeExtraReviewer"}',
   '{"id":5,"cmd":"removeExtraReviewer","key":5}',
+  '{"id":5,"cmd":"setRepoExtraReviewers","repo":"acme/web"}',
+  '{"id":5,"cmd":"setRepoExtraReviewers","repo":"acme/web","reviewers":[]}',
+  '{"id":5,"cmd":"setRepoExtraReviewers","repo":"acme/web","reviewers":{"a":{"name":"A","key":"a"}}}',
 ])('%s is a validation error', async (line) => {
   const { c } = await openConfig(() => {});
   expect(await c.ask(line)).toEqual({ id: 5, ok: false, error: 'invalid request', code: 'request.invalid', params: {} });

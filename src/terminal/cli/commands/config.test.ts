@@ -138,6 +138,14 @@ test('with no engine, removeExtraReviewer takes the reviewer out of engine.json 
   expect(JSON.parse(readFileSync(engineFile(), 'utf8'))).toEqual(validEngineFile);
 });
 
+test('with no engine, setRepoExtraReviewers writes the repo\'s own list and says notRunning', async () => {
+  const sec = { type: 'security', name: 'Sec', profile: 'reviewer-bot', provider: 'claude', model: 'opus' };
+  writeFileSync(engineFile(), JSON.stringify(validEngineFile));
+  expect(await run(JSON.stringify({ cmd: 'setRepoExtraReviewers', repo: 'acme/web', reviewers: { sec } }))).toBe(0);
+  expect(printed()).toMatchObject({ ok: true, data: { engine: 'notRunning' } });
+  expect(JSON.parse(readFileSync(engineFile(), 'utf8')).repos[1].agents.extraReviewers).toEqual({ sec });
+});
+
 test('a refused role change prints the refusal with its code and params and leaves the file as it was', async () => {
   const text = JSON.stringify(validEngineFile);
   writeFileSync(engineFile(), text);

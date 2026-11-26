@@ -188,3 +188,40 @@ private func task(
     #expect(idle.buttonState == .quiet(total: 4, failed: false))
     #expect(idle.buttonSpoken(bundle: english.bundle, locale: english.locale) == "4 subagents")
 }
+
+@Test func allSubagentsFlattensEveryLaunchAndNestedSubagentInModelOrder() throws {
+    let reply = try JSONDecoder().decode(
+        ChatEvents.self,
+        from: Data(contentsOf: URL(fileURLWithPath: fixtures + "/chat-events-subagents.json"))
+    )
+    let list = subagentsList(in: reply.events, working: true)
+    #expect(list.allSubagents.map(\.id) == ["a3", "a1", "n1", "a2"])
+    #expect(list.allSubagents.count == list.totalCount)
+    #expect(SubagentsList.empty.allSubagents.isEmpty)
+}
+
+@Test func subagentSpokenReadsTypeTitleStepAndStepsInEveryState() {
+    let en = (bundle: english.bundle, locale: english.locale)
+    let events = [
+        agentStart(1, 10, "r1"),
+        task(2, 11, "r1", "started", text: "Search logs"),
+        ChatEvent(id: 3, at: 12, kind: "tool_start", callId: "s1", tool: "Read", arg: "a.swift", parentCallId: "r1"),
+        agentStart(4, 20, "c1"),
+        task(5, 21, "c1", "started", text: "Check tests"),
+        task(6, 30, "c1", "completed", ms: 9),
+        agentStart(7, 40, "f1"),
+        task(8, 41, "f1", "started", text: "Deploy"),
+        task(9, 50, "f1", "failed", ms: 9),
+        agentStart(10, 60, "p1"),
+        task(11, 61, "p1", "started", text: "Wait"),
+        task(12, 70, "p1", "stopped", ms: 9),
+    ]
+    let list = subagentsList(in: events)
+    #expect(list.allSubagents.map { $0.spoken(bundle: en.bundle, locale: en.locale) } == [
+        "Explore subagent, Search logs, Reading a.swift, 1 step",
+        "Explore subagent, Deploy, Failed, 0 steps",
+        "Explore subagent, Check tests, Finished, 0 steps",
+        "Explore subagent, Wait, Stopped, 0 steps",
+    ])
+    #expect(Copy.chatSubagentsListSpoken(bundle: en.bundle, locale: en.locale) == "Subagents")
+}

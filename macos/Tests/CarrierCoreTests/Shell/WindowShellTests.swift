@@ -307,6 +307,19 @@ private let fakeSessions = [
     #expect(shell.subagents.isEmpty)
 }
 
+@Test func openingFromTheSubagentsListKeepsTheListAndLeavesToTheConversation() {
+    let shell = WindowShell()
+    shell.selection = .session(id: "a")
+    let list = SubagentsList(launches: [SubagentLaunch(id: "g", items: [], startedAt: 0, endedAt: nil)])
+    shell.subagentsList = list
+    shell.openSubagent("c1")
+    #expect(shell.subagents == ["c1"])
+    #expect(shell.subagentsList == list)
+    shell.leaveSubagent()
+    #expect(shell.subagents.isEmpty)
+    #expect(shell.subagentsList == list)
+}
+
 @Test func backAndForwardWalkTheSelectionsVisitedAndAddNothingThemselves() {
     let shell = WindowShell()
     shell.selection = .sessions

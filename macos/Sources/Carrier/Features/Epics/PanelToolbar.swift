@@ -79,7 +79,19 @@ extension PanelView {
             }
             if shell.subagentsList.buttonState != .hidden {
                 ToolbarItem(placement: .primaryAction) {
-                    SubagentsButton(state: shell.subagentsList.buttonState, spoken: shell.subagentsList.buttonSpoken()) {}
+                    SubagentsButton(
+                        state: shell.subagentsList.buttonState,
+                        spoken: shell.subagentsList.buttonSpoken(),
+                        open: subagentsOpen
+                    ) {
+                        subagentsOpen.toggle()
+                    }
+                    .popover(isPresented: $subagentsOpen, arrowEdge: .bottom) {
+                        SubagentsListPopover(list: shell.subagentsList) { id in
+                            subagentsOpen = false
+                            shell.openSubagent(id)
+                        }
+                    }
                 }
                 .sharedBackgroundVisibility(.hidden)
             }

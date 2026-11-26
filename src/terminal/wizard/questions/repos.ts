@@ -41,7 +41,7 @@ export async function askRepos(ui: Ui, deps: InitDeps, current: string[] | undef
     const owners = [...new Set(names.map((n) => n.split('/')[0]!))];
     const tail = [...(hasMore ? [{ value: loadMore, label: 'Load more…', hint: 'the next repos' }] : []), other, { value: none, label: 'None for now', hint: 'add repos later' }];
     const groups: Record<string, Option<string>[]> = Object.fromEntries(
-      owners.map((owner) => [owner, names.filter((n) => n.startsWith(`${owner}/`)).map((value) => ({ value, label: owners.length > 1 ? value.slice(owner.length + 1) : value }))]),
+      owners.map((owner) => [owner, names.filter((n) => n.startsWith(`${owner}/`)).map((value) => ({ value, label: value }))]),
     );
     if (owners.length === 1) groups[owners[0]!]!.push(...tail);
     else groups.Other = tail;

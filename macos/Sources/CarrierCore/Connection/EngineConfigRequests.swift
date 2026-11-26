@@ -43,15 +43,21 @@ public enum EngineConfigChange: Equatable, Sendable {
     case orchestratorProfile(String?)
     /// A complete draft of an extra reviewer, added at the end of the global map; the engine derives the key from the name.
     case addExtraReviewer(ExtraReviewerDraft)
+    /// The changes of one pick to an extra reviewer, pointed at by its key and applied together or not at all; `name` and `type` are the only fields a role has not, and a nil one is left as it is.
+    case extraReviewerRole(key: String, name: String?, type: String?, [RoleChange])
+    /// The persona of an extra reviewer: either text alone, or both; nil for both takes it out.
+    case extraReviewerPersona(key: String, name: String?, prompt: String?)
+    /// The first two failover steps of an extra reviewer's own list; both nil takes the list out and the reviewer goes back to the Reviewer's steps.
+    case extraReviewerFailover(key: String, first: FailoverStep?, second: FailoverStep?)
 
     var command: String {
         switch self {
         case .watchedRepos: "setWatchedRepos"
         case .behavior: "editBehavior"
-        case .role: "editRole"
+        case .role, .extraReviewerRole: "editRole"
         case .repoRole: "editRepoRole"
-        case .persona: "editPersona"
-        case .failover: "editFailover"
+        case .persona, .extraReviewerPersona: "editPersona"
+        case .failover, .extraReviewerFailover: "editFailover"
         case .leadReviewer: "setLeadReviewer"
         case .orchestratorProfile: "setOrchestratorProfile"
         case .addExtraReviewer: "addExtraReviewer"
@@ -89,6 +95,15 @@ public enum EngineConfigChange: Equatable, Sendable {
             body["name"] = draft.name
             body["type"] = draft.type
             return members(["draft": body])
+        case .extraReviewerRole(let key, let name, let type, let changes):
+            var body = wire(changes)
+            body["name"] = name
+            body["type"] = type
+            return members(["role": ["extraReviewer": key], "changes": body])
+        case .extraReviewerPersona(let key, let name, let prompt):
+            return members(["role": ["extraReviewer": key], "name": name ?? NSNull(), "prompt": prompt ?? NSNull()])
+        case .extraReviewerFailover(let key, let first, let second):
+            return members(["role": ["extraReviewer": key], "first": first.map(wire) ?? NSNull(), "second": second.map(wire) ?? NSNull()])
         }
     }
 

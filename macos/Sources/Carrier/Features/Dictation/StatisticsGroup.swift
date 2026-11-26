@@ -61,7 +61,7 @@ struct StatisticsGroup: View {
     }
 
     /// The cards of a group, with no container behind them: four in a row while each has the room its longest title and value need (equal shares, at the
-    /// person's text size), two by two when the window is narrow. In the form the row has no background and no inset, so the cards are the group.
+    /// person's text size), two by two when the window is narrow. The group puts them outside the section's container (`SettingsGroup(card: false)`).
     private func cardGrid(_ cards: [StatisticsCard]) -> some View {
         let four = cardsWidth >= 4 * 130 * CGFloat(textScale.percent) / 100 + 30
         return Group {
@@ -76,7 +76,6 @@ struct StatisticsGroup: View {
         }
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { cardsWidth = $0 }
         .padding(.vertical, Tokens.Space.s4)
-        .listRowInsets(EdgeInsets()).listRowBackground(Color.clear)
     }
 
     /// 24 cells, one per hour, as strong as the dictations of that hour, and the line that says the hour the person dictates most.

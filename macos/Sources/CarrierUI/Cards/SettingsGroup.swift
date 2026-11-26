@@ -30,7 +30,27 @@ public struct SettingsGroup<Content: View, Accessory: View>: View {
     @Environment(\.settingsForm) private var form
 
     public var body: some View {
-        if form {
+        if form && card == false {
+            // A grouped form draws its own container behind a section's rows, and a row cannot clear it: the content goes in the header, which is outside it.
+            Section {
+            } header: {
+                VStack(alignment: .leading, spacing: Tokens.Space.s8) {
+                    if title.isEmpty == false {
+                        HStack {
+                            Text(title)
+                            Spacer(minLength: 8)
+                            accessory
+                        }
+                    }
+                    // the header insets its content by ~10 pt at each side, which the title keeps and the content, as wide as a card, gives back
+                    content.environment(\.settingsGroup, id ?? "").padding(.horizontal, -Tokens.Space.s10)
+                }
+                .padding(.bottom, Tokens.Space.s20) // the room to what comes under it, which the section's own gap does not give
+                .settingsAnchored(id, group: id)
+            } footer: {
+                if let footer { Text(footer) }
+            }
+        } else if form {
             Section {
                 content.environment(\.settingsGroup, id ?? "")
             } header: {

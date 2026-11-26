@@ -145,7 +145,7 @@ test('--yes prints the recap of what it chose, before the checks run', async () 
   await runInit({ repo: ['A/b'], out, yes: true }, { ...ui, note: (m, title) => void (title === 'This is what will be saved' && order.push(m)) }, deps);
   expect(order).toHaveLength(2);
   expect(order[1]).toBe('checks');
-  expect(order[0]).toMatch(/Repos {9}A\/b\nOrchestrator {2}artanis-agent\nAccounts {6}claude, codex\nAuthor {8}artanis-agent · claude \(Claude Code\) · sonnet\nReviewer {6}tassadar-agent · codex \(Codex\) · gpt-test\nConfig {8}.*yes-recap\.json\nAccounts file /);
+  expect(order[0]).toMatch(/Repos {9}A\/b\nOrchestrator {2}artanis-agent\nAccounts {6}claude, codex\nAuthor {8}artanis-agent · claude \(Claude Code\) · sonnet · high\nReviewer {6}tassadar-agent · codex \(Codex\) · gpt-test · high\nConfig {8}.*yes-recap\.json\nAccounts file /);
 });
 
 test('Ctrl+C at "Start Carrier now?" after the save is a no: the files stay and the closing line says what to run', async () => {
@@ -615,7 +615,7 @@ test('with every default accepted the questions come in the order: accounts, orc
     'Add a lead reviewer?',
     'Repos to watch',
     'Save it?',
-    'Start Carrier now? (Ctrl+C stops it)',
+    'Start Carrier now?',
   ]);
 });
 
@@ -638,7 +638,8 @@ test('failover needs two accounts: with one the block says so and asks nothing, 
 
 test('every account providers.json already held is still there after --yes, "Start over", an edit and a new file', async () => {
   const held = { claude: { harness: 'claude' }, 'claude-work': { harness: 'claude', configDir: '~/.claude-work', model: 'opus' } };
-  const files = (path: string) => (path.endsWith('providers.json') ? { providers: held } : existing);
+  const engineFile = { ...existing, providers: undefined, agents: { ...existing.agents, reviewer: { profile: 'gh', provider: 'claude-work', model: 'opus' } } }; // accounts are not engine.json's, and the file names only accounts the file of accounts holds
+  const files = (path: string) => (path.endsWith('providers.json') ? { providers: held } : JSON.parse(JSON.stringify(engineFile)));
   const run = async (flags: Parameters<typeof runInit>[0], answers: Record<string, string | boolean> = {}) => {
     const { deps, written } = fakeDeps({ exists: (path) => path.endsWith('providers.json') || path.endsWith('engine.json'), readConfig: files });
     const { ui, notes } = quietUi({ [notNow]: false, ...answers });

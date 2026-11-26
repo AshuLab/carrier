@@ -43,3 +43,23 @@ test('the same block serves the lead reviewer and asks the same five questions',
     'Turn failover on for the ROLE? When it runs out of credits it moves to the steps you list, each an account and a model.',
   ]);
 });
+
+test('in edit mode the block starts from the file: its model, effort and persona, and a failover it has is offered first', async () => {
+  const { ui, asked } = quietUi({ 'Model and effort: opus at max, change them?': true, 'Model for the author': 'sonnet', "Customise the author's persona?": true });
+  const seen: Record<string, unknown> = {};
+  const spy: RoleContext['ui'] = {
+    ...ui,
+    select: async (o) => ((seen[o.message] = o.initialValue), ui.select(o)),
+    text: async (o) => ((seen[o.message] = o.defaultValue), ui.text(o)),
+    confirm: async (m, initial) => ((seen[m] = initial), ui.confirm(m, initial)),
+  };
+  const from = { identity: { kind: 'gh' as const }, provider: 'claude', model: 'opus', effort: 'max' as const, persona: { name: 'Rex', prompt: 'Be rigorous.' } };
+  await askRole(context(spy), 'author', { from, steps: [{ provider: 'codex', model: 'gpt-test' }] });
+  expect(asked).toContain('Model and effort: opus at max, change them?');
+  expect(seen['Effort for the author']).toBe('max');
+  expect(seen["Customise the author's persona?"]).toBe(true); // the file has one
+  expect(seen['Author persona: give it a name']).toBe('Rex');
+  expect(seen['Author persona: describe how it behaves']).toBe('Be rigorous.');
+  expect(asked.some((m) => m.startsWith('Keep the failover you have? author: codex gpt-test'))).toBe(true);
+  expect(asked.findIndex((m) => m.startsWith('Keep the failover'))).toBeGreaterThan(asked.indexOf("Customise the author's persona?"));
+});

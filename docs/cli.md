@@ -31,7 +31,7 @@ Then it asks, in this order:
 2. **The orchestrator's GitHub profile.** A short note explains what a profile is, then you pick a bot of Agent Forge or your own `gh` login for the orchestrator, which only reads issues and PRs and changes labels.
    If there is no bot it can run `agent-forge add` for you on the spot.
 3. **One block for each role**, closed before the next one starts: the author, the reviewer, any extra reviewers, and a lead reviewer if you say yes at "Add a lead reviewer?" (Enter says no).
-   After the reviewer it asks "Add another reviewer?" (Enter says no); each yes opens the same block for the next slot, `reviewer-2`, then `reviewer-3`, then `reviewer-4`, and after the third it is not asked again.
+   After the reviewer it asks "Add another reviewer?" (Enter says no); each yes opens the same block for the next reviewer, `reviewer-2`, then `reviewer-3`, then `reviewer-4`, and after the third it is not asked again.
    The extra reviewers are written to `agents.extraReviewers` in that order; one with no failover steps has no `failover` key and so uses the reviewer's.
    The lead reviewer comes after all of them.
    Each block asks, in this order:
@@ -54,7 +54,7 @@ Then it asks, in this order:
 5. **Where to save**: `~/.carrier/engine.json` (one global file per user), or another file with `--out`.
 
 Before saving it shows a recap with three choices: save, **change an answer** or cancel; nothing is written until you save.
-"Change an answer" shows a menu of the AI accounts, the orchestrator, each role (author, reviewer, lead reviewer) and the repos: you pick one, `init` asks only that block's questions starting from its current answers, and every other block keeps its answers.
+"Change an answer" shows a menu of the AI accounts, the orchestrator, each role (author, reviewer, the extra reviewers there are and the next one to add, lead reviewer) and the repos: you pick one, `init` asks only that block's questions starting from its current answers, and every other block keeps its answers.
 In `init` **Esc goes back one question** (at the start of a block, to the last question of the one before) and shows it with the answer it had; every answer already given stays, and going back does not run the GitHub or CLI calls (listing repos, adding an Agent Forge bot) again.
 At the very first question Esc leaves, like Ctrl+C.
 **Ctrl+C leaves** from any question, with nothing written before Save.
@@ -88,8 +88,8 @@ Every question has a flag (`carrier init --help`), and they all follow one patte
 | `--<role>-persona-name <text>`, `--<role>-persona-prompt <text>` | The persona, within the schema's limits. |
 | `--<role>-failover <account>[:<model>]` | One failover step; repeat it, in order, for up to two. |
 
-With `--author` and `--reviewer` both given, the extra-accounts question is skipped.
-`reviewer-2` to `reviewer-4` are the extra reviewers, and an extra exists when any flag names its slot.
+With `--author` and `--reviewer` both given, the extra-accounts question and every role's failover question are skipped, and the failover steps the file has stay (a `--<role>-failover` flag still sets its role's steps).
+`reviewer-2` to `reviewer-4` are the extra reviewers, and an extra exists when any flag names it.
 They are a list in order, so a flag for `reviewer-3` with none for `reviewer-2` is refused before anything is probed, naming the missing flag (`--reviewer-2`).
 A flagged extra is not asked again; "Add another reviewer?" is asked once after the last flagged one when there is room, and under `--yes` there is no extra unless a flag names it.
 (In `carrier restart`, `--reviewer-2` to `--reviewer-4` keep meaning an option of the config.)
@@ -97,7 +97,7 @@ A flagged extra is not asked again; "Add another reviewer?" is asked once after 
 The failover step is split at the first colon, so `--author-failover claude:llama3:8b` is the account `claude` with the model `llama3:8b`; a step with no model uses the account's, then the harness's.
 The account must be one found on this Mac or already in `providers.json` (or one a `--<role>` flag declares).
 A role given failover flags is not asked its failover, and the steps replace the ones the file had.
-`--yes` never asks, so an agent can run it too (`--author-profile gh --reviewer-profile gh` makes both roles your `gh` login):
+`--yes` never asks and needs at least one `--repo`, so an agent can run it too (`--author-profile gh --reviewer-profile gh` makes both roles your `gh` login):
 
 ```bash
 carrier init --yes --repo AshuLab/my-repo \

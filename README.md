@@ -47,7 +47,7 @@ carrier           # starts Carrier and shows the live panel (Ctrl+C stops it)
 
 1. Your AI accounts (it finds the agent CLIs and keeps the accounts you already have).
 2. The GitHub profile of the orchestrator.
-3. One block for each role (author, reviewer, and an optional lead reviewer): its GitHub profile, its account, whether to change the model and effort, whether to customise the persona, and its failover when you have two accounts.
+3. One block for each role (author, reviewer, any extra reviewers and an optional lead reviewer): its GitHub profile, its account, whether to change the model and effort, whether to customise the persona, and its failover when you have two accounts.
 4. The repos to watch.
 
 With every default accepted a role costs its profile and its account, then Enter for the model and effort, the persona and, with two or more accounts, the failover.

@@ -48,7 +48,7 @@ init flags (each one skips its question; --yes never asks):
       --<role>-failover <account>[:<model>]   repeat for up to two steps, in order; the account is one of this Mac or providers.json
       reviewer-2 to reviewer-4 are the extra reviewers, in order: --reviewer-3 needs --reviewer-2
   --out <path>                   default is the --config default above
-  --yes                          no questions; overwrite the output file; the author and the reviewer take the first of each agent found (claude for the author and codex for the reviewer when both exist)`;
+  --yes                          no questions (needs --repo); overwrite the output file; the author and the reviewer take the first of each agent found (claude for the author and codex for the reviewer when both exist)`;
 
 /** What `--<role>`, `--<role>-profile` and the rest of a role's flags are, from the table of slots. `--reviewer-2` to `--reviewer-4` come from it too: strings in `restart`, where they name an option of the config. */
 const roleOptions = Object.fromEntries(

@@ -114,6 +114,8 @@ import Observation
     public internal(set) var firstMessage: String?
     /// The subagent view open over the conversation, rebuilt with the feed; nil with none open.
     public internal(set) var openSubagent: SubagentWork?
+    /// The session's subagent launches and button state, rebuilt with the feed.
+    public internal(set) var subagents: SubagentsList = .empty
     @ObservationIgnored var openCall: String?
     /// Whether the host lists `stopTask`, read from its hello once; false until then and for an older host.
     @ObservationIgnored var hostStops: Bool?

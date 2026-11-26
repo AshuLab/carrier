@@ -90,6 +90,7 @@ public struct ArchiveRequest: Equatable {
             if selection == .newSession, navigating == false { newSessionOpened += 1 }
             subagents = []
             subagentHeader = nil
+            subagentsList = .empty
             switch selection {
             case .sessions, .session, .newSession: open = .sessions
             case .terminals, .terminal: open = .terminal
@@ -137,6 +138,8 @@ public struct ArchiveRequest: Equatable {
     public var subagents: [String] = []
     /// What the window's header says of the last one, set by the conversation, which has the events; nil with none open.
     public var subagentHeader: SubagentHeader?
+    /// The open session's subagents, set by the conversation, for the header's Subagents button; empty on any other page.
+    public var subagentsList: SubagentsList = .empty
     /// Counts the times New session was asked for, the + while its draft is already open included: the draft starts blank each time.
     public private(set) var newSessionOpened = 0
     /// The unfolded section; nil when all are folded.

@@ -963,6 +963,23 @@ test('under --yes the type of a reviewer no flag typed is general', async () => 
   expect(JSON.parse(written[out]!).agents.extraReviewers.usabilidad.type).toBe('general');
 });
 
+test('--extra-reviewer-provider declares a local-server account for the reviewer it names, under --yes and interactively', async () => {
+  const yes = fakeDeps();
+  const yesOut = join(dir, 'extras-provider-yes.json');
+  const folder = join(dir, 'carrier-home-extras-provider');
+  await runInit({ ...flagged, yes: true, out: yesOut, extraReviewer: ['Usabilidad=claude:sonnet'], extraReviewerProvider: ['Usabilidad=ollama'] }, quietUi().ui, yes.deps, folder);
+  expect(providersWritten(yes.written, folder)['claude-usabilidad']).toEqual({ harness: 'claude', provider: 'ollama' });
+  expect(JSON.parse(yes.written[yesOut]!).agents.extraReviewers.usabilidad).toMatchObject({ provider: 'claude-usabilidad', model: 'sonnet' });
+
+  const interactive = fakeDeps();
+  const { ui, asked } = quietUi({ [typeKey]: 'ux', "Customise the extra reviewer's persona?": false });
+  const out = join(dir, 'extras-provider-interactive.json');
+  await runInit({ repo: ['A/b'], out, extraReviewer: ['Usabilidad=claude:sonnet'], extraReviewerProvider: ['Usabilidad=ollama'] }, ui, interactive.deps, folder);
+  expect(asked).not.toContain('Which account runs the extra reviewer?');
+  expect(providersWritten(interactive.written, folder)['claude-usabilidad']).toEqual({ harness: 'claude', provider: 'ollama' });
+  expect(JSON.parse(interactive.written[out]!).agents.extraReviewers.usabilidad).toMatchObject({ provider: 'claude-usabilidad', model: 'sonnet' });
+});
+
 test('two --extra-reviewer flags create two reviewers in the order given, each field flag sets the reviewer it names and no other, and the failover repeats in order', async () => {
   const { deps, written } = fakeDeps();
   const out = join(dir, 'extras-yes-two.json');

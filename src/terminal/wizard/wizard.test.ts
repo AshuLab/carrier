@@ -758,10 +758,11 @@ test('failover needs two accounts: with one the block says so and asks nothing, 
       if (name === 'claude') return '/opt/bin/claude';
       throw new Error('missing');
     } }) });
-  const alone = quietUi();
-  await runInit({ repo: ['A/b'], out: join(dir, 'one.json') }, alone.ui, one.deps);
+  const alone = quietUi({ [moreKey]: [true, false], 'Add a lead reviewer?': true });
+  await runInit({ repo: ['A/b'], out: join(dir, 'one.json') }, withEsc(alone.ui, ['Add a lead reviewer?']).ui, one.deps);
   expect(alone.asked.some((m) => m.startsWith('Turn failover on'))).toBe(false);
-  expect(alone.notes.filter((n) => n.title?.startsWith('Failover for the')).map((n) => n.message)).toEqual(['Failover needs a second account, so the author has none.', 'Failover needs a second account, so the reviewer has none.']);
+  // once for the whole run, whatever the number of roles and the Esc that ran the blocks again
+  expect(alone.notes.filter((n) => n.title === 'Failover').map((n) => n.message)).toEqual(['Failover needs a second account, so no role has one.']);
 
   const two = fakeDeps();
   const out = join(dir, 'two.json');
@@ -1004,4 +1005,16 @@ test('Esc at the first question of a block the recap jumped to returns to the re
   expect(base.asked.filter((q) => q.startsWith('Turn failover on for the author'))).toHaveLength(1);
   expect(base.asked.filter((q) => q === 'GitHub profile for the reviewer')).toHaveLength(1); // the jump was abandoned, not asked on
   expect(JSON.parse(written[out]!).agents.reviewer.model).toBe('gpt-test');
+});
+
+test('the intro says how to go back, leave and when anything is written, and "Start over" names what it drops', async () => {
+  const { deps } = fakeDeps({ exists: () => true, readConfig: asFiles(existing) });
+  const spied: { message: string; hint?: string }[][] = [];
+  const base = quietUi({ [notNow]: false });
+  const { ui, notes } = base;
+  const spy: Ui = { ...ui, select: async (o) => (spied.push(o.options as never), ui.select(o)) };
+  await withHome(() => runInit({}, spy, deps));
+  expect(notes.find((n) => n.title === 'What this does')!.message).toContain('Esc goes back one question, Ctrl+C leaves, and nothing is written until you save.');
+  const hint = spied[0]!.find((o) => (o as { value?: string }).value === 'fresh')!.hint!;
+  for (const dropped of ['limits', 'labels', 'skills', 'per-repo overrides', 'extra reviewers', 'keeps your accounts']) expect(hint).toContain(dropped);
 });

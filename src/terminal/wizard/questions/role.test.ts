@@ -16,6 +16,7 @@ const context = (ui: RoleContext['ui']): RoleContext => ({
   forge: { agents: [{ name: 'artanis-agent' }, { name: 'tassadar-agent' }] },
   readForge: () => {},
   login: 'diego',
+  said: { failover: false },
 });
 
 test('the table of slots has the six roles, in the order a person meets them', () => {

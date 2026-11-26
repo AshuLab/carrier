@@ -25,6 +25,8 @@ export type RoleContext = {
   forge: { agents: ForgeAgent[] };
   readForge: () => void;
   login: string | undefined;
+  /** What a note already said in this run, so a note meant for the whole run is printed once, not in every block. */
+  said: { failover: boolean };
 };
 
 /** Where a block starts: the file's answers for the slot (edit mode), the role asked just before it, and the account and model a `--<role>` flag named. */
@@ -66,6 +68,6 @@ export async function askRole(ctx: RoleContext, slot: RoleSlot, { from, steps, a
     const problem = failoverProblem(ctx.flags, Object.keys(ctx.providers), { [slot]: role });
     if (problem !== undefined) throw new Error(problem);
   }
-  const failover = flagSteps ?? (interactive && !ctx.unattended ? await askRoleFailover(ui, ctx.providers, slot, role, ctx.locals, deps, steps) : steps);
+  const failover = flagSteps ?? (interactive && !ctx.unattended ? await askRoleFailover(ui, ctx.providers, slot, role, ctx.locals, deps, steps, ctx.said) : steps);
   return { role, ...(failover && { failover }) };
 }

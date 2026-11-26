@@ -53,6 +53,9 @@ function declareFlagged(flags: InitFlags, accounts: Record<string, AIProvider>) 
   return { providers, roles };
 }
 
+/** What "Start over" says it does: the file is written whole from the answers, so what the wizard does not ask goes with it. */
+const startOverHint = 'resets the answers and drops limits, labels, skills, per-repo overrides and extra reviewers; keeps your accounts';
+
 /** The setup flow: look at the machine, ask what is missing, recap, save, check, offer to start. */
 export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDeps, folder = carrierHome()) {
   // Flags that cannot work are refused before anything is shown or probed.
@@ -60,7 +63,7 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
   if (wrong !== undefined) throw new Error(wrong);
   ui.intro('Carrier setup');
   const interactive = ui.interactive && !flags.yes; // --yes never asks, whatever the terminal
-  if (interactive) ui.note('Carrier works through your GitHub epics with AI agents: one writes the code, another reviews it.\nI look at this Mac first, then ask what is missing:\n  1. Your AI accounts\n  2. Who Carrier reads GitHub as (the orchestrator\'s GitHub profile)\n  3. The author, the reviewer, any extra reviewers and an optional lead reviewer, one block each: GitHub profile, account, model and effort, persona and failover\n  4. The repos to watch\n  5. Where to save it\nBefore anything is written you see the whole picture and can change it.', 'What this does');
+  if (interactive) ui.note('Carrier works through your GitHub epics with AI agents: one writes the code, another reviews it.\nI look at this Mac first, then ask what is missing:\n  1. Your AI accounts\n  2. Who Carrier reads GitHub as (the orchestrator\'s GitHub profile)\n  3. The author, the reviewer, any extra reviewers and an optional lead reviewer, one block each: GitHub profile, account, model and effort, persona and failover\n  4. The repos to watch\n  5. Where to save it\nBefore anything is written you see the whole picture and can change it.\nEsc goes back one question, Ctrl+C leaves, and nothing is written until you save.', 'What this does');
 
   const forge = { agents: [] as ForgeAgent[] };
   const readForge = () => {
@@ -95,6 +98,7 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
 
   const fallback = engineConfigPathOf(folder);
   const journal = journaled(ui);
+  const said = { failover: false }; // the note that failover needs a second account is for the whole run
   // The agent-forge step that adds a bot is journalled too: going back across it does not run it again.
   const forgeDeps: InitDeps = { ...deps, forgeAdd: () => journal.once('agent-forge add', deps.forgeAdd) };
 
@@ -123,7 +127,7 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
         message: `A config already exists at ${tilde(fallback)}`,
         options: [
           { value: 'edit', label: 'Edit it', hint: 'its answers are the starting points' },
-          { value: 'fresh', label: 'Start over', hint: 'resets the answers of engine.json, keeps your accounts' },
+          { value: 'fresh', label: 'Start over', hint: startOverHint },
           { value: 'elsewhere', label: 'Save a new one in another file' },
           { value: 'cancel', label: 'Leave it as it is' },
         ],
@@ -137,7 +141,7 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
           choice = await ui.select({
             message: 'What do you want to do with it?',
             options: [
-              { value: 'fresh', label: 'Start over', hint: 'resets the answers of engine.json, keeps your accounts' },
+              { value: 'fresh', label: 'Start over', hint: startOverHint },
               { value: 'elsewhere', label: 'Save a new one in another file' },
               { value: 'cancel', label: 'Leave it as it is' },
             ],
@@ -185,7 +189,7 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
       const orchestrator = flags.orchestratorProfile !== undefined ? parseIdentity(flags.orchestratorProfile) : asking ? await askIdentity(ui, 'orchestrator', forge, readForge, login, undefined, deps, interactive, from?.orchestrator) : from?.orchestrator;
 
       // 3. One closed block per role
-      const context = { ui, deps, flags, interactive, unattended, providers, locals, forge, readForge, login };
+      const context = { ui, deps, flags, interactive, unattended, providers, locals, forge, readForge, login, said };
       const block = (slot: RoleSlot, after?: Role, held?: Extra) => {
         const key = roleKey(slot) as 'author' | 'reviewer' | 'leadReviewer'; // an extra reviewer's start is `held`, the file's entry at its place in the list
         const fromRole = held?.role ?? from?.[key];

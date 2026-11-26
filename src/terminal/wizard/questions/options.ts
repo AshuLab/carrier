@@ -99,11 +99,12 @@ const done = '\0done';
 const ordinal = ['first', 'second'];
 
 /** A role's failover, inside its block: with two or more accounts, up to two steps, each an account and a model, that the role moves through when its credits run out or errors occur; a step may not repeat another or be the role's own account and model. With fewer accounts there is nowhere to move: one line says so and nothing is asked. A failover the file has is offered first ("keep the failover you have?"). */
-export async function askRoleFailover(ui: Ui, providers: Providers, slot: RoleSlot, own: Pick<Role, 'provider' | 'model'>, locals: Partial<Record<LocalProvider, string[]>>, deps: InitDeps, current?: Steps): Promise<Steps | undefined> {
+export async function askRoleFailover(ui: Ui, providers: Providers, slot: RoleSlot, own: Pick<Role, 'provider' | 'model'>, locals: Partial<Record<LocalProvider, string[]>>, deps: InitDeps, current: Steps | undefined, said: { failover: boolean }): Promise<Steps | undefined> {
   const role = roleName(slot);
   const names = Object.keys(providers);
   if (names.length < 2) {
-    ui.note(`Failover needs a second account, so the ${role} has none.`, `Failover for the ${role}`);
+    if (!said.failover) ui.note('Failover needs a second account, so no role has one.', 'Failover'); // once for the run, not in every block
+    said.failover = true;
     return undefined;
   }
   if (current !== undefined && current.length > 0 && (await ui.confirm(`Keep the failover you have? ${role}: ${stepsLine(current)}`, true))) return current;

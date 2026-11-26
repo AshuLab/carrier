@@ -263,14 +263,12 @@ private struct IndexBuilder {
             entries += page(.roles, "who", "rolesGroupWho", [("identity", "rolesIdentity", "settingsIndexRolesIdentityDetail"), ("model", "rolesModel", "settingsIndexRolesModelDetail")], path: role)
             entries += page(.roles, "persona", "rolesGroupPersona", [("persona-name", "rolesPersonaName", "rolesPersonaNameDetail"), ("persona-prompt", "rolesPersonaPrompt", "rolesPersonaPromptDetail")], path: role)
             for skillRole in AgentRole.allCases {
-                let stages = skillRole.stages(bundle: bundle, locale: locale)
-                entries += stages.map { stage in
+                entries += skillRole.stages(bundle: bundle, locale: locale).map { stage in
                     SettingsEntry(
                         page: .roles, groupID: "skills", group: words("rolesGroupSkills"), rowID: stage.id, title: stage.title,
                         detail: Copy.settingsIndexRoleStage(detail: stage.detail, skill: stage.skill, bundle: bundle, locale: locale), path: [skillRole.rawValue],
                         copyKeys: ["rolesGroupSkills", "settingsIndexRoleStage"])
                 }
-                if stages.isEmpty { entries += page(.roles, "skills", "rolesGroupSkills", [("not-used-by-the-engine-yet", "rolesNoStage", "settingsIndexRolesNotUsedByTheEngineYetDetail")], path: [skillRole.rawValue]) }
             }
             entries += page(.roles, "when-it-runs-out-of-tokens", "rolesGroupTokens", [("switch-automatically", "rolesSwitch", "rolesSwitchDetail")], path: role)
             return entries

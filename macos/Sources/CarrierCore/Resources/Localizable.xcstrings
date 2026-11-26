@@ -47325,40 +47325,6 @@
         }
       }
     },
-    "rolesNoStage": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Not used by the engine yet"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "El motor aún no lo usa"
-          }
-        }
-      }
-    },
-    "rolesNoStageDetail": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The Lead reviewer has no stage today, so there is no skill to choose."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "El revisor líder no tiene ninguna etapa por ahora, así que no hay skill que elegir."
-          }
-        }
-      }
-    },
     "rolesNone": {
       "extractionState": "manual",
       "localizations": {
@@ -47852,19 +47818,63 @@
         }
       }
     },
-    "rolesRailPasses": {
+    "rolesRailPasses %lld": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "When the review passes"
+            "value": "When every reviewer agrees · up to %#@rounds@ with the author"
+          },
+          "substitutions": {
+            "rounds": {
+              "argNum": 1,
+              "formatSpecifier": "lld",
+              "variations": {
+                "plural": {
+                  "one": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg round"
+                    }
+                  },
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg rounds"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cuando la revisión pasa"
+            "value": "Cuando todos los revisores coinciden · hasta %#@rounds@ con el autor"
+          },
+          "substitutions": {
+            "rounds": {
+              "argNum": 1,
+              "formatSpecifier": "lld",
+              "variations": {
+                "plural": {
+                  "one": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg ronda"
+                    }
+                  },
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg rondas"
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -48090,23 +48100,6 @@
         }
       }
     },
-    "rolesSoon": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Soon"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pronto"
-          }
-        }
-      }
-    },
     "rolesStageDetail.answer": {
       "extractionState": "manual",
       "localizations": {
@@ -48137,6 +48130,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "Drena el epic en su propio worktree y deja abierto el pull request final"
+          }
+        }
+      }
+    },
+    "rolesStageDetail.leadPost": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Publishes its findings and gives the pull request its formal approval with its own identity, when it finds no blocker"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Publica sus hallazgos y da al pull request su aprobación formal con su propia identidad, cuando no encuentra ningún bloqueo"
+          }
+        }
+      }
+    },
+    "rolesStageDetail.leadReview": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reviews the pull request on the head the reviewers agreed on, with their summaries"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Revisa el pull request sobre el head en que coincidieron los revisores, con sus resúmenes"
           }
         }
       }
@@ -48205,6 +48232,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "Primera pasada"
+          }
+        }
+      }
+    },
+    "rolesStageTitle.leadPost": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Post and approve"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Publicar y aprobar"
+          }
+        }
+      }
+    },
+    "rolesStageTitle.leadReview": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lead review"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Revisión del líder"
           }
         }
       }
@@ -53494,23 +53555,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "El modelo y el razonamiento del rol"
-          }
-        }
-      }
-    },
-    "settingsIndexRolesNotUsedByTheEngineYetDetail": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The Lead reviewer has no stage, so no skill"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "El revisor principal no tiene etapa, así que no tiene skill"
           }
         }
       }

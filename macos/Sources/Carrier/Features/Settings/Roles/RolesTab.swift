@@ -194,21 +194,33 @@ struct RolesTabView: View {
                 }
                 skills(row, role: role)
                 SettingsGroup(id: "when-it-runs-out-of-tokens", title: Copy.rolesGroupTokens()) {
-                    let on = row.steps.isEmpty == false || switchedOn.contains(role)
-                    SettingsTabRow(id: "switch-automatically", title: Copy.rolesSwitch(), detail: Copy.rolesSwitchDetail(), first: true) {
-                        Toggle(Copy.rolesSwitch(), isOn: Binding(get: { on }, set: { now in
-                            if now { switchedOn.insert(role) } else {
-                                switchedOn.remove(role)
-                                Task { _ = await saveDetails(.failover(role: role, first: nil, second: nil)) }
-                            }
-                        })).labelsHidden().toggleStyle(.switch)
+                    // the lead with no steps of its own runs the Reviewer's, which this screen shows as such; its own steps are what it declares
+                    let own = row.ownSteps ? row.steps : []
+                    let inherits = row.ownSteps == false && switchedOn.contains(role) == false
+                    let on = own.isEmpty == false || switchedOn.contains(role)
+                    if row.ownSteps == false {
+                        // "Same as Reviewer" on: no steps of its own; off: the steps below, and the first one written gives it its own
+                        SettingsTabRow(title: Copy.rolesSameAsReviewer(), detail: Copy.rolesTakesReviewerSteps(steps: row.steps.isEmpty ? Copy.rolesNone() : row.steps.map(\.text).joined(separator: ", ")), first: true) {
+                            Toggle(Copy.rolesSameAsReviewer(), isOn: Binding(get: { inherits }, set: { now in
+                                if now { switchedOn.remove(role) } else { switchedOn.insert(role) }
+                            })).labelsHidden().toggleStyle(.switch)
+                        }
+                    } else {
+                        SettingsTabRow(id: "switch-automatically", title: Copy.rolesSwitch(), detail: Copy.rolesSwitchDetail(), first: true) {
+                            Toggle(Copy.rolesSwitch(), isOn: Binding(get: { on }, set: { now in
+                                if now { switchedOn.insert(role) } else {
+                                    switchedOn.remove(role)
+                                    Task { _ = await saveDetails(.failover(role: role, first: nil, second: nil)) }
+                                }
+                            })).labelsHidden().toggleStyle(.switch)
+                        }
                     }
                     if on {
-                        stepRow(Copy.rolesTryFirst(), detail: Copy.rolesTryFirstDetail(), step: row.steps.first, row: row, role: role, page: page, index: 0)
-                        stepRow(Copy.rolesThenTry(), detail: Copy.rolesOptional(), step: row.steps.dropFirst().first, row: row, role: role, page: page, index: 1)
+                        stepRow(Copy.rolesTryFirst(), detail: Copy.rolesTryFirstDetail(), step: own.first, own: own, role: role, page: page, index: 0)
+                        stepRow(Copy.rolesThenTry(), detail: Copy.rolesOptional(), step: own.dropFirst().first, own: own, role: role, page: page, index: 1)
                     }
-                    if row.steps.count > 2 {
-                        Text(Copy.rolesMoreSteps(count: row.steps.count - 2))
+                    if own.count > 2 {
+                        Text(Copy.rolesMoreSteps(count: own.count - 2))
                             .scaledFont(11).foregroundStyle(.secondary).padding(.vertical, Tokens.Space.s8)
                     }
                 }
@@ -221,21 +233,13 @@ struct RolesTabView: View {
     /// What the engine runs in each stage of the role, as the engine has it today: shown and not changeable yet (a later version of the engine reads
     /// it from the config). `RolesReadinessTests` keeps `AgentRole.stages` equal to what `src/prompts` invokes.
     @ViewBuilder private func skills(_ row: RoleRow, role: AgentRole) -> some View {
-        if role.stages().isEmpty {
-            SettingsGroup(id: "skills", title: Copy.rolesGroupSkills()) {
-                SettingsTabRow(id: "not-used-by-the-engine-yet", title: Copy.rolesNoStage(), detail: Copy.rolesNoStageDetail(), first: true) {
-                    StatusChip(text: Copy.rolesSoon(), tint: .secondary)
-                }
-            }
-        } else {
-            SettingsGroup(id: "skills", title: Copy.rolesGroupSkills(), footer: Copy.rolesSkillsFooter()) {
-                ForEach(role.stages()) { stage in
-                    SettingsTabRow(
-                        id: stage.id, title: stage.title, detail: stage.detail,
-                        note: Copy.rolesRunsAs(invocation: skillInvocation(stage.skill, icon: row.fields.provider.flatMap { icons[$0] }))
-                    ) {
-                        SkillValue(skill: stage.skill)
-                    }
+        SettingsGroup(id: "skills", title: Copy.rolesGroupSkills(), footer: Copy.rolesSkillsFooter()) {
+            ForEach(role.stages()) { stage in
+                SettingsTabRow(
+                    id: stage.id, title: stage.title, detail: stage.detail,
+                    note: Copy.rolesRunsAs(invocation: skillInvocation(stage.skill, icon: row.fields.provider.flatMap { icons[$0] }))
+                ) {
+                    SkillValue(skill: stage.skill)
                 }
             }
         }
@@ -254,10 +258,10 @@ struct RolesTabView: View {
     }
 
     /// A step of the role's failover: a provider and, optionally, a model. Then can be taken back to None; First needs a provider before anything is written.
-    private func stepRow(_ title: String, detail: String, step: FailoverStep?, row: RoleRow, role: AgentRole, page: RolesPage, index: Int) -> some View {
+    private func stepRow(_ title: String, detail: String, step: FailoverStep?, own steps: [FailoverStep], role: AgentRole, page: RolesPage, index: Int) -> some View {
         func write(_ own: FailoverStep?) {
-            let first = index == 0 ? own : row.steps.first
-            let second = index == 1 ? own : row.steps.dropFirst().first
+            let first = index == 0 ? own : steps.first
+            let second = index == 1 ? own : steps.dropFirst().first
             Task { _ = await saveDetails(.failover(role: role, first: first, second: second)) }
         }
         return SettingsTabRow(title: title, detail: detail) {

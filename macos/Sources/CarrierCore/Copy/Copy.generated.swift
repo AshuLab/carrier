@@ -9411,23 +9411,27 @@ public enum Copy {
         String(localized: "rolesNeedAttention \(count)", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public enum RolesStageTitle: Sendable { case first; case answer; case review; case post }
+    public enum RolesStageTitle: Sendable { case first; case answer; case review; case post; case leadReview; case leadPost }
     public static func rolesStageTitle(which: RolesStageTitle, bundle: Bundle? = nil, locale: Locale = .current) -> String {
         switch which {
         case .first: return String(localized: "rolesStageTitle.first", bundle: bundle ?? carrierResources, locale: locale)
         case .answer: return String(localized: "rolesStageTitle.answer", bundle: bundle ?? carrierResources, locale: locale)
         case .review: return String(localized: "rolesStageTitle.review", bundle: bundle ?? carrierResources, locale: locale)
         case .post: return String(localized: "rolesStageTitle.post", bundle: bundle ?? carrierResources, locale: locale)
+        case .leadReview: return String(localized: "rolesStageTitle.leadReview", bundle: bundle ?? carrierResources, locale: locale)
+        case .leadPost: return String(localized: "rolesStageTitle.leadPost", bundle: bundle ?? carrierResources, locale: locale)
         }
     }
 
-    public enum RolesStageDetail: Sendable { case first; case answer; case review; case post }
+    public enum RolesStageDetail: Sendable { case first; case answer; case review; case post; case leadReview; case leadPost }
     public static func rolesStageDetail(which: RolesStageDetail, bundle: Bundle? = nil, locale: Locale = .current) -> String {
         switch which {
         case .first: return String(localized: "rolesStageDetail.first", bundle: bundle ?? carrierResources, locale: locale)
         case .answer: return String(localized: "rolesStageDetail.answer", bundle: bundle ?? carrierResources, locale: locale)
         case .review: return String(localized: "rolesStageDetail.review", bundle: bundle ?? carrierResources, locale: locale)
         case .post: return String(localized: "rolesStageDetail.post", bundle: bundle ?? carrierResources, locale: locale)
+        case .leadReview: return String(localized: "rolesStageDetail.leadReview", bundle: bundle ?? carrierResources, locale: locale)
+        case .leadPost: return String(localized: "rolesStageDetail.leadPost", bundle: bundle ?? carrierResources, locale: locale)
         }
     }
 
@@ -9471,8 +9475,8 @@ public enum Copy {
         String(localized: "rolesRailLeadOff", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func rolesRailPasses(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "rolesRailPasses", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesRailPasses(rounds: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesRailPasses \(rounds)", bundle: bundle ?? carrierResources, locale: locale)
     }
 
     public static func rolesExtraReviewer(position: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
@@ -9745,18 +9749,6 @@ public enum Copy {
 
     public static func rolesGroupSkills(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         String(localized: "rolesGroupSkills", bundle: bundle ?? carrierResources, locale: locale)
-    }
-
-    public static func rolesNoStage(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "rolesNoStage", bundle: bundle ?? carrierResources, locale: locale)
-    }
-
-    public static func rolesNoStageDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "rolesNoStageDetail", bundle: bundle ?? carrierResources, locale: locale)
-    }
-
-    public static func rolesSoon(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "rolesSoon", bundle: bundle ?? carrierResources, locale: locale)
     }
 
     public static func rolesSkillsFooter(bundle: Bundle? = nil, locale: Locale = .current) -> String {
@@ -11899,10 +11891,6 @@ public enum Copy {
 
     public static func settingsIndexRolesModelDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         String(localized: "settingsIndexRolesModelDetail", bundle: bundle ?? carrierResources, locale: locale)
-    }
-
-    public static func settingsIndexRolesNotUsedByTheEngineYetDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "settingsIndexRolesNotUsedByTheEngineYetDetail", bundle: bundle ?? carrierResources, locale: locale)
     }
 
     public static func settingsIndexWatchingEpicsDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {

@@ -57,6 +57,23 @@ private func row(_ page: RolesPage, _ role: AgentRole) throws -> RoleRow { try #
     #expect(try row(found, .leadReviewer).steps.isEmpty)
 }
 
+@Test func theLeadTakesTheReviewersStepsWhileItHasNoneAndKeepsItsOwnWhenItDeclaresThem() throws {
+    let reviewerSteps = #""reviewer": [{"provider": "claude-work", "model": "sonnet"}]"#
+    let inherited = try row(page(full.replacingOccurrences(of: #""reviewer": []"#, with: reviewerSteps)), .leadReviewer)
+    #expect(inherited.ownSteps == false && inherited.steps.map(\.text) == ["claude-work · sonnet"])
+    let own = try row(page(full.replacingOccurrences(of: #""reviewer": []"#, with: reviewerSteps + #", "leadReviewer": [{"provider": "agy"}]"#)), .leadReviewer)
+    #expect(own.ownSteps && own.steps.map(\.text) == ["agy"])
+    // the Author and the Reviewer never take another role's steps
+    #expect(try row(page(full.replacingOccurrences(of: #""reviewer": []"#, with: reviewerSteps)), .author).ownSteps)
+}
+
+@Test func theRailSaysHowManyRoundsTheLeadHasWithTheAuthorThreeUnlessTheFileSaysOtherwise() throws {
+    #expect(try page().leadRounds == 3)
+    #expect(try page(full.replacingOccurrences(of: #""keep": 1,"#, with: #""limits": {"maxLeadRounds": 5},"#)).leadRounds == 5)
+    #expect(Copy.rolesRailPasses(rounds: 3, bundle: english.bundle, locale: english.locale) == "When every reviewer agrees · up to 3 rounds with the author")
+    #expect(Copy.rolesRailPasses(rounds: 1, bundle: english.bundle, locale: english.locale) == "When every reviewer agrees · up to 1 round with the author")
+}
+
 @Test func aRoleWithNoEffortShowsItWithoutOne() throws {
     let lead = try row(page(), .leadReviewer)
     #expect(lead.fields.effort == nil)
@@ -188,7 +205,7 @@ private func withExtras(_ entries: String) -> String {
     let reviewer = try #require(found.rows.first { $0.slot == .reviewer })
     let stages = { (row: RoleRow) in row.slot.stages(bundle: english.bundle, locale: english.locale).map(\.skill) }
     #expect(stages(extra) == ["code-review", "code-post"] && stages(extra) == stages(reviewer))
-    #expect(RoleSlot.lead.stages(bundle: english.bundle, locale: english.locale).isEmpty)
+    #expect(RoleSlot.lead.stages(bundle: english.bundle, locale: english.locale).map(\.skill) == ["code-review", "code-post"])
 }
 
 @Test func aPlaceWhoseReviewerNoLongerExistsHasNoRowSoTheViewShowsTheFirstScreen() throws {

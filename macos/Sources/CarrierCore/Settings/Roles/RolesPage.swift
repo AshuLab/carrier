@@ -151,7 +151,7 @@ public struct RoleRow: Equatable, Identifiable {
     public var providerMissing: Bool
     /// every step of the role's list, though the page offers two; an extra reviewer with none of its own shows the Reviewer's (`ownSteps` false)
     public var steps: [FailoverStep]
-    /// false for an extra reviewer that declares no `failover`: the engine gives it the Reviewer's steps
+    /// false for an extra reviewer that declares no `failover`, and for the lead while `failover.roles.leadReviewer` is not there: the engine gives them the Reviewer's steps
     public var ownSteps = true
     /// the Lead reviewer while the file has no `agents.leadReviewer`: its page is shown dimmed and not usable
     public var off: Bool
@@ -192,6 +192,8 @@ public struct RolesPage: Equatable {
     public var accounts: [String]
     /// said when Author and Reviewer resolve to one account
     public var sharedNote: String?
+    /// `limits.maxLeadRounds`: how many rounds the lead has with the author (3 when the file has none)
+    public var leadRounds = 3
 }
 
 /// The page for `config`; nil when it is not a JSON object (the engine is not configured). `providers` is `providers.json`, nil when it is not there.
@@ -223,10 +225,15 @@ public func rolesPage(config: Data, providers: Data?, bots: ForgeBots, bundle: B
             providerMissing: fields.provider.map { accounts.contains($0) == false } ?? false, steps: steps, ownSteps: ownSteps, off: off
         )
     }
-    func fixed(_ role: AgentRole) -> RoleRow {
-        row(RoleSlot(role), entry: roles[role.rawValue], steps: steps(lists[role.rawValue]), off: role == .leadReviewer && roles[role.rawValue] is [String: Any] == false)
-    }
     let reviewerSteps = steps(lists[AgentRole.reviewer.rawValue])
+    func fixed(_ role: AgentRole) -> RoleRow {
+        // the engine's rule (`failoverStepsFor`): the lead takes the Reviewer's steps while it declares none
+        let inherits = role == .leadReviewer && lists[role.rawValue] == nil
+        return row(
+            RoleSlot(role), entry: roles[role.rawValue], steps: inherits ? reviewerSteps : steps(lists[role.rawValue]), ownSteps: inherits == false,
+            off: role == .leadReviewer && roles[role.rawValue] is [String: Any] == false
+        )
+    }
     // the engine's rule (`failoverStepsOfSlot`): an extra reviewer's own steps when it declares a list, else the Reviewer's
     let extras = (roles["extraReviewers"] as? [[String: Any]] ?? []).prefix(RoleSlot.extraPositions.count).enumerated().map { index, entry in
         row(.extra(index + 2), entry: entry, steps: entry["failover"] == nil ? reviewerSteps : steps(entry["failover"]), ownSteps: entry["failover"] != nil)
@@ -244,7 +251,7 @@ public func rolesPage(config: Data, providers: Data?, bots: ForgeBots, bundle: B
             ? Copy.rolesSharedSame(profile: author.profile, bundle: bundle, locale: locale)
             : Copy.rolesSharedOne(author: author.profile, reviewer: reviewer.profile, bundle: bundle, locale: locale)
     }
-    return RolesPage(rows: rows, bots: bots, accounts: accounts, sharedNote: shared)
+    return RolesPage(rows: rows, bots: bots, accounts: accounts, sharedNote: shared, leadRounds: EngineConfig(json: config).maxLeadRounds)
 }
 
 extension AgentRole {

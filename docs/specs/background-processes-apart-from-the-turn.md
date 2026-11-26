@@ -118,6 +118,7 @@ The CLI's own code names the same four types as agent work, so the inference has
 A wrong placement costs little: a teammate shown as a process leaves the session Done while it works, and the person can still read and stop it.
 A teammate that only waits for a message may hold a session as working: the CLI does not count it as work, and the event carries nothing that says it.
 
-Answered: closing a session ends the shell tasks its agent started.
-A background `sleep` was gone after `close()` in all six runs, with no `stopTask` before it, so "archiving stops them" holds without it; the shell lives in a process group of its own, outside the group the host signals, and it is gone when the session closes.
-A `claude` killed with SIGKILL leaves its shell running, which is a dying host and not an archive (ADR 0056, Consequences).
+Answered, as observed: closing a session ended the shell tasks its agent started.
+A background `sleep` was gone after `close()` in each of six runs, within a few seconds where it was timed (one run needed those few seconds) and with no `stopTask` before it, so "archiving stops them" held without it; the ADR does not separate a delayed kill from some other cause.
+The shell lives in a process group of its own, outside the group the host signals.
+In one side check a `claude` killed with SIGKILL left its shell running, which is a dying host and not an archive (ADR 0056, Consequences).

@@ -8,9 +8,9 @@ public enum AgentRole: String, CaseIterable, Equatable, Sendable {
 
     public func title(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         switch self {
-        case .author: Copy.agentsRole(which: .author, bundle: bundle, locale: locale)
-        case .reviewer: Copy.agentsRole(which: .reviewer, bundle: bundle, locale: locale)
-        case .leadReviewer: Copy.agentsRole(which: .leadReviewer, bundle: bundle, locale: locale)
+        case .author: Copy.rolesRole(which: .author, bundle: bundle, locale: locale)
+        case .reviewer: Copy.rolesRole(which: .reviewer, bundle: bundle, locale: locale)
+        case .leadReviewer: Copy.rolesRole(which: .leadReviewer, bundle: bundle, locale: locale)
         }
     }
 }
@@ -47,7 +47,7 @@ public struct RoleFields: Equatable, Sendable {
     /// `<profile> · <provider> · <model> · <effort>`, leaving out what is not set; "Not set" when nothing is.
     public func text(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         let parts = [profile, provider, model, effort].compactMap { $0 }.filter { $0.isEmpty == false }
-        return parts.isEmpty ? Copy.agentsNotSet(bundle: bundle, locale: locale) : parts.joined(separator: " · ")
+        return parts.isEmpty ? Copy.rolesNotSet(bundle: bundle, locale: locale) : parts.joined(separator: " · ")
     }
 
     /// These fields, each one the `own` one when the repo has it, else this.
@@ -105,10 +105,10 @@ func roleFields(_ value: Any?) -> RoleFields {
     return RoleFields(profile: text("profile"), provider: text("provider"), model: text("model"), effort: text("effort"), persona: persona)
 }
 
-/// The Agents page as it is for `repo`: each role's fields are the global ones with the repo's own over them (a persona replaces the global one whole), so the
-/// rail, the pictures and the readiness of Agents read a repo's roles as they read the global ones. The Lead reviewer is in it only while the global config
+/// The Roles page as it is for `repo`: each role's fields are the global ones with the repo's own over them (a persona replaces the global one whole), so the
+/// rail, the pictures and the readiness of Roles read a repo's roles as they read the global ones. The Lead reviewer is in it only while the global config
 /// has it; one the repo names alone is not a role of the repo. nil when `config` is not a JSON object.
-public func repoAgentsPage(config: Data, providers: Data?, bots: ForgeBots, repo: String, bundle: Bundle? = nil, locale: Locale = .current) -> AgentsPage? {
+public func repoRolesPage(config: Data, providers: Data?, bots: ForgeBots, repo: String, bundle: Bundle? = nil, locale: Locale = .current) -> RolesPage? {
     guard var file = (try? JSONSerialization.jsonObject(with: config)) as? [String: Any] else { return nil }
     var agents = file["agents"] as? [String: Any] ?? [:]
     let own = ((file["repos"] as? [[String: Any]])?.first { $0["name"] as? String == repo })?["agents"] as? [String: Any] ?? [:]
@@ -118,7 +118,7 @@ public func repoAgentsPage(config: Data, providers: Data?, bots: ForgeBots, repo
         agents[role] = merged
     }
     file["agents"] = agents
-    guard let merged = try? JSONSerialization.data(withJSONObject: file), var page = agentsPage(config: merged, providers: providers, bots: bots, bundle: bundle, locale: locale) else { return nil }
+    guard let merged = try? JSONSerialization.data(withJSONObject: file), var page = rolesPage(config: merged, providers: providers, bots: bots, bundle: bundle, locale: locale) else { return nil }
     page.rows.removeAll { $0.off }
     return page
 }

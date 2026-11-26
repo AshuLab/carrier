@@ -9293,378 +9293,378 @@ public enum Copy {
         String(localized: "engineReadinessMissingDetail", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public enum AgentsRole: Sendable { case author; case reviewer; case leadReviewer }
-    public static func agentsRole(which: AgentsRole, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+    public enum RolesRole: Sendable { case author; case reviewer; case leadReviewer }
+    public static func rolesRole(which: RolesRole, bundle: Bundle? = nil, locale: Locale = .current) -> String {
         switch which {
-        case .author: return String(localized: "agentsRole.author", bundle: bundle ?? carrierResources, locale: locale)
-        case .reviewer: return String(localized: "agentsRole.reviewer", bundle: bundle ?? carrierResources, locale: locale)
-        case .leadReviewer: return String(localized: "agentsRole.leadReviewer", bundle: bundle ?? carrierResources, locale: locale)
+        case .author: return String(localized: "rolesRole.author", bundle: bundle ?? carrierResources, locale: locale)
+        case .reviewer: return String(localized: "rolesRole.reviewer", bundle: bundle ?? carrierResources, locale: locale)
+        case .leadReviewer: return String(localized: "rolesRole.leadReviewer", bundle: bundle ?? carrierResources, locale: locale)
         }
     }
 
-    public enum AgentsPurpose: Sendable { case author; case reviewer; case leadReviewer }
-    public static func agentsPurpose(which: AgentsPurpose, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+    public enum RolesPurpose: Sendable { case author; case reviewer; case leadReviewer }
+    public static func rolesPurpose(which: RolesPurpose, bundle: Bundle? = nil, locale: Locale = .current) -> String {
         switch which {
-        case .author: return String(localized: "agentsPurpose.author", bundle: bundle ?? carrierResources, locale: locale)
-        case .reviewer: return String(localized: "agentsPurpose.reviewer", bundle: bundle ?? carrierResources, locale: locale)
-        case .leadReviewer: return String(localized: "agentsPurpose.leadReviewer", bundle: bundle ?? carrierResources, locale: locale)
+        case .author: return String(localized: "rolesPurpose.author", bundle: bundle ?? carrierResources, locale: locale)
+        case .reviewer: return String(localized: "rolesPurpose.reviewer", bundle: bundle ?? carrierResources, locale: locale)
+        case .leadReviewer: return String(localized: "rolesPurpose.leadReviewer", bundle: bundle ?? carrierResources, locale: locale)
         }
     }
 
-    public static func agentsOff(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsOff", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesOff(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesOff", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsNotSet(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsNotSet", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesNotSet(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesNotSet", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsIdentityForge(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsIdentityForge", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesIdentityForge(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesIdentityForge", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsIdentityGh(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsIdentityGh", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesIdentityGh(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesIdentityGh", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsIdentityMissing(profile: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsIdentityMissing \(profile)", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesIdentityMissing(profile: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesIdentityMissing \(profile)", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsSharedSame(profile: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsSharedSame \(profile)", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesSharedSame(profile: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesSharedSame \(profile)", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsSharedOne(author: String, reviewer: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsSharedOne \(author) \(reviewer)", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesSharedOne(author: String, reviewer: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesSharedOne \(author) \(reviewer)", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsNoRegistry(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsNoRegistry", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesNoRegistry(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesNoRegistry", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsRegistryUnreadable(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsRegistryUnreadable", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesRegistryUnreadable(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesRegistryUnreadable", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsProblemLine(role: String, text: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsProblemLine \(role) \(text)", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesProblemLine(role: String, text: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesProblemLine \(role) \(text)", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsProblemIdentity(profile: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsProblemIdentity \(profile)", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesProblemIdentity(profile: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesProblemIdentity \(profile)", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsProblemNoIdentity(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsProblemNoIdentity", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesProblemNoIdentity(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesProblemNoIdentity", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsProblemAccount(provider: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsProblemAccount \(provider)", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesProblemAccount(provider: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesProblemAccount \(provider)", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsProblemNoAccount(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsProblemNoAccount", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesProblemNoAccount(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesProblemNoAccount", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsProblemNoModel(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsProblemNoModel", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesProblemNoModel(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesProblemNoModel", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsTwoSet(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsTwoSet", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesTwoSet(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesTwoSet", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsAllSet(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsAllSet", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesAllSet(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesAllSet", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsLeadOff(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsLeadOff", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesLeadOff(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesLeadOff", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsEachHas(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsEachHas", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesEachHas(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesEachHas", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsNeedAttention(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsNeedAttention \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesNeedAttention(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesNeedAttention \(count)", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public enum AgentsStageTitle: Sendable { case first; case answer; case review; case post }
-    public static func agentsStageTitle(which: AgentsStageTitle, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+    public enum RolesStageTitle: Sendable { case first; case answer; case review; case post }
+    public static func rolesStageTitle(which: RolesStageTitle, bundle: Bundle? = nil, locale: Locale = .current) -> String {
         switch which {
-        case .first: return String(localized: "agentsStageTitle.first", bundle: bundle ?? carrierResources, locale: locale)
-        case .answer: return String(localized: "agentsStageTitle.answer", bundle: bundle ?? carrierResources, locale: locale)
-        case .review: return String(localized: "agentsStageTitle.review", bundle: bundle ?? carrierResources, locale: locale)
-        case .post: return String(localized: "agentsStageTitle.post", bundle: bundle ?? carrierResources, locale: locale)
+        case .first: return String(localized: "rolesStageTitle.first", bundle: bundle ?? carrierResources, locale: locale)
+        case .answer: return String(localized: "rolesStageTitle.answer", bundle: bundle ?? carrierResources, locale: locale)
+        case .review: return String(localized: "rolesStageTitle.review", bundle: bundle ?? carrierResources, locale: locale)
+        case .post: return String(localized: "rolesStageTitle.post", bundle: bundle ?? carrierResources, locale: locale)
         }
     }
 
-    public enum AgentsStageDetail: Sendable { case first; case answer; case review; case post }
-    public static func agentsStageDetail(which: AgentsStageDetail, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+    public enum RolesStageDetail: Sendable { case first; case answer; case review; case post }
+    public static func rolesStageDetail(which: RolesStageDetail, bundle: Bundle? = nil, locale: Locale = .current) -> String {
         switch which {
-        case .first: return String(localized: "agentsStageDetail.first", bundle: bundle ?? carrierResources, locale: locale)
-        case .answer: return String(localized: "agentsStageDetail.answer", bundle: bundle ?? carrierResources, locale: locale)
-        case .review: return String(localized: "agentsStageDetail.review", bundle: bundle ?? carrierResources, locale: locale)
-        case .post: return String(localized: "agentsStageDetail.post", bundle: bundle ?? carrierResources, locale: locale)
+        case .first: return String(localized: "rolesStageDetail.first", bundle: bundle ?? carrierResources, locale: locale)
+        case .answer: return String(localized: "rolesStageDetail.answer", bundle: bundle ?? carrierResources, locale: locale)
+        case .review: return String(localized: "rolesStageDetail.review", bundle: bundle ?? carrierResources, locale: locale)
+        case .post: return String(localized: "rolesStageDetail.post", bundle: bundle ?? carrierResources, locale: locale)
         }
     }
 
-    public static func agentsFieldIdentity(profile: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsFieldIdentity \(profile)", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesFieldIdentity(profile: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesFieldIdentity \(profile)", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsFieldProvider(provider: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsFieldProvider \(provider)", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesFieldProvider(provider: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesFieldProvider \(provider)", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsFieldEffort(efforts: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsFieldEffort \(efforts)", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesFieldEffort(efforts: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesFieldEffort \(efforts)", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsFieldPersonaName(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsFieldPersonaName", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesFieldPersonaName(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesFieldPersonaName", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsFieldPersonaPrompt(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsFieldPersonaPrompt", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesFieldPersonaPrompt(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesFieldPersonaPrompt", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsOpenRole(role: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsOpenRole \(role)", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesOpenRole(role: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesOpenRole \(role)", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsRailGroup(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsRailGroup", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesRailGroup(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesRailGroup", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsRailOpens(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsRailOpens", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesRailOpens(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesRailOpens", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsRailAsks(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsRailAsks", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesRailAsks(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesRailAsks", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsRailLeadOff(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsRailLeadOff", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesRailLeadOff(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesRailLeadOff", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsRailPasses(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsRailPasses", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesRailPasses(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesRailPasses", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsOwn(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsOwn", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesOwn(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesOwn", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsSameAsEverywhere(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsSameAsEverywhere", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesSameAsEverywhere(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesSameAsEverywhere", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsNeedsAttention(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsNeedsAttention", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesNeedsAttention(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesNeedsAttention", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsNoModel(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsNoModel", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesNoModel(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesNoModel", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsNoIdentity(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsNoIdentity", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesNoIdentity(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesNoIdentity", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsUnknownIdentity(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsUnknownIdentity", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesUnknownIdentity(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesUnknownIdentity", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsNoIdentityYet(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsNoIdentityYet", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesNoIdentityYet(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesNoIdentityYet", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsInitials(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsInitials", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesInitials(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesInitials", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsPicture(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsPicture", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesPicture(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesPicture", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsOwnAccount(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsOwnAccount", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesOwnAccount(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesOwnAccount", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsNotInForge(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsNotInForge", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesNotInForge(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesNotInForge", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsInAnEpic(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsInAnEpic", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesInAnEpic(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesInAnEpic", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsRoleOff(role: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsRoleOff \(role)", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesRoleOff(role: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesRoleOff \(role)", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsCreateBotTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsCreateBotTitle", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesCreateBotTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesCreateBotTitle", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsCreateBotDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsCreateBotDetail", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesCreateBotDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesCreateBotDetail", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsCreateBotHelp(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsCreateBotHelp", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesCreateBotHelp(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesCreateBotHelp", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsCouldNotOpenTerminal(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsCouldNotOpenTerminal", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesCouldNotOpenTerminal(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesCouldNotOpenTerminal", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsGroupIdentities(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsGroupIdentities", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesGroupIdentities(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesGroupIdentities", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsIdentitiesFooter(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsIdentitiesFooter", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesIdentitiesFooter(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesIdentitiesFooter", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsUseLead(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsUseLead", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesUseLead(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesUseLead", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsGroupWho(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsGroupWho", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesGroupWho(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesGroupWho", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsIdentity(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsIdentity", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesIdentity(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesIdentity", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsModel(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsModel", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesModel(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesModel", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsModelNotAccount(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsModelNotAccount", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesModelNotAccount(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesModelNotAccount", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsModelDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsModelDetail", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesModelDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesModelDetail", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsGroupPersona(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsGroupPersona", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesGroupPersona(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesGroupPersona", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsPersonaName(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsPersonaName", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesPersonaName(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesPersonaName", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsPersonaNameDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsPersonaNameDetail", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesPersonaNameDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesPersonaNameDetail", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsPersonaPrompt(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsPersonaPrompt", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesPersonaPrompt(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesPersonaPrompt", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsPersonaPromptDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsPersonaPromptDetail", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesPersonaPromptDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesPersonaPromptDetail", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsNone(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsNone", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesNone(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesNone", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsGroupTokens(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsGroupTokens", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesGroupTokens(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesGroupTokens", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsSwitch(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsSwitch", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesSwitch(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesSwitch", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsSwitchDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsSwitchDetail", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesSwitchDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesSwitchDetail", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsTryFirst(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsTryFirst", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesTryFirst(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesTryFirst", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsTryFirstDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsTryFirstDetail", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesTryFirstDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesTryFirstDetail", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsThenTry(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsThenTry", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesThenTry(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesThenTry", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsOptional(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsOptional", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesOptional(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesOptional", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsMoreSteps(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsMoreSteps \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesMoreSteps(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesMoreSteps \(count)", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsAsTheRole(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsAsTheRole", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesAsTheRole(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesAsTheRole", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsAsTheRoleDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsAsTheRoleDetail", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesAsTheRoleDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesAsTheRoleDetail", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsNoSecondStep(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsNoSecondStep", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesNoSecondStep(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesNoSecondStep", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsChoose(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsChoose", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesChoose(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesChoose", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsGroupSkills(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsGroupSkills", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesGroupSkills(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesGroupSkills", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsNoStage(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsNoStage", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesNoStage(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesNoStage", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsNoStageDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsNoStageDetail", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesNoStageDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesNoStageDetail", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsSoon(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsSoon", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesSoon(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesSoon", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsSkillsFooter(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsSkillsFooter", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesSkillsFooter(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesSkillsFooter", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsRunsAs(invocation: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsRunsAs \(invocation)", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesRunsAs(invocation: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesRunsAs \(invocation)", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsMissingProfile(profile: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsMissingProfile \(profile)", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesMissingProfile(profile: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesMissingProfile \(profile)", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsDefault(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsDefault", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesDefault(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesDefault", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsSkill(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsSkill", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesSkill(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesSkill", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func agentsSkillValue(skill: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "agentsSkillValue \(skill)", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesSkillValue(skill: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesSkillValue \(skill)", bundle: bundle ?? carrierResources, locale: locale)
     }
 
     public static func watchingMustBeOwnerName(name: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
@@ -9982,8 +9982,8 @@ public enum Copy {
         String(localized: "watchingSameAs \(profile)", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func watchingAgentsPage(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "watchingAgentsPage", bundle: bundle ?? carrierResources, locale: locale)
+    public static func watchingRolesPage(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "watchingRolesPage", bundle: bundle ?? carrierResources, locale: locale)
     }
 
     public static func watchingStopAlert(repo: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
@@ -10319,16 +10319,16 @@ public enum Copy {
         String(localized: "providersSignedOutDetail", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func providersUseInAgent(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "providersUseInAgent", bundle: bundle ?? carrierResources, locale: locale)
+    public static func providersUseInRole(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "providersUseInRole", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func providersUseInAgentDetail(account: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "providersUseInAgentDetail \(account)", bundle: bundle ?? carrierResources, locale: locale)
+    public static func providersUseInRoleDetail(account: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "providersUseInRoleDetail \(account)", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func providersOpenAgents(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "providersOpenAgents", bundle: bundle ?? carrierResources, locale: locale)
+    public static func providersOpenRoles(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "providersOpenRoles", bundle: bundle ?? carrierResources, locale: locale)
     }
 
     public static func providersServerStopped(server: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
@@ -10788,12 +10788,12 @@ public enum Copy {
         String(localized: "settingsPageTerminalDetail", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func settingsPageAgents(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "settingsPageAgents", bundle: bundle ?? carrierResources, locale: locale)
+    public static func settingsPageRoles(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsPageRoles", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func settingsPageAgentsDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "settingsPageAgentsDetail", bundle: bundle ?? carrierResources, locale: locale)
+    public static func settingsPageRolesDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsPageRolesDetail", bundle: bundle ?? carrierResources, locale: locale)
     }
 
     public static func settingsPageWatching(bundle: Bundle? = nil, locale: Locale = .current) -> String {
@@ -11753,24 +11753,24 @@ public enum Copy {
         String(localized: "settingsIndexTerminalVerticalPaddingDetail", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func settingsIndexAgentsCreateABotDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "settingsIndexAgentsCreateABotDetail", bundle: bundle ?? carrierResources, locale: locale)
+    public static func settingsIndexRolesCreateABotDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexRolesCreateABotDetail", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func settingsIndexAgentsUseALeadReviewerDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "settingsIndexAgentsUseALeadReviewerDetail", bundle: bundle ?? carrierResources, locale: locale)
+    public static func settingsIndexRolesUseALeadReviewerDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexRolesUseALeadReviewerDetail", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func settingsIndexAgentsIdentityDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "settingsIndexAgentsIdentityDetail", bundle: bundle ?? carrierResources, locale: locale)
+    public static func settingsIndexRolesIdentityDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexRolesIdentityDetail", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func settingsIndexAgentsModelDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "settingsIndexAgentsModelDetail", bundle: bundle ?? carrierResources, locale: locale)
+    public static func settingsIndexRolesModelDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexRolesModelDetail", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func settingsIndexAgentsNotUsedByTheEngineYetDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "settingsIndexAgentsNotUsedByTheEngineYetDetail", bundle: bundle ?? carrierResources, locale: locale)
+    public static func settingsIndexRolesNotUsedByTheEngineYetDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexRolesNotUsedByTheEngineYetDetail", bundle: bundle ?? carrierResources, locale: locale)
     }
 
     public static func settingsIndexWatchingEpicsDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
@@ -11873,8 +11873,8 @@ public enum Copy {
         String(localized: "settingsIndexShortcutNone", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func settingsIndexAgentStage(detail: String, skill: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "settingsIndexAgentStage \(detail) \(skill)", bundle: bundle ?? carrierResources, locale: locale)
+    public static func settingsIndexRoleStage(detail: String, skill: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexRoleStage \(detail) \(skill)", bundle: bundle ?? carrierResources, locale: locale)
     }
 
     public static func noticesGalleryGroupBox(bundle: Bundle? = nil, locale: Locale = .current) -> String {

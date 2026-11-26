@@ -392,1760 +392,6 @@
         }
       }
     },
-    "agentsAllSet": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "All three roles are set up"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Los tres roles están configurados"
-          }
-        }
-      }
-    },
-    "agentsAsTheRole": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "As the role"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Como el rol"
-          }
-        }
-      }
-    },
-    "agentsAsTheRoleDetail": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Keeps the reasoning the role was running with."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mantiene el razonamiento con el que funcionaba el rol."
-          }
-        }
-      }
-    },
-    "agentsChoose": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Choose…"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Elegir…"
-          }
-        }
-      }
-    },
-    "agentsCouldNotOpenTerminal": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Could not open Terminal."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No se pudo abrir Terminal."
-          }
-        }
-      }
-    },
-    "agentsCreateBotDetail": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Opens Terminal on agent-forge add; the list updates when you come back"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Abre Terminal en agent-forge add; la lista se actualiza cuando vuelves"
-          }
-        }
-      }
-    },
-    "agentsCreateBotHelp": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Opens Terminal and runs agent-forge add"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Abre Terminal y ejecuta agent-forge add"
-          }
-        }
-      }
-    },
-    "agentsCreateBotTitle": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Create a bot…"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Crear un bot…"
-          }
-        }
-      }
-    },
-    "agentsDefault": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Default"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Por defecto"
-          }
-        }
-      }
-    },
-    "agentsEachHas": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Each has an identity, an account and a model."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cada uno tiene una identidad, una cuenta y un modelo."
-          }
-        }
-      }
-    },
-    "agentsFieldEffort %@": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Effort must be one of %1$@."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "El esfuerzo debe ser uno de %1$@."
-          }
-        }
-      }
-    },
-    "agentsFieldIdentity %@": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Identity “%1$@” is not declared in profiles. Pick another one."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "La identidad “%1$@” no está declarada en profiles. Elige otra."
-          }
-        }
-      }
-    },
-    "agentsFieldPersonaName": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The persona’s name is one line of up to 40 characters."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "El nombre de la persona es una línea de hasta 40 caracteres."
-          }
-        }
-      }
-    },
-    "agentsFieldPersonaPrompt": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The persona’s prompt is up to 4000 characters."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "El prompt de la persona tiene hasta 4000 caracteres."
-          }
-        }
-      }
-    },
-    "agentsFieldProvider %@": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Provider “%1$@” is not an account of providers.json. Pick another one."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "El proveedor “%1$@” no es una cuenta de providers.json. Elige otro."
-          }
-        }
-      }
-    },
-    "agentsGroupIdentities": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Identities"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Identidades"
-          }
-        }
-      }
-    },
-    "agentsGroupPersona": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Persona"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Persona"
-          }
-        }
-      }
-    },
-    "agentsGroupSkills": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Skills"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Skills"
-          }
-        }
-      }
-    },
-    "agentsGroupTokens": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "When it runs out of tokens"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cuando se quede sin tokens"
-          }
-        }
-      }
-    },
-    "agentsGroupWho": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Who"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Quién"
-          }
-        }
-      }
-    },
-    "agentsIdentitiesFooter": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "A bot is the GitHub account a role works as. Every role can pick one."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Un bot es la cuenta de GitHub con la que trabaja un rol. Cada rol puede elegir uno."
-          }
-        }
-      }
-    },
-    "agentsIdentity": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Identity"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Identidad"
-          }
-        }
-      }
-    },
-    "agentsIdentityForge": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "A bot from Agent Forge"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Un bot de Agent Forge"
-          }
-        }
-      }
-    },
-    "agentsIdentityGh": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Your gh login"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tu sesión de gh"
-          }
-        }
-      }
-    },
-    "agentsIdentityMissing %@": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "“%1$@” is not in Agent Forge’s list or in profiles; it is kept"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "“%1$@” no está en la lista de Agent Forge ni en profiles; se conserva"
-          }
-        }
-      }
-    },
-    "agentsInAnEpic": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "In an epic"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "En un epic"
-          }
-        }
-      }
-    },
-    "agentsInitials": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Initials"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Iniciales"
-          }
-        }
-      }
-    },
-    "agentsLeadOff": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The Lead reviewer is off."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "El revisor líder está desactivado."
-          }
-        }
-      }
-    },
-    "agentsMissingProfile %@": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$@ (missing)"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$@ (falta)"
-          }
-        }
-      }
-    },
-    "agentsModel": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Model"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Modelo"
-          }
-        }
-      }
-    },
-    "agentsModelDetail": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Provider, model and how hard it thinks"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Proveedor, modelo y cuánto piensa"
-          }
-        }
-      }
-    },
-    "agentsModelNotAccount": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Not an account of providers.json"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No es una cuenta de providers.json"
-          }
-        }
-      }
-    },
-    "agentsMoreSteps %lld": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The file has %#@count@, kept and tried in order."
-          },
-          "substitutions": {
-            "count": {
-              "argNum": 1,
-              "formatSpecifier": "lld",
-              "variations": {
-                "plural": {
-                  "one": {
-                    "stringUnit": {
-                      "state": "translated",
-                      "value": "%arg more step"
-                    }
-                  },
-                  "other": {
-                    "stringUnit": {
-                      "state": "translated",
-                      "value": "%arg more steps"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "El archivo tiene %#@count@, conservados y probados en orden."
-          },
-          "substitutions": {
-            "count": {
-              "argNum": 1,
-              "formatSpecifier": "lld",
-              "variations": {
-                "plural": {
-                  "one": {
-                    "stringUnit": {
-                      "state": "translated",
-                      "value": "%arg paso más"
-                    }
-                  },
-                  "other": {
-                    "stringUnit": {
-                      "state": "translated",
-                      "value": "%arg pasos más"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "agentsNeedAttention %lld": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%#@count@"
-          },
-          "substitutions": {
-            "count": {
-              "argNum": 1,
-              "formatSpecifier": "lld",
-              "variations": {
-                "plural": {
-                  "one": {
-                    "stringUnit": {
-                      "state": "translated",
-                      "value": "One role needs attention"
-                    }
-                  },
-                  "other": {
-                    "stringUnit": {
-                      "state": "translated",
-                      "value": "%arg roles need attention"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%#@count@"
-          },
-          "substitutions": {
-            "count": {
-              "argNum": 1,
-              "formatSpecifier": "lld",
-              "variations": {
-                "plural": {
-                  "one": {
-                    "stringUnit": {
-                      "state": "translated",
-                      "value": "Un rol necesita atención"
-                    }
-                  },
-                  "other": {
-                    "stringUnit": {
-                      "state": "translated",
-                      "value": "%arg roles necesitan atención"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "agentsNeedsAttention": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Needs attention"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Necesita atención"
-          }
-        }
-      }
-    },
-    "agentsNoIdentity": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No identity"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sin identidad"
-          }
-        }
-      }
-    },
-    "agentsNoIdentityYet": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No identity yet"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aún sin identidad"
-          }
-        }
-      }
-    },
-    "agentsNoModel": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No model"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sin modelo"
-          }
-        }
-      }
-    },
-    "agentsNoRegistry": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No Agent Forge registry was found, so only your gh login is offered. Create a bot to add one."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No se encontró ningún registro de Agent Forge, así que solo se ofrece tu sesión de gh. Crea un bot para añadir uno."
-          }
-        }
-      }
-    },
-    "agentsNoSecondStep": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No second step"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sin segundo paso"
-          }
-        }
-      }
-    },
-    "agentsNoStage": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Not used by the engine yet"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "El motor aún no lo usa"
-          }
-        }
-      }
-    },
-    "agentsNoStageDetail": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The Lead reviewer has no stage today, so there is no skill to choose."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "El revisor líder no tiene ninguna etapa por ahora, así que no hay skill que elegir."
-          }
-        }
-      }
-    },
-    "agentsNone": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "None"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ninguna"
-          }
-        }
-      }
-    },
-    "agentsNotInForge": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Not in Agent Forge"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No está en Agent Forge"
-          }
-        }
-      }
-    },
-    "agentsNotSet": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Not set"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sin definir"
-          }
-        }
-      }
-    },
-    "agentsOff": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Off"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Desactivado"
-          }
-        }
-      }
-    },
-    "agentsOpenRole %@": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Open %1$@"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Abrir %1$@"
-          }
-        }
-      }
-    },
-    "agentsOptional": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Optional"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Opcional"
-          }
-        }
-      }
-    },
-    "agentsOwn": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Own"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Propio"
-          }
-        }
-      }
-    },
-    "agentsOwnAccount": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Your own account"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tu propia cuenta"
-          }
-        }
-      }
-    },
-    "agentsPersonaName": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Persona name"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nombre de la persona"
-          }
-        }
-      }
-    },
-    "agentsPersonaNameDetail": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Optional, one line up to 40 characters"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Opcional, una línea de hasta 40 caracteres"
-          }
-        }
-      }
-    },
-    "agentsPersonaPrompt": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Persona prompt"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Prompt de la persona"
-          }
-        }
-      }
-    },
-    "agentsPersonaPromptDetail": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Optional instructions"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Instrucciones opcionales"
-          }
-        }
-      }
-    },
-    "agentsPicture": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Picture from the bot’s GitHub App"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Imagen de la GitHub App del bot"
-          }
-        }
-      }
-    },
-    "agentsProblemAccount %@": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "the account “%1$@” is not in providers.json."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "la cuenta “%1$@” no está en providers.json."
-          }
-        }
-      }
-    },
-    "agentsProblemIdentity %@": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "the identity “%1$@” is not in Agent Forge or in profiles. Choose another."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "la identidad “%1$@” no está en Agent Forge ni en profiles. Elige otra."
-          }
-        }
-      }
-    },
-    "agentsProblemLine %@ %@": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$@: %2$@"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$@: %2$@"
-          }
-        }
-      }
-    },
-    "agentsProblemNoAccount": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "it has no account yet."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "todavía no tiene cuenta."
-          }
-        }
-      }
-    },
-    "agentsProblemNoIdentity": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "it has no identity yet."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "todavía no tiene identidad."
-          }
-        }
-      }
-    },
-    "agentsProblemNoModel": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "it has no model yet."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "todavía no tiene modelo."
-          }
-        }
-      }
-    },
-    "agentsPurpose.author": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Writes the code of the epic and answers the reviewer"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Escribe el código del epic y responde al revisor"
-          }
-        }
-      }
-    },
-    "agentsPurpose.leadReviewer": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Optional. Looks at architecture and production readiness after the reviewer"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Opcional. Mira la arquitectura y si está listo para producción después del revisor"
-          }
-        }
-      }
-    },
-    "agentsPurpose.reviewer": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Reviews the final pull request"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Revisa el pull request final"
-          }
-        }
-      }
-    },
-    "agentsRailAsks": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "↺ asks for changes, the author answers"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "↺ pide cambios, el autor responde"
-          }
-        }
-      }
-    },
-    "agentsRailGroup": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "How an epic runs"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cómo se ejecuta un epic"
-          }
-        }
-      }
-    },
-    "agentsRailLeadOff": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Lead reviewer is off"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "El revisor líder está desactivado"
-          }
-        }
-      }
-    },
-    "agentsRailOpens": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Opens the pull request"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Abre el pull request"
-          }
-        }
-      }
-    },
-    "agentsRailPasses": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "When the review passes"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cuando la revisión pasa"
-          }
-        }
-      }
-    },
-    "agentsRegistryUnreadable": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The Agent Forge registry could not be read, so only your gh login is offered."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No se pudo leer el registro de Agent Forge, así que solo se ofrece tu sesión de gh."
-          }
-        }
-      }
-    },
-    "agentsRole.author": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Author"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Autor"
-          }
-        }
-      }
-    },
-    "agentsRole.leadReviewer": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Lead reviewer"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Revisor líder"
-          }
-        }
-      }
-    },
-    "agentsRole.reviewer": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Reviewer"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Revisor"
-          }
-        }
-      }
-    },
-    "agentsRoleOff %@": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$@ · Off"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$@ · Desactivado"
-          }
-        }
-      }
-    },
-    "agentsRunsAs %@": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Runs as %1$@"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Se ejecuta como %1$@"
-          }
-        }
-      }
-    },
-    "agentsSameAsEverywhere": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Same as everywhere"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Igual que en todas partes"
-          }
-        }
-      }
-    },
-    "agentsSharedOne %@ %@": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Author and Reviewer are one account (%1$@ and %2$@): the signature will show it."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "El autor y el revisor son una sola cuenta (%1$@ y %2$@): la firma lo mostrará."
-          }
-        }
-      }
-    },
-    "agentsSharedSame %@": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Author and Reviewer both work as %1$@: the signature will show it."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "El autor y el revisor trabajan los dos como %1$@: la firma lo mostrará."
-          }
-        }
-      }
-    },
-    "agentsSkill": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Skill"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Skill"
-          }
-        }
-      }
-    },
-    "agentsSkillValue %@": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$@, the default; it cannot be changed yet"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$@, la de por defecto; todavía no se puede cambiar"
-          }
-        }
-      }
-    },
-    "agentsSkillsFooter": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Each stage runs the skill shown. Choosing another one comes with a later version of the engine."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cada etapa ejecuta la skill indicada. Poder elegir otra llegará con una versión posterior del motor."
-          }
-        }
-      }
-    },
-    "agentsSoon": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Soon"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pronto"
-          }
-        }
-      }
-    },
-    "agentsStageDetail.answer": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Answers every finding of the last review and fixes what applies"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Responde a cada hallazgo de la última revisión y corrige lo que corresponde"
-          }
-        }
-      }
-    },
-    "agentsStageDetail.first": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Drains the epic into its own worktree and leaves the final pull request open"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Drena el epic en su propio worktree y deja abierto el pull request final"
-          }
-        }
-      }
-    },
-    "agentsStageDetail.post": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Publishes the findings on the pull request"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Publica los hallazgos en el pull request"
-          }
-        }
-      }
-    },
-    "agentsStageDetail.review": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Checks the epic against its spec and tickets"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Comprueba el epic contra su spec y sus tickets"
-          }
-        }
-      }
-    },
-    "agentsStageTitle.answer": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Answering a review"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Respuesta a una revisión"
-          }
-        }
-      }
-    },
-    "agentsStageTitle.first": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "First pass"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Primera pasada"
-          }
-        }
-      }
-    },
-    "agentsStageTitle.post": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Post findings"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Publicar los hallazgos"
-          }
-        }
-      }
-    },
-    "agentsStageTitle.review": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Review"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Revisión"
-          }
-        }
-      }
-    },
-    "agentsSwitch": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Switch automatically"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cambiar automáticamente"
-          }
-        }
-      }
-    },
-    "agentsSwitchDetail": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Usage limit, rate limit or service down"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Límite de uso, límite de peticiones o servicio caído"
-          }
-        }
-      }
-    },
-    "agentsThenTry": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Then try"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Probar después"
-          }
-        }
-      }
-    },
-    "agentsTryFirst": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Try first"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Probar primero"
-          }
-        }
-      }
-    },
-    "agentsTryFirstDetail": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Provider, model and reasoning"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Proveedor, modelo y razonamiento"
-          }
-        }
-      }
-    },
-    "agentsTwoSet": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Author and Reviewer are set up"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "El autor y el revisor están configurados"
-          }
-        }
-      }
-    },
-    "agentsUnknownIdentity": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Unknown identity"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Identidad desconocida"
-          }
-        }
-      }
-    },
-    "agentsUseLead": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Use a lead reviewer"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Usar un revisor líder"
-          }
-        }
-      }
-    },
     "alertCancel": {
       "extractionState": "manual",
       "localizations": {
@@ -46700,19 +44946,19 @@
         }
       }
     },
-    "providersOpenAgents": {
+    "providersOpenRoles": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Open Agents"
+            "value": "Open Roles"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Abrir Agentes"
+            "value": "Abrir Roles"
           }
         }
       }
@@ -47638,36 +45884,36 @@
         }
       }
     },
-    "providersUseInAgent": {
+    "providersUseInRole": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Use in an agent"
+            "value": "Use in a role"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Usar en un agente"
+            "value": "Usar en un rol"
           }
         }
       }
     },
-    "providersUseInAgentDetail %@": {
+    "providersUseInRoleDetail %@": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Opens Agents to pick %1$@ for a role"
+            "value": "Opens Roles to pick %1$@ for a role"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Abre Agentes para elegir %1$@ para un rol"
+            "value": "Abre Roles para elegir %1$@ para un rol"
           }
         }
       }
@@ -47872,6 +46118,1760 @@
           "stringUnit": {
             "state": "translated",
             "value": "Actualizado"
+          }
+        }
+      }
+    },
+    "rolesAllSet": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "All three roles are set up"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los tres roles están configurados"
+          }
+        }
+      }
+    },
+    "rolesAsTheRole": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "As the role"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Como el rol"
+          }
+        }
+      }
+    },
+    "rolesAsTheRoleDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keeps the reasoning the role was running with."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mantiene el razonamiento con el que funcionaba el rol."
+          }
+        }
+      }
+    },
+    "rolesChoose": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose…"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elegir…"
+          }
+        }
+      }
+    },
+    "rolesCouldNotOpenTerminal": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not open Terminal."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo abrir Terminal."
+          }
+        }
+      }
+    },
+    "rolesCreateBotDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opens Terminal on agent-forge add; the list updates when you come back"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abre Terminal en agent-forge add; la lista se actualiza cuando vuelves"
+          }
+        }
+      }
+    },
+    "rolesCreateBotHelp": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opens Terminal and runs agent-forge add"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abre Terminal y ejecuta agent-forge add"
+          }
+        }
+      }
+    },
+    "rolesCreateBotTitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Create a bot…"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Crear un bot…"
+          }
+        }
+      }
+    },
+    "rolesDefault": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Default"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Por defecto"
+          }
+        }
+      }
+    },
+    "rolesEachHas": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Each has an identity, an account and a model."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cada uno tiene una identidad, una cuenta y un modelo."
+          }
+        }
+      }
+    },
+    "rolesFieldEffort %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Effort must be one of %1$@."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El esfuerzo debe ser uno de %1$@."
+          }
+        }
+      }
+    },
+    "rolesFieldIdentity %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Identity “%1$@” is not declared in profiles. Pick another one."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La identidad “%1$@” no está declarada en profiles. Elige otra."
+          }
+        }
+      }
+    },
+    "rolesFieldPersonaName": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The persona’s name is one line of up to 40 characters."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El nombre de la persona es una línea de hasta 40 caracteres."
+          }
+        }
+      }
+    },
+    "rolesFieldPersonaPrompt": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The persona’s prompt is up to 4000 characters."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El prompt de la persona tiene hasta 4000 caracteres."
+          }
+        }
+      }
+    },
+    "rolesFieldProvider %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Provider “%1$@” is not an account of providers.json. Pick another one."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El proveedor “%1$@” no es una cuenta de providers.json. Elige otro."
+          }
+        }
+      }
+    },
+    "rolesGroupIdentities": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Identities"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Identidades"
+          }
+        }
+      }
+    },
+    "rolesGroupPersona": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Persona"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Persona"
+          }
+        }
+      }
+    },
+    "rolesGroupSkills": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skills"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skills"
+          }
+        }
+      }
+    },
+    "rolesGroupTokens": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "When it runs out of tokens"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cuando se quede sin tokens"
+          }
+        }
+      }
+    },
+    "rolesGroupWho": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Who"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quién"
+          }
+        }
+      }
+    },
+    "rolesIdentitiesFooter": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A bot is the GitHub account a role works as. Every role can pick one."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un bot es la cuenta de GitHub con la que trabaja un rol. Cada rol puede elegir uno."
+          }
+        }
+      }
+    },
+    "rolesIdentity": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Identity"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Identidad"
+          }
+        }
+      }
+    },
+    "rolesIdentityForge": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A bot from Agent Forge"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un bot de Agent Forge"
+          }
+        }
+      }
+    },
+    "rolesIdentityGh": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your gh login"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tu sesión de gh"
+          }
+        }
+      }
+    },
+    "rolesIdentityMissing %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%1$@” is not in Agent Forge’s list or in profiles; it is kept"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%1$@” no está en la lista de Agent Forge ni en profiles; se conserva"
+          }
+        }
+      }
+    },
+    "rolesInAnEpic": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In an epic"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En un epic"
+          }
+        }
+      }
+    },
+    "rolesInitials": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Initials"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Iniciales"
+          }
+        }
+      }
+    },
+    "rolesLeadOff": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The Lead reviewer is off."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El revisor líder está desactivado."
+          }
+        }
+      }
+    },
+    "rolesMissingProfile %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ (missing)"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ (falta)"
+          }
+        }
+      }
+    },
+    "rolesModel": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Model"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Modelo"
+          }
+        }
+      }
+    },
+    "rolesModelDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Provider, model and how hard it thinks"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Proveedor, modelo y cuánto piensa"
+          }
+        }
+      }
+    },
+    "rolesModelNotAccount": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not an account of providers.json"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No es una cuenta de providers.json"
+          }
+        }
+      }
+    },
+    "rolesMoreSteps %lld": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The file has %#@count@, kept and tried in order."
+          },
+          "substitutions": {
+            "count": {
+              "argNum": 1,
+              "formatSpecifier": "lld",
+              "variations": {
+                "plural": {
+                  "one": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg more step"
+                    }
+                  },
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg more steps"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El archivo tiene %#@count@, conservados y probados en orden."
+          },
+          "substitutions": {
+            "count": {
+              "argNum": 1,
+              "formatSpecifier": "lld",
+              "variations": {
+                "plural": {
+                  "one": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg paso más"
+                    }
+                  },
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg pasos más"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "rolesNeedAttention %lld": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%#@count@"
+          },
+          "substitutions": {
+            "count": {
+              "argNum": 1,
+              "formatSpecifier": "lld",
+              "variations": {
+                "plural": {
+                  "one": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "One role needs attention"
+                    }
+                  },
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg roles need attention"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%#@count@"
+          },
+          "substitutions": {
+            "count": {
+              "argNum": 1,
+              "formatSpecifier": "lld",
+              "variations": {
+                "plural": {
+                  "one": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "Un rol necesita atención"
+                    }
+                  },
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg roles necesitan atención"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "rolesNeedsAttention": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Needs attention"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Necesita atención"
+          }
+        }
+      }
+    },
+    "rolesNoIdentity": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No identity"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sin identidad"
+          }
+        }
+      }
+    },
+    "rolesNoIdentityYet": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No identity yet"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aún sin identidad"
+          }
+        }
+      }
+    },
+    "rolesNoModel": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No model"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sin modelo"
+          }
+        }
+      }
+    },
+    "rolesNoRegistry": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No Agent Forge registry was found, so only your gh login is offered. Create a bot to add one."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se encontró ningún registro de Agent Forge, así que solo se ofrece tu sesión de gh. Crea un bot para añadir uno."
+          }
+        }
+      }
+    },
+    "rolesNoSecondStep": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No second step"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sin segundo paso"
+          }
+        }
+      }
+    },
+    "rolesNoStage": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not used by the engine yet"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El motor aún no lo usa"
+          }
+        }
+      }
+    },
+    "rolesNoStageDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The Lead reviewer has no stage today, so there is no skill to choose."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El revisor líder no tiene ninguna etapa por ahora, así que no hay skill que elegir."
+          }
+        }
+      }
+    },
+    "rolesNone": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "None"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ninguna"
+          }
+        }
+      }
+    },
+    "rolesNotInForge": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not in Agent Forge"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No está en Agent Forge"
+          }
+        }
+      }
+    },
+    "rolesNotSet": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not set"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sin definir"
+          }
+        }
+      }
+    },
+    "rolesOff": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Off"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Desactivado"
+          }
+        }
+      }
+    },
+    "rolesOpenRole %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open %1$@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir %1$@"
+          }
+        }
+      }
+    },
+    "rolesOptional": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Optional"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opcional"
+          }
+        }
+      }
+    },
+    "rolesOwn": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Own"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Propio"
+          }
+        }
+      }
+    },
+    "rolesOwnAccount": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your own account"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tu propia cuenta"
+          }
+        }
+      }
+    },
+    "rolesPersonaName": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Persona name"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nombre de la persona"
+          }
+        }
+      }
+    },
+    "rolesPersonaNameDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Optional, one line up to 40 characters"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opcional, una línea de hasta 40 caracteres"
+          }
+        }
+      }
+    },
+    "rolesPersonaPrompt": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Persona prompt"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prompt de la persona"
+          }
+        }
+      }
+    },
+    "rolesPersonaPromptDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Optional instructions"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Instrucciones opcionales"
+          }
+        }
+      }
+    },
+    "rolesPicture": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Picture from the bot’s GitHub App"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Imagen de la GitHub App del bot"
+          }
+        }
+      }
+    },
+    "rolesProblemAccount %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "the account “%1$@” is not in providers.json."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "la cuenta “%1$@” no está en providers.json."
+          }
+        }
+      }
+    },
+    "rolesProblemIdentity %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "the identity “%1$@” is not in Agent Forge or in profiles. Choose another."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "la identidad “%1$@” no está en Agent Forge ni en profiles. Elige otra."
+          }
+        }
+      }
+    },
+    "rolesProblemLine %@ %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@: %2$@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@: %2$@"
+          }
+        }
+      }
+    },
+    "rolesProblemNoAccount": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "it has no account yet."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "todavía no tiene cuenta."
+          }
+        }
+      }
+    },
+    "rolesProblemNoIdentity": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "it has no identity yet."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "todavía no tiene identidad."
+          }
+        }
+      }
+    },
+    "rolesProblemNoModel": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "it has no model yet."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "todavía no tiene modelo."
+          }
+        }
+      }
+    },
+    "rolesPurpose.author": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Writes the code of the epic and answers the reviewer"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escribe el código del epic y responde al revisor"
+          }
+        }
+      }
+    },
+    "rolesPurpose.leadReviewer": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Optional. Looks at architecture and production readiness after the reviewer"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opcional. Mira la arquitectura y si está listo para producción después del revisor"
+          }
+        }
+      }
+    },
+    "rolesPurpose.reviewer": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reviews the final pull request"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Revisa el pull request final"
+          }
+        }
+      }
+    },
+    "rolesRailAsks": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "↺ asks for changes, the author answers"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "↺ pide cambios, el autor responde"
+          }
+        }
+      }
+    },
+    "rolesRailGroup": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "How an epic runs"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cómo se ejecuta un epic"
+          }
+        }
+      }
+    },
+    "rolesRailLeadOff": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lead reviewer is off"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El revisor líder está desactivado"
+          }
+        }
+      }
+    },
+    "rolesRailOpens": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opens the pull request"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abre el pull request"
+          }
+        }
+      }
+    },
+    "rolesRailPasses": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "When the review passes"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cuando la revisión pasa"
+          }
+        }
+      }
+    },
+    "rolesRegistryUnreadable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The Agent Forge registry could not be read, so only your gh login is offered."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo leer el registro de Agent Forge, así que solo se ofrece tu sesión de gh."
+          }
+        }
+      }
+    },
+    "rolesRole.author": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Author"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Autor"
+          }
+        }
+      }
+    },
+    "rolesRole.leadReviewer": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lead reviewer"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Revisor líder"
+          }
+        }
+      }
+    },
+    "rolesRole.reviewer": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reviewer"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Revisor"
+          }
+        }
+      }
+    },
+    "rolesRoleOff %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · Off"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · Desactivado"
+          }
+        }
+      }
+    },
+    "rolesRunsAs %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Runs as %1$@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se ejecuta como %1$@"
+          }
+        }
+      }
+    },
+    "rolesSameAsEverywhere": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Same as everywhere"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Igual que en todas partes"
+          }
+        }
+      }
+    },
+    "rolesSharedOne %@ %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Author and Reviewer are one account (%1$@ and %2$@): the signature will show it."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El autor y el revisor son una sola cuenta (%1$@ y %2$@): la firma lo mostrará."
+          }
+        }
+      }
+    },
+    "rolesSharedSame %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Author and Reviewer both work as %1$@: the signature will show it."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El autor y el revisor trabajan los dos como %1$@: la firma lo mostrará."
+          }
+        }
+      }
+    },
+    "rolesSkill": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skill"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skill"
+          }
+        }
+      }
+    },
+    "rolesSkillValue %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@, the default; it cannot be changed yet"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@, la de por defecto; todavía no se puede cambiar"
+          }
+        }
+      }
+    },
+    "rolesSkillsFooter": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Each stage runs the skill shown. Choosing another one comes with a later version of the engine."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cada etapa ejecuta la skill indicada. Poder elegir otra llegará con una versión posterior del motor."
+          }
+        }
+      }
+    },
+    "rolesSoon": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Soon"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pronto"
+          }
+        }
+      }
+    },
+    "rolesStageDetail.answer": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Answers every finding of the last review and fixes what applies"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Responde a cada hallazgo de la última revisión y corrige lo que corresponde"
+          }
+        }
+      }
+    },
+    "rolesStageDetail.first": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Drains the epic into its own worktree and leaves the final pull request open"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Drena el epic en su propio worktree y deja abierto el pull request final"
+          }
+        }
+      }
+    },
+    "rolesStageDetail.post": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Publishes the findings on the pull request"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Publica los hallazgos en el pull request"
+          }
+        }
+      }
+    },
+    "rolesStageDetail.review": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Checks the epic against its spec and tickets"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Comprueba el epic contra su spec y sus tickets"
+          }
+        }
+      }
+    },
+    "rolesStageTitle.answer": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Answering a review"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Respuesta a una revisión"
+          }
+        }
+      }
+    },
+    "rolesStageTitle.first": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "First pass"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Primera pasada"
+          }
+        }
+      }
+    },
+    "rolesStageTitle.post": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Post findings"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Publicar los hallazgos"
+          }
+        }
+      }
+    },
+    "rolesStageTitle.review": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Review"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Revisión"
+          }
+        }
+      }
+    },
+    "rolesSwitch": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Switch automatically"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cambiar automáticamente"
+          }
+        }
+      }
+    },
+    "rolesSwitchDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Usage limit, rate limit or service down"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Límite de uso, límite de peticiones o servicio caído"
+          }
+        }
+      }
+    },
+    "rolesThenTry": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Then try"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Probar después"
+          }
+        }
+      }
+    },
+    "rolesTryFirst": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Try first"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Probar primero"
+          }
+        }
+      }
+    },
+    "rolesTryFirstDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Provider, model and reasoning"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Proveedor, modelo y razonamiento"
+          }
+        }
+      }
+    },
+    "rolesTwoSet": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Author and Reviewer are set up"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El autor y el revisor están configurados"
+          }
+        }
+      }
+    },
+    "rolesUnknownIdentity": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unknown identity"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Identidad desconocida"
+          }
+        }
+      }
+    },
+    "rolesUseLead": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use a lead reviewer"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Usar un revisor líder"
           }
         }
       }
@@ -51737,108 +51737,6 @@
         }
       }
     },
-    "settingsIndexAgentStage %@ %@": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$@. Runs the skill %2$@"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$@. Ejecuta la skill %2$@"
-          }
-        }
-      }
-    },
-    "settingsIndexAgentsCreateABotDetail": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Opens Terminal on agent-forge add, to make a GitHub identity for a role"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Abre Terminal con agent-forge add, para crear una identidad de GitHub para un rol"
-          }
-        }
-      }
-    },
-    "settingsIndexAgentsIdentityDetail": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The GitHub identity an agent acts as"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "La identidad de GitHub con la que actúa un agente"
-          }
-        }
-      }
-    },
-    "settingsIndexAgentsModelDetail": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The model and reasoning of the role"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "El modelo y el razonamiento del rol"
-          }
-        }
-      }
-    },
-    "settingsIndexAgentsNotUsedByTheEngineYetDetail": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The Lead reviewer has no stage, so no skill"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "El revisor principal no tiene etapa, así que no tiene skill"
-          }
-        }
-      }
-    },
-    "settingsIndexAgentsUseALeadReviewerDetail": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "A second reviewer checks the first"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Un segundo revisor comprueba al primero"
-          }
-        }
-      }
-    },
     "settingsIndexAppearanceIconSetDetail": {
       "extractionState": "manual",
       "localizations": {
@@ -52961,6 +52859,108 @@
         }
       }
     },
+    "settingsIndexRoleStage %@ %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@. Runs the skill %2$@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@. Ejecuta la skill %2$@"
+          }
+        }
+      }
+    },
+    "settingsIndexRolesCreateABotDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opens Terminal on agent-forge add, to make a GitHub identity for a role"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abre Terminal con agent-forge add, para crear una identidad de GitHub para un rol"
+          }
+        }
+      }
+    },
+    "settingsIndexRolesIdentityDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The GitHub identity a role works as"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La identidad de GitHub con la que actúa un rol"
+          }
+        }
+      }
+    },
+    "settingsIndexRolesModelDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The model and reasoning of the role"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El modelo y el razonamiento del rol"
+          }
+        }
+      }
+    },
+    "settingsIndexRolesNotUsedByTheEngineYetDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The Lead reviewer has no stage, so no skill"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El revisor principal no tiene etapa, así que no tiene skill"
+          }
+        }
+      }
+    },
+    "settingsIndexRolesUseALeadReviewerDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A second reviewer checks the first"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un segundo revisor comprueba al primero"
+          }
+        }
+      }
+    },
     "settingsIndexSessionsSleepAfterDetail": {
       "extractionState": "manual",
       "localizations": {
@@ -53471,40 +53471,6 @@
         }
       }
     },
-    "settingsPageAgents": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Agents"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Agentes"
-          }
-        }
-      }
-    },
-    "settingsPageAgentsDetail": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Who works on an epic and where it goes when its tokens run out"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Quién trabaja en un epic y adónde pasa cuando se le acaban los tokens"
-          }
-        }
-      }
-    },
     "settingsPageAppearance": {
       "extractionState": "manual",
       "localizations": {
@@ -53909,6 +53875,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "Los proveedores de IA de este Mac y sus cuentas"
+          }
+        }
+      }
+    },
+    "settingsPageRoles": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Roles"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Roles"
+          }
+        }
+      }
+    },
+    "settingsPageRolesDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Who works on an epic and where it goes when its tokens run out"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quién trabaja en un epic y adónde pasa cuando se le acaban los tokens"
           }
         }
       }
@@ -70463,23 +70463,6 @@
         }
       }
     },
-    "watchingAgentsPage": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Agents"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Agentes"
-          }
-        }
-      }
-    },
     "watchingAlreadyWatched %@": {
       "extractionState": "manual",
       "localizations": {
@@ -71798,13 +71781,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Takes out what this repository sets for the %1$@; it follows Agents again"
+            "value": "Takes out what this repository sets for the %1$@; it follows Roles again"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Quita lo que este repositorio define para %1$@; vuelve a seguir a Agentes"
+            "value": "Quita lo que este repositorio define para %1$@; vuelve a seguir a Roles"
           }
         }
       }
@@ -71815,13 +71798,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Reset to Agents"
+            "value": "Reset to Roles"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Volver a Agentes"
+            "value": "Volver a Roles"
           }
         }
       }
@@ -71866,13 +71849,30 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nothing here is set for this repository: the %1$@ follows Agents."
+            "value": "Nothing here is set for this repository: the %1$@ follows Roles."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nada de esto está definido para este repositorio: %1$@ sigue a Agentes."
+            "value": "Nada de esto está definido para este repositorio: %1$@ sigue a Roles."
+          }
+        }
+      }
+    },
+    "watchingRolesPage": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Roles"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Roles"
           }
         }
       }
@@ -72199,13 +72199,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Every repository follows the roles of Agents unless it has its own settings."
+            "value": "Every repository follows the Roles page unless it has its own settings."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cada repositorio sigue los roles de Agentes salvo que tenga su propia configuración."
+            "value": "Cada repositorio sigue la página Roles salvo que tenga su propia configuración."
           }
         }
       }

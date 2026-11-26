@@ -14,7 +14,7 @@ extension EngineConfigSender {
     }
 }
 
-/// The role edits of the Agents page, a repo's role screens and the Engine page, one at a time and in the order they were made.
+/// The role edits of the Roles page, a repo's role screens and the Engine page, one at a time and in the order they were made.
 @MainActor private let roleEdits = EngineConfigQueue()
 
 /// Sends a change of `engine.json` the pages make a field at a time and shows what the engine answered like a reload (`ReloadNote`): `.saved`, or why it was refused.

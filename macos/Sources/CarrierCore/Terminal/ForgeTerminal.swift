@@ -1,6 +1,6 @@
 import Foundation
 
-// Create a bot… on the Agents page (docs/specs/agents-in-settings.md, docs/adr/0007): Terminal opens on `agent-forge add`. The command is
+// Create a bot… on the Roles page (docs/specs/agents-in-settings.md, docs/adr/0007): Terminal opens on `agent-forge add`. The command is
 // from a closed list, one entry; nothing read from the registry, the config or the host becomes part of it, and the script and the opener
 // are Continue in Terminal's (`openScript`). Agent Forge makes the GitHub App and keeps the key; the app never sees it.
 

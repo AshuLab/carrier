@@ -1,6 +1,6 @@
 import Foundation
 
-// What the Agents page's model picker lists: the accounts that can work now, the models a provider offers and the reasoning levels a role takes.
+// What the Roles page's model picker lists: the accounts that can work now, the models a provider offers and the reasoning levels a role takes.
 // The picker is the same panel the chat's message box has (providers as tabs, a search, the models, the reasoning slider), for a role of an epic.
 
 /// The icon file of a harness: Antigravity's is `antigravity`, the others are named after the harness.

@@ -1,6 +1,6 @@
 import Foundation
 
-// The Agents page of Settings (docs/specs/agents-in-settings.md): the three fixed roles of `engine.json` with their identity, provider, model,
+// The Roles page of Settings (docs/specs/agents-in-settings.md): the three fixed roles of `engine.json` with their identity, provider, model,
 // effort, persona and failover steps, as plain values. This only reads; the file is never written from here.
 
 /// The bots of the Agent Forge registry: names only, never a key.
@@ -29,10 +29,10 @@ public func currentForgeRegistry(environment: [String: String] = ProcessInfo.pro
 /// object, gives no names and a note, not an error.
 public func forgeBots(registry: Data?, bundle: Bundle? = nil, locale: Locale = .current) -> ForgeBots {
     guard let registry else {
-        return ForgeBots(names: [], note: Copy.agentsNoRegistry(bundle: bundle, locale: locale))
+        return ForgeBots(names: [], note: Copy.rolesNoRegistry(bundle: bundle, locale: locale))
     }
     guard let file = (try? JSONSerialization.jsonObject(with: registry)) as? [String: Any] else {
-        return ForgeBots(names: [], note: Copy.agentsRegistryUnreadable(bundle: bundle, locale: locale))
+        return ForgeBots(names: [], note: Copy.rolesRegistryUnreadable(bundle: bundle, locale: locale))
     }
     let entries = file["agents"] as? [[String: Any]] ?? []
     let names = entries.compactMap { $0["name"] as? String }
@@ -109,26 +109,26 @@ public struct RoleRow: Equatable, Identifiable {
     public var hasSwitch: Bool { role == .leadReviewer }
 
     /// The line under the role in the list.
-    public func summary(bundle: Bundle? = nil, locale: Locale = .current) -> String { off ? Copy.agentsOff(bundle: bundle, locale: locale) : fields.text(bundle: bundle, locale: locale) }
+    public func summary(bundle: Bundle? = nil, locale: Locale = .current) -> String { off ? Copy.rolesOff(bundle: bundle, locale: locale) : fields.text(bundle: bundle, locale: locale) }
 
     /// What the toolbar says under the role's name on its screen: the model, how hard it thinks and who it works as.
     public func headline(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        if off, drafting == false { return Copy.agentsOff(bundle: bundle, locale: locale) }
+        if off, drafting == false { return Copy.rolesOff(bundle: bundle, locale: locale) }
         let parts = [fields.model, fields.effort, fields.profile].compactMap { $0 }.filter { $0.isEmpty == false }
-        return parts.isEmpty ? Copy.agentsNotSet(bundle: bundle, locale: locale) : parts.joined(separator: " · ")
+        return parts.isEmpty ? Copy.rolesNotSet(bundle: bundle, locale: locale) : parts.joined(separator: " · ")
     }
 
     public func identityDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         switch identity {
-        case .forge: Copy.agentsIdentityForge(bundle: bundle, locale: locale)
-        case .gh: Copy.agentsIdentityGh(bundle: bundle, locale: locale)
-        case .missing: fields.profile.map { Copy.agentsIdentityMissing(profile: $0, bundle: bundle, locale: locale) } ?? ""
-        case .unset: Copy.agentsNotSet(bundle: bundle, locale: locale)
+        case .forge: Copy.rolesIdentityForge(bundle: bundle, locale: locale)
+        case .gh: Copy.rolesIdentityGh(bundle: bundle, locale: locale)
+        case .missing: fields.profile.map { Copy.rolesIdentityMissing(profile: $0, bundle: bundle, locale: locale) } ?? ""
+        case .unset: Copy.rolesNotSet(bundle: bundle, locale: locale)
         }
     }
 }
 
-public struct AgentsPage: Equatable {
+public struct RolesPage: Equatable {
     public var rows: [RoleRow]
     /// the bots of the registry, then the person's own login is offered next to them
     public var bots: ForgeBots
@@ -139,7 +139,7 @@ public struct AgentsPage: Equatable {
 }
 
 /// The page for `config`; nil when it is not a JSON object (the engine is not configured). `providers` is `providers.json`, nil when it is not there.
-public func agentsPage(config: Data, providers: Data?, bots: ForgeBots, bundle: Bundle? = nil, locale: Locale = .current) -> AgentsPage? {
+public func rolesPage(config: Data, providers: Data?, bots: ForgeBots, bundle: Bundle? = nil, locale: Locale = .current) -> RolesPage? {
     guard let file = (try? JSONSerialization.jsonObject(with: config)) as? [String: Any] else { return nil }
     let roles = file["agents"] as? [String: Any] ?? [:]
     let profiles = file["profiles"] as? [String: Any] ?? [:]
@@ -177,19 +177,19 @@ public func agentsPage(config: Data, providers: Data?, bots: ForgeBots, bundle: 
     var shared: String?
     if let author = account(.author), let reviewer = account(.reviewer), author.key == reviewer.key {
         shared = author.profile == reviewer.profile
-            ? Copy.agentsSharedSame(profile: author.profile, bundle: bundle, locale: locale)
-            : Copy.agentsSharedOne(author: author.profile, reviewer: reviewer.profile, bundle: bundle, locale: locale)
+            ? Copy.rolesSharedSame(profile: author.profile, bundle: bundle, locale: locale)
+            : Copy.rolesSharedOne(author: author.profile, reviewer: reviewer.profile, bundle: bundle, locale: locale)
     }
-    return AgentsPage(rows: rows, bots: bots, accounts: accounts, sharedNote: shared)
+    return RolesPage(rows: rows, bots: bots, accounts: accounts, sharedNote: shared)
 }
 
 extension AgentRole {
     /// What the role does, under its name.
     public func purpose(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         switch self {
-        case .author: Copy.agentsPurpose(which: .author, bundle: bundle, locale: locale)
-        case .reviewer: Copy.agentsPurpose(which: .reviewer, bundle: bundle, locale: locale)
-        case .leadReviewer: Copy.agentsPurpose(which: .leadReviewer, bundle: bundle, locale: locale)
+        case .author: Copy.rolesPurpose(which: .author, bundle: bundle, locale: locale)
+        case .reviewer: Copy.rolesPurpose(which: .reviewer, bundle: bundle, locale: locale)
+        case .leadReviewer: Copy.rolesPurpose(which: .leadReviewer, bundle: bundle, locale: locale)
         }
     }
 }

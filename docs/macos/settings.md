@@ -3,7 +3,7 @@
 Settings in its own window, its sidebar, its search and where each group of pages is described.
 
 Settings is a window of its own (`Carrier/Features/Settings/SettingsWindow.swift`: an `NSWindow` hosting a `NavigationSplitView`, as the main window is), not a sheet: it does not stop the main window being used, it keeps its place, size and last page (`CarrierSettingsWindow` autosave, `SettingsNavigator`), and ⌘W closes it.
-The sidebar lists eighteen pages in four groups, each page a colored tile with its symbol (`SettingsPage`, `SettingsSidebar`): App (General, Providers, Appearance, Notifications, Keybindings, Dictation, Keep awake; no heading, and Providers is here because both the engine and the chat host read its accounts), Workspace (Chat, Sessions, Projects, Sidebar, Terminal), Carrier (Agents, Watching, Behavior) and System (Engine, Health, About, last).
+The sidebar lists eighteen pages in four groups, each page a colored tile with its symbol (`SettingsPage`, `SettingsSidebar`): App (General, Providers, Appearance, Notifications, Keybindings, Dictation, Keep awake; no heading, and Providers is here because both the engine and the chat host read its accounts), Workspace (Chat, Sessions, Projects, Sidebar, Terminal), Carrier (Roles, Watching, Behavior) and System (Engine, Health, About, last).
 The chosen page is on the right under the window's toolbar: the page's name as its title and its line as its subtitle, ‹ › to go back and forward through the pages visited (⌘[ and ⌘], `SettingsHistory`), the page's note (why Behavior cannot save, with Ask Carrier again) and, on a page that has a Reset, a ⋯ menu with Reset this page….
 The menu's Settings…, ⌘, and the sidebar's Settings row open it on the page it was left on (`WindowController.showSettings`; it opens the main window too when it was closed, since the pages read what Carrier answers to it), or on the page a caller asks for (the Open Settings button of the stopped-Carrier view asks for Engine, and a reason that points to Health opens Health).
 
@@ -17,7 +17,7 @@ The words of an entry are copy keys, the same a page reads for the row (a row's 
 ## Reset
 
 A page with many controls gives its Reset to the window (`SettingsPageBody(reset:)`), and the ⋯ menu of the toolbar asks "Reset <page>?" before it runs (an alert: Cancel, or Reset in red).
-The ⋯ menu is only there on a page that has a Reset: Providers, Agents, Watching, Health, Engine and About have nothing to reset and show no menu.
+The ⋯ menu is only there on a page that has a Reset: Providers, Roles, Watching, Health, Engine and About have nothing to reset and show no menu.
 The Dictation page has its Reset on its first screen only ([dictation](dictation.md#the-dictation-page)); on its screens the ⋯ menu is not drawn.
 Behavior and Sessions keep what a Reset did before (the engine's eight values back to `EngineConfig()`, the preferences and the two ages of `chat.json`), now from the same menu.
 
@@ -29,7 +29,7 @@ What Carrier is missing (`carrier` or `node` not found, or being looked for) sho
 
 - App: [settings-app](settings-app.md) (General, Providers, Appearance, Notifications, Keybindings), [dictation](dictation.md#the-dictation-page) (Dictation, after Keybindings: it is global, not of the chat) and [keep-awake](keep-awake.md) (Keep awake, last of the group).
 - Workspace: [Sessions](#sessions-page) below (Chat, Sessions, Sidebar; the areas they set are [chat](chat.md) and [sessions](sessions.md)), [Projects](projects.md#projects-page) and [Terminal](settings-app.md#terminal) (the area is [terminal](terminal.md)).
-- Carrier: [settings-carrier](settings-carrier.md) (Agents, Watching, Behavior).
+- Carrier: [settings-carrier](settings-carrier.md) (Roles, Watching, Behavior).
 - System: [settings-carrier](settings-carrier.md) (Engine), [settings-health](settings-health.md) (Health) and About.
 - About (`Carrier/Features/Settings/AboutTab.swift`, last of the sidebar): the app's icon, name and version with the links of the About panel (`aboutLinks`: Release notes, Documentation, GitHub) and a row Star Carrier on GitHub with its button (it opens the repository, `repositoryURL`); Updates (Check now or the step of an update found, Check by itself, Install by itself and Update delay: None, 1, 3, 7, 14 or 30 days, `updates.delayDays`, `updateDelayChoices`); and the engine's own update with Try again.
 The delay holds back, for that many days after its date in the appcast, a release that Sparkle finds on its own (`UpdateDelay`, the updater's delegate, ending that check as "no update" and not as a failure, so the pill shows nothing); Check now and a critical update ignore it, and a release with no date is offered.
@@ -64,8 +64,8 @@ The Projects page is described in [projects](projects.md#projects-page).
 
 ## Changes apply without a restart
 
-Nothing here restarts Carrier: every writer of `engine.json` or `providers.json` (the Behavior and Watching tabs, the Agents page and the repos' role screens, the Engine page's GitHub identity, the Providers page and the new session's watch) sends its change to the engine (`EngineConfigChange`; it writes the file and runs on it in the same request, and `carrier config` writes it when none answers) and shows what the engine answered like a reload, off the main thread and off the cooperative pool (the ask goes to `ReloadStatus.shared` in `CarrierCore/Settings/Engine/EngineReload.swift`; the new session and the Providers store use `ReloadStatus.answer`, which keeps the answer in the same place and gives it back for their own line).
-The answer is a `ReloadOutcome` (applied, nobody to ask, an engine that does not list `reload`, refused with the engine's words, or no answer); `ReloadStatus` keeps the last one for every page, drops the answer of an older ask when a newer one was made and forgets it when Carrier stops or starts (`PanelView`), `reloadWords` says what a page shows (`ReloadNote` in Repos and Agents, with Ask Carrier again for a problem, which is said to VoiceOver every time it comes, as are the refusals of a repo's role form (`ProblemLine`); the Behavior header, which has Ask Carrier again too; the Providers lines, whose Add button waits while `ProvidersStore.busy` (Save, Remove and Add account close at once and the answer comes after), and where an older engine is a grey `editNote` and not an `editProblem`); an older engine's "reads it when it starts" is a quiet note, not a problem, and the Watching page's note follows the engine's `reload` capability and that outcome (`CarrierCore/Settings/SettingsNote.swift`, tested in `SettingsNoteTests` and `ReloadStatusTests`).
+Nothing here restarts Carrier: every writer of `engine.json` or `providers.json` (the Behavior and Watching tabs, the Roles page and the repos' role screens, the Engine page's GitHub identity, the Providers page and the new session's watch) sends its change to the engine (`EngineConfigChange`; it writes the file and runs on it in the same request, and `carrier config` writes it when none answers) and shows what the engine answered like a reload, off the main thread and off the cooperative pool (the ask goes to `ReloadStatus.shared` in `CarrierCore/Settings/Engine/EngineReload.swift`; the new session and the Providers store use `ReloadStatus.answer`, which keeps the answer in the same place and gives it back for their own line).
+The answer is a `ReloadOutcome` (applied, nobody to ask, an engine that does not list `reload`, refused with the engine's words, or no answer); `ReloadStatus` keeps the last one for every page, drops the answer of an older ask when a newer one was made and forgets it when Carrier stops or starts (`PanelView`), `reloadWords` says what a page shows (`ReloadNote` in Repos and Roles, with Ask Carrier again for a problem, which is said to VoiceOver every time it comes, as are the refusals of a repo's role form (`ProblemLine`); the Behavior header, which has Ask Carrier again too; the Providers lines, whose Add button waits while `ProvidersStore.busy` (Save, Remove and Add account close at once and the answer comes after), and where an older engine is a grey `editNote` and not an `editProblem`); an older engine's "reads it when it starts" is a quiet note, not a problem, and the Watching page's note follows the engine's `reload` capability and that outcome (`CarrierCore/Settings/SettingsNote.swift`, tested in `SettingsNoteTests` and `ReloadStatusTests`).
 
 ## Where the pages live in the code
 
@@ -96,10 +96,10 @@ Gotchas:
 - The sheet's New session mode (`ProjectSheetMode.newSession`) only fills the plan (`NewSessionModel.choose(_:)`).
 - Views (`ProjectsTab.swift`, `AddProjectSheet.swift`) are untested, only drawn by `--selftest`.
 
-### Agents
+### Roles
 
-What the person sees: [settings-carrier](settings-carrier.md#agents).
-`agentsPage`, `agentsReadiness`, `AgentRole.stages` (`CarrierCore/Settings/Agents/AgentsPage.swift`, `AgentsReadiness.swift`; `AgentsPageTests`, `AgentsReadinessTests`); Antigravity's models are `AgyModels` (`AgyModelsTests`); views untested.
+What the person sees: [settings-carrier](settings-carrier.md#roles).
+`rolesPage`, `rolesReadiness`, `AgentRole.stages` (`CarrierCore/Settings/Roles/RolesPage.swift`, `RolesReadiness.swift`; `RolesPageTests`, `RolesReadinessTests`); Antigravity's models are `AgyModels` (`AgyModelsTests`); views untested.
 
 ### Sessions
 

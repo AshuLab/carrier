@@ -253,25 +253,25 @@ private struct IndexBuilder {
                     ("pin-zsh-prompt-to-bottom", "terminalSettingsPinPrompt", "terminalSettingsPinPromptDetail"),
                     ("confirm-before-closing-running-commands", "terminalSettingsConfirm", "terminalSettingsConfirmDetail"),
                 ])
-        case .agents:
+        case .roles:
             // the rows of a role's screen are the same for the three roles: the search opens the Author's, and the Lead reviewer's switch opens its own
             let role = [AgentRole.author.rawValue]
-            var entries = given(.agents, "how-an-epic-runs", words("agentsRailGroup"), AgentRole.allCases.map { ($0.rawValue, $0.title(bundle: bundle, locale: locale), $0.purpose(bundle: bundle, locale: locale)) })
-            entries += page(.agents, "identities", "agentsGroupIdentities", [("create-a-bot", "agentsCreateBotTitle", "settingsIndexAgentsCreateABotDetail")])
-            entries += page(.agents, "", "", [("use-a-lead-reviewer", "agentsUseLead", "settingsIndexAgentsUseALeadReviewerDetail")], path: [AgentRole.leadReviewer.rawValue])
-            entries += page(.agents, "who", "agentsGroupWho", [("identity", "agentsIdentity", "settingsIndexAgentsIdentityDetail"), ("model", "agentsModel", "settingsIndexAgentsModelDetail")], path: role)
-            entries += page(.agents, "persona", "agentsGroupPersona", [("persona-name", "agentsPersonaName", "agentsPersonaNameDetail"), ("persona-prompt", "agentsPersonaPrompt", "agentsPersonaPromptDetail")], path: role)
+            var entries = given(.roles, "how-an-epic-runs", words("rolesRailGroup"), AgentRole.allCases.map { ($0.rawValue, $0.title(bundle: bundle, locale: locale), $0.purpose(bundle: bundle, locale: locale)) })
+            entries += page(.roles, "identities", "rolesGroupIdentities", [("create-a-bot", "rolesCreateBotTitle", "settingsIndexRolesCreateABotDetail")])
+            entries += page(.roles, "", "", [("use-a-lead-reviewer", "rolesUseLead", "settingsIndexRolesUseALeadReviewerDetail")], path: [AgentRole.leadReviewer.rawValue])
+            entries += page(.roles, "who", "rolesGroupWho", [("identity", "rolesIdentity", "settingsIndexRolesIdentityDetail"), ("model", "rolesModel", "settingsIndexRolesModelDetail")], path: role)
+            entries += page(.roles, "persona", "rolesGroupPersona", [("persona-name", "rolesPersonaName", "rolesPersonaNameDetail"), ("persona-prompt", "rolesPersonaPrompt", "rolesPersonaPromptDetail")], path: role)
             for skillRole in AgentRole.allCases {
                 let stages = skillRole.stages(bundle: bundle, locale: locale)
                 entries += stages.map { stage in
                     SettingsEntry(
-                        page: .agents, groupID: "skills", group: words("agentsGroupSkills"), rowID: stage.id, title: stage.title,
-                        detail: Copy.settingsIndexAgentStage(detail: stage.detail, skill: stage.skill, bundle: bundle, locale: locale), path: [skillRole.rawValue],
-                        copyKeys: ["agentsGroupSkills", "settingsIndexAgentStage"])
+                        page: .roles, groupID: "skills", group: words("rolesGroupSkills"), rowID: stage.id, title: stage.title,
+                        detail: Copy.settingsIndexRoleStage(detail: stage.detail, skill: stage.skill, bundle: bundle, locale: locale), path: [skillRole.rawValue],
+                        copyKeys: ["rolesGroupSkills", "settingsIndexRoleStage"])
                 }
-                if stages.isEmpty { entries += page(.agents, "skills", "agentsGroupSkills", [("not-used-by-the-engine-yet", "agentsNoStage", "settingsIndexAgentsNotUsedByTheEngineYetDetail")], path: [skillRole.rawValue]) }
+                if stages.isEmpty { entries += page(.roles, "skills", "rolesGroupSkills", [("not-used-by-the-engine-yet", "rolesNoStage", "settingsIndexRolesNotUsedByTheEngineYetDetail")], path: [skillRole.rawValue]) }
             }
-            entries += page(.agents, "when-it-runs-out-of-tokens", "agentsGroupTokens", [("switch-automatically", "agentsSwitch", "agentsSwitchDetail")], path: role)
+            entries += page(.roles, "when-it-runs-out-of-tokens", "rolesGroupTokens", [("switch-automatically", "rolesSwitch", "rolesSwitchDetail")], path: role)
             return entries
         case .watching:
             return page(.watching, "repositories", "watchingGroupRepositories", [("repositories", "watchingGroupRepositories", "settingsPageWatchingDetail")])

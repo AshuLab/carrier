@@ -13,7 +13,7 @@ private let l = spanish.locale
     #expect(SettingsPage.Group.allCases.map { $0.heading(bundle: b, locale: l) } == [nil, "Espacio de trabajo", "Carrier", "Sistema"])
     #expect(SettingsPage.allCases.map { $0.title(bundle: b, locale: l) } == [
         "General", "Proveedores", "Apariencia", "Notificaciones", "Atajos de teclado", "Dictado", "Mantener despierto", "Chat", "Sesiones", "Proyectos", "Barra lateral",
-        "Terminal", "Agentes", "Vigilancia", "Comportamiento", "Motor", "Estado", "Acerca de",
+        "Terminal", "Roles", "Vigilancia", "Comportamiento", "Motor", "Estado", "Acerca de",
     ])
     #expect(SettingsPage.general.detail(bundle: b, locale: l) == "La barra de menús y cómo se leen las horas")
     #expect(SettingsPage.keybindings.detail(bundle: b, locale: l) == "Las teclas que ejecutan las acciones de la app")
@@ -176,7 +176,7 @@ private let l = spanish.locale
     #expect(Copy.settingsResetMessage(bundle: e.bundle, locale: e.locale) == "Every setting on this page goes back to how it came. This can’t be undone.")
     #expect(Copy.settingsResetMenu(bundle: e.bundle, locale: e.locale) == "Reset this page…" && Copy.settingsPageActions(bundle: e.bundle, locale: e.locale) == "Page actions")
     #expect(SettingsPage.allCases.map { $0.title(bundle: e.bundle, locale: e.locale) } == [
-        "General", "Providers", "Appearance", "Notifications", "Keybindings", "Dictation", "Keep awake", "Chat", "Sessions", "Projects", "Sidebar", "Terminal", "Agents", "Watching",
+        "General", "Providers", "Appearance", "Notifications", "Keybindings", "Dictation", "Keep awake", "Chat", "Sessions", "Projects", "Sidebar", "Terminal", "Roles", "Watching",
         "Behavior", "Engine", "Health", "About",
     ])
 }

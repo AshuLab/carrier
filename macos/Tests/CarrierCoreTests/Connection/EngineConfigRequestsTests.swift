@@ -28,7 +28,7 @@ func goldenBehavior() -> EngineConfig {
     return config
 }
 
-/// What the Agents page builds for the goldens of the role requests.
+/// What the Roles page builds for the goldens of the role requests.
 let goldenRoleChanges: [(String, EngineConfigChange)] = [
     ("engine-edit-role.json", .role(.reviewer, [.bot("nova"), .provider("codex"), .model("gpt-5"), .effort(nil)])),
     ("engine-edit-repo-role.json", .repoRole(repo: "acme/web", role: .reviewer, fields: RoleFields(profile: "author-bot", model: "qwen3-coder", effort: "high", persona: RolePersona(name: "Rex")))),
@@ -103,7 +103,7 @@ private func launcher(_ runner: FakeRunner) -> CarrierConfigLauncher { CarrierCo
     #expect(EngineConfigChange.behavior(config).fields == "")
 }
 
-@Test func aPickOfTheAgentsPageIsOneRoleRequestWithTheIdentityAsTheProfileMeansItAndNullForNoEffort() throws {
+@Test func aPickOfTheRolesPageIsOneRoleRequestWithTheIdentityAsTheProfileMeansItAndNullForNoEffort() throws {
     let changes = try #require(try object(EngineConfigChange.role(.author, [.gh, .provider("codex"), .model(" gpt-5 "), .effort("low"), .effort(nil)]).request)["changes"] as? NSDictionary)
     #expect(changes == ["identity": ["kind": "gh"], "provider": "codex", "model": " gpt-5 ", "effort": NSNull()] as NSDictionary)
     #expect(try object(EngineConfigChange.role(.leadReviewer, [.bot("nova")]).request) == ["cmd": "editRole", "role": "leadReviewer", "changes": ["identity": ["kind": "forge", "agent": "nova"]]] as NSDictionary)

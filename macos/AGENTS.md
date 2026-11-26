@@ -44,7 +44,7 @@ Interface icons: `AppIcon` in three sets (`IconSets.swift`, `IconsTests`), drawn
 
 The window is `SettingsWindow.swift`, a page's pieces `CarrierUI/` ([settings](../docs/macos/settings.md)); `SettingsIndexDriftTests` keeps the search's `settingsIndex` in step with them.
 The Pieces gallery under `--fixture` (`Carrier/Features/Settings/PiecesGalleryView.swift` and its siblings, its data `CarrierCore/Fixtures/PiecesGalleryData.swift`) is looked at, not tested; `scripts/check-structure.sh` fails for a piece with no `GalleryEntry` ([ui](../docs/ui.md#the-gallery)).
-Where each page lives in the code and what is tested (Providers, Projects, Agents, Sessions, Health): [settings](../docs/macos/settings.md#where-the-pages-live-in-the-code).
+Where each page lives in the code and what is tested (Providers, Projects, Roles, Sessions, Health): [settings](../docs/macos/settings.md#where-the-pages-live-in-the-code).
 
 ### Preferences
 

@@ -14,8 +14,8 @@ private func config(author: String = #"{"profile": "acme-author", "provider": "c
 
 private let bots = ForgeBots(names: ["acme-author", "acme-reviewer", "acme-lead"], note: nil)
 
-private func readiness(_ json: String, providers: String? = nil) throws -> AgentsReadiness {
-    agentsReadiness(try #require(agentsPage(config: Data(json.utf8), providers: providers.map { Data($0.utf8) }, bots: bots, bundle: english.bundle, locale: english.locale)), bundle: english.bundle, locale: english.locale)
+private func readiness(_ json: String, providers: String? = nil) throws -> RolesReadiness {
+    rolesReadiness(try #require(rolesPage(config: Data(json.utf8), providers: providers.map { Data($0.utf8) }, bots: bots, bundle: english.bundle, locale: english.locale)), bundle: english.bundle, locale: english.locale)
 }
 
 @Test func threeRolesThatAreWholeAreSetUp() throws {
@@ -59,7 +59,7 @@ private func readiness(_ json: String, providers: String? = nil) throws -> Agent
 }
 
 @Test func aLeadReviewerBeingTurnedOnIsShownAsOneThatIsOnWhileTheFileStillHasNone() throws {
-    let page = try #require(agentsPage(config: Data(config(lead: nil).utf8), providers: nil, bots: bots))
+    let page = try #require(rolesPage(config: Data(config(lead: nil).utf8), providers: nil, bots: bots))
     let off = try #require(page.rows.first { $0.role == .leadReviewer })
     #expect(off.off && off.headline(bundle: english.bundle, locale: english.locale) == "Off" && off.drafting == false)
     var draft = LeadReviewerDraft()
@@ -85,11 +85,11 @@ private func readiness(_ json: String, providers: String? = nil) throws -> Agent
 }
 
 @Test func theHeadlineOfARoleIsItsModelEffortAndIdentity() throws {
-    let page = try #require(agentsPage(config: Data(config(lead: nil).utf8), providers: nil, bots: bots))
+    let page = try #require(rolesPage(config: Data(config(lead: nil).utf8), providers: nil, bots: bots))
     #expect(page.rows.first { $0.role == .author }?.headline(bundle: english.bundle, locale: english.locale) == "sonnet · high · acme-author")
     #expect(page.rows.first { $0.role == .reviewer }?.headline(bundle: english.bundle, locale: english.locale) == "gpt-5 · acme-reviewer")
     #expect(page.rows.first { $0.role == .leadReviewer }?.headline(bundle: english.bundle, locale: english.locale) == "Off")
-    let empty = try #require(agentsPage(config: Data(config(author: "{}").utf8), providers: nil, bots: bots))
+    let empty = try #require(rolesPage(config: Data(config(author: "{}").utf8), providers: nil, bots: bots))
     #expect(empty.rows.first { $0.role == .author }?.headline(bundle: english.bundle, locale: english.locale) == "Not set")
 }
 

@@ -48,7 +48,7 @@ public struct RefusalBanner: Equatable {
 }
 
 /// The banner for the engine's refusal of the saved file. A `config.problem` about a failover step of a role is told in words, from its `path` and `problem`,
-/// and sent to Agents, where it is mended; any other refusal is shown as the engine says it.
+/// and sent to Roles, where it is mended; any other refusal is shown as the engine says it.
 public func refusalBanner(_ reason: Refusal, bundle: Bundle? = nil, locale: Locale = .current) -> RefusalBanner {
     let path = reason.params["path"]?.text.split(separator: ".").map(String.init) ?? []
     guard reason.has("config.problem"), path.count == 4, path[0] == "failover", path[1] == "roles", let index = Int(path[3]) else {
@@ -62,7 +62,7 @@ public func refusalBanner(_ reason: Refusal, bundle: Bundle? = nil, locale: Loca
         case "providerNotDeclared": Copy.watchingRefusalStep(problem: .providerNotDeclared, role: role, step: index + 1, bundle: bundle, locale: locale)
         default: nil
         }
-    return refusalBanner(detail: detail, raw: reason.shown(bundle: bundle, locale: locale), fix: .agents, bundle: bundle, locale: locale)
+    return refusalBanner(detail: detail, raw: reason.shown(bundle: bundle, locale: locale), fix: .roles, bundle: bundle, locale: locale)
 }
 
 private func refusalBanner(detail: String?, raw: String, fix: SettingsPage?, bundle: Bundle?, locale: Locale) -> RefusalBanner {

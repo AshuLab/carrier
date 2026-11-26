@@ -96,27 +96,27 @@ private func rows(_ json: Data, _ repo: String = "a/b") throws -> [AgentRole: Re
     #expect(try rows(json, "acme/web")[.reviewer]?.isOwn == false)
 }
 
-@Test func theAgentsPageOfARepoIsTheGlobalRolesWithTheReposOwnOverThem() throws {
+@Test func theRolesPageOfARepoIsTheGlobalRolesWithTheReposOwnOverThem() throws {
     let bots = ForgeBots(names: [])
-    let global = try #require(agentsPage(config: config(), providers: nil, bots: bots))
-    // a repo with nothing of its own reads as Agents does, less the Lead reviewer that is off
-    let plain = try #require(repoAgentsPage(config: config(), providers: nil, bots: bots, repo: "a/b"))
+    let global = try #require(rolesPage(config: config(), providers: nil, bots: bots))
+    // a repo with nothing of its own reads as Roles does, less the Lead reviewer that is off
+    let plain = try #require(repoRolesPage(config: config(), providers: nil, bots: bots, repo: "a/b"))
     #expect(plain.rows.map(\.role) == [.author, .reviewer] && plain.rows == Array(global.rows.prefix(2)))
-    let own = try #require(repoAgentsPage(config: config(repoAgents: #"{"author": {"model": "opus", "persona": {"prompt": "Be brief"}}}"#), providers: nil, bots: bots, repo: "a/b"))
+    let own = try #require(repoRolesPage(config: config(repoAgents: #"{"author": {"model": "opus", "persona": {"prompt": "Be brief"}}}"#), providers: nil, bots: bots, repo: "a/b"))
     #expect(own.rows[0].fields == RoleFields(profile: "b-author", provider: "claude", model: "opus", effort: "high", persona: RolePersona(name: nil, prompt: "Be brief")))
     #expect(own.rows[1] == plain.rows[1])
     // another repo is not touched, and the global page is as it was
-    #expect(try #require(repoAgentsPage(config: config(repoAgents: #"{"author": {"model": "opus"}}"#), providers: nil, bots: bots, repo: "c/d")).rows[0].fields.model == "sonnet")
-    #expect(try #require(agentsPage(config: config(repoAgents: #"{"author": {"model": "opus"}}"#), providers: nil, bots: bots)).rows[0].fields.model == "sonnet")
-    #expect(repoAgentsPage(config: Data("[]".utf8), providers: nil, bots: bots, repo: "a/b") == nil)
+    #expect(try #require(repoRolesPage(config: config(repoAgents: #"{"author": {"model": "opus"}}"#), providers: nil, bots: bots, repo: "c/d")).rows[0].fields.model == "sonnet")
+    #expect(try #require(rolesPage(config: config(repoAgents: #"{"author": {"model": "opus"}}"#), providers: nil, bots: bots)).rows[0].fields.model == "sonnet")
+    #expect(repoRolesPage(config: Data("[]".utf8), providers: nil, bots: bots, repo: "a/b") == nil)
 }
 
 @Test func theLeadReviewerIsARoleOfTheRepoOnlyWhileTheGlobalConfigHasIt() throws {
     let bots = ForgeBots(names: [])
     // the global block of `config` has no lead reviewer
     let own = #"{"leadReviewer": {"model": "opus"}}"#
-    #expect(try #require(repoAgentsPage(config: config(repoAgents: own), providers: nil, bots: bots, repo: "a/b")).rows.map(\.role) == [.author, .reviewer])
+    #expect(try #require(repoRolesPage(config: config(repoAgents: own), providers: nil, bots: bots, repo: "a/b")).rows.map(\.role) == [.author, .reviewer])
     let lead = Data(#"{"profiles": {"p": {"kind": "gh"}}, "agents": {"author": {"profile": "p", "provider": "claude", "model": "m"}, "reviewer": {"profile": "p", "provider": "claude", "model": "m"}, "leadReviewer": {"profile": "p", "provider": "claude", "model": "m"}}, "repos": [{"name": "a/b", "agents": {"leadReviewer": {"model": "opus"}}}]}"#.utf8)
-    let page = try #require(repoAgentsPage(config: lead, providers: nil, bots: bots, repo: "a/b"))
+    let page = try #require(repoRolesPage(config: lead, providers: nil, bots: bots, repo: "a/b"))
     #expect(page.rows.map(\.role) == [.author, .reviewer, .leadReviewer] && page.rows[2].fields.model == "opus")
 }

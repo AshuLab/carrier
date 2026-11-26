@@ -3,7 +3,7 @@ import Testing
 
 @testable import CarrierCore
 
-// The Agents page in Spanish (design/copy/es.json): the roles and what they do, a role's summary and identity, the readiness lines with their plural, the
+// The Roles page in Spanish (design/copy/es.json): the roles and what they do, a role's summary and identity, the readiness lines with their plural, the
 // stages, the notes about the registry and the signature, and what the engine would refuse in a role's fields. The English words are asserted in the other
 // files of this folder, with `english`.
 
@@ -22,11 +22,11 @@ private func config(author: String = #"{"profile": "acme-author", "provider": "c
 
 private let bots = ForgeBots(names: ["acme-author", "acme-reviewer", "acme-lead"], note: nil)
 
-private func page(_ json: String, bots: ForgeBots = bots) throws -> AgentsPage {
-    try #require(agentsPage(config: Data(json.utf8), providers: nil, bots: bots, bundle: b, locale: l))
+private func page(_ json: String, bots: ForgeBots = bots) throws -> RolesPage {
+    try #require(rolesPage(config: Data(json.utf8), providers: nil, bots: bots, bundle: b, locale: l))
 }
 
-private func readiness(_ json: String) throws -> AgentsReadiness { agentsReadiness(try page(json), bundle: b, locale: l) }
+private func readiness(_ json: String) throws -> RolesReadiness { rolesReadiness(try page(json), bundle: b, locale: l) }
 
 @Test func theRolesAndWhatEachOneDoesAreNamedInSpanish() {
     #expect(AgentRole.allCases.map { $0.title(bundle: b, locale: l) } == ["Autor", "Revisor", "Revisor líder"])
@@ -71,8 +71,8 @@ private func readiness(_ json: String) throws -> AgentsReadiness { agentsReadine
 @Test func theReadinessCountsTheRolesThatNeedAttentionWithTheOneOfThePlural() throws {
     #expect(try readiness(config(author: "{}")).title == "Un rol necesita atención")
     #expect(try readiness(config(author: "{}", reviewer: "{}")).title == "2 roles necesitan atención")
-    #expect(Copy.agentsNeedAttention(count: 1, bundle: b, locale: l) == "Un rol necesita atención")
-    #expect(Copy.agentsNeedAttention(count: 3, bundle: b, locale: l) == "3 roles necesitan atención")
+    #expect(Copy.rolesNeedAttention(count: 1, bundle: b, locale: l) == "Un rol necesita atención")
+    #expect(Copy.rolesNeedAttention(count: 3, bundle: b, locale: l) == "3 roles necesitan atención")
 }
 
 @Test func whatIsWrongWithARoleIsSaidInSpanishAndNamesItsRole() throws {
@@ -81,8 +81,8 @@ private func readiness(_ json: String) throws -> AgentsReadiness { agentsReadine
     #expect(nothing.notes.first == "Autor: todavía no tiene identidad.")
     let gone = try readiness(config(reviewer: #"{"profile": "gone", "provider": "codex", "model": "gpt-5"}"#))
     #expect(gone.notes.first == "Revisor: la identidad “gone” no está en Agent Forge ni en profiles. Elige otra.")
-    let unknown = try #require(agentsPage(config: Data(config().utf8), providers: Data(#"{"providers": {"claude": {"harness": "claude"}}}"#.utf8), bots: bots, bundle: b, locale: l))
-    #expect(agentsReadiness(unknown, bundle: b, locale: l).problems.map(\.text).contains("la cuenta “codex” no está en providers.json."))
+    let unknown = try #require(rolesPage(config: Data(config().utf8), providers: Data(#"{"providers": {"claude": {"harness": "claude"}}}"#.utf8), bots: bots, bundle: b, locale: l))
+    #expect(rolesReadiness(unknown, bundle: b, locale: l).problems.map(\.text).contains("la cuenta “codex” no está en providers.json."))
 }
 
 @Test func theStagesOfARoleAreSaidInSpanishWithTheSkillTheEngineRuns() {
@@ -106,8 +106,8 @@ private func readiness(_ json: String) throws -> AgentsReadiness { agentsReadine
 }
 
 @Test func theFailoverNoteCountsTheStepsTheFileKeepsWithTheOneOfThePlural() {
-    #expect(Copy.agentsMoreSteps(count: 1, bundle: b, locale: l) == "El archivo tiene 1 paso más, conservados y probados en orden.")
-    #expect(Copy.agentsMoreSteps(count: 3, bundle: b, locale: l) == "El archivo tiene 3 pasos más, conservados y probados en orden.")
+    #expect(Copy.rolesMoreSteps(count: 1, bundle: b, locale: l) == "El archivo tiene 1 paso más, conservados y probados en orden.")
+    #expect(Copy.rolesMoreSteps(count: 3, bundle: b, locale: l) == "El archivo tiene 3 pasos más, conservados y probados en orden.")
 }
 
 @Test func theRepoRolesSaySpanishWordsAndTheSignatureNoteToo() throws {
@@ -115,6 +115,6 @@ private func readiness(_ json: String) throws -> AgentsReadiness { agentsReadine
     let roles = try #require(repoRoles(json: json, repo: "a/b"))
     #expect(roles.rows[0].value.text(bundle: b, locale: l) == "x · claude · sonnet" && RoleFields().text(bundle: b, locale: l) == "Sin definir")
     #expect(signatureNote(roles.rows, bundle: b, locale: l) == "El autor y el revisor trabajan los dos como x: la firma lo mostrará.")
-    let page = try #require(repoAgentsPage(config: json, providers: nil, bots: bots, repo: "a/b", bundle: b, locale: l))
+    let page = try #require(repoRolesPage(config: json, providers: nil, bots: bots, repo: "a/b", bundle: b, locale: l))
     #expect(page.rows.map { $0.title(bundle: b, locale: l) } == ["Autor", "Revisor"])
 }

@@ -47,7 +47,7 @@ export const editBehaviorRequest = z.strictObject({
     limits: z.strictObject({ maxConcurrentEpics: whole.optional(), maxReviews: whole.optional(), maxExecutionRetries: whole.optional(), maxExecutionHours: z.union([z.literal('unlimited'), whole]).optional(), githubCallTimeoutSeconds: whole.optional() }).optional(),
   }),
 });
-// The requests that change the roles of `engine.json`: what the Agents page, a repo's role screens and the Engine page send. The words of a field the file refuses are the handler's, so a limit here is only a bound on the line.
+// The requests that change the roles of `engine.json`: what the Roles page, a repo's role screens and the Engine page send. The words of a field the file refuses are the handler's, so a limit here is only a bound on the line.
 const roleName = z.enum(['author', 'reviewer', 'leadReviewer']);
 const field = z.string().max(200);
 const identity = z.union([z.strictObject({ kind: z.literal('forge'), agent: field }), z.strictObject({ kind: z.literal('gh') })]);

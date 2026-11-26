@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import CarrierCore
 
-// What the Agents page checks of a repo's role while the person types, and what it reads of the accounts. The write is the engine's (src/config/role-edit.ts).
+// What the Roles page checks of a repo's role while the person types, and what it reads of the accounts. The write is the engine's (src/config/role-edit.ts).
 
 private let accounts = ["claude", "codex", "agy"]
 private let base = #"""

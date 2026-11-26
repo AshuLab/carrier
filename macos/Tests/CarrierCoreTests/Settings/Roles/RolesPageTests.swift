@@ -28,11 +28,11 @@ private let full = #"""
 
 private let bots = ForgeBots(names: ["acme-author", "acme-reviewer", "acme-lead"], note: nil)
 
-private func page(_ json: String = full, providers: String? = nil, bots: ForgeBots = bots) throws -> AgentsPage {
-    try #require(agentsPage(config: Data(json.utf8), providers: providers.map { Data($0.utf8) }, bots: bots, bundle: english.bundle, locale: english.locale))
+private func page(_ json: String = full, providers: String? = nil, bots: ForgeBots = bots) throws -> RolesPage {
+    try #require(rolesPage(config: Data(json.utf8), providers: providers.map { Data($0.utf8) }, bots: bots, bundle: english.bundle, locale: english.locale))
 }
 
-private func row(_ page: AgentsPage, _ role: AgentRole) throws -> RoleRow { try #require(page.rows.first { $0.role == role }) }
+private func row(_ page: RolesPage, _ role: AgentRole) throws -> RoleRow { try #require(page.rows.first { $0.role == role }) }
 
 @Test func aFullConfigGivesTheThreeRolesInOrderWithEveryField() throws {
     let found = try page()
@@ -124,8 +124,8 @@ private func row(_ page: AgentsPage, _ role: AgentRole) throws -> RoleRow { try 
 }
 
 @Test func aConfigThatIsMissingOrNotAJSONObjectIsNotConfigured() {
-    #expect(agentsPage(config: Data("[]".utf8), providers: nil, bots: bots) == nil)
-    #expect(agentsPage(config: Data("nope".utf8), providers: nil, bots: bots) == nil)
+    #expect(rolesPage(config: Data("[]".utf8), providers: nil, bots: bots) == nil)
+    #expect(rolesPage(config: Data("nope".utf8), providers: nil, bots: bots) == nil)
 }
 
 @Test func readingTheConfigNeverWritesIt() throws {
@@ -133,7 +133,7 @@ private func row(_ page: AgentsPage, _ role: AgentRole) throws -> RoleRow { try 
     defer { try? FileManager.default.removeItem(at: url) }
     try Data(full.utf8).write(to: url)
     let before = try FileManager.default.attributesOfItem(atPath: url.path)[.modificationDate] as? Date
-    _ = try #require(agentsPage(config: Data(contentsOf: url), providers: nil, bots: bots))
+    _ = try #require(rolesPage(config: Data(contentsOf: url), providers: nil, bots: bots))
     #expect(try Data(contentsOf: url) == Data(full.utf8))
     #expect(try FileManager.default.attributesOfItem(atPath: url.path)[.modificationDate] as? Date == before)
 }

@@ -16,7 +16,7 @@ test('with no Forge agents both roles are the gh login: it is accepted, and the 
   expect(config.profiles).toEqual({ gh: { kind: 'gh' } });
   expect(config.agents.author.profile).toBe('gh');
   expect(config.agents.reviewer.profile).toBe('gh');
-  expect(notes['This is what will be saved']).toContain('Identity      shared: author and reviewer are the same account, and the signature in what they publish will show it');
+  expect(notes['This is what will be saved']).toContain('Profile       shared: author and reviewer act as the same GitHub account, and the signature in what they publish will show it');
 });
 
 test('picking the same identity for the author and the reviewer is accepted without a word of protest', async () => {
@@ -52,8 +52,8 @@ test('when the reviewer has no identity left, a bot can be added right there and
   const scripted: Ui = {
     ...ui,
     select: async (o) => {
-      if (o.message === 'GitHub identity for the author') return 'forge:artanis-agent' as never;
-      if (o.message === 'GitHub identity for the reviewer') return ((reviewerAsks += 1) === 1 ? '\0add' : 'forge:new-bot') as never;
+      if (o.message === 'GitHub profile for the author') return 'forge:artanis-agent' as never;
+      if (o.message === 'GitHub profile for the reviewer') return ((reviewerAsks += 1) === 1 ? '\0add' : 'forge:new-bot') as never;
       return ui.select(o);
     },
   };
@@ -69,12 +69,12 @@ test('a failed `agent-forge add` warns and asks again; without a terminal it is 
   const { deps } = fakeDeps({ forgeAdd: () => false });
   const { ui, asked } = quietUi();
   let n = 0;
-  const spy: Ui = { ...ui, select: async (o) => (o.message === 'GitHub identity for the reviewer' ? (offered.push(o.options.map((x) => x.value)), ((n += 1) === 1 ? '\0add' : 'gh') as never) : ui.select(o)) };
+  const spy: Ui = { ...ui, select: async (o) => (o.message === 'GitHub profile for the reviewer' ? (offered.push(o.options.map((x) => x.value)), ((n += 1) === 1 ? '\0add' : 'gh') as never) : ui.select(o)) };
   await runInit({ repo: ['A/b'], authorProfile: 'forge:artanis-agent', author: 'claude:sonnet', out: join(dir, 'x.json') }, spy, deps);
   expect(asked.some((q) => q.startsWith('warn:agent-forge add did not finish'))).toBe(true);
   expect(offered.length).toBe(2);
   const withYes: string[][] = [];
   const quiet = quietUi();
-  await runInit({ repo: ['A/b'], out: join(dir, 'y.json'), yes: true }, { ...quiet.ui, select: async (o) => (o.message.startsWith('GitHub identity') && withYes.push(o.options.map((x) => x.value)), quiet.ui.select(o)) }, fakeDeps().deps);
+  await runInit({ repo: ['A/b'], out: join(dir, 'y.json'), yes: true }, { ...quiet.ui, select: async (o) => (o.message.startsWith('GitHub profile') && withYes.push(o.options.map((x) => x.value)), quiet.ui.select(o)) }, fakeDeps().deps);
   expect(withYes.flat()).not.toContain('\0add'); // --yes: no "add a bot" option in the way
 });

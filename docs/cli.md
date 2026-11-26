@@ -21,20 +21,41 @@ From a clone, run `pnpm build` and then `node dist/terminal/cli/main.js`, or `no
 
 ## `carrier init`
 
-It opens by saying what it will ask, then looks at the machine (stopping with the fix if `git`, `gh` or every agent CLI is missing) and shows what it found: each agent CLI with its path, version and login, and the local servers that answer. While it waits for the machine or for GitHub it shows a spinner. Then it asks, in this order:
+It opens by saying what it will ask, then looks at the machine (stopping with the fix if `git`, `gh` or every agent CLI is missing) and shows what it found: each agent CLI with its path, version and login, and the local servers that answer.
+While it waits for the machine or for GitHub it shows a spinner.
+Then it asks, in this order:
 
-1. **Repos to watch**, picked from the repos your `gh` login can push to (grouped by owner, with "Load more…" for the next page) or typed. "None for now" is an answer: the config is written with no repos, and Carrier watches nothing until you add one in the file or in the Mac app's Settings.
-2. **Accounts.** One account per agent CLI found is added for you, with the login that CLI already has, and written to `~/.carrier/providers.json` (even when `--out` moves the config). You are asked only for **extra** accounts, one at a time, and Enter says no: the CLI, the local server when one is running, and for Claude and Codex the config folder (the `~/.claude`, `~/.claude-*` and `~/.codex` it finds with their login state, the environment, or a typed path; Antigravity has none), then a name that must be a lowercase word and unique.
-3. **GitHub identities.** A short note explains what they are, then each role picks a bot of Agent Forge or your own `gh` login. Picking the same one twice is accepted, and the recap then says the signature will show it. If there is no bot it can run `agent-forge add` for you on the spot.
-4. **Each role** (author, reviewer, and a lead reviewer if you say yes; Enter says no): the account that runs it, its model, its effort (`low`, `medium`, `high`, `xhigh` or `max`, or the CLI's own, which writes nothing) and an optional persona (a name and a prompt, each skippable).
-5. **Failover**, with two or more accounts: for each role, whether to turn it on (Enter says no) and up to two steps, each an account and a model (the `failover` block).
-6. **Where to save**: `~/.carrier/engine.json` (one global file per user), or another file with `--out`.
+1. **Accounts.** One account per agent CLI found is added for you, with the login that CLI already has, and written to `~/.carrier/providers.json` (even when `--out` moves the config).
+   The accounts that file already holds are kept as they are: what is found is added to them and nothing is replaced or removed.
+   You are asked only for **extra** accounts, one at a time, and Enter says no: the CLI, the local server when one is running, and for Claude and Codex the config folder (the `~/.claude`, `~/.claude-*` and `~/.codex` it finds with their login state, the environment, or a typed path; Antigravity has none), then a name that must be a lowercase word and unique.
+2. **The orchestrator's GitHub profile.** A short note explains what a profile is, then you pick a bot of Agent Forge or your own `gh` login for the orchestrator, which only reads issues and PRs and changes labels.
+   If there is no bot it can run `agent-forge add` for you on the spot.
+3. **One block for each role**, closed before the next one starts: the author, the reviewer, and a lead reviewer if you say yes at "Add a lead reviewer?" (Enter says no).
+   Each block asks, in this order:
+   - The GitHub profile the role acts as: a bot of Agent Forge or your own `gh` login.
+     Picking the same one for two roles is accepted, and the recap then says the signature will show it.
+   - The account that runs it (not asked when there is only one).
+   - "Model and effort: `<model>` at `<effort>`, change them?", with Enter meaning no.
+     A yes opens the model and then the effort (`low`, `medium`, `high`, `xhigh` or `max`, or the CLI's own, which writes nothing).
+   - "Customise the persona?", with Enter meaning no.
+     A yes asks a name and a prompt, each skippable.
+   - The failover, only with two or more accounts: whether to turn it on (Enter says no) and up to two steps, each an account and a model (the `failover` block).
+     With one account the block prints one line saying that failover needs a second account and asks nothing.
 
-Before saving it shows a recap with three choices: save, **change an answer** (it asks everything again, starting from the same answers) or cancel; nothing is written until you save. It then runs the checks of `carrier doctor`, printing only what fails (otherwise a single count), shows how many epics are waiting, and offers to start Carrier.
+   With every default accepted a role costs its profile, its account and Enter for the rest.
+   Claude starts on `sonnet` at `high`.
+   Codex starts on the model in its own `config.toml`, or the first model it lists, at `high`.
+   Antigravity starts on `gemini-4-hydrogen-high`, or the first model `agy models` lists, with no effort because the effort is in the id.
+4. **Repos to watch**, last because nothing about a role needs them: picked from the repos your `gh` login can push to (grouped by owner and shown as `owner/name`, with "Load more…" for the next page) or typed.
+   "None for now" is an answer: the config is written with no repos, and Carrier watches nothing until you add one in the file or in the Mac app's Settings.
+5. **Where to save**: `~/.carrier/engine.json` (one global file per user), or another file with `--out`.
 
-Run again on an existing config, it offers to edit it (its answers are the starting points), start over, save a new one in another file, or leave it. Editing keeps the accounts of `providers.json` and lets you add more (editing or removing one is done in the file), starts each role's effort, persona and lead reviewer from the file, and asks whether to keep the failover steps it has; `-` in a persona field clears it.
+Before saving it shows a recap with three choices: save, **change an answer** (it asks everything again, starting from the same answers) or cancel; nothing is written until you save.
+It then runs the checks of `carrier doctor`, printing only what fails (otherwise a single count), shows how many epics are waiting, and offers to start Carrier.
 
-Every question has a flag (`carrier init --help`). `--author` and `--reviewer` (`<harness>:<model>`, with `--author-provider` and `--reviewer-provider`) each add an account named after its harness to `providers.json` (the one found, when it matches) and, when both are given, skip the extra-accounts and failover questions. `--author-profile` and `--reviewer-profile` answer the identities, `--author-persona-name`, `--author-persona-prompt`, `--reviewer-persona-name` and `--reviewer-persona-prompt` the personas, and `--author-effort`, `--reviewer-effort` and `--lead-reviewer-effort` the efforts. `--yes` never asks, so an agent can run it too (`--author-profile gh --reviewer-profile gh` makes both roles your `gh` login):
+Run again on an existing config, it offers to edit it (its answers are the starting points), start over, save a new one in another file, or leave it. Editing keeps the accounts of `providers.json` and lets you add more (editing or removing one is done in the file), starts each role's model, effort, persona and lead reviewer from the file, and asks whether to keep the failover steps it has; `-` in a persona field clears it.
+
+Every question has a flag (`carrier init --help`). `--author` and `--reviewer` (`<harness>:<model>`, with `--author-provider` and `--reviewer-provider`) each add an account named after its harness to `providers.json` (the one found, when it matches) and, when both are given, skip the extra-accounts and failover questions. `--author-profile` and `--reviewer-profile` answer the profiles, `--author-persona-name`, `--author-persona-prompt`, `--reviewer-persona-name` and `--reviewer-persona-prompt` the personas, and `--author-effort`, `--reviewer-effort` and `--lead-reviewer-effort` the efforts. `--yes` never asks, so an agent can run it too (`--author-profile gh --reviewer-profile gh` makes both roles your `gh` login):
 
 ```bash
 carrier init --yes --repo AshuLab/my-repo \
@@ -46,7 +67,7 @@ Without `--author` and `--reviewer`, `--yes` gives the author the first account 
 
 ## `carrier doctor` and `carrier schema`
 
-`carrier doctor` verifies the tools are installed, that each identity can get a token for each repo, that the orchestrator can read it, and that each repo it could read has the labels Carrier reads (`labels.epic` and `labels.ready`, by default `solve:epic` and `solve:epic:ready`; the fix is to run `solve:setup` in the repo). It checks a config of yours or a hand-written one at any time. `carrier schema` prints the JSON Schema of the config for your editor.
+`carrier doctor` verifies the tools are installed, that each profile can get a token for each repo, that the orchestrator can read it, and that each repo it could read has the labels Carrier reads (`labels.epic` and `labels.ready`, by default `solve:epic` and `solve:epic:ready`; the fix is to run `solve:setup` in the repo). It checks a config of yours or a hand-written one at any time. `carrier schema` prints the JSON Schema of the config for your editor.
 
 For each role of each repo it also asks whether each skill the role invokes exists for the account the role runs on: the author's `ship` and `fix`, the reviewer's `review` and `publish` (none when `publish` is `null`), as `skills` in the config names them.
 Each skill gets one check with one of three answers.

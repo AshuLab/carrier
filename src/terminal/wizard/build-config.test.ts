@@ -15,7 +15,7 @@ test('buildConfig names a forge profile after its agent and the login "gh", and 
   expect(config.agents.reviewer).toEqual({ profile: 'bot', provider: 'codex', model: 'x:y' });
   expect(config).not.toHaveProperty('providers'); // the accounts go in providers.json
   expect(loadConfig(defaults, config, providers).ok).toBe(true);
-  expect(() => parseIdentity('forge')).toThrow('invalid identity');
+  expect(() => parseIdentity('forge')).toThrow('invalid profile');
   expect(parseHarnessModel('codex:x:y')).toEqual({ harness: 'codex', model: 'x:y' });
   expect(() => parseHarnessModel('gpt:4')).toThrow('invalid agent');
 });

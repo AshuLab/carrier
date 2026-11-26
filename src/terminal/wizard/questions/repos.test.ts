@@ -130,7 +130,7 @@ test('a first page emptied by the filter still offers "Load more…" while GitHu
 });
 
 test('"None for now" writes a config with no repos that still loads; a typed none does the same; picked repos win over it', async () => {
-  const notNow = 'Start Carrier now? (Ctrl+C stops it)';
+  const notNow = 'Start Carrier now?';
   const list = fakeDeps({ listRepos: () => ({ names: ['AshuLab/skills'], hasMore: false }) });
   const out = join(dir, 'none.json');
   const { ui, notes } = quietUi({ [repoKey]: '\0none', [notNow]: false });

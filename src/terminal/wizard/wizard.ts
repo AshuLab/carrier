@@ -191,10 +191,16 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
   let made = make(answers);
 
   out ??= resolve(await askOut(ui, fallback));
-  if (!settled && deps.exists(out) && !flags.yes && !(await ui.confirm(`${out} exists. Overwrite it?`, false))) throw new Error(`${out} already exists`);
+  if (!settled && deps.exists(out) && !flags.yes) {
+    if (!ui.interactive) throw new Error(`${out} already exists: pass --yes to replace it, or --out to write another file`);
+    if (!(await ui.confirm(`${out} exists. Overwrite it?`, false))) throw new Error(`${out} already exists`);
+  }
+  const file = out;
+  const recap = () => ui.note(summary(answers.repos, answers.author, answers.reviewer, answers.providers, answers.failover, file, providersPath, answers.leadReviewer, answers.orchestrator), 'This is what will be saved');
+  if (!interactive) recap(); // --yes asked nothing, so the recap is the only place the choices show
   // The recap is the way back: changing an answer asks everything again, starting from these answers.
   while (interactive) {
-    ui.note(summary(answers.repos, answers.author, answers.reviewer, answers.providers, answers.failover, out, providersPath, answers.leadReviewer, answers.orchestrator), 'This is what will be saved');
+    recap();
     const next = await ui.select({
       message: 'Save it?',
       options: [
@@ -224,7 +230,14 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
   const ready = await ui.busy('Asking GitHub which epics are ready…', () => deps.readyEpics(made.config, folder));
   const waiting = Object.entries(ready).map(([repo, count]) => `${repo}: ${count === undefined ? 'could not read' : `${count} epic${count === 1 ? '' : 's'} marked ready`}`);
   if (waiting.length > 0) ui.note(waiting.join('\n'), 'Waiting for Carrier');
-  const start = interactive && (await ui.confirm('Start Carrier now? (Ctrl+C stops it)', true));
+  let start = false;
+  if (interactive) {
+    try {
+      start = await ui.confirm('Start Carrier now?', true);
+    } catch (error) {
+      if (!(error instanceof Cancelled)) throw error; // the config is saved and checked: Ctrl+C here is a no
+    }
+  }
   if (!start) ui.outro(`Ready. Start it with: carrier${use}\n${answers.repos.length > 0 ? `Then add the label solve:epic:ready to an epic in ${answers.repos.join(' or ')} and Carrier picks it up.` : 'No repos yet: add one to "repos" in the config, or in the app\'s Settings, Repos.'}`); // otherwise the caller carries on in the same frame
   return { path: out, checks, config: made.config, start };
 }

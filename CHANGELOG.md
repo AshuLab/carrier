@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- An epic whose slices build for more than 10 minutes no longer ends its `ship` with "no result file was written" and starts again from the top.
+  Claude's headless mode stopped the subagents still running 10 minutes after the agent's last turn and exited; the engine now turns that limit off (a `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS` you exported is kept), pins Antigravity's print mode to no time limit, and tells the author, whatever its harness, not to end its turn while its subagents or background tasks are running.
+
 ## [0.20.0] - 2026-11-25
 
 The Mac app in Spanish and organized by area, `carrier config`, named engine and chat host processes, worktree chips that say where the work stands, and glass terminals.

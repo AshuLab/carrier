@@ -22,6 +22,9 @@ export function buildAgyCommand(task: AgentTask, ctx: CommandContext): AgentComm
       // stream-json (not json) so the conversation id arrives while the run is going.
       '--output-format',
       'stream-json',
+      // No time limit on print mode (its default, pinned): the run ends when the turn does, never while the agent's own work is going.
+      '--print-timeout',
+      '0',
       '--model',
       task.model,
       ...(task.effort ? ['--effort', task.effort] : []),

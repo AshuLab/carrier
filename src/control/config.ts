@@ -1,5 +1,5 @@
 import { editBehavior, setWatchedRepos, type BehaviorChanges } from '../config/engine-edit.ts';
-import { addExtraReviewer, editFailover, editPersona, editRepoRole, editRole, setLeadReviewer, setOrchestratorProfile, type ExtraReviewerDraft, type FailoverStep, type RepoRoleFields, type Role, type RoleChanges } from '../config/role-edit.ts';
+import { addExtraReviewer, editFailover, editPersona, editRepoRole, editRole, setLeadReviewer, setOrchestratorProfile, type EditRoleChanges, type ExtraReviewerDraft, type FailoverStep, type RepoRoleFields, type Role, type RoleChanges, type Target } from '../config/role-edit.ts';
 import { ReloadRefused } from '../orchestration/reload-refused.ts';
 import type { TextParams } from '../orchestration/text-params.ts';
 
@@ -9,10 +9,10 @@ import type { TextParams } from '../orchestration/text-params.ts';
 export type EngineConfigRequest =
   | { cmd: 'setWatchedRepos'; repos: string[] }
   | { cmd: 'editBehavior'; changes: BehaviorChanges }
-  | { cmd: 'editRole'; role: Role; changes: RoleChanges }
+  | { cmd: 'editRole'; role: Target; changes: EditRoleChanges }
   | { cmd: 'editRepoRole'; repo: string; role: Role; fields: RepoRoleFields | null }
-  | { cmd: 'editPersona'; role: Role; name: string | null; prompt: string | null }
-  | { cmd: 'editFailover'; role: Role; first: FailoverStep | null; second: FailoverStep | null }
+  | { cmd: 'editPersona'; role: Target; name: string | null; prompt: string | null }
+  | { cmd: 'editFailover'; role: Target; first: FailoverStep | null; second: FailoverStep | null }
   | { cmd: 'setLeadReviewer'; draft: RoleChanges | null }
   | { cmd: 'setOrchestratorProfile'; name: string | null }
   | { cmd: 'addExtraReviewer'; draft: ExtraReviewerDraft };

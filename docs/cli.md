@@ -234,6 +234,7 @@ For `projects.json`:
 
 The engine owns `engine.json`, through its nine requests:
 `setWatchedRepos { repos }`, `editBehavior { changes }`, `editRole { role, changes }`, `editRepoRole { repo, role, fields }` (`fields: null` removes the override), `editPersona { role, name, prompt }`, `editFailover { role, first, second }`, `setLeadReviewer { draft }` (`draft: null` turns it off), `setOrchestratorProfile { name }` and `addExtraReviewer { draft }` (the draft has `name`, `type`, `identity`, `provider`, `model` and an optional `effort`; the key is derived from the name and never sent).
+`editRole`, `editPersona` and `editFailover` take `"role": { "extraReviewer": "<key>" }` in place of a role name to change an extra reviewer by its key; `editRole` then also takes `name` and `type` in `changes`, and `editFailover` writes the reviewer's own `failover`.
 
 A reply that saved has `saved`, the part of the file it changed (`addProject` also says `added`, `removeProject` says `removed`).
 For `engine.json` and `providers.json` it also has `engine`: `applied` when the running engine read the file again, `refused` (with its `reason` for `engine.json`, `engineReason` for `providers.json`: words, code and params) when it kept its settings and the file is saved all the same, and `notRunning` when no engine answers.

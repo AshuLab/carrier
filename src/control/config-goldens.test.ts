@@ -22,15 +22,15 @@ afterEach(() => {
   rmSync(registry, { recursive: true, force: true });
 });
 
-function golden(name: string, built: EngineConfigRequest) {
+function golden(name: string, built: EngineConfigRequest, file: object = validEngineFile) {
   const folder = mkdtempSync(join(tmpdir(), 'cg-'));
   try {
-    writeFileSync(engineConfigPathOf(folder), JSON.stringify(validEngineFile));
+    writeFileSync(engineConfigPathOf(folder), JSON.stringify(file));
     expect(request.safeParse({ id: 1, ...built }).success).toBe(true);
     const json = `${JSON.stringify({ request: built, reply: { ok: true, data: withEngine(writeEngineConfig(built, engineConfigPathOf(folder), folder), () => {}) } }, null, 2)}\n`;
-    const file = fileURLToPath(new URL(`../../macos/Tests/Fixtures/${name}.json`, import.meta.url));
-    if (process.env.UPDATE_FIXTURES === '1') writeFileSync(file, json);
-    expect(json).toBe(readFileSync(file, 'utf8'));
+    const golden = fileURLToPath(new URL(`../../macos/Tests/Fixtures/${name}.json`, import.meta.url));
+    if (process.env.UPDATE_FIXTURES === '1') writeFileSync(golden, json);
+    expect(json).toBe(readFileSync(golden, 'utf8'));
   } finally {
     rmSync(folder, { recursive: true, force: true });
   }
@@ -74,4 +74,32 @@ test('the setOrchestratorProfile request and reply equal engine-set-orchestrator
 
 test('the addExtraReviewer request and reply equal engine-add-extra-reviewer.json', () => {
   golden('engine-add-extra-reviewer', { cmd: 'addExtraReviewer', draft: { name: 'Seguridad API', type: 'security', identity: { kind: 'forge', agent: 'nova' }, provider: 'claude', model: 'sonnet', effort: 'high' } });
+});
+
+// The file the requests that point at an extra reviewer start from: two of them, the first with its persona and its own failover steps.
+const withExtraReviewers = {
+  ...validEngineFile,
+  agents: {
+    ...validEngineFile.agents,
+    extraReviewers: {
+      'seguridad-api': { type: 'security', name: 'Seguridad API', profile: 'author-bot', provider: 'claude', model: 'sonnet', effort: 'high', persona: { name: 'Sentinel', prompt: 'Busca fallas de seguridad.' }, failover: [{ provider: 'codex', model: 'gpt-5' }] },
+      usabilidad: { type: 'ux', name: 'Usabilidad', profile: 'reviewer-bot', provider: 'claude', model: 'opus' },
+    },
+  },
+};
+
+test('the editRole request that points at an extra reviewer and its reply equal engine-edit-extra-reviewer-role.json', () => {
+  golden(
+    'engine-edit-extra-reviewer-role',
+    { cmd: 'editRole', role: { extraReviewer: 'seguridad-api' }, changes: { name: 'Seguridad del front', type: 'frontend-security', identity: { kind: 'forge', agent: 'nova' }, provider: 'codex', model: 'gpt-5-codex', effort: null } },
+    withExtraReviewers,
+  );
+});
+
+test('the editPersona request that points at an extra reviewer and its reply equal engine-edit-extra-reviewer-persona.json', () => {
+  golden('engine-edit-extra-reviewer-persona', { cmd: 'editPersona', role: { extraReviewer: 'seguridad-api' }, name: 'Centinela', prompt: null }, withExtraReviewers);
+});
+
+test('the editFailover request that points at an extra reviewer and its reply equal engine-edit-extra-reviewer-failover.json', () => {
+  golden('engine-edit-extra-reviewer-failover', { cmd: 'editFailover', role: { extraReviewer: 'seguridad-api' }, first: { provider: 'agy', model: 'gemini', effort: 'low' }, second: null }, withExtraReviewers);
 });

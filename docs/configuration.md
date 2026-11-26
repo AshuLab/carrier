@@ -358,6 +358,10 @@ A resume at `review` or `fix` (`carrier restart --from`) of an epic that stopped
 - `addExtraReviewer` adds a reviewer from a complete draft (`name`, `type`, identity, `provider`, `model` and an optional `effort`) at the end of the global map, in one write.
   The engine derives the key from the name with the rule above, the same one `carrier init` uses, and refuses the draft naming the field when one is missing, the name is blank, over 40 characters, holds a line break or is another reviewer's (compared without case), the type is not a slug, the identity, the provider or the effort is not one the file knows, or the map already has three.
   The engine announces it with the capability `extraReviewers`.
+- `editRole`, `editPersona` and `editFailover` take `{ "extraReviewer": "<key>" }` in place of a role name, and change only what they name, with the rules and the refusals they have for the Reviewer.
+  `editRole` also takes `name` and `type` for an extra reviewer, with the rules of a name and a type above (the key never changes), and refuses them for the author, the reviewer and the lead.
+  `editFailover` writes the `failover` of the reviewer's own entry, not `failover.roles`, and takes it out when both steps are `null`, so the reviewer goes back to the Reviewer's steps; a change of the reviewer's provider and model drops an own step that now means nothing.
+  A key the file does not hold is refused, naming it, and the file stays as it was.
 - The lead takes `skills` with only `lead`; a key for a stage the role does not run is refused naming it.
 - The profile and the provider of each extra reviewer must be declared, and the steps of its `failover` are checked like those of `failover.roles` (a provider that is not declared, a step repeated, a step equal to the reviewer's own provider and model), each refused naming its path, which holds the reviewer's key.
 - Give each reviewer a profile of its own, a bot for each.

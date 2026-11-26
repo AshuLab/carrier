@@ -38,6 +38,9 @@ let goldenRoleChanges: [(String, EngineConfigChange)] = [
     ("engine-set-lead-reviewer-off.json", .leadReviewer(nil)),
     ("engine-set-orchestrator-profile.json", .orchestratorProfile("author-bot")),
     ("engine-add-extra-reviewer.json", .addExtraReviewer(ExtraReviewerDraft(name: "Seguridad API", type: "security", identity: .bot("nova"), provider: "claude", model: "sonnet", effort: "high"))),
+    ("engine-edit-extra-reviewer-role.json", .extraReviewerRole(key: "seguridad-api", name: "Seguridad del front", type: "frontend-security", [.bot("nova"), .provider("codex"), .model("gpt-5-codex"), .effort(nil)])),
+    ("engine-edit-extra-reviewer-persona.json", .extraReviewerPersona(key: "seguridad-api", name: "Centinela", prompt: nil)),
+    ("engine-edit-extra-reviewer-failover.json", .extraReviewerFailover(key: "seguridad-api", first: FailoverStep(provider: "agy", model: "gemini", effort: "low"), second: nil)),
 ]
 
 func goldenLead() -> LeadReviewerDraft {

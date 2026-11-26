@@ -23,7 +23,8 @@ A status that names a later record means that record changed part or all of this
 
 - [0009](review/0009-observations-trigger-one-resolve-pass-before-ready-for-test.md) - A review that leaves observations triggers one resolve pass by the author before the epic is ready for test (accepted)
 - [0047](review/0047-a-review-is-tied-to-the-head-it-was-given-and-a-moved-head-is-reviewed-again.md) - A review is tied to the head it was given, and a moved head is reviewed again (accepted)
-- [0048](review/0048-a-review-round-has-several-reviewers-in-parallel-and-a-lead-reviewer-closes-it.md) - A review round has several reviewers in parallel, and a lead reviewer closes it (accepted)
+- [0048](review/0048-a-review-round-has-several-reviewers-in-parallel-and-a-lead-reviewer-closes-it.md) - A review round has several reviewers in parallel, and a lead reviewer closes it (accepted; the shape of `extraReviewers` is amended by [0057](review/0057-an-extra-reviewer-is-an-entry-of-a-map-with-a-key-a-name-and-a-type.md))
+- [0057](review/0057-an-extra-reviewer-is-an-entry-of-a-map-with-a-key-a-name-and-a-type.md) - An extra reviewer is an entry of a map with a key, a name and a type (proposed; amends [0048](review/0048-a-review-round-has-several-reviewers-in-parallel-and-a-lead-reviewer-closes-it.md))
 
 ## agents
 

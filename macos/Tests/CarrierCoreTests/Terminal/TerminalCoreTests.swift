@@ -391,8 +391,8 @@ struct TerminalCoreTests {
                     #expect(profile.palette[index].contrastRatio(with: profile.background) >= 3.5)
                     #expect(profile.palette[index + 8].contrastRatio(with: profile.background) >= 3.5)
                 }
-                #expect(profile.isSurfaceTranslucent == (theme == .carrier))
-                #expect(profile.backgroundOpacity == (theme == .carrier ? 0.0 : 1.0))
+                #expect(profile.isSurfaceTranslucent == true)
+                #expect(profile.backgroundOpacity == 0.0)
                 #expect(profile.background.hexString.hasPrefix("#"))
                 #expect(profile.foreground.hexString.count == 7)
                 #expect(profile.fontFamily == "JetBrains Mono")

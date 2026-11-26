@@ -108,6 +108,7 @@ struct TerminalPaneHostView: View {
                 .animation(.easeOut(duration: 0.15), value: showControls)
             }
         }
+        .terminalSurfaceCard(store.appearanceProfile)
         .accessibilityElement(children: .contain)
         .accessibilityAction(named: Copy.terminalSplitRight()) { _ = store.splitPane(paneId, edge: .trailing) }
         .accessibilityAction(named: Copy.terminalSplitDown()) { _ = store.splitPane(paneId, edge: .bottom) }

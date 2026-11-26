@@ -6,7 +6,9 @@ import UniformTypeIdentifiers
 
 struct TerminalTabChip: View {
     @Environment(\.pieceTheme) private var theme
-    static let height: CGFloat = 26
+    static let height: CGFloat = 32
+
+    private var shape: Capsule { Capsule() }
 
     let tab: TerminalTab
     let index: Int
@@ -55,8 +57,8 @@ struct TerminalTabChip: View {
                             .accessibilityHidden(true)
                     }
                 }
-                .padding(.leading, Tokens.Space.s10)
-                .padding(.trailing, showsClose ? Tokens.Space.s2 : Tokens.Space.s10)
+                .padding(.leading, Tokens.Space.s12)
+                .padding(.trailing, showsClose ? Tokens.Space.s2 : Tokens.Space.s12)
                 .frame(maxHeight: .infinity)
                 .contentShape(Rectangle())
             }
@@ -87,10 +89,10 @@ struct TerminalTabChip: View {
         .padding(.trailing, showsClose ? Tokens.Space.s4 : Tokens.Space.none)
         .frame(height: Self.height)
         .frame(maxWidth: 220)
+        .clipShape(shape)
         .background(backgroundFill)
         .overlay(borderStroke)
-        .clipShape(Capsule())
-        .contentShape(Capsule())
+        .contentShape(shape)
         .onMiddleClick(perform: close)
         .onHover { hovered = $0 }
         .animation(.easeOut(duration: 0.12), value: hovered)
@@ -173,25 +175,19 @@ struct TerminalTabChip: View {
         )
     }
 
-    private var backgroundFill: some View {
-        Capsule().fill(
-            isDropTarget
-                ? theme.accent.opacity(0.20)
-                : selected
-                    ? theme.accent.opacity(0.16)
-                    : hovered ? Color.primary.opacity(0.08) : Color.primary.opacity(0.04)
-        )
+    /// Flat at rest: the group is a quiet fill. Only the selected tab is glass; the hovered one and a drop target are filled.
+    @ViewBuilder private var backgroundFill: some View {
+        if isDropTarget {
+            shape.fill(theme.accent.opacity(0.20))
+        } else if selected {
+            Color.clear.glassEffect(.regular, in: shape)
+        } else {
+            shape.fill(hovered ? Color.primary.opacity(0.07) : Color.clear)
+        }
     }
 
     private var borderStroke: some View {
-        Capsule().strokeBorder(
-            isDropTarget
-                ? theme.accent.opacity(0.60)
-                : selected
-                    ? theme.accent.opacity(0.32)
-                    : hovered ? Color.primary.opacity(0.12) : Color.primary.opacity(0.06),
-            lineWidth: isDropTarget ? 1.5 : 1
-        )
+        shape.strokeBorder(isDropTarget ? theme.accent.opacity(0.60) : Color.clear, lineWidth: 1.5)
     }
 
     private var tooltipText: String {

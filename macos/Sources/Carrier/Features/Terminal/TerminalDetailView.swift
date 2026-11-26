@@ -23,17 +23,20 @@ struct TerminalDetailView: View {
                 // while offsetting top-edge floating pane controls below `headerSafeInset` so they never collide
                 // with toolbar buttons and keeping the tab bar anchored cleanly below.
                 GeometryReader { proxy in
-                    let tabBarTotalHeight = TerminalTabBarView<EmptyView>.height + 1
+                    let tabBarTotalHeight = TerminalTabBarView<EmptyView>.height
                     VStack(spacing: Tokens.Space.none) {
                         ScrollView {
                             TerminalSplitLayoutView(
                                 store: store,
                                 tab: tab,
                                 autoFocus: true,
-                                topControlsInset: headerSafeInset,
                                 onSelectTab: { store.selectTab($0, for: owner) }
                             )
                             .id(tab.id)
+                            .padding(.horizontal, Tokens.Space.s8)
+                            .padding(.bottom, Tokens.Space.s8)
+                            // the cards sits under the toolbar's buttons, not behind them
+                            .padding(.top, headerSafeInset)
                             .frame(
                                 width: proxy.size.width,
                                 height: max(0, proxy.size.height - tabBarTotalHeight)
@@ -44,7 +47,6 @@ struct TerminalDetailView: View {
                         .scrollEdgeEffectStyle(.soft, for: .top)
                         .ignoresSafeArea(.container, edges: .top)
 
-                        SettingsDivider()
                         TerminalTabBarView(
                             store: store,
                             tabs: tabs,
@@ -64,7 +66,7 @@ struct TerminalDetailView: View {
                     }
                     .background {
                         if store.appearanceProfile.isSurfaceTranslucent == false {
-                            Color(store.appearanceProfile.background)
+                            Color(store.appearanceProfile.chromeBackground)
                                 .ignoresSafeArea(.container, edges: .top)
                         }
                     }

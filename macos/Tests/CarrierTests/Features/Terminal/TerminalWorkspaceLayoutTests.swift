@@ -61,7 +61,7 @@ struct TerminalWorkspaceLayoutTests {
         var entries: [String] = []
         var terminalFrame: NSRect?
         var scrollViewFrame: NSRect?
-        var tabBarScrollFrame: NSRect?
+        var detailColumnFrame: NSRect?
         var scrollPocketFrames: [NSRect] = []
         func walk(_ v: NSView, depth: Int = 0) {
             let name = String(describing: type(of: v))
@@ -73,8 +73,8 @@ struct TerminalWorkspaceLayoutTests {
             if name.contains("HostingScrollView"), rect.width >= 400, rect.height >= 400 {
                 scrollViewFrame = rect
             }
-            if name.contains("HostingScrollView"), rect.width >= 400, rect.height <= 40 {
-                tabBarScrollFrame = rect
+            if name.contains("ColumnView"), rect.width >= 400, detailColumnFrame == nil {
+                detailColumnFrame = rect
             }
             if name == "NSScrollPocket" {
                 scrollPocketFrames.append(rect)
@@ -86,11 +86,13 @@ struct TerminalWorkspaceLayoutTests {
         let msg = "safe=\(host.view.safeAreaInsets) entries=\(entries.joined(separator: " | "))"
         let actual = try #require(terminalFrame, "Missing AppTerminalView: \(msg)")
         let container = try #require(scrollViewFrame, "Missing HostingScrollView: \(msg)")
-        let tabBar = try #require(tabBarScrollFrame, "Missing bottom TerminalTabBarView: \(msg)")
-        // Detail view lets the terminal surface extend behind the translucent top toolbar while mounting the shared tab bar below it.
-        #expect(actual.minY <= 4, "Expected terminal to extend behind top toolbar to the window top edge: \(msg)")
-        #expect(abs(actual.maxY - container.maxY) <= 1, "Expected terminal bottom to match detail ScrollView bottom: \(msg)")
-        #expect(tabBar.minY >= actual.maxY, "Expected TerminalTabBarView below terminal surface: \(msg)")
+        let column = try #require(detailColumnFrame, "Missing the detail column: \(msg)")
+        // The detail view draws the terminal as a card under the toolbar's buttons (not behind them), 8 pt above the bottom of its area, with the shared tab bar below it.
+        let topInset = host.view.safeAreaInsets.top
+        #expect(actual.minY > 4 && actual.minY <= topInset, "Expected the terminal card below the window's top edge and not past the toolbar: \(msg)")
+        #expect(abs(container.maxY - actual.maxY - Tokens.Space.s8) <= 1, "Expected the terminal card 8 pt above the bottom of the detail ScrollView: \(msg)")
+        // The tab bar is not looked for as a view (how a scroll view is backed depends on the macOS version): the room under the terminal's scroll view is its height.
+        #expect(abs(column.maxY - container.maxY - TerminalTabBarView<EmptyView>.height) <= 1, "Expected the bottom of the detail column to be the tab bar's height below the terminal: \(msg)")
         // Ensure macOS mounts a detail-column NSScrollPocket spanning the translucent top toolbar.
         #expect(scrollPocketFrames.contains(where: { $0.height >= 40 && $0.width >= 400 }), "Expected detail NSScrollPocket: \(msg)")
         window.close()

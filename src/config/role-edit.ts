@@ -1,5 +1,6 @@
 import { readForgeAgents } from '../terminal/wizard/forge-registry.ts';
 import { isObject, readObject, refuse, write } from './engine-edit.ts';
+import { extraReviewerKey, maxSlugLength, slugPattern } from './extra-reviewer-key.ts';
 import { providersProblem, readProvidersFile } from './providers.ts';
 import { efforts } from './schema.ts';
 
@@ -80,16 +81,12 @@ function dropFailoverSteps(file: Json, role: Role, entry: Json) {
   else delete file.failover;
 }
 
-/** `current` with the changes made to `role` together, or a refusal; with `creating` the role may not be in the file yet, and then the changes have to make the whole role. */
-function changeRole(current: Json, role: Role, changes: RoleChanges, creating: boolean, folder: string) {
-  const agents = object(current.agents);
-  if (isObject(agents[role]) === false && creating === false) throw noEntry(role);
-  const entry = object(agents[role]);
-  const profiles = object(current.profiles);
+/** The changes applied to `entry` and `profiles` (both are copies the caller owns), or a refusal at `at`; `title` is how the refusal calls the entry. */
+function applyChanges(entry: Json, profiles: Json, changes: RoleChanges, at: string, title: string, folder: string) {
   const { identity } = changes;
   if (identity !== undefined) {
     if (identity.kind === 'forge' && botNames().includes(identity.agent) === false) {
-      throw refuse(`agents.${role}.profile`, 'botNotListed', `“${identity.agent}” is not in Agent Forge’s list. Pick another one.`);
+      throw refuse(`${at}.profile`, 'botNotListed', `“${identity.agent}” is not in Agent Forge’s list. Pick another one.`);
     }
     // the profile that already means it, else a free name
     const means = (profile: unknown) => isObject(profile) && profile.kind === identity.kind && (identity.kind === 'gh' || profile.agent === identity.agent);
@@ -102,9 +99,18 @@ function changeRole(current: Json, role: Role, changes: RoleChanges, creating: b
   if (changes.effort === null) delete entry.effort;
   else if (changes.effort !== undefined) entry.effort = changes.effort;
   const fields: RepoRoleFields = { profile: text(entry.profile), provider: text(entry.provider), model: text(entry.model), effort: text(entry.effort) };
-  if (fields.model === undefined) throw refuse(`agents.${role}.model`, 'empty', 'The model cannot be empty.');
-  if (fields.profile === undefined || fields.provider === undefined) throw refuse(`agents.${role}`, 'incomplete', `${titles[role]} needs an identity, a provider and a model.`);
-  fieldsProblem(fields, Object.keys(profiles), accountsOf(folder), `agents.${role}`);
+  if (fields.model === undefined) throw refuse(`${at}.model`, 'empty', 'The model cannot be empty.');
+  if (fields.profile === undefined || fields.provider === undefined) throw refuse(at, 'incomplete', `${title} needs an identity, a provider and a model.`);
+  fieldsProblem(fields, Object.keys(profiles), accountsOf(folder), at);
+}
+
+/** `current` with the changes made to `role` together, or a refusal; with `creating` the role may not be in the file yet, and then the changes have to make the whole role. */
+function changeRole(current: Json, role: Role, changes: RoleChanges, creating: boolean, folder: string) {
+  const agents = object(current.agents);
+  if (isObject(agents[role]) === false && creating === false) throw noEntry(role);
+  const entry = object(agents[role]);
+  const profiles = object(current.profiles);
+  applyChanges(entry, profiles, changes, `agents.${role}`, titles[role], folder);
   const next = { ...current, agents: { ...agents, [role]: entry }, profiles };
   dropFailoverSteps(next, role, entry);
   return { next, entry };
@@ -139,6 +145,36 @@ export function setLeadReviewer(draft: RoleChanges | null, file: string, folder:
   }
   write(file, next, folder);
   return { saved: {} };
+}
+
+/** What `addExtraReviewer` takes; a field left out is refused by name, so the request never writes half a reviewer. */
+export type ExtraReviewerDraft = { name?: string; type?: string; identity?: Identity; provider?: string; model?: string; effort?: string };
+const extrasAt = 'agents.extraReviewers';
+const maxExtraReviewers = 3;
+
+/** Adds a reviewer at the end of the global `agents.extraReviewers`, whole, in one write; its key comes from its name (`extraReviewerKey`, the rule `carrier init` uses). */
+export function addExtraReviewer(draft: ExtraReviewerDraft, file: string, folder: string) {
+  const missing = ([['name', draft.name?.trim()], ['type', draft.type?.trim()], ['identity', draft.identity], ['provider', draft.provider?.trim()], ['model', draft.model?.trim()]] as const).filter(([, value]) => !value).map(([label]) => label);
+  if (missing.length > 0) throw refuse(`${extrasAt}.${missing[0]}`, 'incomplete', `An extra reviewer needs ${missing.join(', ')}.`);
+  const name = draft.name!.trim();
+  const type = draft.type!.trim();
+  if (name.length > maxSlugLength || /[\r\n]/.test(draft.name!)) throw refuse(`${extrasAt}.name`, 'tooLong', 'The name is one line of up to 40 characters.');
+  if (slugPattern.test(type) === false) throw refuse(`${extrasAt}.type`, 'notASlug', 'The type is a slug of up to 40 characters: it starts with a letter and holds lowercase letters, digits and hyphens.');
+  if (draft.effort !== undefined && (efforts as readonly string[]).includes(draft.effort) === false) throw refuse(`${extrasAt}.effort`, 'notOneOf', `Effort must be one of ${efforts.join(', ')}.`);
+  const current = readObject(file);
+  const agents = object(current.agents);
+  if (agents.extraReviewers !== undefined && isObject(agents.extraReviewers) === false) throw refuse(extrasAt, 'notAMap', 'agents.extraReviewers has to be a map from a key to a reviewer. Fix it in engine.json first.');
+  const extras = object(agents.extraReviewers);
+  const entries = Object.values(extras);
+  if (entries.length >= maxExtraReviewers) throw refuse(extrasAt, 'full', `At most ${maxExtraReviewers} extra reviewers: remove one first.`);
+  if (entries.some((other) => isObject(other) && typeof other.name === 'string' && other.name.trim().toLowerCase() === name.toLowerCase())) throw refuse(`${extrasAt}.name`, 'taken', `“${name}” is already another reviewer’s name. Pick another one.`);
+  const entry: Json = { type, name };
+  const profiles = object(current.profiles);
+  applyChanges(entry, profiles, { identity: draft.identity, provider: draft.provider, model: draft.model, effort: draft.effort }, extrasAt, 'An extra reviewer', folder);
+  const key = extraReviewerKey(name, Object.keys(extras));
+  const next = { ...current, agents: { ...agents, extraReviewers: { ...extras, [key]: entry } }, profiles };
+  write(file, next, folder);
+  return { saved: { agents: { extraReviewers: { [key]: entry } }, profiles } };
 }
 
 /** A repo's own role: the fields that are set, the entry's other keys kept; the entry goes when nothing is left (and `agents` with the last), and `fields: null` takes it out whole. */

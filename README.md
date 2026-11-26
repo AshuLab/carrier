@@ -31,7 +31,7 @@ brew install --cask ashulab/tap/carrier   # the Mac app (optional, macOS 26+, Ap
 Before you use it you also need:
 
 - At least one agent CLI (`claude`, `codex` or `agy`), installed and logged in.
-- A GitHub identity for the author and another for the reviewer: [Agent Forge](https://github.com/AshuLab/agent-forge) bots, or your own `gh` login.
+- A GitHub profile for the author and another for the reviewer: [Agent Forge](https://github.com/AshuLab/agent-forge) bots, or your own `gh` login.
 - Target repos that use the [Solve](https://github.com/AshuLab/skills) flow ([how to prepare one](docs/preparing-a-repo.md)).
 
 More options (no Homebrew, upgrade, uninstall): [install](docs/install.md).
@@ -39,10 +39,20 @@ More options (no Homebrew, upgrade, uninstall): [install](docs/install.md).
 ## First run
 
 ```bash
-carrier init      # guided setup: repos, agents, identities. Writes ~/.carrier/engine.json
-carrier doctor    # checks the config and the machine, and tells you how to fix what fails
+carrier init      # guided setup: accounts, profiles, one block per role, repos. Writes ~/.carrier/engine.json
 carrier           # starts Carrier and shows the live panel (Ctrl+C stops it)
 ```
+
+`carrier init` asks, in this order:
+
+1. Your AI accounts (it finds the agent CLIs and keeps the accounts you already have).
+2. The GitHub profile of the orchestrator.
+3. One block for each role (author, reviewer, and an optional lead reviewer): its GitHub profile, its account, whether to change the model and effort, whether to customise the persona, and its failover when you have two accounts.
+4. The repos to watch.
+
+With every default accepted a role costs its profile and its account, then Enter for the model and effort, the persona and, with two or more accounts, the failover.
+At the end it shows a recap, saves the config, runs the checks of `carrier doctor` and offers to start Carrier.
+You can run `carrier doctor` yourself at any time: it checks the config and the machine and tells you how to fix what fails.
 
 Then add the label `solve:epic:ready` to an epic in one of your repos and watch the panel. Prefer the Mac app? Open it: it finds `carrier` by itself.
 

@@ -20,7 +20,7 @@ test('with a list of repos they are picked, not typed; the current folder is fir
   const { ui, listed } = quietUi();
   const out = join(dir, 'h.json');
   await runInit({ out }, ui, deps);
-  expect(listed[0]).toEqual(['AshuLab:carrier,skills', 'vemec:encaja', 'Other:Other…,None for now']); // one section per owner, the folder's owner first
+  expect(listed[0]).toEqual(['AshuLab:AshuLab/carrier,AshuLab/skills', 'vemec:vemec/encaja', 'Other:Other…,None for now']); // one section per owner, the folder's owner first, and each repo as owner/name so the collapsed answer says where it is
   expect(JSON.parse(written[out]!).repos).toEqual([{ name: 'AshuLab/carrier' }]);
 });
 
@@ -80,9 +80,9 @@ test('"Load more…" reads the next page, keeps what was ticked and files the ne
   const out = join(dir, 'm.json');
   await runInit({ out }, ui, deps);
   expect(asked).toEqual([1, 2]);
-  expect(labels(lists[0]!)).toEqual(['AshuLab:carrier,skills', 'vemec:encaja', `Other:${loadMoreEntry},Other…,None for now`]);
+  expect(labels(lists[0]!)).toEqual(['AshuLab:AshuLab/carrier,AshuLab/skills', 'vemec:vemec/encaja', `Other:${loadMoreEntry},Other…,None for now`]);
   expect(initial[1]).toEqual(['AshuLab/skills']); // the ticked one stays, the entry is not one of them
-  expect(labels(lists[1]!)).toEqual(['AshuLab:carrier,skills,tools', 'vemec:encaja', 'zed:new', 'Other:Other…,None for now']); // no more pages: no entry
+  expect(labels(lists[1]!)).toEqual(['AshuLab:AshuLab/carrier,AshuLab/skills,AshuLab/tools', 'vemec:vemec/encaja', 'zed:zed/new', 'Other:Other…,None for now']); // no more pages: no entry
   expect(JSON.parse(written[out]!).repos).toEqual([{ name: 'AshuLab/skills' }, { name: 'zed/new' }]);
 });
 

@@ -1,32 +1,46 @@
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { carrierHome, engineConfigPathOf, providersPathOf } from '../../config/places.ts';
 import { defaults, loadConfig } from '../../config/load.ts';
-import { defaultAccounts } from '../../config/providers.ts';
+import { defaultAccounts, loadProviders, providersProblem } from '../../config/providers.ts';
 import { detect } from '../../doctor/detect.ts';
 import { installFix } from '../../doctor/fixes.ts';
 import type { LocalProvider } from '../../harnesses/local.ts';
 import { harnessNames } from '../../harnesses/names.ts';
 import { Cancelled, type Ui } from '../prompts/types.ts';
-import { buildConfig, parseIdentity, type AIProvider, type Role } from './build-config.ts';
+import { buildConfig, type AIProvider, type Role } from './build-config.ts';
 import { realDeps, type InitDeps } from './deps.ts';
 import type { InitFlags } from './flags.ts';
 import type { ForgeAgent } from './forge-registry.ts';
 import { keepRest } from './keep-rest.ts';
 import { priorFrom, type Prior } from './prior.ts';
 import { askIdentity } from './questions/identity.ts';
-import { askFailover, askProviders, askRoleProvider, declareFlaggedProvider } from './questions/options.ts';
-import { askModel } from './questions/agent.ts';
-import { askEffort } from './questions/effort.ts';
-import { askPersona } from './questions/persona.ts';
+import { askProviders, declareFlaggedProvider, mergeAccounts } from './questions/options.ts';
+import { askRole } from './questions/role.ts';
 import { askOut } from './questions/out.ts';
 import { askRepos } from './questions/repos.ts';
-import { failoverLine, foundLines, summary, tilde } from './summary.ts';
+import { roleKey, type RoleSlot } from './roles.ts';
+import { foundLines, summary, tilde } from './summary.ts';
+
+/** The accounts `providers.json` already holds, as it keeps them (a folder under the home folder with its `~`); none when the file is not there or has no `providers` key. An unreadable or invalid file stops here: writing over it would lose its accounts. */
+function heldBy(deps: InitDeps, providersPath: string): Record<string, AIProvider> {
+  if (!deps.exists(providersPath)) return {};
+  let raw: unknown;
+  try {
+    raw = deps.readConfig(providersPath);
+  } catch (error) {
+    throw new Error(`${tilde(providersPath)} cannot be read, and init will not write over the accounts in it: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  const loaded = loadProviders(raw);
+  if (!loaded.ok) throw new Error(`${providersProblem(dirname(providersPath), loaded.errors)}\ninit will not write over the accounts in it: fix the file first.`);
+  if (typeof raw !== 'object' || raw === null || !('providers' in raw)) return {};
+  return Object.fromEntries(Object.entries(loaded.providers).map(([name, account]) => [name, { ...account, ...(account.configDir && { configDir: tilde(account.configDir) }), ...(account.command && { command: tilde(account.command) }) }]));
+}
 
 /** The setup flow: look at the machine, ask what is missing, recap, save, check, offer to start. */
 export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDeps, folder = carrierHome()) {
   ui.intro('Carrier setup');
   const interactive = ui.interactive && !flags.yes; // --yes never asks, whatever the terminal
-  if (interactive) ui.note('Carrier works through your GitHub epics with AI agents: one writes the code, another reviews it.\nI look at this Mac first, then ask what is missing:\n  1. The repos to watch\n  2. Your AI accounts\n  3. Who Carrier reads GitHub as, then for the author and the reviewer: GitHub identity, account and model\n  4. Where to save it\nBefore anything is written you see the whole picture and can change it.', 'What this does');
+  if (interactive) ui.note('Carrier works through your GitHub epics with AI agents: one writes the code, another reviews it.\nI look at this Mac first, then ask what is missing:\n  1. Your AI accounts\n  2. Who Carrier reads GitHub as (the orchestrator\'s GitHub profile)\n  3. The author, the reviewer and an optional lead reviewer, one block each: GitHub profile, account, model and effort, persona and failover\n  4. The repos to watch\n  5. Where to save it\nBefore anything is written you see the whole picture and can change it.', 'What this does');
 
   const forge = { agents: [] as ForgeAgent[] };
   const readForge = () => {
@@ -49,7 +63,7 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
   ];
   if (lacking.length > 0) throw new Error(`Carrier needs these before it can run:\n${lacking.map((line) => `  ${line}`).join('\n')}`);
   ui.note(foundLines(detected).join('\n'), 'Found on this Mac');
-  if (login === undefined) ui.warn('gh is not logged in (run: gh auth login): your repos cannot be listed, and a "my own gh login" identity will not work.');
+  if (login === undefined) ui.warn('gh is not logged in (run: gh auth login): your repos cannot be listed, and a "my own gh login" profile will not work.');
 
   // A config that is already there: edit it (its answers become the starting points), start over, or leave it.
   const fallback = engineConfigPathOf(folder);
@@ -73,7 +87,7 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
       message: `A config already exists at ${tilde(fallback)}`,
       options: [
         { value: 'edit', label: 'Edit it', hint: 'its answers are the starting points' },
-        { value: 'fresh', label: 'Start over', hint: 'replaces it' },
+        { value: 'fresh', label: 'Start over', hint: 'resets the answers of engine.json, keeps your accounts' },
         { value: 'elsewhere', label: 'Save a new one in another file' },
         { value: 'cancel', label: 'Leave it as it is' },
       ],
@@ -87,7 +101,7 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
         choice = await ui.select({
           message: 'What do you want to do with it?',
           options: [
-            { value: 'fresh', label: 'Start over', hint: 'replaces it' },
+            { value: 'fresh', label: 'Start over', hint: 'resets the answers of engine.json, keeps your accounts' },
             { value: 'elsewhere', label: 'Save a new one in another file' },
             { value: 'cancel', label: 'Leave it as it is' },
           ],
@@ -106,103 +120,62 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
     if ('error' in found) ui.warn(`${tilde(out ?? fallback)} does not validate and is replaced, first error: ${found.error}`);
   }
 
-  const ask = async (from: Prior | undefined, keepAccounts: boolean): Promise<Prior> => {
-    const repos = flags.repo ?? (await askRepos(ui, deps, from?.repos));
+  // The accounts already in providers.json are the base of every path; what was found is added, never replacing.
+  const heldAccounts = heldBy(deps, providersPath);
 
-    // 1. AI Providers: accounts and connections (pure setup, no models)
-    // What was found becomes the accounts; an edit starts from the file's own accounts instead.
-    let providers: Record<string, AIProvider> = keepAccounts ? { ...from!.providers } : Object.fromEntries(harnesses.map((harness) => [harness, { harness }]));
-    const flagged = (roleKey: 'author' | 'reviewer' | 'leadReviewer', roleName: 'author' | 'reviewer' | 'lead reviewer') => {
-      const flag = flags[roleKey];
+  const ask = async (from: Prior | undefined, accounts: Record<string, AIProvider>, heldNames: string[]): Promise<Prior> => {
+    // 1. Accounts: found on this Mac and the ones already held, then the person's own
+    let providers = accounts;
+    const flagged = (slot: 'author' | 'reviewer' | 'lead-reviewer') => {
+      const key = roleKey(slot) as 'author' | 'reviewer' | 'leadReviewer';
+      const flag = flags[key];
       if (flag === undefined) return undefined;
-      const declared = declareFlaggedProvider(providers, roleName.replace(/\s+/g, '-'), flag, flags[`${roleKey}Provider` as keyof InitFlags] as string | undefined);
+      const declared = declareFlaggedProvider(providers, slot, flag, flags[`${key}Provider`]);
       providers = declared.providers;
       return { provider: declared.providerName, model: declared.model };
     };
-    const [flaggedAuthor, flaggedReviewer, flaggedLeadReviewer] = [flagged('author', 'author'), flagged('reviewer', 'reviewer'), flagged('leadReviewer', 'lead reviewer')];
+    const [flaggedAuthor, flaggedReviewer, flaggedLead] = [flagged('author'), flagged('reviewer'), flagged('lead-reviewer')];
     const unattended = flaggedAuthor !== undefined && flaggedReviewer !== undefined;
+    if (!unattended) providers = await askProviders(ui, providers, harnesses, locals, deps, heldNames);
 
-    if (!unattended) providers = await askProviders(ui, providers, harnesses, locals, deps, keepAccounts ? 'file' : 'found');
-
-    // 2. GitHub identities: the orchestrator's first, then one per role; picking the same one twice shares it, and the recap says so
+    // 2. The orchestrator's GitHub profile; the roles' come in their blocks. Picking the same one twice shares it, and the recap says so.
     readForge();
     const asking = interactive && !(flags.authorProfile && flags.reviewerProfile);
     if (asking) {
       ui.note(
         [
           'Carrier works on GitHub for you: it pushes branches, opens pull requests, labels epics and posts review comments.',
-          'Every one of those actions is done as a GitHub identity. You pick one for the orchestrator, which only reads issues and PRs and changes labels, then one for the author and one for the reviewer:',
+          'Every one of those actions is done as a GitHub profile. You pick one for the orchestrator, which only reads issues and PRs and changes labels, then one for each role:',
           '',
           "• Agent Forge bot: a separate GitHub App account. What it does shows under the bot's name, with access only to the repos it is installed on. The best choice: author and reviewer are different accounts, so the review is a real second look.",
           '',
           `• Your own gh login${login === undefined ? '' : ` (${login})`}: acts as you, with all your access. Simpler to set up, but what Carrier does shows as you. If both roles use it, Carrier signs what each one publishes so it is clear who wrote it.`,
         ].join('\n'),
-        'GitHub identities',
+        'GitHub profiles',
       );
     }
-    // Not asked (--yes or the profile flags): the file's own when editing, else the author's identity.
+    // Not asked (--yes or the profile flags): the file's own when editing, else the author's profile.
     const orchestrator = asking ? await askIdentity(ui, 'orchestrator', forge, readForge, login, undefined, deps, interactive, from?.orchestrator) : from?.orchestrator;
-    const authorIdentity = flags.authorProfile ? parseIdentity(flags.authorProfile) : await askIdentity(ui, 'author', forge, readForge, login, undefined, deps, interactive, from?.author.identity);
-    const reviewerIdentity = flags.reviewerProfile ? parseIdentity(flags.reviewerProfile) : await askIdentity(ui, 'reviewer', forge, readForge, login, authorIdentity, deps, interactive, from?.reviewer.identity);
 
-    // 3. Agents: Author and Reviewer (provider, model, persona)
-    if (!(flags.authorProfile && flags.author)) ui.note('Writes the code of each epic and answers the reviewer.\nThe persona at the end is optional: a name and how it behaves.', 'Author');
-    const authorProvider = flaggedAuthor?.provider ?? (await askRoleProvider(ui, 'author', providers, from?.author.provider));
-    const authorModel = flaggedAuthor?.model ?? (await askModel(ui, providers[authorProvider]!.harness, providers[authorProvider]!.provider, locals, deps, 'author', from?.author.model));
-    const authorEffort = await askEffort(ui, 'author', flags.authorEffort, interactive, from?.author.effort);
-    const authorPersona = await askPersona(ui, 'author', { name: flags.authorPersonaName, prompt: flags.authorPersonaPrompt }, interactive, from?.author.persona);
-    const author: Role = { identity: authorIdentity, provider: authorProvider, model: authorModel, ...(authorEffort && { effort: authorEffort }), ...(authorPersona && { persona: authorPersona }) };
+    // 3. One closed block per role
+    const context = { ui, deps, flags, interactive, unattended, providers, locals, forge, readForge, login };
+    const block = (slot: RoleSlot, start: { after?: Role; flagged?: { provider: string; model: string } }) => {
+      const key = roleKey(slot) as 'author' | 'reviewer' | 'leadReviewer';
+      const fromRole = from?.[key];
+      return askRole(context, slot, { ...start, ...(fromRole && { from: fromRole }), ...(from?.failover?.roles?.[key] && { steps: from.failover.roles[key] }) });
+    };
+    const author = await block('author', { flagged: flaggedAuthor });
+    const reviewer = await block('reviewer', { after: author.role, flagged: flaggedReviewer });
+    const wantLead = flags.leadReviewer !== undefined || (interactive ? await ui.confirm('Add a lead reviewer?', from?.leadReviewer !== undefined) : from?.leadReviewer !== undefined);
+    const lead = wantLead ? await block('lead-reviewer', { after: reviewer.role, flagged: flaggedLead }) : undefined;
 
-    if (!(flags.reviewerProfile && flags.reviewer)) ui.note('Reviews the pull request when the author is done.\nThe persona at the end is optional: a name and how it behaves.', 'Reviewer');
-    const reviewerProvider = flaggedReviewer?.provider ?? (await askRoleProvider(ui, 'reviewer', providers, from?.reviewer.provider, authorProvider));
-    const reviewerModel = flaggedReviewer?.model ?? (await askModel(ui, providers[reviewerProvider]!.harness, providers[reviewerProvider]!.provider, locals, deps, 'reviewer', from?.reviewer.model));
-    const reviewerEffort = await askEffort(ui, 'reviewer', flags.reviewerEffort, interactive, from?.reviewer.effort);
-    const reviewerPersona = await askPersona(ui, 'reviewer', { name: flags.reviewerPersonaName, prompt: flags.reviewerPersonaPrompt }, interactive, from?.reviewer.persona);
-    const reviewer: Role = { identity: reviewerIdentity, provider: reviewerProvider, model: reviewerModel, ...(reviewerEffort && { effort: reviewerEffort }), ...(reviewerPersona && { persona: reviewerPersona }) };
+    const chosen = { author: author.failover, reviewer: reviewer.failover, leadReviewer: lead?.failover };
+    const roles = Object.fromEntries(Object.entries(chosen).filter(([, steps]) => steps !== undefined));
+    const failover = Object.keys(roles).length > 0 ? { ...(from?.failover ?? { triggers: ['usage_limit', 'rate_limit', 'service_down'] }), roles } : undefined;
 
-    // 4. Optional Lead Reviewer (Tech Lead role setup)
-    let leadReviewer: Role | undefined;
-    const wantLead = flags.leadReviewer !== undefined
-      ? true
-      : interactive
-        ? await (async () => {
-            ui.note(
-              'A second, optional reviewer for architecture and production readiness.',
-              'Lead reviewer',
-            );
-            return ui.confirm('Add a lead reviewer?', from?.leadReviewer !== undefined);
-          })()
-        : from?.leadReviewer !== undefined;
-
-    if (wantLead) {
-      const leadIdentity = flags.leadReviewerProfile
-        ? parseIdentity(flags.leadReviewerProfile)
-        : await askIdentity(ui, 'lead reviewer', forge, readForge, login, authorIdentity, deps, interactive, from?.leadReviewer?.identity ?? reviewerIdentity);
-
-      const leadProvider = flaggedLeadReviewer?.provider ?? (await askRoleProvider(ui, 'lead reviewer', providers, from?.leadReviewer?.provider, reviewerProvider));
-      const leadModel = flaggedLeadReviewer?.model ?? (await askModel(ui, providers[leadProvider]!.harness, providers[leadProvider]!.provider, locals, deps, 'lead reviewer', from?.leadReviewer?.model));
-      const leadEffort = await askEffort(ui, 'lead reviewer', flags.leadReviewerEffort, interactive, from?.leadReviewer?.effort);
-      const leadPersona = await askPersona(ui, 'lead reviewer', { name: flags.leadReviewerPersonaName, prompt: flags.leadReviewerPersonaPrompt }, interactive, from?.leadReviewer?.persona);
-      leadReviewer = { identity: leadIdentity, provider: leadProvider, model: leadModel, ...(leadEffort && { effort: leadEffort }), ...(leadPersona && { persona: leadPersona }) };
-    }
-
-    const failover =
-      from?.failover !== undefined && (unattended || (await ui.confirm(`Keep the failover you have? ${failoverLine(from.failover)}`, true)))
-        ? from.failover
-        : unattended
-          ? undefined
-          : await askFailover(
-              ui,
-              providers,
-              [
-                { role: 'author', key: 'author', own: author },
-                { role: 'reviewer', key: 'reviewer', own: reviewer },
-                ...(leadReviewer ? [{ role: 'lead reviewer' as const, key: 'leadReviewer' as const, own: leadReviewer }] : []),
-              ],
-              locals,
-              deps,
-            );
-    return { repos, providers, ...(orchestrator && { orchestrator }), author, reviewer, ...(leadReviewer && { leadReviewer }), ...(failover && { failover }) };
+    // 4. The repos, last: nothing about a role needs them
+    const repos = flags.repo ?? (await askRepos(ui, deps, from?.repos));
+    return { repos, providers, ...(orchestrator && { orchestrator }), author: author.role, reviewer: reviewer.role, ...(lead && { leadReviewer: lead.role }), ...(failover && { failover }) };
   };
 
   const make = (answers: Prior) => {
@@ -212,7 +185,7 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
     if (!loaded.ok) throw new Error(`the answers do not make a valid config:\n${loaded.errors.map((e) => `  ${e.path}: ${e.message}`).join('\n')}`);
     return { user, config: loaded.config };
   };
-  let answers = await ask(prior, prior !== undefined && deps.exists(providersPath));
+  let answers = await ask(prior, mergeAccounts(heldAccounts, harnesses), Object.keys(heldAccounts));
   let made = make(answers);
 
   out ??= resolve(await askOut(ui, fallback));
@@ -237,7 +210,7 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
     });
     if (next === 'cancel') throw new Cancelled();
     if (next === 'save') break;
-    answers = await ask(answers, true);
+    answers = await ask(answers, answers.providers, Object.keys(answers.providers));
     made = make(answers);
   }
   deps.writeConfig({ engine: made.user, file: out, providers: answers.providers, folder });

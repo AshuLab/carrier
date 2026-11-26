@@ -12,7 +12,7 @@ const folder = join(dir, 'home');
 const engine = join(folder, 'engine.json');
 const existingKey = `A config already exists at ${engine}`;
 const reposKey = 'Repos to watch (owner/name, comma separated, or none for now)';
-const notNow = 'Start Carrier now? (Ctrl+C stops it)';
+const notNow = 'Start Carrier now?';
 
 // A file with every setting the wizard does not ask, next to the ones it does.
 const rich = {
@@ -50,7 +50,7 @@ const run = async (engineFile: Record<string, unknown>, answers: Record<string, 
 };
 
 test('an edit with one answer changed keeps every setting the wizard does not ask', async () => {
-  const { written } = await run(rich, { 'Model for the author': 'sonnet' });
+  const { written } = await run(rich, { 'Model and effort: opus, change it?': true, 'Model for the author': 'sonnet' });
   expect(written.agents.author).toEqual({ profile: 'tassadar-agent', provider: 'claude', model: 'sonnet', skills: { ship: 'role-ship' } }); // the model is the one change, the role's skills stay
   expect(written.agents.leadReviewer.skills).toEqual({ lead: { review: 'lead-review' } });
   expect(written.agents.extraReviewers).toEqual(rich.agents.extraReviewers);

@@ -32,11 +32,14 @@ export const foundLines = ({ harnesses, accounts, servers }: Detected) => [
   ...localKinds.map((kind) => `${localLabel[kind].padEnd(12)} ${servers[kind].running ? `running · ${servers[kind].models.length} models` : 'not running'}`),
 ];
 
+/** The steps of a failover chain as one line: `claude opus → codex`. */
+export const stepsLine = (steps: { provider: string; model?: string }[]) => steps.map((step) => (step.model ? `${step.provider} ${step.model}` : step.provider)).join(' → ');
+
 /** A failover chain per role, as one line: `author: claude opus → codex`. */
 export const failoverLine = (failover: Failover) =>
   Object.entries(failover.roles ?? {})
     .filter(([_, steps]) => steps.length > 0)
-    .map(([role, steps]) => `${role}: ${steps.map((step) => (step.model ? `${step.provider} ${step.model}` : step.provider)).join(' → ')}`)
+    .map(([role, steps]) => `${role}: ${stepsLine(steps)}`)
     .join(' · ');
 
 /** What is about to be written, in one box. */
@@ -53,7 +56,7 @@ export const summary = (
 ) =>
   [
     ['Repos', repos.length > 0 ? repos.join(', ') : 'none yet'],
-    ...(sameAccount(author.identity, reviewer.identity) ? [['Identity', 'shared: author and reviewer are the same account, and the signature in what they publish will show it']] : []),
+    ...(sameAccount(author.identity, reviewer.identity) ? [['Profile', 'shared: author and reviewer act as the same GitHub account, and the signature in what they publish will show it']] : []),
     ['Orchestrator', identityLine(orchestrator ?? author.identity)],
     ['Accounts', Object.keys(providers).join(', ')],
     ['Author', roleLine(author, providers)],

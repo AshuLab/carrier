@@ -16,7 +16,7 @@ export function parseIdentity(text: string): Identity {
   if (text === 'gh') return { kind: 'gh' };
   const agent = /^forge:(.+)$/.exec(text)?.[1];
   if (agent !== undefined) return { kind: 'forge', agent };
-  throw new Error(`invalid identity "${text}", expected "forge:<agent>" or "gh"`);
+  throw new Error(`invalid profile "${text}", expected "forge:<agent>" or "gh"`);
 }
 
 export const identityText = (identity: Identity) => (identity.kind === 'gh' ? 'gh' : `forge:${identity.agent}`);

@@ -235,6 +235,7 @@ test.skipIf(!hasInitTools)('init with --lead-reviewer flags forwards them and co
     profile: 'gh',
     provider: 'claude',
     model: 'opus',
+    effort: 'high',
     persona: { name: 'Architect', prompt: 'Be rigorous.' },
   });
 }, 30_000);
